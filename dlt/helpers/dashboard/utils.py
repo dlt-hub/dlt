@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Tuple, Union, cast
 import os
 import platform
 import subprocess
+import sqlglot
 
 import dlt
 import marimo as mo
@@ -350,7 +351,7 @@ def clear_query_cache(pipeline: dlt.Pipeline) -> None:
     Clear the query cache and history
     """
 
-    get_query_result.cache_clear()
+    get_query_result_cached.cache_clear()
     get_schema_by_version.cache_clear()
     # get_row_counts.cache_clear()
 
@@ -377,11 +378,22 @@ def get_example_query_for_dataset(pipeline: dlt.Pipeline, schema_name: str) -> T
     return "", None, None
 
 
+def get_query_result(pipeline: dlt.Pipeline, query: str) -> Tuple[pd.DataFrame, str, str]:
+    """
+    Get the result of a query. Parses the query to ensure it is a valid SQL query before sending it to the destination.
+    """
+    try:
+        sqlglot.parse_one(
+            query,
+            dialect=pipeline.destination.capabilities().sqlglot_dialect,
+        )
+        return get_query_result_cached(pipeline, query), None, None
+    except Exception as exc:
+        return pd.DataFrame(), _exception_to_string(exc), traceback.format_exc()
+
+
 @functools.cache
-def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
-    """
-    Get the result of a query.
-    """
+def get_query_result_cached(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     return pipeline.dataset()(query, _execute_raw_query=True).df()
 
 

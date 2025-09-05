@@ -155,7 +155,7 @@ browse_data_query_history_subtitle = (
     " present in the cache. Select one or more to see the results again below and compare."
 )
 
-browse_data_query_error = "Error executing SQL query:"
+browse_data_query_error = "Error executing SQL query. "
 
 browse_data_query_hint = """SELECT
   *

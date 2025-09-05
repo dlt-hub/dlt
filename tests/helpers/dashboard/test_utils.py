@@ -19,6 +19,7 @@ import dlt
 from dlt.helpers.dashboard.config import DashboardConfiguration
 from dlt.helpers.dashboard.utils import (
     PICKLE_TRACE_FILE,
+    get_query_result_cached,
     resolve_dashboard_config,
     get_local_pipelines,
     get_pipeline,
@@ -44,6 +45,9 @@ from dlt.helpers.dashboard.utils import (
     trace_resolved_config_values,
     trace_step_details,
     get_state_as_yaml_string,
+    get_source_and_resouce_state_for_table,
+    get_default_query_for_table,
+    get_example_query_for_dataset,
 )
 
 from tests.helpers.dashboard.example_pipelines import (
@@ -136,6 +140,18 @@ def test_get_pipelines(pipeline: dlt.Pipeline):
     assert pipelines_dir == pipeline.pipelines_dir
     assert len(pipelines) == 1
     assert pipelines[0]["name"] == pipeline.pipeline_name
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_get_source_and_resouce_state_for_table(pipeline: dlt.Pipeline):
+    """Test getting source and resource state for a table"""
+    table = pipeline.default_schema.tables["purchases"]
+    resource_name, source_state, resource_state = get_source_and_resouce_state_for_table(
+        table, pipeline, pipeline.default_schema_name
+    )
+    assert resource_name
+    assert resource_state
+    assert source_state
 
 
 def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
@@ -311,10 +327,11 @@ def test_create_column_list_basic(
 def test_get_query_result(pipeline: dlt.Pipeline):
     """Test getting query result from real pipeline"""
     # Clear cache first
-    get_query_result.cache_clear()
+    get_query_result_cached.cache_clear()
 
-    result = get_query_result(pipeline, "SELECT COUNT(*) as count FROM purchases")
-    assert isinstance(result, pd.DataFrame)
+    result, error_message, traceback_string = get_query_result(
+        pipeline, "SELECT COUNT(*) as count FROM purchases"
+    )
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert isinstance(result, pd.DataFrame)
@@ -326,6 +343,38 @@ def test_get_query_result(pipeline: dlt.Pipeline):
         )  #  merge does not work on filesystem
     else:
         assert len(result) == 0
+        assert error_message
+        assert traceback_string
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_get_default_query_for_table(pipeline: dlt.Pipeline):
+    query, error_message, traceback_string = get_default_query_for_table(
+        pipeline, pipeline.default_schema_name, "purchases", True
+    )
+    assert (
+        query
+        == 'SELECT\n  "id",\n  "customer_id",\n  "inventory_id",\n  "quantity",\n  "date",\n '
+        ' "_dlt_load_id",\n  "_dlt_id"\nFROM "purchases"\nLIMIT 1000'
+    )
+    assert not error_message
+    assert not traceback_string
+    assert query
+
+
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_get_example_query_for_dataset(pipeline: dlt.Pipeline):
+    query, error_message, traceback_string = get_example_query_for_dataset(
+        pipeline, pipeline.default_schema_name
+    )
+    assert (
+        query
+        == 'SELECT\n  "id",\n  "name",\n  "city",\n  "_dlt_load_id",\n  "_dlt_id"\nFROM'
+        ' "customers"\nLIMIT 1000'
+    )
+    assert not error_message
+    assert not traceback_string
+    assert query
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -362,16 +411,20 @@ def test_get_loads(pipeline: dlt.Pipeline):
     config = DashboardConfiguration()
 
     # Clear cache first
-    result = get_loads(config, pipeline, limit=100)
+    result, error_message, traceback_string = get_loads(config, pipeline, limit=100)
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert isinstance(result, list)
         assert len(result) >= 1  # Should have at least one load
+        assert not error_message
+        assert not traceback_string
         if result:
             load = result[0]
             assert "load_id" in load
     else:
         assert result == []
+        assert error_message
+        assert traceback_string
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -616,19 +669,29 @@ def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
         assert row_counts == {}
 
     # Test query execution
-    query_result = get_query_result(pipeline, "SELECT name FROM customers ORDER BY id")
+    query_result, error_message, traceback_string = get_query_result(
+        pipeline, "SELECT name FROM customers ORDER BY id"
+    )
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert len(query_result) == 13
         assert query_result.iloc[0]["name"] == "simon"
+        assert not error_message
+        assert not traceback_string
     else:
         assert len(query_result) == 0
+        assert error_message
+        assert traceback_string
 
     # Test loads
     config = DashboardConfiguration()
-    loads = get_loads(config, pipeline)
+    loads, error_message, traceback_string = get_loads(config, pipeline)
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert len(loads) >= 1
+        assert not error_message
+        assert not traceback_string
     else:
+        assert error_message
+        assert traceback_string
         assert loads == []
 
 

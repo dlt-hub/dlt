@@ -14,7 +14,6 @@ with app.setup:
     import marimo as mo
 
     import pandas as pd
-    import sqlglot
 
     import dlt
     from dlt.common.json import json
@@ -357,23 +356,23 @@ def section_browse_data_table_list(
                     )
                 )
 
-            _sql_query, error_message, traceback_string = utils.get_default_query_for_table(
+            _sql_query, _error_message, _traceback_string = utils.get_default_query_for_table(
                 dlt_pipeline,
                 dlt_selected_schema_name,
                 _table_name,
                 dlt_restrict_to_last_1000.value,
             )
 
-        _placeholder, error_message, traceback_string = utils.get_example_query_for_dataset(
+        _placeholder, _error_message, _traceback_string = utils.get_example_query_for_dataset(
             dlt_pipeline,
             dlt_selected_schema_name,
         )
 
-        if error_message:
+        if _error_message:
             _result.append(
                 ui.build_error_callout(
-                    strings.browse_data_error_text + error_message,
-                    traceback_string=traceback_string,
+                    strings.browse_data_error_text + _error_message,
+                    traceback_string=_traceback_string,
                 )
             )
         else:
@@ -428,7 +427,6 @@ def section_browse_data_query_result(
     _result = []
 
     dlt_query_history_table: mo.ui.table = None
-    dlt_query_error_encountered: bool = False
     dlt_query: str = None
 
     if (
@@ -438,29 +436,33 @@ def section_browse_data_query_result(
         and dlt_query_editor is not None
     ):
         _result.append(ui.build_title_and_subtitle(strings.browse_data_query_result_title))
+        _error_message: str = None
         with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
             if dlt_query_editor.value and (dlt_run_query_button.value):
-                try:
-                    sqlglot.parse_one(
-                        dlt_query_editor.value,
-                        dialect=dlt_pipeline.destination.capabilities().sqlglot_dialect,
-                    )
-                    if dlt_clear_query_cache.value:
-                        utils.clear_query_cache(dlt_pipeline)
-                    dlt_query = dlt_query_editor.value
-                    dlt_set_last_query_result(utils.get_query_result(dlt_pipeline, dlt_query))
-                except Exception as e:
-                    dlt_query_error_encountered = True
-                    _result.append(
-                        ui.build_error_callout(strings.browse_data_query_error, code=str(e))
-                    )
+                if dlt_clear_query_cache.value:
+                    utils.clear_query_cache(dlt_pipeline)
+                dlt_query = dlt_query_editor.value
+                _query_result, _error_message, _traceback_string = utils.get_query_result(
+                    dlt_pipeline, dlt_query
+                )
+                dlt_set_last_query_result(_query_result)
 
-        # add result
+            # display error message if encountered
+            if _error_message:
+                _result.append(
+                    ui.build_error_callout(
+                        strings.browse_data_query_error + _error_message,
+                        traceback_string=_traceback_string,
+                    )
+                )
+
+        # always display result table
         _last_result = dlt_get_last_query_result()
-        if _last_result is not None and not dlt_query_error_encountered:
-            _result += [
-                mo.ui.table(_last_result, selection=None),
-            ]
+        if _last_result is not None:
+            _result.append(mo.ui.table(_last_result, selection=None))
+
+        # update cache if there was noe error
+        if _last_result is not None and not _error_message:
             # update query cache
             cache = dlt_get_query_cache()
             if dlt_query:
