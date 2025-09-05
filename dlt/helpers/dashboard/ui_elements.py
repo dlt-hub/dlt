@@ -6,27 +6,40 @@ import marimo as mo
 import traceback
 
 
-def build_error_callout(message: str, code: str = None) -> Any:
+def build_error_callout(message: str, code: str = None, traceback_string: str = None) -> Any:
     """Build a callout with a message and a exposable stacktrace.
 
     Args:
         message (str): The message to display in the callout.
+        code (str): The code to display in the callout.
+        traceback_string (str): The traceback to display in the callout.
 
     Returns:
         mo.ui.Callout: The callout with the message and the stacktrace.
     """
     if code:
         code = code.replace("\x1b[4m", ">>>").replace("\x1b[0m", "<<<")
+
+    traceback_string = traceback_string or traceback.format_exc()
+    if traceback_string.startswith("NoneType: None"):
+        traceback_string = None
+
+    stack_items = [mo.md(message)]
+    if code:
+        stack_items.append(mo.ui.code_editor(code, language="shell"))
+    if traceback_string:
+        stack_items.append(
+            mo.accordion(
+                {
+                    "Show stacktrace for more information or debugging": mo.ui.code_editor(
+                        traceback_string, language="shell"
+                    )
+                }
+            )
+        )
+
     return mo.callout(
-        mo.vstack(
-            [
-                mo.md(message),
-                mo.ui.code_editor(code, language="shell") if code else None,
-                mo.accordion(
-                    {"Show stacktrace": mo.ui.code_editor(traceback.format_exc(), language="shell")}
-                ),
-            ]
-        ),
+        mo.vstack(stack_items),
         kind="warn",
     )
 

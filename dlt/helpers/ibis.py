@@ -193,7 +193,7 @@ def create_ibis_backend(
         # does not work yet.
         raise NotImplementedError(
             f"Destination type `{Destination.from_reference(destination).destination_type}` is not"
-            " supported."
+            " supported by the Ibis backend."
         )
 
     return con

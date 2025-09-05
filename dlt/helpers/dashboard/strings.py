@@ -91,23 +91,6 @@ app_title_pipeline = """
 """
 
 #
-# Sync status section
-#
-sync_status_title = "Sync Status"
-sync_status_subtitle = "Sync the pipeline state from the destination"
-sync_status_subtitle_long = (
-    "Sync the pipeline state from the destination. This will update the pipeline state and "
-    "schema from the destination."
-)
-sync_status_success_text = "Pipeline state synced successfully from `{}`."
-sync_status_spinner_text = "Syncing pipeline state from destination..."
-
-sync_status_error_text = (
-    f"Error syncing pipeline state from the destination. {_credentials_info} Switching to local"
-    " mode."
-)
-
-#
 # Overview section
 #
 overview_title = "Pipeline Overview"
@@ -129,7 +112,7 @@ schema_subtitle_long = (
     "from the actual schema materialized in the destination."
 )
 
-schema_no_default_available_text = "No schemas available. Does your pipeline have a completed load?"
+schema_no_default_available_text = f"No schemas found for this pipeline. {_credentials_info}"
 schema_table_details_title = "Table Details for Selected Tables"
 schema_table_columns_title = "`{}` Columns"
 schema_raw_yaml_title = "Raw Schema as YAML"
@@ -158,7 +141,7 @@ browse_data_subtitle_long = (
     " The resource state of the currently selected table will also be displayed if it is available."
 )
 
-browse_data_error_text = f"Error connecting to destination. {_credentials_info}"
+browse_data_error_text = "Dashboard is not able to read data from this destination. "
 
 browse_data_explorer_title = """
 <small>Select a table above or write an SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. All queries are cached. Please clear the cache if you need to refresh the results for a query.</small>
@@ -172,7 +155,7 @@ browse_data_query_history_subtitle = (
     " present in the cache. Select one or more to see the results again below and compare."
 )
 
-browse_data_query_error = "Error executing SQL query:"
+browse_data_query_error = "Error executing SQL query. "
 
 browse_data_query_hint = """SELECT
   *
@@ -237,7 +220,11 @@ loads_subtitle_long = (
     " destination, such as the row count for that load and the schema for this load. Depending on"
     " the destination and your data, this might take some time."
 )
-loads_loading_failed_text = f"Failed to load loads from destination. {_credentials_info}"
+loads_loading_failed_text = "Failed to load loads from destination. "
+no_loads_found_text = (
+    "No loads found. Either this pipeline was never run or there was a problem connecting to the"
+    " destination."
+)
 loads_loading_spinner_text = "Loading loads from destination..."
 
 # loads details
@@ -254,7 +241,7 @@ loads_details_schema_version_subtitle = (
 )
 loads_details_loading_spinner_text = "Loading row counts and schema..."
 
-loads_details_error_text = "Error loading load details"
+loads_details_error_text = "Error loading load details. "
 
 #
 # Ibis backend page
@@ -268,5 +255,5 @@ ibis_backend_connected_text = (
     "The Ibis backend connected successfully. If you are in Marimo edit mode, you can now see "
     "the connected database in the datasources panel."
 )
-ibis_backend_error_text = f"Error connecting to Ibis backend. {_credentials_info}"
+ibis_backend_error_text = "Error connecting to Ibis backend. "
 ibis_backend_connecting_spinner_text = "Connecting to Ibis backend..."
