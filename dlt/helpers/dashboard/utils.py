@@ -372,10 +372,10 @@ def get_default_query_for_table(
 
 
 def get_example_query_for_dataset(pipeline: dlt.Pipeline, schema_name: str) -> Tuple[str, str, str]:
-    _dataset = cast(ReadableDBAPIDataset, pipeline.dataset(schema=schema_name))
-    if tables := _dataset.schema.data_tables():
+    schema = pipeline.schemas.get(schema_name)
+    if schema and (tables := schema.data_tables()):
         return get_default_query_for_table(pipeline, schema_name, tables[0]["name"], True)
-    return "", None, None
+    return "", "Schema does not contain any tables.", None
 
 
 def get_query_result(pipeline: dlt.Pipeline, query: str) -> Tuple[pd.DataFrame, str, str]:
@@ -414,7 +414,12 @@ def get_row_counts(
             .df()
             .to_dict(orient="records")
         }
-    except (DatabaseUndefinedRelation, DestinationUndefinedEntity, SqlClientNotAvailable):
+    except (
+        DatabaseUndefinedRelation,
+        DestinationUndefinedEntity,
+        SqlClientNotAvailable,
+        PipelineConfigMissing,
+    ):
         # TODO: somehow propagate errors to the user here
         return {}
 

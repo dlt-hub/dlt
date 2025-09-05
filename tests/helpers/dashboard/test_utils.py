@@ -56,6 +56,7 @@ from tests.helpers.dashboard.example_pipelines import (
     EXTRACT_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
+    NO_DESTINATION_PIPELINE,
 )
 from tests.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
@@ -93,7 +94,7 @@ def temp_pipelines_dir():
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_pipeline_last_run(pipeline: dlt.Pipeline):
     """Test getting the last run of a pipeline"""
-    if pipeline.pipeline_name == NEVER_RAN_PIPELINE:
+    if pipeline.pipeline_name in [NEVER_RAN_PIPELINE, NO_DESTINATION_PIPELINE]:
         assert get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir) == 0
     else:
         assert get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir) > 1000000
@@ -109,7 +110,7 @@ def test_build_exception_section(pipeline: dlt.Pipeline):
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_local_data_path(pipeline: dlt.Pipeline):
-    if pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
+    if pipeline.pipeline_name in [LOAD_EXCEPTION_PIPELINE, NO_DESTINATION_PIPELINE]:
         # custom destination does not support local data path
         assert get_local_data_path(pipeline) is None
     else:
@@ -220,7 +221,9 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     details_dict = {item["name"]: item["value"] for item in result}
 
     assert details_dict["pipeline_name"] == pipeline.pipeline_name
-    if pipeline.pipeline_name == SUCCESS_PIPELINE_FILESYSTEM:
+    if pipeline.pipeline_name == NO_DESTINATION_PIPELINE:
+        assert details_dict["destination"] == "No destination set"
+    elif pipeline.pipeline_name == SUCCESS_PIPELINE_FILESYSTEM:
         assert details_dict["destination"] == "filesystem (dlt.destinations.filesystem)"
     elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
         assert details_dict["destination"] == "dummy (dlt.destinations.dummy)"
@@ -433,7 +436,7 @@ def test_trace(pipeline: dlt.Pipeline):
     config = DashboardConfiguration()
     trace = pipeline.last_trace
 
-    if pipeline.pipeline_name == NEVER_RAN_PIPELINE:
+    if pipeline.pipeline_name in [NEVER_RAN_PIPELINE, NO_DESTINATION_PIPELINE]:
         assert trace is None
         return
 

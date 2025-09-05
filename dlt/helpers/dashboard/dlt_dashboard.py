@@ -362,7 +362,6 @@ def section_browse_data_table_list(
                 _table_name,
                 dlt_restrict_to_last_1000.value,
             )
-
         _placeholder, _error_message, _traceback_string = utils.get_example_query_for_dataset(
             dlt_pipeline,
             dlt_selected_schema_name,

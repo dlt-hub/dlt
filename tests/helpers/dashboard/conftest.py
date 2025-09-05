@@ -7,6 +7,7 @@ from tests.helpers.dashboard.example_pipelines import (
     create_extract_exception_pipeline,
     create_never_ran_pipline,
     create_load_exception_pipeline,
+    create_no_destination_pipeline,
 )
 
 
@@ -15,6 +16,12 @@ from tests.helpers.dashboard.example_pipelines import (
 def pipeline(request):
     # request.param is one of the strings from parametrize
     return request.getfixturevalue(request.param)
+
+
+@pytest.fixture(scope="session")
+def no_destination_pipeline():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_no_destination_pipeline(temp_dir)
 
 
 @pytest.fixture(scope="session")

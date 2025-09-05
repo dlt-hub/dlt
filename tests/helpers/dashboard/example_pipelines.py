@@ -20,12 +20,14 @@ SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
 EXTRACT_EXCEPTION_PIPELINE = "extract_exception_pipeline"
 NEVER_RAN_PIPELINE = "never_ran_pipline"
 LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
+NO_DESTINATION_PIPELINE = "no_destination_pipeline"
 
 ALL_PIPELINES = [
     SUCCESS_PIPELINE_DUCKDB,
     EXTRACT_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
+    NO_DESTINATION_PIPELINE,
     SUCCESS_PIPELINE_FILESYSTEM,
 ]
 
@@ -152,6 +154,19 @@ def create_load_exception_pipeline(pipelines_dir: str = None):
     return pipeline
 
 
+def create_no_destination_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline with no destination"""
+    pipeline = dlt.pipeline(
+        pipeline_name=NO_DESTINATION_PIPELINE,
+        pipelines_dir=pipelines_dir,
+    )
+    return pipeline
+
+    pipeline.extract(fruitshop_source())
+
+    return pipeline
+
+
 # NOTE: this sript can be run to create the test pipelines globally for manual testing of the dashboard app and cli
 if __name__ == "__main__":
     create_success_pipeline_duckdb()
@@ -159,3 +174,4 @@ if __name__ == "__main__":
     create_extract_exception_pipeline()
     create_never_ran_pipline()
     create_load_exception_pipeline()
+    create_no_destination_pipeline()

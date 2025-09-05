@@ -147,11 +147,11 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
     ).to_be_visible()
 
     _open_section(page, "schema")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text)).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text(app_strings.browse_data_error_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text("dataset_name: failed_pipeline_dataset")).to_be_visible()
@@ -164,7 +164,7 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
 
     # loads page
     _open_section(page, "loads")
-    expect(page.get_by_text(app_strings.no_loads_found_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
@@ -316,11 +316,11 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text)).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text(app_strings.browse_data_error_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text("dataset_name: never_run_pipeline_dataset")).to_be_visible()
@@ -331,7 +331,7 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
 
     # loads page
     _open_section(page, "loads")
-    expect(page.get_by_text(app_strings.no_loads_found_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
