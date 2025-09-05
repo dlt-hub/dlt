@@ -33,12 +33,16 @@ from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
 
-from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables, TSchemaDrop
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
     TTableFormat,
+    TTableSchemaColumns,
+    TPartialTableSchema,
 )
+from dlt.common.schema.utils import get_nested_tables
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationSchemaTampered,
@@ -605,6 +609,20 @@ class WithStateSync(ABC):
     @abstractmethod
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
+        pass
+
+
+class WithTableReflection(ABC):
+    @abstractmethod
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        """Retrieves table and column information for the specified tables.
+
+        Returns an iterator of tuples (table_name, columns_dict) where columns_dict
+        contains column schemas for existing tables, or is empty for non-existent tables.
+        Implementations use database introspection (INFORMATION_SCHEMA, table reflection) or file metadata.
+        """
         pass
 
 
