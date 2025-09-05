@@ -42,22 +42,18 @@ from dlt.helpers.dashboard.utils import (
     sanitize_trace_for_display,
 )
 
-SUCCESS_PIPELINE_DUCKDB = "success_pipeline_duckdb"
-SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
-EXTRACT_EXCEPTION_PIPELINE = "extract_exception_pipeline"
-NEVER_RAN_PIPELINE = "never_ran_pipline"
-LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
-
-ALL_PIPELINES = [
+from tests.helpers.dashboard.example_pipelines import (
     SUCCESS_PIPELINE_DUCKDB,
+    SUCCESS_PIPELINE_FILESYSTEM,
     EXTRACT_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
-    SUCCESS_PIPELINE_FILESYSTEM,
-]
-
-PIPELINES_WITH_EXCEPTIONS = [EXTRACT_EXCEPTION_PIPELINE, LOAD_EXCEPTION_PIPELINE]
-PIPELINES_WITH_LOAD = [SUCCESS_PIPELINE_DUCKDB, SUCCESS_PIPELINE_FILESYSTEM]
+)
+from tests.helpers.dashboard.example_pipelines import (
+    ALL_PIPELINES,
+    PIPELINES_WITH_EXCEPTIONS,
+    PIPELINES_WITH_LOAD,
+)
 
 
 @pytest.fixture
@@ -89,136 +85,6 @@ def temp_pipelines_dir():
 #
 # Fixtures
 #
-
-
-def run_success_pipeline(pipeline: dlt.Pipeline):
-    pipeline.run(fruitshop_source(), schema=dlt.Schema("fruitshop"))
-
-    # we overwrite the purchases table to have a child table and an incomplete column
-    @dlt.resource(  # type: ignore
-        primary_key="id",
-        write_disposition="merge",
-        columns={"incomplete": {}, "id": {"x-custom": "foo"}},
-    )
-    def purchases():
-        """Load purchases data from a simple python list."""
-        yield [
-            {"id": 1, "customer_id": 1, "inventory_id": 1, "quantity": 1, "child": [1, 2, 3]},
-            {"id": 2, "customer_id": 1, "inventory_id": 2, "quantity": 2},
-            {"id": 3, "customer_id": 2, "inventory_id": 3, "quantity": 3},
-        ]
-
-    pipeline.run(purchases(), schema=dlt.Schema("fruitshop"))
-
-    # write something to another schema so we have multiple schemas
-    pipeline.run([1, 2, 3], schema=dlt.Schema("other"), table_name="items")
-
-
-@pytest.fixture(scope="session")
-def success_pipeline_duckdb():
-    """Create a test pipeline with in memory duckdb destination in temp folder"""
-    import duckdb
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        pipeline = dlt.pipeline(
-            pipeline_name=SUCCESS_PIPELINE_DUCKDB,
-            pipelines_dir=temp_dir,
-            destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
-            dataset_name="test_dataset",
-            dev_mode=True,
-        )
-
-        run_success_pipeline(pipeline)
-
-        yield pipeline
-
-
-@pytest.fixture(scope="session")
-def success_pipeline_filesystem():
-    """Create a test pipeline with in memory duckdb destination in temp folder"""
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        pipeline = dlt.pipeline(
-            pipeline_name=SUCCESS_PIPELINE_FILESYSTEM,
-            pipelines_dir=temp_dir,
-            destination=dlt.destinations.filesystem(bucket_url="_storage/data"),
-            dataset_name="test_dataset",
-            dev_mode=True,
-        )
-
-        run_success_pipeline(pipeline)
-
-        yield pipeline
-
-
-@pytest.fixture(scope="session")
-def extract_exception_pipeline():
-    import duckdb
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        pipeline = dlt.pipeline(
-            pipeline_name=EXTRACT_EXCEPTION_PIPELINE,
-            pipelines_dir=temp_dir,
-            destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
-            dataset_name="test_dataset",
-            dev_mode=True,
-        )
-
-        @dlt.resource
-        def broken_resource():
-            raise AssertionError("I am broken")
-
-        with pytest.raises(Exception):
-            pipeline.run(broken_resource())
-
-        yield pipeline
-
-
-@pytest.fixture(scope="session")
-def never_ran_pipline():
-    import duckdb
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        pipeline = dlt.pipeline(
-            pipeline_name=NEVER_RAN_PIPELINE,
-            pipelines_dir=temp_dir,
-            destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
-            dataset_name="test_dataset",
-            dev_mode=True,
-        )
-
-        yield pipeline
-
-
-@pytest.fixture(scope="session")
-def load_exception_pipeline():
-    import duckdb
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-
-        @dlt.destination
-        def failing_destination(one, two):
-            raise Exception("I am failing")
-
-        pipeline = dlt.pipeline(
-            pipeline_name=LOAD_EXCEPTION_PIPELINE,
-            pipelines_dir=temp_dir,
-            destination=failing_destination(),
-            dataset_name="test_dataset",
-            dev_mode=True,
-        )
-
-        with pytest.raises(Exception):
-            pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))
-
-        yield pipeline
-
-
-# resolver to resolve strings to pipelines
-@pytest.fixture
-def pipeline(request):
-    # request.param is one of the strings from parametrize
-    return request.getfixturevalue(request.param)
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
