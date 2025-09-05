@@ -20,7 +20,7 @@ from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.queries import normalize_query, build_select_expr
+from dlt.destinations.queries import _normalize_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import SupportsDataAccess
 
@@ -248,10 +248,11 @@ class Relation(WithSqlClient):
             query = self.sqlglot_expression
         else:
             _, _qualified_query = _get_relation_output_columns_schema(self)
-            query = normalize_query(
-                sqlglot_schema=self._dataset.sqlglot_schema,
+            query = _normalize_query(
                 qualified_query=_qualified_query,
-                sql_client=self._dataset.sql_client,
+                sqlglot_schema=self._dataset.sqlglot_schema,
+                sql_client=self.sql_client,
+                casefold_identifier=self.sql_client.capabilities.casefold_identifier
             )
 
         if not isinstance(query, sge.Query):
