@@ -25,6 +25,7 @@ from dlt.helpers.dashboard.utils import (
     get_pipeline,
     pipeline_details,
     create_table_list,
+    get_row_counts_list,
     create_column_list,
     get_query_result,
     get_row_counts,
@@ -44,7 +45,6 @@ from dlt.helpers.dashboard.utils import (
     get_pipeline_last_run,
     trace_resolved_config_values,
     trace_step_details,
-    get_state_as_yaml_string,
     get_source_and_resouce_state_for_table,
     get_default_query_for_table,
     get_example_query_for_dataset,
@@ -151,8 +151,12 @@ def test_get_source_and_resouce_state_for_table(pipeline: dlt.Pipeline):
         table, pipeline, pipeline.default_schema_name
     )
     assert resource_name
-    assert resource_state
-    assert source_state
+    assert source_state == {}
+    assert resource_state.get("incremental").get("id") is not None
+
+    # check it can be rendered with marimo
+    assert mo.json(resource_state).text
+    assert mo.json(source_state).text
 
 
 def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
@@ -255,6 +259,8 @@ def test_create_table_list(pipeline, show_internals, show_child_tables):
         show_internals=show_internals,
         show_child_tables=show_child_tables,
     )
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
 
     base_table_names = {"inventory", "purchases", "customers", "inventory_categories"}
     dlt_table_names = {"_dlt_loads", "_dlt_version", "_dlt_pipeline_state"}
@@ -292,6 +298,9 @@ def test_create_column_list_basic(
         show_other_hints=show_other_hints,
         show_custom_hints=show_custom_hints,
     )
+
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
 
     # check visible columns
     base_column_names = {"customer_id", "quantity", "id", "inventory_id", "date"}
@@ -381,11 +390,17 @@ def test_get_example_query_for_dataset(pipeline: dlt.Pipeline):
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_row_counts(pipeline: dlt.Pipeline):
+def test_get_row_counts_list(pipeline: dlt.Pipeline):
     """Test getting row counts from real pipeline"""
-    result = get_row_counts(pipeline)
+    result = get_row_counts_list(pipeline)
+
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
+
+    reverted_result = {i["name"]: i["row_count"] for i in result}
+
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
-        assert result == {
+        assert reverted_result == {
             "customers": 13,
             "inventory": 6,
             "purchases": (
@@ -398,14 +413,7 @@ def test_get_row_counts(pipeline: dlt.Pipeline):
             "_dlt_pipeline_state": 3,
         }
     else:
-        result = {}
-
-
-@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_state_as_yaml_string(pipeline):
-    """Test getting the state of a pipeline as a yaml string"""
-    yaml_string = get_state_as_yaml_string(pipeline)
-    assert pipeline.pipeline_name in yaml_string
+        reverted_result = {}
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -415,6 +423,9 @@ def test_get_loads(pipeline: dlt.Pipeline):
 
     # Clear cache first
     result, error_message, traceback_string = get_loads(config, pipeline, limit=100)
+
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert isinstance(result, list)
@@ -442,6 +453,9 @@ def test_trace(pipeline: dlt.Pipeline):
 
     # overview
     result = trace_overview(config, trace)
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
+
     assert {item["name"] for item in result} == {
         "pipeline_name",
         "started_at",
@@ -454,6 +468,9 @@ def test_trace(pipeline: dlt.Pipeline):
 
     # execution context
     result = trace_execution_context(config, trace)
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
+
     assert len(result) == 7
     assert {item["name"] for item in result} == {
         "cpu",
@@ -468,6 +485,8 @@ def test_trace(pipeline: dlt.Pipeline):
 
     # steps overview
     result = trace_steps_overview(config, trace)
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
 
     if pipeline.pipeline_name == EXTRACT_EXCEPTION_PIPELINE:
         assert len(result) == 1
@@ -486,11 +505,15 @@ def test_trace(pipeline: dlt.Pipeline):
 
     # resolved config values (TODO: add at least one config value)
     result = trace_resolved_config_values(config, trace)
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(result).text is not None
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_remote_state_details(pipeline: dlt.Pipeline):
     remote_state = remote_state_details(pipeline)
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(remote_state).text is not None
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert remote_state[0] == {"name": "state_version", "value": 3}
@@ -661,11 +684,16 @@ def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
     config = DashboardConfiguration()
 
     details = pipeline_details(config, pipeline, temp_pipelines_dir)
+
+    # check it can be rendered as table with marimo
+    assert mo.ui.table(details).text is not None
+
     details_dict = {item["name"]: item["value"] for item in details}
     assert details_dict["pipeline_name"] == pipeline.pipeline_name
 
     # Test row counts
     row_counts = get_row_counts(pipeline)
+
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert row_counts["customers"] == 13
     else:

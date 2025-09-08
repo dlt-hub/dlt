@@ -26,6 +26,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
+from dlt.common.typing import DictStrAny
 
 from dlt.helpers.dashboard import ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
@@ -48,7 +49,7 @@ PICKLE_TRACE_FILE = "trace.pickle"
 def _exception_to_string(exception: Exception) -> str:
     """Convert an exception to a string"""
     if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
-        return "Could not connect to destination, configuration vaslues are missing."
+        return "Could not connect to destination, configuration values are missing."
     elif isinstance(exception, (SqlClientNotAvailable)):
         return "The destination of this pipeline does not support querying data with sql."
     elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
@@ -240,7 +241,7 @@ def create_table_list(
     show_internals: bool = False,
     show_child_tables: bool = True,
     show_row_counts: bool = False,
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     """Create a list of tables for the pipeline.
 
     Args:
@@ -327,18 +328,18 @@ def create_column_list(
 
 def get_source_and_resouce_state_for_table(
     table: TTableSchema, pipeline: dlt.Pipeline, schema_name: str
-) -> Tuple[str, str, str]:
+) -> Tuple[str, DictStrAny, DictStrAny]:
     if "resource" not in table:
-        return None, None, None
+        return None, {}, {}
 
-    # get source and resource state for correct resources from pipeline
-    _converted_state = json.loads(json.dumps(pipeline.state))
-    _source_state = _converted_state.get("sources", {}).get(schema_name, {})
+    pipeline.activate()
+    resource_name = table["resource"]
+    source_state = dlt.extract.state.source_state(schema_name)
+    resource_state = dlt.extract.state.resource_state(resource_name, source_state)
+    # note, we remove the resources key from the source state
+    source_state = {k: v for k, v in source_state.items() if k != "resources"}
 
-    _resources_state = _source_state.pop("resources", {})
-    _resource_state = _resources_state.get(table["resource"], {})
-
-    return table["resource"], yaml.safe_dump(_source_state), yaml.safe_dump(_resource_state)
+    return table["resource"], source_state, resource_state
 
 
 #
@@ -399,15 +400,16 @@ def get_query_result_cached(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
 
 def get_row_counts(
     pipeline: dlt.Pipeline, selected_schema_name: str = None, load_id: str = None
-) -> Dict[str, int]:
+) -> Dict[str, Any]:
     """Get the row counts for a pipeline.
 
     Args:
         pipeline (dlt.Pipeline): The pipeline to get the row counts for.
         load_id (str): The load id to get the row counts for.
     """
+    row_counts = {}
     try:
-        return {
+        row_counts = {
             i["table_name"]: i["row_count"]
             for i in pipeline.dataset(schema=selected_schema_name)
             .row_counts(dlt_tables=True, load_id=load_id)
@@ -421,7 +423,19 @@ def get_row_counts(
         PipelineConfigMissing,
     ):
         # TODO: somehow propagate errors to the user here
-        return {}
+        pass
+
+    return row_counts
+
+
+def get_row_counts_list(
+    pipeline: dlt.Pipeline, selected_schema_name: str = None, load_id: str = None
+) -> List[Dict[str, Any]]:
+    """Get the row counts for a pipeline as a list."""
+    row_counts_dict = get_row_counts(pipeline, selected_schema_name, load_id)
+    row_counts = [{"name": k, "row_count": v} for k, v in row_counts_dict.items()]
+    row_counts.sort(key=lambda x: str(x["name"]))
+    return row_counts
 
 
 def get_loads(
@@ -629,11 +643,6 @@ def build_pipeline_link_list(
             break
 
     return link_list
-
-
-def get_state_as_yaml_string(pipeline: dlt.Pipeline) -> str:
-    """Get the state of a pipeline as a yaml string"""
-    return yaml.safe_dump(json.loads(json.dumps(pipeline.state)))
 
 
 def _remove_non_primitives(obj: Any) -> Any:

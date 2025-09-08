@@ -328,17 +328,25 @@ def section_browse_data_table_list(
                 _state_section_content.append(
                     mo.hstack(
                         [
-                            mo.ui.code_editor(
-                                _source_state,
-                                label=f"<small>Source state for {dlt_selected_schema_name}</small>",
-                                language="yaml",
+                            mo.vstack(
+                                [
+                                    mo.md(
+                                        "<small>Source state for"
+                                        f" {dlt_selected_schema_name}</small>"
+                                    ),
+                                    mo.json(
+                                        _source_state,
+                                    ),
+                                ]
                             ),
-                            mo.ui.code_editor(
-                                _resource_state,
-                                label=(
-                                    f"<small>Resource state for resource {_resource_name}</small>"
-                                ),
-                                language="yaml",
+                            mo.vstack(
+                                [
+                                    mo.md(
+                                        "<small>Resource state for resource"
+                                        f" {_resource_name}</small>"
+                                    ),
+                                    mo.json(_resource_state),
+                                ]
                             ),
                         ],
                         justify="start",
@@ -530,9 +538,8 @@ def section_state(
 
     if dlt_pipeline and dlt_section_state_switch.value:
         _result.append(
-            mo.ui.code_editor(
-                utils.get_state_as_yaml_string(dlt_pipeline),
-                language="yaml",
+            mo.json(
+                dlt_pipeline.state,  # type: ignore[arg-type]
             ),
         )
     mo.vstack(_result) if _result else None
@@ -707,9 +714,7 @@ def section_loads_results(
                 )
 
                 # prepare and sort row counts
-                _row_counts_dict = utils.get_row_counts(dlt_pipeline, _schema, _load_id)
-                _row_counts = [{"name": k, "row_count": v} for k, v in _row_counts_dict.items()]
-                _row_counts.sort(key=lambda x: str(x["name"]))
+                _row_counts = utils.get_row_counts(dlt_pipeline, _schema, _load_id)
 
             # add row counts
             _result.append(
