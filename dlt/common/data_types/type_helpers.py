@@ -3,23 +3,25 @@ import base64
 import dataclasses
 import datetime  # noqa: I251
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
+from functools import lru_cache
 from typing import Any, Type, Union
 from enum import Enum
 
 from dlt.common.json import custom_pua_remove, json
 from dlt.common.json._simplejson import custom_encode as json_custom_encode
+from dlt.common.typing import copy_sig
 from dlt.common.wei import Wei
 from dlt.common.arithmetics import InvalidOperation, Decimal
 from dlt.common.data_types.typing import TDataType
 from dlt.common.time import (
-    ensure_pendulum_datetime,
+    ensure_pendulum_datetime_non_utc,
     ensure_pendulum_date,
     ensure_pendulum_time,
 )
 from dlt.common.utils import map_nested_in_place, str2bool
 
 
-def py_type_to_sc_type(t: Type[Any]) -> TDataType:
+def _py_type_to_sc_type(t: Type[Any]) -> TDataType:
     # start with most popular types
     if t is str:
         return "text"
@@ -68,6 +70,10 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
     raise TypeError(t)
 
 
+# preserves original signature which lru_cache destroys
+py_type_to_sc_type = copy_sig(_py_type_to_sc_type)(lru_cache(maxsize=None)(_py_type_to_sc_type))
+
+
 def json_to_str(value: Any) -> str:
     return json.dumps(map_nested_in_place(custom_pua_remove, value))
 
@@ -75,7 +81,7 @@ def json_to_str(value: Any) -> str:
 def coerce_from_date_types(
     to_type: TDataType, value: datetime.datetime
 ) -> Union[datetime.datetime, datetime.date, datetime.time, int, float, str]:
-    v = ensure_pendulum_datetime(value)
+    v = ensure_pendulum_datetime_non_utc(value)
     if to_type == "timestamp":
         return v
     if to_type == "text":
@@ -179,7 +185,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
 
     try:
         if to_type == "timestamp":
-            return ensure_pendulum_datetime(value)
+            return ensure_pendulum_datetime_non_utc(value)
 
         if to_type == "date":
             return ensure_pendulum_date(value)

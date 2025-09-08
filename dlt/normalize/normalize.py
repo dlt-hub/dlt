@@ -207,6 +207,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             logger.info(
                 f"Schema {schema.name} with version {schema.version} was not modified. Save skipped"
             )
+        # TODO: do not use schema_updates to generate a diff. compare the schema in the storage
+        # to the schema being saved and create unified diff. schema may change in several places (also extraction)
         # save schema new package
         self.load_storage.new_packages.save_schema(load_id, schema)
         # save schema updates even if empty

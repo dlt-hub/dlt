@@ -133,6 +133,7 @@ from dlt.pipeline.trace import (
     end_trace_step,
     end_trace,
 )
+from dlt.pipeline.track import on_first_dataset_access
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
@@ -355,6 +356,7 @@ class Pipeline(SupportsPipeline):
         self._trace: PipelineTrace = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
+        self._dataset_access_tracked: bool = False
 
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
@@ -1826,12 +1828,15 @@ class Pipeline(SupportsPipeline):
                 " directly or via .dlt config.toml file or environment variable.",
             )
 
+        schema_name = None
         if isinstance(schema, Schema):
+            schema_name = schema.name
             logger.info(
-                f"Make sure that tables declared in explicit schema {schema.name} are present on"
+                f"Make sure that tables declared in explicit schema {schema_name} are present on"
                 f" dataset {self.dataset_name}"
             )
         elif isinstance(schema, str):
+            schema_name = schema
             if schema not in self.schemas:
                 logger.info(
                     f"Schema {schema} not found in the pipeline, deferring to destination, this"
@@ -1843,9 +1848,20 @@ class Pipeline(SupportsPipeline):
 
         elif self.default_schema_name:
             schema = self.default_schema
+            schema_name = self.default_schema_name
 
-        return dlt.dataset(
-            self._destination,
-            self.dataset_name,
-            schema=schema,
-        )
+        try:
+            dataset = dlt.dataset(
+                self._destination,
+                self.dataset_name,
+                schema=schema,
+            )
+            success = True
+            return dataset
+        except Exception:
+            success = False
+            raise
+        finally:
+            if not self._dataset_access_tracked:
+                on_first_dataset_access(pipeline=self, schema_name=schema_name, success=success)
+                self._dataset_access_tracked = True

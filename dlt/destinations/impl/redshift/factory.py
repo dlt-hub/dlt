@@ -1,5 +1,6 @@
 from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
+from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_redshift_identifier, escape_redshift_literal
@@ -50,6 +51,7 @@ class RedshiftTypeMapper(TypeMapperImpl):
         "boolean": "bool",
         "date": "date",
         "timestamp with time zone": "timestamp",
+        "timestamp without time zone": "timestamp",
         "bigint": "bigint",
         "binary varying": "binary",
         "numeric": "decimal",
@@ -65,7 +67,7 @@ class RedshiftTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema,
         loader_file_format: TLoaderFileFormat,
     ) -> None:
-        if loader_file_format == "insert_values":
+        if loader_file_format in ("insert_values", "model"):
             return
         # time not supported on staging file formats
         if column["data_type"] == "time":
@@ -85,6 +87,28 @@ class RedshiftTypeMapper(TypeMapperImpl):
                     " to other file format or use binary columns without precision.",
                     "binary",
                 )
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        column_name = column["name"]
+        table_name = table["name"]
+        timezone = column.get("timezone", True)
+        precision = column.get("precision")
+
+        if precision and precision > self.capabilities.max_timestamp_precision:
+            logger.warn(
+                f"Redshift only supports microsecond precision (6) for column '{column_name}' in"
+                f" table '{table_name}'. Will use precision 6."
+            )
+
+        # Redshift has TIMESTAMPTZ for timezone-aware and TIMESTAMP for without timezone
+        if timezone:
+            return "timestamp with time zone"
+        else:
+            return "timestamp without time zone"
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
@@ -106,6 +130,8 @@ class RedshiftTypeMapper(TypeMapperImpl):
         if db_type == "numeric":
             if (precision, scale) == self.capabilities.wei_precision:
                 return dict(data_type="wei")
+        if db_type == "timestamp without time zone":
+            return {"data_type": "timestamp", "timezone": False}
         return super().from_destination_type(db_type, precision, scale)
 
 
