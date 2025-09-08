@@ -733,3 +733,5 @@ def test_sanitize_trace_for_display(pipeline: dlt.Pipeline):
     sanitized = sanitize_trace_for_display(trace)
     assert sanitized is not None
     assert isinstance(sanitized, dict)
+    # check it can be rendered with marimo
+    assert mo.json(sanitized).text is not None

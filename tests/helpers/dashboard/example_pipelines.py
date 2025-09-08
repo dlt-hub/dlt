@@ -54,7 +54,17 @@ def run_success_pipeline(pipeline: dlt.Pipeline):
     def purchases(inc_id=dlt.sources.incremental("id")):
         """Load purchases data from a simple python list."""
         yield [
-            {"id": 1, "customer_id": 1, "inventory_id": 1, "quantity": 1, "child": [1, 2, 3]},
+            {
+                "id": 1,
+                "customer_id": 1,
+                "inventory_id": 1,
+                "quantity": 1,
+                "child": [
+                    {"id": 1, "name": "child 1"},
+                    {"id": 2, "name": "child 2"},
+                    {"id": 3, "name": "child 3"},
+                ],
+            },
             {"id": 2, "customer_id": 1, "inventory_id": 2, "quantity": 2},
             {"id": 3, "customer_id": 2, "inventory_id": 3, "quantity": 3},
         ]
@@ -62,8 +72,18 @@ def run_success_pipeline(pipeline: dlt.Pipeline):
     pipeline.run(purchases(), schema=dlt.Schema("fruitshop"))
 
     # write something to another schema so we have multiple schemas
+    customers = fruitshop_source().customers
+
+    customers.apply_hints(
+        nested_hints={
+            ("child",): dlt.mark.make_nested_hints(columns=[{"name": "name", "data_type": "text"}]),
+            ("child", "child_inner"): dlt.mark.make_nested_hints(
+                columns=[{"name": "name", "data_type": "text"}]
+            ),
+        },
+    )
     pipeline.run(
-        fruitshop_source().customers,
+        customers,
         schema=dlt.Schema("fruitshop_customers"),
         table_name="other_customers",
     )

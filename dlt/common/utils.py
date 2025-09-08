@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 import os
 from pathlib import Path
 import sys
@@ -294,9 +294,16 @@ def clone_dict_nested(src: TDict) -> TDict:
     return update_dict_nested({}, src, copy_src_dicts=True)  # type: ignore[return-value]
 
 
-def map_nested_in_place(func: AnyFun, _nested: TAny, *args: Any, **kwargs: Any) -> TAny:
+def map_nested_in_place(
+    func: AnyFun,
+    _nested: TAny,
+    r_type: Literal["keys", "values"] = "values",
+    *args: Any,
+    **kwargs: Any,
+) -> TAny:
     """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
-    Additional `*args` and `**kwargs` are passed to `func`.
+    Additional `*args` and `**kwargs` are passed to `func`. Can be configured to apply to keys or values. When applying to keys,
+    the function will only apply to dictionary keys, list indexes will remain untouched.
     """
     if isinstance(_nested, tuple):
         if hasattr(_nested, "_asdict"):
@@ -305,17 +312,25 @@ def map_nested_in_place(func: AnyFun, _nested: TAny, *args: Any, **kwargs: Any) 
             _nested = list(_nested)  # type: ignore
 
     if isinstance(_nested, dict):
-        for k, v in _nested.items():
+        # NOTE: to modify the dictionary in place, we need to copy it for iteration since we are mutating the original dictionary
+        for k, v in _nested.copy().items():
+            if r_type == "keys":
+                _nested.pop(k)
+                k = func(k, *args, **kwargs)
             if isinstance(v, (dict, list, tuple)):
-                _nested[k] = map_nested_in_place(func, v, *args, **kwargs)
+                _nested[k] = map_nested_in_place(func, v, r_type, *args, **kwargs)
             else:
-                _nested[k] = func(v, *args, **kwargs)
+                if r_type == "values":
+                    v = func(v, *args, **kwargs)
+                _nested[k] = v
     elif isinstance(_nested, list):
         for idx, _l in enumerate(_nested):
             if isinstance(_l, (dict, list, tuple)):
-                _nested[idx] = map_nested_in_place(func, _l, *args, **kwargs)
+                _nested[idx] = map_nested_in_place(func, _l, r_type, *args, **kwargs)
             else:
-                _nested[idx] = func(_l, *args, **kwargs)
+                if r_type == "values":
+                    _l = func(_l, *args, **kwargs)
+                _nested[idx] = _l
     else:
         raise ValueError(_nested, "Not a nested type")
     return _nested

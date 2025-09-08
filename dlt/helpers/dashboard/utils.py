@@ -27,6 +27,7 @@ from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 from dlt.common.typing import DictStrAny
+from dlt.common.utils import map_nested_in_place
 
 from dlt.helpers.dashboard import ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
@@ -645,27 +646,17 @@ def build_pipeline_link_list(
     return link_list
 
 
-def _remove_non_primitives(obj: Any) -> Any:
-    """Recursively remove all non-primitive values from a dictionary or list"""
-    if isinstance(obj, dict):
-        return {
-            k: _remove_non_primitives(v)
-            for k, v in obj.items()
-            if isinstance(k, (dict, list, str, int, float, bool))
-        }
-    elif isinstance(obj, (list)):
-        return [_remove_non_primitives(item) for item in obj]
-    else:
-        return obj
-
-
 def sanitize_trace_for_display(trace: PipelineTrace) -> Dict[str, Any]:
-    """Sanitize a trace for display by removing non-primitive keys (we use tuples as keys in nested hints..)"""
+    """Sanitize a trace for display by cleaning up non-primitive keys (we use tuples as keys in nested hints)"""
     if not trace:
         return {}
-    dict_trace = trace.asdict()
-    sanitized = _remove_non_primitives(dict_trace)
-    return cast(Dict[str, Any], sanitized)
+
+    def _remove_non_primitives(obj: Any) -> Any:
+        if not isinstance(obj, (str, bool, int, float)):
+            return repr(obj)
+        return obj
+
+    return map_nested_in_place(_remove_non_primitives, trace.asdict(), r_type="keys")
 
 
 def build_exception_section(p: dlt.Pipeline) -> List[Any]:
