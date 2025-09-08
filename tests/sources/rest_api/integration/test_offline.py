@@ -17,7 +17,7 @@ from dlt.sources.rest_api import (
     rest_api_source,
 )
 from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
-from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_column
+from tests.utils import assert_load_info, assert_query_data, load_table_counts
 
 
 @pytest.mark.parametrize(
@@ -170,7 +170,7 @@ def test_load_mock_api(mock_api_server, config):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     mock_source = rest_api_source(config)
@@ -178,7 +178,8 @@ def test_load_mock_api(mock_api_server, config):
     load_info = pipeline.run(mock_source)
     print(load_info)
     assert_load_info(load_info)
-    table_counts = load_table_counts(pipeline)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
 
     assert table_counts.keys() == {"posts", "post_comments", "post_details"}
 
@@ -193,19 +194,19 @@ def test_load_mock_api(mock_api_server, config):
 
     print(pipeline.default_schema.to_pretty_yaml())
 
-    assert_query_column(
+    assert_query_data(
         pipeline,
         f"SELECT title FROM {posts_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
 
-    assert_query_column(
+    assert_query_data(
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
     )
 
-    assert_query_column(
+    assert_query_data(
         pipeline,
         f"SELECT body FROM {post_comments_table} ORDER BY post_id, id limit 5",
         [f"Comment {i} for post 0" for i in range(5)],
@@ -672,9 +673,9 @@ def test_raises_error_for_unused_resolve_params(mock_api_server):
         )
 
     assert (
-        "Resource `post_details` defines resolve params `['post_id']` that are not bound in path"
-        " `posts`. To reference parent resource in query params use syntax"
-        " 'resources.<parent_resource>.<field>'"
+        "Resource post_details defines resolve params ['post_id'] that are not bound in path posts."
+        " To reference parent resource in query params use resources.<parent_resource>.<field>"
+        " syntax."
         in str(exc_info.value)
     )
 
@@ -723,9 +724,10 @@ def test_raises_error_for_incorrect_interpolation(mock_api_server, config, locat
     with pytest.raises(ValueError) as exc_info:
         rest_api_source(config)
 
-    assert exc_info.match(
-        f"Expression `unknown.posts.id` defined in `{location}` is not valid. Valid expressions"
-        " must start with one of: `{'resources'}`"
+    assert (
+        f"Expression 'unknown.posts.id' defined in {location} is not valid. Valid expressions must"
+        " start with one of: resources"
+        in str(exc_info.value)
     )
 
 
@@ -847,7 +849,7 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        dev_mode=True,
+        full_refresh=True,
     )
     mock_source = rest_api_source(
         {
@@ -878,7 +880,8 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
     load_info = pipeline.run(mock_source)
     print(load_info)
     assert_load_info(load_info)
-    table_counts = load_table_counts(pipeline)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
     assert table_counts.keys() == {"posts", "post_details"}
     assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
     assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
@@ -886,22 +889,22 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
         posts_table = client.make_qualified_table_name("posts")
         posts_details_table = client.make_qualified_table_name("post_details")
     print(pipeline.default_schema.to_pretty_yaml())
-    assert_query_column(
+    assert_query_data(
         pipeline,
         f"SELECT title FROM {posts_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
-    assert_query_column(
+    assert_query_data(
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
     )
-    assert_query_column(
+    assert_query_data(
         pipeline,
         f"SELECT title FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
-    assert_query_column(
+    assert_query_data(
         pipeline,
         f"SELECT more FROM {posts_details_table} ORDER BY id limit 25",
         [f"More is equale to id: {i}" for i in range(25)],
@@ -913,7 +916,7 @@ def test_unauthorized_access_to_protected_endpoint(mock_api_server):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     mock_source = rest_api_source(
@@ -1028,14 +1031,15 @@ def test_load_mock_api_typeddict_config(mock_api_server, config):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     mock_source = rest_api_source(config)
 
     load_info = pipeline.run(mock_source)
     assert_load_info(load_info)
-    table_counts = load_table_counts(pipeline)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
 
     assert table_counts.keys() == {"posts", "post_comments"}
 
@@ -1480,128 +1484,3 @@ def test_headers_with_incremental_values(mock_api_server):
     assert request_call.headers["X-Start-Value"] == "1600000000"
     assert request_call.headers["X-End-Value"] == "1700000000"
     assert request_call.headers["X-Escaped"] == "{not_this}"
-
-
-def test_client_headers_are_not_interpolated(mock_api_server):
-    source = rest_api_source(
-        {
-            "client": {
-                "base_url": "https://api.example.com",
-                "headers": {
-                    "X-Static-Header": "static-value",
-                    "X-Not-Interpolated": (
-                        "{resources.posts.id}"
-                    ),  # Should remain as a literal string
-                    "X-Escaped": "{{literal_braces}}",  # Should remain as a literal string
-                },
-            },
-            "resources": [
-                "posts",
-            ],
-        }
-    )
-
-    list(source.with_resources("posts").add_limit(1))
-
-    history = mock_api_server.request_history
-    assert len(history) == 1
-    request_call = history[0]
-
-    assert request_call.headers["X-Static-Header"] == "static-value"
-    assert request_call.headers["X-Not-Interpolated"] == "{resources.posts.id}"
-    assert request_call.headers["X-Escaped"] == "{{literal_braces}}"
-
-
-def test_secret_redaction_in_logs_and_errors(mock_api_server, mocker):
-    from dlt.sources.helpers.rest_client.client import RESTClient
-
-    mock_api_server.get("https://api.example.com/data", json=[{"id": 1, "data": "test"}])
-
-    # Mock logger
-    log_messages = []
-    original_log = RESTClient._send_request.__globals__["logger"].info
-
-    def capture_log(msg, *args):
-        log_messages.append(msg % args if args else msg)
-        original_log(msg, *args)
-
-    mocker.patch.object(
-        RESTClient._send_request.__globals__["logger"], "info", side_effect=capture_log
-    )
-
-    # API keys in URL should be redacted in logs
-    source = rest_api_source(
-        {
-            "client": {
-                "base_url": "https://api.example.com",
-            },
-            "resources": [
-                {
-                    "name": "protected_resource",
-                    "endpoint": {
-                        "path": "data",
-                        "params": {
-                            "api_key": "super_secret_key_12345",
-                            "token": "another_secret_token",
-                            "public_param": "visible_value",
-                        },
-                    },
-                }
-            ],
-        }
-    )
-
-    list(source.with_resources("protected_resource").add_limit(1))
-
-    assert any("api_key=***" in msg for msg in log_messages)
-    assert any("token=***" in msg for msg in log_messages)
-    assert any("public_param=visible_value" in msg for msg in log_messages)
-
-    assert not any("super_secret_key_12345" in msg for msg in log_messages)
-    assert not any("another_secret_token" in msg for msg in log_messages)
-
-
-def test_secret_redaction_in_http_errors(mock_api_server):
-    mock_api_server.get(
-        "https://api.example.com/missing", status_code=404, text="Resource not found"
-    )
-
-    source = rest_api_source(
-        {
-            "client": {
-                "base_url": "https://api.example.com",
-            },
-            "resources": [
-                {
-                    "name": "error_resource",
-                    "endpoint": {
-                        "path": "missing",
-                        "params": {
-                            "api_key": "secret_api_key_xyz",
-                            "access_token": "secret_token_abc",
-                            "normal_param": "public_value",
-                        },
-                    },
-                }
-            ],
-        }
-    )
-
-    with pytest.raises(PipelineStepFailed) as exc_info:
-        pipeline = dlt.pipeline(
-            pipeline_name="test_pipeline",
-            destination="duckdb",
-        )
-        pipeline.run(source.with_resources("error_resource").add_limit(1))
-
-    error_str = str(exc_info.value)
-    assert "api_key=***" in error_str
-    assert "access_token=***" in error_str
-    assert "normal_param=public_value" in error_str
-
-    # Check that actual secrets are not exposed
-    assert "secret_api_key_xyz" not in error_str
-    assert "secret_token_abc" not in error_str
-
-    assert "404" in error_str
-    assert "Resource not found" not in error_str

@@ -20,7 +20,7 @@ from dlt.common.storages import (
     LoadStorage,
 )
 from dlt.common.storages import DataItemStorage, FileStorage
-from dlt.common.storages.fsspec_filesystem import FileItem, FileItemDict, fsspec_from_config
+from dlt.common.storages.fsspec_filesystem import FileItem, FileItemDict
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import StrAny, TDataItems
 from dlt.common.utils import uniq_id
@@ -73,7 +73,6 @@ def assert_sample_files(
     expected_file_names = [path.split("/")[-1] for path in expected_relative_paths]
 
     assert len(all_file_items) == len(expected_relative_paths)
-    fs_client = fsspec_from_config(config)[0]
 
     for item in all_file_items:
         # only accept file items we know
@@ -91,7 +90,7 @@ def assert_sample_files(
         assert isinstance(item["modification_date"], pendulum.DateTime)
 
         # create file dict
-        file_dict = FileItemDict(item, fs_client)
+        file_dict = FileItemDict(item, config.credentials)
 
         try:
             # try to load using local filesystem

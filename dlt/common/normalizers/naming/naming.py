@@ -29,7 +29,7 @@ class NamingConvention(ABC):
     def normalize_identifier(self, identifier: str) -> str:
         """Normalizes and shortens the identifier according to naming convention in this function code"""
         if identifier is None:
-            raise ValueError("`name` is None")
+            raise ValueError("name is None")
         identifier = identifier.strip()
         if not identifier:
             raise ValueError(identifier)

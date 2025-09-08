@@ -88,7 +88,6 @@ CallableAny = NewType("CallableAny", Any)  # type: ignore[valid-newtype]
 NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]
 DictStrStr: TypeAlias = Dict[str, str]
-DictStrOptionalStr: TypeAlias = Dict[str, Optional[str]]
 StrAny: TypeAlias = Mapping[str, Any]  # immutable, covariant entity
 StrStr: TypeAlias = Mapping[str, str]  # immutable, covariant entity
 StrStrStr: TypeAlias = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
@@ -182,24 +181,6 @@ class SupportsHumanize(Protocol):
 
     def asstr(self, verbosity: int = 0) -> str:
         """Represents object as human readable string"""
-        ...
-
-
-class SocketLike(Protocol):
-    def send(self, data: bytes) -> int:
-        """Send bytes; return number of bytes sent."""
-        ...
-
-    def recv(self, bufsize: int) -> bytes:
-        """Receive up to `bufsize` bytes and return them."""
-        ...
-
-    def close(self) -> None:
-        """Close the socket-like connection."""
-        ...
-
-    def settimeout(self, timeout: float) -> None:
-        """Set the timeout (in seconds) for send/recv operations."""
         ...
 
 
@@ -317,7 +298,7 @@ def is_literal_type(hint: Type[Any]) -> bool:
 def get_literal_args(literal: Type[Any]) -> List[Any]:
     """Recursively get arguments from nested Literal types and return an unified list."""
     if not hasattr(literal, "__origin__") or literal.__origin__ is not Literal:
-        raise ValueError(f"Provided object is not a `Literal`. Object: {literal}")
+        raise ValueError("Provided type is not a Literal")
 
     unified_args = []
 

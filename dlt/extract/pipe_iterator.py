@@ -24,6 +24,11 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import PipelineException
+from dlt.common.pipeline import (
+    unset_current_pipe_name,
+    set_current_pipe_name,
+    get_current_pipe_name,
+)
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
@@ -37,7 +42,6 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import DataItemWithMeta, PipeItem, ResolvablePipeItem, SourcePipeItem
-from dlt.extract.state import pipe_context
 from dlt.extract.utils import wrap_async_iterator
 from dlt.extract.concurrency import FuturesPool
 
@@ -196,51 +200,49 @@ class PipeIterator(Iterator[PipeItem]):
                 pipe_item = None
                 continue
 
-            with pipe_context(pipe_item.pipe):
-                if isinstance(item, Awaitable) or callable(item):
-                    # Callables are submitted to the pool to be executed in the background
-                    self._futures_pool.submit(pipe_item)  # type: ignore[arg-type]
-                    pipe_item = None
-                    # Future will be resolved later, move on to the next item
-                    continue
+            if isinstance(item, Awaitable) or callable(item):
+                # Callables are submitted to the pool to be executed in the background
+                self._futures_pool.submit(pipe_item)  # type: ignore[arg-type]
+                pipe_item = None
+                # Future will be resolved later, move on to the next item
+                continue
 
-                # if we are at the end of the pipe then yield element
-                if pipe_item.step == len(pipe_item.pipe) - 1:
-                    # must be resolved
-                    if isinstance(item, (Iterator, Awaitable, AsyncIterator)) or callable(item):
-                        raise PipeItemProcessingError(
-                            pipe_item.pipe.name,
-                            f"Pipe item of type `{type(pipe_item.item).__name__}` was not fully"
-                            f" evaluated at step `{pipe_item.step}`. This is an internal error or"
-                            " you're yielding unexpected object from resources (e.g., fucntions,"
-                            " awaitables).",
-                        )
-                    # mypy not able to figure out that item was resolved
-                    return pipe_item  # type: ignore
-
-                # advance to next step
-                step = pipe_item.pipe[pipe_item.step + 1]
-                try:
-                    next_meta = pipe_item.meta
-                    next_item = step(item, meta=pipe_item.meta)  # type: ignore
-                    if isinstance(next_item, DataItemWithMeta):
-                        next_meta = next_item.meta
-                        next_item = next_item.data
-                except TypeError as ty_ex:
-                    assert callable(step)
-                    raise InvalidStepFunctionArguments(
+            # if we are at the end of the pipe then yield element
+            if pipe_item.step == len(pipe_item.pipe) - 1:
+                # must be resolved
+                if isinstance(item, (Iterator, Awaitable, AsyncIterator)) or callable(item):
+                    raise PipeItemProcessingError(
                         pipe_item.pipe.name,
-                        get_callable_name(step),
-                        inspect.signature(step),
-                        str(ty_ex),
+                        f"Pipe item at step {pipe_item.step} was not fully evaluated and is of type"
+                        f" {type(pipe_item.item).__name__}. This is internal error or you are"
+                        " yielding something weird from resources ie. functions or awaitables.",
                     )
-                except (PipelineException, ExtractorException, DltSourceException, PipeException):
-                    raise
-                except Exception as ex:
-                    raise ResourceExtractionError(
-                        pipe_item.pipe.name, step, str(ex), "transform"
-                    ) from ex
+                # mypy not able to figure out that item was resolved
+                return pipe_item  # type: ignore
 
+            # advance to next step
+            step = pipe_item.pipe[pipe_item.step + 1]
+            try:
+                set_current_pipe_name(pipe_item.pipe.name)
+                next_meta = pipe_item.meta
+                next_item = step(item, meta=pipe_item.meta)  # type: ignore
+                if isinstance(next_item, DataItemWithMeta):
+                    next_meta = next_item.meta
+                    next_item = next_item.data
+            except TypeError as ty_ex:
+                assert callable(step)
+                raise InvalidStepFunctionArguments(
+                    pipe_item.pipe.name,
+                    get_callable_name(step),
+                    inspect.signature(step),
+                    str(ty_ex),
+                )
+            except (PipelineException, ExtractorException, DltSourceException, PipeException):
+                raise
+            except Exception as ex:
+                raise ResourceExtractionError(
+                    pipe_item.pipe.name, step, str(ex), "transform"
+                ) from ex
             # create next pipe item if a value was returned. A None means that item was consumed/filtered out and should not be further processed
             if next_item is not None:
                 pipe_item = ResolvablePipeItem(
@@ -270,8 +272,9 @@ class PipeIterator(Iterator[PipeItem]):
                     return None
                 # get next item from the current source
                 gen, step, pipe, meta = self._sources[self._current_source_index]
-                with pipe_context(pipe):
-                    pipe_item = next(gen)
+                set_current_pipe_name(pipe.name)
+
+                pipe_item = next(gen)
                 if pipe_item is not None:
                     # full pipe item may be returned, this is used by ForkPipe step
                     # to redirect execution of an item to another pipe
@@ -304,6 +307,9 @@ class PipeIterator(Iterator[PipeItem]):
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
 
     def close(self) -> None:
+        # unregister the pipe name right after execution of gen stopped
+        unset_current_pipe_name()
+
         # Close the futures pool and cancel all tasks
         # It's important to do this before closing generators as we can't close a running generator
         self._futures_pool.close()

@@ -10,8 +10,7 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.utils import digest128
-from dlt.common.storages.configuration import WithLocalFiles
-
+from dlt.destinations.configuration import WithLocalFiles
 from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
 from dlt.destinations.impl.qdrant.warnings import location_on_credentials_deprecated
 
@@ -117,7 +116,7 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
             location=self.qd_location,
             path=self.qd_path,
             api_key=self.credentials.api_key,
-            **options,
+            **options
         )
         client.set_model(model)
         return client

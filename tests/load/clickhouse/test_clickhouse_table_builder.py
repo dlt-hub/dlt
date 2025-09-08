@@ -81,7 +81,7 @@ def test_clickhouse_create_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col9_null` Nullable(String)" in sql
     assert "`col10_null` Nullable(Date)" in sql
     assert "`col11_null` Nullable(String)" in sql
-    assert "`col1_precision` Int16" in sql
+    assert "`col1_precision` Int64" in sql
     assert "`col4_precision` DateTime64(3,'UTC')" in sql
     assert "`col5_precision` String" in sql
     assert "`col6_precision` Decimal(6,2)" in sql
@@ -123,7 +123,7 @@ def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col9_null` Nullable(String)" in sql
     assert "`col10_null` Nullable(Date)" in sql
     assert "`col11_null` Nullable(String)" in sql
-    assert "`col1_precision` Int16" in sql
+    assert "`col1_precision` Int64" in sql
     assert "`col4_precision` DateTime64(3,'UTC')" in sql
     assert "`col5_precision` String" in sql
     assert "`col6_precision` Decimal(6,2)" in sql

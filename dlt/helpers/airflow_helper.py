@@ -12,14 +12,14 @@ from tenacity import (
 )
 
 from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR, DLT_LOCAL_DIR
-from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
+from dlt.common.exceptions import MissingDependencyException
 
 try:
     from airflow.configuration import conf
     from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
-    from airflow.operators.empty import EmptyOperator
-    from airflow.operators.python import BaseOperator, PythonOperator, get_current_context
+    from airflow.operators.dummy import DummyOperator
+    from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
 
@@ -346,7 +346,7 @@ class PipelineTasksGroup(TaskGroup):
         schema_contract: TSchemaContract = None,
         on_before_run: Callable[[], None] = None,
         **kwargs: Any,
-    ) -> List[BaseOperator]:
+    ) -> List[PythonOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
 
         Creates an Airflow task that extracts, normalizes and loads `data` with the passed pipeline instance `pipeline`. If `data` is a source
@@ -407,7 +407,7 @@ class PipelineTasksGroup(TaskGroup):
             # use factory function to make a task, in order to parametrize it
             # passing arguments to task function (_run) is serializing
             # them and running template engine on them
-            def make_task(pipeline: Pipeline, data: Any, name: str = None) -> BaseOperator:
+            def make_task(pipeline: Pipeline, data: Any, name: str = None) -> PythonOperator:
                 f = functools.partial(
                     self._run,
                     pipeline,
@@ -430,7 +430,7 @@ class PipelineTasksGroup(TaskGroup):
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
                 if pipeline.dev_mode:
-                    raise ValueError("Cannot decompose pipelines with `dev_mode=True`")
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
                 # serialize tasks
                 tasks = []
                 pt = None
@@ -446,7 +446,7 @@ class PipelineTasksGroup(TaskGroup):
                     raise ValueError("Can only decompose dlt sources")
 
                 if pipeline.dev_mode:
-                    raise ValueError("Cannot decompose pipelines with `dev_mode=True`")
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
 
                 tasks = []
                 sources = data.decompose("scc")
@@ -469,7 +469,7 @@ class PipelineTasksGroup(TaskGroup):
 
                     tasks.append(make_task(pipeline, source))
 
-                end = EmptyOperator(task_id=f"{t_name}_end")
+                end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end
@@ -482,7 +482,7 @@ class PipelineTasksGroup(TaskGroup):
                     raise ValueError("Can only decompose dlt sources")
 
                 if pipeline.dev_mode:
-                    raise ValueError("Cannot decompose pipelines with `dev_mode=True`")
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
 
                 # parallel tasks
                 tasks = []
@@ -503,7 +503,7 @@ class PipelineTasksGroup(TaskGroup):
                     tasks.append(make_task(pipeline, source, new_pipeline_name))
 
                 t_name = self._task_name(pipeline, data)
-                end = EmptyOperator(task_id=f"{t_name}_end")
+                end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end
@@ -512,8 +512,9 @@ class PipelineTasksGroup(TaskGroup):
                 start >> end
                 return [start, end]
             else:
-                raise ValueErrorWithKnownValues(
-                    "decompose", decompose, ["none", "serialize", "parallel", "parallel-isolated"]
+                raise ValueError(
+                    "decompose value must be one of ['none', 'serialize', 'parallel',"
+                    " 'parallel-isolated']"
                 )
 
 

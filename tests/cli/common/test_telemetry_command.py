@@ -31,12 +31,9 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
     def _initial_providers(self):
         return [ConfigTomlProvider(run_context.settings_dir, global_dir=run_context.global_dir)]
 
-    with (
-        set_working_dir(test_storage.make_full_path("project")),
-        patch(
-            "dlt.common.runtime.run_context.RunContext.initial_providers",
-            _initial_providers,
-        ),
+    with set_working_dir(test_storage.make_full_path("project")), patch(
+        "dlt.common.runtime.run_context.RunContext.initial_providers",
+        _initial_providers,
     ):
         # no config files: status is ON
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
@@ -139,12 +136,12 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli import (
-        DEFAULT_VERIFIED_SOURCES_REPO,
-    )
     from dlt.cli.deploy_command import (
         DeploymentMethods,
         COMMAND_DEPLOY_REPO_LOCATION,
+    )
+    from dlt.cli.init_command import (
+        DEFAULT_VERIFIED_SOURCES_REPO,
     )
     from dlt.cli.command_wrappers import (
         init_command_wrapper,

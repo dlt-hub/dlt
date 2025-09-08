@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional
 import dlt
 from dlt.common import Decimal
 from dlt.common.typing import TSecretValue, is_optional_type
-from dlt.common.configuration.inject import with_config
+from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.specs import (
     configspec,
     BaseConfiguration,

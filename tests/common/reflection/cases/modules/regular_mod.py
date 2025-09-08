@@ -10,6 +10,6 @@ def f():
     pass
 
 
-@dlt.resource()
+@dlt.resource(standalone=True)
 def r():
     yield [1, 2, 3]

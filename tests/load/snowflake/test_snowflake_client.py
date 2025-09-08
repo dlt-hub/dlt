@@ -15,7 +15,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.sql_client import TJobQueryTags
 
 from tests.cases import TABLE_UPDATE
-from tests.load.utils import yield_client_with_storage, cm_yield_client, empty_schema
+from tests.load.utils import yield_client_with_storage, empty_schema
 
 
 # mark all tests as essential, do not remove
@@ -100,18 +100,3 @@ def test_query_tag(client: SnowflakeClient, mocker: MockerFixture):
     execute_sql_spy.reset_mock()
     client.sql_client.set_query_tags(None)
     execute_sql_spy.assert_not_called
-
-
-def test_session_autocommit() -> None:
-    with cm_yield_client("snowflake", "dataset") as client:
-
-        def _get_autocommit() -> bool:
-            rows = client.sql_client.execute_sql("SHOW PARAMETERS LIKE 'autocommit' IN SESSION;")
-            return rows[0][1].lower() == "true"
-
-        assert _get_autocommit() is True
-
-        with client.sql_client.begin_transaction():
-            assert _get_autocommit() is False
-
-        assert _get_autocommit() is True

@@ -1,5 +1,5 @@
 ---
-title: Advanced usage
+title: Advanced
 description: advance configuration and usage of the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
@@ -9,6 +9,74 @@ import Header from '../_source-info-header.md';
 # Advanced usage
 
 <Header/>
+
+## Incremental loading
+
+Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
+
+Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use. Read [here](../../../walkthroughs/sql-incremental-configuration) for more details on incremental loading with `dlt`.
+
+### How to configure
+1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
+1. **Set an initial value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
+1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
+1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from a certain range.
+1. **Order returned rows**: Set `row_order` to `asc` or `desc` to order returned rows.
+
+:::info Special characters in the cursor column name
+If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
+:::
+
+### Examples
+
+1. **Incremental loading with the resource `sql_table`**.
+
+  Consider a table "family" with a timestamp column `last_modified` that indicates when a row was last modified. To ensure that only rows modified after midnight (00:00:00) on January 1, 2024, are loaded, you would set the `last_modified` timestamp as the cursor as follows:
+
+  ```py
+  import dlt
+  from dlt.sources.sql_database import sql_table
+  from dlt.common.pendulum import pendulum
+
+  # Example: Incrementally loading a table based on a timestamp column
+  table = sql_table(
+     table='family',
+     incremental=dlt.sources.incremental(
+         'last_modified',  # Cursor column name
+         initial_value=pendulum.DateTime(2024, 1, 1, 0, 0, 0)  # Initial cursor value
+     )
+  )
+
+  pipeline = dlt.pipeline(destination="duckdb")
+  extract_info = pipeline.extract(table, write_disposition="merge")
+  print(extract_info)
+  ```
+
+  Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+  In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
+
+2. **Incremental loading with the source `sql_database`**.
+
+  To achieve the same using the `sql_database` source, you would specify your cursor as follows:
+
+  ```py
+  import dlt
+  from dlt.sources.sql_database import sql_database
+
+  source = sql_database().with_resources("family")
+  # Using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024
+  source.family.apply_hints(incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0)))
+
+  # Running the pipeline
+  pipeline = dlt.pipeline(destination="duckdb")
+  load_info = pipeline.run(source, write_disposition="merge")
+  print(load_info)
+  ```
+
+  :::info
+    * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up.
+    * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
+  :::
 
 ### Inclusive and exclusive filtering
 
@@ -69,15 +137,11 @@ Depending on the selected backend, some of the types might require additional pr
 
 The `reflection_level` argument controls how much information is reflected:
 
-- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data.
-- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale. **This is the default.**
+- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data. **This is the default.**
+- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale.
 - `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
 
-If the SQL type is unknown or not supported by `dlt`, then we'll try to infer it from the data.
-* `sqlalchemy` follows standard `dlt` inference rules from Python objects. This often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
-* `pyarrow` backend will try to infer types from the data using rules built-in in arrow (we just past an array of Python objects and ask for a type). Variant columns are not created by this backend so columns with inconsistent types cannot be loaded by this backend.
-
-
+If the SQL type is unknown or not supported by `dlt`, then, in the pyarrow backend, the column will be skipped, whereas in the other backends the type will be inferred directly from the data irrespective of the `reflection_level` specified. In the latter case, this often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
 :::tip
 If you use reflection level **full** / **full_with_precision**, you may encounter a situation where the data returned by sqlalchemy or pyarrow backend does not match the reflected data types. The most common symptoms are:
 1. The destination complains that it cannot cast one type to another for a certain column. For example, `connector-x` returns TIME in nanoseconds
@@ -140,26 +204,6 @@ print(read_table.compute_table_schema())
 
 You can call `remove_nullability_adapter` from your custom table adapter if you need to combine both.
 
-### Selecting a subset of columns
-
-You can use `table_adapter_callback` to select only specific columns from a table by removing unwanted columns from the table definition.
-
-```py
-from dlt.sources.sql_database import sql_database
-
-def table_adapter_callback(table):
-    if table.name == 'my_table':
-        columns_to_keep = ['id', 'name', 'email']
-        for col in list(table._columns):
-            if col.name not in columns_to_keep:
-                table._columns.remove(col)
-    return table
-
-source = sql_database(
-    table_names=["my_table"],
-    table_adapter_callback=table_adapter_callback
-)
-```
 
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
@@ -204,7 +248,7 @@ The examples below show how you can set arguments in any of the TOML files (`sec
 
 You'll be able to configure all the arguments this way (except the adapter callback function). [Standard dlt rules apply](../../../general-usage/credentials/setup).
 
-It is also possible to set these arguments as environment variables [using configuration sections](../../../general-usage/credentials/setup#recommended-section-layout):
+It is also possible to set these arguments as environment variables [using the proper naming convention](../../../general-usage/credentials/setup#naming-convention):
 ```sh
 SOURCES__SQL_DATABASE__CREDENTIALS="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 SOURCES__SQL_DATABASE__BACKEND=pandas

@@ -123,7 +123,7 @@ endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpo
 
 #### Adding additional configuration
 
-To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in `toml` config.
+To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in toml config.
 
 ```toml
 [destination.filesystem.kwargs]
@@ -137,16 +137,6 @@ verify="public.crt"
 To pass additional arguments via env variables, use **stringified dictionary**:
 `DESTINATION__FILESYSTEM__KWARGS='{"use_ssl": true, "auto_mkdir": true}`
 
-You can also override default `fsspec` settings used by `dlt`:
-```toml
-[destination.filesystem.kwargs]
-use_listings_cache=false  # listing cache disabled by default as you typically add files
-listings_expiry_time=60.0
-skip_instance_cache=false  # instance cache enabled by default, it is thread isolated anyway
-```
-There's however no good reason to do that, except debugging `fsspec` internal problems. You could try
-to enable listing cache but this cache is not shared across threads which `dlt` load steps uses to
-parallelize writes. You may get unpredictable cache invalidation behavior.
 
 ### Google storage
 Run `pip install "dlt[gs]"` which will install the `gcfs` package.
@@ -201,12 +191,8 @@ If you need to use a custom host for your storage account, you can set it up lik
 azure_account_host = "<storage_account_name>.<host_base>"
 ```
 Remember to include `storage_account_name` with your base host ie. `dlt_ci.blob.core.usgovcloudapi.net`.
+`dlt` will use this host to connect to azure blob storage without any modifications:
 
-`dlt` will use this host to connect to Azure Blob Storage without any modifications:
-
-:::tip OneLake (Fabric)
-Use the Blob endpoint (`azure_account_host = "onelake.blob.fabric.microsoft.com"`).
-:::
 
 Two forms of Azure credentials are supported:
 
@@ -254,7 +240,7 @@ If for any reason you want to have those files in a local folder, set up the `bu
 
 ```toml
 [destination.filesystem]
-bucket_url = "file:///absolute/path"  # three slashes (file:///) for an absolute path
+bucket_url = "file:///absolute/path"  # three / for an absolute path
 ```
 
 :::tip
@@ -328,32 +314,24 @@ Configure your SFTP credentials by editing the `.dlt/secrets.toml` file. By defa
 Below are the possible fields for SFTP credentials configuration:
 
 ```text
-sftp_port                   # The port for SFTP, defaults to 22 (standard for SSH/SFTP)
-sftp_username               # Your SFTP username, defaults to None
-sftp_password               # Your SFTP password (if using password-based auth), defaults to None
-*sftp_pkey*                 # Your private key for key-based authentication, defaults to None
-sftp_key_filename           # Path to your private key file for key-based authentication, defaults to None
-sftp_key_passphrase         # Passphrase for your private key (if applicable), defaults to None
-sftp_timeout                # Timeout for establishing a connection, defaults to None
-sftp_banner_timeout         # Timeout for receiving the banner during authentication, defaults to None
-sftp_auth_timeout           # Authentication timeout, defaults to None
-sftp_channel_timeout        # Channel timeout for SFTP operations, defaults to None
-sftp_allow_agent            # Use SSH agent for key management (if available), defaults to True
-sftp_look_for_keys          # Search for SSH keys in the default SSH directory (~/.ssh/), defaults to True
-sftp_compress               # Enable compression (can improve performance over slow networks), defaults to False
-*sftp_sock*                 # Custom socket to use for communication to target host, defaults to None
-sftp_gss_auth               # Use GSS-API for authentication, defaults to False
-sftp_gss_kex                # Use GSS-API for key exchange, defaults to False
-sftp_gss_deleg_creds        # Delegate credentials with GSS-API, defaults to True
-sftp_gss_host               # Host for GSS-API, defaults to None
-sftp_gss_trust_dns          # Trust DNS for GSS-API, defaults to True
-*sftp_disabled_algorithms*  # Disable specific algorithms for security, defaults to None
-*sftp_transport_factory*    # Custom transport factory, defaults to None
-*sftp_auth_strategy*        # Authentication strategy, defaults to None
+sftp_port             # The port for SFTP, defaults to 22 (standard for SSH/SFTP)
+sftp_username         # Your SFTP username, defaults to None
+sftp_password         # Your SFTP password (if using password-based auth), defaults to None
+sftp_key_filename     # Path to your private key file for key-based authentication, defaults to None
+sftp_key_passphrase   # Passphrase for your private key (if applicable), defaults to None
+sftp_timeout          # Timeout for establishing a connection, defaults to None
+sftp_banner_timeout   # Timeout for receiving the banner during authentication, defaults to None
+sftp_auth_timeout     # Authentication timeout, defaults to None
+sftp_channel_timeout  # Channel timeout for SFTP operations, defaults to None
+sftp_allow_agent      # Use SSH agent for key management (if available), defaults to True
+sftp_look_for_keys    # Search for SSH keys in the default SSH directory (~/.ssh/), defaults to True
+sftp_compress         # Enable compression (can improve performance over slow networks), defaults to False
+sftp_gss_auth         # Use GSS-API for authentication, defaults to False
+sftp_gss_kex          # Use GSS-API for key exchange, defaults to False
+sftp_gss_deleg_creds  # Delegate credentials with GSS-API, defaults to True
+sftp_gss_host         # Host for GSS-API, defaults to None
+sftp_gss_trust_dns    # Trust DNS for GSS-API, defaults to True
 ```
-:::note
-The `*` credentials indicate parameters that cannot be set through `.dlt/secrets.toml` and must be set through code instantiation.
-:::
 
 :::info
 For more information about credentials parameters: https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect
@@ -431,7 +409,7 @@ The filesystem destination handles the write dispositions as follows:
 
 ## File compression
 
-The filesystem destination in the dlt library uses `gzip` compression by default for efficiency.
+The filesystem destination in the dlt library uses `gzip` compression by default for efficiency, which may result in the files being stored in a compressed format. This format may not be easily readable as plain text or JSON Lines (`jsonl`) files. If you encounter files that seem unreadable, they may be compressed.
 
 To handle compressed files:
 
@@ -443,10 +421,6 @@ disable_compression=true
 ```
 
 - To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
-
-:::note
-Starting with dlt version 1.15.0, compressed `csv` and `jsonl` files automatically include a `.gz` extension to reflect their gzip-compressed format. In versions prior to 1.15.0, compressed files were saved without the `.gz` extension. If you have a dataset created with an earlier version (e.g., 1.14.0 or below), dlt will automatically detect the older format and preserve the original naming (without `.gz`) for that dataset. New datasets created with 1.15.0 or later will include the `.gz` extension by default.
-:::
 
 For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and enabling file compression](../../reference/performance#disabling-and-enabling-file-compression).
 
@@ -663,17 +637,6 @@ You will also notice `init` files being present in the root folder and the speci
 :::note
 When a load generates a new state, for example when using incremental loads, a new state file appears in the `_dlt_pipeline_state` folder at the destination. To prevent data accumulation, state cleanup mechanisms automatically remove old state files, retaining only the latest 100 by default. This cleanup process can be customized or disabled using the filesystem configuration `max_state_files`, which determines the maximum number of pipeline state files to retain (default is 100). Setting this value to 0 or a negative number disables the cleanup of old states.
 :::
-
-## Data access
-`filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client.md#the-filesystem-sql-client) which provides read only
-SQL access to files and iceberg/delta tables with duckdb dialect. By default views that are created are "frozen" to minimize reading form bucket.
-You can enable views autorefesh:
-
-```toml
-[destination.filesystem]
-always_refresh_views=true
-```
-
 
 ## Troubleshooting
 ### File Name Too Long Error

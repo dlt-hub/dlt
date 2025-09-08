@@ -57,13 +57,12 @@ password = "<password>" # replace with your password
 host = "localhost" # or the IP address location of your database
 port = 5432
 connect_timeout = 15
-query.options = "-ctimezone=Europe/Paris"
 ```
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
 ```toml
 # Keep it at the top of your TOML file, before any section starts
-destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15&options=-ctimezone%3DEurope%2FParis"
+destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 
 To pass credentials directly, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
@@ -105,33 +104,15 @@ pipeline.run(events())
 ```
 
 ### Fast loading with Arrow tables and CSV
-
 You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the CSV loader file format like below:
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
 ```
 In the example above, `arrow_table` will be converted to CSV with **pyarrow** and then streamed into **postgres** with the COPY command. This method skips the regular `dlt` normalizer used for Python objects and is several times faster.
 
-### Fast loading with Arrow tables and parquet
-
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html). Install the right driver to enable it:
-```sh
-pip install adbc-driver-postgresql
-```
-with this driver installed, you can set `parquet` as `loader_file_format` for `dlt` resources.
-
-Not all `postgres` types are supported, see driver docs for more details:
-* `JSONB` is not supported so we use `JSON` instead if the resource was explicitly decorated.
-* `INT8` (128 bit) not supported and `TIME(3)` (millisecond precision) are not supported
-* We observed problems with some decimal precision/scale ie. `decimal128(6, 2)` is not properly decoded.
-* large decimals are not supported. `postgres` is the only destination that fully supports `wei` (256 bit) decimal precision, this does not work with ADBC.
-
-We copy parquet files with batches of size of 1 row group. One files is copied in a single transaction.
-
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
 * [CSV](../file-formats/csv.md) is supported.
-* [parquet](../file-formats/parquet.md) is supported via [ADBC](https://arrow.apache.org/adbc/current/driver/postgresql.html)
 
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.

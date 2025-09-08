@@ -1,0 +1,43 @@
+name: tools | docker images
+
+on:
+  pull_request:
+    branches:
+      - master
+      - devel
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  get_docs_changes:
+    name: docs changes
+    uses: ./.github/workflows/get_docs_changes.yml
+
+  run_airflow:
+    name: tools | docker images build
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@master
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.x"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1.3.2
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+          version: 1.8.5
+
+      - name: Build images
+        run: make test-build-images

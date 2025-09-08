@@ -26,7 +26,6 @@ from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_merge_strategy,
     is_complete_column,
-    find_incomplete_columns,
 )
 from dlt.common.storages import ParsedLoadJobFileName
 from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
@@ -208,7 +207,7 @@ def prepare_load_table(
     table: TTableSchema,
     destination_capabilities: DestinationCapabilitiesContext = ConfigValue,
 ) -> PreparedTableSchema:
-    """Prepares a table schema to be loaded by filling missing hints and doing other modifications required by given destination.
+    """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
 
     `destination_capabilities` are injected from context if not explicitly passed.
 
@@ -227,9 +226,7 @@ def prepare_load_table(
         if table_format == "native":
             # no special table format, use whatever is supported
             prep_table["table_format"] = None
-        # remove incomplete columns
-        for column, _ in find_incomplete_columns(table):
-            prep_table["columns"].pop(column["name"])
+
         return prep_table  # type: ignore[return-value]
     except KeyError:
         raise TableNotFound("<>", table_name)
@@ -304,8 +301,8 @@ def resolve_merge_strategy(
             merge_strategy = supported_strategies[0]
         if merge_strategy not in supported_strategies:
             raise DestinationCapabilitiesException(
-                f"`{merge_strategy}` merge strategy not supported for table `{table_name}`. "
-                f"Available strategies: {supported_strategies}"
+                f"`{merge_strategy}` merge strategy not supported"
+                f" for table `{table_name}`. Available strategies: {supported_strategies}"
             )
         return merge_strategy
     return None

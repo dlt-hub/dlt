@@ -8,9 +8,9 @@ from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientStagingConfiguration,
 )
-from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
+from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
@@ -23,12 +23,14 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     extra_placeholders: Optional[TExtraPlaceholders] = None
     max_state_files: int = 100
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
-    always_refresh_views: bool = False
-    """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        return super().resolve_credentials_type()
+        # use known credentials or empty credentials for unknown protocol
+        return (
+            self.PROTOCOL_CREDENTIALS.get(self.protocol)
+            or Optional[CredentialsConfiguration]  # type: ignore[return-value]
+        )
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders

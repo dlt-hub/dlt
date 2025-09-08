@@ -2,7 +2,7 @@ import dataclasses
 from pathlib import Path
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
-from dlt.common.destination.configuration import CsvFormatConfiguration
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.libs.cryptography import decode_private_key
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -53,13 +53,14 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 self.private_key = Path(self.private_key_path).read_text("ascii")
             except Exception:
                 raise ValueError(
-                    "Make sure that `private_key` in dlt recognized format is at"
-                    f" `{self.private_key_path}`. Note that binary formats are not supported"
+                    "Make sure that private key in dlt recognized format is at"
+                    f" {self.private_key_path}. Note that binary formats are not supported"
                 )
         if not self.password and not self.private_key and not self.authenticator:
             raise ConfigurationValueError(
-                "`SnowflakeCredentials` requires one of the following to be specified: `password`,"
-                " `private_key`, `authenticator` (OAuth2)."
+                "Please specify password or private_key or authenticator fields."
+                " SnowflakeCredentials supports password, private key and authenticator based (ie."
+                " oauth2) authentication and one of those must be specified."
             )
 
     def get_query(self) -> Dict[str, Any]:

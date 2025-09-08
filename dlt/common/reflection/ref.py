@@ -4,7 +4,7 @@ from importlib import import_module
 from types import ModuleType, SimpleNamespace
 from typing import Any, Callable, Literal, NamedTuple, Tuple, Mapping, List, Sequence
 
-from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TAny
 
 
@@ -53,7 +53,13 @@ def import_module_with_missing(name: str, missing_modules: Tuple[str, ...] = ())
         while True:
             try:
                 return import_module(name)
-            # `MissingDependencyException` is an `ImportError`
+            except ImportError as ie:
+                if ie.name is None:
+                    raise
+                # print(f"ADD {ie.name} {ie.path} vs {name} vs {str(ie)}")
+                if ie.name in missing_modules:
+                    raise
+                missing_modules += (ie.name,)
             except MissingDependencyException as me:
                 if isinstance(me.__context__, ImportError):
                     if me.__context__.name is None:
@@ -65,14 +71,6 @@ def import_module_with_missing(name: str, missing_modules: Tuple[str, ...] = ())
                     missing_modules += (me.__context__.name,)
                 else:
                     raise
-            # catch `ImportError` that are not `MissingDependencyException`
-            except ImportError as ie:
-                if ie.name is None:
-                    raise
-                # print(f"ADD {ie.name} {ie.path} vs {name} vs {str(ie)}")
-                if ie.name in missing_modules:
-                    raise
-                missing_modules += (ie.name,)
     finally:
         builtins.__import__ = real_import
 
@@ -95,7 +93,7 @@ class ImportTrace(NamedTuple):
 def callable_typechecker(o: TAny) -> TAny:
     if callable(o):
         return o  # type: ignore[no-any-return]
-    raise TypeErrorWithKnownTypes("attr", o, ["Callable"])
+    raise TypeError(f"Expected attr to be callable but got type {type(o)}")
 
 
 def object_from_ref(
@@ -114,7 +112,7 @@ def object_from_ref(
 
     """
     if "." not in ref:
-        raise ValueError("`ref` format is `module.attr` and must contain at least one `.`")
+        raise ValueError("ref format is module.attr and must contain at leas one dot")
     module_path, attr_name = ref.rsplit(".", 1)
     try:
         spec = importlib.util.find_spec(module_path)

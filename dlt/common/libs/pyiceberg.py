@@ -10,8 +10,7 @@ from dlt.common.time import precise_time
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.pipeline import SupportsPipeline
-from dlt.common.schema.typing import TWriteDisposition, TTableSchema
-from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
@@ -26,27 +25,12 @@ try:
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
     import pyarrow as pa
-    import pyiceberg.io.pyarrow as _pio
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyiceberg helpers",
         [f"{version.DLT_PKG_NAME}[pyiceberg]"],
         "Install `pyiceberg` so dlt can create Iceberg tables in the `filesystem` destination.",
     )
-
-
-# TODO: remove with pyiceberg's release after 0.9.1
-_orig_get_kwargs = _pio._get_parquet_writer_kwargs
-
-
-def _patched_get_parquet_writer_kwargs(table_properties):  # type: ignore[no-untyped-def]
-    """Return the original kwargs **plus** store_decimal_as_integer=True."""
-    kwargs = _orig_get_kwargs(table_properties)
-    kwargs.setdefault("store_decimal_as_integer", True)
-    return kwargs
-
-
-_pio._get_parquet_writer_kwargs = _patched_get_parquet_writer_kwargs
 
 
 def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
@@ -77,43 +61,6 @@ def write_iceberg_table(
         f"pyiceberg: {write_disposition} arrow with {data.num_rows} rows to table {table.name()} at"
         f" location {table.location()} took {(precise_time() - start_ts)} seconds."
     )
-
-
-def merge_iceberg_table(
-    table: IcebergTable,
-    data: pa.Table,
-    schema: TTableSchema,
-    load_table_name: str,
-) -> None:
-    """Merges in-memory Arrow data into on-disk Iceberg table."""
-    strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
-    if strategy == "upsert":
-        # evolve schema
-        with table.update_schema() as update:
-            update.union_by_name(ensure_iceberg_compatible_arrow_schema(data.schema))
-
-        if "parent" in schema:
-            join_cols = [get_first_column_name_with_prop(schema, "unique")]
-        else:
-            join_cols = get_columns_names_with_prop(schema, "primary_key")
-
-        # TODO: replace the batching method with transaction with pyiceberg's release after 0.9.1
-        for rb in data.to_batches(max_chunksize=1_000):
-            batch_tbl = pa.Table.from_batches([rb])
-            batch_tbl = ensure_iceberg_compatible_arrow_data(batch_tbl)
-
-            table.upsert(
-                df=batch_tbl,
-                join_cols=join_cols,
-                when_matched_update_all=True,
-                when_not_matched_insert_all=True,
-                case_sensitive=True,
-            )
-    else:
-        raise ValueError(
-            f'Merge strategy "{strategy}" is not supported for Iceberg tables. '
-            f'Table: "{load_table_name}".'
-        )
 
 
 def get_sql_catalog(
@@ -155,7 +102,7 @@ def evolve_table(
         table = catalog.load_table(table_id)
     except NoSuchTableError:
         # add table to catalog
-        metadata_path = f"{table_location.rstrip('/')}/metadata"
+        metadata_path = f"{table_location}/metadata"
         if client.fs_client.exists(metadata_path):
             # found metadata; register existing table
             table = register_table(
@@ -219,7 +166,7 @@ def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
 def get_last_metadata_file(
     metadata_path: str, fs_client: AbstractFileSystem, config: FilesystemConfiguration
 ) -> str:
-    # TODO: read version-hint.txt first and save it in filesystem
+    # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
     try:
         metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
     except FileNotFoundError:

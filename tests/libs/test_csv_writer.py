@@ -1,13 +1,11 @@
 import csv
 from copy import copy
 from typing import Any, Dict, Type
-from unittest.mock import Mock, patch
 import pytest
 import pyarrow.csv as acsv
 import pyarrow.parquet as pq
 
 from dlt.common import json
-from dlt.common.destination.configuration import CsvQuoting
 from dlt.common.data_writers.exceptions import InvalidDataItem
 from dlt.common.data_writers.writers import (
     ArrowToCsvWriter,
@@ -16,7 +14,6 @@ from dlt.common.data_writers.writers import (
     ParquetDataWriter,
 )
 from dlt.common.libs.pyarrow import remove_columns
-from dlt.common.schema.typing import TTableSchemaColumns
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
@@ -25,7 +22,7 @@ from tests.cases import (
     TABLE_ROW_ALL_DATA_TYPES,
     arrow_table_all_data_types,
 )
-from tests.utils import TestDataItemFormat, custom_environ
+from tests.utils import TestDataItemFormat
 
 
 def test_csv_arrow_writer_all_data_fields() -> None:
@@ -222,115 +219,3 @@ def assert_csv_rows(csv_row: Dict[str, Any], expected_row: Dict[str, Any]) -> No
         assert actual[1] == expected, print(
             f"Failed on {actual[0]}: actual: {actual[1]} vs expected: {expected}"
         )
-
-
-@pytest.mark.parametrize("quoting", ["quote_all", "quote_needed", "quote_none"])
-def test_arrow_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
-    import pyarrow as pa
-
-    mock_schema: TTableSchemaColumns = {
-        "col1": {"name": "col1", "data_type": "text"},
-        "col2": {"name": "col2", "data_type": "bigint"},
-    }
-
-    test_data = pa.table({"col1": ["test_value"], "col2": [123]})
-
-    expected_quoting_mapping = {
-        "quote_all": "all_valid",
-        "quote_needed": "needed",
-        "quote_none": "none",
-    }
-
-    with patch("pyarrow.csv.CSVWriter") as mock_csv_writer:
-        mock_writer_instance = Mock()
-        mock_csv_writer.return_value = mock_writer_instance
-
-        mock_file = Mock()
-        writer = ArrowToCsvWriter(mock_file, quoting=quoting)
-        writer.write_header(mock_schema)
-        writer.write_data([test_data])
-
-        mock_csv_writer.assert_called_once()
-        call_args = mock_csv_writer.call_args
-        write_options = call_args.kwargs["write_options"]
-        assert write_options.quoting_style == expected_quoting_mapping[quoting]
-
-        mock_writer_instance.write.assert_called_once_with(test_data)
-
-
-def test_arrow_csv_writer_quote_none_with_special_characters() -> None:
-    import tempfile
-    import pyarrow as pa
-    from pyarrow.lib import ArrowInvalid
-
-    mock_schema: TTableSchemaColumns = {
-        "col1": {"name": "col1", "data_type": "text"},
-        "col2": {"name": "col2", "data_type": "text"},
-    }
-
-    test_data = pa.table({"col1": ["value,with,commas"], "col2": ["value\nwith\nnewlines"]})
-
-    with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv") as temp_file:
-        writer = ArrowToCsvWriter(temp_file, quoting="quote_none")
-        writer.write_header(mock_schema)
-        with pytest.raises(ArrowInvalid, match="CSV values may not contain structural characters"):
-            writer.write_data([test_data])
-
-
-@pytest.mark.parametrize("quoting", ["quote_all", "quote_needed", "quote_none", "quote_minimal"])
-def test_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
-    mock_schema: TTableSchemaColumns = {
-        "col1": {"name": "col1", "data_type": "text"},
-        "col2": {"name": "col2", "data_type": "bigint"},
-    }
-
-    test_data = [{"col1": "test_value", "col2": 123}]
-
-    expected_quoting_mapping = {
-        "quote_all": csv.QUOTE_ALL,
-        "quote_needed": csv.QUOTE_NONNUMERIC,
-        "quote_none": csv.QUOTE_NONE,
-        "quote_minimal": csv.QUOTE_MINIMAL,
-    }
-
-    with patch("csv.DictWriter") as mock_dict_writer:
-        mock_writer_instance = Mock()
-        mock_dict_writer.return_value = mock_writer_instance
-
-        mock_file = Mock()
-        csv_writer = CsvWriter(mock_file, quoting=quoting)
-
-        csv_writer.write_header(mock_schema)
-        csv_writer.write_data(test_data)
-
-        mock_dict_writer.assert_called_once()
-        call_args = mock_dict_writer.call_args
-
-        assert "quoting" in call_args.kwargs
-        assert call_args.kwargs["quoting"] == expected_quoting_mapping[quoting]
-
-        mock_writer_instance.writeheader.assert_called_once()
-        mock_writer_instance.writerows.assert_called_once_with(test_data)
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        {"lineterminator": "\n", "expected": b'"col1"\n"value1"\n"value2"\n'},
-        {"lineterminator": "\r\n", "expected": b'"col1"\r\n"value1"\r\n"value2"\r\n'},
-    ],
-)
-def test_csv_lineterminator(test_case: Dict[str, str]) -> None:
-    lineterminator = test_case["lineterminator"]
-    expected = test_case["expected"]
-
-    schema: TTableSchemaColumns = {"col1": {"name": "col1", "data_type": "text"}}
-    data = [{"col1": "value1"}, {"col1": "value2"}]
-
-    with custom_environ({"DATA_WRITER__LINETERMINATOR": lineterminator}):
-        with get_writer(CsvWriter, disable_compression=True) as writer:
-            writer.write_data_item(data, schema)
-
-        with open(writer.closed_files[0].file_path, "rb") as f:
-            content = f.read()
-            assert content == expected

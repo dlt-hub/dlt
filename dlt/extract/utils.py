@@ -1,4 +1,6 @@
 import inspect
+import makefun
+import asyncio
 from typing import (
     Callable,
     Optional,
@@ -9,33 +11,30 @@ from typing import (
     Sequence,
     cast,
     AsyncIterator,
+    AsyncGenerator,
     Awaitable,
     Generator,
     Iterator,
 )
 from collections.abc import Mapping as C_Mapping
-from functools import wraps
+from functools import wraps, partial
 
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.reflection.inspect import isgeneratorfunction
+from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.typing import (
-    Self,
     AnyFun,
     DictStrAny,
     TDataItem,
     TDataItems,
     TAnyFunOrGenerator,
     TColumnNames,
-    NoneType,
 )
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
-    InvalidResourceDataTypeIsNone,
-    InvalidResourceReturnsResource,
+    InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidStepFunctionArguments,
 )
 from dlt.extract.items import (
@@ -73,9 +72,9 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     """
 
     # if incoming item is hints meta, check if item format is forced
-    from dlt.destinations.dataset.relation import ReadableDBAPIRelation
+    from dlt.extract.hints import SqlModel
 
-    if isinstance(items, ReadableDBAPIRelation):
+    if isinstance(items, SqlModel):
         return "model"
 
     if not pyarrow and not pandas:
@@ -126,7 +125,7 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
     ):
         return pydantic.pydantic_to_table_schema_columns(columns)
 
-    raise ValueError(f"Unsupported columns type: `{type(columns)}`")
+    raise ValueError(f"Unsupported columns type: {type(columns)}")
 
 
 def ensure_table_schema_columns_hint(
@@ -145,6 +144,13 @@ def ensure_table_schema_columns_hint(
         return wrapper
 
     return ensure_table_schema_columns(columns)
+
+
+def reset_pipe_state(pipe: SupportsPipe, source_state_: Optional[DictStrAny] = None) -> None:
+    """Resets the resource state for a `pipe` and all its parent pipes"""
+    if pipe.has_parent:
+        reset_pipe_state(pipe.parent, source_state_)
+    reset_resource_state(pipe.name, source_state_)
 
 
 def simulate_func_call(
@@ -270,7 +276,7 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
                 raise
 
     if callable(f):
-        if isgeneratorfunction(f):
+        if inspect.isgeneratorfunction(inspect.unwrap(f)):
             return wraps(f)(_gen_wrapper)  # type: ignore[return-value]
         else:
 
@@ -282,13 +288,6 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
 
             return wraps(f)(_fun_wrapper)  # type: ignore[return-value]
     return _gen_wrapper()  # type: ignore[return-value]
-
-
-def _transformer_compat(item: TDataItems, meta: Any = None) -> Any:
-    pass
-
-
-_transformer_compat_sig = inspect.signature(_transformer_compat)
 
 
 def wrap_compat_transformer(
@@ -307,60 +306,25 @@ def wrap_compat_transformer(
         return f(item, *args, **kwargs)
 
     # this partial wraps transformer and sets a signature that is compatible with pipe transform calls
-    _wrapper = wraps(f)(_tx_partial)
-    setattr(_wrapper, "__signature__", _transformer_compat_sig)
-    return _wrapper
-
-
-def _resource_compat() -> Any:
-    pass
-
-
-_resource_compat_sig = inspect.signature(_resource_compat)
+    return makefun.wraps(f, new_sig=inspect.signature(_tx_partial))(_tx_partial)  # type: ignore
 
 
 def wrap_resource_gen(
     name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any
 ) -> AnyFun:
-    """Wraps a generator or generator function so it is evaluated on extraction and binds argument passed to call"""
+    """Wraps a generator or generator function so it is evaluated on extraction"""
 
-    def _partial() -> Any:
-        # print(f"_PARTIAL: {args} {kwargs}")
-        rv = f(*args, **kwargs)
-        if rv is None:
-            raise InvalidResourceDataTypeIsNone(name, rv, NoneType)
-        # is it Pipe or resource
-        if hasattr(rv, "_gen_idx") or hasattr(rv, "_pipe"):
-            raise InvalidResourceReturnsResource(name, f, type(f))
-        return rv
+    if (
+        inspect.isgeneratorfunction(inspect.unwrap(f))
+        or inspect.isgenerator(f)
+        or inspect.isasyncgenfunction(inspect.unwrap(f))
+    ):
 
-    _wrapper = wraps(f)(_partial)
-    setattr(_wrapper, "__signature__", _resource_compat_sig)
-    return _wrapper
+        def _partial() -> Any:
+            # print(f"_PARTIAL: {args} {kwargs}")
+            return f(*args, **kwargs)
 
-
-def make_schema_with_default_name(pipeline_name: str) -> str:
-    """Makes schema name from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
-    if pipeline_name.endswith("_pipeline"):
-        schema_name = pipeline_name[:-9]
+        # this partial preserves the original signature and just defers the call to pipe
+        return makefun.wraps(f, new_sig=inspect.signature(_partial))(_partial)  # type: ignore
     else:
-        schema_name = pipeline_name
-    return normalize_schema_name(schema_name)
-
-
-class dynstr(str):
-    """Dynamic string which will generate final value when called"""
-
-    __slots__ = "dyn"
-
-    def __new__(cls, placeholder: str, dyn: Callable[..., str]) -> Self:
-        # Create a new str instance
-        instance = super().__new__(cls, placeholder)
-        return instance
-
-    def __init__(self, placeholder: str, dyn: Callable[..., str]):
-        super().__init__()
-        self.dyn = dyn
-
-    def __call__(self, param: Any) -> str:
-        return self.dyn(param)
+        raise InvalidResourceDataTypeFunctionNotAGenerator(name, f, type(f))

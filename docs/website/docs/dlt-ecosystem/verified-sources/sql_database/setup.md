@@ -39,7 +39,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
 
     Alternatively, you can also authenticate using connection strings:
     ```toml
-    [sources.sql_database]
+    [sources.sql_database.credentials]
     credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
     ```
 
@@ -70,7 +70,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
     ```
 
     Executing this command will run the example script `sql_database_pipeline.py` created in step 1. In order for this to run successfully, you will need to pass the names of the databases and/or tables you wish to load. 
-    See the [section on configuring the sql_database source](./configuration#select-tables-to-load) for more details.
+    See the [section on configuring the sql_database source](./configuration#configuring-the-sql-database-source) for more details.
 
 
 6. Make sure everything is loaded as expected with  

@@ -11,7 +11,7 @@ def _make_pipeline(destination_name: str):
         pipeline_name="rest_api",
         destination=destination_name,
         dataset_name="rest_api_data",
-        dev_mode=True,
+        full_refresh=True,
     )
 
 
@@ -25,7 +25,7 @@ def test_rest_api_source_filtered(mock_api_server) -> None:
                 "name": "posts",
                 "endpoint": "posts",
                 "processing_steps": [
-                    {"filter": lambda x: x["id"] == 1},
+                    {"filter": lambda x: x["id"] == 1},  # type: ignore[typeddict-item]
                 ],
             },
         ],
@@ -56,7 +56,7 @@ def test_rest_api_source_exclude_columns(mock_api_server) -> None:
                 "endpoint": "posts",
                 "processing_steps": [
                     {
-                        "map": exclude_columns(["title"]),
+                        "map": exclude_columns(["title"]),  # type: ignore[typeddict-item]
                     },
                 ],
             },
@@ -88,7 +88,7 @@ def test_rest_api_source_anonymize_columns(mock_api_server) -> None:
                 "endpoint": "posts",
                 "processing_steps": [
                     {
-                        "map": anonymize_columns(["title"]),
+                        "map": anonymize_columns(["title"]),  # type: ignore[typeddict-item]
                     },
                 ],
             },
@@ -115,7 +115,7 @@ def test_rest_api_source_map(mock_api_server) -> None:
                 "name": "posts",
                 "endpoint": "posts",
                 "processing_steps": [
-                    {"map": lower_title},
+                    {"map": lower_title},  # type: ignore[typeddict-item]
                 ],
             },
         ],
@@ -141,16 +141,16 @@ def test_rest_api_source_filter_and_map(mock_api_server) -> None:
                 "name": "posts",
                 "endpoint": "posts",
                 "processing_steps": [
-                    {"map": id_by_10},
-                    {"filter": lambda x: x["id"] == 10},
+                    {"map": id_by_10},  # type: ignore[typeddict-item]
+                    {"filter": lambda x: x["id"] == 10},  # type: ignore[typeddict-item]
                 ],
             },
             {
                 "name": "posts_2",
                 "endpoint": "posts",
                 "processing_steps": [
-                    {"filter": lambda x: x["id"] == 10},
-                    {"map": id_by_10},
+                    {"filter": lambda x: x["id"] == 10},  # type: ignore[typeddict-item]
+                    {"map": id_by_10},  # type: ignore[typeddict-item]
                 ],
             },
         ],
@@ -193,14 +193,14 @@ def test_rest_api_source_filtered_child(mock_api_server, comments_endpoint) -> N
                 "name": "posts",
                 "endpoint": "posts",
                 "processing_steps": [
-                    {"filter": lambda x: x["id"] in (1, 2)},
+                    {"filter": lambda x: x["id"] in (1, 2)},  # type: ignore[typeddict-item]
                 ],
             },
             {
                 "name": "comments",
                 "endpoint": comments_endpoint,
                 "processing_steps": [
-                    {"filter": lambda x: x["id"] == 1},
+                    {"filter": lambda x: x["id"] == 1},  # type: ignore[typeddict-item]
                 ],
             },
         ],
@@ -241,7 +241,7 @@ def test_rest_api_source_filtered_and_map_child(mock_api_server, comments_endpoi
                 "name": "posts",
                 "endpoint": "posts",
                 "processing_steps": [
-                    {"filter": lambda x: x["id"] in (1, 2)},
+                    {"filter": lambda x: x["id"] in (1, 2)},  # type: ignore[typeddict-item]
                 ],
             },
             {
@@ -249,8 +249,8 @@ def test_rest_api_source_filtered_and_map_child(mock_api_server, comments_endpoi
                 "endpoint": comments_endpoint,
                 "include_from_parent": ["title"],
                 "processing_steps": [
-                    {"map": extend_body},
-                    {"filter": lambda x: x["body"].startswith("Post 2")},
+                    {"map": extend_body},  # type: ignore[typeddict-item]
+                    {"filter": lambda x: x["body"].startswith("Post 2")},  # type: ignore[typeddict-item]
                 ],
             },
         ],

@@ -16,7 +16,7 @@ from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
     create_load_id,
     destination_state,
-    load_package_state,
+    load_package,
     commit_load_package_state,
     clear_destination_state,
 )
@@ -177,7 +177,7 @@ def test_load_package_state_injectable_context(load_storage: LoadStorage) -> Non
         )
     ):
         # test general load package state
-        injected_state = load_package_state()
+        injected_state = load_package()
         assert injected_state["state"]["_state_version"] == 0
         injected_state["state"]["new_key"] = "new_value"  # type: ignore
 
@@ -193,7 +193,7 @@ def test_load_package_state_injectable_context(load_storage: LoadStorage) -> Non
         assert load_storage.new_packages.get_load_package_state("copy").get("_state_version") == 1
 
         # check that second injection is the same as first
-        second_injected_instance = load_package_state()
+        second_injected_instance = load_package()
         assert second_injected_instance == injected_state
 
         # check scoped destination states

@@ -158,20 +158,6 @@ def test_double_log_init(environment: DictStrStr, mocker: MockerFixture) -> None
     assert logger.LOGGER.name == "dlt"
 
 
-@pytest.mark.forked
-def test_logger_isEnabledFor(environment: DictStrStr) -> None:
-    import logging
-
-    c = PureBasicConfiguration()
-    c.log_level = "INFO"
-    init_test_logging(c)
-
-    # Test that isEnabledFor properly proxied in dlt.common.logger
-    # and not raises TypeError
-    assert logger.isEnabledFor(logging.INFO)
-    assert logger.isEnabledFor(logging.DEBUG) is False
-
-
 def test_cleanup(environment: DictStrStr) -> None:
     # this must happen after all forked tests (problems with tests teardowns in other tests)
     pass

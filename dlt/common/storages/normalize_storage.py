@@ -65,8 +65,8 @@ class NormalizeStorage(VersionedStorage):
                     self.storage.storage_path,
                     from_version,
                     to_version,
-                    f"There are extract files in folder `{NormalizeStorage.EXTRACTED_FOLDER}`."
-                    " Storage will not migrate automatically due to possible data loss. Delete the"
+                    f"There are extract files in {NormalizeStorage.EXTRACTED_FOLDER} folder."
+                    " Storage will not migrate automatically duo to possible data loss. Delete the"
                     " files or normalize it with dlt 0.3.x",
                 )
             from_version = semver.Version.parse("1.0.1")

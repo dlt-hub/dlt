@@ -42,10 +42,7 @@ def test_resolve_merge_strategy() -> None:
     )
 
     # unknown table formats
-    assert (
-        resolve_merge_strategy(schema.tables, iceberg_table, filesystem().capabilities())
-        == "upsert"
-    )
+    assert resolve_merge_strategy(schema.tables, iceberg_table, filesystem().capabilities()) is None
     assert resolve_merge_strategy(schema.tables, delta_table, athena().capabilities()) is None
 
     # not supported strategy
@@ -121,7 +118,7 @@ def test_verify_capabilities_data_types() -> None:
     assert exceptions[0].table_name == "table"
     assert exceptions[0].column == "col1"
     assert exceptions[0].file_format == "parquet"
-    assert exceptions[0].available_in_formats == ["model"]
+    assert exceptions[0].available_in_formats == []
 
     # all supported on parquet
     exceptions = verify_supported_data_types(

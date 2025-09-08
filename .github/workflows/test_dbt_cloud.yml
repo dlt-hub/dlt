@@ -1,0 +1,84 @@
+
+name: tools | dbt cloud
+
+on:
+  pull_request_target:
+    branches:
+      - master
+      - devel
+    types:
+      - opened
+      - synchronize
+      - labeled
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # all credentials must be present to be passed to dbt cloud
+  DBT_CLOUD__ACCOUNT_ID: ${{ secrets.DBT_CLOUD__ACCOUNT_ID }}
+  DBT_CLOUD__JOB_ID: ${{ secrets.DBT_CLOUD__JOB_ID }}
+  DBT_CLOUD__API_TOKEN: ${{ secrets.DBT_CLOUD__API_TOKEN }}
+
+  RUNTIME__LOG_LEVEL: ERROR
+  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
+
+jobs:
+  authorize:
+    # run when label is assigned OR when we are not a fork
+    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+
+  get_docs_changes:
+    name: docs changes
+    needs: authorize
+    uses: ./.github/workflows/get_docs_changes.yml
+
+  run_dbt_cloud:
+    name: tools | dbt cloud tests
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    defaults:
+      run:
+        shell: bash
+    runs-on: "ubuntu-latest"
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.x"
+
+      - name: Install Poetry without dbt
+        uses: snok/install-poetry@v1.3.2
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+          version: 1.8.5
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          # path: ${{ steps.pip-cache.outputs.dir }}
+          path: .venv
+          key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-cloud
+
+      - name: Install dependencies
+        # install dlt with postgres support
+        run: poetry install --no-interaction
+
+      - run: |
+          poetry run pytest tests/helpers/dbt_cloud_tests -k '(not venv)'
+        name: Run dbt cloud - Linux/MAC

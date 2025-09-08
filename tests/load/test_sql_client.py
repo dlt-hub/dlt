@@ -351,13 +351,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         # be compatible with duckdb vector size
         iterator = curr.iter_df(chunk_size)
         df_1 = next(iterator)
-        try:
-            df_2 = next(iterator)
-        except StopIteration:
-            df_2 = None
-            # NOTE: snowflake chunks are unpredictable in size, so allow stop after two iterations
-            if client.config.destination_type != "snowflake":
-                raise
+        df_2 = next(iterator)
         try:
             df_3 = next(iterator)
         except StopIteration:
@@ -367,11 +361,8 @@ def test_execute_df(client: SqlJobClientBase) -> None:
             if df is not None:
                 df.columns = [dfcol.lower() for dfcol in df.columns]
 
-    if client.config.destination_type != "snowflake":
-        assert list(df_1["col"]) == list(range(0, chunk_size))
-        assert list(df_2["col"]) == list(range(chunk_size, total_records))
-    else:
-        assert list(df_1["col"]) == list(range(0, total_records))
+    assert list(df_1["col"]) == list(range(0, chunk_size))
+    assert list(df_2["col"]) == list(range(chunk_size, total_records))
     assert df_3 is None
 
 
@@ -397,14 +388,14 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
         client.sql_client.execute_many(
             [
-                "DELETE FROM TABLE_XXX WHERE 1=1",
-                "DELETE FROM ticket_forms__ticket_field_ids WHERE 1=1",
+                "DELETE FROM TABLE_XXX WHERE 1=1;",
+                "DELETE FROM ticket_forms__ticket_field_ids WHERE 1=1;",
             ]
         )
     assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
         client.sql_client.execute_many(
-            ["DROP TABLE TABLE_XXX", "DROP TABLE ticket_forms__ticket_field_ids"]
+            ["DROP TABLE TABLE_XXX;", "DROP TABLE ticket_forms__ticket_field_ids;"]
         )
 
     # invalid syntax
@@ -667,7 +658,6 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
-
     client.schema._bump_version()
     client.update_stored_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
@@ -682,10 +672,9 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     assert_load_id(client.sql_client, "ABC")
 
     # syntax error within tx
-    statements = ["BEGIN TRANSACTION", f"INVERT INTO {version_table} VALUES(1)", "COMMIT"]
+    statements = ["BEGIN TRANSACTION;", f"INVERT INTO {version_table} VALUES(1);", "COMMIT;"]
     with pytest.raises(DatabaseTransientException):
         client.sql_client.execute_many(statements)
-
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("EFG")
@@ -693,9 +682,9 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
 
     # wrong value inserted
     statements = [
-        "BEGIN TRANSACTION",
-        f"INSERT INTO {version_table}(version) VALUES(1)",
-        "COMMIT",
+        "BEGIN TRANSACTION;",
+        f"INSERT INTO {version_table}(version) VALUES(1);",
+        "COMMIT;",
     ]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
@@ -707,19 +696,6 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("HJK")
     assert_load_id(client.sql_client, "HJK")
-
-    # again but with transaction scope
-    statements = [
-        f"INSERT INTO {version_table}(version) VALUES(1)",
-        "COMMIT",
-    ]
-    # cannot insert NULL value
-    with pytest.raises(DatabaseTerminalException):
-        with client.sql_client.begin_transaction():
-            client.sql_client.execute_many(statements)
-
-    client.complete_load("LMN")
-    assert_load_id(client.sql_client, "LMN")
 
 
 def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None:
@@ -741,7 +717,7 @@ def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decima
     if client.config.destination_type == "athena":
         ddl_suffix = (
             f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
-            " 'format'='parquet')"
+            " 'format'='parquet');"
         )
         coltype = "bigint"
         qualified_table_name = table_name
@@ -755,6 +731,6 @@ def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decima
     else:
         qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
     client.sql_client.execute_sql(
-        f"CREATE TABLE {qualified_table_name} (col {coltype}) {ddl_suffix}"
+        f"CREATE TABLE {qualified_table_name} (col {coltype}) {ddl_suffix};"
     )
     return table_name, py_type

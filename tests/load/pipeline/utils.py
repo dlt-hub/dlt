@@ -1,4 +1,3 @@
-from typing import List
 import pytest
 
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
@@ -10,20 +9,8 @@ from dlt.common.schema.typing import (
     TWriteDisposition,
 )
 from dlt.common.schema.utils import new_table, new_column
-from dlt.common.storages.load_package import LoadJobInfo, LoadPackageInfo, TPackageJobState
 
 from tests.load.utils import DestinationTestConfiguration
-
-
-def get_load_package_jobs(
-    package: LoadPackageInfo, state: TPackageJobState, table_name: str, file_format: str = ""
-) -> List[LoadJobInfo]:
-    completed_jobs = package.jobs[state]
-    return [
-        job
-        for job in completed_jobs
-        if job.job_file_info.table_name == table_name and job.file_path.endswith(file_format)
-    ]
 
 
 def get_sample_table(

@@ -27,7 +27,6 @@ from dlt.common.utils import (
     get_exception_trace_chain,
     update_dict_nested,
     removeprefix,
-    simple_repr,
 )
 
 
@@ -450,15 +449,3 @@ def test_removeprefix() -> None:
     assert removeprefix("a_data", "a_data_1") == "a_data"
     assert removeprefix("", "a_data_1") == ""
     assert removeprefix("a_data", "") == "a_data"
-
-
-def test_simple_repr() -> None:
-    """`simple_repr()` should always return a string.
-
-    Internally, it calls the `__repr__()` of the kwargs.
-    In Python, this method should always be accesible through
-    inheritance of the `object` class.
-    """
-    repr_ = simple_repr("name", foo=object(), bar=32.0)
-
-    assert isinstance(repr_, str)

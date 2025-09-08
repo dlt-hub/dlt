@@ -39,7 +39,7 @@ def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[Dl
         months (List[Dict[str, str]]): List of dictionaries containing 'year' and 'month' keys.
 
     Yields:
-        DltResource: Resource objects containing fetched game data.
+        dlt.Resource: Resource objects containing fetched game data.
     """
     for month in months:
         year = month["year"]

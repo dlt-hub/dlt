@@ -6,7 +6,6 @@ services:
   db:
     image: mysql:8
     restart: always
-    command: --sql-mode="STRICT_ALL_TABLES,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION" --innodb-strict-mode
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: dlt_data

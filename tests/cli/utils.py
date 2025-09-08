@@ -10,15 +10,14 @@ from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.sources import SourceReference
 
-from dlt.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO, DEFAULT_VIBE_SOURCES_REPO
+from dlt.cli import echo
+from dlt.cli.init_command import DEFAULT_VERIFIED_SOURCES_REPO
 
 from tests.utils import TEST_STORAGE_ROOT
 
 
 INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
-INIT_VIBE_REPO_LOCATION = DEFAULT_VIBE_SOURCES_REPO
-INIT_VIBE_REPO_BRANCH = "main"
 PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
 
 
@@ -37,21 +36,9 @@ def cloned_init_repo() -> FileStorage:
     )
 
 
-@pytest.fixture(scope="module")
-def clonet_init_vibe_repo() -> FileStorage:
-    return git.get_fresh_repo_files(
-        DEFAULT_VIBE_SOURCES_REPO, get_dlt_repos_dir(), branch=INIT_VIBE_REPO_BRANCH
-    )
-
-
 @pytest.fixture
 def repo_dir(cloned_init_repo: FileStorage) -> str:
-    return get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
-
-
-@pytest.fixture
-def vibe_repo_dir(clonet_init_vibe_repo: FileStorage) -> str:
-    return get_repo_dir(clonet_init_vibe_repo, f"vibe_sources_repo_{uniq_id()}")
+    return get_repo_dir(cloned_init_repo)
 
 
 @pytest.fixture
@@ -61,10 +48,12 @@ def project_files() -> Iterator[FileStorage]:
         yield project_files
 
 
-def get_repo_dir(cloned_repo: FileStorage, repo_name: str) -> str:
-    repo_dir = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, repo_name))
+def get_repo_dir(cloned_init_repo: FileStorage) -> str:
+    repo_dir = os.path.abspath(
+        os.path.join(TEST_STORAGE_ROOT, f"verified_sources_repo_{uniq_id()}")
+    )
     # copy the whole repo into TEST_STORAGE_ROOT
-    shutil.copytree(cloned_repo.storage_path, repo_dir)
+    shutil.copytree(cloned_init_repo.storage_path, repo_dir)
     return repo_dir
 
 

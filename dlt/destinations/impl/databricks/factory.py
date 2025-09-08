@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+import typing as t
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -15,7 +15,7 @@ from dlt.destinations.impl.databricks.configuration import (
     DatabricksClientConfiguration,
 )
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
 
@@ -80,11 +80,11 @@ class DatabricksTypeMapper(TypeMapperImpl):
         if precision <= 64:
             return "BIGINT"
         raise TerminalValueError(
-            f"bigint with `{precision=:}` can't be mapped to Databricks integer type"
+            f"bigint with {precision} bits precision cannot be mapped into databricks integer type"
         )
 
     def from_destination_type(
-        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
+        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
     ) -> TColumnType:
         # precision and scale arguments here are meaningless as they're not included separately in information schema
         # We use full_data_type from databricks which is either in form "typename" or "typename(precision, scale)"
@@ -144,36 +144,31 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         return caps
 
     @property
-    def client_class(self) -> Type["DatabricksClient"]:
+    def client_class(self) -> t.Type["DatabricksClient"]:
         from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
         return DatabricksClient
 
     def __init__(
         self,
-        credentials: Union[DatabricksCredentials, Dict[str, Any], str] = None,
-        is_staging_external_location: bool = False,
-        staging_credentials_name: str = None,
-        destination_name: str = None,
-        environment: str = None,
-        staging_volume_name: str = None,
-        create_indexes: bool = False,
-        **kwargs: Any,
+        credentials: t.Union[DatabricksCredentials, t.Dict[str, t.Any], str] = None,
+        is_staging_external_location: t.Optional[bool] = False,
+        staging_credentials_name: t.Optional[str] = None,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
+        staging_volume_name: t.Optional[str] = None,
+        **kwargs: t.Any,
     ) -> None:
         """Configure the Databricks destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union[DatabricksCredentials, Dict[str, Any], str], optional): Credentials to connect to the databricks database. Can be an instance of `DatabricksCredentials` or
+            credentials: Credentials to connect to the databricks database. Can be an instance of `DatabricksCredentials` or
                 a connection string in the format `databricks://user:password@host:port/database`
-            is_staging_external_location (bool, optional): If true, the temporary credentials are not propagated to the COPY command
-            staging_credentials_name (str, optional): If set, credentials with given name will be used in copy command
-            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
-            environment (str, optional): Environment of the destination
-            staging_volume_name (str, optional): Name of the staging volume to use
-            create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
-            **kwargs (Any): Additional arguments passed to the destination config
+            is_staging_external_location: If true, the temporary credentials are not propagated to the COPY command
+            staging_credentials_name: If set, credentials with given name will be used in copy command
+            **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
@@ -182,7 +177,6 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             destination_name=destination_name,
             environment=environment,
             staging_volume_name=staging_volume_name,
-            create_indexes=create_indexes,
             **kwargs,
         )
 

@@ -10,7 +10,7 @@ from dlt.common.configuration import (
 )
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, ConfigSectionContext
-from dlt.common.configuration.exceptions import InvalidNativeValue, LookupTrace
+from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.typing import AnyType
 
 from tests.utils import preserve_environ
@@ -265,8 +265,8 @@ def test_section_with_pipeline_name(mock_provider: MockProvider) -> None:
         # "PIPE", "DLT_TEST"
         mock_provider.return_value_on = ()
         mock_provider.reset_stats()
-        # () will return "value" which cannot be parsed by the SectionedConfiguration
-        with pytest.raises(InvalidNativeValue):
+        # () will never be searched
+        with pytest.raises(ConfigFieldMissingException):
             resolve.resolve_configuration(SectionedConfiguration())
         mock_provider.return_value_on = ("DLT_TEST",)
         mock_provider.reset_stats()

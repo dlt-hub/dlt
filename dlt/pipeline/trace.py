@@ -10,7 +10,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.utils import get_resolved_traces
+from dlt.common.configuration.utils import _RESOLVED_TRACES, ResolvedValueTrace
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import ExceptionTrace, ResourceNameNotAvailable
 from dlt.common.logger import suppress_and_warn
@@ -24,11 +24,10 @@ from dlt.common.pipeline import (
     StepMetrics,
     SupportsPipeline,
 )
+from dlt.common.pipeline import get_current_pipe_name
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
 from dlt.common.utils import uniq_id, get_exception_trace_chain
-
-from dlt.extract.state import get_current_pipe_name
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -160,10 +159,10 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return msg
 
     def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
-        matching_steps = [step for step in self.steps if step.step == step_name]
-        if not matching_steps:
-            return None
-        return max(matching_steps, key=lambda step: step.started_at)
+        for step in self.steps:
+            if step.step == step_name:
+                return step
+        return None
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
@@ -197,7 +196,27 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return self.asstr(verbosity=0)
 
 
-from dlt.common.runtime.tracking import SupportsTracking
+class SupportsTracking(Protocol):
+    def on_start_trace(
+        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+    ) -> None: ...
+
+    def on_start_trace_step(
+        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+    ) -> None: ...
+
+    def on_end_trace_step(
+        self,
+        trace: PipelineTrace,
+        step: PipelineStepTrace,
+        pipeline: SupportsPipeline,
+        step_info: Any,
+        send_state: bool,
+    ) -> None: ...
+
+    def on_end_trace(
+        self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
+    ) -> None: ...
 
 
 # plug in your own tracking modules here
@@ -216,11 +235,6 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrac
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"on_start_trace on module {module} failed"):
             module.on_start_trace(trace, step, pipeline)
-    with suppress_and_warn(
-        f"on_start_trace on collector `{pipeline.collector.__class__.__name__}` failed"
-    ):
-        pipeline.collector.on_start_trace(trace, step, pipeline)
-
     return trace
 
 
@@ -231,10 +245,6 @@ def start_trace_step(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"start_trace_step on module {module} failed"):
             module.on_start_trace_step(trace, step, pipeline)
-    with suppress_and_warn(
-        f"on_start_trace_step on collector `{pipeline.collector.__class__.__name__}` failed"
-    ):
-        pipeline.collector.on_start_trace_step(trace, step, pipeline)
     return trace_step
 
 
@@ -267,8 +277,6 @@ def end_trace_step(
         exception_traces=exception_traces,
         step_info=step_info,
     )
-
-    # this will collect traces from the last clear (happens at the end of trace)
     resolved_values = map(
         lambda v: SerializableResolvedValueTrace(
             v.key,
@@ -279,17 +287,14 @@ def end_trace_step(
             v.provider_name,
             str(type(v.config).__qualname__),
         ),
-        get_resolved_traces().resolved_traces,
+        _RESOLVED_TRACES.values(),
     )
+
     trace.resolved_config_values[:] = list(resolved_values)
     trace.steps.append(step)
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"end_trace_step on module {module} failed"):
             module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
-    with suppress_and_warn(
-        f"on_end_trace_step on collector `{pipeline.collector.__class__.__name__}` failed"
-    ):
-        pipeline.collector.on_end_trace_step(trace, step, pipeline, step_info, send_state)
     return trace
 
 
@@ -302,12 +307,6 @@ def end_trace(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"end_trace on module {module} failed"):
             module.on_end_trace(trace, pipeline, send_state)
-    with suppress_and_warn(
-        f"on_end_trace on collector `{pipeline.collector.__class__.__name__}` failed"
-    ):
-        pipeline.collector.on_end_trace(trace, pipeline, send_state)
-    # clear collected config resolver traces
-    get_resolved_traces().clear()
     return trace
 
 

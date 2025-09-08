@@ -1,10 +1,10 @@
 import posixpath
 import os
-import orjson
 import base64
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
+    ContextManager,
     List,
     Type,
     Iterable,
@@ -13,26 +13,25 @@ from typing import (
     Tuple,
     Sequence,
     cast,
+    Generator,
+    Literal,
     Any,
     Dict,
 )
 from fsspec import AbstractFileSystem
 
+import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
-    C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
+    DLT_NAME_PREFIX,
 )
-from dlt.common.storages.exceptions import (
-    CurrentLoadPackageStateNotAvailable,
-    NoMigrationPathException,
-    UnsupportedStorageVersionException,
-)
+from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import DictStrAny
@@ -43,7 +42,7 @@ from dlt.common.storages.load_package import (
     LoadJobInfo,
     ParsedLoadJobFileName,
     TPipelineStateDoc,
-    load_package_state as current_load_package,
+    load_package as current_load_package,
 )
 from dlt.destinations.sql_client import WithSqlClient, SqlClientBase
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -80,9 +79,6 @@ from dlt.destinations.utils import (
     verify_schema_replace_disposition,
 )
 
-CURRENT_VERSION: int = 2
-SUPPORTED_VERSIONS: set[int] = {1, CURRENT_VERSION}
-
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
 
@@ -101,13 +97,8 @@ class FilesystemLoadJob(RunnableLoadJob):
         # deeply nested directory will not exist before writing a file.
         # It `auto_mkdir` is disabled by default in fsspec so we made some
         # trade offs between different options and decided on this.
+        # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
         remote_path = self.make_remote_path()
-        if (
-            not self._job_client.config.as_staging_destination
-            and self._job_client.storage_versions[0] == 1
-            and remote_path.endswith(".gz")
-        ):
-            remote_path = remote_path[:-3]
         if self.__is_local_filesystem:
             # use os.path for local file name
             self._job_client.fs_client.makedirs(os.path.dirname(remote_path), exist_ok=True)
@@ -134,7 +125,7 @@ class FilesystemLoadJob(RunnableLoadJob):
         # pick local filesystem pathlib or posix for buckets
         pathlib = self._job_client.config.pathlib
         # path.join does not normalize separators and available
-        # normalization functions are very invasive and may strip the trailing separator
+        # normalization functions are very invasive and may string the trailing separator
         return pathlib.join(  # type: ignore[no-any-return]
             self._job_client.dataset_path,
             path_utils.normalize_path_sep(pathlib, destination_file_name),
@@ -199,8 +190,6 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table=delta_table,
                     data=arrow_rbr,
                     schema=self._load_table,
-                    load_table_name=self.load_table_name,
-                    streamed_exec=self._job_client.config.deltalake_streamed_exec,
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)
@@ -210,7 +199,6 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     write_disposition=self._load_table["write_disposition"],
                     partition_by=self._partition_columns,
                     storage_options=storage_options,
-                    configuration=self._job_client.config.deltalake_configuration,
                 )
         # release memory ASAP by deleting objects explicitly
         del source_ds
@@ -223,7 +211,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
-        from dlt.common.libs.pyiceberg import write_iceberg_table, merge_iceberg_table, create_table
+        from dlt.common.libs.pyiceberg import write_iceberg_table, create_table
 
         try:
             table = self._job_client.load_open_table(
@@ -245,19 +233,11 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             self.run()
             return
 
-        if self._load_table["write_disposition"] == "merge" and table is not None:
-            merge_iceberg_table(
-                table=table,
-                data=self.arrow_dataset.to_table(),
-                schema=self._load_table,
-                load_table_name=self.load_table_name,
-            )
-        else:
-            write_iceberg_table(
-                table=table,
-                data=self.arrow_dataset.to_table(),
-                write_disposition=self._load_table["write_disposition"],
-            )
+        write_iceberg_table(
+            table=table,
+            data=self.arrow_dataset.to_table(),
+            write_disposition=self._load_table["write_disposition"],
+        )
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
@@ -310,10 +290,6 @@ class FilesystemClient(
         # iceberg catalog
         self._catalog: Any = None
 
-        # storage versions
-        self._cached_initial_storage_version: int = None
-        self._cached_storage_version: int = None
-
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
@@ -334,20 +310,6 @@ class FilesystemClient(
     def sql_client(self, client: SqlClientBase[Any]) -> None:
         self._sql_client = client
 
-    @property
-    def storage_versions(self) -> Tuple[int, int]:
-        """Returns cached storage versions, loading it once from filesystem if not already cached"""
-        if self._cached_initial_storage_version is None or self._cached_storage_version is None:
-            self._cached_initial_storage_version, self._cached_storage_version = (
-                self.get_storage_versions()
-            )
-        return self._cached_initial_storage_version, self._cached_storage_version
-
-    @property
-    def init_file_path(self) -> str:
-        """Returns the path to the init file for the current dataset"""
-        return str(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))
-
     def drop_storage(self) -> None:
         if self.is_storage_initialized():
             self.fs_client.rm(self.dataset_path, recursive=True)
@@ -357,7 +319,7 @@ class FilesystemClient(
         """A path within a bucket to tables in a dataset
         NOTE: dataset_name changes if with_staging_dataset is active
         """
-        return self.pathlib.join(self.bucket_path, self.dataset_name, "")  # type: ignore[no-any-return]
+        return self.pathlib.join(self.bucket_path, self.dataset_name)  # type: ignore[no-any-return]
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
@@ -377,84 +339,9 @@ class FilesystemClient(
             logger.info(f"Will truncate tables {truncate_tables}")
             self.truncate_tables(list(truncate_tables))
 
-        # check if init file already exists
-        if self.fs_client.exists(self.init_file_path):
-            current_version = self.get_storage_versions()[0]
-
-            # check if migration is needed
-            if current_version != CURRENT_VERSION:
-                if current_version > CURRENT_VERSION:
-                    # version cannot be downgraded
-                    raise NoMigrationPathException(
-                        self.dataset_path, current_version, current_version, CURRENT_VERSION
-                    )
-
-                # migrate and verify
-                self.migrate_storage(current_version, CURRENT_VERSION)
-                migrated_version = self.get_storage_versions()[1]
-                if migrated_version != CURRENT_VERSION:
-                    raise ValueError(
-                        f"Migration failed: expected {CURRENT_VERSION}, got {migrated_version}"
-                    )
-
-            return
-
         # we mark the storage folder as initialized
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
-
-        # we set the version to "2" to indicate that .gz extension is added by default
-        # version "1" corresponds to an empty init file and indicates that .gz is not added to compressed files
-        self.fs_client.write_text(
-            self.init_file_path,
-            json.dumps({"initial_version": CURRENT_VERSION, "current_version": CURRENT_VERSION}),
-            encoding="utf-8",
-        )
-
-    def migrate_storage(self, from_version: int, to_version: int) -> None:
-        """Migrate storage from one version to another"""
-
-        if from_version == 1 and from_version < to_version:
-            # Migration from version 1 to 2,
-            # which is basically replacing the empty init file with:
-            # {"initial_version": 1, "current_version": 2}
-            self.fs_client.write_text(
-                self.init_file_path,
-                json.dumps({"initial_version": 1, "current_version": 2}),
-                encoding="utf-8",
-            )
-
-        # Reset cached current version, initial version may stay
-        self._cached_storage_version = None
-
-    def get_storage_versions(self) -> Tuple[int, int]:
-        """Returns initial and current storage versions.
-        1. If the init file is empty, we assume legacy version 1 where .gz extension was not added to compressed files.
-        2. For any other non-empty content we parse it as json, expect version key to have a supported value.
-        """
-        version_info_str = self.fs_client.read_text(self.init_file_path, encoding="utf-8")
-
-        # If empty, both initial and current versions are 1
-        if not version_info_str.strip():
-            return 1, 1
-
-        try:
-            version_dict: Dict[str, int] = json.loads(version_info_str)
-            initial_version: int = version_dict["initial_version"]
-            current_version: int = version_dict["current_version"]
-        except (KeyError, orjson.JSONDecodeError) as exc:
-            raise ValueError(
-                f"Invalid content in {self.init_file_path}: {version_info_str!r}"
-            ) from exc
-
-        if initial_version not in SUPPORTED_VERSIONS or current_version not in SUPPORTED_VERSIONS:
-            raise UnsupportedStorageVersionException(
-                self.dataset_path,
-                initial_version,
-                current_version,
-                SUPPORTED_VERSIONS,
-            )
-
-        return initial_version, current_version
+        self.fs_client.touch(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))
 
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
         self.truncate_tables(list(tables))
@@ -471,11 +358,9 @@ class FilesystemClient(
         """Yields tables that have files in storage, returns columns from current schema"""
         for table_name in table_names:
             table_dir = self.get_table_dir(table_name)
-            if (
-                # TODO: isdir is sufficient if table_dir == table prefix
-                #   since this method is used currently only for tests we do not need to improve it
-                self.fs_client.isdir(table_dir)
-                and len(self.list_table_files(table_name)) > 0
+            if self.fs_client.exists(table_dir) and (
+                self.fs_client.exists(self.pathlib.join(table_dir, INIT_FILE_NAME))
+                or len(self.list_table_files(table_name)) > 0
             ):
                 if table_name in self.schema.tables:
                     yield (table_name, self.schema.get_table_columns(table_name))
@@ -544,6 +429,14 @@ class FilesystemClient(
         expected_update: TSchemaTables = None,
     ) -> TSchemaTables:
         applied_update = super().update_stored_schema(only_tables, expected_update)
+        # create destination dirs for all tables
+        table_names = only_tables or self.schema.tables.keys()
+        dirs_to_create = self.get_table_dirs(table_names)
+        for tables_name, directory in zip(table_names, dirs_to_create):
+            self.fs_client.makedirs(directory, exist_ok=True)
+            # we need to mark the folders of the data tables as initialized
+            if tables_name in self.schema.dlt_table_names():
+                self.fs_client.touch(self.pathlib.join(directory, INIT_FILE_NAME))
 
         # don't store schema when used as staging
         if not self.config.as_staging_destination:
@@ -554,12 +447,6 @@ class FilesystemClient(
                     f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
                     " upgrading"
                 )
-                # create destination dirs for all tables
-                # TODO: find only tables with changes
-                table_names = only_tables or self.schema.tables.keys()
-                dirs_to_create = self.get_table_dirs(table_names)
-                for _, directory in zip(table_names, dirs_to_create):
-                    self.fs_client.makedirs(directory, exist_ok=True)
                 self._update_schema_in_storage(self.schema)
 
         # we assume that expected_update == applied_update so table schemas in dest were not
@@ -585,25 +472,21 @@ class FilesystemClient(
             )
             assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
             table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
-        if self.is_dlt_table(table["name"]):
+        if table["name"].startswith(DLT_NAME_PREFIX):
             table.pop("table_format", None)
         return table
 
     def get_table_dir(self, table_name: str, remote: bool = False) -> str:
-        """Returns a directory containing table files, ending with separator.
-        Note that many tables can share the same table dir
-        """
         # dlt tables do not respect layout (for now)
         table_prefix = self.get_table_prefix(table_name)
-        table_dir: str = self.pathlib.dirname(table_prefix) + self.pathlib.sep
+        table_dir: str = self.pathlib.dirname(table_prefix)
         if remote:
             table_dir = self.make_remote_url(table_dir)
         return table_dir
 
     def get_table_prefix(self, table_name: str) -> str:
-        """For table prefixes that are folders, trailing separator will be preserved"""
         # dlt tables do not respect layout (for now)
-        if self.is_dlt_table(table_name):
+        if table_name.startswith(self.schema._dlt_tables_prefix):
             # dlt tables get layout where each tables is a folder
             # it is crucial to append and keep "/" at the end
             table_prefix = self.pathlib.join(table_name, "")
@@ -614,9 +497,6 @@ class FilesystemClient(
         return self.pathlib.join(  # type: ignore[no-any-return]
             self.dataset_path, path_utils.normalize_path_sep(self.pathlib, table_prefix)
         )
-
-    def is_dlt_table(self, table_name: str) -> bool:
-        return table_name.startswith(self.schema._dlt_tables_prefix)
 
     def get_table_dirs(self, table_names: Iterable[str], remote: bool = False) -> List[str]:
         """Gets directories where table data is stored."""
@@ -641,7 +521,7 @@ class FilesystemClient(
         for details in glob_files(self.fs_client, self.make_remote_url(table_dir), "**"):
             file = details["file_name"]
             filepath = self.pathlib.join(table_dir, details["relative_path"])
-            # skip INIT files, do not remove: backward compat
+            # skip INIT files
             if file == INIT_FILE_NAME:
                 continue
             for p in prefixes:
@@ -651,7 +531,7 @@ class FilesystemClient(
         return result
 
     def is_storage_initialized(self) -> bool:
-        return self.fs_client.exists(self.init_file_path)  # type: ignore[no-any-return]
+        return self.fs_client.exists(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))  # type: ignore[no-any-return]
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -715,6 +595,9 @@ class FilesystemClient(
     #
 
     def _write_to_json_file(self, filepath: str, data: DictStrAny) -> None:
+        dirname = self.pathlib.dirname(filepath)
+        if not self.fs_client.isdir(dirname):
+            return
         self.fs_client.write_text(filepath, json.dumps(data), encoding="utf-8")
 
     def _to_path_safe_string(self, s: str) -> str:
@@ -724,11 +607,10 @@ class FilesystemClient(
     def _list_dlt_table_files(
         self, table_name: str, pipeline_name: str = None
     ) -> Iterator[Tuple[str, List[str]]]:
-        all_files = self.list_table_files(table_name)
-        if len(all_files) == 0:
-            if not self.is_storage_initialized():
-                raise DestinationUndefinedEntity(table_name)
-        for filepath in all_files:
+        dirname = self.get_table_dir(table_name)
+        if not self.fs_client.exists(self.pathlib.join(dirname, INIT_FILE_NAME)):
+            raise DestinationUndefinedEntity({"dir": dirname})
+        for filepath in self.list_table_files(table_name):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             fileparts = filename.split(FILENAME_SEPARATOR)
             if len(fileparts) != 3:
@@ -741,7 +623,7 @@ class FilesystemClient(
         # write entry to load "table"
         # TODO: this is also duplicate across all destinations. DRY this.
         load_data = {
-            C_DLT_LOADS_TABLE_LOAD_ID: load_id,
+            "load_id": load_id,
             "schema_name": self.schema.name,
             "status": 0,
             "inserted_at": pendulum.now().isoformat(),
@@ -960,6 +842,8 @@ class FilesystemClient(
 
         if table_format == "iceberg":
             catalog = self.get_open_table_catalog("iceberg")
+            # TODO: move all the fs related code (metadata search, path conversion) to here
+            # TODO: if table is not in the catalog, load the static table
             from dlt.common.libs.pyiceberg import evolve_table, NoSuchTableError
 
             table_id = f"{self.dataset_name}.{table_name}"
@@ -983,7 +867,7 @@ class FilesystemClient(
             return DeltaTable(table_location, storage_options=storage_options)
         else:
             raise NotImplementedError(
-                f"Can't load tables using `{table_format=:}` with `filesystem` destination."
+                f"Cannot load tables in {table_format} format in filesystem destination."
             )
 
     def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
@@ -1011,15 +895,9 @@ class FilesystemClient(
         return catalog
 
     def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
-        """All tables have location, also those in "native" table format. Native format
-        in case of filesystem is a set of parquet/csv/jsonl files where a table may
-        be placed in a separate folder or share common prefix define in the layout.
-        Locations of native tables will are normalized to include trailing separator
-        if path is a "folder" (includes buckets)
-        Note: location is fully formed url
-        """
-        prefix = self.get_table_prefix(table_name)
-        location = self.make_remote_url(prefix)
+        """All tables have location, also those in "native" table format."""
+        folder = self.get_table_dir(table_name)
+        location = self.make_remote_url(folder)
         if self.config.is_local_filesystem and os.name == "nt":
             # pyiceberg cannot deal with windows absolute urls
             location = location.replace("file:///", "file://")

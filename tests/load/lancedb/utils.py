@@ -1,7 +1,7 @@
 from typing import Union, List, Any, Dict
 
 import numpy as np
-from lancedb.embeddings import TextEmbeddingFunction
+from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 
 import dlt
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
@@ -28,7 +28,6 @@ def assert_unordered_dicts_equal(
     assert dict_set1 == dict_set2, "Lists contain different dictionaries"
 
 
-# TODO: merge with assert_table in main pipeline utils...
 def assert_table(
     pipeline: dlt.Pipeline,
     table_name: str,

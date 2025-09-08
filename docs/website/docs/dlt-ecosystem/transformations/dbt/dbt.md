@@ -1,10 +1,10 @@
 ---
-title: Transform data with dbt
+title: Transforming data with dbt
 description: Transforming the data loaded by a dlt pipeline with dbt
 keywords: [transform, dbt, runner]
 ---
 
-# Transform data with dbt
+# Transforming data with dbt
 
 :::tip dlt+
 If you want to generate your dbt models automatically, check out [dlt+](../../../plus/features/transformations/dbt-transformations.md).

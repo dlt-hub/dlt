@@ -123,18 +123,6 @@ def mock_api_server():
                 **paginator.metadata,
             }
 
-        @router.post(r"/posts_offset_limit_via_json_body$")
-        def posts_offset_limit_via_json_body(request, context):
-            records = generate_posts()
-            offset = int(request.json().get("offset", 0))
-            limit = int(request.json().get("limit", DEFAULT_LIMIT))
-            paginator = OffsetPaginator(records, offset, limit)
-
-            return {
-                "data": paginator.page_records,
-                **paginator.metadata,
-            }
-
         @router.get(r"/posts_cursor(\?cursor=\d+)?$")
         def posts_cursor(request, context):
             records = generate_posts()
@@ -249,7 +237,6 @@ def mock_api_server():
             return {
                 "data": records_slice,
                 "next_page": page_number + 1 if page_number < total_pages else None,
-                "total_pages": page_count,
             }
 
         @router.post(r"/posts/search_by_id/\d+$")
@@ -334,28 +321,6 @@ def mock_api_server():
                 return {"access_token": "test-token", "expires_in": 3600}
             context.status_code = 401
             return {"error": "Unauthorized"}
-
-        @router.get(r"/posts_cursor_null_terminated(\?cursor=.*)?$")
-        def posts_cursor_null_terminated(request, context):
-            # Demonstrates the issue where the final page returns null data
-            # https://github.com/dlt-hub/dlt/issues/2932
-            cursor_param = request.qs.get("cursor", [None])[0]
-
-            if cursor_param is None:
-                # First page - return 10 items with next cursor
-                return {
-                    "users": [{"id": i, "name": f"User {i}"} for i in range(10)],
-                    "next_token": "cursor_page_2",
-                }
-            elif cursor_param == "cursor_page_2":
-                # Second page - return 4 items with next cursor
-                return {
-                    "users": [{"id": i, "name": f"User {i}"} for i in range(10, 14)],
-                    "next_token": "cursor_final",
-                }
-            elif cursor_param == "cursor_final":
-                # Final page - return null data and null cursor
-                return {"users": None, "next_token": None}
 
         router.register_routes(m)
 

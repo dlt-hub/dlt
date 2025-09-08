@@ -1,10 +1,10 @@
 ---
-title: MotherDuck / DuckLake
-description: MotherDuck and DuckLake `dlt` destination
-keywords: [MotherDuck, duckdb, destination, data warehouse, DuckLake]
+title: MotherDuck
+description: MotherDuck `dlt` destination
+keywords: [MotherDuck, duckdb, destination, data warehouse]
 ---
 
-# MotherDuck / DuckLake
+# MotherDuck
 
 ## Install dlt with MotherDuck
 **To install the dlt library with MotherDuck dependencies:**
@@ -54,7 +54,7 @@ Motherduck now supports configurable **access tokens**. Please refer to the [doc
 
 You can pass token in a native Motherduck environment variable:
 ```sh
-export MOTHERDUCK_TOKEN='<token>'
+export motherduck_token='<token>'
 ```
 in that case you can skip **password** / **motherduck_token** secret.
 
@@ -68,53 +68,9 @@ More in Motherduck [documentation](https://motherduck.com/docs/key-tasks/authent
 python3 chess_pipeline.py
 ```
 
-### DuckLake setup
-DuckLake can be used to manage and persist your MotherDuck databases on external object storage like S3. This is especially useful if you want more control over where your data is stored or if you’re integrating with your own cloud infrastructure. 
-The steps below show how to set up a DuckLake-managed database backed by S3.
-
-**1. Create the S3-Backed DuckLake Database**
-You can create a DuckLake-managed database using the following SQL command, which should be run in the MotherDuck SQL Editor or any SQL client connected to your MotherDuck account:
-```sql
-CREATE DATABASE my_ducklake (
-  TYPE DUCKLAKE,
-  DATA_PATH 's3://mybucket/my_optional_path/'
-);
-```
-
-**2. Register S3 Credentials with a MotherDuck Secret**
-```sql
-CREATE SECRET my_secret IN MOTHERDUCK (
-  TYPE S3,
-  KEY_ID 'my_s3_access_key',
-  SECRET 'my_s3_secret_key',
-  REGION 'my-bucket-region'
-);
-```
-
-**3. Configure `secrets.toml` in your dlt project**
-Your `secrets.toml` only needs to reference the DuckLake database and your service token:
-```toml
-[destination.motherduck.credentials]
-database = "my_ducklake"
-password = "<your token here>"
-```
-As long as the DuckLake database and the corresponding S3 secret have been set up in MotherDuck, dlt can load data into it without requiring direct access to the S3 credentials.
-
-With this setup, you can now load data into DuckLake tables using dlt, just like with any DuckDB destination through MotherDuck.
-
 ### Motherduck connection identifier
 We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
 associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_VERSION(OS_NAME)`.
-
-### Additional configuration
-Query string will be passed to `duckdb` connection. Several global configs may be set using it:
-```toml
-[destination]
-motherduck.credentials="md:dlt_data_3?dbinstance_inactivity_ttl=0s"
-```
-will disable connection caching.
-
-Additional `duckdb` configuration, [where you can set up extensions, pragmas, global and local setting](duckdb.md#additional-configuration), is also supported.
 
 ## Write disposition
 All write dispositions are supported.

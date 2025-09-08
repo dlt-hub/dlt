@@ -1,9 +1,19 @@
 from typing import Union, Iterable, Optional, List, Dict, Any, Tuple
+from copy import deepcopy
 from itertools import chain
 from dataclasses import dataclass
 
 from dlt.common.schema import Schema
+from dlt.common.pipeline import (
+    TPipelineState,
+    _sources_state,
+    _get_matching_resources,
+    _get_matching_sources,
+    reset_resource_state,
+    _delete_source_state_keys,
+)
 from dlt.common.typing import TypedDict
+
 from dlt.common.schema.typing import TSimpleRegex, TTableSchema
 from dlt.common.schema.utils import (
     group_tables_by_resource,
@@ -13,15 +23,6 @@ from dlt.common.schema.utils import (
 )
 from dlt.common import jsonpath
 from dlt.common.typing import REPattern
-
-from dlt.extract.state import (
-    TPipelineState,
-    _sources_state,
-    _get_matching_resources,
-    get_matching_sources,
-    reset_resource_state,
-    delete_source_state_keys,
-)
 
 
 class _DropInfo(TypedDict):
@@ -54,7 +55,7 @@ def _create_modified_state(
     # if not self.drop_state:
     #     return state  # type: ignore[return-value]
     all_source_states = _sources_state(state)
-    for source_name in get_matching_sources(source_pattern, state):
+    for source_name in _get_matching_sources(source_pattern, state):
         source_state = all_source_states[source_name]
         # drop table states
         if resource_pattern:
@@ -70,7 +71,7 @@ def _create_modified_state(
             info["warnings"].append(
                 f"State paths {state_paths} did not select any paths in source {source_name}"
             )
-        delete_source_state_keys(resolved_paths, source_state)
+        _delete_source_state_keys(resolved_paths, source_state)
         info["state_paths"].extend(f"{source_name}.{p}" for p in resolved_paths)
     return state, info
 

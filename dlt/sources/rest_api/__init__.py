@@ -1,7 +1,7 @@
 """Generic API Source"""
 
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, cast, Union
+from typing import Any, Dict, List, Optional, Generator, Callable, cast, Union
 import graphlib
 from requests.auth import AuthBase
 
@@ -11,7 +11,6 @@ from dlt.common import jsonpath
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import exclude_keys
-from dlt.common.exceptions import ValueErrorWithKnownValues
 
 from dlt.extract import Incremental, DltResource, DltSource, decorators
 
@@ -25,7 +24,6 @@ from dlt.sources.helpers.rest_client.auth import (
     OAuth2ClientCredentials,
 )
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
-from dlt.sources.helpers.rest_client.redaction import SENSITIVE_PARAMS
 from .typing import (
     AuthConfig,
     ClientConfig,
@@ -44,8 +42,6 @@ from .config_setup import (
     create_auth,
     create_paginator,
     build_resource_dependency_graph,
-    paginate_dependent_resource,
-    paginate_resource,
     process_parent_data_item,
     setup_incremental_object,
     create_response_hooks,
@@ -56,7 +52,15 @@ from .utils import check_connection  # noqa: F401
 
 PARAM_TYPES: List[ParamBindType] = ["incremental", "resolve"]
 MIN_SECRET_MASKING_LENGTH = 3
-SENSITIVE_KEYS: List[str] = list(SENSITIVE_PARAMS) + ["username", "client_id"]
+SENSITIVE_KEYS: List[str] = [
+    "token",
+    "api_key",
+    "username",
+    "password",
+    "access_token",
+    "client_id",
+    "client_secret",
+]
 
 
 @decorators.source
@@ -252,7 +256,7 @@ def create_resources(
         include_from_parent: List[str] = endpoint_resource.get("include_from_parent", [])
         if not resolved_params and include_from_parent:
             raise ValueError(
-                f"Resource `{resource_name}` has `include_from_parent` but is not "
+                f"Resource {resource_name} has include_from_parent but is not "
                 "dependent on another resource"
             )
         _validate_param_type(request_params)
@@ -286,11 +290,61 @@ def create_resources(
             return resource
 
         if resolved_params is None:
+
+            def paginate_resource(
+                method: HTTPMethodBasic,
+                path: str,
+                headers: Optional[Dict[str, Any]],
+                params: Dict[str, Any],
+                json: Optional[Dict[str, Any]],
+                paginator: Optional[BasePaginator],
+                data_selector: Optional[jsonpath.TJsonPath],
+                hooks: Optional[Dict[str, Any]],
+                client: RESTClient = client,
+                incremental_object: Optional[Incremental[Any]] = incremental_object,
+                incremental_param: Optional[IncrementalParam] = incremental_param,
+                incremental_cursor_transform: Optional[
+                    Callable[..., Any]
+                ] = incremental_cursor_transform,
+            ) -> Generator[Any, None, None]:
+                format_kwargs = {}
+                if incremental_object:
+                    params = _set_incremental_params(
+                        params,
+                        incremental_object,
+                        incremental_param,
+                        incremental_cursor_transform,
+                    )
+                    format_kwargs["incremental"] = incremental_object
+                    if incremental_cursor_transform:
+                        format_kwargs.update(
+                            convert_incremental_values(
+                                incremental_object, incremental_cursor_transform
+                            )
+                        )
+
+                # Always expand placeholders to handle escaped sequences
+                path = expand_placeholders(path, format_kwargs)
+                headers = expand_placeholders(headers, format_kwargs)
+                params = expand_placeholders(params, format_kwargs)
+                json = expand_placeholders(json, format_kwargs, preserve_value_type=True)
+
+                yield from client.paginate(
+                    method=method,
+                    path=path,
+                    headers=headers,
+                    params=params,
+                    json=json,
+                    paginator=paginator,
+                    data_selector=data_selector,
+                    hooks=hooks,
+                )
+
             resources[resource_name] = dlt.resource(
                 paginate_resource,
                 **resource_kwargs,  # TODO: implement typing.Unpack
             )(
-                method=endpoint_config.get("method", "GET"),
+                method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
                 headers=request_headers,
                 params=request_params,
@@ -298,10 +352,6 @@ def create_resources(
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,
-                client=client,
-                incremental_object=incremental_object,
-                incremental_param=incremental_param,
-                incremental_cursor_transform=incremental_cursor_transform,
             )
 
             resources[resource_name] = process(resources[resource_name], processing_steps)
@@ -311,6 +361,61 @@ def create_resources(
             predecessor = resources[first_param.resolve_config["resource"]]
 
             base_params = exclude_keys(request_params, {x.param_name for x in resolved_params})
+
+            def paginate_dependent_resource(
+                items: List[Dict[str, Any]],
+                method: HTTPMethodBasic,
+                path: str,
+                headers: Optional[Dict[str, Any]],
+                params: Dict[str, Any],
+                json: Optional[Dict[str, Any]],
+                paginator: Optional[BasePaginator],
+                data_selector: Optional[jsonpath.TJsonPath],
+                hooks: Optional[Dict[str, Any]],
+                client: RESTClient = client,
+                resolved_params: List[ResolvedParam] = resolved_params,
+                include_from_parent: List[str] = include_from_parent,
+                incremental_object: Optional[Incremental[Any]] = incremental_object,
+                incremental_param: Optional[IncrementalParam] = incremental_param,
+                incremental_cursor_transform: Optional[
+                    Callable[..., Any]
+                ] = incremental_cursor_transform,
+            ) -> Generator[Any, None, None]:
+                if incremental_object:
+                    params = _set_incremental_params(
+                        params,
+                        incremental_object,
+                        incremental_param,
+                        incremental_cursor_transform,
+                    )
+
+                for item in items:
+                    processed_data = process_parent_data_item(
+                        path=path,
+                        item=item,
+                        headers=headers,
+                        params=params,
+                        request_json=json,
+                        resolved_params=resolved_params,
+                        include_from_parent=include_from_parent,
+                        incremental=incremental_object,
+                        incremental_value_convert=incremental_cursor_transform,
+                    )
+
+                    for child_page in client.paginate(
+                        method=method,
+                        path=processed_data.path,
+                        headers=processed_data.headers,
+                        params=processed_data.params,
+                        json=processed_data.json,
+                        paginator=paginator,
+                        data_selector=data_selector,
+                        hooks=hooks,
+                    ):
+                        if processed_data.parent_record:
+                            for child_record in child_page:
+                                child_record.update(processed_data.parent_record)
+                        yield child_page
 
             resources[resource_name] = dlt.resource(  # type: ignore[call-overload]
                 paginate_dependent_resource,
@@ -325,12 +430,6 @@ def create_resources(
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,
-                client=client,
-                resolved_params=resolved_params,
-                include_from_parent=include_from_parent,
-                incremental_object=incremental_object,
-                incremental_param=incremental_param,
-                incremental_cursor_transform=incremental_cursor_transform,
             )
 
             resources[resource_name] = process(resources[resource_name], processing_steps)
@@ -399,9 +498,29 @@ def _mask_secret(secret: Optional[str]) -> str:
     return f"{secret[0]}*****{secret[-1]}"
 
 
+def _set_incremental_params(
+    params: Dict[str, Any],
+    incremental_object: Incremental[Any],
+    incremental_param: IncrementalParam,
+    transform: Optional[Callable[..., Any]],
+) -> Dict[str, Any]:
+    def identity_func(x: Any) -> Any:
+        return x
+
+    if transform is None:
+        transform = identity_func
+    if incremental_param.start:
+        params[incremental_param.start] = transform(incremental_object.last_value)
+    if incremental_param.end:
+        params[incremental_param.end] = transform(incremental_object.end_value)
+    return params
+
+
 def _validate_param_type(
     request_params: Dict[str, Union[ResolveParamConfig, IncrementalParamConfig, Any]],
 ) -> None:
-    for param_name, value in request_params.items():
+    for _, value in request_params.items():
         if isinstance(value, dict) and value.get("type") not in PARAM_TYPES:
-            raise ValueErrorWithKnownValues(f"{param_name}['type']", value.get("type"), PARAM_TYPES)
+            raise ValueError(
+                f"Invalid param type: {value.get('type')}. Available options: {PARAM_TYPES}"
+            )

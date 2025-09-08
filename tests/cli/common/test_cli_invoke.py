@@ -10,7 +10,7 @@ from dlt.common.utils import custom_environ, set_working_dir
 from dlt.common.pipeline import get_dlt_pipelines_dir
 
 from tests.cli.utils import echo_default_choice, repo_dir, cloned_init_repo
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, patch_home_dir
 
 BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 

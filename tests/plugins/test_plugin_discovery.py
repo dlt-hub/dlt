@@ -63,8 +63,6 @@ def plugin_install():
 def test_example_plugin() -> None:
     context = run_context.active()
     assert context.name == "dlt-test"
-    # run_dir is the module file path and we have profile == dev as runtime kwargs
-    assert context.uri.endswith("/dlt_example_plugin?profile=dev")
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
     # top level module info should be present
     assert context.module.__name__ == "dlt_example_plugin"
@@ -75,23 +73,6 @@ def test_example_plugin() -> None:
     assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt_example_plugin", "dlt"]
     assert context.local_dir.startswith(context.data_dir)
     assert context.local_dir.endswith("tmp")
-
-
-def test_run_context_passthrough() -> None:
-    context = run_context.active()
-    assert context.name == "dlt-test"
-
-    try:
-        container = Container()
-        container[PluggableRunContext].reload(context.run_dir, dict(passthrough=True))
-
-        context = run_context.active()
-        assert context.name == "dlt"
-
-    finally:
-        container[PluggableRunContext].reload(context.run_dir, dict(passthrough=False))
-        context = run_context.active()
-        assert context.name == "dlt-test"
 
 
 def test_import_references() -> None:

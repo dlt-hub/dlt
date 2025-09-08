@@ -164,14 +164,3 @@ def test_maximum_query_size(client: RedshiftClient, file_storage: FileStorage) -
             expect_load_file(client, file_storage, insert_sql, user_table_name)
         # psycopg2.errors.SyntaxError: Statement is too large. Statement Size: 20971754 bytes. Maximum Allowed: 16777216 bytes
         assert type(exv.value.dbapi_exception) is psycopg2.errors.SyntaxError
-
-
-def test_public_schema_has_dataset_override() -> None:
-    """Test that the has_dataset override correctly identifies public schema as existing."""
-    schema = Schema("test_schema")
-
-    config_public = RedshiftClientConfiguration(
-        credentials=RedshiftCredentials()
-    )._bind_dataset_name("public")
-    client_public = RedshiftClient(schema, config_public, redshift().capabilities())
-    assert client_public.sql_client.has_dataset() is True

@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
+import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
@@ -11,13 +11,13 @@ from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials, MsSqlClientConfiguration
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
 
 class MsSqlTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "json": "json",
+        "json": "nvarchar(max)",
         "text": "nvarchar(max)",
         "double": "float",
         "bool": "bit",
@@ -29,6 +29,7 @@ class MsSqlTypeMapper(TypeMapperImpl):
     }
 
     sct_to_dbt = {
+        "json": "nvarchar(%i)",
         "text": "nvarchar(%i)",
         "timestamp": "datetimeoffset(%i)",
         "binary": "varbinary(%i)",
@@ -50,7 +51,6 @@ class MsSqlTypeMapper(TypeMapperImpl):
         "tinyint": "bigint",
         "smallint": "bigint",
         "int": "bigint",
-        "json": "json",
     }
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
@@ -66,11 +66,11 @@ class MsSqlTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with `{precision=:}` can't be mapped to MSSQL integer type"
+            f"bigint with {precision} bits precision cannot be mapped into mssql integer type"
         )
 
     def from_destination_type(
-        self, db_type: str, precision: Optional[int], scale: Optional[int]
+        self, db_type: str, precision: t.Optional[int], scale: t.Optional[int]
     ) -> TColumnType:
         if db_type == "decimal":
             if (precision, scale) == self.capabilities.wei_precision:
@@ -105,7 +105,6 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         caps.max_text_data_type_length = 2**30 - 1
         caps.is_max_text_data_type_length_in_bytes = False
         caps.supports_ddl_transactions = True
-        caps.supports_multiple_statements = True
         caps.supports_create_table_if_not_exists = False  # IF NOT EXISTS not supported
         caps.max_rows_per_insert = 1000
         caps.timestamp_precision = 7
@@ -120,32 +119,30 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         return caps
 
     @property
-    def client_class(self) -> Type["MsSqlJobClient"]:
+    def client_class(self) -> t.Type["MsSqlJobClient"]:
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         return MsSqlJobClient
 
     def __init__(
         self,
-        credentials: Union[MsSqlCredentials, Dict[str, Any], str] = None,
+        credentials: t.Union[MsSqlCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = False,
         has_case_sensitive_identifiers: bool = False,
-        destination_name: str = None,
-        environment: str = None,
-        **kwargs: Any,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
+        **kwargs: t.Any,
     ) -> None:
         """Configure the MsSql destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union[MsSqlCredentials, Dict[str, Any], str], optional): Credentials to connect to the mssql database. Can be an instance of `MsSqlCredentials` or
+            credentials: Credentials to connect to the mssql database. Can be an instance of `MsSqlCredentials` or
                 a connection string in the format `mssql://user:password@host:port/database`
-            create_indexes (bool, optional): Should unique indexes be created
-            has_case_sensitive_identifiers (bool, optional): Are identifiers used by mssql database case sensitive (following the collation)
-            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
-            environment (str, optional): Environment of the destination
-            **kwargs (Any): Additional arguments passed to the destination config
+            create_indexes: Should unique indexes be created
+            has_case_sensitive_identifiers: Are identifiers used by mssql database case sensitive (following the collation)
+            **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
@@ -161,7 +158,7 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         cls,
         caps: DestinationCapabilitiesContext,
         config: MsSqlClientConfiguration,
-        naming: Optional[NamingConvention],
+        naming: t.Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         # modify the caps if case sensitive identifiers are requested
         if config.has_case_sensitive_identifiers:

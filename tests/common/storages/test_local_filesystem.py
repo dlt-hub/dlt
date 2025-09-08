@@ -151,8 +151,7 @@ def test_file_host_configuration(bucket_url: str, local_path: str) -> None:
     (
         ("file:", "", ""),
         ("file://", "", ""),
-        # NOTE: needs review
-        ("file:/", "/", "file:///" + pathlib.Path("/").resolve().as_posix()),
+        ("file:/", "/", "file:///" + pathlib.Path("/").resolve().as_posix().lstrip("/")),
     ),
 )
 def test_file_filesystem_configuration(

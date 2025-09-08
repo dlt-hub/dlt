@@ -6,7 +6,6 @@ from dlt.common import json
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
-from dlt.destinations.path_utils import get_file_format_and_compression
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.pipeline.utils import load_table_counts, assert_load_info
@@ -16,6 +15,9 @@ from tests.load.utils import (
     assert_all_data_types_row,
 )
 from tests.cases import table_update_and_row
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @dlt.resource(
@@ -44,7 +46,6 @@ def event_many_load_2():
         yield from events
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
 )
@@ -59,9 +60,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     metrics = info.metrics[info.loads_ids[0]][0]
     for job_metrics in metrics["job_metrics"].values():
         remote_url = job_metrics.remote_url
-        job_ext, is_compressed = get_file_format_and_compression(job_metrics.job_id)
-        if job_ext not in ("reference", "sql"):
-            assert remote_url.endswith(job_ext if not is_compressed else ".".join([job_ext, "gz"]))
+        job_ext = os.path.splitext(job_metrics.job_id)[1]
+        if job_ext not in (".reference", ".sql"):
+            assert remote_url.endswith(job_ext)
             bucket_uri = destination_config.bucket_url
             if FilesystemConfiguration.is_local_path(bucket_uri):
                 bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
@@ -117,7 +118,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
             == num_sql_jobs
         )
 
-    initial_counts = load_table_counts(pipeline)
+    initial_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
     assert initial_counts["issues"] == 100
 
     # check item of first row in db
@@ -138,7 +141,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         info = pipeline.run(load_modified_issues, **destination_config.run_kwargs)
         assert_load_info(info)
         assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
-        merge_counts = load_table_counts(pipeline)
+        merge_counts = load_table_counts(
+            pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+        )
         assert merge_counts == initial_counts
 
         # check changes where merged in
@@ -170,7 +175,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "append"
     # the counts of all tables must be double
-    append_counts = load_table_counts(pipeline)
+    append_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
     assert {k: v * 2 for k, v in initial_counts.items()} == append_counts
 
     # test replace
@@ -182,7 +189,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "replace"
     # the counts of all tables must be double
-    replace_counts = load_table_counts(pipeline)
+    replace_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
     assert replace_counts == initial_counts
 
 
@@ -260,9 +269,8 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
         assert len(staging_client.list_table_files(table_name)) == table_count  # type: ignore[attr-defined]
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_staging_configs=True), ids=lambda x: x.name
+    "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
 )
 def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(

@@ -79,7 +79,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self._default_query = bigquery.QueryJobConfig(
-            default_dataset=self.fully_qualified_dataset_name(quote=False)
+            default_dataset=self.fully_qualified_dataset_name(escape=False)
         )
         self._session_query: bigquery.QueryJobConfig = None
 
@@ -121,15 +121,15 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                     "Nested transactions not supported on BigQuery"
                 )
             job = self._client.query(
-                "BEGIN TRANSACTION",
+                "BEGIN TRANSACTION;",
                 job_config=bigquery.QueryJobConfig(
                     create_session=True,
-                    default_dataset=self.fully_qualified_dataset_name(quote=False),
+                    default_dataset=self.fully_qualified_dataset_name(escape=False),
                 ),
             )
             self._session_query = bigquery.QueryJobConfig(
                 create_session=False,
-                default_dataset=self.fully_qualified_dataset_name(quote=False),
+                default_dataset=self.fully_qualified_dataset_name(escape=False),
                 connection_properties=[
                     bigquery.query.ConnectionProperty(
                         key="session_id", value=job.session_info.session_id
@@ -152,13 +152,13 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         if not self._session_query:
             # allow committing without transaction
             return
-        self.execute_sql("COMMIT TRANSACTION;CALL BQ.ABORT_SESSION()")
+        self.execute_sql("COMMIT TRANSACTION;CALL BQ.ABORT_SESSION();")
         self._session_query = None
 
     def rollback_transaction(self) -> None:
         if not self._session_query:
             raise dbapi_exceptions.ProgrammingError("Transaction was not started")
-        self.execute_sql("ROLLBACK TRANSACTION;CALL BQ.ABORT_SESSION()")
+        self.execute_sql("ROLLBACK TRANSACTION;CALL BQ.ABORT_SESSION();")
         self._session_query = None
 
     @property
@@ -168,7 +168,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def has_dataset(self) -> bool:
         try:
             self._client.get_dataset(
-                self.fully_qualified_dataset_name(quote=False),
+                self.fully_qualified_dataset_name(escape=False),
                 retry=self._default_retry,
                 timeout=self.http_timeout,
             )
@@ -177,7 +177,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             return False
 
     def create_dataset(self) -> None:
-        dataset = bigquery.Dataset(self.fully_qualified_dataset_name(quote=False))
+        dataset = bigquery.Dataset(self.fully_qualified_dataset_name(escape=False))
         dataset.location = self.location
         dataset.is_case_insensitive = not self.capabilities.has_case_sensitive_identifiers
         try:
@@ -219,18 +219,15 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             curr = conn.cursor()
             # if session exists give it a preference
             curr.execute(query, db_args, job_config=self._session_query or self._default_query)
-            yield BigQueryDBApiCursorImpl(curr)
+            yield BigQueryDBApiCursorImpl(curr)  # type: ignore
         finally:
             if conn:
                 # will close all cursors
                 conn.close()
 
-    def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
-        if casefold:
-            project_id = self.capabilities.casefold_identifier(self.project_id)
-        else:
-            project_id = self.project_id
-        if quote:
+    def catalog_name(self, escape: bool = True) -> Optional[str]:
+        project_id = self.capabilities.casefold_identifier(self.project_id)
+        if escape:
             project_id = self.capabilities.escape_identifier(project_id)
         return project_id
 
@@ -278,16 +275,16 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
     def truncate_tables_if_exist(self, *tables: str) -> None:
         """NOTE: We only truncate tables that exist, for auto-detect schema we don't know which tables exist"""
-        statements: List[str] = ["DECLARE table_exists BOOL"]
+        statements: List[str] = ["DECLARE table_exists BOOL;"]
         for t in tables:
             table_name = self.make_qualified_table_name(t)
             statements.append(
                 "SET table_exists = (SELECT COUNT(*) > 0 FROM"
                 f" `{self.project_id}.{self.dataset_name}.INFORMATION_SCHEMA.TABLES` WHERE"
-                f" table_name = '{t}')"
+                f" table_name = '{t}');"
             )
-            truncate_stmt = self._truncate_table_sql(table_name)
-            statements.append(f"IF table_exists THEN EXECUTE IMMEDIATE '{truncate_stmt}'; END IF")
+            truncate_stmt = self._truncate_table_sql(table_name).replace(";", "")
+            statements.append(f"IF table_exists THEN EXECUTE IMMEDIATE '{truncate_stmt}'; END IF;")
         self.execute_many(statements)
 
     @staticmethod

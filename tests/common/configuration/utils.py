@@ -1,4 +1,3 @@
-import os
 import pytest
 from os import environ
 import datetime  # noqa: I251
@@ -96,13 +95,8 @@ def environment() -> Any:
 
 
 @pytest.fixture(autouse=True)
-def reset_resolved_traces() -> Iterator[None]:
-    log = get_resolved_traces()
-    try:
-        log.clear()
-        yield
-    finally:
-        pass
+def reset_resolved_traces() -> None:
+    get_resolved_traces().clear()
 
 
 @pytest.fixture(scope="function")
@@ -123,8 +117,7 @@ def env_provider() -> Iterator[ConfigProvider]:
 
 @pytest.fixture
 def toml_providers() -> Iterator[ConfigProvidersContainer]:
-    """Injects tomls providers reading from ./tests/common/cases/configuration/.dlt"""
-    yield from _reset_providers(os.path.abspath("./tests/common/cases/configuration/.dlt"))
+    yield from _reset_providers("./tests/common/cases/configuration/.dlt")
 
 
 class MockProvider(ConfigProvider):

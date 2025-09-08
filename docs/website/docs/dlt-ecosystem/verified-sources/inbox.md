@@ -100,22 +100,6 @@ For more information, read the
 
 3. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to add credentials for your chosen destination, ensuring proper routing of your data to the final destination.
 
-## Gmail
-
-Gmail has a concurrency limit on access via IMAP, which at the time of writing is 15.
-In order to not run into `[ALERT] Too many simultaneous connections`, you can reduce
-the concurrency via:
-
-```toml
-[load]
-# Prevent the IMAP error: "[ALERT] Too many simultaneous connections" 
-# by limiting the number of concurrent load jobs
-workers=15
-```
-
-Bear in mind that IMAP connections are shared, so if you access a mailbox that is used elsewhere,
-you may need to reduce the workers accordingly.
-
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:

@@ -14,7 +14,7 @@ class ReferenceImportError:
             return "No import traces were corrected"
         msg = "Modules and attributes were tried in the following order and failed to import:\n"
         for trace in self.traces:
-            msg += f"\tmod:`{trace.module}` attr: `{trace.attr_name}` failed due to: {trace.reason}"
+            msg += f"\tmod:{trace.module} attr: {trace.attr_name} failed due to {trace.reason}"
             if trace.exc:
                 msg += f" and causing exception: {trace.exc}"
             msg += "\n"

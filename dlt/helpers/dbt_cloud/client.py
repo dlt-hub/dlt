@@ -101,8 +101,8 @@ class DBTCloudClientV2:
         """
         if not (self.account_id and job_id):
             raise InvalidCredentialsException(
-                "`account_id` and `job_id` are required. "
-                f"Got `account_id={self.account_id}` and `{job_id=:}`"
+                f"account_id and job_id are required, got account_id: {self.account_id} and job_id:"
+                f" {job_id}"
             )
 
         json_body = {}
@@ -133,8 +133,8 @@ class DBTCloudClientV2:
         """
         if not (self.account_id and run_id):
             raise InvalidCredentialsException(
-                "`account_id` and `run_id` are required. "
-                f"Got `account_id={self.account_id}` and `{run_id=:}`"
+                f"account_id and run_id are required, got account_id: {self.account_id} and run_id:"
+                f" {run_id}."
             )
 
         response = self.get_endpoint(f"{self.accounts_url}/runs/{run_id}")

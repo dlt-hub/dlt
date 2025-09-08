@@ -13,7 +13,7 @@ it and, on the next pipeline run, request them back.
 
 You read and write the state in your resources. Below, we use the state to create a list of chess
 game archives, which we then use to
-[prevent requesting duplicates](incremental/advanced-state.md#advanced-state-usage-storing-a-list-of-processed-entities).
+[prevent requesting duplicates](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities).
 
 ```py
 @dlt.resource(write_disposition="append")
@@ -60,7 +60,10 @@ the resources as the state writer and all others as state readers. This is exact
 pipeline does. With such a structure, you will still be able to run some of your resources in
 parallel.
 :::
-
+:::caution
+The `dlt.state()` is a deprecated alias to `dlt.current.source_state()` and will soon be
+removed.
+:::
 
 ## Syncing state with destination
 
@@ -85,11 +88,11 @@ about the pipeline, the pipeline run (to which the state belongs), and the state
 ## When to use pipeline state
 
 - `dlt` uses the state internally to implement
-  [last value incremental loading](incremental/cursor.md). This
+  [last value incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field). This
   use case should cover around 90% of your needs to use the pipeline state.
-- [Store a list of already requested entities](incremental/advanced-state.md#advanced-state-usage-storing-a-list-of-processed-entities)
+- [Store a list of already requested entities](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities)
   if the list is not much bigger than 100k elements.
-- [Store large dictionaries of last values](incremental/advanced-state.md#advanced-state-usage-tracking-the-last-value-for-all-search-terms-in-twitter-api)
+- [Store large dictionaries of last values](incremental-loading.md#advanced-state-usage-tracking-the-last-value-for-all-search-terms-in-twitter-api)
   if you are not able to implement it with the standard incremental construct.
 - Store custom fields dictionaries, dynamic configurations, and other source-scoped state.
 
@@ -121,11 +124,9 @@ def comments(user_id: str):
     # alternatively, catch DatabaseUndefinedRelation which is raised when an unknown table is selected
     if not current_pipeline.first_run:
         # get user comments table from pipeline dataset
+        user_comments = current_pipeline.dataset().user_comments
         # get last user comment id with ibis expression, ibis-extras need to be installed
-        dataset = current_pipeline.dataset()
-        user_comments = dataset.table("user_comments", table_type="ibis")
-        max_id_expression = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max())
-        max_id_df = dataset(max_id_expression).df()
+        max_id_df = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max()).df()
         # if there are no comments for the user, max_id will be None, so we replace it with 0
         max_id = max_id_df[0][0] if len(max_id_df.index) else 0
 

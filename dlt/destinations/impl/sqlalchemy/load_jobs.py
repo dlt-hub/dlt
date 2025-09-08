@@ -116,6 +116,8 @@ class SqlalchemyReplaceJob(SqlFollowupJob):
                 sql_client.metadata, schema=sql_client.staging_dataset_name
             )
             stmt = str(table_obj.delete().compile(dialect=sql_client.dialect))
+            if not stmt.endswith(";"):
+                stmt += ";"
             statements.append(stmt)
 
             stmt = str(
@@ -125,6 +127,8 @@ class SqlalchemyReplaceJob(SqlFollowupJob):
                 )
                 .compile(dialect=sql_client.dialect)
             )
+            if not stmt.endswith(";"):
+                stmt += ";"
 
             statements.append(stmt)
 

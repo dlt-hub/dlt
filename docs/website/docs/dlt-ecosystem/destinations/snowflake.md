@@ -162,10 +162,6 @@ The data is loaded using an internal Snowflake stage. We use the `PUT` command a
 keep_staged_files = false
 ```
 
-:::note
-`dlt` overrides autocommit settings on Account and User level: `TRUE` is set explicitly when outside of transaction.
-:::
-
 ### Data types
 `snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 

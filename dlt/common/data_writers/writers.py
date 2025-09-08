@@ -1,6 +1,5 @@
 import abc
 import csv
-import semver
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -25,7 +24,7 @@ from dlt.common.data_writers.exceptions import (
     FileSpecNotFound,
     InvalidDataItem,
 )
-from dlt.common.destination.configuration import (
+from dlt.common.data_writers.configuration import (
     CsvFormatConfiguration,
     CsvQuoting,
     ParquetFormatConfiguration,
@@ -35,9 +34,9 @@ from dlt.common.destination import (
     TLoaderFileFormat,
     LOADER_FILE_FORMATS,
 )
-from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrAny, TDataItem
 
 import sqlglot
@@ -125,7 +124,7 @@ class DataWriter(abc.ABC):
         elif extension in LOADER_FILE_FORMATS:
             return "file"
         else:
-            raise ValueError(f"No `data_item_format` associated with file extension: `{extension}`")
+            raise ValueError(f"Cannot figure out data item format for extension {extension}")
 
     @staticmethod
     def writer_class_from_spec(spec: FileWriterSpec) -> Type["DataWriter"]:
@@ -154,12 +153,12 @@ class ImportFileWriter(DataWriter):
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         raise NotImplementedError(
-            "`ImportFileWriter` cannot write any files. You have a bug in your code."
+            "ImportFileWriter cannot write any files. You have bug in your code."
         )
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
-        raise NotImplementedError("`ImportFileWriter` has no single spec")
+        raise NotImplementedError("ImportFileWriter has no single spec")
 
 
 class JsonlWriter(DataWriter):
@@ -190,9 +189,11 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.query_dialect()
-            query = item.to_sql()
-            self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
+            dialect = item.dialect or (self._caps.sqlglot_dialect if self._caps else None)
+            query = item.query
+            parsed_query = sqlglot.parse_one(query, read=dialect)
+            normalized_query = parsed_query.sql(dialect=dialect)
+            self._f.write("dialect: " + (dialect or "") + "\n" + normalized_query + "\n")
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -316,8 +317,6 @@ class ParquetDataWriter(DataWriter):
         row_group_size: Optional[int] = None,
         coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
         allow_truncated_timestamps: bool = False,
-        use_compliant_nested_type: bool = True,
-        _format: ParquetFormatConfiguration = None,  # will receive the full config
     ) -> None:
         super().__init__(f, caps or DestinationCapabilitiesContext.generic_capabilities("parquet"))
         from dlt.common.libs.pyarrow import pyarrow
@@ -325,15 +324,16 @@ class ParquetDataWriter(DataWriter):
         self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
         self.schema: Optional[pyarrow.Schema] = None
         self.nested_indices: List[str] = None
-        # merge parquet format
-        if self._caps.parquet_format is not None:
-            self.parquet_format = self._caps.parquet_format.copy()
-            self.parquet_format.update(_format.as_dict_nondefault())
-        else:
-            self.parquet_format = _format
+        self.parquet_flavor = flavor
+        self.parquet_version = version
+        self.parquet_data_page_size = data_page_size
+        self.timestamp_timezone = timestamp_timezone
+        self.parquet_row_group_size = row_group_size
+        self.coerce_timestamps = coerce_timestamps
+        self.allow_truncated_timestamps = allow_truncated_timestamps
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
-        from dlt.common.libs.pyarrow import pyarrow
+        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_timestamp
 
         # if timestamps are not explicitly coerced, use destination resolution
         # TODO: introduce maximum timestamp resolution, using timestamp_precision too aggressive
@@ -346,21 +346,18 @@ class ParquetDataWriter(DataWriter):
         return pyarrow.parquet.ParquetWriter(
             self._f,
             schema,
-            flavor=self.parquet_format.flavor,
-            version=self.parquet_format.version,
-            data_page_size=self.parquet_format.data_page_size,
-            coerce_timestamps=self.parquet_format.coerce_timestamps,
-            allow_truncated_timestamps=self.parquet_format.allow_truncated_timestamps,
-            use_compliant_nested_type=self.parquet_format.use_compliant_nested_type,
+            flavor=self.parquet_flavor,
+            version=self.parquet_version,
+            data_page_size=self.parquet_data_page_size,
+            coerce_timestamps=self.coerce_timestamps,
+            allow_truncated_timestamps=self.allow_truncated_timestamps,
         )
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         from dlt.common.libs.pyarrow import columns_to_arrow
 
         # build schema
-        self.schema = columns_to_arrow(
-            columns_schema, self._caps, self.parquet_format.timestamp_timezone
-        )
+        self.schema = columns_to_arrow(columns_schema, self._caps, self.timestamp_timezone)
         # find row items that are of the json type (could be abstracted out for use in other writers?)
         self.nested_indices = [
             i for i, field in columns_schema.items() if field["data_type"] == "json"
@@ -380,11 +377,8 @@ class ParquetDataWriter(DataWriter):
                         row[key] = json.dumps(value)
 
         table = pyarrow.Table.from_pylist(items, schema=self.schema)
-        # detect non-null columns receiving nulls. above v.19 it is checked in `write_table`
-        if semver.Version.parse(pyarrow.__version__).major < 19:
-            table = table.cast(self.schema)
         # Write
-        self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
+        self.writer.write_table(table, row_group_size=self.parquet_row_group_size)
 
     def close(self) -> None:  # noqa
         if self.writer:
@@ -414,27 +408,21 @@ class CsvWriter(DataWriter):
         delimiter: str = ",",
         include_header: bool = True,
         quoting: CsvQuoting = "quote_needed",
-        lineterminator: str = "\n",
         bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
         self.include_header = include_header
         self.delimiter = delimiter
         self.quoting: CsvQuoting = quoting
-        self.lineterminator = lineterminator
         self.writer: csv.DictWriter[str] = None
         self.bytes_encoding = bytes_encoding
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         self._columns_schema = columns_schema
         if self.quoting == "quote_needed":
-            quoting: Literal[0, 1, 2, 3] = csv.QUOTE_NONNUMERIC
+            quoting: Literal[1, 2] = csv.QUOTE_NONNUMERIC
         elif self.quoting == "quote_all":
             quoting = csv.QUOTE_ALL
-        elif self.quoting == "quote_none":
-            quoting = csv.QUOTE_NONE
-        elif self.quoting == "quote_minimal":
-            quoting = csv.QUOTE_MINIMAL
         else:
             raise ValueError(self.quoting)
 
@@ -445,7 +433,6 @@ class CsvWriter(DataWriter):
             dialect=csv.unix_dialect,
             delimiter=self.delimiter,
             quoting=quoting,
-            lineterminator=self.lineterminator,
         )
         if self.include_header:
             self.writer.writeheader()
@@ -474,8 +461,8 @@ class CsvWriter(DataWriter):
                             raise InvalidDataItem(
                                 "csv",
                                 "object",
-                                f"'{key}' contains bytes that cannot be decoded with encoding"
-                                f" `{self.bytes_encoding}`. Remove binary columns or replace their"
+                                f"'{key}' contains bytes that cannot be decoded with"
+                                f" {self.bytes_encoding}. Remove binary columns or replace their"
                                 " content with a hex representation: \\x... while keeping data"
                                 " type as binary.",
                             )
@@ -520,7 +507,7 @@ class ArrowToParquetWriter(ParquetDataWriter):
         if not self.writer:
             self.writer = self._create_writer(table.schema)
         # write concatenated tables
-        self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
+        self.writer.write_table(table, row_group_size=self.parquet_row_group_size)
 
     def write_footer(self) -> None:
         if not self.writer:
@@ -575,8 +562,6 @@ class ArrowToCsvWriter(DataWriter):
                         quoting = "needed"
                     elif self.quoting == "quote_all":
                         quoting = "all_valid"
-                    elif self.quoting == "quote_none":
-                        quoting = "none"
                     else:
                         raise ValueError(self.quoting)
                     try:
@@ -596,7 +581,7 @@ class ArrowToCsvWriter(DataWriter):
                                 "csv",
                                 "arrow",
                                 "Arrow data contains a column that cannot be written to csv file"
-                                f" `{inv_ex}`. Remove nested columns (struct, map) or convert them"
+                                f" ({inv_ex}). Remove nested columns (struct, map) or convert them"
                                 " to json strings.",
                             )
                         raise
@@ -633,7 +618,7 @@ class ArrowToCsvWriter(DataWriter):
                         )
                     raise
             else:
-                raise ValueError(f"Unsupported type `{type(item)}`")
+                raise ValueError(f"Unsupported type {type(item)}")
             # count rows that got written
             self.items_count += item.num_rows
 
@@ -761,10 +746,9 @@ def resolve_best_writer_spec(
     # check if preferred format has native item_format writer
     if preferred_format:
         if preferred_format not in possible_file_formats:
-            raise ValueErrorWithKnownValues(
-                "preferred_format", preferred_format, possible_file_formats
+            raise ValueError(
+                f"Preferred format {preferred_format} not possible in {possible_file_formats}"
             )
-
         try:
             return DataWriter.class_factory(
                 preferred_format, item_format, native_writers

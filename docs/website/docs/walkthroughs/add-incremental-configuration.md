@@ -1,10 +1,11 @@
 ---
-title: Incremental loading guide
+title: Add incremental configuration to SQL resources
 description: Incremental SQL data loading strategies
 keywords: [how to, load data incrementally from SQL]
 slug: sql-incremental-configuration
 ---
 
+# Add incremental configuration to SQL resources
 Incremental loading is the act of loading only new or changed data and not old records that have already been loaded.
 For example, a bank loads only the latest transactions, or a company updates its database with new or modified user
 information. In this article, we’ll discuss a few incremental loading strategies.

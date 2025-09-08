@@ -28,7 +28,7 @@ requests: Session = None
 
 def init_anon_tracker(config: RuntimeConfiguration) -> None:
     if config.dlthub_telemetry_endpoint is None:
-        raise ValueError("`dlthub_telemetry_endpoint` not specified in `RunConfiguration`")
+        raise ValueError("dlthub_telemetry_endpoint not specified in RunConfiguration")
 
     if config.dlthub_telemetry_endpoint == "https://api.segment.io/v1/track":
         assert (

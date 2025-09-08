@@ -176,7 +176,7 @@ def test_parquet_writer_size_file_rotation() -> None:
 
 
 def test_parquet_writer_config() -> None:
-    os.environ["NORMALIZE__DATA_WRITER__VERSION"] = "1.0"
+    os.environ["NORMALIZE__DATA_WRITER__VERSION"] = "2.0"
     os.environ["NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE"] = str(1024 * 512)
     os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "America/New York"
 
@@ -191,9 +191,9 @@ def test_parquet_writer_config() -> None:
             writer._flush_items()
 
             # flavor can't be tested
-            assert writer._writer.parquet_format.version == "1.0"
-            assert writer._writer.parquet_format.data_page_size == 1024 * 512
-            assert writer._writer.parquet_format.timestamp_timezone == "America/New York"
+            assert writer._writer.parquet_version == "2.0"
+            assert writer._writer.parquet_data_page_size == 1024 * 512
+            assert writer._writer.timestamp_timezone == "America/New York"
 
             # tz can
             column_type = writer._writer.schema.field("col2").type

@@ -49,7 +49,7 @@ Here’s what each file does:
     - `config.toml`: This file contains the configuration settings for your `dlt` project.
 
 :::note
-When deploying your pipeline in a production environment, managing all configurations with the TOML files might not be convenient. In this case, we highly recommend using environment variables or other [configuration providers](../general-usage/credentials/setup) available in dlt to store secrets and configs instead.
+When deploying your pipeline in a production environment, managing all configurations with the TOML files might not be convenient. In this case, we highly recommend using environment variables or other [configuration providers](../general-usage/credentials/setup#available-config-providers) available in dlt to store secrets and configs instead.
 :::
 
 ## 2. Configure the pipeline script
@@ -145,10 +145,10 @@ This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project di
 
 ## 6. Explore the data
 
-dlt comes with a built-in browser dashboard that allows you to interact with the loaded data. To enable it, run the following command:
+dlt comes with a built-in browser application that allows you to interact with the loaded data. To enable it, run the following command:
 
 ```sh
-pip install marimo
+pip install streamlit
 ```
 
 Next, run the following command to launch the data browser app:
@@ -158,6 +158,8 @@ dlt pipeline sql_to_duckdb_pipeline show
 ```
 
 You can explore the loaded data, run queries, and see some pipeline execution details.
+
+![streamlit-screenshot](https://storage.googleapis.com/dlt-blog-images/docs-sql-database-tutorial-streamlit-screenshot.png)
 
 ## 7. Append, replace, or merge loaded data
 

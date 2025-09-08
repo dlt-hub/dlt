@@ -206,7 +206,7 @@ def test_merge_column() -> None:
 
 
 def test_none_resets_on_merge_column() -> None:
-    # pops hints with known defaults that are not None
+    # pops hints with known defaults that are not None (TODO)
     col_a = utils.merge_column(
         col_a={"name": "col1", "primary_key": True}, col_b={"name": "col1", "primary_key": None}
     )

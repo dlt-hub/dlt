@@ -21,6 +21,7 @@ from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.typing import ParamSpec
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.warnings import Dlt04DeprecationWarning, deprecated
 
 from dlt.extract.source import DltSource
@@ -34,6 +35,7 @@ class SourceFactory(ABC, Generic[TSourceFunParams, TDltSourceImpl]):
     def __call__(
         self, *args: TSourceFunParams.args, **kwargs: TSourceFunParams.kwargs
     ) -> TDltSourceImpl:
+        """Makes dlt source"""
         pass
 
     # TODO: make factory to expose SourceReference with actual spec, name and section

@@ -33,8 +33,9 @@ if __name__ == "__main__":
 
     # create postgres destination with a custom naming convention. pass sql_cs_latin2 as module
     # NOTE: ql_cs_latin2 is case sensitive and postgres accepts UNICODE letters in identifiers
-    dest_ = dlt.destinations.postgres(naming_convention=sql_cs_latin2)
-
+    dest_ = dlt.destinations.postgres(
+        "postgresql://loader:loader@localhost:5432/dlt_data", naming_convention=sql_cs_latin2
+    )
     # run a pipeline
     pipeline = dlt.pipeline(
         pipeline_name="sql_cs_latin2_pipeline",

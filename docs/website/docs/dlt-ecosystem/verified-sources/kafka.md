@@ -110,7 +110,7 @@ If you created a topic and start reading from it immediately, the brokers may no
 This function retrieves messages from the given Kafka topics.
 
 ```py
-@dlt.resource(name="kafka_messages", table_name=lambda msg: msg["_kafka"]["topic"])
+@dlt.resource(name="kafka_messages", table_name=lambda msg: msg["_kafka"]["topic"], standalone=True)
 def kafka_consumer(
     topics: Union[str, List[str]],
     credentials: Union[KafkaCredentials, Consumer] = dlt.secrets.value,

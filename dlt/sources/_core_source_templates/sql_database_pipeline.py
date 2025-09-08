@@ -75,7 +75,7 @@ def load_standalone_table_resource() -> None:
         pipeline_name="rfam_database",
         destination="duckdb",
         dataset_name="rfam_data",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     # Load a table incrementally starting at a given date
@@ -118,7 +118,7 @@ def select_columns() -> None:
         pipeline_name="rfam_database",
         destination="duckdb",
         dataset_name="rfam_data_cols",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     def table_adapter(table: Table) -> Table:
@@ -151,7 +151,7 @@ def select_with_end_value_and_row_order() -> None:
         pipeline_name="rfam_database",
         destination="duckdb",
         dataset_name="rfam_data",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     # gets data from this range
@@ -240,6 +240,8 @@ def test_connectorx_speed() -> None:
     """Uses unsw_flow dataset (~2mln rows, 25+ columns) to test connectorx speed"""
     import os
 
+    # from dlt.destinations import filesystem
+
     unsw_table = sql_table(
         "postgresql://loader:loader@localhost:5432/dlt_data",
         "unsw_flow_7",
@@ -258,7 +260,7 @@ def test_connectorx_speed() -> None:
         destination="filesystem",
         # destination=filesystem(os.path.abspath("../_storage/unsw")),
         progress="log",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     info = pipeline.run(

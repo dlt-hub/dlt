@@ -34,7 +34,7 @@ def read_sql_x(
     yield cx.read_sql(
         conn_str.to_native_representation(),
         query,
-        return_type="arrow",
+        return_type="arrow2",
         protocol="binary",
     )
 
@@ -45,6 +45,7 @@ def genome_resource():
         name="genome",
         write_disposition="merge",
         primary_key="upid",
+        standalone=True,
     )(read_sql_x)(
         "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",  # type: ignore[arg-type]
         "SELECT * FROM genome ORDER BY created LIMIT 1000",

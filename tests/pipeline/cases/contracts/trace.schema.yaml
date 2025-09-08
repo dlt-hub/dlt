@@ -183,15 +183,6 @@ tables:
       step_exception:
         data_type: text
         nullable: true
-      exception_traces:
-        data_type: text
-        nullable: true
-      load_info__environment:
-        data_type: text
-        nullable: true
-      load_info__dataset_name:
-        data_type: text
-        nullable: true
     parent: trace
   trace__steps__extract_info__job_metrics:
     columns:
@@ -465,9 +456,6 @@ tables:
       file_format:
         data_type: text
         nullable: true
-      is_compressed:
-        data_type: bool
-        nullable: true
       job_id:
         data_type: text
         nullable: true
@@ -483,9 +471,6 @@ tables:
         nullable: false
         unique: true
         row_key: true
-      failed_message:
-        data_type: text
-        nullable: true
     parent: trace__steps__step_info__load_packages
   trace__steps__normalize_info__job_metrics:
     columns:
@@ -723,9 +708,6 @@ tables:
       sort:
         data_type: bool
         nullable: true
-      x_normalizer__seen_null_first:
-        data_type: bool
-        nullable: true
     parent: trace__steps__step_info__load_packages__tables
   trace__resolved_config_values:
     columns:
@@ -807,12 +789,6 @@ tables:
         nullable: false
         unique: true
         row_key: true
-      resource_name:
-        data_type: text
-        nullable: true
-      source_name:
-        data_type: text
-        nullable: true
     parent: trace__steps
   trace__steps__exception_traces__stack_trace:
     columns:

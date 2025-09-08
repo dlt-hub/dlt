@@ -1,5 +1,5 @@
 ---
-title: Configuration
+title: Configuring the SQL Database source
 description: configuring the pipeline script, connection, and backend settings in the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
@@ -10,7 +10,7 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
-## Select tables to load
+## Configuring the SQL database source
 
 `dlt` sources are Python scripts made up of source and resource functions that can be easily customized. The SQL Database verified source has the following built-in source and resource:
 1. `sql_database`: a `dlt` source that can be used to load multiple tables and views from a SQL database.
@@ -18,18 +18,14 @@ import Header from '../_source-info-header.md';
 
 Read more about sources and resources here: [General usage: source](../../../general-usage/source.md) and [General usage: resource](../../../general-usage/resource.md).
 
+:::note NOTE
+To see complete list of source arguments for `sql_database` [refer to the this section](#arguments-for-sql_database-source).
+:::
 
 ### Example usage:
 
 :::tip
-We intend our sources to be fully hackable. `dlt init` command allows you to eject the source code of the core source and modify it
-according to your needs. For example
-
-```sh
- dlt init sql_database duckdb --eject
- ```
-
-will create `sql_database` folder with the source code that you can import and use.
+We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs.
 :::
 
 1. **Load all the tables from a database**
@@ -143,74 +139,6 @@ will create `sql_database` folder with the source code that you can import and u
    Table and column names specified in `config.toml` must exactly match their counterparts in the SQL database, as they are case-sensitive.
    :::
 
-## Incremental loading
-
-Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
-
-Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use. Read [here](../../../walkthroughs/sql-incremental-configuration) for more details on incremental loading with `dlt`.
-
-### How to configure
-1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
-1. **Set an initial value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
-1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
-1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from a certain range.
-1. **Order returned rows**: Set `row_order` to `asc` or `desc` to order returned rows.
-
-:::info Special characters in the cursor column name
-If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
-:::
-
-### Examples
-
-1. **Incremental loading with the resource `sql_table`**.
-
-  Consider a table "family" with a timestamp column `last_modified` that indicates when a row was last modified. To ensure that only rows modified after midnight (00:00:00) on January 1, 2024, are loaded, you would set the `last_modified` timestamp as the cursor as follows:
-
-  ```py
-  import dlt
-  from dlt.sources.sql_database import sql_table
-  from dlt.common.pendulum import pendulum
-
-  # Example: Incrementally loading a table based on a timestamp column
-  table = sql_table(
-     table='family',
-     incremental=dlt.sources.incremental(
-         'last_modified',  # Cursor column name
-         initial_value=pendulum.DateTime(2024, 1, 1, 0, 0, 0)  # Initial cursor value
-     )
-  )
-
-  pipeline = dlt.pipeline(destination="duckdb")
-  extract_info = pipeline.extract(table, write_disposition="merge")
-  print(extract_info)
-  ```
-
-  Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
-  In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
-
-2. **Incremental loading with the source `sql_database`**.
-
-  To achieve the same using the `sql_database` source, you would specify your cursor as follows:
-
-  ```py
-  import dlt
-  from dlt.sources.sql_database import sql_database
-
-  source = sql_database().with_resources("family")
-  # Using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024
-  source.family.apply_hints(incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0)))
-
-  # Running the pipeline
-  pipeline = dlt.pipeline(destination="duckdb")
-  load_info = pipeline.run(source, write_disposition="merge")
-  print(load_info)
-  ```
-
-  :::info
-    * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up.
-    * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
-  :::
-
 ## Configuring the connection
 
 ### Connection string format
@@ -239,7 +167,7 @@ There are several options for adding your connection credentials into your `dlt`
 
 #### 1. Setting them in `secrets.toml` or as environment variables (recommended)
 
-You can set up credentials using [any method](../../../general-usage/credentials/setup) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials, read [here](../../../general-usage/credentials/setup).
+You can set up credentials using [any method](../../../general-usage/credentials/setup#available-config-providers) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials, read [here](../../../general-usage/credentials/setup).
 
 #### 2. Passing them directly in the script
 
@@ -441,8 +369,7 @@ The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend comp
 There are certain limitations when using this backend:
 * It will ignore `chunk_size`. `ConnectorX` cannot yield data in batches.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
-* For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
-    * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
+* It will convert **decimals** to **doubles**, so you will lose precision.
 * Nullability of the columns is ignored (always true).
 * It uses different mappings for each data type. (Check [here](https://sfu-db.github.io/connector-x/databases.html) for more details.)
 * JSON fields (at least those coming from PostgreSQL) are double-wrapped in strings. To unwrap this, you can pass the in-built transformation function `unwrap_json_connector_x` (for example, with `add_map`):
@@ -491,3 +418,56 @@ info = pipeline.run(
 print(info)
 ```
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
+
+## Arguments for `sql_database` source
+The following arguments can be used with the `sql_database` source:
+    
+    `credentials` (Union[ConnectionStringCredentials, Engine, str]): Database credentials or an `sqlalchemy.Engine` instance.
+    
+    `schema` (Optional[str]): Name of the database schema to load (if different from default).
+    
+    `metadata` (Optional[MetaData]): Optional `sqlalchemy.MetaData` instance. `schema` argument is ignored when this is used.
+    
+    `table_names` (Optional[List[str]]): A list of table names to load. By default, all tables in the schema are loaded.
+    
+    `chunk_size` (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
+    
+    `backend` (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
+
+        - "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
+
+        - "sqlalchemy" is the default and does not require additional dependencies, 
+
+        - "pyarrow" creates stable destination schemas with correct data types,
+
+        - "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
+    
+    `detect_precision_hints` (bool): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables. This is disabled by default.
+    
+    `reflection_level`: (ReflectionLevel): Specifies how much information should be reflected from the source database schema.
+
+        - "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
+
+        - "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
+
+        - "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
+    
+    `defer_table_reflect` (bool): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
+        Enable this option when running on Airflow. Available on dlt 0.4.4 and later.
+    
+    `table_adapter_callback`: (Callable): Receives each reflected table. May be used to modify the list of columns that will be selected.
+    
+    `backend_kwargs` (**kwargs): kwargs passed to table backend ie. "conn" is used to pass specialized connection string to connectorx.
+    
+    `include_views` (bool): Reflect views as well as tables. Note view names included in `table_names` are always included regardless of this setting. This is set to false by default.
+    
+    `type_adapter_callback`(Optional[Callable]): Callable to override type inference when reflecting columns.
+        Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
+    
+    `query_adapter_callback`(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table. The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
+    
+    `resolve_foreign_keys` (bool): Translate foreign keys in the same schema to `references` table hints.
+        May incur additional database calls as all referenced tables are reflected.
+    
+    `engine_adapter_callback` (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to set transaction isolation level.
+

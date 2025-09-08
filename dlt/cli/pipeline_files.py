@@ -16,7 +16,7 @@ from dlt.common.reflection.utils import get_module_docstring
 from dlt.cli import utils
 from dlt.cli.requirements import SourceRequirements
 
-TSourceType = Literal["core", "verified", "template", "vibe"]
+TSourceType = Literal["core", "verified", "template"]
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
 
@@ -169,15 +169,8 @@ def get_remote_source_index(
 def get_sources_names(sources_storage: FileStorage, source_type: TSourceType) -> List[str]:
     candidates: List[str] = []
 
-    # for vibe sources, we just find all directories, except for hidden ones (.git)
-    if source_type == "vibe":
-        candidates = [
-            name
-            for name in sources_storage.list_folder_dirs(".", to_root=False)
-            if not name.startswith(".")
-        ]
     # for the templates we just find all the filenames
-    elif source_type == "template":
+    if source_type == "template":
         for name in sources_storage.list_folder_files(".", to_root=False):
             if name.endswith(PIPELINE_FILE_SUFFIX):
                 candidates.append(name.replace(PIPELINE_FILE_SUFFIX, ""))
@@ -210,10 +203,10 @@ def _get_docstring_for_module(sources_storage: FileStorage, source_name: str) ->
 
 
 def get_template_configuration(
-    sources_storage: FileStorage, source_name: str, display_source_name: str
+    sources_storage: FileStorage, source_name: str
 ) -> SourceConfiguration:
-    destination_pipeline_file_name = display_source_name + PIPELINE_FILE_SUFFIX
-    source_pipeline_file_name = source_name + PIPELINE_FILE_SUFFIX
+    destination_pipeline_file_name = source_name + PIPELINE_FILE_SUFFIX
+    source_pipeline_file_name = destination_pipeline_file_name
 
     if not sources_storage.has_file(source_pipeline_file_name):
         source_pipeline_file_name = DEFAULT_PIPELINE_TEMPLATE
@@ -329,6 +322,12 @@ def gen_index_diff(
         if name not in remote_index["files"]:
             deleted[name] = entry
 
+    # print("NEW")
+    # print(new)
+    # print("MOD")
+    # print(modified)
+    # print("DEL")
+    # print(deleted)
     return new, modified, deleted
 
 

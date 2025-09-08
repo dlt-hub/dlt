@@ -3,7 +3,6 @@ from typing import Any, Dict, cast
 
 import pytest
 
-from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.sources import rest_api
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth, OAuth2ClientCredentials
 from dlt.sources.rest_api.typing import ApiKeyAuthConfig, AuthConfig, RESTAPIConfig
@@ -47,10 +46,10 @@ class TestCustomAuth:
         assert auth.api_key == "test-secret"
 
     def test_not_registering_throws_error(self, custom_auth_config: AuthConfig) -> None:
-        with pytest.raises(ValueErrorWithKnownValues) as e:
+        with pytest.raises(ValueError) as e:
             rest_api.config_setup.create_auth(custom_auth_config)
 
-        assert e.match("Received invalid value `auth_type=custom_oauth_2`. Valid values are:")
+        assert e.match("Invalid authentication: custom_oauth_2.")
 
     def test_registering_adds_to_AUTH_MAP(self, custom_auth_config: AuthConfig) -> None:
         rest_api.config_setup.register_auth("custom_oauth_2", CustomOAuth2)
@@ -77,7 +76,7 @@ class TestCustomAuth:
             rest_api.config_setup.register_auth(
                 "not_an_auth_config_base", NotAuthConfigBase  # type: ignore
             )
-        assert e.match("Invalid auth: `NotAuthConfigBase`.")
+        assert e.match("Invalid auth: NotAuthConfigBase.")
 
     def test_valid_config_raises_no_error(self, custom_auth_config: AuthConfig) -> None:
         rest_api.config_setup.register_auth("custom_oauth_2", CustomOAuth2)

@@ -505,9 +505,8 @@ def test_load_none_trace() -> None:
 
 
 def test_trace_telemetry(temporary_telemetry: RuntimeConfiguration) -> None:
-    with (
-        patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send),
-        patch("dlt.common.runtime.anon_tracker.before_send", _mock_anon_tracker_before_send),
+    with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch(
+        "dlt.common.runtime.anon_tracker.before_send", _mock_anon_tracker_before_send
     ):
         ANON_TRACKER_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()
@@ -660,58 +659,6 @@ def test_broken_slack_hook(environment: DictStrStr) -> None:
     # run_step = trace.steps[-1]
     # assert run_step.step == "run"
     # assert run_step.step_exception is None
-
-
-def test_last_pipeline_step_trace_returns_latest() -> None:
-    """Test that last_pipeline_step_trace returns the step with the latest started_at when multiple steps exist."""
-    os.environ["COMPLETED_PROB"] = "1.0"
-
-    # Create a pipeline
-    p = dlt.pipeline(destination="dummy")
-
-    # First extract - this will create the first extract step
-    first_load_info = p.run([1, 2, 3], table_name="first_data")
-    first_trace = p.last_trace
-
-    # Verify we have one extract step and it mentions the first load
-    first_extract_step = first_trace.last_extract_info
-    assert first_extract_step is not None
-    assert first_extract_step.loads_ids == first_load_info.loads_ids
-
-    # Second extract - this will create a second extract step
-    second_load_info = p.extract([4, 5, 6], table_name="second_data")
-    second_trace = p.last_trace
-
-    # Verify we now have two extract steps
-    assert len(p.last_trace.steps) == 5
-    extract_steps = [step for step in second_trace.steps if step.step == "extract"]
-    assert len(extract_steps) == 2
-
-    # Verify that last_pipeline_step_trace returns the most recent extract step
-    latest_extract_step = p.last_trace.last_extract_info
-    assert latest_extract_step.loads_ids == second_load_info.loads_ids
-
-    # # Verify that the latest step has a later started_at than the first step
-    assert latest_extract_step.started_at > first_extract_step.started_at
-
-    # same for normalize
-    p.normalize()
-    assert len(p.last_trace.steps) == 6
-    assert p.last_trace.last_normalize_info.loads_ids == second_load_info.loads_ids
-
-    # and load
-    p.load()
-    assert len(p.last_trace.steps) == 7
-    assert p.last_trace.last_load_info.loads_ids == second_load_info.loads_ids
-
-    # next run should reset everything
-    third_load_info = p.run([7, 8, 9], table_name="third_data")
-    assert len(p.last_trace.steps) == 4
-    assert p.last_trace.last_extract_info.loads_ids == third_load_info.loads_ids
-    # all last_x properties should reference new load
-    assert p.last_trace.last_extract_info.loads_ids == third_load_info.loads_ids
-    assert p.last_trace.last_normalize_info.loads_ids == third_load_info.loads_ids
-    assert p.last_trace.last_load_info.loads_ids == third_load_info.loads_ids
 
 
 def _find_resolved_value(

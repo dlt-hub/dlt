@@ -2,7 +2,7 @@ import inspect
 
 from functools import wraps
 from typing import Callable, Dict, Type, Any, Optional, Union, Tuple, TypeVar, overload, cast
-from inspect import Signature, Parameter, unwrap
+from inspect import Signature, Parameter
 
 from dlt.common.typing import DictStrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_section
@@ -14,27 +14,16 @@ from dlt.common.reflection.spec import spec_from_signature
 
 _LAST_DLT_CONFIG = "_dlt_config"
 _ORIGINAL_ARGS = "_dlt_orig_args"
-_FUN_SPEC = "__SPEC__"
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
 
 def get_fun_spec(f: AnyFun) -> Type[BaseConfiguration]:
-    return getattr(unwrap(f), _FUN_SPEC, None)  # type: ignore[no-any-return]
-
-
-def get_fun_last_config(f: AnyFun) -> BaseConfiguration:
-    return getattr(unwrap(f), _LAST_DLT_CONFIG, None)  # type: ignore[no-any-return]
+    return getattr(f, "__SPEC__", None)  # type: ignore[no-any-return]
 
 
 def set_fun_spec(f: AnyFun, spec: Type[BaseConfiguration]) -> None:
-    """Assigns a spec to a unwrapped `f` from which it was inferred"""
-    # always add SPEC to unwrapped functions, skip all decorated functions
-    setattr(unwrap(f), _FUN_SPEC, spec)  # noqa: B010
-
-
-def set_fun_last_config(f: AnyFun, config: BaseConfiguration) -> None:
-    """Assigns a resolved config to a unwrapped `f` when it is called"""
-    setattr(unwrap(f), _LAST_DLT_CONFIG, config)  # noqa: B010
+    """Assigns a spec to a callable from which it was inferred"""
+    setattr(f, "__SPEC__", spec)  # noqa: B010
 
 
 @overload
@@ -190,10 +179,7 @@ def with_config(
 
             # this may be called from many threads so section_context is thread affine
             with inject_section(section_context, lock_context=lock_context_on_injection):
-                # print(
-                #     f"RESOLVE CONF in inject: {SPEC} {f.__name__}: {section_context.sections} vs"
-                #     f" {sections} in {bound_args.arguments} and partial {accept_partial_}"
-                # )
+                # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections} in {bound_args.arguments}")
                 return resolve_configuration(
                     config or SPEC(),
                     explicit_value=bound_args.arguments,
@@ -205,6 +191,7 @@ def with_config(
         ) -> None:
             # overwrite or add resolved params
             resolved_params = dict(config)
+            # print("resolved_params", resolved_params)
             # overwrite or add resolved params
             for p in sig.parameters.values():
                 if p.name in resolved_params:
@@ -253,7 +240,6 @@ def with_config(
                 bound_args = sig.bind(*args, **kwargs)
                 # TODO: update partial config with bound_args (to cover edge cases with embedded configs)
                 update_bound_args(bound_args, config, args, kwargs)
-                set_fun_last_config(f, config)
                 return f(*bound_args.args, **bound_args.kwargs)
 
             return _wrap
@@ -270,10 +256,10 @@ def with_config(
 
             # call the function with resolved config
             update_bound_args(bound_args, config, args, kwargs)
-            set_fun_last_config(f, config)
             return f(*bound_args.args, **bound_args.kwargs)
 
-        set_fun_spec(f, SPEC)
+        # register the spec for a wrapped function
+        set_fun_spec(_wrap, SPEC)
 
         # add a method to create a pre-resolved partial
         setattr(_wrap, "__RESOLVED_PARTIAL_FUNC__", with_partially_resolved_config)  # noqa: B010
@@ -287,8 +273,8 @@ def with_config(
 
     if not callable(func):
         raise ValueError(
-            "First parameter of `with_config` must be callable i.e., by using it as a decorator"
-            " `@with_config`"
+            "First parameter to the with_config must be callable ie. by using it as function"
+            " decorator"
         )
 
     # We're called as @with_config without parens.

@@ -7,8 +7,6 @@ from dlt.sources.filesystem import FileItemDict
 
 from .helpers import fetch_arrow, fetch_json
 
-__source_name__ = "filesystem"
-
 
 def _read_csv(
     items: Iterator[FileItemDict], chunksize: int = 10000, **pandas_kwargs: Any
@@ -80,7 +78,7 @@ def _read_csv_duckdb(
     items: Iterator[FileItemDict],
     chunk_size: Optional[int] = 5000,
     use_pyarrow: bool = False,
-    **duckdb_kwargs: Any,
+    **duckdb_kwargs: Any
 ) -> Iterator[TDataItems]:
     """A resource to extract data from the given CSV files.
 

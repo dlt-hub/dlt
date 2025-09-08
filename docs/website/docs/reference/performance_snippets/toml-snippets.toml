@@ -71,7 +71,7 @@ max_parallel_items=10
 
 
 # @@@DLT_SNIPPET_START normalize_workers_toml
-[normalize.data_writer]
+[extract.data_writer]
 # force extract file rotation if size exceeds 1MiB
 file_max_bytes=1000000
 

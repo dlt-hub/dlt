@@ -8,8 +8,7 @@ from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from dlt.sources.rest_api import rest_api_source, rest_api
 
 from tests.common.configuration.utils import environment, toml_providers
-from tests.utils import ALL_DESTINATIONS
-from tests.pipeline.utils import assert_load_info, load_table_counts
+from tests.utils import ALL_DESTINATIONS, assert_load_info, load_table_counts
 
 
 def _make_pipeline(destination_name: str):
@@ -17,7 +16,7 @@ def _make_pipeline(destination_name: str):
         pipeline_name="rest_api",
         destination=destination_name,
         dataset_name="rest_api_data",
-        dev_mode=True,
+        full_refresh=True,
     )
 
 
@@ -75,7 +74,8 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
     load_info = pipeline.run(data)
     print(load_info)
     assert_load_info(load_info)
-    table_counts = load_table_counts(pipeline)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
 
@@ -134,7 +134,8 @@ def test_dependent_resource(destination_name: str, invocation_type: str) -> None
     pipeline = _make_pipeline(destination_name)
     load_info = pipeline.run(data)
     assert_load_info(load_info)
-    table_counts = load_table_counts(pipeline)
+    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
+    table_counts = load_table_counts(pipeline, *table_names)
 
     assert set(table_counts.keys()) == {
         "pokemon",

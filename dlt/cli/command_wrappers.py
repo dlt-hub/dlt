@@ -140,24 +140,10 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
             schema_dict = yaml.safe_load(f)
     s = Schema.from_dict(schema_dict)
     if format_ == "json":
-        schema_str = s.to_pretty_json(remove_defaults=remove_defaults)
-    elif format_ == "yaml":
-        schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
-    elif format_ == "dbml":
-        schema_str = s.to_dbml()
-    elif format_ == "dot":
-        schema_str = s.to_dot()
+        schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults), pretty=True)
     else:
         schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
-
     fmt.echo(schema_str)
-
-
-@utils.track_command("dashboard", True)
-def dashboard_command_wrapper(pipelines_dir: Optional[str], edit: bool) -> None:
-    from dlt.helpers.dashboard.runner import run_dashboard
-
-    run_dashboard(pipelines_dir=pipelines_dir, edit=edit)
 
 
 @utils.track_command("telemetry", False)
@@ -175,4 +161,4 @@ def telemetry_change_status_command_wrapper(enabled: bool) -> None:
 
 @utils.track_command("ai_setup", False)
 def ai_setup_command_wrapper(ide: TSupportedIde, branch: Union[str, None], repo: str) -> None:
-    ai_setup_command(ide, location=repo, branch=branch)
+    ai_setup_command(ide, branch=branch, repo=repo)

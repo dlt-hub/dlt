@@ -9,17 +9,6 @@ keywords: [Databricks, destination, data warehouse]
 # Databricks
 *Big thanks to Evan Phillips and [swishbi.com](https://swishbi.com/) for contributing code, time, and a test environment.*
 
-This Databricks destination will load your data into Databricks Delta tables using one of the supported [cloud storage options](#staging-support). You can access your data using Unity Catalog.
-
-There are two options to run dlt pipelines and load data:
-
-* Run dlt pipelines in any environment by providing credentials for both Databricks and your cloud storage.
-* Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
-
-:::note
-If you'd like to load data to Databricks Managed Iceberg tables, use [dlt+ Iceberg destination](../../plus/ecosystem/iceberg#unity-catalog)
-:::
-
 ## Install dlt with Databricks
 
 **To install the dlt library with Databricks dependencies:**
@@ -274,8 +263,9 @@ For more information on staging, see the [Staging support](#staging-support) sec
 
 The JSONL format has some limitations when used with Databricks:
 
-1. The following data types are not supported when using the JSONL format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
-2. The `bigint` data type with precision is not supported with the JSONL format.
+1. Compression must be disabled to load JSONL files in Databricks. Set `data_writer.disable_compression` to `true` in the dlt config when using this format.
+2. The following data types are not supported when using the JSONL format with `databricks`: `decimal`, `json`, `date`, `binary`. Use `parquet` if your data contains these types.
+3. The `bigint` data type with precision is not supported with the JSONL format.
 
 ## Direct Load (Databricks Managed Volumes)
 
@@ -319,45 +309,13 @@ print(pipeline.dataset().pokemon.df())
 - **For production**, explicitly setting *staging_volume_name* is recommended.
 - The volume is used as a **temporary location** to store files before loading.
 
-:::caution Module conflict
-When using dlt within Databricks Notebooks, you may encounter naming conflicts with Databricks' built-in Delta Live Tables (DLT) module.
-To avoid these conflicts, follow the steps in the [Troubleshooting section](#troubleshooting) below.
-:::
-
-:::tip
+:::tip::
 You can delete staged files **immediately** after loading by setting the following config option:
 ```toml
 [destination.databricks]
 keep_staged_files = false
 ```
 :::
-
-## Supported hints
-
-### Supported table hints
-
-Databricks supports the following table hints:
-
-- `description` - Uses the description to add comment to the table. This can also be done by using the adapter parameter `table_comment`.
-
-Databricks supports the following column hints:
-
-- `primary_key` - adds a primary key constraint to the column in Unity Catalog.
-- `description` - adds a description to the column. This can also be done by using the adapter parameter `table_comment`.
-- `references` - adds a foreign key constraint to the column in Unity Catalog.
-- `not_null` - adds a not null constraint to the column.
-- `cluster` - adds a clustering constraint to the column. This can also be done by using the adapter parameter `cluster`.
-
-:::note
-If you want to enforce constraints on the tables, you can set the `create_indexes` option to `true`. This will add PRIMARY KEY and FOREIGN KEY constraints to the tables if the hints primary key and references are set.
-```toml
-[destination.databricks]
-# Add PRIMARY KEY and FOREIGN KEY constraints to tables
-create_indexes=true
-```
-:::
-
-For additional hints specific to Databricks, see the [Databricks adapter](#databricks-adapter) section.
 
 ## Staging support
 
@@ -513,118 +471,6 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 ### Databricks user agent
 We enable Databricks to identify that the connection is created by `dlt`.
 Databricks will use this user agent identifier to better understand the usage patterns associated with dlt integration. The connection identifier is `dltHub_dlt`.
-
-## Databricks adapter
-
-You can use the `databricks_adapter` function to add Databricks-specific hints to a resource. These hints influence how data is loaded into Databricks tables, such as adding comments and tags. Hints can be defined at both the column level and table level.
-
-The adapter updates the DltResource with metadata about the destination column and table DDL options.
-
-### Supported hints
-
-- `table_comment`: adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
-- `table_tags`: adds tags to the table. Supports a list of strings and/or key-value pairs.
-- `column_hints`
-  - `column_comment`: adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
-  - `column_tags`: adds tags to the column. Supports a list of strings and/or key-value pairs.
-
-### Use an adapter to apply hints to a resource
-
-Here is an example of how to use the `databricks_adapter` function to apply hints to a resource on both the column level and table level:
-
-```py
-import dlt
-from dlt.destinations.adapters import databricks_adapter
-
-@dlt.resource(
-    columns=[
-        {"name": "event_date", "data_type": "date"},
-        {"name": "user_id", "data_type": "bigint"},
-        # Other columns.
-    ]
-)
-def event_data():
-    yield from [
-        {"event_date": datetime.date.today() + datetime.timedelta(days=i)} for i in range(100)
-    ]
-
-# Apply table and column options.
-databricks_adapter(
-    event_data,
-
-    # Table level options.
-    table_comment="Dummy event data.",
-    table_tags=["pii", {"cost_center": "12345"}],
-
-    # Column level options.
-    column_hints={
-        "event_date": {"column_comment": "The date of the event"},
-        "user_id": {
-            "column_comment": "The id of the user",
-            "column_tags": ["pii", {"cost_center": "12345"}]
-        },
-    },
-)
-```
-
-## Troubleshooting
-Use the following steps to avoid conflicts with Databricks' built-in Delta Live Tables (DLT) module and enable dltHub integration.
-
-### 1. Add an `init` script
-To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
-
-1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:
-```sh
-#! /bin/bash
-
-# move Databricks' dlt package to a different folder name
-mv /databricks/spark/python/dlt/ /databricks/spark/python/dlt_dbricks
-
-# Replace all mentions of `dlt` with `dlt_dbricks` so that Databricks' dlt
-# can be used as `dlt_dbricks` in the notebook instead
-find /databricks/spark/python/dlt_dbricks/ -type f -exec sed -i 's/from dlt/from dlt_dbricks/g' {} \;
-
-# Replace mentions of `dlt` with `dlt_dbricks` in DeltaLiveTablesHook.py to
-# avoid import errors
-sed -i "s/'dlt'/'dlt_dbricks'/g" /databricks/python_shell/dbruntime/DeltaLiveTablesHook.py
-sed -i "s/from dlt/from dlt_dbricks/g" /databricks/python_shell/dbruntime/DeltaLiveTablesHook.py
-
-# Install dltHub dlt
-pip install dlt
-```
-
-2. Go to your cluster, click Edit, scroll down to Advanced Options, and open the Init Scripts tab.
-
-3. Under Source, choose Workspace, then browse to your `init.sh` file and click Add.
-
-4. Click Confirm to apply the change. The cluster will restart automatically.
-
-### 2. Remove preloaded databricks modules in the notebook
-After the cluster starts, Databricks may partially import its built-in Delta Live Tables (DLT) modules, which can interfere with the dlt package from dltHub.
-
-To ensure a clean environment, add the following code at the top of your notebook:
-```py
-import sys
-import types
-
-# 1 Drop Databricks' post-import hook
-sys.meta_path = [h for h in sys.meta_path if 'PostImportHook' not in repr(h)]
-
-# 2️ Purge half-initialized Delta-Live-Tables modules
-for name, module in list(sys.modules.items()):
-    if not isinstance(module, types.ModuleType):
-        continue
-    if getattr(module, '__file__', '').startswith('/databricks/spark/python/dlt'):
-        del sys.modules[name]
-```
-This ensures the dlt package from dltHub is used instead of the built-in Databricks DLT module.
-
-:::caution
-It is best practice to use an `init.sh` script.
-
-Modifying `sys.meta_path` or `sys.modules` is fragile and may break after Databricks updates, potentially causing unexpected issues.
-If this workaround is necessary, validate your setup after each platform upgrade.
-:::
 
 <!--@@@DLT_TUBA databricks-->
 

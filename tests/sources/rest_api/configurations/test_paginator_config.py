@@ -10,7 +10,6 @@ from dlt.common.jsonpath import compile_path
 from dlt.sources.helpers.rest_client.paginators import (
     JSONLinkPaginator,
     HeaderLinkPaginator,
-    HeaderCursorPaginator,
     JSONResponseCursorPaginator,
     JSONResponsePaginator,
     OffsetPaginator,
@@ -73,9 +72,6 @@ def test_paginator_type_configs(paginator_type_config: PaginatorConfig) -> None:
             assert paginator.next_url_path == compile_path("response.nex_page_link")
         if isinstance(paginator, JSONResponseCursorPaginator):
             assert paginator.cursor_path == compile_path("cursors.next")
-            assert paginator.cursor_param == "cursor"
-        if isinstance(paginator, HeaderCursorPaginator):
-            assert paginator.cursor_key == "X-Next-Cursor"
             assert paginator.cursor_param == "cursor"
 
 
@@ -152,6 +148,8 @@ def test_allow_deprecated_json_response_paginator_2(mock_api_server) -> None:
 def test_error_message_invalid_paginator() -> None:
     with pytest.raises(ValueError) as e:
         create_paginator("non_existing_method")  # type: ignore
-    assert e.match(
-        r"Received invalid value `paginator_name=non_existing_method`\. Valid values are:"
+    assert (
+        str(e.value)
+        == "Invalid paginator: non_existing_method. Available options: json_link, json_response,"
+        " header_link, auto, single_page, cursor, offset, page_number."
     )

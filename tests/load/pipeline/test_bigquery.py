@@ -87,7 +87,7 @@ def test_bigquery_autodetect_schema(
     client: BigQuerySqlClient
     with pipeline.sql_client() as client:  # type: ignore[assignment]
         table = client.native_connection.get_table(
-            client.make_qualified_table_name("cve", quote=False)
+            client.make_qualified_table_name("cve", escape=False)
         )
     field = next(field for field in table.schema if field.name == "source")
     # not repeatable
@@ -110,7 +110,7 @@ def test_bigquery_autodetect_schema(
     assert_load_info(info)
     with pipeline.sql_client() as client:  # type: ignore[assignment]
         table = client.native_connection.get_table(
-            client.make_qualified_table_name("cve", quote=False)
+            client.make_qualified_table_name("cve", escape=False)
         )
     field = next(field for field in table.schema if field.name == "references")
     field = field.fields[0]
@@ -137,7 +137,7 @@ def test_bigquery_autodetect_schema(
     assert_load_info(info)
     with pipeline.sql_client() as client:  # type: ignore[assignment]
         table = client.native_connection.get_table(
-            client.make_qualified_table_name("cve", quote=False)
+            client.make_qualified_table_name("cve", escape=False)
         )
     field = next(field for field in table.schema if field.name == "references")
     field = field.fields[0]
@@ -184,8 +184,8 @@ def test_adapter_additional_table_hints_table_expiration(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints", quote=False)
-        fqtn_hints = c.make_qualified_table_name("hints", quote=False)
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -232,7 +232,7 @@ def test_adapter_merge_behaviour(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        table_fqtn = c.make_qualified_table_name("hints", quote=False)
+        table_fqtn = c.make_qualified_table_name("hints", escape=False)
 
         table: Table = nc.get_table(table_fqtn)
 
@@ -338,7 +338,7 @@ def test_adapter_autodetect_schema_with_hints(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        table_fqtn = c.make_qualified_table_name("general_types", quote=False)
+        table_fqtn = c.make_qualified_table_name("general_types", escape=False)
 
         table: Table = nc.get_table(table_fqtn)
 
@@ -350,13 +350,13 @@ def test_adapter_autodetect_schema_with_hints(
 
     with pipeline_time.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection  # type: ignore[no-redef]
-        table_fqtn = c.make_qualified_table_name("partition_time", quote=False)
+        table_fqtn = c.make_qualified_table_name("partition_time", escape=False)
         table: Table = nc.get_table(table_fqtn)  # type: ignore[no-redef]
         assert table.time_partitioning.field == "my_time_column"
 
     with pipeline_date.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection  # type: ignore[no-redef]
-        table_fqtn = c.make_qualified_table_name("partition_date", quote=False)
+        table_fqtn = c.make_qualified_table_name("partition_date", escape=False)
         table: Table = nc.get_table(table_fqtn)  # type: ignore[no-redef]
         assert table.time_partitioning.field == "my_date_column"
         assert table.time_partitioning.type_ == "DAY"

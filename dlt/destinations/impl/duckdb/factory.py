@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+import typing as t
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -11,11 +11,9 @@ from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
     from dlt.destinations.impl.duckdb.duck import DuckDbClient
-else:
-    DuckDBPyConnection = Any
 
 
 class DuckDbTypeMapper(TypeMapperImpl):
@@ -76,7 +74,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
         elif precision <= 128:
             return "HUGEINT"
         raise TerminalValueError(
-            f"bigint with `{precision=:}` can't be mapped to DuckDB integer type"
+            f"bigint with {precision} bits precision cannot be mapped into duckdb integer type"
         )
 
     def to_db_datetime_type(
@@ -110,12 +108,12 @@ class DuckDbTypeMapper(TypeMapperImpl):
             return "TIMESTAMP_NS"
 
         raise TerminalValueError(
-            f"DuckDB doesn't support `{precision=:}` for datetime column `{column_name}` in table"
-            f" `{table_name}`"
+            f"DuckDB does not support precision '{precision}' for '{column_name}' in table"
+            f" '{table_name}'"
         )
 
     def from_destination_type(
-        self, db_type: str, precision: Optional[int], scale: Optional[int]
+        self, db_type: str, precision: t.Optional[int], scale: t.Optional[int]
     ) -> TColumnType:
         # duckdb provides the types with scale and precision
         db_type = db_type.split("(")[0].upper()
@@ -157,33 +155,32 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         return caps
 
     @property
-    def client_class(self) -> Type["DuckDbClient"]:
+    def client_class(self) -> t.Type["DuckDbClient"]:
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
         return DuckDbClient
 
     def __init__(
         self,
-        credentials: Union[DuckDbCredentials, Dict[str, Any], str, DuckDBPyConnection] = None,
+        credentials: t.Union[
+            DuckDbCredentials, t.Dict[str, t.Any], str, "DuckDBPyConnection"
+        ] = None,
         create_indexes: bool = False,
-        destination_name: str = None,
-        environment: str = None,
-        **kwargs: Any,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
+        **kwargs: t.Any,
     ) -> None:
         """Configure the DuckDB destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union[DuckDbCredentials, Dict[str, Any], str, DuckDBPyConnection], optional): Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
-                a path to a database file. Use :pipeline: to create a duckdb in the working folder of the pipeline.
-                Instance of `DuckDbCredentials` allows to pass extensions, configs and pragmas to be set up for connection.
-            create_indexes (bool, optional): Should unique indexes be created, defaults to False
-            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
-            environment (str, optional): Environment of the destination
-            **kwargs (Any): Additional arguments passed to the destination config
+            credentials: Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
+                a path to a database file. Use :pipeline: to create a duckdb
+                in the working folder of the pipeline
+            create_indexes: Should unique indexes be created, defaults to False
+            **kwargs: Additional arguments passed to the destination config
         """
-
         super().__init__(
             credentials=credentials,
             create_indexes=create_indexes,

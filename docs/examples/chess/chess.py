@@ -2,7 +2,6 @@ import threading
 from typing import Any, Iterator
 
 import dlt
-import requests
 
 from dlt.common import sleep
 from dlt.common.typing import StrAny, TDataItems
@@ -42,12 +41,7 @@ def chess(
     def players_games(username: Any) -> Iterator[TDataItems]:
         # https://api.chess.com/pub/player/{username}/games/{YYYY}/{MM}
         path = f"player/{username}/games/{year:04d}/{month:02d}"
-        try:
-            yield _get_data_with_retry(path)["games"]
-        except requests.HTTPError as exc:
-            # we allow players to not have games for some months
-            if not exc.response.status_code == 404:
-                raise exc
+        yield _get_data_with_retry(path)["games"]
 
     return players(), players_profiles, players_games
 

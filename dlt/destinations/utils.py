@@ -42,9 +42,9 @@ def get_resource_for_adapter(data: Any) -> DltResource:
             return list(data.selected_resources.values())[0]
         else:
             raise ValueError(
-                "You are trying to use an adapter on a `DltSource` with multiple resources. You can"
-                " only use adapters on: pure data, a `DltResouce` or a `DltSource` with a single"
-                " `DltResource`."
+                "You are trying to use an adapter on a DltSource with multiple resources. You can"
+                " only use adapters on pure data, directly on a DltResouce or a DltSource"
+                " containing a single DltResource."
             )
 
     resource_name = None
@@ -218,24 +218,17 @@ def verify_schema_merge_disposition(
                     ' The "dedup_sort" column hint is only applied when using'
                     ' the "merge" write disposition.'
                 )
-            if table.get("write_disposition") == "merge":
-                if not has_column_with_prop(table, "primary_key"):
-                    log(
-                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{schema.name}" will be ignored.'
-                        ' The "dedup_sort" column hint is only applied when a'
-                        " primary key has been specified."
-                    )
-                if table.get("x-stage-data-deduplicated", False):
-                    log(
-                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{schema.name}" will be ignored.'
-                        " Staging data is declared as already deduplicated."
-                    )
+            if table.get("write_disposition") == "merge" and not has_column_with_prop(
+                table, "primary_key"
+            ):
+                log(
+                    f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
+                    f'in table "{table_name}" with write disposition'
+                    f' "{table.get("write_disposition")}"'
+                    f' in schema "{schema.name}" will be ignored.'
+                    ' The "dedup_sort" column hint is only applied when a'
+                    " primary key has been specified."
+                )
     return exception_log
 
 

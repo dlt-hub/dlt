@@ -13,7 +13,6 @@ from typing import (
     Iterable,
     Iterator,
     Sequence,
-    List,
 )
 
 from dlt import version
@@ -23,7 +22,7 @@ from dlt.common import logger
 from dlt.common.json import json, custom_encode, map_nested_in_place
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import is_nullable_column, dlt_load_id_column
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrStr, TFileOrPath, TDataItems
 from dlt.common.normalizers.naming import NamingConvention
 
@@ -40,8 +39,6 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[parquet]"],
         "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
     )
-
-import ctypes
 
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
@@ -337,26 +334,16 @@ def get_column_type_from_py_arrow(
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        return (
-            get_nested_column_type_from_py_arrow(dtype)
-            if caps.supports_nested_types
-            else dict(data_type="json")
-        )
+        dt = dict(data_type="json")
+        if caps.supports_nested_types:
+            dt["x-nested-type"] = serialize_type(dtype)
+        return dt  # type: ignore[return-value]
     elif pyarrow.types.is_dictionary(dtype):
         # Dictionary types are essentially categorical encodings. The underlying value_type
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type, caps)
-    elif pyarrow.types.is_null(dtype):
-        return {"x-normalizer": {"seen-null-first": True}}  # type: ignore[typeddict-unknown-key]
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
-
-
-def get_nested_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
-    """Creates `json` dlt data type with nested type structure in `x-nested-type` hint.
-    Currently the only recognized nested type format is arrow-ipc
-    """
-    return {"data_type": "json", "x-nested-type": serialize_type(dtype)}  # type: ignore[typeddict-unknown-key]
 
 
 def serialize_type(dtype: pyarrow.DataType) -> str:
@@ -381,18 +368,6 @@ def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
     return remove_columns(
         item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
     )
-
-
-def remove_null_columns_from_schema(schema: pyarrow.Schema) -> Tuple[pyarrow.Schema, bool]:
-    """Remove all columns of datatype pyarrow.null() from the schema"""
-    fields: List[pyarrow.field] = []
-    contains_null: bool = False
-    for field in schema:
-        if pyarrow.types.is_null(field.type):
-            contains_null = True
-        else:
-            fields.append(field)
-    return pyarrow.schema(fields), contains_null
 
 
 def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem:
@@ -437,44 +412,19 @@ def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAny
         ]
         return pyarrow.RecordBatch.from_arrays(item.columns, schema=pyarrow.schema(new_fields))
     else:
-        raise TypeError(f"Unsupported data item type: `{type(item)}`")
-
-
-def fill_empty_source_column_values_with_placeholder(
-    table: pyarrow.Table, source_columns: List[str], placeholder: str
-) -> pyarrow.Table:
-    """
-    Replaces empty strings and null values in the specified source columns of an Arrow table with a placeholder string.
-
-    Args:
-        table (pa.Table): The input Arrow table.
-        source_columns (List[str]): A list of column names to replace empty strings and null values in.
-        placeholder (str): The placeholder string to use for replacement.
-
-    Returns:
-        pyarrow.Table: The modified Arrow table with empty strings and null values replaced in the specified columns.
-    """
-    for col_name in source_columns:
-        column = table[col_name]
-        filled_column = pyarrow.compute.fill_null(column, fill_value=placeholder)
-        new_column = pyarrow.compute.replace_substring_regex(
-            filled_column, pattern=r"^$", replacement=placeholder
-        )
-        table = table.set_column(table.column_names.index(col_name), col_name, new_column)
-    return table
+        raise TypeError(f"Unsupported data item type {type(item)}")
 
 
 def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
+    add_load_id: bool = False,
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
     """Figure out if any of the normalization steps must be executed. This prevents
     from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
     for a list of normalizations. Note that `column` must be already normalized.
     """
-    schema, contains_null_cols = remove_null_columns_from_schema(schema)
-
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     # no clashes in rename ensured above
     rev_mapping = {v: k for k, v in rename_mapping.items()}
@@ -491,6 +441,16 @@ def should_normalize_arrow_schema(
     dlt_id_col = naming.normalize_identifier(C_DLT_ID)
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
+    # Do we need to add a load id column?
+    if add_load_id and dlt_load_id_col in columns:
+        try:
+            schema.field(dlt_load_id_col)
+            needs_load_id = False
+        except KeyError:
+            needs_load_id = True
+    else:
+        needs_load_id = False
+
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
     # that should happen in the normalizer
     columns = {
@@ -503,13 +463,14 @@ def should_normalize_arrow_schema(
     skip_normalize = (
         (list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys()))
         and not nullable_updates
-        and not contains_null_cols
+        and not needs_load_id
     )
     return (
         not skip_normalize,
         rename_mapping,
         rev_mapping,
         nullable_updates,
+        needs_load_id,
         columns,
     )
 
@@ -519,20 +480,20 @@ def normalize_py_arrow_item(
     columns: TTableSchemaColumns,
     naming: NamingConvention,
     caps: DestinationCapabilitiesContext,
+    load_id: Optional[str] = None,
 ) -> TAnyArrowItem:
     """Normalize arrow `item` schema according to the `columns`. Note that
     columns must be already normalized.
 
-    0. columns with no data type will be dropped
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
     4. arrow columns with different nullability than corresponding schema columns will be updated
+    5. Add `_dlt_load_id` column if it is missing and `load_id` is provided
     """
-    item = remove_null_columns(item)
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
-        should_normalize_arrow_schema(schema, columns, naming)
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, needs_load_id, columns = (
+        should_normalize_arrow_schema(schema, columns, naming, load_id is not None)
     )
     if not should_normalize:
         return item
@@ -569,56 +530,20 @@ def normalize_py_arrow_item(
         new_fields.append(schema.field(idx).with_name(column_name))
         new_columns.append(item.column(idx))
 
+    if needs_load_id and load_id:
+        # Storage efficient type for a column with constant value
+        load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
+        new_fields.append(
+            pyarrow.field(
+                naming.normalize_identifier(C_DLT_LOAD_ID),
+                load_id_type,
+                nullable=False,
+            )
+        )
+        new_columns.append(pyarrow.array([load_id] * item.num_rows, type=load_id_type))
+
     # create desired type
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
-
-
-def add_dlt_load_id_column(
-    item: TAnyArrowItem,
-    columns: TTableSchemaColumns,
-    caps: DestinationCapabilitiesContext,
-    naming: NamingConvention,
-    load_id: str,
-) -> TAnyArrowItem:
-    """
-    Adds or replaces the `_dlt_load_id` column.
-    """
-    dlt_load_id_col_name = naming.normalize_identifier(C_DLT_LOAD_ID)
-
-    idx = item.schema.get_field_index(dlt_load_id_col_name)
-    # if the column already exists, get rid of it
-    if idx != -1:
-        item = remove_columns(item, dlt_load_id_col_name)
-
-    # get pyarrow.string() type
-    pyarrow_string = get_py_arrow_datatype(
-        # use already existing column definition or use the default
-        # NOTE: the existence of the load id column is ensured by this time
-        # since it is added in _compute_tables before files are written
-        (
-            columns[dlt_load_id_col_name]
-            if dlt_load_id_col_name in columns
-            else dlt_load_id_column()
-        ),
-        caps,
-        "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
-    )
-
-    # add the column with the new value at previous index or append
-    item = add_constant_column(
-        item=item,
-        name=dlt_load_id_col_name,
-        data_type=pyarrow_string,
-        value=load_id,
-        nullable=(
-            columns[dlt_load_id_col_name]["nullable"]
-            if dlt_load_id_col_name in columns
-            else dlt_load_id_column()["nullable"]
-        ),
-        index=idx,
-    )
-
-    return item
 
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
@@ -744,26 +669,11 @@ def add_constant_column(
         nullable: Whether the new column is nullable
         value: The value to fill the new column with
         index: The index at which to insert the new column. Defaults to -1 (append)
-    Note:
-        This function creates a dictionary field for the new column, which is memory-efficient
-        when the column contains a single repeated value.
-        The column is created as a DictionaryArray with int8 indices.
     """
-    dictionary = pyarrow.array([value], type=data_type)
-    zero_buffer = pyarrow.allocate_buffer(item.num_rows, resizable=False)
-    ctypes.memset(zero_buffer.address, 0, item.num_rows)
-
-    indices = pyarrow.Array.from_buffers(
-        pyarrow.int8(),
-        item.num_rows,
-        [None, zero_buffer],  # None validity bitmap means arrow assumes all entries are valid
-    )
-    dict_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
-
-    field = pyarrow.field(name, dict_array.type, nullable=nullable)
+    field = pyarrow.field(name, pyarrow.dictionary(pyarrow.int8(), data_type), nullable=nullable)
     if index == -1:
-        return item.append_column(field, dict_array)
-    return item.add_column(index, field, dict_array)
+        return item.append_column(field, pyarrow.array([value] * item.num_rows, type=field.type))
+    return item.add_column(index, field, pyarrow.array([value] * item.num_rows, type=field.type))
 
 
 def pq_stream_with_new_columns(
@@ -835,7 +745,7 @@ def concat_batches_and_tables_in_order(
                 batches = []
             tables.append(item)
         else:
-            raise ValueError(f"Unsupported type: `{type(item)}`")
+            raise ValueError(f"Unsupported type {type(item)}")
     if batches:
         tables.append(pyarrow.Table.from_batches(batches))
     # "none" option ensures 0 copy concat
@@ -865,7 +775,8 @@ def transpose_rows_to_columns(
         logger.info(
             "Pandas not installed, reverting to numpy.asarray to create a table which is slower"
         )
-        pivoted_rows = np.asarray(rows, dtype="object", order="K").T
+        pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload]
+
     return {
         column_name: data.ravel()
         for column_name, data in zip(column_names, np.vsplit(pivoted_rows, len(pivoted_rows)))
@@ -1002,7 +913,7 @@ def convert_numpy_to_arrow(
                     raise PyToArrowConversionException(
                         data_type=dlt_data_type,
                         inferred_arrow_type=inferred_arrow_type,
-                        details="dlt failed to encode values to an Arrow-compatible type.",
+                        details="dlt failed to encode values to a Arrow compatible type.",
                     ) from e
 
             arrow_array = pa.array(encoded_values)
@@ -1070,6 +981,8 @@ def row_tuples_to_arrow(
     # ref: https://github.com/apache/arrow/issues/43146
     # ref: https://github.com/apache/arrow/issues/41667
     arrow_table = pa.Table.from_arrays(arrow_arrays, schema=pa.schema(arrow_fields))
+    # this only removes empty columns that don't have an explicit dlt `data_type`
+    arrow_table = remove_null_columns(arrow_table)
     return arrow_table
 
 
@@ -1077,50 +990,3 @@ class NameNormalizationCollision(ValueError):
     def __init__(self, reason: str) -> None:
         msg = f"Arrow column name collision after input data normalization. {reason}"
         super().__init__(msg)
-
-
-def add_arrow_metadata(
-    item: Union[pyarrow.Table, pyarrow.RecordBatch], metadata: dict[str, Any]
-) -> pyarrow.Table:
-    # Get current metadata or initialize empty
-    schema = item.schema
-    current = schema.metadata or {}
-
-    # Convert new metadata to bytes and merge
-    update = {k.encode("utf-8"): v.encode("utf-8") for k, v in metadata.items()}
-    merged = current.copy()
-    merged.update(update)
-
-    # Apply updated schema
-    new_schema = schema.with_metadata(merged)
-
-    # Rebuild the object with updated schema
-    if isinstance(item, pyarrow.Table):
-        return pyarrow.Table.from_arrays(item.columns, schema=new_schema)
-    else:  # RecordBatch
-        return pyarrow.RecordBatch.from_arrays(item.columns, schema=new_schema)
-
-
-def set_plus0000_timezone_to_utc(tbl: pyarrow.Table) -> pyarrow.Table:
-    """
-    Convert any +00:00 timestamp columns to UTC.
-    Returns the original table object if nothing needed fixing.
-    """
-    arrays, fields = [], []
-    changed = False
-
-    for col, fld in zip(tbl.columns, tbl.schema):
-        if pyarrow.types.is_timestamp(fld.type) and fld.type.tz == "+00:00":
-            changed = True
-            new_type = pyarrow.timestamp(fld.type.unit, "UTC")
-            arrays.append(pyarrow.compute.cast(col, new_type))
-            fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
-        else:
-            arrays.append(col)
-            fields.append(fld)
-
-    if not changed:
-        return tbl  # perfect no-op
-
-    new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
-    return pyarrow.Table.from_arrays(arrays, schema=new_schema)

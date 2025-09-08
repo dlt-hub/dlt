@@ -45,7 +45,7 @@ def postgres_adapter(
             geometry = [geometry]
         if not isinstance(geometry, list):
             raise ValueError(
-                "`geometry` must be a list of column names or a single column name as a string."
+                "'geometry' must be a list of column names or a single column name as a string."
             )
 
         for column_name in geometry:
@@ -57,7 +57,7 @@ def postgres_adapter(
                 column_hints[column_name][SRID_HINT] = srid  # type: ignore
 
     if not column_hints:
-        raise ValueError("A value for `geometry` must be specified.")
+        raise ValueError("A value for 'geometry' must be specified.")
     else:
         resource.apply_hints(columns=column_hints)
     return resource

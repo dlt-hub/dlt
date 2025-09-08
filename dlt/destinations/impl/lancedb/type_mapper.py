@@ -1,7 +1,7 @@
 from typing import Dict, Optional, cast
 from dlt.common import logger
 from dlt.common.destination.typing import PreparedTableSchema
-from dlt.common.libs.pyarrow import get_py_arrow_datatype, pyarrow as pa
+from dlt.common.libs.pyarrow import pyarrow as pa
 
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
@@ -12,6 +12,16 @@ UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECIS
 
 # TODO: TypeMapperImpl must be a Generic where pa.DataType will be a concrete class
 class LanceDBTypeMapper(TypeMapperImpl):
+    sct_to_unbound_dbt = {
+        "text": pa.string(),
+        "double": pa.float64(),
+        "bool": pa.bool_(),
+        "bigint": pa.int64(),
+        "binary": pa.binary(),
+        "date": pa.date32(),
+        "json": pa.string(),
+    }
+
     sct_to_dbt = {}
 
     dbt_to_sct = {
@@ -23,19 +33,31 @@ class LanceDBTypeMapper(TypeMapperImpl):
         pa.date32(): "date",
     }
 
-    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> pa.DataType:
-        # reuse existing type mapper
-        dt_ = get_py_arrow_datatype(column, self.capabilities, "UTC")
-        if column["data_type"] == "timestamp":
-            column_name = column.get("name")
-            timezone = column.get("timezone")
-            precision = column.get("precision")
-            if timezone is not None or precision is not None:
-                logger.warning(
-                    "LanceDB does not currently support column flags for timezone or precision."
-                    f" These flags were used in column '{column_name}'."
-                )
-        return dt_
+    def to_db_decimal_type(self, column: TColumnSchema) -> pa.Decimal128Type:
+        precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
+        return pa.decimal128(precision, scale)
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> pa.TimestampType:
+        column_name = column.get("name")
+        timezone = column.get("timezone")
+        precision = column.get("precision")
+        if timezone is not None or precision is not None:
+            logger.warning(
+                "LanceDB does not currently support column flags for timezone or precision."
+                f" These flags were used in column '{column_name}'."
+            )
+        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
+        return pa.timestamp(unit, "UTC")
+
+    def to_db_time_type(
+        self, column: TColumnSchema, table: PreparedTableSchema = None
+    ) -> pa.Time64Type:
+        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
+        return pa.time64(unit)
 
     def from_destination_type(
         self,
@@ -43,7 +65,6 @@ class LanceDBTypeMapper(TypeMapperImpl):
         precision: Optional[int] = None,
         scale: Optional[int] = None,
     ) -> TColumnType:
-        # TODO: use pyarrow helpers to convert type, this is code duplication
         if isinstance(db_type, pa.TimestampType):
             return dict(
                 data_type="timestamp",

@@ -5,7 +5,6 @@ import tomlkit
 from typing import (
     Any,
     Dict,
-    List,
     Mapping,
     NamedTuple,
     Optional,
@@ -14,11 +13,10 @@ from typing import (
     Sequence,
     Literal,
 )
+from collections.abc import Mapping as C_Mapping
 
 import yaml
 
-from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers.provider import EXPLICIT_VALUES_PROVIDER_NAME
 from dlt.common.json import json
 from dlt.common.typing import AnyType, DictStrAny, TAny, is_any_type, get_args, get_origin
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
@@ -26,9 +24,7 @@ from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
-    ContainerInjectableContext,
     is_base_configuration_inner_hint,
-    configspec,
 )
 
 
@@ -41,41 +37,8 @@ class ResolvedValueTrace(NamedTuple):
     provider_name: str
     config: BaseConfiguration
 
-    def is_resolved(self) -> bool:
-        # explicit values if present are always resolved
-        return self.value is not None or self.provider_name == EXPLICIT_VALUES_PROVIDER_NAME
 
-
-@configspec
-class TraceLogContext(ContainerInjectableContext):
-    """Stores log of all config resolver traces, per thread so parallel pipelines may log to it"""
-
-    resolved_traces: List[ResolvedValueTrace] = None
-    """Traces with resolved values"""
-    all_traces: List[ResolvedValueTrace] = None
-    """All logged traces"""
-
-    logging_enabled: bool = True
-    """Collect logs by default"""
-
-    def clear(self) -> None:
-        self.resolved_traces = []
-        self.all_traces = []
-
-    def log(self, trace: ResolvedValueTrace) -> None:
-        if not self.logging_enabled:
-            return
-        if trace.is_resolved():
-            self.resolved_traces.append(trace)
-        self.all_traces.append(trace)
-
-    def __init__(self) -> None:
-        self.clear()
-
-    @staticmethod
-    def _get_log_as_dict(traces: List[ResolvedValueTrace]) -> Dict[str, ResolvedValueTrace]:
-        """Converts logs into layout path - value dict"""
-        return {f'{".".join(t.sections)}.{t.key}': t for t in traces}
+_RESOLVED_TRACES: Dict[str, ResolvedValueTrace] = {}  # stores all the resolved traces
 
 
 def deserialize_value(key: str, value: Any, hint: Type[TAny]) -> TAny:
@@ -207,25 +170,26 @@ def log_traces(
     # if logger.is_logging() and logger.log_level() == "DEBUG" and config:
     #     logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
     # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
-    trace_logger = get_resolved_traces()
-    for trace in traces:
-        trace_logger.log(
-            ResolvedValueTrace(
-                key,
-                trace.value,
-                default_value,
-                hint,
-                trace.sections,
-                trace.provider,
-                config,
-            )
+    # for tr in traces:
+    #     # print(str(tr))
+    #     logger.debug(str(tr))
+    # store all traces with resolved values
+    resolved_trace = next((trace for trace in traces if trace.value is not None), None)
+    if resolved_trace is not None:
+        path = f'{".".join(resolved_trace.sections)}.{key}'
+        _RESOLVED_TRACES[path] = ResolvedValueTrace(
+            key,
+            resolved_trace.value,
+            default_value,
+            hint,
+            resolved_trace.sections,
+            resolved_trace.provider,
+            config,
         )
 
 
-def get_resolved_traces() -> TraceLogContext:
-    """Gets trace logging context, per thread, stopped by default"""
-    # may create default value
-    return Container()[TraceLogContext]
+def get_resolved_traces() -> Dict[str, ResolvedValueTrace]:
+    return _RESOLVED_TRACES
 
 
 def add_config_to_env(config: BaseConfiguration, sections: Tuple[str, ...] = ()) -> None:

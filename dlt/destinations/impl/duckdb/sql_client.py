@@ -89,23 +89,25 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
-        # set additional connection options so derived class can change it
-        # TODO: move that to methods that can be overridden, include local_config
-        self._pragmas = ["enable_checkpoint_on_shutdown"]
-        self._global_config: Dict[str, Any] = {
-            "TimeZone": "UTC",
-            "checkpoint_threshold": "1gb",
-        }
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        self._conn = self.credentials.borrow_conn(
-            pragmas=self._pragmas,
-            global_config=self._global_config,
-            local_config={
-                "search_path": self.fully_qualified_dataset_name(),
-            },
-        )
+        self._conn = self.credentials.borrow_conn(read_only=self.credentials.read_only)
+        # TODO: apply config settings from credentials
+        self._conn.execute("PRAGMA enable_checkpoint_on_shutdown;")
+        config = {
+            "search_path": self.fully_qualified_dataset_name(),
+            "TimeZone": "UTC",
+            "checkpoint_threshold": "1gb",
+        }
+        if config:
+            for k, v in config.items():
+                try:
+                    # TODO: serialize str and ints, dbapi args do not work here
+                    # TODO: enable various extensions ie. parquet
+                    self._conn.execute(f"SET {k} = '{v}'")
+                except (duckdb.CatalogException, duckdb.BinderException):
+                    pass
         return self._conn
 
     def close_connection(self) -> None:
@@ -187,151 +189,13 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
         if catalog == self.dataset_name:
             logger.warning(
-                "The current catalog (typically database file name) '%s' is identical to the"
-                " dataset name '%s'. This may lead to confusion in the DuckDB binder. Consider"
-                " using distinct names. Most typically you use the same name for your pipeline and"
-                " dataset or the same name for your destination and the dataset.",
+                "The current catalog (database name) '%s' is identical to the dataset name '%s'."
+                " This may lead to confusion in the DuckDB binder. Consider using distinct names."
+                " Most typically you use the same name for your pipeline and dataset or the same"
+                " name for your destination and the dataset.",
                 catalog,
                 self.dataset_name,
             )
-
-    def create_secret_name(self, scope: str) -> str:
-        regex = re.compile("[^a-zA-Z]")
-        escaped_bucket_name = regex.sub("", scope.lower())
-        return f"{self.dataset_name}_{escaped_bucket_name}"
-
-    @raise_database_error
-    def list_secrets(self) -> Sequence[str]:
-        """List secrets that belong to this dataset"""
-        secrets = self._conn.sql(
-            f"SELECT name FROM duckdb_secrets() WHERE name LIKE '{self.dataset_name}%'"
-        ).fetchall()
-        return [s[0] for s in secrets]
-
-    @raise_database_error
-    def drop_secret(self, secret_name: str) -> None:
-        if not secret_name.startswith(self.dataset_name):
-            raise ValueError(
-                f"Secret name must start with dataset name `{self.dataset_name}`, got"
-                f" `{secret_name}`."
-            )
-
-        self._conn.sql(f"DROP SECRET {secret_name}")
-
-    @raise_database_error
-    def create_secret(
-        self,
-        scope: str,
-        credentials: FileSystemCredentials,
-        secret_name: str = None,
-    ) -> bool:
-        #  home dir is a bad choice, it should be more explicit
-        if not secret_name:
-            secret_name = self.create_secret_name(scope)
-
-        if not secret_name.startswith(self.dataset_name):
-            raise ValueError(
-                f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
-            )
-
-        if self.persist_secrets and self.memory_db:
-            raise Exception("Creating persistent secrets for in memory db is not allowed.")
-
-        secrets_path = Path(
-            self._conn.sql(
-                "SELECT current_setting('secret_directory') AS secret_directory"
-            ).fetchone()[0]
-        )
-
-        is_default_secrets_directory = (
-            len(secrets_path.parts) >= 2
-            and secrets_path.parts[-1] == "stored_secrets"
-            and secrets_path.parts[-2] == ".duckdb"
-        )
-
-        if is_default_secrets_directory and self.persist_secrets:
-            logger.warn(
-                "You are persisting duckdb secrets but are storing them in the default folder"
-                f" {secrets_path}. These secrets are saved there unencrypted, we"
-                " recommend using a custom secret directory."
-            )
-
-        persistent_stmt = ""
-        if self.persist_secrets:
-            persistent_stmt = " PERSISTENT "
-
-        if "@" in scope:
-            scope = scope.split("@")[0]
-
-        protocol = urlparse(scope).scheme
-        sql: List[str] = []
-
-        # add secrets required for creating views
-        if protocol == "s3":
-            aws_creds = cast(AwsCredentials, credentials)
-            session_token = (
-                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
-            )
-
-            use_ssl = "true"
-            endpoint = aws_creds.endpoint_url or "s3.amazonaws.com"
-            if aws_creds.endpoint_url and "http://" in aws_creds.endpoint_url:
-                use_ssl = "false"
-                endpoint = aws_creds.endpoint_url.replace("http://", "")
-            elif aws_creds.endpoint_url and "https://" in aws_creds.endpoint_url:
-                endpoint = aws_creds.endpoint_url.replace("https://", "")
-
-            s3_url_style = aws_creds.s3_url_style or "vhost"
-            sql.append(f"""
-                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                    TYPE S3,
-                    KEY_ID '{aws_creds.aws_access_key_id}',
-                    SECRET '{aws_creds.aws_secret_access_key}',
-                    SESSION_TOKEN '{session_token}',
-                    REGION '{aws_creds.region_name}',
-                    ENDPOINT '{endpoint}',
-                    SCOPE '{scope}',
-                    URL_STYLE '{s3_url_style}',
-                    USE_SSL {use_ssl}
-                )""")
-
-        # azure with storage account creds
-        elif protocol in ["az", "abfss"]:
-            # the line below solves problems with certificate path lookup on linux
-            # see duckdb docs
-            sql.append("SET azure_transport_option_type = 'curl'")
-
-            if isinstance(credentials, AzureCredentialsWithoutDefaults):
-                sql.append(f"""
-                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                    TYPE AZURE,
-                    CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
-                    SCOPE '{scope}'
-                )""")
-
-            # azure with service principal creds
-            elif isinstance(credentials, AzureServicePrincipalCredentialsWithoutDefaults):
-                sql.append(f"""
-                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                    TYPE AZURE,
-                    PROVIDER SERVICE_PRINCIPAL,
-                    TENANT_ID '{credentials.azure_tenant_id}',
-                    CLIENT_ID '{credentials.azure_client_id}',
-                    CLIENT_SECRET '{credentials.azure_client_secret}',
-                    ACCOUNT_NAME '{credentials.azure_storage_account_name}',
-                    SCOPE '{scope}'
-                )""")
-        elif self.persist_secrets:
-            raise ValueError(
-                "Cannot create persistent secret for filesystem protocol"
-                f" `{protocol}`. If you are trying to use persistent secrets"
-                " with gs/gcs, please use the s3 compatibility layer."
-            )
-        else:
-            # could not create secret
-            return False
-        self._conn.sql(";\n".join(sql))
-        return True
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
@@ -346,17 +210,13 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
         elif isinstance(ex, duckdb.IOException):
-            message = str(ex)
             if (
-                "delta" in message and "No files in log segment" in message
-            ) or "Path does not exist" in message:
+                "read from delta table" in str(ex) and "No files in log segment" in str(ex)
+            ) or "Path does not exist" in str(ex):
                 # delta scanner with no delta data and metadata exist in the location
                 return DatabaseUndefinedRelation(ex)
-            if "Could not guess Iceberg table version" in message:
+            if "Could not guess Iceberg table version" in str(ex):
                 # same but iceberg
-                return DatabaseUndefinedRelation(ex)
-            if "No files found" in message:
-                # glob patterns not found
                 return DatabaseUndefinedRelation(ex)
             return DatabaseTransientException(ex)
         elif isinstance(ex, duckdb.InternalException):
@@ -425,32 +285,162 @@ class WithTableScanners(DuckDbSqlClient):
         self.remote_client = remote_client
         self.schema = remote_client.schema
         self.persist_secrets = persist_secrets
-        self._global_config.update(
-            {
-                "enable_http_metadata_cache": True,
-            }
-        )
 
-        if semver.Version.parse(duckdb.__version__) >= semver.Version.parse("1.2.0"):
-            self._global_config.update(
-                {
-                    # prevents HEAD command by caching parquet metadata
-                    "parquet_metadata_cache": True,
-                }
-            )
+    def create_secret_name(self, scope: str) -> str:
+        regex = re.compile("[^a-zA-Z]")
+        escaped_bucket_name = regex.sub("", scope.lower())
+        return f"{self.dataset_name}_{escaped_bucket_name}"
 
     @raise_database_error
+    def list_secrets(self) -> Sequence[str]:
+        """List secrets that belong to this dataset"""
+        secrets = self._conn.sql(
+            f"SELECT name FROM duckdb_secrets() WHERE name LIKE '{self.dataset_name}%'"
+        ).fetchall()
+        return [s[0] for s in secrets]
+
+    @raise_database_error
+    def drop_secret(self, secret_name: str) -> None:
+        if not secret_name.startswith(self.dataset_name):
+            raise ValueError(
+                f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
+            )
+
+        self._conn.sql(f"DROP SECRET {secret_name}")
+
+    @raise_database_error
+    def create_secret(
+        self,
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str = None,
+    ) -> bool:
+        #  home dir is a bad choice, it should be more explicit
+        if not secret_name:
+            secret_name = self.create_secret_name(scope)
+
+        if not secret_name.startswith(self.dataset_name):
+            raise ValueError(
+                f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
+            )
+
+        if self.persist_secrets and self.memory_db:
+            raise Exception("Creating persistent secrets for in memory db is not allowed.")
+
+        secrets_path = Path(
+            self._conn.sql(
+                "SELECT current_setting('secret_directory') AS secret_directory;"
+            ).fetchone()[0]
+        )
+
+        is_default_secrets_directory = (
+            len(secrets_path.parts) >= 2
+            and secrets_path.parts[-1] == "stored_secrets"
+            and secrets_path.parts[-2] == ".duckdb"
+        )
+
+        if is_default_secrets_directory and self.persist_secrets:
+            logger.warn(
+                "You are persisting duckdb secrets but are storing them in the default folder"
+                f" {secrets_path}. These secrets are saved there unencrypted, we"
+                " recommend using a custom secret directory."
+            )
+
+        persistent_stmt = ""
+        if self.persist_secrets:
+            persistent_stmt = " PERSISTENT "
+
+        if "@" in scope:
+            scope = scope.split("@")[0]
+
+        protocol = urlparse(scope).scheme
+        sql: List[str] = []
+
+        # add secrets required for creating views
+        if protocol == "s3":
+            aws_creds = cast(AwsCredentials, credentials)
+            session_token = (
+                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
+            )
+
+            use_ssl = "true"
+            endpoint = aws_creds.endpoint_url or "s3.amazonaws.com"
+            if aws_creds.endpoint_url and "http://" in aws_creds.endpoint_url:
+                use_ssl = "false"
+                endpoint = aws_creds.endpoint_url.replace("http://", "")
+            elif aws_creds.endpoint_url and "https://" in aws_creds.endpoint_url:
+                endpoint = aws_creds.endpoint_url.replace("https://", "")
+
+            s3_url_style = aws_creds.s3_url_style or "vhost"
+            sql.append(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE S3,
+                    KEY_ID '{aws_creds.aws_access_key_id}',
+                    SECRET '{aws_creds.aws_secret_access_key}',
+                    SESSION_TOKEN '{session_token}',
+                    REGION '{aws_creds.region_name}',
+                    ENDPOINT '{endpoint}',
+                    SCOPE '{scope}',
+                    URL_STYLE '{s3_url_style}',
+                    USE_SSL {use_ssl}
+                );""")
+
+        # azure with storage account creds
+        elif protocol in ["az", "abfss"]:
+            # the line below solves problems with certificate path lookup on linux
+            # see duckdb docs
+            sql.append("SET azure_transport_option_type = 'curl';")
+
+            if isinstance(credentials, AzureCredentialsWithoutDefaults):
+                sql.append(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE AZURE,
+                    CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
+                    SCOPE '{scope}'
+                );""")
+
+            # azure with service principal creds
+            elif isinstance(credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+                sql.append(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE AZURE,
+                    PROVIDER SERVICE_PRINCIPAL,
+                    TENANT_ID '{credentials.azure_tenant_id}',
+                    CLIENT_ID '{credentials.azure_client_id}',
+                    CLIENT_SECRET '{credentials.azure_client_secret}',
+                    ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                    SCOPE '{scope}'
+                );""")
+        elif self.persist_secrets:
+            raise ValueError(
+                "Cannot create persistent secret for filesystem protocol"
+                f" {protocol}. If you are trying to use persistent secrets"
+                " with gs/gcs, please use the s3 compatibility layer."
+            )
+        else:
+            # could not create secret
+            return False
+        self._conn.sql("\n".join(sql))
+        return True
+
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
         # we keep the in memory instance around, so if this prop is set, return it
         first_connection = self.credentials.never_borrowed
         super().open_connection()
 
         if first_connection:
             # set up dataset
-            q_dataset_name = self.fully_qualified_dataset_name()
-            create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
-            self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
+            if not self.has_dataset():
+                self.create_dataset()
+            self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+
+        # this is a hack to re-enable iceberg settings that get lost when
+        # duckdb connection is closed. each clone needs settings to happen again
+        # self._conn is opened and closed in the relation.cursor()
+        try:
+            self._conn.execute("SET unsafe_enable_version_guessing=true;")
+        except Exception:
+            pass
 
         return self._conn
 
@@ -530,17 +520,20 @@ class WithTableScanners(DuckDbSqlClient):
     def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
         if semver.Version.parse(duckdb.__version__) <= semver.Version.parse("1.1.2"):
             raise NotImplementedError(
-                f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
+                f"Iceberg scanner for duckdb {duckdb.__version__} does not implement recent"
                 " snapshot discovery. Please install duckdb >= 1.1.3"
             )
         # needed to make persistent secrets work in new connection
         # https://github.com/duckdb/duckdb_iceberg/issues/83
-        conn.execute("FROM duckdb_secrets()")
+        conn.execute("FROM duckdb_secrets();")
 
         # `duckdb_iceberg` extension does not support autoloading
         # https://github.com/duckdb/duckdb_iceberg/issues/71
         if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
-            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg")
+            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
+
+        # allow unsafe version resolution
+        conn.execute("SET unsafe_enable_version_guessing=true;")
 
     def __del__(self) -> None:
         if self.memory_db:

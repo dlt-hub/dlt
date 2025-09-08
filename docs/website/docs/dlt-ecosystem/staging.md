@@ -6,7 +6,7 @@ keywords: [staging, destination]
 # Staging
 
 The goal of staging is to bring the data closer to the database engine so that the modification of the destination (final) dataset happens faster and without errors. `dlt`, when asked, creates two staging areas:
-1. A **staging dataset** used by the [merge](../general-usage/merge-loading.md) and [replace](../general-usage/full-loading.md) loads to deduplicate and merge data with the destination.
+1. A **staging dataset** used by the [merge and replace loads](../general-usage/incremental-loading.md#merge-incremental-loading) to deduplicate and merge data with the destination.
 2. A **staging storage** which is typically an S3/GCP bucket where [loader files](file-formats/) are copied before they are loaded by the destination.
 
 ## Staging dataset

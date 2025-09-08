@@ -24,16 +24,15 @@ RUN apk update &&\
     pip install --upgrade setuptools wheel pip &&\
     rm -r /usr/lib/python*/ensurepip
 
-# install arrow 18.1.0
+# install arrow 17.0.0, usually we would need apache-arrow-dev=17.0.0 but it is not available in alpine 3.20
 # adapt this version to the arrow version you need
-# NOTE: it is impossible to build 18.1 because some sources are missing
 RUN git clone --no-checkout https://github.com/apache/arrow.git /arrow \
     && cd /arrow \
-    && git checkout tags/apache-arrow-18.1.0 \
+    && git checkout tags/apache-arrow-17.0.0 \
     && cd cpp \
     && mkdir build \
     && cd build \
-    && cmake -DARROW_PARQUET=ON -DARROW_CSV=ON -DARROW_JSON=ON -DARROW_FILESYSTEM=ON .. \
+    && cmake -DARROW_CSV=ON -DARROW_JSON=ON -DARROW_FILESYSTEM=ON .. \
     && make -j$(nproc) \
     && make install
 
@@ -57,4 +56,4 @@ WORKDIR /
 RUN rm -r /tmp/pydlt
 # make sure dlt can be actually imported
 # TODO: pendulum breaks alpine
-RUN python -c 'import dlt;import duckdb;import pyarrow;'
+# RUN python -c 'import dlt'

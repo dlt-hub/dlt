@@ -1,5 +1,3 @@
-import semver
-from collections.abc import Mapping
 from typing import Optional, Dict, Union, List
 from pathlib import Path
 
@@ -10,16 +8,16 @@ from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.schema.typing import TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
-from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 try:
     import deltalake
     from deltalake import write_deltalake, DeltaTable
-
-    deltalake_semver = semver.Version.parse(deltalake.__version__)
+    from deltalake.writer import try_get_deltatable
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt deltalake helpers",
@@ -85,8 +83,9 @@ def get_delta_write_mode(write_disposition: TWriteDisposition) -> str:
     elif write_disposition == "replace":
         return "overwrite"
     else:
-        raise ValueErrorWithKnownValues(
-            "write_disposition", write_disposition, ["append", "replace", "merge"]
+        raise ValueError(
+            "`write_disposition` must be `append`, `replace`, or `merge`,"
+            f" but `{write_disposition}` was provided."
         )
 
 
@@ -96,7 +95,6 @@ def write_delta_table(
     write_disposition: TWriteDisposition,
     partition_by: Optional[Union[List[str], str]] = None,
     storage_options: Optional[Dict[str, str]] = None,
-    configuration: Optional[Mapping[str, Optional[str]]] = None,
 ) -> None:
     """Writes in-memory Arrow data to on-disk Delta table.
 
@@ -109,7 +107,7 @@ def write_delta_table(
         mode=get_delta_write_mode(write_disposition),
         schema_mode="merge",  # enable schema evolution (adding new columns)
         storage_options=storage_options,
-        configuration=configuration,
+        engine="rust",  # `merge` schema mode requires `rust` engine
     )
 
 
@@ -117,8 +115,6 @@ def merge_delta_table(
     table: DeltaTable,
     data: Union[pa.Table, pa.RecordBatchReader],
     schema: TTableSchema,
-    load_table_name: str,
-    streamed_exec: bool,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Delta table."""
 
@@ -143,7 +139,6 @@ def merge_delta_table(
                 predicate=predicate,
                 source_alias="source",
                 target_alias="target",
-                streamed_exec=streamed_exec,
             )
             .when_matched_update_all()
             .when_not_matched_insert_all()
@@ -151,10 +146,7 @@ def merge_delta_table(
 
         qry.execute()
     else:
-        raise ValueError(
-            f'Merge strategy "{strategy}" is not supported for Delta tables. '
-            f'Table: "{load_table_name}".'
-        )
+        ValueError(f'Merge strategy "{strategy}" not supported.')
 
 
 def get_delta_tables(
@@ -200,20 +192,11 @@ def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) 
 
     Adds column(s) to `delta_table` present in `arrow_schema` but not in `delta_table`.
     """
-
-    if deltalake_semver.major == 0:
-        new_fields = [
-            deltalake.Field.from_pyarrow(field)
-            for field in ensure_delta_compatible_arrow_schema(arrow_schema)
-            if field.name not in delta_table.schema().to_pyarrow().names
-        ]
-    else:
-        # deltalake 1.x changed pyarrow to arrow
-        new_fields = [
-            deltalake.Field.from_arrow(field)  # type: ignore[attr-defined]
-            for field in ensure_delta_compatible_arrow_schema(arrow_schema)
-            if field.name not in delta_table.schema().to_arrow().names  # type: ignore[attr-defined]
-        ]
+    new_fields = [
+        deltalake.Field.from_pyarrow(field)
+        for field in ensure_delta_compatible_arrow_schema(arrow_schema)
+        if field.name not in delta_table.schema().to_pyarrow().names
+    ]
     if new_fields:
         delta_table.alter.add_columns(new_fields)
     return delta_table

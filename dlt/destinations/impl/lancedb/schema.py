@@ -5,11 +5,11 @@ from typing import (
     cast,
     Optional,
 )
+
 import pyarrow as pa
-from lancedb.embeddings import TextEmbeddingFunction
+from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 from typing_extensions import TypeAlias
 
-from dlt.common import logger
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.json import json
 from dlt.common.schema import Schema, TColumnSchema
@@ -36,8 +36,7 @@ def make_arrow_field_schema(
 ) -> TArrowField:
     """Creates a PyArrow field from a dlt column schema."""
     dtype = cast(TArrowDataType, type_mapper.to_destination_type(column, None))
-    # preserve nullability
-    return pa.field(column_name, dtype, nullable=column.get("nullable", True))
+    return pa.field(column_name, dtype)
 
 
 def make_arrow_table_schema(
@@ -51,24 +50,15 @@ def make_arrow_table_schema(
 ) -> TArrowSchema:
     """Creates a PyArrow schema from a dlt schema."""
     arrow_schema: List[TArrowField] = []
-    columns = schema.get_table_columns(table_name)
-
-    for column_name, column in columns.items():
-        field = make_arrow_field_schema(column_name, column, type_mapper)
-        arrow_schema.append(field)
 
     if embedding_fields:
-        if vector_field_name not in columns:
-            # User's provided dimension config, if provided, takes precedence.
-            vec_size = embedding_model_dimensions or embedding_model_func.ndims()
-            arrow_schema.append(pa.field(vector_field_name, pa.list_(pa.float32(), vec_size)))
-        else:
-            # bring your own vector
-            logger.info(
-                f"LanceDb table `{table_name}` in schema `{schema.name}` contains user supplied"
-                f" vector column `{vector_field_name}`. Arrow column type must fit the vector"
-                " dimensions."
-            )
+        # User's provided dimension config, if provided, takes precedence.
+        vec_size = embedding_model_dimensions or embedding_model_func.ndims()
+        arrow_schema.append(pa.field(vector_field_name, pa.list_(pa.float32(), vec_size)))
+
+    for column_name, column in schema.get_table_columns(table_name).items():
+        field = make_arrow_field_schema(column_name, column, type_mapper)
+        arrow_schema.append(field)
 
     metadata = {}
     if embedding_model_func:
@@ -92,14 +82,20 @@ def make_arrow_table_schema(
     return pa.schema(arrow_schema, metadata=metadata)
 
 
-def add_vector_column(records: pa.table, table_schema: pa.schema, vector_column: str) -> pa.table:
-    # vector column already there
-    if vector_column in records.schema.names or vector_column not in table_schema.names:
-        return records
+def arrow_datatype_to_fusion_datatype(arrow_type: TArrowSchema) -> str:
+    type_map = {
+        pa.bool_(): "BOOLEAN",
+        pa.int64(): "BIGINT",
+        pa.float64(): "DOUBLE",
+        pa.utf8(): "STRING",
+        pa.binary(): "BYTEA",
+        pa.date32(): "DATE",
+    }
 
-    col = table_schema.field(vector_column)
-    idx = table_schema.get_field_index(vector_column)
+    if isinstance(arrow_type, pa.Decimal128Type):
+        return f"DECIMAL({arrow_type.precision}, {arrow_type.scale})"
 
-    nulls = pa.nulls(len(records), type=col.type)
+    if isinstance(arrow_type, pa.TimestampType):
+        return "TIMESTAMP"
 
-    return records.add_column(idx, col, nulls)
+    return type_map.get(arrow_type, "UNKNOWN")

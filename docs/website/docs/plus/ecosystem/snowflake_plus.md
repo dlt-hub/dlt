@@ -1,24 +1,12 @@
 ---
-title: "Destination: Snowflake+ Iceberg / Open Catalog"
-description: Snowflake destination with Iceberg and Open Catalog
+title: "Destination: Snowflake Plus"
+description: Snowflake destination with Iceberg table support
 keywords: [Snowflake, Iceberg, destination]
 ---
 
-# Snowflake+ Iceberg / Open Catalog
+# Snowflake Plus
 
-Snowflake+ is a drop-in replacement for [OSS Snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds [Apache Iceberg tables](https://docs.snowflake.com/en/user-guide/tables-iceberg) creation and related features.
-
-It uses Snowflake to manage Iceberg data - tables are created and data is copied via Snowflake SQL and automatically visible in Snowflake (HORIZON)
-catalog as other (native) tables. On top of that, Snowflake provides table maintenance (like compacting, deleting snapshot etc.).
-
-**Snowflake Open Catalog** (Polaris) is [fully supported](#syncing-snowflake-managed-iceberg-tables-to-snowflake-open-catalog) via `CATALOG SYNC` option. Both new data and all schema migrations performed by `dlt` are visible in it without any additional code or setup.
-
-All [data access](../../general-usage/dataset-access/) methods (pandas, arrow, Ibis, SQL etc.) that `dlt` supports via `pipeline.dataset()` are available.
-
-:::tip
-You can [link](https://docs.snowflake.com/LIMITEDACCESS/iceberg/tables-iceberg-externally-managed-writes#label-tables-iceberg-external-writes-create-cld) any catalog (Lakekeeper, Glue, S3Tables or Open Catalog/Polaris) used by `dlt` [Iceberg](iceberg.md) destination to a Snowflake database.
-:::
-
+Snowflake Plus is an **experimental** extension of the [Snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds [Apache Iceberg tables](https://docs.snowflake.com/en/user-guide/tables-iceberg) creation and related features.
 This destination is available starting from dlt+ version 0.9.0. It fully supports all the functionality of the standard Snowflake destination, plus:
 
 1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file or `dlt.yml` file.
@@ -193,19 +181,6 @@ STORAGE_BASE_URL/BASE_LOCATION.<randomId>/[data | metadata]/
 Where `<randomId>` is a random Snowflake-generated 8-character string appended to create a unique directory.
 
 For more details on how Snowflake organizes Iceberg table files in external storage, see the [Snowflake documentation on data and metadata directories](https://docs.snowflake.com/en/user-guide/tables-iceberg-storage#data-and-metadata-directories).
-
-## Table format for individual tables
-You can specify table format (Iceberg/Native) for individual `dlt` resources. For example:
-  ```py
-  @dlt.resource(
-    table_format="native"
-  )
-  def my_resource():
-      ...
-
-  pipeline = dlt.pipeline("loads_native", destination="snowflake_plus")
-  ```
-  Will create a native (non-iceberg) **my_resource** table, also when you set the [iceberg_mode](#iceberg_mode) to **all** or **data_tables**.
 
 ## Write dispositions
 

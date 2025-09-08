@@ -1,4 +1,3 @@
-from typing import TYPE_CHECKING, Any
 import os
 from pathlib import Path
 import sys
@@ -13,11 +12,6 @@ import traceback
 import zlib
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
-
-if TYPE_CHECKING:
-    from dlt.common.libs.sqlglot import TSqlGlotDialect
-else:
-    TSqlGlotDialect = Any
 
 from typing import (
     Any,
@@ -36,8 +30,6 @@ from typing import (
     List,
     Union,
     Iterable,
-    IO,
-    cast,
 )
 
 from dlt.common.exceptions import (
@@ -45,9 +37,8 @@ from dlt.common.exceptions import (
     ExceptionTrace,
     TerminalException,
     DependencyVersionException,
-    ValueErrorWithKnownValues,
 )
-from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
+from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
 T = TypeVar("T")
@@ -125,9 +116,7 @@ def str2bool(v: str) -> bool:
     elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise ValueErrorWithKnownValues(
-            "v", v, [True, "yes", "true", "t", "y", 1, False, "no", "false", "f", "n", "0"]
-        )
+        raise ValueError("Boolean value expected.")
 
 
 # def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:
@@ -152,12 +141,12 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
         if isinstance(e, dict):
             for k, v in e.items():
                 if k in o:
-                    raise KeyError(f"Failed to flatten because of duplicate key `{k}`")
+                    raise KeyError(f"Cannot flatten with duplicate key {k}")
                 o[k] = v
         else:
             key = str(e)
             if key in o:
-                raise KeyError(f"Failed to flatten because of duplicate key `{key}`")
+                raise KeyError(f"Cannot flatten with duplicate key {key}")
             o[key] = None
     return o
 
@@ -340,20 +329,6 @@ def dict_remove_nones_in_place(d: Dict[Any, Any]) -> Dict[Any, Any]:
         if d[k] is None:
             del d[k]
     return d
-
-
-def simple_repr(object_name: str, **kwargs: Any) -> str:
-    """Create a simple string representation of an object.
-
-    For example:
-
-        s = simple_repr("Resource", name="my_resource", table_name="my_table")
-        print(s)
-        # "Resource(name='my_resource', table_name='my_table')"
-
-    """
-    args = [f"{k}={v.__repr__()}" for k, v in kwargs.items()]
-    return f"<{object_name}({', '.join(args)})>"
 
 
 @contextmanager
@@ -617,7 +592,7 @@ def get_exception_trace_chain(
     return traces
 
 
-def group_dict_of_lists(input_dict: Dict[str, List[TAny]]) -> List[Dict[str, TAny]]:
+def group_dict_of_lists(input_dict: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
     """Decomposes a dictionary with list values into a list of dictionaries with unique keys.
 
     This function takes an input dictionary where each key maps to a list of objects.
@@ -671,26 +646,6 @@ def make_defunct_class(cls: TObj) -> Type[TObj]:
     return DefunctClass
 
 
-class classlocal(Generic[TAny]):
-    """A descriptor that is *only* visible on the class that defines it.
-
-    Any attempt to read it from a derived class raises AttributeError,
-    so `hasattr(Sub, name)` is *False* unless Sub defines its own copy.
-    """
-
-    def __init__(self, value: TAny, owner: type[Any]) -> None:
-        self._value: TAny = value
-        self._owner: type[Any] = owner
-
-    def __get__(self, obj: Any, cls: type[Any] = None) -> TAny:
-        # `cls` is the *class* through which the attribute lookup happened
-        # access from the defining class
-        if cls is self._owner:
-            return self._value
-        # access from a subclass or from the descriptor itself: hide it
-        raise AttributeError("<class-local>")
-
-
 def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
     """
     Determine if a TypeError is due to a wrong call to the function (incorrect arguments)
@@ -706,33 +661,3 @@ def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
 removeprefix = getattr(
     str, "removeprefix", lambda s_, p_: s_[len(p_) :] if s_.startswith(p_) else s_
 )
-
-
-def read_dialect_and_sql(
-    file_obj: IO[str],
-    fallback_dialect: Optional[TSqlGlotDialect] = None,
-) -> Tuple[TSqlGlotDialect, str]:
-    """
-    Read the first line of a file for the dialect (after the first colon),
-    falls back to `fallback_dialect` if not found or empty,
-    and then reads the rest as the SQL statement.
-
-    Args:
-        file_obj (IO[str]): A file-like object opened in text mode.
-        fallback_dialect (Optional[str]): A fallback dialect to use if the first line
-            does not specify a dialect.
-
-    Returns:
-        Tuple[str, str]: A tuple containing:
-            - The extracted or fallback dialect as a string.
-            - The SQL statement read from the rest of the file.
-    """
-    first_line = file_obj.readline()
-    # e.g. something like: "dialect: clickhouse\n"
-    parts = first_line.split(":", 1)
-    parsed_dialect = cast(TSqlGlotDialect, parts[1].strip() if len(parts) > 1 else "")
-
-    dialect = parsed_dialect if parsed_dialect else fallback_dialect
-
-    sql_statement = file_obj.read()
-    return dialect, sql_statement

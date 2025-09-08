@@ -161,33 +161,9 @@ def test_error_message_invalid_auth_type() -> None:
         create_auth("non_existing_method")  # type: ignore
     assert (
         str(e.value)
-        == "Received invalid value `auth_type=non_existing_method`. "
-        "Valid values are: ['bearer', 'api_key', 'http_basic', 'oauth2_client_credentials']"
+        == "Invalid authentication: non_existing_method."
+        " Available options: bearer, api_key, http_basic, oauth2_client_credentials."
     )
-
-
-def test_error_message_incorrect_auth_object() -> None:
-    # A simple auth that doesn't inherit from AuthConfigBase
-    class WrongAuth:
-        def __init__(self, token: str):
-            self.token = token
-
-    # A requests.auth.AuthBase derived class
-    class DatadogAuthWrong(AuthBase):
-        def __init__(self, token: str):
-            self.token = token
-
-        def __call__(self, r):
-            r.headers["Authorization"] = f"Bearer {self.token}"
-            return r
-
-    for incorrect_auth, expected_class_name in [
-        (WrongAuth("test-token"), "WrongAuth"),
-        (DatadogAuthWrong("test-token"), "DatadogAuthWrong"),
-    ]:
-        with pytest.raises(ValueError) as e:
-            create_auth(incorrect_auth)  # type: ignore
-        assert f"Incorrect auth object type '{expected_class_name}'" in str(e.value)
 
 
 class AuthConfigTest(NamedTuple):
@@ -338,5 +314,5 @@ def test_validation_masks_auth_secrets() -> None:
         rest_api_source(incorrect_config)
     assert (
         re.search("sensitive-secret", str(e.value)) is None
-    ), "unexpectedly printed `sensitive-secret`"
-    assert e.match(re.escape("`{'type': 'bearer', 'location': 'header', 'token': 's*****t'}`"))
+    ), "unexpectedly printed 'sensitive-secret'"
+    assert e.match(re.escape("'{'type': 'bearer', 'location': 'header', 'token': 's*****t'}'"))

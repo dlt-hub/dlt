@@ -24,13 +24,12 @@ from dlt.version import __version__
 from dlt.common.configuration.accessors import config, secrets
 from dlt.common.typing import TSecretValue as _TSecretValue, TSecretStrValue as _TSecretStrValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
+from dlt.common.pipeline import source_state as state
 from dlt.common.schema import Schema
 
 from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
-from dlt.common.destination.dataset import SupportsDataset, SupportsRelation
-from dlt.dataset import dataset, Relation, Dataset
 
 from dlt.pipeline import (
     pipeline as _pipeline,
@@ -80,11 +79,6 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
-    "SupportsDataset",
-    "SupportsRelation",
-    "dataset",
-    "Relation",
-    "Dataset",
 ]
 
 # verify that no injection context was created

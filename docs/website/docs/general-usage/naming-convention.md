@@ -43,7 +43,7 @@ naming="sql_ci_v1"
 ### Pick the right identifier form when defining resources
 `dlt` keeps source (not normalized) identifiers during data [extraction](../reference/explainers/how-dlt-works.md#extract) and translates them during [normalization](../reference/explainers/how-dlt-works.md#normalize). For you, it means:
 1. If you write a [transformer](resource.md#process-resources-with-dlttransformer) or a [mapping/filtering function](resource.md#filter-transform-and-pivot-data), you will see the original data, without any normalization. Use the source identifiers to access the dicts!
-2. If you define a `primary_key` or `cursor` that participates in [cursor field incremental loading](incremental/cursor.md), use the source identifiers (`dlt` uses them to inspect source data, `Incremental` class is just a filtering function).
+2. If you define a `primary_key` or `cursor` that participates in [cursor field incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field), use the source identifiers (`dlt` uses them to inspect source data, `Incremental` class is just a filtering function).
 3. When defining any other hints, i.e., `columns` or `merge_key`, you can pick source or destination identifiers. `dlt` normalizes all hints together with your data.
 4. The `Schema` object (i.e., obtained from the pipeline or from `dlt` source via `discover_schema`) **always contains destination (normalized) identifiers**.
 

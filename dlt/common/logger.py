@@ -2,44 +2,27 @@ import contextlib
 import logging
 import traceback
 from logging import LogRecord, Logger
-from typing import Any, Mapping, Iterator, Protocol, Callable
+from typing import Any, Mapping, Iterator, Protocol
 
 LOGGER: Logger = None
-_MESSAGE_LOGGING_METHODS = {
-    "debug",
-    "info",
-    "warning",
-    "warn",
-    "error",
-    "critical",
-    "exception",
-    "fatal",
-}
 
 
 class LogMethod(Protocol):
-    def __call__(self, *args: Any, **kwds: Any) -> Any: ...
+    def __call__(self, msg: str, *args: Any, **kwds: Any) -> None: ...
 
 
 def __getattr__(name: str) -> LogMethod:
     """Forwards log method calls (debug, info, error etc.) to LOGGER"""
 
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        if LOGGER is None:
-            return None
-
-        target: Callable[..., Any] = getattr(LOGGER, name)
-
-        if name in _MESSAGE_LOGGING_METHODS:
+    def wrapper(msg: str, *args: Any, **kwargs: Any) -> None:
+        if LOGGER:
             # skip stack frames when displaying log so the original logging frame is displayed
             stacklevel = 2
             if name == "exception":
                 # exception has one more frame
                 stacklevel = 3
-            kwargs["stacklevel"] = stacklevel
-        return target(*args, **kwargs)
+            getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=stacklevel)
 
-    wrapper.__name__ = name
     return wrapper
 
 

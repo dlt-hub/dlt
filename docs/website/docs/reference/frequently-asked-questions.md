@@ -78,14 +78,14 @@ You can also delete it with Python using the [Bigquery client](https://cloud.goo
 
 ## How can I develop a "custom" pagination tracker?
 
-You can use `dlt.sources.incremental` to create a custom cursor for tracking pagination in data streams that lack a specific cursor field. An example can be found in the [Incremental loading with a cursor](../general-usage/incremental/cursor.md).
+You can use `dlt.sources.incremental` to create a custom cursor for tracking pagination in data streams that lack a specific cursor field. An example can be found in the [Incremental loading with a cursor](../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field).
 
 Alternatively, you can manage the state directly in Python. You can access and modify the state like a standard Python dictionary:
 ```py
 state = dlt.current.resource_state()
 state["your_custom_key"] = "your_value"
 ```
-This method allows you to create custom pagination logic based on your requirements. An example of using `resource_state()` for pagination can be found [here](../general-usage/incremental/advanced-state.md#custom-incremental-loading-with-pipeline-state).
+This method allows you to create custom pagination logic based on your requirements. An example of using `resource_state()` for pagination can be found [here](../general-usage/incremental-loading#custom-incremental-loading-with-pipeline-state).
 
 However, be cautious about overusing the state dictionary, especially in cases involving substreams for each user, as it might become unwieldy. A better strategy might involve tracking users incrementally. Then, upon updates, you only refresh the affected users' substreams entirely. This consideration helps maintain efficiency and manageability in your custom pagination implementation.
 

@@ -63,11 +63,9 @@ def test_run_jaffle_package(
 
     # get and display dataframe with customers
     qual_name = pipeline.sql_client().make_qualified_table_name
-    customers = select_data(
-        pipeline, f"SELECT * FROM {qual_name('customers')}", _execute_raw_query=True
-    )
+    customers = select_data(pipeline, f"SELECT * FROM {qual_name('customers')}")
     assert len(customers) == 100
-    orders = select_data(pipeline, f"SELECT * FROM {qual_name('orders')}", _execute_raw_query=True)
+    orders = select_data(pipeline, f"SELECT * FROM {qual_name('orders')}")
     assert len(orders) == 99
 
 
@@ -108,25 +106,21 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
     # run all the tests
     transforms.test()
     load_ids = select_data(
-        pipeline,
-        "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status",
-        _execute_raw_query=True,
+        pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status"
     )
     assert len(load_ids) == 2
     view_player_games = select_data(
-        pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid", _execute_raw_query=True
+        pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid"
     )
     assert len(view_player_games) > 0
     # run again
     transforms.run()
     # no new load ids - no new data in view table
     new_load_ids = select_data(
-        pipeline,
-        "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status",
-        _execute_raw_query=True,
+        pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status"
     )
     new_view_player_games = select_data(
-        pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid", _execute_raw_query=True
+        pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid"
     )
     assert load_ids == new_load_ids
     assert view_player_games == new_view_player_games
@@ -186,7 +180,6 @@ def test_run_chess_dbt_to_other_dataset(
         pipeline,
         "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status",
         schema_name=test_suffix,
-        dataset_name=info.dataset_name + "_" + test_suffix,
     )
     # TODO: the package is not finished, both results should be here
     assert len(load_ids) == 1

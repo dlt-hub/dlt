@@ -45,10 +45,9 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         self.credentials = credentials
 
     def open_connection(self) -> "psycopg2.connection":
-        query_options = self.credentials.get_query().get("options", "")
         self._conn = psycopg2.connect(
             dsn=self.credentials.to_native_representation(),
-            options=f"{query_options} -csearch_path={self.fully_qualified_dataset_name()},public",
+            options=f"-c search_path={self.fully_qualified_dataset_name()},public",
         )
         # we'll provide explicit transactions see _reset
         self._reset_connection()
@@ -103,7 +102,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         with self._conn.cursor() as curr:
             try:
                 curr.execute(query, db_args)
-                yield DBApiCursorImpl(curr)
+                yield DBApiCursorImpl(curr)  # type: ignore
             except psycopg2.Error as outer:
                 try:
                     self._reset_connection()

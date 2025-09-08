@@ -126,17 +126,13 @@ Below, we set files to rotate after 100,000 items written or when the filesize e
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::compression_toml-->
 
-:::note
-**Filesystem destination**: Starting with dlt version 1.15.0, compressed `csv` and `jsonl` files automatically include a `.gz` extension to reflect their gzip-compressed format. In versions prior to 1.15.0, compressed files were saved without the `.gz` extension. If you have a dataset created with an earlier version (e.g., 1.14.0 or below), dlt will automatically detect the older format and preserve the original naming (without `.gz`) for that dataset. New datasets created with 1.15.0 or later will include the `.gz` extension by default.
-:::
-
 
 ### Freeing disk space after loading
 
 Keep in mind that load packages are buffered to disk and are left for any troubleshooting, so you can [clear disk space by setting the `delete_completed_jobs` option](../running-in-production/running.md#data-left-behind).
 
 ### Observing CPU and memory usage
-Please make sure that you have the `psutil` package installed (note that Airflow installs it by default). Then, you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#monitor-the-loading-progress) to `log` in `config.toml`:
+Please make sure that you have the `psutil` package installed (note that Airflow installs it by default). Then, you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#display-the-loading-progress) to `log` in `config.toml`:
 ```toml
 progress="log"
 ```

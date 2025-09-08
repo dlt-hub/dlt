@@ -1,8 +1,6 @@
 from typing import Union
 from urllib.parse import urlparse, ParseResult
 
-from dlt.common.exceptions import TypeErrorWithKnownTypes
-
 
 def convert_storage_to_http_scheme(
     url: Union[str, ParseResult],
@@ -16,7 +14,7 @@ def convert_storage_to_http_scheme(
         elif isinstance(url, ParseResult):
             parsed_url = url
         else:
-            raise TypeErrorWithKnownTypes("url", url, ["str", "ParsedResult"])
+            raise TypeError("Invalid URL type. Expected str or ParseResult.")
 
         bucket_name = parsed_url.netloc
         object_key = parsed_url.path.lstrip("/")
@@ -36,4 +34,4 @@ def convert_storage_to_http_scheme(
 
         return f"{protocol}://{bucket_name}.{domain}/{object_key}"
     except Exception as e:
-        raise Exception(f"Error converting storage URL to HTTP protocol: `{url}`") from e
+        raise Exception(f"Error converting storage URL to HTTP protocol: '{url}'") from e

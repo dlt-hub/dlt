@@ -21,8 +21,6 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from tests.load.utils import FILE_BUCKET, destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info, load_table_counts
 
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
-
 
 def _attach(pipeline: Pipeline) -> Pipeline:
     return dlt.attach(pipeline.pipeline_name, pipelines_dir=pipeline.pipelines_dir)
@@ -69,7 +67,7 @@ def droppable_source(drop_columns: bool = False) -> List[DltResource]:
     def droppable_d(
         o: dlt.sources.incremental[int] = dlt.sources.incremental("o"),
     ) -> Iterator[List[Dict[str, Any]]]:
-        dlt.current.source_state()["data_from_d"] = {"foo1": {"bar": 1}, "foo2": {"bar": 2}}
+        dlt.state()["data_from_d"] = {"foo1": {"bar": 1}, "foo2": {"bar": 2}}
         yield [dict(o=55), dict(o=22)]
 
     @dlt.resource(selected=True)
@@ -170,9 +168,7 @@ def test_drop_command_resources_and_state(
     pipeline = destination_config.setup_pipeline("droppable", dev_mode=True)
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
-
-    all_tables = list(pipeline.default_schema.tables.keys())
-    assert load_table_counts(pipeline, *all_tables) == {
+    assert load_table_counts(pipeline, *pipeline.default_schema.tables.keys()) == {
         "_dlt_version": 1,
         "_dlt_loads": 1,
         "droppable_a": 2,
@@ -213,8 +209,7 @@ def test_drop_command_resources_and_state(
     # 3 loads (one for drop)
     # droppable_no_state correctly replaced
     # all other resources stay at the same count (they are incremental so they got loaded again or not loaded at all ie droppable_a)
-    all_tables = list(pipeline.default_schema.tables.keys())
-    assert load_table_counts(pipeline, *all_tables) == {
+    assert load_table_counts(pipeline, *pipeline.default_schema.tables.keys()) == {
         "_dlt_version": 2,
         "_dlt_loads": 3,
         "droppable_a": 2,
@@ -526,7 +521,7 @@ def test_drop_state_only(destination_config: DestinationTestConfiguration) -> No
 
 def test_drop_first_run_and_pending_packages() -> None:
     """Attempts to drop before pipeline runs and when partial loads happen"""
-    pipeline = dlt.pipeline("drop_test_" + uniq_id(), destination="duckdb")
+    pipeline = dlt.pipeline("drop_test_" + uniq_id(), destination="dummy")
     with pytest.raises(PipelineNeverRan):
         helpers.drop(pipeline, "droppable_a")
     os.environ["COMPLETED_PROB"] = "1.0"
@@ -534,61 +529,3 @@ def test_drop_first_run_and_pending_packages() -> None:
     pipeline.extract(droppable_source().with_resources("droppable_b"))
     with pytest.raises(PipelineHasPendingDataException):
         helpers.drop(pipeline, "droppable_a")
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-    ),
-    ids=lambda x: x.name,
-)
-def test_drop_staging_tables(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"drop_staging_tables_{uniq_id()}", dev_mode=False)
-
-    @dlt.resource(
-        columns={"value": {"data_type": "bool"}}, primary_key="id", write_disposition="merge"
-    )
-    def some_data():
-        yield {"id": 1, "value": True, "children": [{"id": 1}, {"id": 2}]}
-
-    pipeline.run(some_data, **destination_config.run_kwargs)
-
-    attached = _attach(pipeline)
-    helpers.drop(attached, resources=["some_data"])
-
-    # Make sure the "some_data" table doesn't exist anymore
-    with attached.sql_client() as client:
-        qual_table_name, qual_staging_table_name = client.get_qualified_table_names("some_data")
-        with pytest.raises(DatabaseUndefinedRelation):
-            client.execute_sql(f"SELECT * FROM {qual_table_name}")
-
-        with pytest.raises(DatabaseUndefinedRelation):
-            client.execute_sql(f"SELECT * FROM {qual_staging_table_name}")
-
-        # Child table "some_data__children" should also be non-existent
-        qual_table_name, qual_staging_table_name = client.get_qualified_table_names(
-            "some_data__children"
-        )
-        with pytest.raises(DatabaseUndefinedRelation):
-            client.execute_sql(f"SELECT * FROM {qual_table_name}")
-
-        with pytest.raises(DatabaseUndefinedRelation):
-            client.execute_sql(f"SELECT * FROM {qual_staging_table_name}")
-
-    # Change the schema and try to load to the old table
-    # NOTE: we test this because previously staging tables weren't dropped and
-    # resulted in schema mismatch errors
-    @dlt.resource(
-        table_name="some_data",
-        columns={"value": {"data_type": "text"}},
-        primary_key="id",
-        write_disposition="merge",
-    )
-    def some_data_redefined():
-        yield {"id": 1, "value": "random", "children": []}
-
-    attached = _attach(pipeline)
-
-    load_info = attached.run(some_data_redefined, **destination_config.run_kwargs)
-    assert_load_info(load_info)

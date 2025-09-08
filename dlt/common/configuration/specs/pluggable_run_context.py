@@ -21,18 +21,12 @@ class SupportsRunContext(Protocol):
         """
 
     @property
-    def uri(self) -> str:
-        """Uniquely identifies the context. By default it is a combination of `run_dir` and `runtime_kwargs`
-        to create file:// uri
-        """
-
-    @property
     def global_dir(self) -> str:
         """Directory in which global settings are stored ie ~/.dlt/"""
 
     @property
     def run_dir(self) -> str:
-        """Defines the context working directory, defaults to cwd()"""
+        """Defines the current working directory, defaults to cwd()"""
 
     @property
     def local_dir(self) -> str:
@@ -178,9 +172,7 @@ class PluggableRunContext(ContainerInjectableContext):
         """Pops context from stack and re-initializes it if in container"""
         _c, context, providers, runtime_config = self._context_stack.pop()
         if cookie != _c:
-            raise ValueError(
-                f"Run context stack mangled. Got cookie `{_c}` but expected `{cookie}`"
-            )
+            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
         self.runtime_config = runtime_config
         self.reload(context)
 
@@ -189,6 +181,4 @@ class PluggableRunContext(ContainerInjectableContext):
         state_ = self._context_stack.pop()
         _c = state_[0]
         if cookie != _c:
-            raise ValueError(
-                f"Run context stack mangled. Got cookie `{_c}` but expected `{cookie}`"
-            )
+            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")

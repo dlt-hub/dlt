@@ -169,11 +169,11 @@ def employees(
 ```
 
 `updated_at`: The saved state of the last 'last_modified_at' value. It is used for
-[incremental loading](../../general-usage/incremental-loading.md).
+[incremental loading](../../general-usage/incremental-loading).
 
 `items_per_page`: Maximum number of items per page, defaults to 200.
 
-`allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+`allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
 
 Like the `employees` resource discussed above, other resources `absences` and `attendances` load
 data incrementally from the Personio API to your preferred destination.

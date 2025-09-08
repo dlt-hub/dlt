@@ -111,7 +111,7 @@ pipeline = dlt.pipeline("loads_delta", destination="delta")
 The Delta destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder.
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
-- `merge` - can be used only with the `upsert` [merge strategy](../../general-usage/merge-loading.md#upsert-strategy).
+- `merge` - can be used only with the `upsert` [merge strategy](../../general-usage/incremental-loading#upsert-strategy).
 
 :::caution
 The `upsert` merge strategy for the Delta destination is **experimental**.
@@ -226,19 +226,17 @@ The Delta destination automatically assigns the `delta` table format to all reso
   pipeline = dlt.pipeline("loads_delta", destination="delta")
   ```
 
-## Storage options and configuration
-You can pass storage options and configuration by configuring both `destination.filesystem.deltalake_storage_options` and
-`destination.filesystem.deltalake_configuration`:
+### Storage options
+You can pass storage options by configuring `destination.delta.deltalake_storage_options`:
 
 ```toml
-[destination.filesystem]
-deltalake_configuration = '{"delta.enableChangeDataFeed": "true", "delta.minWriterVersion": "7"}'
+[destination.delta]
 deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", "DELTA_DYNAMO_TABLE_NAME": "custom_table_name"}'
 ```
 
-dlt passes these as arguments to the `write_deltalake` method in the `deltalake` library (`deltalake_configuration` maps to `configuration` and `deltalake_storage_options` maps to `storage_options`). Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
+dlt passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. See the [Delta Lake `write_deltalake` API documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) for available storage options.
 
-You don't need to specify credentials here. dlt merges the required credentials with the options you provided before passing it as `storage_options`.
+You don't need to specify credentials here. dlt merges the required credentials with the options you provided before passing them as `storage_options`.
 
 :::warning
 When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.

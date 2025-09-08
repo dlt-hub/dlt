@@ -30,4 +30,4 @@ class DBTProcessingError(DBTRunnerException):
         self.run_results = run_results
         # the results from DBT may be anything
         self.dbt_results = dbt_results
-        super().__init__(f"DBT command `{command}` could not be executed")
+        super().__init__(f"DBT command {command} could not be executed")

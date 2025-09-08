@@ -1,6 +1,6 @@
 import contextlib
 from copy import copy
-from functools import partial
+import makefun
 import inspect
 from typing import (
     Dict,
@@ -27,18 +27,12 @@ from dlt.common.pipeline import (
     PipelineContext,
     StateInjectableContext,
     SupportsPipelineRun,
+    source_state,
     pipeline_state,
 )
-from dlt.common.utils import (
-    graph_find_scc_nodes,
-    flatten_list_or_items,
-    graph_edges_to_nodes,
-    simple_repr,
-    without_none,
-)
+from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_edges_to_nodes
 
 from dlt.extract.items import TDecompositionStrategy
-from dlt.extract.state import source_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
 from dlt.extract.hints import make_hints
@@ -67,8 +61,6 @@ class DltResourceDict(Dict[str, DltResource]):
         """Returns a subset of all resources that will be extracted and loaded to the destination."""
         return {k: v for k, v in self.items() if v.selected}
 
-    # NOTE the name `extracted` suggests that the resources were ran and data was extracted
-    # this is not what the docstring implies. Could rename to "`to_extract`". Or `selected` vs. `user_selected`
     @property
     def extracted(self) -> Dict[str, DltResource]:
         """Returns a dictionary of all resources that will be extracted. That includes selected resources and all their parents.
@@ -108,8 +100,6 @@ class DltResourceDict(Dict[str, DltResource]):
                     # do not descend into disconnected pipes
                     break
             if selected is pipe:
-                # NOTE a node pointing to itself creates a cycle / is not a DAG
-                # the implementation doesn't match the function name and docstring
                 # add isolated element
                 dag.append((pipe.name, pipe.name))
         return dag
@@ -172,8 +162,8 @@ class DltResourceDict(Dict[str, DltResource]):
     def __setitem__(self, resource_name: str, resource: DltResource) -> None:
         if resource_name != resource.name:
             raise ValueError(
-                f"The index name `{resource_name}` does not correspond to resource name"
-                f" `{resource.name}`"
+                f"The index name {resource_name} does not correspond to resource name"
+                f" {resource.name}"
             )
         pipe_id = id(resource._pipe)
         # make shallow copy of the resource
@@ -196,23 +186,6 @@ class DltResourceDict(Dict[str, DltResource]):
 
     def __delitem__(self, resource_name: str) -> None:
         raise DeletingResourcesNotSupported(self.source_name, resource_name)
-
-    def __repr__(self) -> str:
-        if not self:
-            return "{}"
-
-        s = "{\n  'selected': {"
-        for name, r in self.selected.items():
-            s += f"\n    '{name}': {r.__repr__()}, "
-        s += "\n  }"
-
-        s += "\n  'extracted': {"
-        for name, r in self.extracted.items():
-            s += f"\n    '{name}': {r.__repr__()}, "
-        s += "\n  }"
-        s += "\n}"
-
-        return s
 
 
 class DltSource(Iterable[TDataItem]):
@@ -331,20 +304,12 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def resources(self) -> DltResourceDict:
-        """A dictionary of all resources present in the source, where the key is a resource name.
-
-        Returns:
-            DltResourceDict: A dictionary of all resources present in the source, where the key is a resource name.
-        """
+        """A dictionary of all resources present in the source, where the key is a resource name."""
         return self._resources
 
     @property
     def selected_resources(self) -> Dict[str, DltResource]:
-        """A dictionary of all the resources that are selected to be loaded.
-
-        Returns:
-            Dict[str, DltResource]: A dictionary of all the resources that are selected to be loaded.
-        """
+        """A dictionary of all the resources that are selected to be loaded."""
         return self._resources.selected
 
     @property
@@ -429,8 +394,8 @@ class DltSource(Iterable[TDataItem]):
     @property
     def run(self) -> SupportsPipelineRun:
         """A convenience method that will call `run` run on the currently active `dlt` pipeline. If pipeline instance is not found, one with default settings will be created."""
-        self_run: SupportsPipelineRun = partial(
-            Container()[PipelineContext].pipeline().run, data=self
+        self_run: SupportsPipelineRun = makefun.partial(
+            Container()[PipelineContext].pipeline().run, *(), data=self
         )
         return self_run
 
@@ -482,7 +447,9 @@ class DltSource(Iterable[TDataItem]):
         try:
             return self._resources[resource_name]
         except KeyError:
-            raise AttributeError(f"Resource `{resource_name}` not found in source `{self.name}`")
+            raise AttributeError(
+                f"Resource with name {resource_name} not found in source {self.name}"
+            )
 
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, DltResource):
@@ -490,20 +457,9 @@ class DltSource(Iterable[TDataItem]):
         else:
             super().__setattr__(name, value)
 
-    def __repr__(self) -> str:
-        kwargs = {
-            "name": self.name,
-            # "section": self.section,  should this be explicitly passed?
-            "schema_contract": "{...}" if self.schema_contract else None,
-            "exhausted": self.exhausted if self.exhausted else None,
-            "n_resources": len(self.resources),
-            "resources": list(self.resources.keys()),
-        }
-        return simple_repr("@dlt.source", **without_none(kwargs))
-
     def __str__(self) -> str:
         info = (
-            f"DltSource `{self.name}` section `{self.section}` contains"
+            f"DltSource {self.name} section {self.section} contains"
             f" {len(self.resources)} resource(s) of which {len(self.selected_resources)} are"
             " selected"
         )
@@ -511,11 +467,11 @@ class DltSource(Iterable[TDataItem]):
             selected_info = "selected" if r.selected else "not selected"
             if r.is_transformer:
                 info += (
-                    f"\ntransformer `{r.name}` is {selected_info} and takes data from"
-                    f" `{r._pipe.parent.name}`"
+                    f"\ntransformer {r.name} is {selected_info} and takes data from"
+                    f" {r._pipe.parent.name}"
                 )
             else:
-                info += f"\nresource `{r.name}` is {selected_info}"
+                info += f"\nresource {r.name} is {selected_info}"
         if self.exhausted:
             info += (
                 "\nSource is already iterated and cannot be used again ie. to display or load data."
@@ -523,7 +479,7 @@ class DltSource(Iterable[TDataItem]):
         else:
             info += (
                 "\nIf you want to see the data items in this source you must iterate it or convert"
-                " to list ie. `list(source)`."
+                " to list ie. list(source)."
             )
         info += " Note that, like any iterator, you can iterate the source only once."
         info += f"\ninstance id: {id(self)}"

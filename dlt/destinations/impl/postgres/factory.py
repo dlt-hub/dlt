@@ -1,14 +1,12 @@
-from typing import Any, Optional, Sequence, Tuple, Type, Union, Dict, TYPE_CHECKING
+import typing as t
 
-from dlt.common import logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.destination.configuration import CsvFormatConfiguration
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableSchema
-from dlt.common.typing import TLoaderFileFormat
+from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
@@ -17,7 +15,7 @@ from dlt.destinations.impl.postgres.configuration import (
 from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
 from dlt.destinations.type_mapping import TypeMapperImpl
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from dlt.destinations.impl.postgres.postgres import PostgresClient
 
 
@@ -72,7 +70,7 @@ class PostgresTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with `{precision=:}` can't be mapped to PostgreSQL integer type"
+            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
         )
 
     def to_db_datetime_type(
@@ -96,8 +94,8 @@ class PostgresTypeMapper(TypeMapperImpl):
                 timestamp += f" ({precision})"
             else:
                 raise TerminalValueError(
-                    f"Postgres doesn't support {precision=:} for timestamp column `{column_name}`"
-                    f" in table `{table_name}`"
+                    f"Postgres does not support precision '{precision}' for '{column_name}' in"
+                    f" table '{table_name}'"
                 )
 
         # append timezone part
@@ -109,48 +107,19 @@ class PostgresTypeMapper(TypeMapperImpl):
         return timestamp
 
     def from_destination_type(
-        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
+        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
     ) -> TColumnType:
         if db_type == "numeric" and (precision, scale) == self.capabilities.wei_precision:
             return dict(data_type="wei")
         if db_type.startswith("geometry"):
             return dict(data_type="text")
-        if db_type.startswith("json"):
-            return dict(data_type="json")
         return super().from_destination_type(db_type, precision, scale)
 
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         if column.get(GEOMETRY_HINT):
             srid = column.get(SRID_HINT, 4326)
             return f"geometry(Geometry, {srid})"
-        if column["data_type"] == "json" and table.get("file_format") == "parquet":
-            return "json"  # adbc is not able to copy into JSONB columns
         return super().to_destination_type(column, table)
-
-
-def postgres_loader_file_format_selector(
-    preferred_loader_file_format: TLoaderFileFormat,
-    supported_loader_file_formats: Sequence[TLoaderFileFormat],
-    /,
-    *,
-    table_schema: TTableSchema,
-) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
-    try:
-        # supports adbc for direct parquet loading
-        import adbc_driver_postgresql.dbapi
-    except ImportError:
-        supported_loader_file_formats = list(supported_loader_file_formats)
-        supported_loader_file_formats.remove("parquet")
-
-        if table_schema.get("file_format") == "parquet":
-            logger.warning(
-                f"parquet file format was requested for table {table_schema['name']} but ADBC"
-                " driver "
-                "for postgres was not installed. Read more:"
-                " https://dlthub.com/docs/dlt-ecosystem/destinations/postgres#fast-loading-with-arrow-tables-and-parquet"
-            )
-
-    return (preferred_loader_file_format, supported_loader_file_formats)
 
 
 class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
@@ -160,8 +129,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         # https://www.postgresql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
-        caps.loader_file_format_selector = postgres_loader_file_format_selector
+        caps.supported_loader_file_formats = ["insert_values", "csv", "model"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.type_mapper = PostgresTypeMapper
@@ -192,32 +160,30 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         return caps
 
     @property
-    def client_class(self) -> Type["PostgresClient"]:
+    def client_class(self) -> t.Type["PostgresClient"]:
         from dlt.destinations.impl.postgres.postgres import PostgresClient
 
         return PostgresClient
 
     def __init__(
         self,
-        credentials: Union[PostgresCredentials, Dict[str, Any], str] = None,
+        credentials: t.Union[PostgresCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = True,
-        csv_format: Optional[CsvFormatConfiguration] = None,
-        destination_name: str = None,
-        environment: str = None,
-        **kwargs: Any,
+        csv_format: t.Optional[CsvFormatConfiguration] = None,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
+        **kwargs: t.Any,
     ) -> None:
         """Configure the Postgres destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union[PostgresCredentials, Dict[str, Any], str], optional): Credentials to connect to the postgres database. Can be an instance of `PostgresCredentials` or
+            credentials: Credentials to connect to the postgres database. Can be an instance of `PostgresCredentials` or
                 a connection string in the format `postgres://user:password@host:port/database`
-            create_indexes (bool, optional): Should unique indexes be created
-            csv_format (Optional[CsvFormatConfiguration]): Formatting options for csv file format
-            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
-            environment (str, optional): Environment of the destination
-            **kwargs (Any): Additional arguments passed to the destination config
+            create_indexes: Should unique indexes be created
+            csv_format: Formatting options for csv file format
+            **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,

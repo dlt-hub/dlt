@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import os
 import pathlib
 import posixpath
@@ -16,14 +15,13 @@ from dlt.common.configuration.specs import (
     BaseConfiguration,
     SFTPCredentials,
 )
-from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.typing import Annotated, DictStrAny, DictStrOptionalStr, get_args
+from dlt.common.typing import DictStrAny, get_args
 from dlt.common.utils import digest128
 
 
-TSchemaFileFormat = Literal["json", "yaml", "dbml", "dot"]
-SCHEMA_FILES_EXTENSIONS = get_args(TSchemaFileFormat)
+TSchemaFileFormat = Literal["json", "yaml"]
+SchemaFileExtensions = get_args(TSchemaFileFormat)
 
 
 @configspec
@@ -76,7 +74,7 @@ def ensure_canonical_az_url(
 
     if not storage_account_name and not account_host:
         raise TerminalValueError(
-            f"Could not convert azure blob storage url `{bucket_url}` into canonical form "
+            f"Could not convert azure blob storage url {bucket_url} into canonical form "
             f" ({target_scheme}://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>)"
             f" because storage account name is not known. Please use {target_scheme}:// canonical"
             " url as bucket_url in filesystem credentials"
@@ -109,17 +107,11 @@ def _make_az_url(scheme: str, fs_path: str, bucket_url: str) -> str:
         # az://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
         # fs_path always starts with container
         split_path = fs_path.split("/", maxsplit=1)
-        # preserve slash at the end
-        if len(split_path) == 2 and split_path[1] == "":
-            split_path[1] = "/"
-        # if just a container name, add empty path
         if len(split_path) == 1:
             split_path.append("")
         container, path = split_path
         netloc = f"{container}@{parsed_bucket_url.hostname}"
-        # this strips trailing slash
-        uri = urlunparse(parsed_bucket_url._replace(path=path, scheme=scheme, netloc=netloc))
-        return uri
+        return urlunparse(parsed_bucket_url._replace(path=path, scheme=scheme, netloc=netloc))
     return f"{scheme}://{fs_path}"
 
 
@@ -129,12 +121,8 @@ def _make_file_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     netloc is never set. UNC paths are represented as file://host/path
     """
     p_ = pathlib.Path(fs_path)
-    # will remove trailing separator
     p_ = p_.expanduser().resolve()
-    uri = p_.as_uri()
-    if fs_path.endswith(os.path.sep):
-        uri += "/"
-    return uri
+    return p_.as_uri()
 
 
 MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url, "sftp": _make_sftp_url}
@@ -147,8 +135,7 @@ MAKE_URI_DISPATCH["local"] = MAKE_URI_DISPATCH["file"]
 
 
 def make_fsspec_url(scheme: str, fs_path: str, bucket_url: str) -> str:
-    """Creates url from `fs_path` and `scheme` using bucket_url as an `url` template, if `fs_path`
-    ends with separator (indicating folder), it is preserved
+    """Creates url from `fs_path` and `scheme` using bucket_url as an `url` template
 
     Args:
         scheme (str): scheme of the resulting url
@@ -195,14 +182,8 @@ class FilesystemConfiguration(BaseConfiguration):
     read_only: bool = False
     """Indicates read only filesystem access. Will enable caching"""
     kwargs: Optional[DictStrAny] = None
-    """Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs"""
     client_kwargs: Optional[DictStrAny] = None
-    """Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore"""
-    config_kwargs: Optional[DictStrAny] = None
-    """Additional arguments as Config in botocore"""
     deltalake_storage_options: Optional[DictStrAny] = None
-    deltalake_configuration: Optional[DictStrOptionalStr] = None
-    deltalake_streamed_exec: bool = True
 
     @property
     def protocol(self) -> str:
@@ -240,9 +221,9 @@ class FilesystemConfiguration(BaseConfiguration):
         url = urlparse(self.bucket_url)
         if not url.path and not url.netloc:
             raise ConfigurationValueError(
-                "File `path` and `netloc` are missing. Field `bucket_url` of"
-                " `FilesystemClientConfiguration` must contain valid url with a path or"
-                " host:password component."
+                "File path and netloc are missing. Field bucket_url of"
+                " FilesystemClientConfiguration must contain valid url with a path or host:password"
+                " component."
             )
         self.normalize_bucket_url()
 
@@ -304,9 +285,9 @@ class FilesystemConfiguration(BaseConfiguration):
         """
         url = urlparse(file_url)
         if url.scheme != "file":
-            raise ValueError(f"Must be file scheme but is `{url.scheme}`")
+            raise ValueError(f"Must be file scheme but is {url.scheme}")
         if not url.path and not url.netloc:
-            raise ConfigurationValueError("File `path` and `netloc` are missing.")
+            raise ConfigurationValueError("File path and netloc are missing.")
         local_path = unquote(url.path)
         if url.netloc:
             # or UNC file://localhost/path
@@ -328,120 +309,4 @@ class FilesystemConfiguration(BaseConfiguration):
 
         netloc is never set. UNC paths are represented as file://host/path
         """
-        return make_fsspec_url("file", local_path, None)
-
-
-@dataclass
-class WithLocalFiles(BaseConfiguration):
-    """Mixin to BaseConfiguration that shifts relative locations into `local_dir` and allows for a few special locations.
-    :pipeline: in the pipeline working folder
-    :external: location is an instance of an object (ie. fsspec or duckdb connection)
-
-    Unifies default names for objects stored in filesystem (datasets / database names)
-    - if destination_name is known it will be used to create name OR
-    - if pipeline_name is known it will be used to create name
-
-    Note: if not provided explicitly, `local_dir` is taken from run context and destination_name is injected
-    Pipeline class which instantiates configuration will bind all NotResolved() params below explicitly
-
-    """
-
-    destination_name: Optional[str] = None
-
-    local_dir: Annotated[str, NotResolved()] = None
-    # needed by duckdb
-    # TODO: deprecate this in 2.0
-    pipeline_name: Annotated[Optional[str], NotResolved()] = None
-    pipeline_working_dir: Annotated[Optional[str], NotResolved()] = None
-    legacy_db_path: Annotated[Optional[str], NotResolved()] = None
-
-    def on_partial(self) -> None:
-        from dlt.common.runtime.run_context import active
-
-        if not self.local_dir:
-            self.local_dir = os.path.abspath(active().local_dir)
-            if not self.is_partial():
-                self.resolve()
-
-    def make_location(self, configured_location: str, default_location_pat: str) -> str:
-        # do not set any paths for external database / instance
-        if configured_location == ":external:":
-            return configured_location
-
-        def _default_location() -> str:
-            # use destination name to create default location name
-            if self.destination_name:
-                return default_location_pat % self.destination_name
-            else:
-                return default_location_pat % (self.pipeline_name or "")
-
-        if configured_location == ":pipeline:":
-            # try the pipeline context
-            if self.pipeline_working_dir:
-                return os.path.join(self.pipeline_working_dir, _default_location())
-            raise RuntimeError(
-                "Attempting to use special location `:pipeline:` outside of pipeline context."
-            )
-        else:
-            # if explicit path is absolute, use it
-            if configured_location and os.path.isabs(configured_location):
-                return configured_location
-            # TODO: restore this check for the paths below. we may require that path exists
-            #  if pipeline had already run
-            # if not self.bound_to_pipeline.first_run:
-            #     if not os.path.exists(pipeline_path):
-            #         logger.warning(
-            #             f"Duckdb attached to pipeline {self.bound_to_pipeline.pipeline_name} in"
-            #             f" path {os.path.relpath(pipeline_path)} was could not be found but"
-            #             " pipeline has already ran. This may be a result of (1) recreating or"
-            #             " attaching pipeline  without or with changed explicit path to database"
-            #             " that was used when creating the pipeline. (2) keeping the path to to"
-            #             " database in secrets and changing the current working folder so  dlt"
-            #             " cannot see them. (3) you deleting the database."
-            # use stored path if relpath
-            if self.legacy_db_path:
-                return self.legacy_db_path
-            # use tmp path as root, not cwd
-            return os.path.join(self.local_dir, configured_location or _default_location())
-
-
-@configspec
-class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):
-    """FilesystemConfiguration that adjust relative local filesystem bucket_url to
-    be relative to `local_dir`.
-    """
-
-    def normalize_bucket_url(self) -> None:
-        # here we deal with normalized file:// local paths
-        if self.is_local_filesystem:
-            # convert to native path
-            try:
-                local_file_path = self.make_local_path(self.bucket_url)
-            except ValueError:
-                local_file_path = self.bucket_url
-            relocated_path = self.make_location(local_file_path, "%s")
-            # convert back into file:// schema if relocated
-            if local_file_path != relocated_path:
-                if self.bucket_url.startswith("file:"):
-                    self.bucket_url = self.make_file_url(relocated_path)
-                else:
-                    self.bucket_url = relocated_path
-        # modified local path before it is normalized
-        super().normalize_bucket_url()
-
-    @resolve_type("credentials")
-    def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        return super().resolve_credentials_type()
-
-    @staticmethod
-    def make_file_url(local_path: str) -> str:
-        """Creates a normalized file:// url from a local path. If path is relative, `local_dir`
-        will be used.
-        netloc is never set. UNC paths are represented as file://host/path
-        """
-        if not os.path.isabs(local_path):
-            from dlt.common.runtime.run_context import active
-
-            local_path = os.path.join(active().local_dir, local_path)
-
         return make_fsspec_url("file", local_path, None)

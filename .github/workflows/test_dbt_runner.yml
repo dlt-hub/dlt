@@ -1,0 +1,98 @@
+
+name: tools | dbt runner
+
+on:
+  pull_request_target:
+    branches:
+      - master
+      - devel
+    types:
+      - opened
+      - synchronize
+      - labeled
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  RUNTIME__LOG_LEVEL: ERROR
+  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
+
+jobs:
+  authorize:
+    # run when label is assigned OR when we are not a fork
+    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+
+  get_docs_changes:
+    name: docs changes
+    needs: authorize
+    uses: ./.github/workflows/get_docs_changes.yml
+
+  run_dbt:
+    name: tools | dbt runner tests
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    defaults:
+      run:
+        shell: bash
+    runs-on: "ubuntu-latest"
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.x"
+
+      - name: Install Poetry without dbt
+        uses: snok/install-poetry@v1.3.2
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+          version: 1.8.5
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          # path: ${{ steps.pip-cache.outputs.dir }}
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-runner
+
+      - name: Install dependencies
+        # install dlt with postgres support
+        run: poetry install --no-interaction -E postgres -E postgis --with sentry-sdk,dbt
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - run: |
+          poetry run pytest tests/helpers/dbt_tests -k '(not venv)'
+        if: runner.os != 'Windows'
+        name: Run dbt runner - Linux/MAC
+      - run: |
+          poetry run pytest tests/helpers/dbt_tests -k "(not venv)"
+        if: runner.os == 'Windows'
+        name: Run dbt runner - Windows
+        shell: cmd
+
+      - name: Remove dbt-core
+        # install dlt with postgres support
+        run: poetry run pip uninstall dbt-core -y
+
+      - run: |
+          poetry run pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
+        name: Run dbt runner with venv - Linux/MAC

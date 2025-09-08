@@ -221,11 +221,11 @@ def apply_schema_contract_to_model(
     """
     if data_mode == "evolve":
         # create a lenient model that accepts any data
-        model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.model_fields})  # type: ignore
+        model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.__fields__})  # type: ignore[call-overload, attr-defined]
     elif data_mode == "discard_value":
         raise NotImplementedError(
-            "`data_mode='discard_value'`. Cannot discard defined fields with validation errors"
-            " using Pydantic models."
+            "data_mode is discard_value. Cannot discard defined fields with validation errors using"
+            " Pydantic models."
         )
 
     extra = column_mode_to_extra(column_mode)
@@ -365,7 +365,7 @@ def validate_and_filter_items(
                     deleted.add(err_idx)
                 else:
                     raise NotImplementedError(
-                        f"`{column_mode=:}` not implemented for Pydantic validation"
+                        f"{column_mode} column mode not implemented for Pydantic validation"
                     )
             else:
                 if data_mode == "freeze":
@@ -385,7 +385,7 @@ def validate_and_filter_items(
                     deleted.add(err_idx)
                 else:
                     raise NotImplementedError(
-                        f"`{column_mode=:}` not implemented for Pydantic validation"
+                        f"{column_mode} column mode not implemented for Pydantic validation"
                     )
 
         # validate again with error items removed
@@ -423,7 +423,7 @@ def validate_and_filter_item(
                 elif column_mode == "discard_row":
                     return None
                 raise NotImplementedError(
-                    f"`{column_mode=:}` not implemented for Pydantic validation"
+                    f"{column_mode} column mode not implemented for Pydantic validation"
                 )
             else:
                 if data_mode == "freeze":
@@ -441,6 +441,6 @@ def validate_and_filter_item(
                 elif data_mode == "discard_row":
                     return None
                 raise NotImplementedError(
-                    f"`{data_mode=:}` not implemented for Pydantic validation"
+                    f"{data_mode} data mode not implemented for Pydantic validation"
                 )
         raise AssertionError("unreachable")

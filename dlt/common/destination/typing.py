@@ -6,6 +6,8 @@ from dlt.common.schema.typing import (
     TTableReferenceParam,
 )
 
+TDatasetType = Literal["auto", "default", "ibis"]
+
 
 class PreparedTableSchema(_TTableSchemaBase, total=False):
     """Table schema with all hints prepared to be loaded"""

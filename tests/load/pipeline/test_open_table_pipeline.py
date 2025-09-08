@@ -12,10 +12,7 @@ import pytest
 
 from dlt.common import json
 from dlt.common import pendulum
-from dlt.common.storages.configuration import (
-    FilesystemConfiguration,
-    FilesystemConfigurationWithLocalFiles,
-)
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TTableFormat
@@ -137,10 +134,10 @@ def test_table_format_core(
     # TODO: only final copy job has remote_url. not the initial (empty) job for particular files
     # we could implement an empty job for delta that generates correct remote_url
     remote_url = list(metrics["job_metrics"].values())[-1].remote_url
-    assert remote_url.endswith(("data_types", "_dlt_pipeline_state", ""))
+    assert remote_url.endswith(("data_types", "_dlt_pipeline_state"))
     bucket_url = destination_config.bucket_url
     if FilesystemConfiguration.is_local_path(bucket_url):
-        bucket_url = FilesystemConfigurationWithLocalFiles.make_file_url(bucket_url)
+        bucket_url = FilesystemConfiguration.make_file_url(bucket_url)
     assert remote_url.startswith(bucket_url)
 
     # another run should append rows to the table
@@ -378,15 +375,16 @@ def test_table_format_child_tables(
     assert len(rows_dict["nested_table__child"]) == 3
     assert len(rows_dict["nested_table__child__grandchild"]) == 5
 
-    # now drop children and grandchildren, use merge write disposition to create and pass full table chain
-    # also for tables that do not have jobs
-    info = pipeline.run(
-        [{"foo": i} for i in range(3, 10003)],
-        table_name="nested_table",
-        primary_key="foo",
-        write_disposition="merge",
-    )
-    assert_load_info(info)
+    if destination_config.supports_merge:
+        # now drop children and grandchildren, use merge write disposition to create and pass full table chain
+        # also for tables that do not have jobs
+        info = pipeline.run(
+            [{"foo": 3}] * 10000,
+            table_name="nested_table",
+            primary_key="foo",
+            write_disposition="merge",
+        )
+        assert_load_info(info)
 
 
 @pytest.mark.parametrize(
@@ -492,8 +490,7 @@ def test_table_format_partitioning(
         assert destination_config.destination_type == "filesystem"
     except IcebergViewException:
         # currently duckdb does not allow to create views on empty Iceberg tables
-        # assert destination_config.destination_type != "filesystem"
-        pass
+        assert destination_config.destination_type != "filesystem"
 
     # test partitioning with empty source
     users_source = users_materialize_table_schema()
@@ -508,8 +505,7 @@ def test_table_format_partitioning(
         assert load_table_counts(pipeline, "users")["users"] == 0
         assert destination_config.destination_type == "filesystem"
     except IcebergViewException:
-        pass
-        # assert destination_config.destination_type != "filesystem"
+        assert destination_config.destination_type != "filesystem"
 
     # changing partitioning after initial table creation is not supported
     zero_part.apply_hints(columns={"foo": {"partition": True}})

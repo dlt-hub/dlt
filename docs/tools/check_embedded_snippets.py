@@ -21,7 +21,7 @@ from utils import collect_markdown_files
 
 
 SNIPPET_MARKER = "```"
-ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql", "hcl", "dbml", "dot"]
+ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql", "hcl"]
 
 LINT_TEMPLATE = "./lint_setup/template.py"
 LINT_FILE = "./lint_setup/lint_me.py"

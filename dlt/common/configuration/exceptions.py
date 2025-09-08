@@ -23,18 +23,20 @@ class ConfigurationValueError(ConfigurationException, ValueError):
 class ContainerException(DltException):
     """base exception for all exceptions related to injectable container"""
 
+    pass
+
 
 class ConfigProviderException(ConfigurationException):
-    def __init__(self, provider_name: str, *args: Any) -> None:
-        self.provider_name = provider_name
-        super().__init__(*args)
+    """base exceptions for all exceptions raised by config providers"""
+
+    pass
 
 
 class ConfigurationWrongTypeException(ConfigurationException):
     def __init__(self, _typ: type) -> None:
         super().__init__(
-            f"Invalid configuration instance type `{_typ}`. Configuration instances must derive"
-            " from BaseConfiguration and must be decorated with @configspec."
+            f"Invalid configuration instance type {_typ}. Configuration instances must derive from"
+            " BaseConfiguration."
         )
 
 
@@ -48,13 +50,14 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         super().__init__(spec_name)
 
     def __str__(self) -> str:
-        msg = f"Missing fields in configuration: {str(self.fields)} {self.spec_name}\n"
+        msg = (
+            f"Following fields are missing: {str(self.fields)} in configuration with spec"
+            f" {self.spec_name}\n"
+        )
         for f, field_traces in self.traces.items():
-            msg += (
-                f"\tfor field `{f}` the following (config providers, keys) were tried in order:\n"
-            )
+            msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
             for tr in field_traces:
-                msg += f"\t\t({tr.provider}, {tr.key})\n"
+                msg += f"\t\tIn {tr.provider} key {tr.key} was not found.\n"
 
         from dlt.common.configuration.container import Container
         from dlt.common.configuration.specs import PluggableRunContext
@@ -65,16 +68,43 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         for provider in providers.providers:
             if provider.locations:
                 locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
-                msg += f"Provider `{provider.name}` loaded values from locations:\n{locations}\n"
-
+                msg += (
+                    f"Provider {provider.name} used following locations to load"
+                    f" values:\n{locations}\n"
+                )
             if provider.is_empty:
                 msg += (
-                    f"WARNING: provider `{provider.name}` is empty. Locations (i.e., files) are"
-                    " missing or empty.\n"
+                    f"WARNING: provider {provider.name} is empty. Locations (ie. files) may not"
+                    " exist or may be empty.\n"
                 )
-        # get pipeline context warning
-        msg += get_run_context_warning(main_module_file_path())
-        msg += "Learn more: https://dlthub.com/docs/general-usage/credentials/\n"
+
+        # check if entry point is run with path. this is common problem so warn the user
+        main_path = main_module_file_path()
+        if main_path and main_path.endswith(".py"):
+            from dlt.common.runtime import run_context
+
+            # check if settings are relative
+            settings = run_context.active().settings_dir
+            # settings are relative so check makes sense
+            if not os.path.isabs(settings):
+                main_dir = os.path.dirname(main_path)
+                abs_main_dir = os.path.abspath(main_dir)
+                if abs_main_dir != os.getcwd():
+                    # directory was specified
+                    msg += (
+                        f"WARNING: dlt looks for {settings} folder in your current working"
+                        " directory and your cwd (%s) is different from directory of your pipeline"
+                        " script (%s).\n" % (os.getcwd(), abs_main_dir)
+                    )
+                    msg += (
+                        "If you keep your secret files in the same folder as your pipeline script"
+                        " but run your script from some other folder, secrets/configs will not be"
+                        " found\n"
+                    )
+        msg += (
+            "Please refer to https://dlthub.com/docs/general-usage/credentials/ for more"
+            " information\n"
+        )
         return msg
 
     def attrs(self) -> Dict[str, Any]:
@@ -87,75 +117,6 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         return attrs_
 
 
-def get_run_context_warning(main_module_path: str) -> str:
-    """Generates additional warnings when config resolution failed. There are two typical reasons
-    (except genuine missing configurations):
-    * `main_module_path` differs from current run_dir so `dlt` does not find related .dlt folder with settings
-    * command line was used but pipeline script hardcodes config and secrets
-    """
-    from dlt.common.configuration.container import Container
-    from dlt.common.runtime import run_context
-    from dlt.common.pipeline import SupportsPipeline, PipelineContext
-
-    msg = "\n"
-    settings_moved_msg = (
-        "If you keep `.dlt` folder with secret files in the same directory as your pipeline script"
-        " but run your script or a dlt cli command from some other folder,"
-        " secrets/configs will not be found.\n"
-    )
-
-    # find active pipeline
-    context = Container()[PipelineContext]
-    active_pipeline: SupportsPipeline = None
-    # it is not always present
-    if context.is_active():
-        active_pipeline = context.pipeline()
-
-    # use abs path to settings
-    active_context = run_context.active()
-    active_settings = os.path.abspath(active_context.settings_dir)
-
-    if active_pipeline and active_pipeline.last_run_context:
-        # warn if settings are now somewhere else than when pipeline had last successful run
-        last_run_settings = active_pipeline.last_run_context["settings_dir"]
-        if last_run_settings != active_settings:
-            msg += (
-                f"WARNING: Active pipeline `{active_pipeline.pipeline_name}` used"
-                f" `{last_run_settings}` directory to read config and secrets for the last"
-                f" successful run. Different directory `{active_settings}` is used now which may be"
-                " the reason for configuration not resolving.\n"
-                + settings_moved_msg
-            )
-
-        else:
-            # locations didn't change
-            pass
-    else:
-        # there's no active pipeline or it does not contain run context from successful run
-        if main_module_path and main_module_path.endswith(".py"):
-            pipeline_script_dir = os.path.abspath(os.path.dirname(main_module_path))
-            run_dir = os.path.abspath(run_context.active().run_dir)
-            if pipeline_script_dir != run_dir:
-                msg += (
-                    "WARNING: Your run dir (%s) is different from directory of your"
-                    " pipeline script (%s).\n" % (run_dir, pipeline_script_dir)
-                ) + settings_moved_msg
-        else:
-            # if no module path (ie. interactive) or it was not a script (ie. `dlt` cli`)
-            pass
-
-    if main_module_path and main_module_path.endswith("dlt"):
-        msg += (
-            "\nWARNING: When accessing data in the pipeline from the command line `dlt` will not"
-            " execute user code and will just attach to the existing pipeline working dir. If you"
-            " hardcoded your credentials or passed them explicitly ie. with `dlt.secrets` they"
-            " won't be visible. Use environment variables, config files or other providers with"
-            " config injection in order to use cli commands that access data.\n"
-        )
-
-    return msg
-
-
 class UnmatchedConfigHintResolversException(ConfigurationException):
     """Raised when using `@resolve_type` on a field that doesn't exist in the spec"""
 
@@ -166,9 +127,9 @@ class UnmatchedConfigHintResolversException(ConfigurationException):
             f">>>    {name}: Any" for name in field_names
         )
         msg = (
-            f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}`"
-            " but these fields are not defined in the spec.\nWhen using @resolve_type() decorator,"
-            f" Add the fields with 'Any' or another common type hint, example:\n\n{example}"
+            f"The config spec {spec_name} has dynamic type resolvers for fields: {field_names} but"
+            " these fields are not defined in the spec.\nWhen using @resolve_type() decorator, Add"
+            f" the fields with 'Any' or another common type hint, example:\n\n{example}"
         )
         super().__init__(msg)
 
@@ -178,8 +139,7 @@ class FinalConfigFieldException(ConfigurationException):
 
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(
-            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config"
-            " provider"
+            f"Field {field} in spec {spec_name} is final but is being changed by a config provider"
         )
 
 
@@ -191,7 +151,7 @@ class ConfigValueCannotBeCoercedException(ConfigurationValueError):
         self.field_value = field_value
         self.hint = hint
         super().__init__(
-            f"Configured value for field `{field_name}` cannot be coerced into type `{str(hint)}`"
+            "Configured value for field %s cannot be coerced into type %s" % (field_name, str(hint))
         )
 
 
@@ -209,7 +169,7 @@ class ConfigFileNotFoundException(ConfigurationException):
     """thrown when configuration file cannot be found in config folder"""
 
     def __init__(self, path: str) -> None:
-        super().__init__(f"Missing config file in `{path}`")
+        super().__init__(f"Missing config file in {path}")
 
 
 class ConfigFieldMissingTypeHintException(ConfigurationException):
@@ -219,7 +179,7 @@ class ConfigFieldMissingTypeHintException(ConfigurationException):
         self.field_name = field_name
         self.typ_ = spec
         super().__init__(
-            f"Field `{field_name}` on configspec `{spec}` does not provide required type hint"
+            f"Field {field_name} on configspec {spec} does not provide required type hint"
         )
 
 
@@ -230,7 +190,7 @@ class ConfigFieldTypeHintNotSupported(ConfigurationException):
         self.field_name = field_name
         self.typ_ = spec
         super().__init__(
-            f"Field `{field_name}` on configspec `{spec}` has hint with unsupported type `{typ_}`"
+            f"Field {field_name} on configspec {spec} has hint with unsupported type {typ_}"
         )
 
 
@@ -239,8 +199,8 @@ class ValueNotSecretException(ConfigurationException):
         self.provider_name = provider_name
         self.key = key
         super().__init__(
-            f"Provider `{provider_name}` cannot hold secret values but key `{key}` with secret"
-            " value is present"
+            f"Provider {provider_name} cannot hold secret values but key {key} with secret value is"
+            " present"
         )
 
 
@@ -258,9 +218,9 @@ class InvalidNativeValue(ConfigurationException):
         self.inner_exception = inner_exception
         inner_msg = f" {self.inner_exception}" if inner_exception is not ValueError else ""
         super().__init__(
-            f"`{spec.__name__}` cannot parse the configuration value provided. The value is of type"
-            f" `{native_value_type.__name__}` and comes from the sections `{embedded_sections}`"
-            f" Value may be a secret and is not shown. Details: {inner_msg}"
+            f"{spec.__name__} cannot parse the configuration value provided. The value is of type"
+            f" {native_value_type.__name__} and comes from the"
+            f" {embedded_sections} section(s).{inner_msg}"
         )
 
 
@@ -270,20 +230,20 @@ class ContainerInjectableContextMangled(ContainerException):
         self.existing_config = existing_config
         self.expected_config = expected_config
         super().__init__(
-            f"When restoring context `{spec.__name__}`, instance `{expected_config}` was expected,"
-            f" instead instance `{existing_config}` was found."
+            f"When restoring context {spec.__name__}, instance {expected_config} was expected,"
+            f" instead instance {existing_config} was found."
         )
 
 
 class ContextDefaultCannotBeCreated(ContainerException, KeyError):
     def __init__(self, spec: Type[Any]) -> None:
         self.spec = spec
-        super().__init__(f"Container cannot create the default value of context `{spec.__name__}`.")
+        super().__init__(f"Container cannot create the default value of context {spec.__name__}.")
 
 
 class DuplicateConfigProviderException(ConfigProviderException):
     def __init__(self, provider_name: str) -> None:
+        self.provider_name = provider_name
         super().__init__(
-            provider_name,
-            f"Provider with name `{provider_name}` already present in `ConfigProvidersContext`",
+            f"Provider with name {provider_name} already present in ConfigProvidersContext"
         )

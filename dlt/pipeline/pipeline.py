@@ -9,28 +9,26 @@ from typing import (
     ClassVar,
     List,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     Tuple,
-    TypeVar,
     cast,
     ContextManager,
     Union,
-    TYPE_CHECKING,
+    overload,
 )
 
 import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
-from dlt.common.destination.dataset import SupportsDataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -61,7 +59,6 @@ from dlt.common.storages import (
     PackageStorage,
     LoadJobInfo,
     LoadPackageInfo,
-    WithLocalFiles,
 )
 from dlt.common.destination import (
     Destination,
@@ -79,6 +76,7 @@ from dlt.common.destination.client import (
     DestinationClientStagingConfiguration,
 )
 from dlt.common.destination.exceptions import SqlClientNotAvailable, FSClientNotAvailable
+from dlt.common.destination.typing import TDatasetType
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
     ExtractInfo,
@@ -87,7 +85,6 @@ from dlt.common.pipeline import (
     PipelineContext,
     TStepInfo,
     SupportsPipeline,
-    TLastRunContext,
     TPipelineLocalState,
     TPipelineState,
     StateInjectableContext,
@@ -96,10 +93,11 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import is_interactive, simple_repr, without_none
+from dlt.common.utils import is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
+from dlt.destinations.configuration import WithLocalFiles
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -108,7 +106,11 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.destinations.dataset import get_destination_clients
+from dlt.destinations.dataset import (
+    dataset,
+    get_destination_clients,
+)
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -145,14 +147,6 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
-
-if TYPE_CHECKING:
-    from dlt import SupportsDataset
-else:
-    SupportsDataset = Any
-
-
-TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -297,19 +291,28 @@ class Pipeline(SupportsPipeline):
     LOCAL_STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineLocalState).keys())
     DEFAULT_DATASET_SUFFIX: ClassVar[str] = "_dataset"
 
-    # default_schema_name: str
+    pipeline_name: str
+    """Name of the pipeline"""
+    default_schema_name: str
     schema_names: List[str]
+    first_run: bool
+    """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
     dev_mode: bool
     must_attach_to_local_pipeline: bool
     pipelines_dir: str
     """A directory where the pipelines' working directories are created"""
+    working_dir: str
+    """A working directory of the pipeline"""
     _destination: AnyDestination
     _staging: AnyDestination
     """The destination reference which is the Destination Class. `destination.destination_name` returns the name string"""
+    dataset_name: str
+    """Name of the dataset to which pipeline will be loaded to"""
     is_active: bool
     """Tells if instance is currently active and available via dlt.pipeline()"""
     collector: _Collector
     config: PipelineConfiguration
+    runtime_config: RuntimeConfiguration
     refresh: Optional[TRefreshMode]
 
     def __init__(
@@ -335,12 +338,10 @@ class Pipeline(SupportsPipeline):
         self.first_run = False
         self.dataset_name: str = None
         self.is_active = False
-        self.last_run_context: TLastRunContext = None
 
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
-        self.run_context = config.pluggable_run_context.context
         self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self._destination = None
@@ -365,7 +366,6 @@ class Pipeline(SupportsPipeline):
             self._set_destinations(destination=destination, staging=staging, initializing=True)
             # set the pipeline properties from state, destination and staging will not be set
             self._state_to_props(state)
-            # TODO: compare run_context with last_run_context restored from props. warn on changed uri
             # we overwrite the state with the values from init
             self._set_dataset_name(dataset_name)
 
@@ -377,9 +377,6 @@ class Pipeline(SupportsPipeline):
 
         Args:
             pipeline_name (str): Optional. New pipeline name. Creates and activates new instance
-
-        Returns:
-            "Pipeline": returns self
         """
         if self.is_active:
             self.deactivate()
@@ -443,10 +440,7 @@ class Pipeline(SupportsPipeline):
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
-            raise ValueErrorWithKnownValues(
-                "loader_file_format", loader_file_format, LOADER_FILE_FORMATS
-            )
-
+            raise ValueError(f"{loader_file_format} is unknown.")
         with self._maybe_destination_capabilities() as caps:
             if caps:
                 self._verify_destination_capabilities(caps, loader_file_format)
@@ -527,7 +521,6 @@ class Pipeline(SupportsPipeline):
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
         )
-
         # run with destination context
         with self._maybe_destination_capabilities() as caps:
             self._verify_destination_capabilities(caps, None)
@@ -597,7 +590,8 @@ class Pipeline(SupportsPipeline):
             with signals.delayed_signals():
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
-            self._update_last_run_context()
+
+            self.first_run = False
             return info
         except Exception as l_ex:
             step_info = self._get_step_info(load_step)
@@ -623,7 +617,7 @@ class Pipeline(SupportsPipeline):
         loader_file_format: TLoaderFileFormat = None,
         table_format: TTableFormat = None,
         schema_contract: TSchemaContract = None,
-        refresh: TRefreshMode = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -646,11 +640,8 @@ class Pipeline(SupportsPipeline):
         Args:
             data (Any): Data to be loaded to destination
 
-            destination (TDestinationReferenceArg, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
+            destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
                 If not provided, the value passed to `dlt.pipeline` will be used.
-
-            staging (TDestinationReferenceArg, optional): A name of the staging destination to which dlt will load the data temporarily before it is loaded to the destination, can also
-                be a module imported from `dlt.destination`.
 
             dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
                 If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
@@ -669,26 +660,25 @@ class Pipeline(SupportsPipeline):
                 Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
                 Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
-            columns (TAnySchemaColumns, optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+            columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
 
-            primary_key (TColumnNames, optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+            primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
-            loader_file_format (TLoaderFileFormat, optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
-            table_format (TTableFormat, optional): Can be "delta" or "iceberg". The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
+            table_format (Literal["delta", "iceberg"], optional): The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
 
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
-            refresh (TRefreshMode, optional): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
+            refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
                 * `drop_sources` - Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
                 * `drop_resources`-  Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
                 * `drop_data` - Wipe all data and resource state for all resources being processed. Schema is not modified.
 
         Raises:
             PipelineStepFailed: when a problem happened during `extract`, `normalize` or `load` steps.
-
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
@@ -783,9 +773,11 @@ class Pipeline(SupportsPipeline):
                 remote_state = self._restore_state_from_destination()
 
                 # if remote state is newer or same
+                # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
                 # TODO: check if remote_state["_state_version"] is not in 10 recent version. then we know remote is newer.
                 if remote_state and remote_state["_state_version"] >= state["_state_version"]:
                     state_changed = remote_state["_version_hash"] != state.get("_version_hash")
+                    # print(f"MERGED STATE: {bool(merged_state)}")
                     if state_changed:
                         # see if state didn't change the pipeline name
                         if state["pipeline_name"] != remote_state["pipeline_name"]:
@@ -800,14 +792,6 @@ class Pipeline(SupportsPipeline):
                             remote_state["schema_names"], always_download=True
                         )
                         # TODO: we should probably wipe out pipeline here
-                        if self.has_pending_data:
-                            logger.warning(
-                                f"Pipeline {self.pipeline_name} got restored from destination"
-                                " including new version of pipeline state but it has pending load"
-                                " packages that were not yet normalized or loaded. If those"
-                                " packages contain extracted state or schema migrations - those"
-                                " will not be affected and will still be loaded to destination."
-                            )
                 # if we didn't full refresh schemas, get only missing schemas
                 if restored_schemas is None:
                     restored_schemas = self._get_schemas_from_destination(
@@ -826,9 +810,9 @@ class Pipeline(SupportsPipeline):
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
                     self._schema_storage.save_schema(schema)
-                # if the remote state is present then unset first run and update last run context
+                # if the remote state is present then unset first run
                 if remote_state is not None:
-                    self._update_last_run_context()
+                    self.first_run = False
             except DestinationUndefinedEntity:
                 # storage not present. wipe the pipeline if pipeline not new
                 # do it only if pipeline has any data
@@ -849,29 +833,9 @@ class Pipeline(SupportsPipeline):
                             self._schema_storage_config.export_schema_path,
                             False,
                         )
+
             # write the state back
             self._props_to_state(state)
-            # verify state
-            if state_default_schema_name := state.get("default_schema_name"):
-                # at least empty list is present
-                state_schemas = state["schema_names"]
-                if state_default_schema_name not in state_schemas:
-                    new_default_schema_name: Optional[str] = (
-                        state_schemas[0] if len(state_schemas) > 0 else None
-                    )
-                    logger.warning(
-                        f"Pipeline {self.pipeline_name} was restored from destination with"
-                        " inconsistent state. Default schema name"
-                        f" {state_default_schema_name} could not be found and downloaded from the"
-                        " destination. "
-                        + (
-                            f"Default schema was set to {new_default_schema_name}."
-                            if new_default_schema_name
-                            else "Default schema was removed."
-                        )
-                    )
-                    self.default_schema_name = new_default_schema_name  # type: ignore[assignment]
-                    state["default_schema_name"] = new_default_schema_name
             bump_pipeline_state_version_if_modified(state)
             self._save_state(state)
         except Exception as ex:
@@ -918,7 +882,7 @@ class Pipeline(SupportsPipeline):
 
     @property
     def has_pending_data(self) -> bool:
-        """Tells if the pipeline contains any pending packages to be normalized or loaded"""
+        """Tells if the pipeline contains any extracted files or pending load packages"""
         return (
             len(self.list_normalized_load_packages()) > 0
             or len(self.list_extracted_load_packages()) > 0
@@ -948,25 +912,6 @@ class Pipeline(SupportsPipeline):
         if self._last_trace:
             return self._last_trace
         return load_trace(self.working_dir)
-
-    def __repr__(self) -> str:
-        kwargs = {
-            "pipeline_name": self.pipeline_name,
-            "destination": (
-                self._destination.destination_name if getattr(self, "_destination", None) else None
-            ),
-            "staging": self._staging.destination_name if getattr(self, "_staging", None) else None,
-            "dataset_name": self.dataset_name,
-            "default_schema_name": self.default_schema_name,
-            "schema_names": getattr(self, "schema_names", None),
-            "first_run": getattr(self, "first_run", None),
-            "dev_mode": getattr(self, "dev_mode", None),
-            # `is_active is True` is the common case
-            "is_active": getattr(self, "is_active", None),
-            "pipelines_dir": getattr(self, "pipelines_dir", None),
-            "working_dir": getattr(self, "working_dir", None),
-        }
-        return simple_repr("dlt.pipeline", **without_none(kwargs))
 
     @deprecated(
         "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
@@ -1055,19 +1000,6 @@ class Pipeline(SupportsPipeline):
             state = self._get_state()
         return state["_local"][key]  # type: ignore
 
-    def _update_last_run_context(self) -> None:
-        """
-        Persist the directory context in local state.
-        Safe-no-op if the pipeline is not active or if run_context cannot be resolved.
-        """
-        self.first_run = False
-        self.last_run_context = {
-            "settings_dir": os.path.abspath(self.run_context.settings_dir),
-            "local_dir": os.path.abspath(self.run_context.local_dir),
-            "run_dir": os.path.abspath(self.run_context.run_dir),
-            "uri": self.run_context.uri,
-        }
-
     @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
         """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
@@ -1151,25 +1083,12 @@ class Pipeline(SupportsPipeline):
             )
 
     def _on_set_destination(self, new_value: AnyDestination) -> None:
-        """Called when destination changes"""
         if issubclass(new_value.spec, WithLocalFiles):
             config = WithLocalFiles()
-            config = self._bind_local_files(config)
+            config._bind_local_files(self)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
-                if config[field] is not None:
-                    new_value.config_params[field] = config[field]
-
-    def _bind_local_files(self, local_files: TWithLocalFiles) -> TWithLocalFiles:
-        # get context for local files from pipeline
-        local_files.pipeline_working_dir = self.working_dir
-        try:
-            local_files.legacy_db_path = self.get_local_state_val("duckdb_database")
-        except KeyError:
-            pass
-        local_files.local_dir = self.get_local_state_val("initial_cwd")
-        local_files.pipeline_name = self.pipeline_name
-        return local_files
+                new_value.config_params[field] = config[field]
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:
@@ -1329,7 +1248,7 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "load",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt/config.toml file or environment variable.",
+                " directly or via .dlt config.toml file or environment variable.",
             )
 
         destination_client, staging_client = get_destination_clients(
@@ -1350,8 +1269,8 @@ class Pipeline(SupportsPipeline):
         if isinstance(destination_client.config, DestinationClientStagingConfiguration):
             if not self.dataset_name and self.dev_mode:
                 logger.warning(
-                    "`dev_mode=True` may not work if `dataset_name` is not set. "
-                    "Please set `dataset_name` in `dlt.pipeline(...)` or `Pipeline.run(...)`."
+                    "Dev mode may not work if dataset name is not set. Please set the"
+                    " dataset_name argument in dlt.pipeline or run method"
                 )
 
         return destination_client, staging_client
@@ -1363,9 +1282,8 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "normalize",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt/config.toml file or environment variable.",
+                " directly or via .dlt config.toml file or environment variable.",
             )
-
         # check if default schema is present
         if (
             self.default_schema_name is not None
@@ -1374,7 +1292,6 @@ class Pipeline(SupportsPipeline):
             naming = self.default_schema.naming
         else:
             naming = None
-
         return self._destination.capabilities(naming=naming)
 
     def _get_staging_capabilities(self) -> Optional[DestinationCapabilitiesContext]:
@@ -1395,6 +1312,14 @@ class Pipeline(SupportsPipeline):
             FileStorage.validate_file_name_component(self.pipeline_name)
         except ValueError as ve_ex:
             raise InvalidPipelineName(self.pipeline_name, str(ve_ex))
+
+    def _make_schema_with_default_name(self) -> Schema:
+        """Make a schema from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
+        if self.pipeline_name.endswith("_pipeline"):
+            schema_name = self.pipeline_name[:-9]
+        else:
+            schema_name = self.pipeline_name
+        return Schema(normalize_schema_name(schema_name))
 
     def _set_context(self, is_active: bool) -> None:
         if not self.is_active and is_active:
@@ -1616,7 +1541,6 @@ class Pipeline(SupportsPipeline):
         for schema_name in schema_names:
             with self._maybe_destination_capabilities():
                 schema = Schema(schema_name)
-
             if not self._schema_storage.has_schema(schema.name) or always_download:
                 with self._get_destination_clients(schema)[0] as job_client:
                     if not isinstance(job_client, WithStateSync):
@@ -1627,16 +1551,13 @@ class Pipeline(SupportsPipeline):
                         return restored_schemas
                     schema_info = job_client.get_stored_schema(schema_name)
                     if schema_info is None:
-                        logger.warning(
+                        logger.info(
                             f"The schema {schema.name} was not found in the destination"
-                            f" {self._destination.destination_name}:{self.dataset_name}. "
-                            " Pipeline state indicated that this schema should be preset. "
-                            "New or imported schema will be used instead. "
+                            f" {self._destination.destination_name}:{self.dataset_name}"
                         )
                         # try to import schema
                         with contextlib.suppress(FileNotFoundError):
-                            schema = self._schema_storage.load_schema(schema.name)
-                        # imported or new/empty schema will be added to restored schemas
+                            self._schema_storage.load_schema(schema.name)
                     else:
                         schema = Schema.from_dict(json.loads(schema_info.schema))
                         logger.info(
@@ -1644,8 +1565,7 @@ class Pipeline(SupportsPipeline):
                             f" {schema.stored_version_hash} was restored from the destination"
                             f" {self._destination.destination_name}:{self.dataset_name}"
                         )
-
-                    restored_schemas.append(schema)
+                        restored_schemas.append(schema)
         return restored_schemas
 
     @contextmanager
@@ -1731,9 +1651,9 @@ class Pipeline(SupportsPipeline):
         """Save given state + schema and extract creating a new load package
 
         Args:
-            state (TPipelineState): The new pipeline state, replaces the current state
-            schema (Schema): The new source schema, replaces current schema of the same name
-            load_package_state_update (Optional[TLoadPackageState]): Dict which items will be included in the load package state
+            state: The new pipeline state, replaces the current state
+            schema: The new source schema, replaces current schema of the same name
+            load_package_state_update: Dict which items will be included in the load package state
         """
         self.schemas.save_schema(schema)
         with self.managed_state() as old_state:
@@ -1808,44 +1728,55 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    def dataset(self, schema: Union[Schema, str, None] = None) -> SupportsDataset:
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: Literal["ibis"] = "ibis",
+    ) -> ReadableDBAPIDataset: ...
+
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: Literal["default"] = "default",
+    ) -> ReadableDBAPIDataset: ...
+
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: TDatasetType = "auto",
+    ) -> ReadableDBAPIDataset: ...
+
+    def dataset(
+        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
+    ) -> Any:
         """Returns a dataset object for querying the destination data.
 
         Args:
-            schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
+            schema: Schema name or Schema object to use. If None, uses the default schema if set.
+            dataset_type: Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
+                otherwise it will fallback to the standard dbapi interface.
         Returns:
-            SupportsDataset: A dataset object that supports querying the destination data.
+            A dataset object that supports querying the destination data.
         """
-
-        if not self._destination:
-            raise PipelineConfigMissing(
-                self.pipeline_name,
-                "destination",
-                "dataset",
-                "Please provide `destination` argument to `pipeline` method"
-                " directly or via .dlt config.toml file or environment variable.",
-            )
-
         if isinstance(schema, Schema):
             logger.info(
                 f"Make sure that tables declared in explicit schema {schema.name} are present on"
                 f" dataset {self.dataset_name}"
             )
-        elif isinstance(schema, str):
-            if schema not in self.schemas:
-                logger.info(
-                    f"Schema {schema} not found in the pipeline, deferring to destination, this"
-                    " will load a schema of this name from the destination or use an empty schema"
-                    " with this name."
-                )
-            else:
-                schema = self.schemas[schema]
-
-        elif self.default_schema_name:
+        elif not self.default_schema_name:
+            raise PipelineNeverRan(self.pipeline_name, self.pipelines_dir)
+        elif schema is None:
             schema = self.default_schema
+        elif isinstance(schema, str):
+            # schema with given name must be present
+            schema = self.schemas[schema]
 
-        return dlt.dataset(
+        return dataset(
             self._destination,
             self.dataset_name,
             schema=schema,
+            dataset_type=dataset_type,
         )

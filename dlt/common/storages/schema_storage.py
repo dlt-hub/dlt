@@ -9,7 +9,7 @@ from dlt.common.schema.utils import get_processing_hints, to_pretty_json, to_pre
 from dlt.common.storages.configuration import (
     SchemaStorageConfiguration,
     TSchemaFileFormat,
-    SCHEMA_FILES_EXTENSIONS,
+    SchemaFileExtensions,
 )
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import Schema, verify_schema_hash
@@ -84,10 +84,11 @@ class SchemaStorage(Mapping[str, Schema]):
                 self._load_import_schema(schema.name)
             except FileNotFoundError:
                 # save import schema only if it not exist
-                import_schema_hash = self._export_schema(
+                self._export_schema(
                     schema, self.config.import_schema_path, remove_processing_hints=True
                 )
-                schema._imported_version_hash = import_schema_hash
+                # if import schema got saved then add own version hash as import version hash
+                schema._imported_version_hash = schema.version_hash
                 return True
 
         return False
@@ -186,37 +187,26 @@ class SchemaStorage(Mapping[str, Schema]):
 
     def _export_schema(
         self, schema: Schema, export_path: str, remove_processing_hints: bool = False
-    ) -> str:
+    ) -> None:
+        stored_schema = schema.to_dict(
+            remove_defaults=self.config.external_schema_format_remove_defaults,
+            remove_processing_hints=remove_processing_hints,
+        )
         if self.config.external_schema_format == "json":
-            exported_schema_s = schema.to_pretty_json(
-                remove_defaults=self.config.external_schema_format_remove_defaults,
-                remove_processing_hints=remove_processing_hints,
-            )
+            exported_schema_s = to_pretty_json(stored_schema)
         elif self.config.external_schema_format == "yaml":
-            exported_schema_s = schema.to_pretty_yaml(
-                remove_defaults=self.config.external_schema_format_remove_defaults,
-                remove_processing_hints=remove_processing_hints,
-            )
-        elif self.config.external_schema_format == "dbml":
-            exported_schema_s = schema.to_dbml(remove_processing_hints=remove_processing_hints)
+            exported_schema_s = to_pretty_yaml(stored_schema)
         else:
             raise ValueError(self.config.external_schema_format)
 
         export_storage = FileStorage(export_path, makedirs=True)
         schema_file = self._file_name_in_store(schema.name, self.config.external_schema_format)
         export_storage.save(schema_file, exported_schema_s)
-
-        # export schema with the same settings
-        stored_schema = schema.to_dict(
-            remove_defaults=self.config.external_schema_format_remove_defaults,
-            remove_processing_hints=remove_processing_hints,
-        )
         logger.info(
             f"Schema {schema.name} exported to {export_path} with version"
             f" {stored_schema['version']}:{stored_schema['version_hash']} as"
             f" {self.config.external_schema_format}"
         )
-        return stored_schema["version_hash"]
 
     def _save_schema(self, schema: Schema) -> str:
         """Saves schema to schema store and bumps the version"""
@@ -240,25 +230,23 @@ class SchemaStorage(Mapping[str, Schema]):
                 self.config.export_schema_path == self.config.import_schema_path,
             )
         # if any processing hints are found we should warn the user
-        if check_processing_hints:
-            table_hints, _ = get_processing_hints(schema.tables)
-            if table_hints:
-                msg = (
-                    f"Imported schema {schema.name} contains processing hints for some tables."
-                    " Processing hints are used by normalizer (x-normalizer) to mark tables that"
-                    " got materialized and that prevents destructive changes to the schema. In"
-                    " most cases import schema should not contain processing hints because it is"
-                    " mostly used to initialize tables in a new dataset. "
-                )
-                msg += "Affected tables are: " + ", ".join(table_hints.keys())
-                logger.warning(msg)
+        if check_processing_hints and (processing_hints := get_processing_hints(schema.tables)):
+            msg = (
+                f"Imported schema {schema.name} contains processing hints for some tables."
+                " Processing hints are used by normalizer (x-normalizer) to mark tables that got"
+                " materialized and that prevents destructive changes to the schema. In most cases"
+                " import schema should not contain processing hints because it is mostly used to"
+                " initialize tables in a new dataset. "
+            )
+            msg += "Affected tables are: " + ", ".join(processing_hints.keys())
+            logger.warning(msg)
         return saved_path
 
     @staticmethod
     def load_schema_file(
         path: str,
         name: str,
-        extensions: Tuple[TSchemaFileFormat, ...] = SCHEMA_FILES_EXTENSIONS,
+        extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions,
         remove_processing_hints: bool = False,
     ) -> Schema:
         storage = FileStorage(path)
@@ -280,10 +268,6 @@ class SchemaStorage(Mapping[str, Schema]):
             imported_schema: DictStrAny = json.loads(schema_str)
         elif extension == "yaml":
             imported_schema = yaml.safe_load(schema_str)
-        elif extension == "dbml":
-            raise ValueError(extension, "Schema parser for `dbml` not yet implemented")
-        elif extension == "dot":
-            raise ValueError(extension, "Schema parser for `dot` not yet implemented")
         else:
             raise ValueError(extension)
         return imported_schema

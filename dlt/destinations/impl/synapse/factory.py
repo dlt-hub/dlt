@@ -1,4 +1,4 @@
-from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional
+import typing as t
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, PreparedTableSchema
@@ -16,7 +16,7 @@ from dlt.destinations.impl.synapse.configuration import (
 )
 from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from dlt.destinations.impl.synapse.synapse import SynapseClient
 
 
@@ -35,26 +35,20 @@ class SynapseTypeMapper(MsSqlTypeMapper):
                 "time",
             )
 
-    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
-        sc_t = column["data_type"]
-        if sc_t == "json":
-            return "nvarchar(%s)" % column.get("precision", "max")
-        return super().to_destination_type(column, table)
-
 
 class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
     spec = SynapseClientConfiguration
 
     # TODO: implement as property everywhere and makes sure not accessed as class property
     # @property
-    # def spec(self) ->  Type[SynapseClientConfiguration]:
+    # def spec(self) -> t.Type[SynapseClientConfiguration]:
     #     return SynapseClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
 
         caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "model"]
+        caps.supported_loader_file_formats = ["insert_values"]
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["parquet"]
         caps.type_mapper = SynapseTypeMapper
@@ -94,11 +88,10 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         caps.supports_create_table_if_not_exists = (
             False  # IF NOT EXISTS on CREATE TABLE not supported
         )
-        caps.supports_multiple_statements = True
 
         # Synapse throws "Some part of your SQL statement is nested too deeply. Rewrite the query or break it up into smaller queries."
         # if number of records exceeds a certain number. Which exact number that is seems not deterministic:
-        # in tests, I've seen a query with 12230 records run successfully on one run, but fail on a subsequent run, while the query remained exactly the same.
+        # in tests, I've seen a query with 12230 records run succesfully on one run, but fail on a subsequent run, while the query remained exactly the same.
         # 10.000 records is a "safe" amount that always seems to work.
         caps.max_rows_per_insert = 10000
 
@@ -114,36 +107,34 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         return caps
 
     @property
-    def client_class(self) -> Type["SynapseClient"]:
+    def client_class(self) -> t.Type["SynapseClient"]:
         from dlt.destinations.impl.synapse.synapse import SynapseClient
 
         return SynapseClient
 
     def __init__(
         self,
-        credentials: Union[SynapseCredentials, Dict[str, Any], str] = None,
-        default_table_index_type: TTableIndexType = "heap",
+        credentials: t.Union[SynapseCredentials, t.Dict[str, t.Any], str] = None,
+        default_table_index_type: t.Optional[TTableIndexType] = "heap",
         create_indexes: bool = False,
         staging_use_msi: bool = False,
         has_case_sensitive_identifiers: bool = False,
-        destination_name: str = None,
-        environment: str = None,
-        **kwargs: Any,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
+        **kwargs: t.Any,
     ) -> None:
         """Configure the Synapse destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union[SynapseCredentials, Dict[str, Any], str], optional): Credentials to connect to the Synapse dedicated pool. Can be an instance of `SynapseCredentials` or
+            credentials: Credentials to connect to the Synapse dedicated pool. Can be an instance of `SynapseCredentials` or
                 a connection string in the format `synapse://user:password@host:port/database`
-            default_table_index_type (TTableIndexType): Maps directly to the default_table_index_type attribute of the SynapseClientConfiguration object.
-            create_indexes (bool, optional): Maps directly to the create_indexes attribute of the SynapseClientConfiguration object.
-            staging_use_msi (bool, optional): Maps directly to the staging_use_msi attribute of the SynapseClientConfiguration object.
-            has_case_sensitive_identifiers (bool, optional): Are identifiers used by synapse database case sensitive (following the catalog collation)
-            destination_name (str, optional): Name of the destination. Defaults to None.
-            environment (str, optional): Environment name. Defaults to None.
-            **kwargs (Any, optional): Additional arguments passed to the destination config
+            default_table_index_type: Maps directly to the default_table_index_type attribute of the SynapseClientConfiguration object.
+            create_indexes: Maps directly to the create_indexes attribute of the SynapseClientConfiguration object.
+            staging_use_msi: Maps directly to the staging_use_msi attribute of the SynapseClientConfiguration object.
+            has_case_sensitive_identifiers: Are identifiers used by synapse database case sensitive (following the catalog collation)
+            **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
@@ -161,7 +152,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         cls,
         caps: DestinationCapabilitiesContext,
         config: SynapseClientConfiguration,
-        naming: Optional[NamingConvention],
+        naming: t.Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         # modify the caps if case sensitive identifiers are requested
         if config.has_case_sensitive_identifiers:

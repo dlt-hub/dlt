@@ -46,7 +46,7 @@ def _get_retry_response(retry_state: RetryCallState) -> Optional[Response]:
     ex = retry_state.outcome.exception()
     if ex:
         if isinstance(ex, HTTPError):
-            return ex.response
+            return cast(Response, ex.response)
         return None
     result = retry_state.outcome.result()
     return result if isinstance(result, Response) else None

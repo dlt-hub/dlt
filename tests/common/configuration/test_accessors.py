@@ -30,6 +30,8 @@ from dlt.common.typing import AnyType, ConfigValue, SecretValue, TSecretValue
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment, toml_providers
 
+RESOLVED_TRACES = get_resolved_traces()
+
 
 def test_accessor_singletons() -> None:
     assert dlt.config.value is ConfigValue
@@ -47,35 +49,29 @@ def test_getter_accessor(toml_providers: ConfigProvidersContainer, environment: 
         dlt.secrets["_unknown"]
     assert py_ex.value.fields == ["_unknown"]
 
-    tracer = get_resolved_traces()
-
-    def _resolved_traces():
-        return tracer._get_log_as_dict(tracer.resolved_traces)
-
     environment["VALUE"] = "{SET"
     assert dlt.config["value"] == "{SET"
-
-    assert _resolved_traces()[".value"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES[".value"] == ResolvedValueTrace(
         "value", "{SET", None, AnyType, [], EnvironProvider().name, None
     )
     assert dlt.secrets["value"] == "{SET"
-    assert _resolved_traces()[".value"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES[".value"] == ResolvedValueTrace(
         "value", "{SET", None, TSecretValue, [], EnvironProvider().name, None
     )
 
     # get sectioned values
     assert dlt.config["typecheck.str_val"] == "test string"
-    assert _resolved_traces()["typecheck.str_val"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES["typecheck.str_val"] == ResolvedValueTrace(
         "str_val", "test string", None, AnyType, ["typecheck"], CONFIG_TOML, None
     )
 
     environment["DLT__THIS__VALUE"] = "embedded"
     assert dlt.config["dlt.this.value"] == "embedded"
-    assert _resolved_traces()["dlt.this.value"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES["dlt.this.value"] == ResolvedValueTrace(
         "value", "embedded", None, AnyType, ["dlt", "this"], EnvironProvider().name, None
     )
     assert dlt.secrets["dlt.this.value"] == "embedded"
-    assert _resolved_traces()["dlt.this.value"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES["dlt.this.value"] == ResolvedValueTrace(
         "value", "embedded", None, TSecretValue, ["dlt", "this"], EnvironProvider().name, None
     )
 
@@ -115,18 +111,13 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContainer, environment:
     # typed values are returned as they are
     assert isinstance(dlt.config["typecheck.date_val"], datetime.datetime)
 
-    tracer = get_resolved_traces()
-
-    def _resolved_traces():
-        return tracer._get_log_as_dict(tracer.resolved_traces)
-
     # access dict from toml
     services_json_dict = dlt.secrets["destination.bigquery"]
     assert (
         dlt.secrets["destination.bigquery"]["client_email"]
         == "loader@a7513.iam.gserviceaccount.com"
     )
-    assert _resolved_traces()["destination.bigquery"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES["destination.bigquery"] == ResolvedValueTrace(
         "bigquery",
         services_json_dict,
         None,
@@ -139,7 +130,7 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContainer, environment:
     assert (
         dlt.secrets["destination.bigquery.client_email"] == "loader@a7513.iam.gserviceaccount.com"
     )
-    assert _resolved_traces()["destination.bigquery.client_email"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES["destination.bigquery.client_email"] == ResolvedValueTrace(
         "client_email",
         "loader@a7513.iam.gserviceaccount.com",
         None,
@@ -151,17 +142,12 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContainer, environment:
 
 
 def test_getter_accessor_typed(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
-    tracer = get_resolved_traces()
-
-    def _resolved_traces():
-        return tracer._get_log_as_dict(tracer.resolved_traces)
-
     # get a dict as str
     credentials_str = '{"secret_value":"2137","project_id":"mock-project-id-credentials"}'
     # the typed version coerces the value into desired type, in this case "dict" -> "str"
     assert dlt.secrets.get("credentials", str) == credentials_str
     # note that trace keeps original value of "credentials" which was of dictionary type
-    assert _resolved_traces()[".credentials"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES[".credentials"] == ResolvedValueTrace(
         "credentials", json.loads(credentials_str), None, str, [], SECRETS_TOML, None
     )
     # unchanged type
@@ -176,7 +162,7 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContainer, environ
     credentials_str = "databricks+connector://token:<databricks_token>@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a,b,c"
     c = dlt.secrets.get("databricks.credentials", ConnectionStringCredentials)
     # as before: the value in trace is the value coming from the provider (as is)
-    assert _resolved_traces()["databricks.credentials"] == ResolvedValueTrace(
+    assert RESOLVED_TRACES["databricks.credentials"] == ResolvedValueTrace(
         "credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SECRETS_TOML, ConnectionStringCredentials  # type: ignore[arg-type]
     )
     assert c.drivername == "databricks+connector"
@@ -265,25 +251,3 @@ def test_provider_registration(toml_providers: ConfigProvidersContainer) -> None
     # now register
     dlt.config.register_provider(provider)
     test_source()
-
-
-def test_secrets_accessor_repr() -> None:
-    sentinel = object()
-
-    repr_ = dlt.secrets.__repr__()
-    assert isinstance(repr_, str)
-    assert "dlt.secrets(" in repr_
-
-    # check that properties used by `__repr__` exist
-    assert getattr(dlt.secrets, "config_providers", sentinel) is not sentinel
-
-
-def test_config_accessor_repr() -> None:
-    sentinel = object()
-
-    repr_ = dlt.config.__repr__()
-    assert isinstance(repr_, str)
-    assert "dlt.config(" in repr_
-
-    # check that properties used by `__repr__` exist
-    assert getattr(dlt.config, "config_providers", sentinel) is not sentinel

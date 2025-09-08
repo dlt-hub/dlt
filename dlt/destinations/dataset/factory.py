@@ -1,15 +1,46 @@
-from typing import TYPE_CHECKING
+from typing import Any, Literal, Union, overload
 
-# NOTE this warning is only trigger when type-checking.
-# Move it outside the type checking block when closer to deprecation date.
-if not TYPE_CHECKING:
-    from dlt.common.warnings import DltDeprecationWarning
+from dlt.common.destination import TDestinationReferenceArg
+from dlt.common.destination.typing import TDatasetType
+from dlt.common.schema import Schema
 
-    DltDeprecationWarning(
-        """Content from this module was moved to `dlt._dataset.dataset`, which is internal. \
-        If you need to import `dataset`, import `dlt.dataset` instead.""",
-        since="1.16.0",
-        expected_due="2.0.0",
-    )
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
-from dlt.dataset import dataset  # noqa: F401
+# NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
+#  of overload and dataset_type
+
+
+@overload
+def dataset(
+    destination: TDestinationReferenceArg,
+    dataset_name: str,
+    schema: Union[Schema, str, None] = None,
+    dataset_type: Literal["ibis"] = "ibis",
+) -> ReadableDBAPIDataset: ...
+
+
+@overload
+def dataset(
+    destination: TDestinationReferenceArg,
+    dataset_name: str,
+    schema: Union[Schema, str, None] = None,
+    dataset_type: Literal["default"] = "default",
+) -> ReadableDBAPIDataset: ...
+
+
+@overload
+def dataset(
+    destination: TDestinationReferenceArg,
+    dataset_name: str,
+    schema: Union[Schema, str, None] = None,
+    dataset_type: TDatasetType = "auto",
+) -> ReadableDBAPIDataset: ...
+
+
+def dataset(
+    destination: TDestinationReferenceArg,
+    dataset_name: str,
+    schema: Union[Schema, str, None] = None,
+    dataset_type: TDatasetType = "auto",
+) -> Any:
+    return ReadableDBAPIDataset(destination, dataset_name, schema, dataset_type)

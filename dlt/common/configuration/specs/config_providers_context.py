@@ -1,5 +1,4 @@
 import contextlib
-import dataclasses
 import io
 from typing import ClassVar, List
 
@@ -14,30 +13,15 @@ from dlt.common.configuration.specs import (
     configspec,
     known_sections,
 )
-
-
-@configspec
-class VaultProviderConfiguration(BaseConfiguration):
-    only_secrets: bool = True
-    "Only checks for secrets, ignoring all other field types"
-    only_toml_fragments: bool = True
-    "Only checks for toml fragments like sources or destinations"
-    list_secrets: bool = False
-    "Lists all secrets to eliminate non-existing keys upfront"
+from dlt.common.typing import Annotated
 
 
 @configspec
 class ConfigProvidersConfiguration(BaseConfiguration):
     enable_airflow_secrets: bool = True
     enable_google_secrets: bool = False
+    only_toml_fragments: bool = True
 
-    airflow_secrets: VaultProviderConfiguration = VaultProviderConfiguration(
-        only_secrets=False, only_toml_fragments=False, list_secrets=False
-    )
-    google_secrets: VaultProviderConfiguration = VaultProviderConfiguration(
-        only_secrets=True, only_toml_fragments=True, list_secrets=False
-    )  # None  # dataclasses.field(default_factory=lambda: dict(only_secrets=True, only_toml_fragments=True, list_secrets=False))
-    # VaultProviderConfiguration(only_secrets=True, only_toml_fragments=True, list_secrets=False)
     # always look in providers
     __section__: ClassVar[str] = known_sections.PROVIDERS
 
@@ -93,23 +77,29 @@ def _extra_providers() -> List[ConfigProvider]:
     providers_config = resolve_configuration(ConfigProvidersConfiguration())
     extra_providers = []
     if providers_config.enable_airflow_secrets:
-        extra_providers.extend(_airflow_providers(providers_config.airflow_secrets))
+        extra_providers.extend(_airflow_providers())
     if providers_config.enable_google_secrets:
-        extra_providers.append(_google_secrets_provider(providers_config.google_secrets))
+        extra_providers.append(
+            _google_secrets_provider(only_toml_fragments=providers_config.only_toml_fragments)
+        )
     return extra_providers
 
 
-def _google_secrets_provider(settings: VaultProviderConfiguration) -> ConfigProvider:
+def _google_secrets_provider(
+    only_secrets: bool = True, only_toml_fragments: bool = True
+) -> ConfigProvider:
     from dlt.common.configuration.resolve import resolve_configuration
     from dlt.common.configuration.providers.google_secrets import GoogleSecretsProvider
 
     c = resolve_configuration(
         GcpServiceAccountCredentials(), sections=(known_sections.PROVIDERS, "google_secrets")
     )
-    return GoogleSecretsProvider(c, **dict(settings))
+    return GoogleSecretsProvider(
+        c, only_secrets=only_secrets, only_toml_fragments=only_toml_fragments
+    )
 
 
-def _airflow_providers(settings: VaultProviderConfiguration) -> List[ConfigProvider]:
+def _airflow_providers() -> List[ConfigProvider]:
     """Returns a list of configuration providers for an Airflow environment.
 
     This function attempts to import Airflow to determine whether it
@@ -137,7 +127,7 @@ def _airflow_providers(settings: VaultProviderConfiguration) -> List[ConfigProvi
             secrets_toml_var = Variable.get(SECRETS_TOML_KEY, default_var=None)
 
             # providers can be returned - mind that AirflowSecretsTomlProvider() requests the variable above immediately
-            providers = [AirflowSecretsTomlProvider(**dict(settings))]
+            providers = [AirflowSecretsTomlProvider()]
 
             # check if we are in task context and provide more info
             from airflow.operators.python import get_current_context  # noqa

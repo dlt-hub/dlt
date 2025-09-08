@@ -1,10 +1,7 @@
 import abc
 from typing import Any, Sequence, Tuple, Type, Optional
 
-from dlt.common.utils import simple_repr, without_none
-
-EXPLICIT_VALUES_PROVIDER_NAME = "ExplicitValues"
-"""A name of virtual provider that represent explicit values found during config resolution"""
+from dlt.common.configuration.exceptions import ConfigurationException
 
 
 class ConfigProvider(abc.ABC):
@@ -54,16 +51,6 @@ class ConfigProvider(abc.ABC):
         """Returns a list of locations where secrets are stored, human readable"""
         return []
 
-    def __repr__(self) -> str:
-        kwargs = {
-            "is_empty": self.is_empty,
-            "supports_secrets": self.supports_secrets,
-            "supports_sections": self.supports_sections,
-            "is_writable": self.is_writable,
-            "locations": self.locations if self.locations else None,
-        }
-        return simple_repr(self.__class__.__name__, **without_none(kwargs))
-
 
 def get_key_name(key: str, separator: str, /, *sections: str) -> str:
     if sections:
@@ -72,3 +59,9 @@ def get_key_name(key: str, separator: str, /, *sections: str) -> str:
     else:
         env_key = key
     return env_key
+
+
+class ConfigProviderException(ConfigurationException):
+    def __init__(self, provider_name: str, *args: Any) -> None:
+        self.provider_name = provider_name
+        super().__init__(*args)

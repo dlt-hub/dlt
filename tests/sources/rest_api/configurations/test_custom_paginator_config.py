@@ -2,7 +2,6 @@ from typing import cast
 
 import pytest
 
-from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.sources import rest_api
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 from dlt.sources.rest_api.typing import PaginatorConfig, RESTAPIConfig
@@ -44,12 +43,10 @@ class TestCustomPaginator:
         assert paginator.has_next_page is True
 
     def test_not_registering_throws_error(self, custom_paginator_config) -> None:
-        with pytest.raises(ValueErrorWithKnownValues) as e:
+        with pytest.raises(ValueError) as e:
             rest_api.config_setup.create_paginator(custom_paginator_config)
 
-        assert e.match(
-            "Received invalid value `paginator_name=custom_paginator`. Valid values are:"
-        )
+        assert e.match("Invalid paginator: custom_paginator.")
 
     def test_registering_adds_to_PAGINATOR_MAP(self, custom_paginator_config) -> None:
         rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)
@@ -69,7 +66,7 @@ class TestCustomPaginator:
 
         with pytest.raises(ValueError) as e:
             rest_api.config_setup.register_paginator("not_a_paginator", NotAPaginator)  # type: ignore[arg-type]
-        assert e.match("Invalid paginator: `NotAPaginator`.")
+        assert e.match("Invalid paginator: NotAPaginator.")
 
     def test_test_valid_config_raises_no_error(self, custom_paginator_config) -> None:
         rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)

@@ -1,22 +1,16 @@
 import os
-from typing import Optional, Union, Dict, List
+from typing import Union, Dict, List
 
 import pyarrow as pa
-import pyarrow as pa
-from pyarrow import ArrowInvalid
-from pyarrow import types as pat
-from lancedb import DBConnection
-from lancedb.common import DATA
 
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_lancedb_literal
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TTableSchema
-from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
-from dlt.destinations.impl.lancedb.schema import add_vector_column
 
+EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
     "cohere": "COHERE_API_KEY",
     "gemini-text": "GOOGLE_API_KEY",
@@ -50,73 +44,30 @@ def get_canonical_vector_database_doc_id_merge_key(
         )
 
 
-def create_in_filter(field_name: str, array: pa.Array) -> str:
-    """Filters all rows where `field_name` is one of the values in the `array`
-
-    If `array` is dictionary-encoded (pa.DictionaryType) we emit the
-     *distinct* values stored in its dictionary.
+def fill_empty_source_column_values_with_placeholder(
+    table: pa.Table, source_columns: List[str], placeholder: str
+) -> pa.Table:
     """
-    if pat.is_dictionary(array.type):
-        # use the dictionary payload (unique categorical values).
-        values_py = array.dictionary.to_pylist()
-    else:
-        values_py = array.to_pylist()
-    return f"{field_name} IN ({', '.join(map(escape_lancedb_literal, values_py))})"
-
-
-def write_records(
-    records: DATA,
-    /,
-    *,
-    db_client: DBConnection,
-    table_name: str,
-    vector_field_name: str,
-    write_disposition: Optional[TWriteDisposition] = "append",
-    merge_key: Optional[str] = None,
-    remove_orphans: Optional[bool] = False,
-    delete_condition: Optional[str] = None,
-) -> None:
-    """Inserts records into a LanceDB table with automatic embedding computation.
+    Replaces empty strings and null values in the specified source columns of an Arrow table with a placeholder string.
 
     Args:
-        records: The data to be inserted as payload.
-        db_client: The LanceDB client connection.
-        table_name: The name of the table to insert into.
-        merge_key: Keys for update/merge operations.
-        write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
-        remove_orphans (bool): Whether to remove orphans after insertion or not (only merge disposition).
-        filter_condition (str): If None, then all such rows will be deleted.
-            Otherwise, the condition will be used as an SQL filter to limit what rows are deleted.
+        table (pa.Table): The input Arrow table.
+        source_columns (List[str]): A list of column names to replace empty strings and null values in.
+        placeholder (str): The placeholder string to use for replacement.
 
-    Raises:
-        ValueError: If the write disposition is unsupported, or `id_field_name` is not
-            provided for update/merge operations.
+    Returns:
+        pa.Table: The modified Arrow table with empty strings and null values replaced in the specified columns.
     """
-    tbl = db_client.open_table(table_name)
-    tbl.checkout_latest()
-    try:
-        if write_disposition in ("append", "skip", "replace"):
-            tbl.add(records)
-        elif write_disposition == "merge":
-            # LanceDB requires identical schemas for when_not_matched_by_source_delete
-            # The source data schema must exactly match the target table schema (column names,
-            # order, and types). Only after 22. does it work with chunks and embeddings
-            target_schema = tbl.schema
-            records = add_vector_column(records, target_schema, vector_field_name)
-            if remove_orphans:
-                tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
-                    delete_condition
-                ).execute(records)
-            else:
-                tbl.merge_insert(
-                    merge_key
-                ).when_matched_update_all().when_not_matched_insert_all().execute(records)
-        else:
-            raise DestinationTerminalException(
-                f"Unsupported `{write_disposition=:}` for LanceDB Destination - batch"
-                " failed AND WILL **NOT** BE RETRIED."
-            )
-    except ArrowInvalid as e:
-        raise DestinationTerminalException(
-            "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
-        ) from e
+    for col_name in source_columns:
+        column = table[col_name]
+        filled_column = pa.compute.fill_null(column, fill_value=placeholder)
+        new_column = pa.compute.replace_substring_regex(
+            filled_column, pattern=r"^$", replacement=placeholder
+        )
+        table = table.set_column(table.column_names.index(col_name), col_name, new_column)
+    return table
+
+
+def create_filter_condition(field_name: str, array: pa.Array) -> str:
+    array_py = array.to_pylist()
+    return f"{field_name} IN ({', '.join(map(escape_lancedb_literal, array_py))})"

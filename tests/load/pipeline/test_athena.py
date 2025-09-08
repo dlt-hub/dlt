@@ -227,7 +227,9 @@ def test_athena_file_layouts(destination_config: DestinationTestConfiguration, l
     info = pipeline.run(resources, **destination_config.run_kwargs)
     assert_load_info(info)
 
-    table_counts = load_table_counts(pipeline)
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
     assert table_counts == {"items1": 3, "items2": 7}
 
 

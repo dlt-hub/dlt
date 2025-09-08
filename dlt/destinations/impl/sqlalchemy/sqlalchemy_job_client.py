@@ -17,19 +17,13 @@ from dlt.common.destination.client import (
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlLoadJob
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
-from dlt.common.schema.typing import (
-    C_DLT_LOAD_ID,
-    C_DLT_LOADS_TABLE_LOAD_ID,
-    TColumnType,
-    TTableSchemaColumns,
-)
+from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
 from dlt.common.schema.utils import (
     pipeline_state_table,
     normalize_table_identifiers,
     is_complete_column,
     get_columns_names_with_prop,
 )
-from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
@@ -129,11 +123,10 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         job = super().create_load_job(table, file_path, load_id, restore)
         if job is not None:
             return job
-        parsed_file = ParsedLoadJobFileName.parse(file_path)
-        if parsed_file.file_format == "typed-jsonl":
+        if file_path.endswith(".typed-jsonl"):
             table_obj = self._to_table_object(table)
             return SqlalchemyJsonLInsertJob(file_path, table_obj)
-        elif parsed_file.file_format == "parquet":
+        elif file_path.endswith(".parquet"):
             table_obj = self._to_table_object(table)
             return SqlalchemyParquetInsertJob(file_path, table_obj)
         return None
@@ -248,7 +241,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
         schema_mapping = StorageSchemaInfo(
             version=schema.version,
-            engine_version=schema.ENGINE_VERSION,
+            engine_version=str(schema.ENGINE_VERSION),
             schema_name=schema.name,
             version_hash=schema.stored_version_hash,
             schema=schema_str,
@@ -301,7 +294,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = map(
             self.schema.naming.normalize_identifier,
-            (C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID, "pipeline_name", "status"),
+            ("load_id", "_dlt_load_id", "pipeline_name", "status"),
         )
 
         query = (

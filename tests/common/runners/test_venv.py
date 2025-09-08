@@ -54,7 +54,7 @@ def test_restore_wrong_root() -> None:
 
 def test_create_with_dependency() -> None:
     with Venv.create(tempfile.mkdtemp(), ["six"]) as venv:
-        freeze = venv.run_command(*Venv.get_pip_command(venv.context, "freeze"))
+        freeze = venv.run_command("pip", "freeze")
         assert "six" in freeze
         script = """
 import six
@@ -72,10 +72,10 @@ def test_create_with_wrong_dependency() -> None:
 
 def test_add_dependency() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
-        freeze = venv.run_command(*Venv.get_pip_command(venv.context, "freeze"))
+        freeze = venv.run_command("pip", "freeze")
         assert "six" not in freeze
         venv.add_dependencies(["six"])
-        freeze = venv.run_command(*Venv.get_pip_command(venv.context, "freeze"))
+        freeze = venv.run_command("pip", "freeze")
         assert "six" in freeze
 
 
@@ -108,8 +108,8 @@ def test_run_command_with_error() -> None:
             venv.run_command("_not_existing_command_")
         # command returns wrong status code
         with pytest.raises(CalledProcessError) as cpe:
-            venv.run_command(*Venv.get_pip_command(venv.context, "wrong_param"))
-        assert cpe.value.returncode != 0
+            venv.run_command("pip", "wrong_param")
+        assert cpe.value.returncode == 1
         script = """
 raise Exception("always raises")
         """
@@ -120,23 +120,21 @@ raise Exception("always raises")
 
 
 def test_run_module() -> None:
-    # runs only on pip
-    with Venv.set_pip_tool("pip"):
-        with Venv.create(tempfile.mkdtemp(), ["six"]) as venv:
-            freeze = venv.run_module("pip", "freeze", "--all")
-            assert "six" in freeze
-            assert "pip" in freeze
+    with Venv.create(tempfile.mkdtemp(), ["six"]) as venv:
+        freeze = venv.run_module("pip", "freeze", "--all")
+        assert "six" in freeze
+        assert "pip" in freeze
 
-            # call non existing module
-            with pytest.raises(CalledProcessError) as cpe:
-                venv.run_module("blip")
-            assert cpe.value.returncode == 1
-            assert "blip" in cpe.value.stdout
+        # call non existing module
+        with pytest.raises(CalledProcessError) as cpe:
+            venv.run_module("blip")
+        assert cpe.value.returncode == 1
+        assert "blip" in cpe.value.stdout
 
-            # call module with wrong params
-            with pytest.raises(CalledProcessError) as cpe:
-                venv.run_module("pip", "wrong_param")
-            assert cpe.value.returncode == 1
+        # call module with wrong params
+        with pytest.raises(CalledProcessError) as cpe:
+            venv.run_module("pip", "wrong_param")
+        assert cpe.value.returncode == 1
 
 
 def test_run_script() -> None:
@@ -185,81 +183,69 @@ def test_create_over_venv() -> None:
     # we always wipe out previous env
     env_dir = tempfile.mkdtemp()
     venv = Venv.create(env_dir, ["six"])
-    freeze = venv.run_command(*Venv.get_pip_command(venv.context, "freeze"))
+    freeze = venv.run_module("pip", "freeze", "--all")
     assert "six" in freeze
 
     # create over without dependency
     with Venv.create(env_dir) as venv:
-        freeze = venv.run_command(*Venv.get_pip_command(venv.context, "freeze"))
+        freeze = venv.run_module("pip", "freeze", "--all")
         assert "six" not in freeze
 
 
 def test_current_venv() -> None:
-    # runs only on pip
-    with Venv.set_pip_tool("pip"):
-        venv = Venv.restore_current()
-        assert venv.current is True
+    venv = Venv.restore_current()
+    assert venv.current is True
 
-        # use python to run module
-        freeze = venv.run_module("pip", "freeze", "--all")
-        # we are in current venv so dlt package is here
-        assert "dlt" in freeze
+    # use python to run module
+    freeze = venv.run_module("pip", "freeze", "--all")
+    # we are in current venv so dlt package is here
+    assert "dlt" in freeze
 
-        # use command
-        with venv.start_command(
-            *Venv.get_pip_command(venv.context, "freeze"), "--all", stdout=PIPE, text=True
-        ) as process:
-            output, _ = process.communicate()
-            assert process.poll() == 0
-            assert "pip" in output
+    # use command
+    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+        output, _ = process.communicate()
+        assert process.poll() == 0
+        assert "pip" in output
 
 
 def test_current_base_python() -> None:
-    # runs only on pip
-    with Venv.set_pip_tool("pip"):
-        # remove VIRTUAL_ENV variable to fallback to currently executing python interpreter
-        del os.environ["VIRTUAL_ENV"]
-        venv = Venv.restore_current()
-        assert venv.context.env_exe == sys.executable
+    # remove VIRTUAL_ENV variable to fallback to currently executing python interpreter
+    del os.environ["VIRTUAL_ENV"]
+    venv = Venv.restore_current()
+    assert venv.context.env_exe == sys.executable
 
-        # use python to run module
-        freeze = venv.run_module("pip", "freeze", "--all")
-        # we are still in poetry virtual env but directly
-        assert "dlt" in freeze
+    # use python to run module
+    freeze = venv.run_module("pip", "freeze", "--all")
+    # we are still in poetry virtual env but directly
+    assert "dlt" in freeze
 
-        # use command
+    # use command
+    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+        output, _ = process.communicate()
+        assert process.poll() == 0
+        assert "pip" in output
+
+
+def test_start_command() -> None:
+    with Venv.create(tempfile.mkdtemp()) as venv:
         with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
             output, _ = process.communicate()
             assert process.poll() == 0
             assert "pip" in output
 
-
-def test_start_command() -> None:
-    # runs only on pip
-    with Venv.set_pip_tool("pip"):
-        with Venv.create(tempfile.mkdtemp()) as venv:
+        # custom environ
+        with custom_environ({"_CUSTOM_ENV_VALUE": "uniq"}):
             with venv.start_command(
-                *Venv.get_pip_command(venv.context, "freeze"), "--all", stdout=PIPE, text=True
+                "python", "tests/common/scripts/environ.py", stdout=PIPE, text=True
             ) as process:
                 output, _ = process.communicate()
                 assert process.poll() == 0
-                assert "pip" in output
+                assert "_CUSTOM_ENV_VALUE" in output
 
-            # custom environ
-            with custom_environ({"_CUSTOM_ENV_VALUE": "uniq"}):
-                with venv.start_command(
-                    "python", "tests/common/scripts/environ.py", stdout=PIPE, text=True
-                ) as process:
-                    output, _ = process.communicate()
-                    assert process.poll() == 0
-                    assert "_CUSTOM_ENV_VALUE" in output
+        # command not found
+        with pytest.raises(FileNotFoundError):
+            venv.start_command("blip", "freeze", "--all", stdout=PIPE, text=True)
 
-            # command not found
-            with pytest.raises(FileNotFoundError):
-                venv.start_command("blip", "freeze", "--all", stdout=PIPE, text=True)
-
-            # command exit code
-            with venv.start_command(
-                *Venv.get_pip_command(venv.context, "wrong_command"), stdout=PIPE, text=True
-            ) as process:
-                assert process.wait() == 1
+        # command exit code
+        with venv.start_command("pip", "wrong_command", stdout=PIPE, text=True) as process:
+            assert process.wait() == 1

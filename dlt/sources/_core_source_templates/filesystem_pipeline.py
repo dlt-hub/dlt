@@ -62,7 +62,7 @@ def read_csv_duckdb_compressed() -> None:
         pipeline_name="standard_filesystem",
         destination="duckdb",
         dataset_name="taxi_data",
-        dev_mode=True,
+        full_refresh=True,
     )
 
     met_files = readers(
@@ -106,7 +106,7 @@ def read_custom_file_type_excel() -> None:
     # instantiate filesystem directly to get list of files (FileItems) and then use read_excel transformer to get
     # content of excel via pandas
 
-    @dlt.transformer
+    @dlt.transformer(standalone=True)
     def read_excel(items: Iterator[FileItemDict], sheet_name: str) -> Iterator[TDataItems]:
         import pandas as pd
 

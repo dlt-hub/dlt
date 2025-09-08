@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 from urllib.parse import parse_qs
 from uuid import uuid4
 
@@ -16,12 +16,9 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.storages.fsspec_filesystem import fsspec_from_config
-
-from tests.load.filesystem.utils import can_connect_pyiceberg_fileio_config, fs_creds
-from tests.load.utils import ABFS_BUCKET, ALL_FILESYSTEM_DRIVERS, AZ_BUCKET
+from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AZ_BUCKET
 from tests.common.configuration.utils import environment
-
+from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -272,75 +269,3 @@ def test_azure_account_host(environment: Dict[str, str]) -> None:
     config = resolve_configuration(FilesystemConfiguration(bucket_url="az://dlt-ci-test-bucket"))
     fs, _ = fsspec_from_config(config)
     assert fs.account_host == "dlt_ci.blob.core.usgovcloudapi.net"
-
-
-def test_azure_credentials_pyiceberg_export_import(fs_creds: Dict[str, Any]) -> None:
-    """test that Azure credentials can be exported to PyIceberg config and imported back."""
-    # test AzureCredentialsWithoutDefaults
-    original_creds = AzureCredentialsWithoutDefaults(
-        azure_storage_account_name=fs_creds["azure_storage_account_name"],
-        azure_storage_account_key=fs_creds["azure_storage_account_key"],
-    )
-    # export to PyIceberg config
-    pyiceberg_config = original_creds.to_pyiceberg_fileio_config()
-
-    # config should contain required fields with correct values
-    assert "adls.account-name" in pyiceberg_config
-    assert pyiceberg_config["adls.account-name"] == fs_creds["azure_storage_account_name"]
-    assert "adls.account-key" in pyiceberg_config
-    assert pyiceberg_config["adls.account-key"] == fs_creds["azure_storage_account_key"]
-
-    # import back from PyIceberg config
-    imported_creds = AzureCredentialsWithoutDefaults.from_pyiceberg_fileio_config(pyiceberg_config)
-
-    # verify credentials were restored correctly
-    assert imported_creds.azure_storage_account_name == original_creds.azure_storage_account_name
-    assert imported_creds.azure_storage_account_key == original_creds.azure_storage_account_key
-
-    # test connection using imported credentials
-    assert can_connect_pyiceberg_fileio_config(ABFS_BUCKET, pyiceberg_config)
-
-
-def test_azure_service_principal_pyiceberg_export_import() -> None:
-    """test that Azure Service Principal credentials can be exported to PyIceberg config and imported back."""
-    import dlt
-
-    # get Azure principal credentials from secrets
-    principal_config: Dict[str, Any] = dlt.secrets.get("destination.fsazureprincipal.credentials")
-    if not principal_config:
-        pytest.skip("Azure Service Principal credentials not configured")
-
-    # test AzureServicePrincipalCredentialsWithoutDefaults
-    original_creds = AzureServicePrincipalCredentialsWithoutDefaults(
-        azure_storage_account_name=principal_config["azure_storage_account_name"],
-        azure_tenant_id=principal_config["azure_tenant_id"],
-        azure_client_id=principal_config["azure_client_id"],
-        azure_client_secret=principal_config["azure_client_secret"],
-    )
-
-    # export to PyIceberg config
-    pyiceberg_config = original_creds.to_pyiceberg_fileio_config()
-
-    # config should contain required fields with correct values
-    assert "adls.account-name" in pyiceberg_config
-    assert pyiceberg_config["adls.account-name"] == principal_config["azure_storage_account_name"]
-    assert "adls.tenant-id" in pyiceberg_config
-    assert pyiceberg_config["adls.tenant-id"] == principal_config["azure_tenant_id"]
-    assert "adls.client-id" in pyiceberg_config
-    assert pyiceberg_config["adls.client-id"] == principal_config["azure_client_id"]
-    assert "adls.client-secret" in pyiceberg_config
-    assert pyiceberg_config["adls.client-secret"] == principal_config["azure_client_secret"]
-
-    # import back from PyIceberg config
-    imported_creds = AzureServicePrincipalCredentialsWithoutDefaults.from_pyiceberg_fileio_config(
-        pyiceberg_config
-    )
-
-    # verify credentials were restored correctly
-    assert imported_creds.azure_storage_account_name == original_creds.azure_storage_account_name
-    assert imported_creds.azure_tenant_id == original_creds.azure_tenant_id
-    assert imported_creds.azure_client_id == original_creds.azure_client_id
-    assert imported_creds.azure_client_secret == original_creds.azure_client_secret
-
-    # test connection using imported credentials
-    assert can_connect_pyiceberg_fileio_config(ABFS_BUCKET, pyiceberg_config)

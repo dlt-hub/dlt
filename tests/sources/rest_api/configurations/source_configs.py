@@ -23,12 +23,12 @@ ConfigTest = namedtuple("ConfigTest", ["expected_message", "exception", "config"
 
 INVALID_CONFIGS = [
     ConfigTest(
-        expected_message="missing required fields `{'resources'}`",
+        expected_message="following required fields are missing {'resources'}",
         exception=DictValidationException,
         config={"client": {"base_url": ""}},
     ),
     ConfigTest(
-        expected_message="missing required fields `{'client'}`",
+        expected_message="following required fields are missing {'client'}",
         exception=DictValidationException,
         config={"resources": []},
     ),
@@ -61,7 +61,8 @@ INVALID_CONFIGS = [
     #   before secrets are bound, this must be changed
     ConfigTest(
         expected_message=(
-            "For `ApiKeyAuthConfig`: Path `./client/auth`: missing required fields `{'api_key'}`"
+            "For ApiKeyAuthConfig: In path ./client/auth: following required fields are missing"
+            " {'api_key'}"
         ),
         exception=DictValidationException,
         config={
@@ -73,7 +74,7 @@ INVALID_CONFIGS = [
         },
     ),
     ConfigTest(
-        expected_message="Path `./client`: received unexpected fields `{'invalid_key'}`",
+        expected_message="In path ./client: following fields are unexpected {'invalid_key'}",
         exception=DictValidationException,
         config={
             "client": {
@@ -84,7 +85,7 @@ INVALID_CONFIGS = [
         },
     ),
     ConfigTest(
-        expected_message="field `paginator` expects the following types: ",
+        expected_message="field 'paginator' with value invalid_paginator is not one of:",
         exception=DictValidationException,
         config={
             "client": {
@@ -435,7 +436,6 @@ PAGINATOR_TYPE_CONFIGS = [
     {"type": "page_number", "page": 10, "base_page": 1, "total_path": "response.pages"},
     {"type": "offset", "limit": 100, "maximum_offset": 1000},
     {"type": "header_link", "links_next_key": "next_page"},
-    {"type": "header_cursor", "cursor_key": "X-Next-Cursor", "cursor_param": "cursor"},
     {"type": "json_link", "next_url_path": "response.nex_page_link"},
     {"type": "cursor", "cursor_param": "cursor"},
 ]

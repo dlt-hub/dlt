@@ -19,7 +19,7 @@ from dlt.common.storages.load_storage import (
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
-    load_package_state as current_load_package,
+    load_package as current_load_package,
 )
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -121,10 +121,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return self.staging_destination.client(schema, self.initial_staging_client_config)
 
     def is_staging_destination_job(self, file_path: str) -> bool:
-        job_info = ParsedLoadJobFileName.parse(file_path)
-        file_type = job_info.file_format
-        # for now we know that reference and model jobs always go do the main destination
-        if file_type in ["reference", "model"]:
+        file_type = os.path.splitext(file_path)[1][1:]
+        # for now we know that reference jobs always go do the main destination
+        if file_type == "reference":
             return False
         return (
             self.staging_destination is not None
@@ -288,7 +287,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # list all files that were started but not yet completed
         started_jobs = self.load_storage.normalized_packages.list_started_jobs(load_id)
 
-        logger.info(f"{len(started_jobs)} started jobs found, which should be continued")
+        logger.info(f"Found {len(started_jobs)} that are already started and should be continued")
         if len(started_jobs) == 0:
             return jobs
 

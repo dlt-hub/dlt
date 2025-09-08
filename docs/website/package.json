@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "npm run gen-api-ref && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
+    "start": "npm run preprocess-docs && npm run gen-api-ref && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
     "build": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && docusaurus build",
     "build:netlify": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref-netlify && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
@@ -15,9 +15,9 @@
     "clear-versions": "node tools/clear_versions.js",
     "update-versions": "node tools/update_versions.js",
     "preprocess-docs": "node tools/preprocess_docs.js",
-    "gen-api-ref": "PYTHONPATH=. uv run pydoc-markdown && uv run python clean_pydoc_sidebar.py",
+    "gen-api-ref": "PYTHONPATH=. poetry run pydoc-markdown && poetry run python clean_pydoc_sidebar.py",
     "gen-api-ref-netlify": "PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py",
-    "render-cli-docs": "PYTHONPATH=. uv run dlt render-docs > docs/reference/command-line-interface-generated.md"
+    "render-cli-docs": "PYTHONPATH=. poetry run dlt render-docs > docs/reference/command-line-interface-generated.md"
   },
   "dependencies": {
     "@docusaurus/core": "^3.7.0",

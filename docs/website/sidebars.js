@@ -41,32 +41,6 @@ const sidebars = {
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
-        'tutorial/playground',
-        {
-          type: 'category',
-          label: 'Education',
-          link: {
-            type: 'doc',
-            id: 'tutorial/education',
-          },
-          items: [
-            'tutorial/fundamentals-course',
-            'tutorial/advanced-course',
-          ]
-        },
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Release highlights',
-      link: {
-        type: 'generated-index',
-        title: 'Release highlights',
-        slug: '/release-highlights',
-        keywords: ['release notes, release highlights'],
-      },
-      items: [
-        'release-notes/1.12.1',
       ]
     },
     {
@@ -79,19 +53,6 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/state',
-        {
-          type: 'category',
-          label: 'Schema',
-          link: {
-            type: 'doc',
-            id: 'general-usage/schema',
-          },
-          items: [
-            'general-usage/schema-contracts',
-            'general-usage/schema-evolution',
-            'general-usage/naming-convention',
-          ]
-        },
         'general-usage/glossary'
       ]
     },
@@ -109,7 +70,6 @@ const sidebars = {
           items: [
             'plus/getting-started/installation',
             'plus/getting-started/tutorial',
-            'plus/getting-started/advanced_tutorial',
           ]
         },
         {
@@ -136,20 +96,8 @@ const sidebars = {
           type: 'category',
           label: 'Features',
           items: [
+            'plus/features/projects',
             'plus/features/data-access',
-            {
-              type: 'category',
-              label: 'Project',
-              link: {
-                type: 'doc',
-                id: 'plus/features/project/index',
-              },
-              items: [
-                'plus/features/project/overview',
-                'plus/features/project/source-configuration',
-                'plus/features/project/python-api',
-              ]
-            },
             {
               type: 'category',
               label: 'Local transformations',
@@ -178,7 +126,7 @@ const sidebars = {
           type: 'category',
           label: 'Going to production',
           items: [
-            'plus/production/pipeline-runner',
+            'plus/production/runners',
             'plus/production/observability',
           ]
         },
@@ -232,7 +180,6 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/sql_database/usage',
             'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
             'dlt-ecosystem/verified-sources/sql_database/advanced',
-            'walkthroughs/add-incremental-configuration',
           ]
         },
         {
@@ -336,25 +283,51 @@ const sidebars = {
           },
           items: [
             "dlt-ecosystem/llm-tooling/mcp-server",
-            "dlt-ecosystem/llm-tooling/llm-native-workflow",
+            "dlt-ecosystem/llm-tooling/cursor-restapi",
           ]
         },
         {
           type: 'category',
-          label: 'Load data incrementally',
+          label: 'Accessing loaded data',
+           link: {
+            type: 'doc',
+            id: 'general-usage/dataset-access/index',
+          },
           items: [
-            'general-usage/full-loading',
-            'general-usage/merge-loading',
-            'general-usage/incremental-loading',
-            'general-usage/incremental/cursor',
-            'general-usage/incremental/lag',
-            'general-usage/incremental/advanced-state',
-            'general-usage/incremental/troubleshooting',
+            'general-usage/dataset-access/streamlit',
+            'general-usage/dataset-access/dataset',
+            'general-usage/dataset-access/ibis-backend',
+            'general-usage/dataset-access/sql-client',
+            'general-usage/dataset-access/data-quality-dashboard',
           ]
         },
         {
           type: 'category',
-          label: 'Configure pipelines and credentials',
+          label: 'Transforming data',
+          link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/transformations/index',
+          },
+          items: [
+            {
+              type: 'category',
+              label: 'Transforming data with dbt',
+              items: [
+                'dlt-ecosystem/transformations/dbt/dbt',
+                'dlt-ecosystem/transformations/dbt/dbt_cloud',
+              ]
+            },
+            'dlt-ecosystem/transformations/python',
+            'dlt-ecosystem/transformations/sql',
+            'general-usage/customising-pipelines/renaming_columns',
+            'general-usage/customising-pipelines/pseudonymizing_columns',
+            'general-usage/customising-pipelines/removing_columns',
+            'dlt-ecosystem/transformations/encryption'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Configuration and secrets',
            link: {
             type: 'doc',
             id: 'general-usage/credentials/index',
@@ -367,53 +340,26 @@ const sidebars = {
             'walkthroughs/add_credentials'
           ]
         },
-        'walkthroughs/adjust-a-schema',
         {
           type: 'category',
-          label: 'Access loaded data',
-           link: {
+          label: 'Schema',
+          link: {
             type: 'doc',
-            id: 'general-usage/dataset-access/index',
+            id: 'general-usage/schema',
           },
           items: [
-            'general-usage/dataset-access/dashboard',
-            'general-usage/dataset-access/marimo',
-            'general-usage/dataset-access/dataset',
-            'general-usage/dataset-access/ibis-backend',
-            'general-usage/dataset-access/sql-client',
-            'general-usage/dataset-access/view-dlt-schema',
-            'general-usage/destination-tables',
-            'general-usage/dataset-access/streamlit',
+            'general-usage/schema-contracts',
+            'general-usage/schema-evolution',
+            'walkthroughs/adjust-a-schema',
           ]
         },
         {
           type: 'category',
-          label: 'Transform data',
-          link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/transformations/index',
-          },
+          label: 'Loading behavior',
           items: [
-            {
-              type: 'category',
-              label: 'Transform data with dbt',
-              items: [
-                'dlt-ecosystem/transformations/dbt/dbt',
-                'dlt-ecosystem/transformations/dbt/dbt_cloud',
-              ]
-            },
-            'dlt-ecosystem/transformations/python',
-            'dlt-ecosystem/transformations/sql',
-            {
-              type: 'category',
-              label: 'Transform before load',
-              items: [
-                'dlt-ecosystem/transformations/add-map',
-                'general-usage/customising-pipelines/renaming_columns',
-                'general-usage/customising-pipelines/pseudonymizing_columns',
-                'general-usage/customising-pipelines/removing_columns',
-              ]
-            }
+            'general-usage/incremental-loading',
+            'walkthroughs/add-incremental-configuration',
+            'general-usage/full-loading',
           ]
         },
       ]
@@ -499,6 +445,9 @@ const sidebars = {
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
+        // Unsure item
+        'general-usage/destination-tables',
+        'general-usage/naming-convention',
         'dlt-ecosystem/staging',
         {
           type: 'category',
@@ -531,7 +480,6 @@ const sidebars = {
             'dlt-ecosystem/table-formats/iceberg',
           ]
         },
-        'general-usage/dataset-access/data-quality-dashboard',
         'reference/frequently-asked-questions',
       ],
     },
@@ -567,7 +515,6 @@ for (const item of sidebars.tutorialSidebar) {
   if (item.label === 'Code examples') {
     for (let examplePath of walkSync("./docs_processed/examples")) {
       examplePath = examplePath.replace("docs_processed/", "");
-      examplePath = examplePath.replace(".mdx", "");
       examplePath = examplePath.replace(".md", "");
       item.items.push(examplePath);
     }

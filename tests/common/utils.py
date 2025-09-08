@@ -45,16 +45,12 @@ def load_yml_case(name: str) -> Any:
         return yaml.safe_load(f)
 
 
-def case_path(name: str) -> str:
-    return f"{COMMON_TEST_CASES_PATH}{name}"
-
-
 def json_case_path(name: str) -> str:
-    return case_path(name) + ".json"
+    return f"{COMMON_TEST_CASES_PATH}{name}.json"
 
 
 def yml_case_path(name: str) -> str:
-    return case_path(name) + ".yml"
+    return f"{COMMON_TEST_CASES_PATH}{name}.yml"
 
 
 def row_to_column_schemas(row: StrAny) -> TTableSchemaColumns:

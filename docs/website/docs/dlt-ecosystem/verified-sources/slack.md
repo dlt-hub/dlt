@@ -204,7 +204,7 @@ def get_messages_resource(
 
    - `end_value`: Timestamp range end, defaulting to end_dt in slack_source.
 
-   - `allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+   - `allow_external_schedulers`: A boolean that, if true, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
 
 ### Resource `access_logs`
 

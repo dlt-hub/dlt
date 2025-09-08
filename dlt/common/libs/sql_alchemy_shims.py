@@ -28,7 +28,6 @@ from urllib.parse import (
     quote,
     unquote,
 )
-from dlt.common.exceptions import TypeErrorWithKnownTypes
 
 _KT = TypeVar("_KT", bound=Any)
 _VT = TypeVar("_VT", bound=Any)
@@ -119,12 +118,12 @@ class URL(NamedTuple):
         try:
             return int(port)
         except TypeError:
-            raise TypeErrorWithKnownTypes("port", port, ["int", None])
+            raise TypeError("Port argument must be an integer or None")
 
     @classmethod
     def _assert_str(cls, v: str, paramname: str) -> str:
         if not isinstance(v, str):
-            raise TypeErrorWithKnownTypes("paramname", paramname, ["str"])
+            raise TypeError("%s must be a string" % paramname)
         return v
 
     @classmethod
@@ -165,11 +164,11 @@ class URL(NamedTuple):
             elif isinstance(val, collections_abc.Sequence):
                 return tuple(_assert_value(elem) for elem in val)
             else:
-                raise TypeErrorWithKnownTypes("value", val, ["str", "Sequence[str]"])
+                raise TypeError("Query dictionary values must be strings or sequences of strings")
 
         def _assert_str(v: str) -> str:
             if not isinstance(v, str):
-                raise TypeErrorWithKnownTypes("key", v, ["str"])
+                raise TypeError("Query dictionary keys must be strings")
             return v
 
         dict_items: Iterable[Tuple[str, Union[Sequence[str], str]]]
@@ -381,7 +380,7 @@ def make_url(name_or_url: Union[str, URL]) -> URL:
     if isinstance(name_or_url, str):
         return _parse_url(name_or_url)
     elif not isinstance(name_or_url, URL):
-        raise ValueError(f"Expected string or URL object, got `{name_or_url!r}`")
+        raise ValueError(f"Expected string or URL object, got {name_or_url!r}")
     else:
         return name_or_url
 
@@ -441,4 +440,4 @@ def _parse_url(name: str) -> URL:
         return URL.create(name, **components)  # type: ignore
 
     else:
-        raise ValueError(f"Could not parse SQLAlchemy URL from string '{name}'")
+        raise ValueError("Could not parse SQLAlchemy URL from string '%s'" % name)
