@@ -1,13 +1,15 @@
+from typing import Union
+
 from polyfactory.factories import DataclassFactory
 
 import dlt
 from dlt.common.schema.models import table_schema_to_dataclass
-
+from dlt.common.exceptions import TypeErrorWithKnownTypes
 
 
 # TODO fix typing parameterization; DataclassFactory[T] is not really a thing
 # in reality, we get a subclass of DataclassFactory 
-def _create_factory(dataclass: Type[T]) -> DataclassFactory[T]:
+def _create_factory(dataclass) -> DataclassFactory:
     factory = DataclassFactory.create_factory(dataclass)
     # override the default behavior which excludes fields with `_` prefix (e.g., `_dlt_id`)
     factory.should_set_field_value = lambda *args, **kwargs: True
@@ -20,33 +22,22 @@ def _create_factory(dataclass: Type[T]) -> DataclassFactory[T]:
 # parent values. In other words, it shouldn't produce orphan rows.
 # TODO respect normalization behavior; ensure valid `_dlt_list_idx` and coherent normalized
 # data generation
-def generate_data(schema: dlt.Schema, table_name: str, size: int = 5) -> list[object]:
+def generate_data(obj: Union[dlt.Schema, dlt.Dataset, dlt.Pipeline], table_name: str, *, n_records: int = 5) -> list[object]:
+    if isinstance(obj, dlt.Schema):
+        schema = obj
+    elif isinstance(obj, dlt.Dataset):
+        schema = obj.schema
+    elif isinstance(obj, dlt.Pipeline):
+        schema = obj.default_schema
+    else:
+        raise TypeErrorWithKnownTypes("obj", obj, ["dlt.Schema", "dlt.Dataset", "dlt.Pipeline"])
+
     dataclass = table_schema_to_dataclass(schema.tables[table_name])
     factory = _create_factory(dataclass)
-    instances = factory.batch(size)
+    instances = factory.batch(n_records)
     return instances
     
     
 # TODO implement "noisy" data generation that generates data with quality issues
 # It could be implemented in 2 passes: 1. generate "perfect" data; 2. perturbate perfect data
 # into invalid data
-
-def populate_dataset(dataset: dlt.Dataset, table_name: str, size: int = 10) -> dlt.Dataset:
-    pipeline = dlt.pipeline(
-        pipeline_name="data-generation-test",
-        destination=dataset._destination,
-        dataset_name=dataset._name,
-    )
-
-    table_schema = dataset.schema.tables.get(table_name)
-    if table_schema is None:
-        raise KeyError(
-            f"Table `{table_name}` not found in schema."
-            f" Available tables: `{list(dataset.schema.tables.keys())}`"
-        )
-
-    dataclass = table_schema_to_dataclass(table_schema)
-    factory = _create_factory(dataclass)
-    instances = factory.batch(size)
-    pipeline.run(instances, table_name=table_name, loader_file_format="parquet")
-

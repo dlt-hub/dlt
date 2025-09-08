@@ -13,7 +13,7 @@ from dlt.common.json import json
 from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.typing import Self, TDataItems
-from dlt.common.schema.typing import C_DLT_LOAD_ID, TWriteDisposition
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TSchemaContract, TWriteDisposition
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
@@ -299,19 +299,23 @@ class Dataset:
     # from `pipeline.run()` or `dataset.write()`
     def get_write_pipeline(self) -> dlt.Pipeline:
         """Get the internal pipeline used by `Dataset.write()`"""
-        return _get_internal_pipeline(self.dataset_name, destination=self._destination)
+        return _get_internal_pipeline(destination=self._destination, dataset_name=self.dataset_name)
 
     def write(
         self,
         data: TDataItems,
         *,
         table_name: str,
+        schema_contract: TSchemaContract = {"columns": "freeze", "data_type": "freeze"},
         write_disposition: TWriteDisposition = "append",
     ) -> LoadInfo:
         """Write `data` to the specified table.
 
-        This method uses a full-on `dlt.Pipeline` internally. You can retrieve this pipeline
-        using `Dataset.get_write_pipeline()` for complete flexibility.
+        The  default value `schema_contract="freeze"` prevents modifying the schema
+        of all existing data by accident. Pass `schema="evolve"` to allow such modifications.
+
+        This uses a `dlt.Pipeline` internally. You can retrieve this pipeline
+        using `Dataset.get_write_pipeline()` for more data loading options.
         """
         resource = _data_to_resource(
             data,
@@ -320,10 +324,14 @@ class Dataset:
             dataset_name=self.dataset_name,
             write_disposition=write_disposition,
         )
-        internal_pipeline = _get_internal_pipeline(self.dataset_name, destination=self._destination)
+        internal_pipeline = self.get_write_pipeline()
+
+        # drop pending packages left by previous failed `.write()` attempt;
+        # otherwisem this method will be blocked
+        internal_pipeline.drop_pending_packages()
 
         # TODO should we try/except this run to gracefully handle failed writes?
-        info = internal_pipeline.run([resource], schema=self.schema)
+        info = internal_pipeline.run([resource], schema=self.schema, schema_contract=schema_contract)
 
         # maybe update the dataset schema
         self._schema = internal_pipeline.default_schema
@@ -515,8 +523,13 @@ def _data_to_resource(
     return DltResource.from_data(data, name=table_name, section=dataset_name, hints=hints)
 
 
-def _get_internal_pipeline(dataset_name: str, destination: AnyDestination) -> dlt.Pipeline:
+def _get_internal_pipeline(
+    destination: AnyDestination,
+    dataset_name: str,
+) -> dlt.Pipeline:
     """Setup the internal pipeline used by `Dataset.write()`"""
+
+    # TODO this could even use `pipelines_dir=tmp_dir` to avoid polluting the state of the local machine 
     pipeline = dlt.pipeline(
         pipeline_name=_INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE.format(dataset_name=dataset_name),
         dataset_name=dataset_name,

@@ -23,7 +23,7 @@ DLT_TO_PY_TYPE_MAPPING: dict[TDataType, type] = {
 }
 
 # we need to avoid name collisions; Python doesn't allow `-` in statically defined names
-_DATACLASS_NAME_TEMPLATE = "_DltModel-{table_name}"
+_DATACLASS_NAME_TEMPLATE = "DltModel-{table_name}"
 
 # TODO make this generic to allow to swap TypeMapper
 # TODO this could generate typeddict instead; depends on the use case
