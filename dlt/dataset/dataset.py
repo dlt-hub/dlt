@@ -405,6 +405,7 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
     if isinstance(client, WithSqlClient):
         return client.sql_client
     else:
+        # TODO create dedicated exception class
         raise Exception(
             f"Destination `{client.config.destination_type}` does not support `SqlClient`."
         )
