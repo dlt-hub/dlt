@@ -220,52 +220,51 @@ Indexing is important for doing lookups by column value, especially for merge wr
 
 ### Forcing root key propagation
 
-The merge write disposition requires that the `_dlt_id` (`row_key`) of the root table be propagated to nested tables. This concept is similar to a foreign key but always references the root (top level) table, skipping any intermediate parents. We call this the `root key`. Root key propagation is automatically enabled for all tables that have the `merge` write disposition set. We do not enable it everywhere because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable root key propagation.
+The merge write disposition requires that the `_dlt_id` (`row_key`) of the root table be propagated to nested tables. This concept is similar to a foreign key but always references the root (top level) table, skipping any intermediate parents. We call this the `root key`.
 
-**Note**: If you enable `root_key=True` on an existing source that previously ran without it, you'll need to drop and recreate the affected tables since the `_dlt_root_id` column cannot be added to existing tables that contain data.
+`Root key` propagation is automatically enabled for all tables that have the `merge` write disposition set from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
 
-For example, suppose you have a source that doesn't use the merge write disposition and doesn't have `root_key` enabled:
+To enable `root key` propagation on an existing source or resource, you must drop and recreate its tables, since the `_dlt_root_id` column cannot be added to tables that already contain data.
+
+For example, suppose you used the [Facebook Ads](../dlt-ecosystem/verified-sources/facebook_ads.md) verified source, where the `merge` write disposition and `root key` are not enabled by default, to load the `ads` resource:
 ```py
 pipeline = dlt.pipeline(
-    pipeline_name='facebook_insights',
+    pipeline_name='facebook_ads_pipeline',
     destination='duckdb',
-    dataset_name='facebook_insights_data',
-    dev_mode=True
+    dataset_name='facebook_ads_data',
 )
-fb_ads = facebook_ads_source()
+my_facebook_ads = facebook_ads_source()
+pipeline.run(my_facebook_ads.with_resources("ads"))
 ```
 
-If you want to change the write disposition of the `ads` resource to use merge, you must first drop the existing resource tables from the destination:
+If you want to change the `ads` resource to use `merge`, you must first drop the existing resource tables from the destination:
 
 ```sh
-dlt pipeline facebook_insights ads
+dlt pipeline facebook_ads_pipeline drop ads
 ```
 
-This command removes the `ads` table and all its nested tables from the destination, allowing them to be recreated with the new schema that includes the `_dlt_root_id` column.
+This command removes the `ads` table and all its nested tables from the destination, allowing them to be later recreated with a schema that includes the `_dlt_root_id` column.
 
-Next, enable root key propagation and run with replace disposition, followed by merge:
+Next, enable `root key` propagation and run the pipeline once with `replace`, followed by `merge`:
 
 ```py
 pipeline = dlt.pipeline(
-    pipeline_name='facebook_insights',
+    pipeline_name='facebook_ads_pipeline',
     destination='duckdb',
-    dataset_name='facebook_insights_data',
-    dev_mode=True
+    dataset_name='facebook_ads_data',
 )
-fb_ads = facebook_ads_source()
-# enable root key propagation on a source that is not a merge one by default.
-# this is not required if you always use merge but below we start with replace
-fb_ads.root_key = True
-# load only disapproved ads
-fb_ads.ads.bind(states=("DISAPPROVED", ))
-info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="replace")
-# merge the paused ads. the disapproved ads stay there!
-fb_ads = facebook_ads_source()
-fb_ads.ads.bind(states=("PAUSED", ))
-info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="merge")
+my_facebook_ads = facebook_ads_source()
+
+my_facebook_ads.root_key = True
+
+pipeline.run(my_facebook_ads.with_resources("ads"), write_disposition="replace")
+
+pipeline.run(my_facebook_ads.with_resources("ads"), write_disposition="merge")
 ```
 
-In the example above, we enable root key propagation with `fb_ads.root_key = True` and run the pipeline once with `replace` write disposition. This ensures that the schema includes the `_dlt_root_id` column when the tables are recreated with `replace`. Once this column is present, subsequent `merge` loads can be executed successfully. You can also enable root key propagation by decorating the source with `@dlt.source(root_key=True)`
+In this example, enabling `my_facebook_ads.root_key = True` and running the pipeline once with `replace` ensures that the tables are recreated with the `_dlt_root_id` column. Once this column is present, subsequent `merge` runs can be executed successfully.
+
+If you have defined your own source with the `@dlt.source` decorator, you can also enable `root key` propagation by adding `@dlt.source(root_key=True)`.
 
 ## `scd2` strategy
 `dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. By default, the resource is expected to provide a full extract of the source table each run, but [incremental extracts](#example-incremental-scd2) are also possible. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but it's possible to use a configurable high timestamp (e.g. 9999-12-31 00:00:00.000000) instead.
