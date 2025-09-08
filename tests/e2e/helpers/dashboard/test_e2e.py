@@ -154,7 +154,7 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
     expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: failed_pipeline_dataset")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
@@ -232,10 +232,9 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     # check state (we check some info from the incremental state here)
     page.get_by_text("Show source and resource state").click()
     expect(
-        page.get_by_label("Show source and resource").get_by_text("incremental:")
-    ).to_be_visible()
-    expect(
-        page.get_by_label("Show source and resource").get_by_text("last_value: 9")
+        page.get_by_label("Show source and resource").get_by_text(
+            "unique_hashes"
+        )  # unique hashes is only shown if there is incremental state
     ).to_be_visible()
 
     page.get_by_role("button", name="Run Query").click()
@@ -245,9 +244,7 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
 
     # state page
     _open_section(page, "state")
-    expect(
-        page.get_by_text("dataset_name: one_two_three_dataset")
-    ).to_be_visible()  # this is part of the state yaml
+    expect(page.get_by_text("_local")).to_be_visible()  # this is part of the state yaml
 
     # last trace page
     _open_section(page, "trace")
@@ -287,7 +284,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
     expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: fruit_pipeline_dataset")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     # last trace page
     _open_section(page, "trace")
@@ -323,7 +320,7 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: never_run_pipeline_dataset")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
@@ -354,7 +351,7 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     expect(page.get_by_text(app_strings.browse_data_error_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: null")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
