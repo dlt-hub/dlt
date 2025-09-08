@@ -12,19 +12,24 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
 from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
-from dlt.common.schema import Schema
-from dlt.common.typing import Self
-from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.typing import Self, TDataItems
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TWriteDisposition
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
+from dlt.extract.hints import TResourceHints
+from dlt.common.pipeline import LoadInfo
+from dlt.sources import DltResource
 
 
 if TYPE_CHECKING:
     from ibis import ir
     from ibis import BaseBackend as IbisBackend
+
+
+_INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE = "_dlt_dataset_{dataset_name}"
 
 
 class Dataset:
@@ -290,6 +295,41 @@ class Dataset:
 
         return self.query(query=union_all_expr)
 
+    # TODO explain users can inspect `_dlt_loads` table to differentiate data originating
+    # from `pipeline.run()` or `dataset.write()`
+    def get_write_pipeline(self) -> dlt.Pipeline:
+        """Get the internal pipeline used by `Dataset.write()`"""
+        return _get_internal_pipeline(self.dataset_name, destination=self._destination)
+
+    def write(
+        self,
+        data: TDataItems,
+        *,
+        table_name: str,
+        write_disposition: TWriteDisposition = "append",
+    ) -> LoadInfo:
+        """Write `data` to the specified table.
+
+        This method uses a full-on `dlt.Pipeline` internally. You can retrieve this pipeline
+        using `Dataset.get_write_pipeline()` for complete flexibility.
+        """
+        resource = _data_to_resource(
+            data,
+            schema=self.schema,
+            table_name=table_name,
+            dataset_name=self.dataset_name,
+            write_disposition=write_disposition,
+        )
+        internal_pipeline = _get_internal_pipeline(self.dataset_name, destination=self._destination)
+
+        # TODO should we try/except this run to gracefully handle failed writes?
+        info = internal_pipeline.run([resource], schema=self.schema)
+
+        # maybe update the dataset schema
+        self._schema = internal_pipeline.default_schema
+
+        return info
+
     def __getitem__(self, table_name: str) -> dlt.Relation:
         """Get a `dlt.Relation` for a table via dictionary notation.
 
@@ -387,7 +427,7 @@ class Dataset:
 def dataset(
     destination: TDestinationReferenceArg,
     dataset_name: str,
-    schema: Union[Schema, str, None] = None,
+    schema: Union[dlt.Schema, str, None] = None,
 ) -> Dataset:
     return Dataset(destination, dataset_name, schema)
 
@@ -454,3 +494,36 @@ def _get_dataset_schema_from_destination_using_dataset_name(
                 schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
 
     return schema
+
+
+# TODO move this to `dlt.extract`. Maybe there's an existing function?
+def _data_to_resource(
+    data: TDataItems,
+    *,
+    schema: dlt.Schema,
+    table_name: str,
+    dataset_name: str,
+    write_disposition: TWriteDisposition,
+) -> DltResource:
+    """Create a resource from a `data` argument."""
+    table_schema = schema.tables.get(table_name)
+    hints: TResourceHints = (
+        table_schema
+        if table_schema  # type: ignore
+        else dlt.mark.make_hints(table_name=table_name, write_disposition=write_disposition)
+    )
+    return DltResource.from_data(data, name=table_name, section=dataset_name, hints=hints)
+
+
+def _get_internal_pipeline(dataset_name: str, destination: AnyDestination) -> dlt.Pipeline:
+    """Setup the internal pipeline used by `Dataset.write()`"""
+    pipeline = dlt.pipeline(
+        pipeline_name=_INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE.format(dataset_name=dataset_name),
+        dataset_name=dataset_name,
+        destination=destination,
+    )
+    # the internal write pipeline should be stateless; it is limited to the data passed
+    # it shouldn't persist state (e.g., incremntal cursor) and interfere with other `pipeline.run()`
+    pipeline.config.restore_from_destination = False
+
+    return pipeline
