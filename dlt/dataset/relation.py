@@ -179,7 +179,7 @@ class Relation(WithSqlClient):
 
         if isinstance(self._query, (str, sge.Query)):
             expression = maybe_parse(
-                self._query, dialect=self._query_dialect or self.query_dialect()
+                self._query, dialect=self._query_dialect or self.destination_dialect
             )
         elif isinstance(self._table_name, str):
             expression = build_select_expr(table_name=self._table_name)
@@ -190,7 +190,7 @@ class Relation(WithSqlClient):
 
             from dlt.helpers.ibis import compile_ibis_to_sqlglot
 
-            expression = compile_ibis_to_sqlglot(self._query, self.query_dialect())
+            expression = compile_ibis_to_sqlglot(self._query, self.destination_dialect)
         else:
             raise RuntimeError(
                 "`dlt.Relation` is missing `table_name` and `query` to resolve the SQLGlot"
@@ -258,12 +258,15 @@ class Relation(WithSqlClient):
                 "Must be an SQL SELECT statement."
             )
 
-        return query.sql(dialect=self.query_dialect(), pretty=pretty)
+        return query.sql(dialect=self.destination_dialect, pretty=pretty)
 
-    # TODO this name is confusing; this returns the dialect of the destination;
-    # I would assume the `query_dialect` to be the one of the user query
-    def query_dialect(self) -> TSqlGlotDialect:
-        return self._dataset.sqlglot_dialect
+    @property
+    def destination_dialect(self) -> TSqlGlotDialect:
+        """SQLGlot dialect used by the destination.
+
+        This is the target dialect when transpiling SQL queries.
+        """
+        return self._dataset.destination_dialect
 
     def limit(self, limit: int) -> Self:
         """Create a `Relation` using a `LIMIT` clause."""
@@ -383,7 +386,7 @@ class Relation(WithSqlClient):
 
         if not operator and not value:
             rel._sqlglot_expression = rel.sqlglot_expression.where(
-                column_or_expr, dialect=self.query_dialect()
+                column_or_expr, dialect=self.destination_dialect
             )
             return rel
 
@@ -530,7 +533,7 @@ def _get_relation_output_columns_schema(
         # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
         relation.sqlglot_expression,
         relation._dataset.sqlglot_schema,
-        dialect=relation.query_dialect(),
+        dialect=relation.destination_dialect,
         infer_sqlglot_schema=infer_sqlglot_schema,
         allow_anonymous_columns=allow_anonymous_columns,
         allow_partial=allow_partial,

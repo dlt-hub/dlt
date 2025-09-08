@@ -109,15 +109,14 @@ class Dataset:
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
         return lineage.create_sqlglot_schema(
-            self.schema, self.dataset_name, dialect=self.sqlglot_dialect
+            self.schema, self.dataset_name, dialect=self.destination_dialect
         )
 
     @property
-    def sqlglot_dialect(self) -> TSqlGlotDialect:
+    def destination_dialect(self) -> TSqlGlotDialect:
         """SQLGlot dialect of the dataset destination.
 
-        The dialect of a user's SQL query is the "input dialect";
-        this value is the "output dialect" in the context of SQLGlot transpilation.
+        This is the target dialect when transpiling SQL queries.
         """
         return self.sql_client.capabilities.sqlglot_dialect
 
