@@ -237,18 +237,18 @@ Columns:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_scalar(populated_pipeline: Pipeline) -> None:
-    assert populated_pipeline.dataset()("SELECT COUNT(*) FROM items").scalar() == _total_records(
-        populated_pipeline.destination.destination_type
-    )
+def test_fetchscalar(populated_pipeline: Pipeline) -> None:
+    assert populated_pipeline.dataset()(
+        "SELECT COUNT(*) FROM items"
+    ).fetchscalar() == _total_records(populated_pipeline.destination.destination_type)
 
     # test error if more than one row is returned and we use scalar
     with pytest.raises(ValueError) as ex:
-        populated_pipeline.dataset().items.scalar()
+        populated_pipeline.dataset().table("items").fetchscalar()
     assert "got more than one row" in str(ex.value)
 
     with pytest.raises(ValueError) as ex:
-        populated_pipeline.dataset().items.limit(1).limit(1).scalar()
+        populated_pipeline.dataset()["items"].limit(1).limit(1).fetchscalar()
     assert "got 1 row with 5 columns" in str(ex.value)
 
 

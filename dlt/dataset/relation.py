@@ -458,9 +458,8 @@ class Relation(WithSqlClient):
         assert isinstance(column_or_expr, str)
         return self.where(column_or_expr=column_or_expr, operator=operator, value=value)
 
-    # NOTE The naming is ambiguous whether this returns a Relation or executes the query
-    # I suggest renaming `.to_scalar()`
-    def scalar(self) -> Any:
+    # TODO move this to the WithSqlClient / data accessor mixin.
+    def fetchscalar(self) -> Any:
         """Execute the relation and return the first value of first column as a Python primitive"""
         row = self.fetchmany(2)
         if not row:
