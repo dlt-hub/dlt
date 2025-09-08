@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import csv
 import semver
@@ -40,9 +42,9 @@ from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItem
 
-import sqlglot
 
 if TYPE_CHECKING:
+    from dlt.extract.hints import SqlModel
     from dlt.common.libs.pyarrow import pyarrow as pa
 
 
@@ -187,10 +189,10 @@ class ModelWriter(DataWriter):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
 
-    def write_data(self, items: Sequence[TDataItem]) -> None:
+    def write_data(self, items: Sequence[SqlModel]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.query_dialect()
+            dialect = item.query_dialect
             query = item.to_sql()
             self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
 

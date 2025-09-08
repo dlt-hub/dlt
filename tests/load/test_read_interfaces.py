@@ -1,5 +1,3 @@
-# flake8: noqa
-
 from typing import Any, cast, Tuple, List
 import re
 import pytest
@@ -19,8 +17,6 @@ from dlt.common.schema.typing import TTableFormat
 
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 from tests.load.utils import (
     destinations_configs,
@@ -906,7 +902,7 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert len(filtered_items_sql) == 10
     assert all(row[0] < 10 for row in filtered_items_sql)
 
-    load_id = items.select("_dlt_load_id").max().scalar()
+    load_id = items.select("_dlt_load_id").max().fetchscalar()
     all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
     assert len(all_items) == total_records
 
@@ -930,10 +926,10 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert len(combined_result) == 5
     assert all(row[0] < 100 for row in combined_result)
 
-    combined_result = orderable_in_chain.where("id = 1").select("other_id").max().scalar()
+    combined_result = orderable_in_chain.where("id = 1").select("other_id").max().fetchscalar()
     assert 3 == combined_result
 
-    combined_result = orderable_in_chain.where("id = 1").select("other_id").min().scalar()
+    combined_result = orderable_in_chain.where("id = 1").select("other_id").min().fetchscalar()
     assert 2 == combined_result
 
 
@@ -949,14 +945,14 @@ def test_min_max(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
-    max_id = items.select("id").max().scalar()
+    max_id = items.select("id").max().fetchscalar()
     assert max_id == total_records - 1
 
-    min_id = items.select("id").min().scalar()
+    min_id = items.select("id").min().fetchscalar()
     assert min_id == 0
 
     with pytest.raises(ValueError) as py_exc:
-        min_id = items.select("id", "decimal").min().scalar()
+        min_id = items.select("id", "decimal").min().fetchscalar()
 
     assert "min() requires a query with exactly one select expression." in py_exc.value.args[0]
 
