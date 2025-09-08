@@ -90,7 +90,7 @@ class Relation(WithSqlClient):
         """wrap Relation generators in cursor context"""
 
         def _wrap(*args: Any, **kwargs: Any) -> Any:
-            with self.cursor() as cursor:
+            with self._cursor() as cursor:
                 yield from getattr(cursor, func_name)(*args, **kwargs)
 
         return _wrap
@@ -99,7 +99,7 @@ class Relation(WithSqlClient):
         """wrap Relation functions in cursor context"""
 
         def _wrap(*args: Any, **kwargs: Any) -> Any:
-            with self.cursor() as cursor:
+            with self._cursor() as cursor:
                 return getattr(cursor, func_name)(*args, **kwargs)
 
         return _wrap
@@ -128,8 +128,6 @@ class Relation(WithSqlClient):
     def iter_fetch(self, *args: Any, **kwargs: Any) -> Any:
         return self._wrap_iter("iter_fetch")(*args, **kwargs)
 
-    # TODO did `.columns_schema` previously use (infer_sqlglot_schema=False, allow_partial=False)
-    # whereas `.schema` used (infer_sqlglot_schema=True, allow_partial=True)?
     @property
     def columns_schema(self) -> TTableSchemaColumns:
         """dlt columns schema. Convenience method for `dlt.schema["columns"]`"""
@@ -208,10 +206,8 @@ class Relation(WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    # TODO this probalby shouldn't be public; it should be accessed via the dataset or
-    # destination if relevant
     @contextmanager
-    def cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
+    def _cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         try:
             self._opened_sql_client = self.sql_client
