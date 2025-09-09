@@ -14,8 +14,6 @@ with app.setup:
     import marimo as mo
 
     import pandas as pd
-    import sqlglot
-    import yaml
 
     import dlt
     from dlt.common.json import json
@@ -298,53 +296,57 @@ def section_browse_data_table_list(
 
     dlt_query_editor: mo.ui.code_editor = None
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list is not None:
-        try:
-            # try to connect to the dataset
-            utils.get_destination_config(dlt_pipeline)
-            _result.append(
-                mo.hstack(
-                    [
-                        dlt_schema_select,
-                        dlt_schema_show_row_counts,
-                        dlt_schema_show_dlt_tables,
-                        dlt_schema_show_child_tables,
-                    ],
-                    justify="start",
-                ),
+        _result.append(
+            mo.hstack(
+                [
+                    dlt_schema_select,
+                    dlt_schema_show_row_counts,
+                    dlt_schema_show_dlt_tables,
+                    dlt_schema_show_child_tables,
+                ],
+                justify="start",
+            ),
+        )
+        _result.append(dlt_data_table_list)
+
+        _sql_query = ""
+        if dlt_data_table_list.value:
+            _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
+            _schema_table = dlt_pipeline.schemas[dlt_selected_schema_name].tables[_table_name]
+
+            # we only show resource state if the table has resource set, child tables do not have a resource set
+            _resource_name, _source_state, _resource_state = (
+                utils.get_source_and_resouce_state_for_table(
+                    _schema_table, dlt_pipeline, dlt_selected_schema_name
+                )
             )
-            _result.append(dlt_data_table_list)
-
-            _sql_query = ""
-            if dlt_data_table_list.value:
-                _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
-                _schema_table = dlt_pipeline.schemas[dlt_selected_schema_name].tables[_table_name]
-
+            if _resource_name:
                 # state section
                 _state_section_content = []
-
-                # get source and resource state for correct resources from pipeline
-                _converted_state = json.loads(json.dumps(dlt_pipeline.state))
-                _source_state = _converted_state.get("sources", {}).get(
-                    dlt_selected_schema_name, {}
-                )
-                _resources_state = _source_state.pop("resources", {})
-                _resource_state = _resources_state.get(_schema_table["resource"], {})
 
                 # render
                 _state_section_content.append(
                     mo.hstack(
                         [
-                            mo.ui.code_editor(
-                                yaml.safe_dump(_source_state),
-                                label=f"<small>Source state for {dlt_selected_schema_name}</small>",
-                                language="yaml",
+                            mo.vstack(
+                                [
+                                    mo.md(
+                                        "<small>Source state for"
+                                        f" {dlt_selected_schema_name}</small>"
+                                    ),
+                                    mo.json(
+                                        _source_state,
+                                    ),
+                                ]
                             ),
-                            mo.ui.code_editor(
-                                yaml.safe_dump(_resource_state),
-                                label=(
-                                    f"<small>Resource state for {_schema_table['resource']}</small>"
-                                ),
-                                language="yaml",
+                            mo.vstack(
+                                [
+                                    mo.md(
+                                        "<small>Resource state for resource"
+                                        f" {_resource_name}</small>"
+                                    ),
+                                    mo.json(_resource_state),
+                                ]
                             ),
                         ],
                         justify="start",
@@ -355,26 +357,39 @@ def section_browse_data_table_list(
                 _result.append(
                     mo.accordion(
                         {
-                            f"<small>Show source and resource state resource {_schema_table['resource']} which created table {_table_name}</small>": mo.vstack(
+                            f"<small>Show source and resource state resource {_resource_name} which created table {_table_name}</small>": mo.vstack(
                                 _state_section_content
                             )
                         }
                     )
                 )
 
-                _dataset = dlt_pipeline.dataset(schema=dlt_selected_schema_name)
-                _sql_query = (
-                    _dataset.table(_table_name)
-                    .limit(1000 if dlt_restrict_to_last_1000.value else None)
-                    .to_sql(pretty=True, _raw_query=True)
-                )
+            _sql_query, _error_message, _traceback_string = utils.get_default_query_for_table(
+                dlt_pipeline,
+                dlt_selected_schema_name,
+                _table_name,
+                dlt_restrict_to_last_1000.value,
+            )
+        _placeholder, _error_message, _traceback_string = utils.get_example_query_for_dataset(
+            dlt_pipeline,
+            dlt_selected_schema_name,
+        )
 
+        if _error_message:
+            _result.append(
+                ui.build_error_callout(
+                    strings.browse_data_error_text + _error_message,
+                    traceback_string=_traceback_string,
+                )
+            )
+        else:
             dlt_query_editor = mo.ui.code_editor(
                 language="sql",
-                placeholder=strings.browse_data_query_hint,
+                placeholder=_placeholder,
                 value=_sql_query,
                 debounce=True,
             )
+
             dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
                 label=f"<small>{strings.browse_data_run_query_button}</small>",
                 tooltip=strings.browse_data_run_query_tooltip,
@@ -392,10 +407,9 @@ def section_browse_data_table_list(
             _result.append(
                 mo.hstack([dlt_run_query_button, dlt_clear_query_cache], justify="start")
             )
-        except Exception:
-            _result.append(ui.build_error_callout(strings.browse_data_error_text))
     elif dlt_pipeline and dlt_section_browse_data_switch.value:
-        _result.append(ui.build_error_callout(strings.browse_data_error_text))
+        # here we also use the no schemas text, as it is appropriate for the case where we have no table information.
+        _result.append(ui.build_error_callout(strings.schema_no_default_available_text))
     mo.vstack(_result) if _result else None
     return dlt_query_editor, dlt_run_query_button
 
@@ -420,7 +434,6 @@ def section_browse_data_query_result(
     _result = []
 
     dlt_query_history_table: mo.ui.table = None
-    dlt_query_error_encountered: bool = False
     dlt_query: str = None
 
     if (
@@ -430,29 +443,33 @@ def section_browse_data_query_result(
         and dlt_query_editor is not None
     ):
         _result.append(ui.build_title_and_subtitle(strings.browse_data_query_result_title))
+        _error_message: str = None
         with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
             if dlt_query_editor.value and (dlt_run_query_button.value):
-                try:
-                    sqlglot.parse_one(
-                        dlt_query_editor.value,
-                        dialect=dlt_pipeline.destination.capabilities().sqlglot_dialect,
-                    )
-                    if dlt_clear_query_cache.value:
-                        utils.clear_query_cache(dlt_pipeline)
-                    dlt_query = dlt_query_editor.value
-                    dlt_set_last_query_result(utils.get_query_result(dlt_pipeline, dlt_query))
-                except Exception as e:
-                    dlt_query_error_encountered = True
-                    _result.append(
-                        ui.build_error_callout(strings.browse_data_query_error, code=str(e))
-                    )
+                if dlt_clear_query_cache.value:
+                    utils.clear_query_cache(dlt_pipeline)
+                dlt_query = dlt_query_editor.value
+                _query_result, _error_message, _traceback_string = utils.get_query_result(
+                    dlt_pipeline, dlt_query
+                )
+                dlt_set_last_query_result(_query_result)
 
-        # add result
+            # display error message if encountered
+            if _error_message:
+                _result.append(
+                    ui.build_error_callout(
+                        strings.browse_data_query_error + _error_message,
+                        traceback_string=_traceback_string,
+                    )
+                )
+
+        # always display result table
         _last_result = dlt_get_last_query_result()
-        if _last_result is not None and not dlt_query_error_encountered:
-            _result += [
-                mo.ui.table(_last_result, selection=None),
-            ]
+        if _last_result is not None:
+            _result.append(mo.ui.table(_last_result, selection=None))
+
+        # update cache if there was noe error
+        if _last_result is not None and not _error_message:
             # update query cache
             cache = dlt_get_query_cache()
             if dlt_query:
@@ -521,9 +538,8 @@ def section_state(
 
     if dlt_pipeline and dlt_section_state_switch.value:
         _result.append(
-            mo.ui.code_editor(
-                yaml.safe_dump(json.loads(json.dumps(dlt_pipeline.state))),
-                language="yaml",
+            mo.json(
+                dlt_pipeline.state,  # type: ignore[arg-type]
             ),
         )
     mo.vstack(_result) if _result else None
@@ -618,9 +634,8 @@ def section_trace(
             _result.append(
                 mo.accordion(
                     {
-                        strings.trace_show_raw_trace_text: mo.ui.code_editor(
-                            json.dumps(dlt_trace, pretty=True),
-                            language="json",
+                        strings.trace_show_raw_trace_text: mo.json(
+                            utils.sanitize_trace_for_display(dlt_trace)
                         )
                     }
                 )
@@ -651,20 +666,22 @@ def section_loads(
 
     if dlt_pipeline and dlt_section_loads_switch.value:
         _result.append(mo.hstack([dlt_restrict_to_last_1000], justify="start"))
-
         with mo.status.spinner(title=strings.loads_loading_spinner_text):
-            dlt_loads_table: mo.ui.table = None
-            try:
-                _loads_data = utils.get_loads(
-                    dlt_config,
-                    dlt_pipeline,
-                    limit=1000 if dlt_restrict_to_last_1000.value else None,
+            _loads_data, _error_message, _traceback_string = utils.get_loads(
+                dlt_config,
+                dlt_pipeline,
+                limit=1000 if dlt_restrict_to_last_1000.value else None,
+            )
+            dlt_loads_table = mo.ui.table(_loads_data, selection="single")
+            if _error_message:
+                _result.append(
+                    ui.build_error_callout(
+                        strings.loads_loading_failed_text + _error_message,
+                        traceback_string=_traceback_string,
+                    )
                 )
-                dlt_loads_table = mo.ui.table(_loads_data, selection="single")
-                _result.append(dlt_loads_table)
-                _result.append(dlt_clear_query_cache)
-            except Exception:
-                _result.append(ui.build_error_callout(strings.loads_loading_failed_text))
+            _result.append(dlt_loads_table)
+            _result.append(dlt_clear_query_cache)
     mo.vstack(_result) if _result else None
     return (dlt_loads_table,)
 
@@ -697,9 +714,7 @@ def section_loads_results(
                 )
 
                 # prepare and sort row counts
-                _row_counts_dict = utils.get_row_counts(dlt_pipeline, _schema, _load_id)
-                _row_counts = [{"name": k, "row_count": v} for k, v in _row_counts_dict.items()]
-                _row_counts.sort(key=lambda x: str(x["name"]))
+                _row_counts = utils.get_row_counts(dlt_pipeline, _schema, _load_id)
 
             # add row counts
             _result.append(
@@ -766,8 +781,8 @@ def section_ibis_backend(
             _result.append(
                 mo.callout(mo.vstack([mo.md(strings.ibis_backend_connected_text)]), kind="success")
             )
-        except Exception:
-            _result.append(ui.build_error_callout(strings.ibis_backend_error_text))
+        except Exception as exc:
+            _result.append(ui.build_error_callout(strings.ibis_backend_error_text + str(exc)))
     mo.vstack(_result) if _result else None
     return
 
@@ -945,7 +960,7 @@ def watch_changes(
         dlt_file_watcher = mo.watch.file(
             utils.get_trace_file_path(dlt_pipeline_name, dlt_pipelines_dir)
         )
-    return dlt_pipeline_name
+    return dlt_pipeline_name, dlt_file_watcher
 
 
 @app.cell(hide_code=True)
@@ -1004,6 +1019,7 @@ def ui_primary_controls(
             table_list,  # type: ignore[arg-type,unused-ignore]
             style_cell=utils.style_cell,
             selection="single",
+            initial_selection=[0] if len(table_list) > 0 else None,
             freeze_columns_left=["name"] if len(table_list) > 0 else None,
         )
 

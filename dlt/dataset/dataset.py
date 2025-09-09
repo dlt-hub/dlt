@@ -20,7 +20,7 @@ from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
-
+from dlt.common.destination.exceptions import SqlClientNotAvailable
 
 if TYPE_CHECKING:
     from ibis import ir
@@ -405,10 +405,7 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
     if isinstance(client, WithSqlClient):
         return client.sql_client
     else:
-        # TODO create dedicated exception class
-        raise Exception(
-            f"Destination `{client.config.destination_type}` does not support `SqlClient`."
-        )
+        raise SqlClientNotAvailable("dataset", dataset.dataset_name, client.config.destination_type)
 
 
 def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
