@@ -26,6 +26,9 @@ You can use the dashboard app to:
 
 You can even eject the code for the dashboard app into your current working directory and start editing it either in your code editor or in Marimo edit mode to create your own custom dashboard app!
 
+![Dashboard overview](https://storage.googleapis.com/dlt-blog-images/dashboard-overview.png)
+
+
 ## Prerequisites
 
 To install Marimo, run the following command:
@@ -41,7 +44,7 @@ You can start the dashboard with an overview of all locally found pipelines with
 dlt dashboard
 ```
 
-You can use the `show` [CLI command](../../reference/command-line-interface.md#dlt-pipeline-show)
+You can use the `show` [CLI command](../reference/command-line-interface.md#dlt-pipeline-show)
 with your pipeline name to directly jump to the dashboard page of this pipeline:
 
 ```sh
@@ -65,6 +68,51 @@ It is best to run the dashboard from the same folder where you ran your pipeline
 
 The dashboard app should mostly be self-explanatory. Go to the section that corresponds to your task and click the toggle to open and use it. The dashboard app also refreshes all data when a new local pipeline run is detected for your selected pipeline. You can switch between pipelines on your machine using the pipeline dropdown in the top-right.
 
+The following sections are available:
+
+
+### Pipeline overview
+
+The overview section gives you a general sense of the state of your pipeline and will also display exception information if the last run of your pipeline failed.
+
+![Pipeline overview](https://storage.googleapis.com/dlt-blog-images/dashboard-pipeline-overview.png)
+
+### Schema explorer
+
+The schema explorer allows you to dive deep into your pipeline's schemas and see all tables, columns, and hints.
+
+![Schema explorer](https://storage.googleapis.com/dlt-blog-images/dashboard-schema-explorer.png)
+
+### Dataset Browser
+
+The dataset browser allows you to query data from your destination and inspect the state of each of your resources, which contain information about their incremental status and other custom state values.
+
+![Dataset Browser](https://storage.googleapis.com/dlt-blog-images/dashboard-dataset-browser.png)
+
+### Querying your Dataset
+
+This is what a query on the fruitshop dataset looks like:
+
+![Querying Data](https://storage.googleapis.com/dlt-blog-images/dashboard-query.png)
+
+### Pipeline state
+
+This is a raw view of the full pipeline state.
+
+![Pipeline state](https://storage.googleapis.com/dlt-blog-images/dashboard-state.png)
+
+### Last run trace
+
+This is an overview of the results from your last local pipeline run.
+
+![Last run trace](https://storage.googleapis.com/dlt-blog-images/dashboard-trace.png)
+
+### Pipeline loads
+
+This provides an overview and detailed information about loads found in the _dlt_loads table and their associated rows.
+
+![Pipeline loads](https://storage.googleapis.com/dlt-blog-images/dashboard-loads.png)
+
 ## Creating your own pipeline dashboard
 
 You can eject the code for the pipeline dashboard into your current working directory and start editing it to create a custom version that fits your needs. To do this, run the `show` command with the `--edit` flag:
@@ -87,4 +135,4 @@ marimo edit dlt_dashboard.py
 
 ## Further reading
 
-If you are running `dlt` in Python interactively or in a notebook, read the [Accessing loaded data in Python](./dataset.md) guide.
+If you are running `dlt` in Python interactively or in a notebook, read the [Accessing loaded data in Python](./dataset-access/dataset.md) guide.
