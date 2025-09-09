@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import csv
 import semver
@@ -44,7 +42,6 @@ from dlt.common.typing import StrAny, TDataItem
 
 
 if TYPE_CHECKING:
-    from dlt.extract.hints import SqlModel
     from dlt.common.libs.pyarrow import pyarrow as pa
 
 
@@ -189,7 +186,7 @@ class ModelWriter(DataWriter):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
 
-    def write_data(self, items: Sequence[SqlModel]) -> None:
+    def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
             dialect = item.query_dialect
