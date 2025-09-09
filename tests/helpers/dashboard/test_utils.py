@@ -364,11 +364,7 @@ def test_get_default_query_for_table(pipeline: dlt.Pipeline):
     query, error_message, traceback_string = get_default_query_for_table(
         pipeline, pipeline.default_schema_name, "purchases", True
     )
-    assert (
-        query
-        == 'SELECT\n  "id",\n  "customer_id",\n  "inventory_id",\n  "quantity",\n  "date",\n '
-        ' "_dlt_load_id",\n  "_dlt_id"\nFROM "purchases"\nLIMIT 1000'
-    )
+    assert query == 'SELECT\n  *\nFROM "purchases"\nLIMIT 1000'
     assert not error_message
     assert not traceback_string
     assert query
@@ -379,11 +375,7 @@ def test_get_example_query_for_dataset(pipeline: dlt.Pipeline):
     query, error_message, traceback_string = get_example_query_for_dataset(
         pipeline, pipeline.default_schema_name
     )
-    assert (
-        query
-        == 'SELECT\n  "id",\n  "name",\n  "city",\n  "_dlt_load_id",\n  "_dlt_id"\nFROM'
-        ' "customers"\nLIMIT 1000'
-    )
+    assert query == 'SELECT\n  *\nFROM "customers"\nLIMIT 1000'
     assert not error_message
     assert not traceback_string
     assert query

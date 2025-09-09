@@ -1082,7 +1082,9 @@ class Pipeline(SupportsPipeline):
         if isinstance(client, WithSqlClient):
             return client.sql_client
         else:
-            raise SqlClientNotAvailable(self.pipeline_name, self._destination.destination_name)
+            raise SqlClientNotAvailable(
+                "pipeline", self.pipeline_name, self._destination.destination_name
+            )
 
     def _fs_client(self, schema_name: str = None) -> FSClientBase:
         """Returns a filesystem client configured to point to the right folder / bucket for each table.

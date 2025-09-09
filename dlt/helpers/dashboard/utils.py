@@ -362,9 +362,9 @@ def get_default_query_for_table(
     pipeline: dlt.Pipeline, schema_name: str, table_name: str, limit: bool
 ) -> Tuple[str, str, str]:
     try:
-        _dataset = cast(ReadableDBAPIDataset, pipeline.dataset(schema=schema_name))
+        _dataset = pipeline.dataset(schema=schema_name)
         _sql_query = (
-            cast(ReadableDBAPIRelation, _dataset.table(table_name))
+            _dataset.table(table_name)
             .limit(1000 if limit else None)
             .to_sql(pretty=True, _raw_query=True)
         )
