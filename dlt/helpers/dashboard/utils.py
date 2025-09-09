@@ -143,7 +143,7 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
 def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfiguration:
     """Get the destination config of a pipeline."""
     # NOTE: this uses internal interfaces for now...
-    return cast(DestinationClientConfiguration, pipeline.dataset().destination_client.config)  # type: ignore[attr-defined]
+    return pipeline.dataset().destination_client.config
 
 
 def schemas_to_table_items(

@@ -270,7 +270,7 @@ def test_load_open_table(destination_config: DestinationTestConfiguration) -> No
         client.load_open_table(destination_config.table_format, "non_existing_table")
 
     # test open table client
-    dataset_ = cast(ReadableDBAPIDataset, pipeline.dataset())
+    dataset_ = pipeline.dataset()
     assert dataset_.open_table_client.get_open_table_location(
         destination_config.table_format, "open_table"
     )

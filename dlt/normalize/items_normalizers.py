@@ -321,6 +321,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 fallback_dialect=self.config.destination_capabilities.sqlglot_dialect,  # caps are available at this point
             )
 
+        # TODO the dialect here should be the "query dialect"; i.e., the transpilation input
         parsed_select = sqlglot.parse_one(select_statement, read=sql_dialect)
 
         # The query is ensured to be a select statement upstream,
@@ -358,6 +359,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 outer_parsed_select, self.schema.get_table_columns(root_table_name), root_table_name
             )
 
+        # TODO the dialect here should be the "destination dialect"; i.e., the transpilation output
         normalized_query = outer_parsed_select.sql(dialect=sql_dialect)
         self.item_storage.write_data_item(
             self.load_id,
