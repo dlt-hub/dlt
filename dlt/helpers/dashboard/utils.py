@@ -27,7 +27,7 @@ from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 from dlt.common.typing import DictStrAny
-from dlt.common.utils import map_nested_values_in_place
+from dlt.common.utils import map_nested_keys_in_place
 
 from dlt.helpers.dashboard import ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
@@ -656,7 +656,7 @@ def sanitize_trace_for_display(trace: PipelineTrace) -> Dict[str, Any]:
             return repr(obj)
         return obj
 
-    return map_nested_values_in_place(_remove_non_primitives, trace.asdict(), r_type="keys")
+    return map_nested_keys_in_place(_remove_non_primitives, trace.asdict())
 
 
 def build_exception_section(p: dlt.Pipeline) -> List[Any]:

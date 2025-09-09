@@ -310,7 +310,6 @@ def map_nested_values_in_place(
             _nested = list(_nested)  # type: ignore
 
     if isinstance(_nested, dict):
-        # NOTE: to modify the dictionary in place, exhaust the iterator into a list before iterating over it
         for k, v in _nested.items():
             if isinstance(v, (dict, list, tuple)):
                 _nested[k] = map_nested_values_in_place(func, v, *args, **kwargs)
@@ -321,8 +320,7 @@ def map_nested_values_in_place(
             if isinstance(_l, (dict, list, tuple)):
                 _nested[idx] = map_nested_values_in_place(func, _l, *args, **kwargs)
             else:
-                _l = func(_l, *args, **kwargs)
-                _nested[idx] = _l
+                _nested[idx] = func(_l, *args, **kwargs)
     else:
         raise ValueError(_nested, "Not a nested type")
     return _nested
