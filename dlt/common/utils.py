@@ -312,8 +312,8 @@ def map_nested_in_place(
             _nested = list(_nested)  # type: ignore
 
     if isinstance(_nested, dict):
-        # NOTE: to modify the dictionary in place, we need to copy it for iteration since we are mutating the original dictionary
-        for k, v in _nested.copy().items():
+        # NOTE: to modify the dictionary in place, exhaust the iterator into a list before iterating over it
+        for k, v in list(_nested.items()):
             if r_type == "keys":
                 _nested.pop(k)
                 k = func(k, *args, **kwargs)
