@@ -26,7 +26,7 @@ import yaml
 import functools
 
 from dlt.common.configuration.providers import CustomLoaderDocProvider
-from dlt.common.utils import map_nested_in_place
+from dlt.common.utils import map_nested_values_in_place
 
 
 # config for all resources found in this file will be grouped in this source level config section
@@ -57,7 +57,7 @@ def loader(profile_name: str):
         raise RuntimeError(f"Profile with name {profile_name} not found in {os.path.abspath(path)}")
     # evaluate all placeholders
     # NOTE: this method only works with placeholders wrapped as strings in yaml. use jinja lib for real templating
-    return map_nested_in_place(eval_placeholder, config)
+    return map_nested_values_in_place(eval_placeholder, config)
 
 
 @dlt.resource
