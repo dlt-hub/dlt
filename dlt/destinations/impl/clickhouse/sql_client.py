@@ -158,13 +158,13 @@ class ClickHouseSqlClient(
             # with the current implementation base table doesn't get dropped and we get an error on the next run
             # it seem like drop_dataset is never called, I've added logging there and nothing is printed
             self.execute_sql(f"""
-                CREATE TABLE IF NOT EXISTS {sentinel_base_table_name}
+                CREATE TABLE IF NOT EXISTS {sentinel_base_table_name} ON CLUSTER '{cluster}'
                 (_dlt_id String NOT NULL)
                 ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
                 PRIMARY KEY _dlt_id
                 COMMENT 'internal dlt sentinel table'""")
             self.execute_sql(f"""
-                CREATE TABLE IF NOT EXISTS {sentinel_table_name}
+                CREATE TABLE IF NOT EXISTS {sentinel_table_name} ON CLUSTER '{cluster}'
                 (_dlt_id String NOT NULL)
                 ENGINE=Distributed('{cluster}', '{base_table_database}', '{sentinel_base_table_name}', rand())
                 COMMENT 'internal dlt sentinel table'""")
@@ -194,15 +194,15 @@ class ClickHouseSqlClient(
             distributed_tables = self.config.distributed_tables
 
             if not (cluster and distributed_tables is True):
-                self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+                self.execute_sql(f"DROP TABLE IF EXISTS {sentinel_table_name} SYNC")
             else:
                 logger.debug(f"**** DROP TABLE : {sentinel_table_name}")
-                self.execute_sql(f"DROP TABLE {sentinel_table_name} ON CLUSTER {cluster} SYNC")
+                self.execute_sql(f"DROP TABLE IF EXISTS {sentinel_table_name} ON CLUSTER {cluster} SYNC")
                 config_database = self.credentials.database
                 base_table_database = self.config.base_table_database_prefix + config_database
                 sg_table = sqlglot.to_table(sentinel_table_name, quoted=False, dialect="clickhouse")
                 logger.debug(f"**** DROP TABLE : {base_table_database}.{sg_table.name + self.config.base_table_name_postfix}")
-                self.execute_sql(f"DROP TABLE {base_table_database}.{sg_table.name + self.config.base_table_name_postfix} ON CLUSTER {cluster} SYNC")
+                self.execute_sql(f"DROP TABLE IF EXISTS {base_table_database}.{sg_table.name + self.config.base_table_name_postfix} ON CLUSTER {cluster} SYNC")
             logger.warning(
                 "Dataset without name (tables without prefix) got dropped. Only tables known in the"
                 " current dlt schema and sentinel tables were removed."

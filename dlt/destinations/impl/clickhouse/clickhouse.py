@@ -318,7 +318,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             config_database = self.config.credentials.database
             base_table_database = self.config.base_table_database_prefix + config_database
             full_table_name = self.sql_client.make_qualified_table_name_path(table_name=table_name, escape=False)
-            base_table_name = full_table_name[1] + self.config.base_table_name_postfix
+            # signature of the make_qualified_table_name_path function was changed in the devel branch, argument quote was added with default value True
+            # so we need to replace the quote with empty string to ensure future compatibility
+            base_table_name = full_table_name[1].replace("`", "").replace('"', '') + self.config.base_table_name_postfix
 
             sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
 
