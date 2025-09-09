@@ -326,6 +326,11 @@ def map_nested_values_in_place(
     return _nested
 
 
+# keep old name for backwards compatibility
+# dlt+ needs to be updated
+map_nested_in_place = map_nested_values_in_place
+
+
 def map_nested_keys_in_place(
     func: AnyFun,
     _nested: TAny,
