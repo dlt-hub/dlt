@@ -508,7 +508,7 @@ class Relation(WithSqlClient):
 
     def __str__(self) -> str:
         # TODO: merge detection of "simple" transformation that preserve table schema
-        msg = f"Relation query: \n{indent(self.to_sql(pretty=True), prefix='  ')}\n"
+        msg = f"Relation query:\n{indent(self.to_sql(pretty=True), prefix='  ')}\n"
         msg += "Columns:\n"
         for column in self.columns_schema.values():
             # TODO: show x-annotation hints
