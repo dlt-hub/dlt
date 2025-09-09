@@ -203,7 +203,7 @@ def test_char_replacement_cs_naming_convention(
     rel_ = pipeline.dataset()["AMLPerFornyelseoe"]
     results = rel_.fetchall()
     assert len(results) == 1
-    assert "AmlSistUtfoertDato" in rel_.columns_schema
+    assert "AmlSistUtfoertDato" in rel_.columns
 
 
 @pytest.mark.parametrize(

@@ -129,6 +129,9 @@ class UnsupportedTypeMapper(DataTypeMapper):
         )
 
 
+TCasefoldIdentifier = Callable[[str], str]
+
+
 @configspec
 class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
@@ -152,7 +155,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     "Escapes table name, column name and other identifiers"
     escape_literal: Callable[[Any], Any] = None
     "Escapes string literal"
-    casefold_identifier: Callable[[str], str] = str
+    casefold_identifier: TCasefoldIdentifier = str
     """Casing function applied by destination to represent case insensitive identifiers."""
     has_case_sensitive_identifiers: bool = None
     """Tells if destination supports case sensitive identifiers"""

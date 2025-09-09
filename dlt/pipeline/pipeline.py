@@ -30,7 +30,6 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
-from dlt.common.destination.dataset import SupportsDataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -146,11 +145,6 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
-
-if TYPE_CHECKING:
-    from dlt import SupportsDataset
-else:
-    SupportsDataset = Any
 
 
 TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
@@ -1810,13 +1804,13 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    def dataset(self, schema: Union[Schema, str, None] = None) -> SupportsDataset:
+    def dataset(self, schema: Union[Schema, str, None] = None) -> dlt.Dataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
             schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
         Returns:
-            SupportsDataset: A dataset object that supports querying the destination data.
+            dlt.Dataset: A dataset object that supports querying the destination data.
         """
 
         if not self._destination:
