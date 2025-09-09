@@ -874,7 +874,7 @@ Operations on pipelines that were ran locally.
 **Usage**
 ```sh
 dlt pipeline [-h] [--project PROJECT] [--profile PROFILE] [--list-pipelines]
-    [--hot-reload] [--pipelines-dir PIPELINES_DIR] [--verbose] [pipeline_name]
+    [--pipelines-dir PIPELINES_DIR] [--verbose] [pipeline_name]
     {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package,list,add,run}
     ...
 ```
@@ -900,7 +900,6 @@ Inherits arguments from [`dlt`](#dlt).
 * `--project PROJECT` - Name or path to the dlt package with dlt.yml
 * `--profile PROFILE` - Profile to use from the project configuration file
 * `--list-pipelines, -l` - List local pipelines
-* `--hot-reload` - Reload streamlit app (for core development)
 * `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
 * `--verbose, -v` - Provides more information for certain commands.
 

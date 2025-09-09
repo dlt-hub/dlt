@@ -31,6 +31,7 @@ from dlt.common.schema.utils import (
     dlt_load_id_column,
     has_table_seen_data,
     normalize_table_identifiers,
+    get_nested_tables,
 )
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
 from dlt.common.time import normalize_timezone
@@ -321,6 +322,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 fallback_dialect=self.config.destination_capabilities.sqlglot_dialect,  # caps are available at this point
             )
 
+        # TODO the dialect here should be the "query dialect"; i.e., the transpilation input
         parsed_select = sqlglot.parse_one(select_statement, read=sql_dialect)
 
         # The query is ensured to be a select statement upstream,
@@ -358,6 +360,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 outer_parsed_select, self.schema.get_table_columns(root_table_name), root_table_name
             )
 
+        # TODO the dialect here should be the "destination dialect"; i.e., the transpilation output
         normalized_query = outer_parsed_select.sql(dialect=sql_dialect)
         self.item_storage.write_data_item(
             self.load_id,
@@ -593,6 +596,16 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     ) -> Optional[TColumnSchema]:
         """Raises when column is explicitly not nullable or creates unbounded column"""
         existing_column = table_columns.get(col_name)
+        # If it exists as a direct child table, don't infer
+        if not existing_column:
+            direct_children = get_nested_tables(
+                self.schema._schema_tables, table_name, max_nesting=1, include_self=False
+            )
+            direct_child = next(
+                (tbl for tbl in direct_children if tbl["name"].endswith(col_name)), None
+            )
+            if direct_child:
+                return None
         if existing_column and utils.is_complete_column(existing_column):
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.schema.name, table_name, col_name)

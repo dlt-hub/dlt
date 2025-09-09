@@ -1,7 +1,5 @@
 import pytest
 
-from typing import Any
-
 from dlt.common.typing import StrAny, DictStrAny
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import TColumnName, TSimpleRegex
@@ -14,17 +12,13 @@ from dlt.common.normalizers.json.relational import (
     DataItemNormalizer as RelationalNormalizer,
 )
 from dlt.common.normalizers.json import helpers as normalize_helpers
-from dlt.common.schema.utils import new_table
 
 from tests.utils import create_schema_with_name
 
 
 @pytest.fixture
 def norm() -> RelationalNormalizer:
-    # schema with some nested tables
-    s = Schema("default")
-
-    return s.data_item_normalizer  # type: ignore[return-value]
+    return Schema("default").data_item_normalizer  # type: ignore[return-value]
 
 
 def test_flatten_fix_field_name(norm: RelationalNormalizer) -> None:
@@ -33,7 +27,7 @@ def test_flatten_fix_field_name(norm: RelationalNormalizer) -> None:
         "f 2": [],
         "f!3": {"f4": "a", "f-5": "b", "f*6": {"c": 7, "c v": 8, "c x": []}},
     }
-    flattened_row, lists = norm._flatten("mock_table", row, 1000, ("mock_table",))
+    flattened_row, lists = norm._flatten("mock_table", row, 1000)
     assert "f_1" in flattened_row
     # assert "f_2" in flattened_row
     assert "f_3__f4" in flattened_row
@@ -66,11 +60,11 @@ def test_preserve_json_value(norm: RelationalNormalizer) -> None:
         )
     )
     row_1 = {"value": 1}
-    flattened_row, _ = norm._flatten("with_json", row_1, 0, ("with_json",))
+    flattened_row, _ = norm._flatten("with_json", row_1, 0)
     assert flattened_row["value"] == 1
 
     row_2 = {"value": {"json": True}}
-    flattened_row, _ = norm._flatten("with_json", row_2, 0, ("with_json",))
+    flattened_row, _ = norm._flatten("with_json", row_2, 0)
     assert flattened_row["value"] == row_2["value"]
     # json value is not flattened
     assert "value__json" not in flattened_row
@@ -82,11 +76,11 @@ def test_preserve_json_value_with_hint(norm: RelationalNormalizer) -> None:
     norm.schema._compile_settings()
 
     row_1 = {"value": 1}
-    flattened_row, _ = norm._flatten("any_table", row_1, 0, ("any_table",))
+    flattened_row, _ = norm._flatten("any_table", row_1, 0)
     assert flattened_row["value"] == 1
 
     row_2 = {"value": {"json": True}}
-    flattened_row, _ = norm._flatten("any_table", row_2, 0, ("any_table",))
+    flattened_row, _ = norm._flatten("any_table", row_2, 0)
     assert flattened_row["value"] == row_2["value"]
     # json value is not flattened
     assert "value__json" not in flattened_row
@@ -951,98 +945,3 @@ def add_dlt_root_id_propagation(norm: RelationalNormalizer) -> None:
         },
     )
     norm._reset()
-
-
-def test_normalizer_child_table_behavior(norm: RelationalNormalizer) -> None:
-    """here we test what happens if columns that previously were used for creating nested tables do not have complex types"""
-
-    t1 = new_table("t1")
-    t1_nested = new_table("t1__nested", parent_table_name="t1")
-    t1_nested_subnested = new_table("t1__nested__subnested", parent_table_name="t1__nested")
-    t1_nested_subnested_subsubnested = new_table(
-        "t1__nested__subnested__subsubnested", parent_table_name="t1__nested__subnested"
-    )
-
-    norm.schema.update_table(t1)
-    norm.schema.update_table(t1_nested)
-    norm.schema.update_table(t1_nested_subnested)
-    norm.schema.update_table(t1_nested_subnested_subsubnested)
-
-    row: Any = {"nested": None, "other": "blah"}
-
-    # none value of direct child is removed
-    flattened_row, lists = norm._flatten("t1", row, 1000, ("t1",))
-    assert flattened_row == {"other": "blah"}
-    assert lists == {}
-
-    # single value gets wrapped in a list and propagated to child
-    row = {"nested": "singleton", "other": "blah"}
-    flattened_row, lists = norm._flatten("t1", row, 1000, ("t1",))
-    assert flattened_row == {"other": "blah"}
-    assert lists == {("nested",): ["singleton"]}
-
-    # regular lists of objects remain
-    row = {"nested": [{"some_object": "hello"}], "other": "blah"}
-    flattened_row, lists = norm._flatten("t1", row, 1000, ("t1",))
-    assert flattened_row == {"other": "blah"}
-    assert lists == {("nested",): [{"some_object": "hello"}]}
-
-    # doubly nested values work the same way, nested:nested is removed
-    # this tests concatenation of ident path and path
-    row = {"nested": {"subnested": None}, "other": "blah"}
-    flattened_row, lists = norm._flatten("t1", row, 1000, ("t1",))
-    assert flattened_row == {"other": "blah"}
-    assert lists == {}
-
-    row = {"nested": {"subnested": "singleton"}, "other": "blah"}
-    flattened_row, lists = norm._flatten("t1", row, 1000, ("t1",))
-    assert flattened_row == {"other": "blah"}
-    assert lists == {("nested", "subnested"): ["singleton"]}
-
-    row = {"nested": {"subnested": [{"some_object": "hello"}]}, "other": "blah"}
-    flattened_row, lists = norm._flatten("t1", row, 1000, ("t1",))
-    assert flattened_row == {"other": "blah"}
-    assert lists == {("nested", "subnested"): [{"some_object": "hello"}]}
-
-    # starting from a lower entry point also works (parent_path parameter in _flatten)
-    row = {"subnested": {"subsubnested": "singleton"}, "other": "blah"}
-    flattened_row, lists = norm._flatten("nested", row, 1000, ("t1", "nested"))
-    assert flattened_row == {"other": "blah"}
-    assert lists == {("subnested", "subsubnested"): ["singleton"]}
-
-    # test that all path items are concatenated properly
-    row = {"nested": "singleton", "other": "blah"}
-    rows = list(norm.normalize_data_item(row, "1762162.1212", "t1"))
-    assert rows[0][0] == ("t1", None)
-    assert "other" in rows[0][1]
-    assert "nested" not in rows[0][1]
-
-    assert rows[1][0] == ("t1__nested", "t1")
-    assert rows[1][1]["value"] == "singleton"
-    assert "other" not in rows[1][1]
-
-    # double nesting with lists in subnested from list and subsubnested singleton
-    row = {
-        "nested": [
-            {"subnested": "singleton", "other": "nested_blah"},
-            {"subnested": {"subsubnested": "sub_singleton"}, "other": "blah_the_second_nested_one"},
-        ],
-        "other": "blah",
-    }
-    rows = list(norm.normalize_data_item(row, "1762162.1212", "t1"))
-    print(rows)
-
-    assert rows[0][0] == ("t1", None)
-    assert rows[0][1].items() > {"other": "blah"}.items()
-
-    assert rows[1][0] == ("t1__nested", "t1")
-    assert rows[1][1].items() > {"other": "nested_blah"}.items()
-
-    assert rows[2][0] == ("t1__nested__subnested", "t1__nested")
-    assert rows[2][1].items() > {"value": "singleton"}.items()
-
-    assert rows[3][0] == ("t1__nested", "t1")
-    assert rows[3][1].items() > {"other": "blah_the_second_nested_one"}.items()
-
-    assert rows[4][0] == ("t1__nested__subnested__subsubnested", "t1__nested")
-    assert rows[4][1].items() > {"value": "sub_singleton"}.items()

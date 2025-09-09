@@ -4,22 +4,22 @@ import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
+from dlt.common.destination.capabilities import TCasefoldIdentifier
 from dlt.destinations.sql_client import SqlClientBase
 
 
-def normalize_query(
-    sqlglot_schema: SQLGlotSchema,
+def _normalize_query(
     qualified_query: sge.Query,
+    sqlglot_schema: SQLGlotSchema,
+    *,
+    # TODO ideally, we don't have to pass an SQLClient around just to get `.make_qualified_table_name_path()`
     sql_client: SqlClientBase[Any],
+    casefold_identifier: TCasefoldIdentifier,
 ) -> sge.Query:
     """Normalizes a qualified query compliant with the dlt schema into the namespace of the source dataset"""
 
-    # this function modifies the incoming query
     qualified_query = qualified_query.copy()
-
-    # do we need to case-fold identifiers?
-    caps = sql_client.capabilities
-    is_casefolding = caps.casefold_identifier is not str
+    is_casefolding = casefold_identifier is not str
 
     # preserve "column" names in original selects which are done in dlt schema namespace
     orig_selects: Dict[int, str] = None
@@ -50,13 +50,13 @@ def normalize_query(
         # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
         if isinstance(node, sge.Identifier):
             if is_casefolding:
-                node.set("this", caps.casefold_identifier(node.this))
+                node.set("this", casefold_identifier(node.this))
             node.set("quoted", True)
 
     # add aliases to output selects to stay compatible with dlt schema after the query
     if orig_selects:
         for i, orig in orig_selects.items():
-            case_folded_orig = caps.casefold_identifier(orig)
+            case_folded_orig = casefold_identifier(orig)
             if case_folded_orig != orig:
                 # somehow we need to alias just top select in UNION (tested on Snowflake)
                 sel_expr = qualified_query.selects[i]

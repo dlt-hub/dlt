@@ -30,7 +30,6 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
-from dlt.common.destination.dataset import SupportsDataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -133,6 +132,7 @@ from dlt.pipeline.trace import (
     end_trace_step,
     end_trace,
 )
+from dlt.pipeline.track import on_first_dataset_access
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
@@ -145,11 +145,6 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
-
-if TYPE_CHECKING:
-    from dlt import SupportsDataset
-else:
-    SupportsDataset = Any
 
 
 TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
@@ -355,6 +350,7 @@ class Pipeline(SupportsPipeline):
         self._trace: PipelineTrace = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
+        self._dataset_access_tracked: bool = False
 
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
@@ -1086,7 +1082,9 @@ class Pipeline(SupportsPipeline):
         if isinstance(client, WithSqlClient):
             return client.sql_client
         else:
-            raise SqlClientNotAvailable(self.pipeline_name, self._destination.destination_name)
+            raise SqlClientNotAvailable(
+                "pipeline", self.pipeline_name, self._destination.destination_name
+            )
 
     def _fs_client(self, schema_name: str = None) -> FSClientBase:
         """Returns a filesystem client configured to point to the right folder / bucket for each table.
@@ -1808,13 +1806,13 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    def dataset(self, schema: Union[Schema, str, None] = None) -> SupportsDataset:
+    def dataset(self, schema: Union[Schema, str, None] = None) -> dlt.Dataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
             schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
         Returns:
-            SupportsDataset: A dataset object that supports querying the destination data.
+            dlt.Dataset: A dataset object that supports querying the destination data.
         """
 
         if not self._destination:
@@ -1826,12 +1824,15 @@ class Pipeline(SupportsPipeline):
                 " directly or via .dlt config.toml file or environment variable.",
             )
 
+        schema_name = None
         if isinstance(schema, Schema):
+            schema_name = schema.name
             logger.info(
-                f"Make sure that tables declared in explicit schema {schema.name} are present on"
+                f"Make sure that tables declared in explicit schema {schema_name} are present on"
                 f" dataset {self.dataset_name}"
             )
         elif isinstance(schema, str):
+            schema_name = schema
             if schema not in self.schemas:
                 logger.info(
                     f"Schema {schema} not found in the pipeline, deferring to destination, this"
@@ -1843,9 +1844,20 @@ class Pipeline(SupportsPipeline):
 
         elif self.default_schema_name:
             schema = self.default_schema
+            schema_name = self.default_schema_name
 
-        return dlt.dataset(
-            self._destination,
-            self.dataset_name,
-            schema=schema,
-        )
+        try:
+            dataset = dlt.dataset(
+                self._destination,
+                self.dataset_name,
+                schema=schema,
+            )
+            success = True
+            return dataset
+        except Exception:
+            success = False
+            raise
+        finally:
+            if not self._dataset_access_tracked:
+                on_first_dataset_access(pipeline=self, schema_name=schema_name, success=success)
+                self._dataset_access_tracked = True

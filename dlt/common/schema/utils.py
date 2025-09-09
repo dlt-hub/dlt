@@ -900,19 +900,41 @@ def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     return table
 
 
-def get_nested_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
+def get_nested_tables(
+    tables: TSchemaTables,
+    table_name: str,
+    max_nesting: Optional[int] = None,
+    include_self: Optional[bool] = True,
+) -> List[TTableSchema]:
     """Get nested tables for table name and return a list of tables ordered by ancestry so the nested tables are always after their parents
 
     Note that this function follows only NESTED TABLE reference typically expressed on _dlt_parent_id (PARENT_KEY) to _dlt_id (ROW_KEY).
+
+    Args:
+        max_nesting: If specified, limits the depth of nesting. 0 = only the root table, 1 = root + direct children, etc.
+        include_self: If False, the root table itself is excluded from the returned list.
+
+    Returns:
+        List[TTableSchema]: A list of nested tables.
     """
+    if table_name not in tables:
+        return []
+
     chain: List[TTableSchema] = []
 
-    def _child(t: TTableSchema) -> None:
+    def _child(t: TTableSchema, current_level: int = 0) -> None:
         name = t["name"]
-        chain.append(t)
+
+        if include_self or current_level > 0:
+            chain.append(t)
+
+        # Stop recursion if we've reached max nesting level
+        if max_nesting is not None and current_level >= max_nesting:
+            return
+
         for candidate in tables.values():
             if is_nested_table(candidate) and candidate.get("parent") == name:
-                _child(candidate)
+                _child(candidate, current_level + 1)
 
     _child(tables[table_name])
     return chain

@@ -78,7 +78,7 @@ def skip_if_unsupported_merge_strategy(
 def simple_nested_pipeline(
     destination_config: DestinationTestConfiguration, dataset_name: str, dev_mode: bool
 ) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
-    data = [["a", "b", "c"], ["a", "b", "c"], ["a", "b", "c"]]
+    data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
     def d():
         yield data
