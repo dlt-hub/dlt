@@ -17,6 +17,7 @@ from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir, TRefreshMode
 from dlt.common.runtime import apply_runtime_config, init_telemetry
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
@@ -217,24 +218,30 @@ def attach(
         destination_name=injection_kwargs.get("staging_name", None),
     )
     # create new pipeline instance
-    p = Pipeline(
-        pipeline_name,
-        pipelines_dir,
-        pipeline_salt,
-        destination,
-        staging,
-        None,
-        None,
-        None,
-        False,  # always False as dev_mode so we do not wipe the working folder
-        progress,
-        True,
-        last_config(**injection_kwargs),
-        runtime_config,
-    )
-    # set it as current pipeline
-    p.activate()
-    return p
+    try:
+        p = Pipeline(
+            pipeline_name,
+            pipelines_dir,
+            pipeline_salt,
+            destination,
+            staging,
+            None,
+            None,
+            None,
+            False,  # always False as dev_mode so we do not wipe the working folder
+            progress,
+            True,
+            last_config(**injection_kwargs),
+            runtime_config,
+        )
+        # set it as current pipeline
+        p.activate()
+        return p
+    except CannotRestorePipelineException:
+        # we can try to sync a pipeline with the given name
+        p = pipeline(pipeline_name, pipelines_dir, destination=destination, staging=staging)
+        p.sync_destination()
+        return p
 
 
 def run(
