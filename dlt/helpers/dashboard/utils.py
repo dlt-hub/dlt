@@ -1,3 +1,4 @@
+import shutil
 import functools
 from itertools import chain
 from pathlib import Path
@@ -607,6 +608,9 @@ def open_local_folder(folder: str) -> None:
         os.startfile(folder)  # type: ignore[attr-defined]
     elif system == "Darwin":
         subprocess.run(["open", folder], check=True)
+    elif shutil.which("wslview"):
+        # WSL detected
+        subprocess.run(["wslview", folder], check=True)
     else:
         subprocess.run(["xdg-open", folder], check=True)
 
