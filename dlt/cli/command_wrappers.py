@@ -3,8 +3,6 @@ import yaml
 import os
 import click
 
-import dlt
-
 from dlt.version import __version__
 from dlt.common.json import json
 from dlt.common.schema import Schema
@@ -156,43 +154,10 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
 
 
 @utils.track_command("dashboard", True)
-def dashboard_command_wrapper(
-    pipelines_dir: Optional[str], edit: bool, pipeline_script_path: Optional[str]
-) -> None:
+def dashboard_command_wrapper(pipelines_dir: Optional[str], edit: bool) -> None:
     from dlt.helpers.dashboard.runner import run_dashboard
 
-    # if a pipeline script path is provided, we need to parse out pipeline info from script and sync it
-    pipeline_name: str = None
-    if pipeline_script_path:
-        from dlt.cli.deploy_command_helpers import get_visitors, parse_pipeline_info
-
-        pipeline_script_path = os.path.abspath(pipeline_script_path)
-        with open(pipeline_script_path, "r", encoding="utf-8") as f:
-            pipeline_script = f.read()
-        visitors = get_visitors(pipeline_script, pipeline_script_path)
-        possible_pipelines = parse_pipeline_info(visitors, extended_info=True)
-        if possible_pipelines:
-            pipeline_info = possible_pipelines[0]
-            if len(possible_pipelines) > 1:
-                fmt.warning(
-                    "Multiple pipelines found in script, attaching pipeline"
-                    f" {pipeline_info['pipeline_name']}"
-                )
-
-            pipeline_name = pipeline_info["pipeline_name"]
-            pipelines_dir = pipeline_info["pipelines_dir"]
-
-            dlt.attach(
-                pipeline_name=pipeline_info["pipeline_name"],
-                pipelines_dir=pipeline_info["pipelines_dir"],
-                destination=pipeline_info["destination"],
-                dataset_name=pipeline_info["dataset_name"],
-                sync_if_missing=True,
-            )
-        else:
-            fmt.warning("No pipelines found in provided script.")
-
-    run_dashboard(pipelines_dir=pipelines_dir, edit=edit, pipeline_name=pipeline_name)
+    run_dashboard(pipelines_dir=pipelines_dir, edit=edit)
 
 
 @utils.track_command("telemetry", False)
