@@ -210,7 +210,7 @@ def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> N
 
     # relation
     relation = dataset_("SELECT id, decimal FROM items")
-    assert _replace_variable_content(str(relation)) == """Relation query: 
+    assert _replace_variable_content(str(relation)) == """Relation query:
   SELECT
     "items"."id" AS "id",
     "items"."decimal" AS "decimal"

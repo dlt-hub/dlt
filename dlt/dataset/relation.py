@@ -256,7 +256,7 @@ class Relation(WithSqlClient):
 
         return query.sql(dialect=self.destination_dialect, pretty=pretty)
 
-    # TODO this method needs to have the same name as `dlt.extract.hints::SqlModel.query_dialect`; 
+    # TODO this method needs to have the same name as `dlt.extract.hints::SqlModel.query_dialect`;
     # the current implementation doesn't disambiguate "query dialect" and "destination dialect",
     # i.e., the input and output the SQL transpilation
     # These methods are called in `dlt.normalize.items_normalizers::ModelItemsNormalizer.__call__()`
