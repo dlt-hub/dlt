@@ -1,3 +1,8 @@
+from importlib import import_module
+import pytest
+import os
+from concurrent.futures import ThreadPoolExecutor
+import sqlglot
 from typing import Iterator, List, Tuple, NamedTuple, Union, Optional
 from packaging.version import Version
 
@@ -18,20 +23,10 @@ from dlt.extract.extract import ExtractStorage
 from dlt.extract.hints import SqlModel
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER, preserve_environ
-from tests.load.transformations.test_model_item_format import (
+from tests.load.test_model_item_format import (
     destination_configs,
     DESTINATIONS_SUPPORTING_MODEL,
 )
-
-from importlib import import_module
-import pytest
-import os
-from concurrent.futures import ThreadPoolExecutor
-import sqlglot
-
-
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
 
 
 def get_caps(dest_name: str):

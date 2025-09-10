@@ -40,7 +40,6 @@ from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItem
 
-import sqlglot
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -190,7 +189,7 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.query_dialect()
+            dialect = item.query_dialect
             query = item.to_sql()
             self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
 

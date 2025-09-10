@@ -70,7 +70,7 @@ During the loading phase, dlt first runs schema migrations as needed on your des
 
 * dlt is simply a Python package, so it will run [everywhere that Python runs](../../walkthroughs/deploy-a-pipeline) — locally, in notebooks, on orchestrators — you name it.
 * dlt allows you to build and test your data pipelines locally with DuckDB and then switch out the destination for deployment.
-* dlt provides a user-friendly interface for [accessing your data in Python](../../general-usage/dataset-access/dataset), using [a Streamlit app](../../general-usage/dataset-access/streamlit), and leveraging [integrations](../../general-usage/dataset-access/ibis-backend) with the fabulous Ibis library. All of this even works on data lakes provided by bucket storage providers.
+* dlt provides a user-friendly interface for [accessing your data in Python](../../general-usage/dataset-access/dataset), using [the dashboard app](../../general-usage/dashboard), and leveraging [integrations](../../general-usage/dataset-access/ibis-backend) with the fabulous Ibis library. All of this even works on data lakes provided by bucket storage providers.
 * dlt fully manages schema migrations on your destinations. You don’t even need to know how to use SQL to update your schema. It also supports [schema contracts](../../general-usage/schema-contracts) to govern how the schema might evolve.
 * dlt offers numerous options for [monitoring and tracing](../../running-in-production/monitoring) what is happening during your loads.
 * dlt supports you when you need to [transform your data](../../dlt-ecosystem/transformations) after the load, whether with dbt or in Python using Arrow tables and Pandas DataFrames.

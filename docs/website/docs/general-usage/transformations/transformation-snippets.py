@@ -252,7 +252,7 @@ def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     purchases = dataset.table("purchases", table_type="ibis")
     customers = dataset.table("customers", table_type="ibis")
     enriched_purchases = purchases.join(customers, purchases.customer_id == customers.id)
-    print(dataset(enriched_purchases).columns_schema)
+    print(dataset(enriched_purchases).columns)
     # @@@DLT_SNIPPET_END computed_schema
 
 

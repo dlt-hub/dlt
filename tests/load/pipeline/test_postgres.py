@@ -13,7 +13,7 @@ from dlt.common.utils import uniq_id
 from dlt.destinations import filesystem, redshift
 
 
-from tests.cases import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA
+from tests.cases import table_update_and_row
 from tests.load.pipeline.utils import get_load_package_jobs
 from tests.load.utils import (
     destinations_configs,
@@ -144,17 +144,18 @@ def test_pipeline_explicit_destination_credentials(
     ids=lambda x: x.name,
 )
 def test_postgres_adbc_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
+    column_schemas, data_types = table_update_and_row()
+
     pipeline = destination_config.setup_pipeline(
         "test_postgres_adbc_parquet_loading", dev_mode=True
     )
 
-    table_schema = copy.copy(TABLE_UPDATE_COLUMNS_SCHEMA)
-    del table_schema["col6_precision"]  # adbc cannot process decimal(6,2)
-    del table_schema["col11_precision"]  # TIME(3) not supported
+    del column_schemas["col6_precision"]  # adbc cannot process decimal(6,2)
+    del column_schemas["col11_precision"]  # TIME(3) not supported
 
-    @dlt.resource(file_format="parquet", columns=table_schema, max_table_nesting=0)
+    @dlt.resource(file_format="parquet", columns=column_schemas, max_table_nesting=0)
     def complex_resource():
-        yield TABLE_ROW_ALL_DATA_TYPES
+        yield data_types
 
     info = pipeline.run(complex_resource())
     jobs = get_load_package_jobs(

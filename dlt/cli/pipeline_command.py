@@ -37,7 +37,6 @@ def pipeline_command(
     verbosity: int,
     dataset_name: str = None,
     destination: TDestinationReferenceArg = None,
-    hot_reload: Optional[bool] = False,
     **command_kwargs: Any,
 ) -> None:
     if operation == "list":
@@ -50,6 +49,18 @@ def pipeline_command(
             fmt.echo("No pipelines found in %s" % fmt.bold(pipelines_dir))
         for _dir in dirs:
             fmt.secho(_dir, fg="green")
+        return
+
+    # we may open the dashboard for a pipeline without checking if it exists
+    if operation == "show" and not command_kwargs.get("streamlit"):
+        # TODO: why this is imported here
+        from dlt.common.utils import custom_environ
+        from dlt.common.known_env import DLT_DATA_DIR
+
+        from dlt.helpers.dashboard.runner import run_dashboard
+
+        run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
+        # return so streamlit does not run
         return
 
     try:
@@ -117,39 +128,25 @@ def pipeline_command(
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
-        if command_kwargs.get("dashboard"):
-            from dlt.common.utils import custom_environ
-            from dlt.common.known_env import DLT_DATA_DIR
+        from dlt.common.runtime import signals
 
-            from dlt.helpers.dashboard.runner import run_dashboard
+        with signals.delayed_signals():
+            streamlit_cmd = [
+                "streamlit",
+                "run",
+                os.path.join(os.path.dirname(dlt.__file__), "helpers", "streamlit_app", "index.py"),
+                "--client.showSidebarNavigation",
+                "false",
+            ]
 
-            with custom_environ({DLT_DATA_DIR: os.path.dirname(p.pipelines_dir)}):
-                run_dashboard(pipeline_name, edit=command_kwargs.get("edit"))
-        else:
-            from dlt.common.runtime import signals
-            from dlt.helpers.streamlit_app import index
+            streamlit_cmd.append("--")
+            streamlit_cmd.append(pipeline_name)
+            streamlit_cmd.append("--pipelines-dir")
+            streamlit_cmd.append(p.pipelines_dir)
 
-            with signals.delayed_signals():
-                streamlit_cmd = [
-                    "streamlit",
-                    "run",
-                    index.__file__,
-                    "--client.showSidebarNavigation",
-                    "false",
-                ]
-
-                if hot_reload:
-                    streamlit_cmd.append("--server.runOnSave")
-                    streamlit_cmd.append("true")
-
-                streamlit_cmd.append("--")
-                streamlit_cmd.append(pipeline_name)
-                streamlit_cmd.append("--pipelines-dir")
-                streamlit_cmd.append(p.pipelines_dir)
-
-                venv = Venv.restore_current()
-                for line in iter_stdout(venv, *streamlit_cmd):
-                    fmt.echo(line)
+            venv = Venv.restore_current()
+            for line in iter_stdout(venv, *streamlit_cmd):
+                fmt.echo(line)
 
     if operation == "info":
         state: TSourceState = p.state  # type: ignore
@@ -354,6 +351,8 @@ def pipeline_command(
             schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
         elif format_ == "dbml":
             schema_str = s.to_dbml()
+        elif format_ == "dot":
+            schema_str = s.to_dot()
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
 

@@ -43,7 +43,7 @@ from dlt.common.schema.utils import (
     merge_table,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import clone_dict_nested
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -117,6 +117,7 @@ class SqlModel:
     def to_sql(self) -> str:
         return self._query
 
+    @property
     def query_dialect(self) -> str:
         return self._dialect
 
@@ -830,7 +831,7 @@ class DltResourceHints:
                         continue  # None is allowed for active_record_timestamp
                     if ts in wd:
                         try:
-                            ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
+                            ensure_pendulum_datetime_utc(wd[ts])  # type: ignore[literal-required]
                         except Exception:
                             raise ValueError(
                                 f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]

@@ -13,7 +13,7 @@ from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
+from dlt.common.time import ensure_pendulum_datetime_utc, reduce_pendulum_datetime_precision
 from dlt.extract.resource import DltResource
 
 from tests.cases import arrow_table_all_data_types
@@ -47,7 +47,7 @@ def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> 
 
 def strip_timezone(ts: TAnyDateTime) -> pendulum.DateTime:
     """Converts timezone of datetime object to UTC and removes timezone awareness."""
-    return ensure_pendulum_datetime(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
+    return ensure_pendulum_datetime_utc(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
 
 
 def get_table(
@@ -627,10 +627,12 @@ def test_active_record_timestamp(
             yield {"foo": "bar"}
 
         p.run(r(), **destination_config.run_kwargs)
-        actual_active_record_timestamp = ensure_pendulum_datetime(
+        actual_active_record_timestamp = ensure_pendulum_datetime_utc(
             load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
         )
-        assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
+        assert actual_active_record_timestamp == ensure_pendulum_datetime_utc(
+            active_record_timestamp
+        )
 
 
 @pytest.mark.parametrize(

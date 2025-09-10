@@ -325,11 +325,18 @@ class PipeIterator(Iterator[PipeItem]):
 
     @staticmethod
     def clone_pipes(
-        pipes: Sequence[Pipe], existing_cloned_pairs: Dict[int, Pipe] = None
-    ) -> Tuple[List[Pipe], Dict[int, Pipe]]:
-        """This will clone pipes and fix the parent/dependent references"""
-        cloned_pipes = [p._clone() for p in pipes if id(p) not in (existing_cloned_pairs or {})]
-        cloned_pairs = {id(p): c for p, c in zip(pipes, cloned_pipes)}
+        pipes: Sequence[Pipe], existing_cloned_pairs: Dict[str, Pipe] = None
+    ) -> Tuple[List[Pipe], Dict[str, Pipe]]:
+        """Clones pipes with their parents and fixes parent instances using pipe `instance_id`
+
+        Pipe with given `instance_id` is cloned only once and then reused. This creates
+        a tree of pipes that requires given pipe to be extracted only once, even if it
+        has many child pipes that take data from it.
+        """
+        cloned_pipes = [
+            p._clone() for p in pipes if p.instance_id not in (existing_cloned_pairs or {})
+        ]
+        cloned_pairs = {p.instance_id: c for p, c in zip(pipes, cloned_pipes)}
         if existing_cloned_pairs:
             cloned_pairs.update(existing_cloned_pairs)
 
@@ -341,7 +348,7 @@ class PipeIterator(Iterator[PipeItem]):
                 if clone.parent in cloned_pairs.values():
                     break
                 # clone if parent pipe not yet cloned
-                parent_id = id(clone.parent)
+                parent_id = clone.parent.instance_id
                 if parent_id not in cloned_pairs:
                     # print("cloning:" + clone.parent.name)
                     cloned_pairs[parent_id] = clone.parent._clone()
