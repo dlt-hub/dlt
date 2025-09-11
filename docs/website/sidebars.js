@@ -477,36 +477,36 @@ const sidebars = {
       label: 'dltHub Features',
       link: {
         type: 'doc',
-        id: 'plus/intro',
+        id: 'hub/intro',
       },
       items: [
         {
           type: 'category',
           label: 'Getting started',
           items: [
-            'plus/getting-started/installation',
-            'plus/getting-started/tutorial',
-            'plus/getting-started/advanced_tutorial',
+            'hub/getting-started/installation',
+            'hub/getting-started/tutorial',
+            'hub/getting-started/advanced_tutorial',
           ]
         },
         {
           type: 'category',
           label: 'Core concepts',
           items: [
-            'plus/core-concepts/project',
-            'plus/core-concepts/cache',
-            'plus/core-concepts/datasets',
-            'plus/core-concepts/profiles',
+            'hub/core-concepts/project',
+            'hub/core-concepts/cache',
+            'hub/core-concepts/datasets',
+            'hub/core-concepts/profiles',
           ]
         },
         {
           type: 'category',
           label: 'Sources & Destinations',
           items: [
-            'plus/ecosystem/ms-sql',
-            'plus/ecosystem/iceberg',
-            'plus/ecosystem/delta',
-            'plus/ecosystem/snowflake_plus',
+            'hub/ecosystem/ms-sql',
+            'hub/ecosystem/iceberg',
+            'hub/ecosystem/delta',
+            'hub/ecosystem/snowflake_plus',
           ]
         },
         {
@@ -518,24 +518,24 @@ const sidebars = {
               label: 'Transformations',
               link: {
                 type: 'doc',
-                id: 'plus/features/transformations/index',
+                id: 'hub/features/transformations/index',
               },
               items: [
-                'plus/features/transformations/index',
+                'hub/features/transformations/index',
               ]
             },
-            'plus/features/data-access',
+            'hub/features/data-access',
             {
               type: 'category',
               label: 'Project',
               link: {
                 type: 'doc',
-                id: 'plus/features/project/index',
+                id: 'hub/features/project/index',
               },
               items: [
-                'plus/features/project/overview',
-                'plus/features/project/source-configuration',
-                'plus/features/project/python-api',
+                'hub/features/project/overview',
+                'hub/features/project/source-configuration',
+                'hub/features/project/python-api',
               ]
             },
             {
@@ -543,27 +543,27 @@ const sidebars = {
               label: 'dbt generator',
               link: {
                 type: 'doc',
-                id: 'plus/features/transformations/index',
+                id: 'hub/features/transformations/index',
               },
               items: [
-                'plus/features/transformations/setup',
-                'plus/features/transformations/dbt-transformations',
+                'hub/features/transformations/setup',
+                'hub/features/transformations/dbt-transformations',
               ]
             },
-            'plus/features/ai',
-            "plus/features/mcp-server",
+            'hub/features/ai',
+            "hub/features/mcp-server",
           ]
         },
         {
           type: 'category',
           label: 'Going to production',
           items: [
-            'plus/production/pipeline-runner',
-            'plus/production/observability',
+            'hub/production/pipeline-runner',
+            'hub/production/observability',
           ]
         },
-        'plus/reference',
-        'plus/EULA'
+        'hub/reference',
+        'hub/EULA'
       ]
     },
   ],

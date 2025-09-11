@@ -110,7 +110,7 @@ const config = {
         },
         items: [
           {
-            type: 'docsVersionDropdown', sidebarId: 'docsSidebar', label: 'OSS dlt',
+            type: 'docsVersionDropdown',
           },
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
           {

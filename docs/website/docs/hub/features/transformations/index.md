@@ -49,7 +49,7 @@ The snippets below assume that we have a simple fruitshop dataset as produced by
 
 ### 1.1 Use the fruitshop template as a starting point
 
-Alternatively, you can follow the code examples below by creating a new pipeline with the fruitshop template and running transformatth scenarios.ions on the resulting dataset:
+Alternatively, you can follow the code examples below by creating a new pipeline with the fruitshop template and running transformations on the resulting dataset:
 
 ```sh
 dlt init fruitshop duckdb
@@ -75,14 +75,14 @@ to the correct new schema, and you could also set a different write disposition 
 ## Defining a transformation
 
 :::info
-Most of the following examples will be using the ibis expressions of the `dlt.Dataset`. Read the detailed [dataset docs](../../general-usage/dataset-access/dataset) to learn how to use these.
+Most of the following examples will be using the ibis expressions of the `dlt.Dataset`. Read the detailed [dataset docs](../../../general-usage/dataset-access/dataset.md) to learn how to use these.
 :::
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::orders_per_user-->
 
 * **Decorator arguments** mirror those accepted by `@dlt.resource`.
 * The transformation function signature must contain at least one `dlt.Dataset` which is used inside the function to create the transformation SQL statements and calculate the resulting schema update.
-* Yields a `Relation` created with ibis expressions or a select query which will be materialized into the destination table. If the first item yielded is a valid sql query or relation object, data will be interpreted as a transformation. In all other cases, the tranformation decorator will work like any other resource.
+* Yields a `Relation` created with ibis expressions or a select query which will be materialized into the destination table. If the first item yielded is a valid sql query or relation object, data will be interpreted as a transformation. In all other cases, the transformation decorator will work like any other resource.
 
 ## Loading to other datasets
 
@@ -112,13 +112,13 @@ Below we load the data from our local DuckDB instance to a Postgres instance. dl
 
 ### Yielding multiple transformations from one transformation resource
 
-`dlt transformations` may also yield more than one transformation instruction. If no further table name hints are supplied, the result will be a union of the yielded transformation instructions. dlt will take care of the necessary schema migrations, you will just need to ensure that no columns are marked as non-nullable that are missing from one of the transformation insturctions:
+`dlt transformations` may also yield more than one transformation instruction. If no further table name hints are supplied, the result will be a union of the yielded transformation instructions. dlt will take care of the necessary schema migrations, you will just need to ensure that no columns are marked as non-nullable that are missing from one of the transformation instructions:
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::multiple_transformation_instructions-->
 
 ### Supplying additional hints
 
-You may supply column and table hints the same way you do for regular resources. `dlt` will derive schema hints from your query, but in some cases you may need to change or amend hints, such as making columsn nullable for the example above or change the precision or type of a column to make it work with a given target destination (if different from the source)
+You may supply column and table hints the same way you do for regular resources. `dlt` will derive schema hints from your query, but in some cases you may need to change or amend hints, such as making columns nullable for the example above or change the precision or type of a column to make it work with a given target destination (if different from the source)
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::supply_hints-->
 
@@ -195,7 +195,7 @@ Additionally, column names are normalized according to the naming schema selecte
 This allows dlt to maintain data lineage and enables features like incremental loading and merging, even when working with raw SQL queries.
 
 :::info
-The normalization described here, including automatic injection or replacement of dlt columns, applies only to SQL-based transformations. Python-based transformations, such as those using dataframes or arrow tables, follow the [regular normalization process](../../reference/explainers/how-dlt-works#normalize).
+The normalization described here, including automatic injection or replacement of dlt columns, applies only to SQL-based transformations. Python-based transformations, such as those using dataframes or arrow tables, follow the [regular normalization process](../../../reference/explainers/how-dlt-works.md#normalize).
 :::
 
 ### Query Processing
