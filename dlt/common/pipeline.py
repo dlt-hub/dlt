@@ -215,9 +215,19 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
         for load_id, metrics_list in self.metrics.items():
             for idx, metrics in enumerate(metrics_list):
                 extend = {"load_id": load_id, "extract_idx": idx}
+                #                load_metrics["resource_metrics"].extend(
+                #                    self.writer_metrics_asdict(
+                #                        metrics["resource_metrics"], key_name="resource_name", extend=extend
+                #                    )
+                #                )
                 load_metrics["resource_metrics"].extend(
                     self.writer_metrics_asdict(
-                        metrics["resource_metrics"], key_name="resource_name", extend=extend
+                        {
+                            name: all_resource_metrics["writer_metrics"]
+                            for name, all_resource_metrics in metrics["resource_metrics"].items()
+                        },
+                        key_name="resource_name",
+                        extend=extend,
                     )
                 )
                 load_metrics["dag"].extend(

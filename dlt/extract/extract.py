@@ -10,6 +10,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS, TDataItemFormat
+from dlt.common.metrics import ResourceMetrics, DataWriterMetrics
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -43,6 +44,7 @@ from dlt.extract.decorators import (
 )
 from dlt.extract.exceptions import UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
+from dlt.extract.items_transform import ItemTransform
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference
@@ -250,8 +252,18 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             )
         }
         # aggregate by resource name
-        resource_metrics = {
-            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+        resource_metrics: Dict[str, ResourceMetrics] = {
+            resource_name: {
+                "writer_metrics": sum(
+                    map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS
+                ),
+                "custom_metrics": source.resources[resource_name].metrics,
+                "step_metrics": {
+                    step.__class__.__name__: step.metrics
+                    for step in source.resources[resource_name]._pipe.steps
+                    if isinstance(step, ItemTransform)
+                },
+            }
             for resource_name, metrics in itertools.groupby(
                 table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
             )

@@ -32,6 +32,12 @@ class StepMetrics(TypedDict):
     """End of package processing"""
 
 
+class ResourceMetrics(TypedDict):
+    writer_metrics: DataWriterMetrics
+    custom_metrics: Dict[str, Any]
+    step_metrics: Dict[str, Dict[str, Any]]
+
+
 class ExtractDataInfo(TypedDict):
     name: str
     data_type: str
@@ -43,7 +49,7 @@ class ExtractMetrics(StepMetrics):
     """Metrics collected per job id during writing of job file"""
     table_metrics: Dict[str, DataWriterMetrics]
     """Job metrics aggregated by table"""
-    resource_metrics: Dict[str, DataWriterMetrics]
+    resource_metrics: Dict[str, ResourceMetrics]
     """Job metrics aggregated by resource"""
     dag: List[Tuple[str, str]]
     """A resource dag where elements of the list are graph edges"""

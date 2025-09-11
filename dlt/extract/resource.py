@@ -15,6 +15,7 @@ from typing import (
     Mapping,
     List,
     Tuple,
+    Dict,
 )
 
 from dlt.common import logger
@@ -140,6 +141,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._explicit_args: DictStrAny = None
         self.source_name = None
         self._parent: DltResource = None
+        self._metrics: Dict[str, Any] = {}
         super().__init__(hints)
         self._update_wrapper()
 
@@ -220,6 +222,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if data_from:
             r_.pipe_data_from(data_from)
         return r_
+
+    @property
+    def metrics(self) -> Dict[str, Any]:
+        """Customizable resource metrics"""
+        return self._metrics
 
     @property
     def name(self) -> str:

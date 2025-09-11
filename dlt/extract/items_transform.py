@@ -10,6 +10,7 @@ from typing import (
     Iterator,
     Optional,
     Union,
+    Dict,
 )
 
 from dlt.common.data_writers.writers import count_rows_in_items
@@ -46,6 +47,7 @@ class ItemTransform(ABC, Generic[TAny]):
             self._f = transform_f  # type: ignore
         else:  # TODO: do better check
             self._f_meta = transform_f  # type: ignore
+        self._metrics: Dict[str, Any] = {}
 
     def bind(self: "ItemTransform[TAny]", pipe: SupportsPipe) -> "ItemTransform[TAny]":
         return self
@@ -54,6 +56,13 @@ class ItemTransform(ABC, Generic[TAny]):
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""
         pass
+
+    @property
+    def metrics(self) -> Dict[str, Any]:
+        """Customizable resource metrics"""
+        if not hasattr(self, "_metrics"):
+            self._metrics = {}
+        return self._metrics
 
 
 class FilterItem(ItemTransform[bool]):
