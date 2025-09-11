@@ -13,7 +13,7 @@ from dlt.helpers.marimo._widgets._local_pipelines_summary_viewer import (
 
 if TYPE_CHECKING:
     import marimo
-    from mowidgets._widget import _MoWidgetBase
+    from mowidgets._widget import _MoWidgetBase  # type: ignore[import-untyped]
 
 
 __all__ = (
@@ -25,7 +25,7 @@ __all__ = (
 
 def render(widget: marimo.App) -> _MoWidgetBase:
     try:
-        import mowidgets
+        import mowidgets  # type: ignore[import-untyped]
 
         return mowidgets.widgetize(widget, data_access=True)
     except ImportError:
