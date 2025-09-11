@@ -31,9 +31,7 @@ def get_pipeline_options(pipelines_dir: str):
 @app.cell
 def _():
     pipelines_dir_textbox = mo.ui.text(
-        value=get_dlt_pipelines_dir(),
-        full_width=True,
-        label="Pipelines directory"
+        value=get_dlt_pipelines_dir(), full_width=True, label="Pipelines directory"
     )
     pipelines_dir_textbox
     return (pipelines_dir_textbox,)
@@ -160,11 +158,14 @@ def _(pipelines_options):
 
 @app.cell
 def _(data):
-    _FORMATTING = {
-        "created_at": lambda r: r.strftime("%Y-%m-%d %H:%M:%S"),
-        "last_extracted_at": lambda r: r.strftime("%Y-%m-%d %H:%M:%S") if r is not None else None,
-    },
-
+    _FORMATTING = (
+        {
+            "created_at": lambda r: r.strftime("%Y-%m-%d %H:%M:%S"),
+            "last_extracted_at": lambda r: (
+                r.strftime("%Y-%m-%d %H:%M:%S") if r is not None else None
+            ),
+        },
+    )
 
     mo.ui.table(
         data,

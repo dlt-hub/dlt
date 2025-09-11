@@ -15,23 +15,15 @@ Edit the `_pipeline_browser.py` notebook until you're satisfied. Use a [setup ce
 
 ## 3. "register" the widget
 
-To make the widget available, you need to modify `dlt/helpers/marimo/_widgets/__init__.py` and `dlt/helpers/marimo/__init__.py`
-
-```python
-# `dlt/helpers/marimo/_widgets/__init__.py`
-# import the `app` variable from the notebook file
-# the alias for `app` will be the widget name imported by users
-from dlt.helpers.marimo._widgets._pipeline_browser import app as pipeline_browser
-```
+To make the widget available, you need to modify `dlt/helpers/marimo/__init__.py`.
 
 ```python
 # `dlt/helpers/marimo/__init__.py`
-# import the `pipeline_browser` (the aliased `app` variable from the notebook)
-# and add it to the `__all__` public interface
-from dlt.helpers.marimo._widgets import render, pipeline_browser
+# import the `app` variable from the notebook file and alias it to the intended widget name;
+# add it to the `__all__` public interface
+from dlt.helpers.marimo._widgets._pipeline_browser import app as pipeline_browser
 
 __all__ = (
-    "render",
     "pipeline_browser",
 )
 ```
