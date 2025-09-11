@@ -1,7 +1,7 @@
 version: "3.7"
 services:
   dremio:
-    image: dremio/dremio-oss
+    image: dremio/dremio-oss:25.0
     ports:
       - "9047:9047"
       - "31010:31010"
