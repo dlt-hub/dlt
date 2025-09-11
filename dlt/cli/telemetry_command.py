@@ -1,5 +1,4 @@
 import os
-import tomlkit
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import ConfigTomlProvider
