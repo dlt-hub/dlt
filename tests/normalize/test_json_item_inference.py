@@ -9,7 +9,7 @@ from dlt.common import Wei, Decimal, pendulum, json
 from dlt.common.configuration.container import Container
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.json import custom_pua_decode
-from dlt.common.schema import Schema, utils
+from dlt.common.schema import Schema, utils, TSchemaUpdate
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
@@ -20,7 +20,7 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.time import ensure_pendulum_datetime_non_utc
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TDataItem
 from dlt.common.utils import uniq_id
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from dlt.normalize.normalize import Normalize
@@ -609,6 +609,73 @@ def test_coerce_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) 
     row = {"timestamp": None}
     with pytest.raises(CannotCoerceNullException):
         item_normalizer._coerce_row("event_user", None, row)
+
+
+@pytest.mark.parametrize(
+    "nested_item",
+    [
+        [1, 2],
+        [
+            {
+                "timestamp": 82178.1298812,
+            }
+        ],
+    ],
+)
+def test_coerce_null_value_in_nested_table_chunk(
+    item_normalizer: JsonLItemsNormalizer, nested_item: List[TDataItem]
+) -> None:
+    def _normalize_items_chunk(items: List[TDataItem]) -> TSchemaUpdate:
+        schema_update = item_normalizer._normalize_chunk(
+            root_table_name="nested",
+            items=items,
+            may_have_pua=False,
+            skip_write=True,
+        )
+        return schema_update
+
+    # create parent and child tables
+    schema_update = _normalize_items_chunk(
+        [
+            {
+                "timestamp": 82178.1298812,
+                "nested": [
+                    {
+                        "timestamp": 82178.1298812,
+                        "nested": nested_item,
+                    }
+                ],
+            },
+        ]
+    )
+    assert "nested" in schema_update
+    assert "nested__nested" in schema_update
+    assert "nested__nested__nested" in schema_update
+
+    # verify that empty child table columns don't create schema updates
+    schema_update = _normalize_items_chunk(
+        [
+            {
+                "timestamp": 82178.1298812,
+                "nested": [
+                    {
+                        "timestamp": 82178.1298812,
+                        "nested": None,
+                    }
+                ],
+            },
+        ]
+    )
+    assert not schema_update
+    schema_update = _normalize_items_chunk(
+        [
+            {
+                "timestamp": 82178.1298812,
+                "nested": None,
+            },
+        ]
+    )
+    assert not schema_update
 
 
 # def test_coerce_new_null_value(item_normalizer: JsonLItemsNormalizer) -> None:
