@@ -26,6 +26,7 @@ from typing import (
     Dict,
     MutableMapping,
     Iterator,
+    Generator,
     Optional,
     Sequence,
     Set,
@@ -48,6 +49,7 @@ from dlt.common.exceptions import (
     ValueErrorWithKnownValues,
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
+from dlt.common.warnings import Dlt100DeprecationWarning, deprecated
 
 
 T = TypeVar("T")
@@ -162,7 +164,9 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
     return o
 
 
-def flatten_list_or_items(_iter: Union[Iterable[TAny], Iterable[List[TAny]]]) -> Iterator[TAny]:
+def flatten_list_or_items(
+    _iter: Union[Iterable[TAny], Iterable[List[TAny]]]
+) -> Generator[TAny, None, None]:
     for items in _iter:
         if isinstance(items, List):
             yield from items
@@ -327,8 +331,9 @@ def map_nested_values_in_place(
 
 
 # keep old name for backwards compatibility
-# dlt+ needs to be updated
-map_nested_in_place = map_nested_values_in_place
+map_nested_in_place = deprecated(
+    "Use `map_nested_values_in_place` instead.", category=Dlt100DeprecationWarning
+)(map_nested_values_in_place)
 
 
 def map_nested_keys_in_place(

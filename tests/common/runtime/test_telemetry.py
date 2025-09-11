@@ -184,6 +184,17 @@ def test_track_anon_event(
     assert context["run_context"] == "dlt"
 
 
+def test_forced_anon_tracker() -> None:
+    from dlt.common.runtime import anon_tracker
+
+    assert anon_tracker._ANON_TRACKER_ENDPOINT is None
+
+    with anon_tracker.always_track():
+        assert anon_tracker._ANON_TRACKER_ENDPOINT is not None
+
+    assert anon_tracker._ANON_TRACKER_ENDPOINT is None
+
+
 def test_execution_context_with_plugin() -> None:
     import sys
 
