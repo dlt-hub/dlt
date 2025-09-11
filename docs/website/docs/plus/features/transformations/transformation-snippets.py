@@ -30,7 +30,7 @@ def fruitshop_pipeline() -> dlt.Pipeline:
 def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START basic_transformation
 
-    @dlt.transformation()
+    @dlt.hub.transformation
     def copied_customers(dataset: dlt.Dataset) -> Any:
         customers_table = dataset["customers"]
         yield customers_table.order_by("name").limit(5)
@@ -49,7 +49,7 @@ def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START orders_per_user
 
-    @dlt.transformation(name="orders_per_user", write_disposition="merge")
+    @dlt.hub.transformation(name="orders_per_user", write_disposition="merge")
     def orders_per_user(dataset: dlt.Dataset) -> Any:
         purchases = dataset.table("purchases", table_type="ibis")
         yield purchases.group_by(purchases.customer_id).aggregate(order_count=purchases.id.count())
@@ -64,7 +64,7 @@ def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     import dlt
     from dlt.destinations import duckdb
 
-    @dlt.transformation()
+    @dlt.hub.transformation
     def copied_customers(dataset: dlt.Dataset) -> Any:
         customers_table = dataset["customers"]
         yield customers_table.order_by("name").limit(5)
@@ -92,13 +92,13 @@ def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     @dlt.source
     def my_transformations(dataset: dlt.Dataset) -> Any:
-        @dlt.transformation(write_disposition="append")
+        @dlt.hub.transformation(write_disposition="append")
         def enriched_purchases(dataset: dlt.Dataset) -> Any:
             purchases = dataset.table("purchases", table_type="ibis")
             customers = dataset.table("customers", table_type="ibis")
             yield purchases.join(customers, purchases.customer_id == customers.id)
 
-        @dlt.transformation(write_disposition="replace")
+        @dlt.hub.transformation(write_disposition="replace")
         def total_items_sold(dataset: dlt.Dataset) -> Any:
             purchases = dataset.table("purchases", table_type="ibis")
             yield purchases.aggregate(total_qty=purchases.quantity.sum())
@@ -118,7 +118,7 @@ def multiple_transformation_instructions_snippet(fruitshop_pipeline: dlt.Pipelin
     import dlt
 
     # this (probably nonsensical) transformation will create a union of the customers and purchases tables
-    @dlt.transformation(write_disposition="append")
+    @dlt.hub.transformation(write_disposition="append")
     def union_of_tables(dataset: dlt.Dataset) -> Any:
         yield dataset.customers
         yield dataset.purchases
@@ -131,7 +131,7 @@ def supply_hints_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     import dlt
 
     # change precision and scale of the price column
-    @dlt.transformation(
+    @dlt.hub.transformation(
         write_disposition="append", columns={"price": {"precision": 10, "scale": 2}}
     )
     def precision_change(dataset: dlt.Dataset) -> Any:
@@ -151,7 +151,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START sql_queries
     # @@@DLT_SNIPPET_START sql_queries_short
     # Convert the transformation above that selected the first 5 customers to a sql query
-    @dlt.transformation()
+    @dlt.hub.transformation
     def copied_customers(dataset: dlt.Dataset) -> Any:
         customers_table = dataset("""
             SELECT *
@@ -164,7 +164,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_END sql_queries_short
 
     # Joins and other more complex queries are also possible of course
-    @dlt.transformation()
+    @dlt.hub.transformation
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset("""
             SELECT customers.name, purchases.quantity
@@ -176,7 +176,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     # You can even use a different dialect than the one used by the destination by supplying the dialect parameter
     # dlt will compile the query to the right destination dialect
-    @dlt.transformation()
+    @dlt.hub.transformation
     def enriched_purchases_postgres(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset(
             """
@@ -206,7 +206,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START arrow_dataframe_operations
 
-    @dlt.transformation()
+    @dlt.hub.transformation
     def copied_customers(dataset: dlt.Dataset) -> Any:
         # get full customers table as arrow table
         customers = dataset.customers.arrow()
@@ -218,7 +218,7 @@ def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None
         yield sorted_customers.slice(0, 5)
 
     # Example tables (replace with your actual data)
-    @dlt.transformation()
+    @dlt.hub.transformation
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
         # get both fully tables as dataframes
         purchases = dataset.purchases.df()
@@ -258,7 +258,7 @@ def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
 def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START column_level_lineage
-    @dlt.transformation()
+    @dlt.hub.transformation
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset("""
             SELECT customers.name, purchases.quantity
@@ -307,7 +307,7 @@ def in_transit_transformations_snippet() -> None:
     transit_pipeline.run(source)
 
     # load aggregated data to a warehouse destination
-    @dlt.transformation()
+    @dlt.hub.transformation
     def orders_per_store(dataset: dlt.Dataset) -> Any:
         orders = dataset.table("orders", table_type="ibis")
         stores = dataset.table("stores", table_type="ibis")
@@ -331,7 +331,7 @@ def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> Non
     # @@@DLT_SNIPPET_START incremental_transformations
     from dlt.pipeline.exceptions import PipelineNeverRan
 
-    @dlt.transformation(
+    @dlt.hub.transformation(
         write_disposition="append",
         primary_key="id",
     )

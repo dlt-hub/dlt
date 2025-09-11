@@ -1,7 +1,7 @@
 import React from "react";
 import Heading from "@theme-original/Heading";
 import { useLocation } from "@docusaurus/router";
-import { PlusAdmonition } from "../PlusAdmonition";
+import { dltHubFeatureAdmonition } from "../dltHubFeatureAdmonition";
 
 export default function HeadingWrapper(props) {
   const location = useLocation();
@@ -12,7 +12,7 @@ export default function HeadingWrapper(props) {
     return (
       <>
         <Heading {...props} />
-        <PlusAdmonition />
+        <dltHubFeatureAdmonition />
       </>
     );
   }
