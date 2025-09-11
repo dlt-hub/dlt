@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Iterable,
     Iterator,
+    Generator,
     Type,
     Union,
     Any,
@@ -610,7 +611,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self.pipe_data_from(self.from_data(data, name="iter_" + uniq_id(4)))
         return self
 
-    def __iter__(self) -> Iterator[TDataItem]:
+    def __iter__(self) -> Generator[TDataItem, None, None]:
         """Opens iterator that yields the data items from the resources in the same order as in Pipeline class.
 
         A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
