@@ -24,7 +24,11 @@ STYLE_FILE_NAME = "dlt_dashboard_styles.css"
 
 
 def run_dashboard(
-    pipeline_name: str = None, edit: bool = False, pipelines_dir: str = None, port: int = None
+    pipeline_name: str = None,
+    edit: bool = False,
+    pipelines_dir: str = None,
+    port: int = None,
+    host: str = None,
 ) -> None:
     from dlt.helpers.dashboard import dlt_dashboard
 
@@ -58,6 +62,10 @@ def run_dashboard(
     if port:
         dashboard_cmd.append("--port")
         dashboard_cmd.append(str(port))
+
+    if host:
+        dashboard_cmd.append("--host")
+        dashboard_cmd.append(host)
 
     if pipeline_name:
         dashboard_cmd.append("--")
