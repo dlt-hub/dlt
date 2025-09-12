@@ -1,11 +1,8 @@
-# Use root/example as user/password credentials
-version: '3.1'
-
 services:
-
   db:
     image: mysql:8
-    restart: always
+    container_name: dlt_test_mysql
+    restart: on-failure
     command: --sql-mode="STRICT_ALL_TABLES,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION" --innodb-strict-mode
     environment:
       MYSQL_ROOT_PASSWORD: root

@@ -1,12 +1,11 @@
-version: "3.7"
 services:
    db:
     env_file: postgres.env
     build:
       context: postgres
       dockerfile: Dockerfile
-    container_name: dlt_postgres_db
-    restart: unless-stopped
+    container_name: dlt_test_postgres
+    restart: on-failure
     volumes:
       - db_home:/var/lib/postgresql/data
     ports:

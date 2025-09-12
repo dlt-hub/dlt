@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
     platform: linux/amd64
-    container_name: mssql_ct
+    container_name: dlt_test_mssql
+    restart: on-failure
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=Strong!Passw0rd
