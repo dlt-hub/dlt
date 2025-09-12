@@ -12,6 +12,7 @@ from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema import Schema
@@ -39,6 +40,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import dynstr, make_schema_with_default_name
+from tests.common.utils import load_yml_case
 
 
 @pytest.fixture(autouse=True)
@@ -80,6 +82,32 @@ def test_basic_source() -> None:
     assert s.max_table_nesting is None
     assert s.root_key is False
     assert s.schema_contract is None
+
+
+def test_root_key_backward_compat() -> None:
+    def basic_gen():
+        yield 1
+
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    orig_schema = Schema.from_dict(eth_V11)
+    s = DltSource.from_data(orig_schema, "section", basic_gen)
+
+    # set none surfaces a real value
+    s.root_key = None
+    assert s.root_key is True
+    config = RelationalNormalizer.get_normalizer_config(orig_schema)
+    # dropped root propagation so this is false
+    assert config["propagation"]["root"] == {}
+    assert s._get_root_key_legacy(config) is None
+
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    orig_schema = Schema.from_dict(eth_V11)
+    s = DltSource.from_data(orig_schema, "section", basic_gen)
+
+    assert s.root_key is True
+    assert s.root_key is True
+    config = RelationalNormalizer.get_normalizer_config(orig_schema)
+    assert config["propagation"]["root"] == {}
 
 
 def test_call_data_resource() -> None:
@@ -1060,16 +1088,23 @@ def test_limit_max_time() -> None:
 def test_limit_count_by_rows() -> None:
     # no batching - processing row by row
     r = dlt.resource([1, 2, 3, 4, 5], name="test")
-    assert list(r._clone().add_limit(3, count_rows=True)) == [1, 2, 3]
+    r_limit = r._clone().add_limit(3, count_rows=True)
+    assert list(r_limit) == [1, 2, 3]
+    # chunk size ignored when counting by rows
+    assert r_limit.limit.limit(chunk_size=5) == 3
 
     # counts batches
     r = dlt.resource([[1, 2, 3], [4, 5], [6, 7]], name="test")
+    # NOTE: if batches are irregular, LimitItem::limit has no meaning
     assert list(r._clone().add_limit(3, count_rows=False)) == [1, 2, 3, 4, 5, 6, 7]
     # counts rows
     assert list(r._clone().add_limit(3, count_rows=True)) == [1, 2, 3]
 
     # last batch will not be cut so we get it in full
-    assert list(r._clone().add_limit(4, count_rows=True)) == [1, 2, 3, 4, 5]
+    r_limit = r._clone().add_limit(4, count_rows=True)
+    assert list(r_limit) == [1, 2, 3, 4, 5]
+    # still the limit is 3 items
+    assert r_limit.limit.limit(5) == 4
 
     # list in batches are single rows
     r = dlt.resource([[1, [2, 3]], [4, [5]]], name="test")

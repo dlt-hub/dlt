@@ -167,11 +167,14 @@ class LimitItem(ItemTransform[TDataItem]):
 
     def limit(self, chunk_size: int) -> Optional[int]:
         """Calculate the maximum number of rows to which result is limited. Limit works in chunks
-        that controlled by the data source and this must be provided in `chunk_size`
+        that controlled by the data source and this must be provided in `chunk_size`.
+        `chunk_size` will be ignore if counting rows (`count_rows` is `True`). Mind that
+        this count method will not split batches so you may get more items (up to the full last batch)
+        than `limit` method indicates.
         """
         if self.max_items in (None, -1):
             return None
-        return self.max_items * chunk_size
+        return self.max_items * (1 if self.count_rows else chunk_size)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         row_count = count_rows_in_items(item)
@@ -180,7 +183,7 @@ class LimitItem(ItemTransform[TDataItem]):
 
         # detect when the limit is reached, max time or yield count
         if (
-            (self.count >= self.max_items)
+            (self.count >= self.max_items and self.max_items >= 0)
             or (self.max_time and time.time() - self.start_time > self.max_time)
             or self.max_items == 0
         ):
