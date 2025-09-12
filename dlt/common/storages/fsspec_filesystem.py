@@ -19,6 +19,7 @@ from typing import (
     Sequence,
 )
 from urllib.parse import urlparse
+from typing_extensions import NotRequired
 
 from fsspec import AbstractFileSystem, register_implementation, get_filesystem_class
 from fsspec.core import url_to_fs
@@ -43,17 +44,17 @@ from dlt.common.typing import DictStrAny
 from dlt.common.utils import without_none
 
 
-class FileItem(TypedDict, total=False):
+class FileItem(TypedDict):
     """A DataItem representing a file"""
 
     file_url: str
     file_name: str
     relative_path: str
     mime_type: str
-    encoding: Optional[str]
+    encoding: NotRequired[str]
     modification_date: pendulum.DateTime
     size_in_bytes: int
-    file_content: Optional[bytes]
+    file_content: NotRequired[bytes]
 
 
 # Map of protocol to mtime resolver
@@ -381,12 +382,14 @@ def glob_files(
             file_url = make_fsspec_url(scheme, file, bucket_url)
 
         mime_type, encoding = guess_mime_type(rel_path)
-        yield FileItem(
+        file_item = FileItem(
             file_name=file_name,
             relative_path=rel_path,
             file_url=file_url,
             mime_type=mime_type,
-            encoding=encoding,
             modification_date=MTIME_DISPATCH[scheme](md),
             size_in_bytes=int(md["size"]),
         )
+        if encoding is not None:
+            file_item["encoding"] = encoding
+        yield file_item
