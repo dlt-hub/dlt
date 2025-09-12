@@ -5,13 +5,13 @@ app = marimo.App(width="medium")
 
 with app.setup:
     import pathlib
-    import datetime
     import functools
     from typing import Optional, Union
 
     import marimo as mo
 
     from dlt.common.json import json
+    from dlt.common.pendulum import datetime
     from dlt.common.storages import FileStorage
     from dlt.common.pipeline import get_dlt_pipelines_dir
 
