@@ -182,7 +182,7 @@ workspace = [
 ]
 marimo = [
     "marimo>=0.14.5",
-    "mowidgets>=0.1.1 ; python_version >= '3.11'",
+    "mowidgets>=0.1.2",
 ]
 dbml = [
     "pydbml"
