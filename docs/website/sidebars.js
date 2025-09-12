@@ -67,6 +67,8 @@ const sidebars = {
       },
       items: [
         'release-notes/1.12.1',
+        'release-notes/1.13-1.14',
+        'release-notes/1.15'
       ]
     },
     {
@@ -368,6 +370,7 @@ const sidebars = {
           ]
         },
         'walkthroughs/adjust-a-schema',
+        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Access loaded data',
@@ -376,7 +379,6 @@ const sidebars = {
             id: 'general-usage/dataset-access/index',
           },
           items: [
-            'general-usage/dataset-access/dashboard',
             'general-usage/dataset-access/marimo',
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',

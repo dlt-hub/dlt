@@ -64,6 +64,7 @@ lint:
 
 format:
 	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black docs/education --ipynb --extend-exclude='.*syntax_error.py|_storage/.*'
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
@@ -90,6 +91,13 @@ test-examples:
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
 	uv run bandit -r dlt/ -n 3 -lll
+
+lint-notebooks:
+	uv run nbqa flake8 docs/education --extend-ignore=D,F704 --max-line-length=200
+	uv run nbqa mypy docs/education \
+	--ignore-missing-imports \
+	--disable-error-code=no-redef \
+	--disable-error-code=top-level-await
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
@@ -162,6 +170,9 @@ update-cli-docs:
 check-cli-docs:
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
 
+# Commands for running dashboard e2e tests
+# To run these tests locally, run `make start-dlt-dashboard-e2e` in one terminal and `make test-e2e-dashboard-headed` in another terminal
+
 test-e2e-dashboard:
 	uv run pytest --browser chromium tests/e2e
 
@@ -170,3 +181,7 @@ test-e2e-dashboard-headed:
 
 start-dlt-dashboard-e2e:
 	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
+
+# creates the dashboard test pipelines globally for manual testingn of the dashboard app and cli
+create-test-pipelines:
+	uv run python tests/helpers/dashboard/example_pipelines.py

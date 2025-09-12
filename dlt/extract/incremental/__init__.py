@@ -330,7 +330,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self.initial_value = native_value
 
     def get_state(self) -> IncrementalColumnState:
-        """Returns an Incremental state for a particular cursor column"""
+        """Returns or creates an Incremental state for a particular cursor column
+
+        If end_value is set, a mock state is created that will be discarded after extract step
+        Otherwise state is taken from current pipeline and will be persisted in it
+        """
         if self.end_value is not None:
             # End value uses mock state. We don't want to write it.
             return {
@@ -352,13 +356,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                     "unique_hashes": [],
                 }
             )
-        else:
-            # update initial value in existing state
-            self._cached_state["initial_value"] = self.initial_value
         return self._cached_state
 
     @staticmethod
     def _get_state(resource_name: str, cursor_path: str) -> IncrementalColumnState:
+        """Retrieve the sate from currently active pipeline"""
         state: IncrementalColumnState = (
             resource_state(resource_name).setdefault("incremental", {}).setdefault(cursor_path, {})
         )

@@ -749,7 +749,7 @@ retry strategies, timeouts and other factors. For example:
 from dlt.sources.helpers import requests
 client = RESTClient(
     base_url="https://api.example.com",
-    session=requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0)
+    session=requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0).session
 )
 ```
 will set-up the client for a short connect and read timeouts with no retries.

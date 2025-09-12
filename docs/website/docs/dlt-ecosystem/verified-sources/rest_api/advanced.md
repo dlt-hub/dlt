@@ -242,12 +242,12 @@ source_config = {
 In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
 
 
-## Setup timeouts and retry strategies
+### Setup timeouts and retry strategies
 `rest_api` uses `dlt` [custom sessions](../../../general-usage/http/requests.md) and [`RESTClient`](../../../general-usage/http/rest-client.md) to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
 ```py
 from dlt.sources.helpers import requests
 
-source_config = {
+source_config: RESTAPIConfig = {
     "client": {
         "session": requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0)
     },

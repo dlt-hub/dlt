@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.15.0"
+version = "1.16.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -205,7 +205,7 @@ dev = [
     "mypy>=1.11.0,<1.13.0",
     "flake8>=7.0.0,<8",
     "bandit>=1.7.0,<2",
-    "black>=23.7.0,<24",
+    "black[jupyter]>=23.7.0,<24",
     "isort>=5.12.0,<6",
     "flake8-bugbear>=22.0.0,<23",
     "pytest-order>=1.0.0",
@@ -236,6 +236,7 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
     "graphviz>=0.21",
+    "nbqa>=1.9.1",
 ]
 
 # NOTE: those dependencies are used to test built in sources

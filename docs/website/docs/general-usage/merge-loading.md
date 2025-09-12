@@ -225,7 +225,7 @@ Root key propagation & merge apply only to nested tables. If your resource does 
 this chapter.
 :::
 
-Merge write disposition requires that the `_dlt_id` (`row_key`) of the root table be propagated to nested tables. This concept is similar to a foreign key but always references the root (top level) table, skipping any intermediate parents. We call it `root key`. The root key is automatically propagated for all tables that have the `merge` write disposition set. We do not enable it everywhere because it takes up storage space.
+Merge write disposition requires that the `_dlt_id` (`row_key`) of the root table be propagated to nested tables. This concept is similar to a foreign key but always references the root (top level) table, skipping any intermediate parents. We call it `root key`. The root key is automatically propagated for all tables that have the `merge` write disposition set. We do not enable it elsewhere because it takes up storage space.
 
 If you plan for some of resources to do merges but your initial backfill is append (or replace / full refresh) you should:
 1. [Enable root key propagation right away](#forcing-root-key-propagation)
@@ -244,27 +244,49 @@ In that case `dlt` will update pipeline schema but will skip database migration.
 
 Nevertheless, in some cases, you may want to permanently enable root key propagation.
 
+`Root key` propagation is automatically enabled for all tables that have the `merge` write disposition set from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
+
+To enable `root key` propagation on an existing source or resource, you must drop and recreate its tables, since the `_dlt_root_id` column cannot be added to tables that already contain data.
+
+For example, suppose you used the [Facebook Ads](../dlt-ecosystem/verified-sources/facebook_ads.md) verified source, where the `merge` write disposition and `root key` are not enabled by default, to load the `ads` resource:
 ```py
 pipeline = dlt.pipeline(
-    pipeline_name='facebook_insights',
+    pipeline_name='facebook_ads_pipeline',
     destination='duckdb',
-    dataset_name='facebook_insights_data',
-    dev_mode=True
+    dataset_name='facebook_ads_data',
 )
-fb_ads = facebook_ads_source()
-# enable root key propagation on a source that is not a merge one by default.
-# this is not required if you always use merge but below we start with replace
-fb_ads.root_key = True
-# load only disapproved ads
-fb_ads.ads.bind(states=("DISAPPROVED", ))
-info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="replace")
-# merge the paused ads. the disapproved ads stay there!
-fb_ads = facebook_ads_source()
-fb_ads.ads.bind(states=("PAUSED", ))
-info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="merge")
+my_facebook_ads = facebook_ads_source()
+pipeline.run(my_facebook_ads.with_resources("ads"))
 ```
 
-In the example above, we enforce the root key propagation with `fb_ads.root_key = True`. This ensures that the correct data is propagated on the initial `replace` load so the future `merge` load can be executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`.
+If you want to change the `ads` resource to use `merge`, you must first drop the existing resource tables from the destination:
+
+```sh
+dlt pipeline facebook_ads_pipeline drop ads
+```
+
+This command removes the `ads` table and all its nested tables from the destination, allowing them to be later recreated with a schema that includes the `_dlt_root_id` column.
+
+Next, enable `root key` propagation and run the pipeline once with `replace`, followed by `merge`:
+
+```py
+pipeline = dlt.pipeline(
+    pipeline_name='facebook_ads_pipeline',
+    destination='duckdb',
+    dataset_name='facebook_ads_data',
+)
+my_facebook_ads = facebook_ads_source()
+
+my_facebook_ads.root_key = True
+
+pipeline.run(my_facebook_ads.with_resources("ads"), write_disposition="replace")
+
+pipeline.run(my_facebook_ads.with_resources("ads"), write_disposition="merge")
+```
+
+In this example, enabling `my_facebook_ads.root_key = True` and running the pipeline once with `replace` ensures that the tables are recreated with the `_dlt_root_id` column. Once this column is present, subsequent `merge` runs can be executed successfully.
+
+If you have defined your own source with the `@dlt.source` decorator, you can also enable `root key` propagation by adding `@dlt.source(root_key=True)`.
 
 #### Disable root key propagation
 If your source generates single level of nested table (nested tables do not have nested tables) ie. with `max_table_nesting=1` you can disable root key propagation

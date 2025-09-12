@@ -13,7 +13,7 @@ The Streamlit app does not work with all destinations supported by `dlt`. Only d
 :::
 
 :::caution
-The Streamlit app is not under active development anymore and may soon be deprecated. We encourage all users to use the [pipeline dashboard](./dashboard.md)
+The Streamlit app is not under active development anymore and may soon be deprecated. We encourage all users to use the [pipeline dashboard](../dashboard.md)
 :::
 
 ## Prerequisites

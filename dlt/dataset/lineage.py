@@ -69,6 +69,7 @@ def create_sqlglot_schema(
 
 
 # NOTE even if `infer_sqlglot_schema=True`, some queries can have undetermined final columns
+# TODO refactor such that it doesn't return a tuple
 def compute_columns_schema(
     expression: sge.Expression,
     sqlglot_schema: SQLGlotSchema,
