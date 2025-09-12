@@ -1026,7 +1026,7 @@ def get_resource_metrics() -> Dict[str, Any]:
     """Should be executed from inside the function decorated with @dlt.resource
 
     Returns:
-        Dict[str, Any]: The customizable dictionary
+        Dict[str, Any]: The customizable metrics dictionary
     """
     return get_resource().metrics
 
