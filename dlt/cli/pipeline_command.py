@@ -19,7 +19,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import FileStorage, PackageStorage
 
 from dlt.extract.state import resource_state
-from dlt.pipeline.helpers import DropCommand
+from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.cli import echo as fmt
@@ -362,7 +362,7 @@ def pipeline_command(
         fmt.echo(schema_str)
 
     if operation == "drop":
-        drop = DropCommand(p, **command_kwargs)
+        drop = pipeline_drop(p, **command_kwargs)
         if drop.is_empty:
             fmt.echo(
                 "Could not select any resources to drop and no resource/source state to reset. Use"

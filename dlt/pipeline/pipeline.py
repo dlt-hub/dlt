@@ -144,7 +144,7 @@ from dlt.pipeline.state_sync import (
     default_pipeline_state,
 )
 from dlt.common.storages.load_package import TLoadPackageState
-from dlt.pipeline.helpers import refresh_source
+from dlt.pipeline.helpers import prepare_refresh_source
 
 if TYPE_CHECKING:
     from dlt import SupportsDataset
@@ -1284,7 +1284,9 @@ class Pipeline(SupportsPipeline):
             if refresh:
                 # NOTE: we use original pipeline schema to detect dropped/truncated tables so we can drop
                 # the original names, before eventual new naming convention is applied
-                load_package_state_update.update(deepcopy(refresh_source(self, source, refresh)))
+                load_package_state_update.update(
+                    deepcopy(prepare_refresh_source(self, source, refresh))
+                )
                 if refresh == "drop_sources":
                     # replace the whole source AFTER we got tables to drop
                     source.schema = source_schema

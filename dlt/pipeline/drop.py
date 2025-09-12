@@ -18,13 +18,15 @@ from dlt.extract.state import (
     TPipelineState,
     _sources_state,
     _get_matching_resources,
-    get_matching_sources,
+    _get_matching_sources,
     reset_resource_state,
     delete_source_state_keys,
 )
 
 
 class _DropInfo(TypedDict):
+    """Collects all entities that will be affected by pipeline drop"""
+
     tables: List[str]
     tables_with_data: List[str]
     resource_states: List[str]
@@ -37,7 +39,9 @@ class _DropInfo(TypedDict):
 
 
 @dataclass
-class _DropResult:
+class _DropDryRunResult:
+    """Collects all modifications that will be executed as part of the pipeline drop."""
+
     schema: Schema
     state: TPipelineState
     info: _DropInfo
@@ -47,15 +51,15 @@ class _DropResult:
 def _create_modified_state(
     state: TPipelineState,
     resource_pattern: Optional[REPattern],
-    source_pattern: REPattern,
+    source_name: str,
     state_paths: jsonpath.TAnyJsonPath,
     info: _DropInfo,
 ) -> Tuple[TPipelineState, _DropInfo]:
-    # if not self.drop_state:
-    #     return state  # type: ignore[return-value]
     all_source_states = _sources_state(state)
-    for source_name in get_matching_sources(source_pattern, state):
-        source_state = all_source_states[source_name]
+    # note that source name is the same as its schema name and only resources belonging
+    # to that source will be reset there
+    source_state = all_source_states.get(source_name)
+    if source_state:
         # drop table states
         if resource_pattern:
             for key in _get_matching_resources(resource_pattern, source_state):
@@ -75,15 +79,15 @@ def _create_modified_state(
     return state, info
 
 
-def drop_resources(
+def prepare_drop_resources(
     schema: Schema,
     state: TPipelineState,
     resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
     state_paths: jsonpath.TAnyJsonPath = (),
     drop_all: bool = False,
     state_only: bool = False,
-    sources: Optional[Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]]] = None,
-) -> _DropResult:
+    # sources: Optional[Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]]] = None,
+) -> _DropDryRunResult:
     """Generate a new schema and pipeline state with the requested resources removed.
 
     Args:
@@ -105,10 +109,6 @@ def drop_resources(
     if isinstance(resources, str):
         resources = [resources]
     resources = list(resources)
-    if isinstance(sources, str):
-        sources = [sources]
-    if sources is not None:
-        sources = list(sources)
     if isinstance(state_paths, str):
         state_paths = [state_paths]
 
@@ -121,10 +121,6 @@ def drop_resources(
         resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
     else:
         resource_pattern = None
-    if sources is not None:
-        source_pattern = compile_simple_regexes(TSimpleRegex(s) for s in sources)
-    else:
-        source_pattern = compile_simple_regex(TSimpleRegex("re:.*"))  # Match everything
 
     if resource_pattern:
         # (1) Don't remove _dlt tables (2) Drop all selected tables from the schema
@@ -155,7 +151,7 @@ def drop_resources(
     )
 
     new_state, info = _create_modified_state(
-        state, resource_pattern, source_pattern, state_paths, info
+        state, resource_pattern, schema.name, state_paths, info
     )
     # info["resource_names"] = resource_names if not state_only else []
 
@@ -169,4 +165,4 @@ def drop_resources(
     if not state_only:
         # drop only the selected tables
         schema.drop_tables(tables_to_drop_from_schema_names)
-    return _DropResult(schema, new_state, info, tables_to_drop_from_dest)
+    return _DropDryRunResult(schema, new_state, info, tables_to_drop_from_dest)

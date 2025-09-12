@@ -496,7 +496,9 @@ def test_failing_sql_table_chain_job() -> None:
         assert_complete_job(load)
 
     # sql jobs always fail because this is not an sql client, we just make sure the exception is there
-    assert "Failed creating table chain followup jobs for table chain with root table" in str(exc)
+    assert "Failed creating table chain followup jobs for table chain with root table" in str(
+        exc.value
+    )
 
 
 def test_successful_table_chain_jobs() -> None:
