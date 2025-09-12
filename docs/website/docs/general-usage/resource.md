@@ -700,6 +700,49 @@ pipeline.run(
 
 The `with_name` method returns a deep copy of the original resource, its data pipe, and the data pipes of a parent resource. A renamed clone is fully separated from the original resource (and other clones) when loading: it maintains a separate [resource state](state.md#read-and-write-pipeline-state-in-a-resource) and will load to a table.
 
+## Collect custom metrics in resources
+
+You can track custom statistics during resource extraction with `dlt.current.resource_metrics()`:
+
+```py
+import dlt
+import random
+
+
+@dlt.resource(name='rows_table', write_disposition='replace')
+def generate_rows():
+    custom_metrics = dlt.current.resource_metrics()
+    min_value = float("inf")
+
+    for i in range(10):
+        value = random.randint(0, 100)
+
+        # Track minimum value seen
+        if value < min_value:
+            min_value = value
+        
+        yield {'id': i, 'example_string': 'abc', "value": value}
+
+    custom_metrics["random_min"] = min_value
+
+pipeline = dlt.pipeline(
+    pipeline_name="rows_pipeline",
+    destination="duckdb",
+    dataset_name="rows_data_with_metrics",
+)
+load_info = pipeline.run(generate_rows())
+print(load_info)
+
+# Access custom metrics from last trace
+trace = pipeline.last_trace
+load_id = load_info.loads_ids[0]
+resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["rows_table"]
+
+print(f"Custom metrics: {resource_metrics.custom_metrics}")
+```
+
+Custom metrics are included in pipeline traces and cannot use reserved keys (`file_path`, `items_count`, `file_size`, `created`, `last_modified`). Use them with [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for pipeline monitoring.
+
 ## Load resources
 
 You can pass individual resources or a list of resources to the `dlt.pipeline` object. The resources loaded outside the source context will be added to the [default schema](schema.md) of the pipeline.
