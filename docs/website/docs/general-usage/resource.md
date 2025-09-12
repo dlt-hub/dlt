@@ -500,14 +500,6 @@ If you are parameterizing the value of `add_limit` and sometimes need it to be d
 You can also set the limit to `0` for the resource to not yield any items.
 :::
 
-### Split large data
-You can use `add_limit` to split incremental resources that process large data into manageable chunks:
-```py
-```
-splits loading of `issues` table into one hour chunks that are loaded in a loop. You'll see your data quicker without impacting the performance.
-Note **row_order** above! this makes sure that your table rows are returned deterministically so `dlt` can process consecutive chunks without
-losing data. Mind that ordering results may increase load on the database server. [Please read about other backfill strategies]
-
 ### Set table name and adjust schema
 
 You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](merge-loading.md) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental/cursor.md) on the `created_at` column to prevent requesting again the already loaded records:

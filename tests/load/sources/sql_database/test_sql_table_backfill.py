@@ -1,7 +1,8 @@
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 import dlt
+from dlt.common import pendulum
 from dlt.sources.sql_database import sql_table
 from dlt.sources.sql_database.helpers import TableBackend
 
@@ -11,22 +12,22 @@ from tests.pipeline.utils import load_table_counts
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow"])
 def test_load_sql_table_resource_incremental_end_value(
-    sql_source_db: PostgresSourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
 ) -> None:
-    conn_str = sql_source_db.credentials.to_native_representation()
+    conn_str = postgres_db.credentials.to_native_representation()
     engine = create_engine(conn_str)
 
     # get min and max on id column from chat_message table
     with engine.connect() as conn:
         result = conn.exec_driver_sql(
-            "SELECT MIN(id), MAX(id) FROM {}.chat_message".format(sql_source_db.schema)
+            "SELECT MIN(id), MAX(id) FROM {}.chat_message".format(postgres_db.schema)
         )
         min_id, max_id = result.fetchone()
 
         # Read all IDs from source table for verification
         result = conn.exec_driver_sql(
-            "SELECT id FROM {}.chat_message ORDER BY id".format(sql_source_db.schema)
+            "SELECT id FROM {}.chat_message ORDER BY id".format(postgres_db.schema)
         )
         source_ids = [row[0] for row in result.fetchall()]
 
@@ -42,8 +43,8 @@ def test_load_sql_table_resource_incremental_end_value(
     # NOTE: we can run resources in parallel because they are not using state
     all_tables = [
         sql_table(
-            credentials=sql_source_db.credentials,
-            schema=sql_source_db.schema,
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
             table="chat_message",
             backend=backend,
             incremental=dlt.sources.incremental(
@@ -70,12 +71,12 @@ def test_load_sql_table_resource_incremental_end_value(
     # The total should match the number of rows in the chat_message table
     assert (
         load_table_counts(pipeline)["chat_message"]
-        == sql_source_db.table_infos["chat_message"]["row_count"] - 1
+        == postgres_db.table_infos["chat_message"]["row_count"] - 1
     )
 
     incremental_table = sql_table(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         table="chat_message",
         backend=backend,
         incremental=dlt.sources.incremental(
@@ -94,61 +95,176 @@ def test_load_sql_table_resource_incremental_end_value(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow"])
-def test_load_sql_table_split_loading(
-    sql_source_db: PostgresSourceDB,
+def test_load_sql_table_partitioned(
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
 ) -> None:
-    conn_str = sql_source_db.credentials.to_native_representation()
+    conn_str = postgres_db.credentials.to_native_representation()
+    engine = create_engine(conn_str)
+
+    # update all messages in chat_message so `updated_at` belongs to 4 different days that we know in advance
+    today = pendulum.now().start_of("day")
+    num_days = 4
+
+    # create date ranges in a loop
+    days = [today.subtract(days=i) for i in range(num_days - 1, -1, -1)]
+    date_ranges = [
+        {"start": days[i], "end": days[i + 1] if i < num_days - 1 else days[i].add(days=1)}
+        for i in range(num_days)
+    ]
+
+    # Get total count and message IDs to verify later
+    with engine.connect() as conn:
+        result = conn.exec_driver_sql(
+            "SELECT COUNT(*), array_agg(id) FROM {}.chat_message".format(postgres_db.schema)
+        )
+        total_count, message_ids = result.fetchone()
+
+        # Update the chat_message records to distribute across days
+        case_clauses = []
+        case_params = {}
+
+        for i, day_range in enumerate(date_ranges):
+            day_param = f"day{i}"
+            case_clauses.append(f"WHEN id % {num_days} = {i} THEN :{day_param}")
+            case_params[day_param] = day_range["start"]
+
+        case_statement = " ".join(case_clauses)
+
+        conn.execute(
+            text(f"""
+            UPDATE {postgres_db.schema}.chat_message
+            SET updated_at = CASE
+                {case_statement}
+            END
+            """),
+            case_params,
+        )
+
+        # Verify the distribution
+        result = conn.exec_driver_sql(f"""
+            SELECT date_trunc('day', updated_at) as day, COUNT(*)
+            FROM {postgres_db.schema}.chat_message
+            GROUP BY day
+            ORDER BY day
+            """)
+        day_counts = {str(row[0]): row[1] for row in result.fetchall()}
+        print(day_counts)
+
+    # run dlt pipeline 4 times with incremental set to particular days (via initial_value and end_value)
+    pipeline = dlt.pipeline("test_load_sql_table_partitioned", destination="duckdb")
+
+    # Load each date range separately
+    for _, date_range in enumerate(date_ranges):
+        incremental_table = sql_table(
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
+            table="chat_message",
+            backend=backend,
+            incremental=dlt.sources.incremental(
+                "updated_at",
+                initial_value=date_range["start"],
+                end_value=date_range["end"],
+                range_start="open",
+                range_end="closed",
+            ),
+        )
+
+        print(pipeline.run(incremental_table))
+        print(pipeline.last_trace.last_normalize_info)
+
+    # make sure all records are present
+    print(load_table_counts(pipeline))
+    loaded_count = load_table_counts(pipeline)["chat_message"]
+    assert loaded_count == total_count
+
+    # Check that we have all the message IDs
+    duckdb_ids = [pk[0] for pk in pipeline.dataset().chat_message[["id"]].fetchall()]
+    assert sorted(duckdb_ids) == sorted(message_ids)
+
+    # update one message updated_at to now()
+    current_time = pendulum.now()
+    with engine.connect() as conn:
+        # Update the first message to have the current time
+        first_id = conn.exec_driver_sql(
+            f"SELECT MIN(id) FROM {postgres_db.schema}.chat_message"
+        ).scalar_one()
+
+        conn.execute(
+            text(
+                f"UPDATE {postgres_db.schema}.chat_message SET updated_at = :current_time WHERE"
+                " id = :id"
+            ),
+            {"current_time": current_time, "id": first_id},
+        )
+
+    # run pipeline incrementally with the max day as initial_value and open range
+    incremental_table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="chat_message",
+        backend=backend,
+        incremental=dlt.sources.incremental(
+            "updated_at",
+            initial_value=date_ranges[-1]["end"],  # Use the last day as the starting point
+            range_start="open",  # Include records from the last day
+        ),
+    )
+
+    pipeline.run(incremental_table)
+    print(pipeline.last_trace.last_normalize_info)
+
+    # Verify that we loaded the updated record
+    # Should have loaded only 1 record - the one we just updated
+    assert pipeline.last_trace.last_normalize_info.row_counts["chat_message"] == 1
+
+    # Verify the total record count is still correct (no duplicates)
+    total_duckdb_count = len(pipeline.dataset().chat_message["id"].fetchall())
+    assert total_duckdb_count == total_count
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow"])
+def test_load_sql_table_split_loading(
+    postgres_db: PostgresSourceDB,
+    backend: TableBackend,
+) -> None:
+    conn_str = postgres_db.credentials.to_native_representation()
     engine = create_engine(conn_str)
 
     # get min and max on id column from chat_message table
     with engine.connect() as conn:
+        # read all IDs from source table for verification
         result = conn.exec_driver_sql(
-            "SELECT MIN(id), MAX(id) FROM {}.chat_message".format(sql_source_db.schema)
-        )
-        min_id, max_id = result.fetchone()
-
-        # Read all IDs from source table for verification
-        result = conn.exec_driver_sql(
-            "SELECT id FROM {}.chat_message ORDER BY id".format(sql_source_db.schema)
+            "SELECT id FROM {}.chat_message ORDER BY id".format(postgres_db.schema)
         )
         source_ids = [row[0] for row in result.fetchall()]
 
     pipeline = dlt.pipeline("test_load_sql_table_split_loading", destination="duckdb")
 
-    # Set up incremental extraction with a defined batch size
-    batch_size = (max_id - min_id + 1) // 8  # Similar to the original test's partitioning
-    current_id = min_id - 1  # Start from before the minimum ID
-
-    # Create the incremental table resource with row_order to ensure we don't miss rows
+    # create the incremental table resource with row_order to ensure we don't miss rows
     incremental_table = sql_table(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         table="chat_message",
         backend=backend,
-        chunk_size=1000,
+        chunk_size=1000,  # in production use large chunk size
         incremental=dlt.sources.incremental(
             "id",
-            initial_value=current_id,
-            row_order="asc",  # Critical to set row_order when doing split loading
+            row_order="asc",  # critical to set row_order when doing split loading
             range_start="open",  # use open range to disable deduplication
         ),
     )
 
-    # Process data in batches using a loop
-    # TODO: count rows loaded by each pipeline.run
-    # rows_loaded = 0
-    while pipeline.run(incremental_table.add_limit(batch_size)).has_data:
+    # we'll load 2 pages, 1000 rows max on each run
+    while not pipeline.run(incremental_table.add_limit(2)).is_empty:
         pass
 
-    print(pipeline.state)
-
-    # The total should match the number of rows in the chat_message table
+    # the total should match the number of rows in the chat_message table
     assert (
         load_table_counts(pipeline)["chat_message"]
-        == sql_source_db.table_infos["chat_message"]["row_count"]
+        == postgres_db.table_infos["chat_message"]["row_count"]
     )
 
-    # Compare all pks just in case
+    # compare all pks just in case
     duckdb_ids = [pk[0] for pk in pipeline.dataset().chat_message["id"].fetchall()]
     assert sorted(duckdb_ids) == sorted(source_ids)

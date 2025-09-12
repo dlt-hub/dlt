@@ -11,24 +11,98 @@ import Header from '../_source-info-header.md';
 <Header/>
 
 ### Split or partition long incremental loads
-If you have a large table with incremental loading set up, you can partition your initial load or split it in a loop.
+If you have a large table with incremental loading set up, you can partition your initial load or split it in a loop. There are two methods to do that:
+* **Partitioning** where you split source data in several ranges, load them (possibly in parallel) and then continue to load data incrementally.
+* **Split** where you load data sequentially in small chunks
 
-Partitioning works as follows:
+**Partitioning works as follows:**
+
 1. Get the minimum and maximum cursor column value for a table.
-2. Split it into N ranges. Here we assume that ranges are similarly populated. Obviously you can write more clever query that will give you partitions with more
+2. Split it into N ranges. Here we assume that ranges are evenly populated. Obviously you can write more clever query that will give you partitions with more
 or less similar sizes.
 3. For each range find min and max cursor value and
 use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
 4. You can load each partition in a loop or in parallel (ie. in separate process). Incremental resources with `end_value` set
 do not use the state.
+5. Continue regular incremental loading with `initial_value` set to the value at the end of the range
+and make the start range open to avoid duplicates.
+
+In example below we partition a table with chat messages by day using `updated_at` timestamp column as cursor.
+```py
+import dlt
+from dlt.sources.sql_database import sql_table
+
+# start today
+today = pendulum.now().start_of("day")
+# load today and past 3 days
+num_days = 4
+
+# create date ranges in a loop
+days = [today.subtract(days=i) for i in range(num_days - 1, -1, -1)]
+date_ranges = [
+    {"start": days[i], "end": days[i + 1] if i < num_days - 1 else days[i].add(days=1)}
+    for i in range(num_days)
+]
+
+# run dlt pipeline 4 times with incremental set to particular days (via initial_value and end_value)
+pipeline = dlt.pipeline("test_load_sql_table_partitioned", destination="duckdb")
+
+# load each date range separately, you could also execute each load in a separate process
+for _, date_range in enumerate(date_ranges):
+    table_partition = sql_table(
+        table="chat_message",
+        incremental=dlt.sources.incremental(
+            "updated_at",
+            initial_value=date_range["start"],
+            end_value=date_range["end"],
+            range_start="open",
+            range_end="closed",
+        ),
+    )
+    print(pipeline.run(table_partition))
+
+# run pipeline incrementally with the max day as initial_value and open range
+incremental_table = sql_table(
+    table="chat_message",
+    incremental=dlt.sources.incremental(
+        "updated_at",
+        initial_value=date_ranges[-1]["end"],  # use the last day as the starting point
+        range_start="open",  # exclude start boundary as it was loaded by last partition
+    ),
+)
+pipeline.run(incremental_table)
+```
+Please read [notes on parallelism](../../../general-usage/incremental/cursor.md#partition-large-backfills)
+
+**Split loading works as follows:**
+
+1. Use `incremental` property with **row_order** set. 
+2. Limit the resource by number of pages or time
+4. Run pipeline in a loop as long as it is not empty
 
 ```py
-```
+import dlt
+from dlt.sources.sql_database import sql_table
 
-Set count or time limit and run pipeline in a loop. **Note that you must set row_order on incremental**:
-```py
+pipeline = dlt.pipeline("test_load_sql_table_split_loading", destination="duckdb")
 
+# create the incremental table resource with row_order to ensure we don't miss rows
+incremental_table = sql_table(
+    table="chat_message",
+    chunk_size=1000,  # in production use large chunk size
+    incremental=dlt.sources.incremental(
+        "id",  # in most cases you'll use cursor column of timestamp type
+        row_order="asc",  # critical to set row_order when doing split loading
+        range_start="open",  # use open range to disable deduplication
+    ),
+)
+
+# we'll load 2 pages, 1000 rows max on each run
+while not pipeline.run(incremental_table.add_limit(2)).is_empty:
+    pass
 ```
+Note: if you have a table that receives data all the time, `is_empty` may never be false (there's always new data).
+Use `pipeline.last_trace.last_normalize_info.row_counts` for more granular exit conditions
 
 ### Inclusive and exclusive filtering
 
