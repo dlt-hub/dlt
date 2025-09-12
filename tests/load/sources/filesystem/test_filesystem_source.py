@@ -307,7 +307,9 @@ def test_incremental_order(bucket_url: str, incremental_method: str, row_order: 
     pipeline = dlt.pipeline("test_incremental_order", destination="duckdb", dev_mode=True)
 
     def _get_files() -> dlt.sources.DltResource:
-        incremental_ = dlt.sources.incremental[pendulum.DateTime]("file_name", row_order=row_order)
+        incremental_ = dlt.sources.incremental[pendulum.DateTime](
+            "file_name", row_order="asc", last_value_func=min if row_order == "desc" else max
+        )  # max if row_order=="asc" else min)
         if incremental_method == "signature":
             fs_ = filesystem(
                 bucket_url=bucket_url, file_glob="csv/*", incremental=incremental_, files_per_page=1
@@ -322,14 +324,79 @@ def test_incremental_order(bucket_url: str, incremental_method: str, row_order: 
     all_files = [file["file_name"] for file in filesystem(bucket_url=bucket_url, file_glob="csv/*")]
     all_files = sorted(all_files, reverse=row_order == "desc")
 
-    # load files with limit until we have data
+    # load files with limit until we have no data
     runs = 0
-    while pipeline.run(_get_files().with_name("files").add_limit(1)).has_data:
-        print(pipeline.last_trace.last_load_info)
+    while not pipeline.run(_get_files().with_name("files").add_limit(1)).is_empty:
+        print(pipeline.last_trace.last_normalize_info)
         loaded_files = pipeline.dataset().files["file_name"].fetchall()
         runs += 1
         assert [t_[0] for t_ in loaded_files] == all_files[:runs]
     assert runs == 4
+
+
+@pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
+def test_partitioned_load(bucket_url: str) -> None:
+    # list and sort all csv files for deterministic partitioning
+    fs_ = filesystem(bucket_url=bucket_url, file_glob="**/*.csv")
+    # we assume that file paths are named so files added later in time come at the end when sorted
+    all_files = sorted([file["file_url"] for file in fs_])
+    n = len(all_files)
+    assert n >= 4
+
+    pipeline = dlt.pipeline("test_partitioned_load", destination="duckdb", dev_mode=True)
+
+    expected_loaded: List[str] = []
+    total_loaded = 0
+
+    # load each partition using initial_value and end_value
+    for i in range(len(all_files) // 4 + 1):
+        files_range = all_files[i * 4 : (i + 1) * 4]
+        if not files_range:
+            continue
+
+        # close both ranges to load inclusively
+        file_name_incremental = dlt.sources.incremental(
+            "file_url",
+            initial_value=files_range[0],
+            end_value=files_range[-1],
+            range_start="closed",
+            range_end="closed",
+        )
+        file_resource = filesystem(
+            bucket_url=bucket_url, file_glob="**/*.csv", incremental=file_name_incremental
+        ).with_name("files")
+        load_info = pipeline.run(file_resource)
+        assert_load_info(load_info)
+
+        # verify correct number of items loaded in this run
+        expected_count = len(files_range)
+        assert pipeline.last_trace.last_normalize_info.row_counts["files"] == expected_count
+        print(pipeline.last_trace.last_normalize_info.row_counts)
+
+        expected_loaded.extend(files_range)
+        total_loaded += expected_count
+
+    # verify that exactly the expected files were loaded overall
+    loaded_urls = [t[0] for t in pipeline.dataset().files["file_url"].fetchall()]
+    assert len(loaded_urls) == total_loaded
+    assert set(loaded_urls) == set(all_files)
+
+    # make sure incremental state is not created
+    assert "sources" not in pipeline.state
+
+    # note we could also extract max modification_time and use it for subsequent incremental loading
+    file_name_incremental = dlt.sources.incremental(
+        "file_url",
+        initial_value=all_files[-1],
+        range_start="open",
+    )
+    file_resource = filesystem(
+        bucket_url=bucket_url, file_glob="**/*.csv", incremental=file_name_incremental
+    ).with_name("files")
+    # incremental state got loaded for a first time
+    assert not pipeline.run(file_resource).is_empty
+    # last item was skipped - nothing more to load
+    assert "files" not in pipeline.last_trace.last_normalize_info.row_counts
 
 
 def test_file_chunking() -> None:

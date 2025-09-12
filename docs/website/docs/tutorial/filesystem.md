@@ -252,7 +252,7 @@ When loading data from files, you often only want to load files that have been m
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-files = filesystem(file_glob="encounters*.csv", incremental=dlt.sources.incremental("modification_date")))
+files = filesystem(file_glob="encounters*.csv", incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id")
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
