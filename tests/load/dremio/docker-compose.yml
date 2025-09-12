@@ -1,4 +1,3 @@
-version: "3.7"
 services:
   dremio:
     image: dremio/dremio-oss:25.0

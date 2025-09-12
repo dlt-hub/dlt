@@ -1,4 +1,3 @@
-version: '3.4'
 services:
   weaviate:
     command:
@@ -11,7 +10,6 @@ services:
     image: semitechnologies/weaviate:1.21.1
     ports:
     - 8080:8080
-    restart: on-failure:0
     environment:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'

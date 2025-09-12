@@ -1,7 +1,4 @@
-version: '3.8'
-
 services:
-
   sftpserver:
     build:
       context: bootstrap
