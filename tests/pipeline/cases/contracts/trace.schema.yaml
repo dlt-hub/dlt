@@ -300,6 +300,9 @@ tables:
       resource_name:
         data_type: text
         nullable: true
+      good_old_github:
+        data_type: bool
+        nullable: true
       _dlt_parent_id:
         data_type: text
         nullable: false

@@ -609,3 +609,60 @@ def test_materialize_table_schema_with_pipe_items():
         if job.job_file_info.table_name == "empty_list":
             found_empty_list = True
     assert found_empty_list
+
+
+def test_resource_custom_metrics(extract_step: Extract) -> None:
+    """Ensure that custom metrics from resources are collected and transform steps are available in extract info"""
+
+    @dlt.resource
+    def resource_with_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        custom_metrics["custom_count"] = 42
+        custom_metrics["random_constant"] = 1.5
+        custom_metrics["random_nested"] = {"value": 100, "unit": "items"}
+        # "item_count" also exists in data writer metrics, but we should allow anyway
+        custom_metrics["items_count"] = 90
+        yield [{"id": 1}, {"id": 2}]
+
+    resource_with_metrics.add_limit(10)
+    resource_with_metrics.add_map(lambda x: x)
+    resource_with_metrics.add_yield_map(lambda x: (yield from x))
+
+    @dlt.resource
+    def resource_with_other_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        custom_metrics["custom_count"] = 3
+        custom_metrics["random_constant"] = 251.3
+        custom_metrics["random_nested"] = {"value": 4, "unit": None}
+        yield [{"id": 1}, {"id": 2}]
+
+    resource_with_other_metrics.add_limit(10)
+    resource_with_other_metrics.add_map(lambda x: x)
+
+    source = DltSource(
+        dlt.Schema("metrics"), "module", [resource_with_metrics(), resource_with_other_metrics()]
+    )
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+
+    all_resource_metrics = step_info.metrics[load_id][0]["resource_metrics"]
+    assert "resource_with_metrics" in all_resource_metrics
+    assert "resource_with_other_metrics" in all_resource_metrics
+
+    assert all_resource_metrics["resource_with_metrics"].custom_metrics == {
+        "custom_count": 42,
+        "random_constant": 1.5,
+        "random_nested": {"value": 100, "unit": "items"},
+        "items_count": 90,
+        "LimitItem": {},
+        "MapItem": {},
+        "YieldMapItem": {},
+    }
+
+    assert all_resource_metrics["resource_with_other_metrics"].custom_metrics == {
+        "custom_count": 3,
+        "random_constant": 251.3,
+        "random_nested": {"value": 4, "unit": None},
+        "LimitItem": {},
+        "MapItem": {},
+    }

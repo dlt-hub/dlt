@@ -1851,8 +1851,8 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     extract_info = pipeline.extract(resource)
     # print(extract_info.asdict())
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["some_data"][
-            "writer_metrics"
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
         ].items_count
         == 2
     )
@@ -1866,8 +1866,8 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     resource = some_data(max_hours=3)
     extract_info = pipeline.extract(resource)
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["some_data"][
-            "writer_metrics"
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
         ].items_count
         == 1
     )
@@ -1898,8 +1898,8 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     extract_info = pipeline.extract(resource)
     # we get 3 records (end range is open)
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["some_data"][
-            "writer_metrics"
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
         ].items_count
         == 3
     )
@@ -1928,9 +1928,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     extract_info = pipeline.extract(resource)
     # hours from 1 to 5 inclusive
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_1"][
-            "writer_metrics"
-        ].items_count
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_1"].items_count
         == 5
     )
     assert (
@@ -1954,9 +1952,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     extract_info = pipeline.extract(resource)
     # hours from 5 to 7 inclusive
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_2"][
-            "writer_metrics"
-        ].items_count
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_2"].items_count
         == 3
     )
 
@@ -1976,9 +1972,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     # hours from 5 to 7 inclusive
     extract_info = pipeline.extract(resource)
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_3"][
-            "writer_metrics"
-        ].items_count
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_3"].items_count
         == 2
     )
     # last value is tz-aware
@@ -1994,9 +1988,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     resource = some_data(max_hours=4).with_name("copy_4")  # also make new resource state
     extract_info = pipeline.extract(resource)
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_4"][
-            "writer_metrics"
-        ].items_count
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_4"].items_count
         == 4
     )
     assert (
@@ -2011,9 +2003,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     resource = some_data(max_hours=5, tz="UTC").with_name("copy_4")
     extract_info = pipeline.extract(resource)
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_4"][
-            "writer_metrics"
-        ].items_count
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_4"].items_count
         == 1
     )
     assert resource.incremental.incremental._cached_state["last_value"] == pendulum_start_dt.add(
@@ -2027,9 +2017,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     resource = some_data(max_hours=4, tz="UTC").with_name("copy_5")  # also make new resource state
     extract_info = pipeline.extract(resource)
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_5"][
-            "writer_metrics"
-        ].items_count
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_5"].items_count
         == 4
     )
     assert resource.incremental.incremental._cached_state["last_value"] == pendulum_start_dt.add(
@@ -2042,9 +2030,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     resource = some_data(max_hours=5).with_name("copy_5")
     extract_info = pipeline.extract(resource)
     assert (
-        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_5"][
-            "writer_metrics"
-        ].items_count
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_5"].items_count
         == 1
     )
     assert (

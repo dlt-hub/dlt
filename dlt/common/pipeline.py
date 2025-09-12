@@ -17,6 +17,8 @@ from typing import (
     TypeVar,
     Mapping,
     Literal,
+    Union,
+    Mapping,
 )
 from typing_extensions import NotRequired
 
@@ -43,6 +45,7 @@ from dlt.common.metrics import (
     LoadMetrics,
     NormalizeMetrics,
     StepMetrics,
+    DataWriterAndCustomMetrics,
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
@@ -158,7 +161,9 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
 
     @staticmethod
     def writer_metrics_asdict(
-        job_metrics: Dict[str, DataWriterMetrics], key_name: str = "job_id", extend: StrAny = None
+        job_metrics: Mapping[str, Union[DataWriterMetrics, DataWriterAndCustomMetrics]],
+        key_name: str = "job_id",
+        extend: StrAny = None,
     ) -> List[DictStrAny]:
         entities = []
         for entity_id, metrics in job_metrics.items():
@@ -215,19 +220,9 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
         for load_id, metrics_list in self.metrics.items():
             for idx, metrics in enumerate(metrics_list):
                 extend = {"load_id": load_id, "extract_idx": idx}
-                #                load_metrics["resource_metrics"].extend(
-                #                    self.writer_metrics_asdict(
-                #                        metrics["resource_metrics"], key_name="resource_name", extend=extend
-                #                    )
-                #                )
                 load_metrics["resource_metrics"].extend(
                     self.writer_metrics_asdict(
-                        {
-                            name: all_resource_metrics["writer_metrics"]
-                            for name, all_resource_metrics in metrics["resource_metrics"].items()
-                        },
-                        key_name="resource_name",
-                        extend=extend,
+                        metrics["resource_metrics"], key_name="resource_name", extend=extend
                     )
                 )
                 load_metrics["dag"].extend(
