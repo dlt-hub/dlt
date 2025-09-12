@@ -31,7 +31,11 @@ class VaultDocProvider(BaseDocProvider):
     """
 
     def __init__(
-        self, only_secrets: bool, only_toml_fragments: bool, list_secrets: bool = False, secret_variable_name: str = SECRETS_TOML_KEY
+        self,
+        only_secrets: bool,
+        only_toml_fragments: bool,
+        list_secrets: bool = False,
+        secret_variable_name: str = SECRETS_TOML_KEY
     ) -> None:
         """Initializes the toml backed Vault provider by loading a toml fragment from `dlt_secrets_toml` key by default and using it as initial configuration.
 
