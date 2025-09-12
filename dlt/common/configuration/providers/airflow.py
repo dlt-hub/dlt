@@ -2,7 +2,7 @@ import io
 import contextlib
 from typing import Set
 
-from .vault import VaultDocProvider
+from .vault import VaultDocProvider, SECRETS_TOML_KEY
 
 
 class AirflowSecretsTomlProvider(VaultDocProvider):
@@ -11,8 +11,9 @@ class AirflowSecretsTomlProvider(VaultDocProvider):
         only_secrets: bool = False,
         only_toml_fragments: bool = False,
         list_secrets: bool = False,
+        secret_variable_name: str = SECRETS_TOML_KEY,
     ) -> None:
-        super().__init__(only_secrets, only_toml_fragments, list_secrets)
+        super().__init__(only_secrets, only_toml_fragments, list_secrets, secret_variable_name)
 
     @property
     def name(self) -> str:

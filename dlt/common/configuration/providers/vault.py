@@ -31,18 +31,20 @@ class VaultDocProvider(BaseDocProvider):
     """
 
     def __init__(
-        self, only_secrets: bool, only_toml_fragments: bool, list_secrets: bool = False
+        self, only_secrets: bool, only_toml_fragments: bool, list_secrets: bool = False, secret_variable_name: str = SECRETS_TOML_KEY
     ) -> None:
-        """Initializes the toml backed Vault provider by loading a toml fragment from `dlt_secrets_toml` key and using it as initial configuration.
+        """Initializes the toml backed Vault provider by loading a toml fragment from `dlt_secrets_toml` key by default and using it as initial configuration.
 
         Args:
             only_secrets (bool): Only looks for secret values (CredentialsConfiguration, TSecretValue) by returning None (not found)
             only_toml_fragments (bool): Only load the known toml fragments and ignore any other lookups by returning None (not found)
             list_secrets (bool): When True, lists all available secrets once on first access to avoid unnecessary lookups
+            secret_variable_name (str, optional): If provided, uses this variable name instead of the default `dlt_secrets_toml` to load the initial TOML fragment.
         """
         self.only_secrets = only_secrets
         self.only_toml_fragments = only_toml_fragments
         self.list_secrets = list_secrets
+        self.secret_variable_name = secret_variable_name
         self._vault_lookups: Dict[str, Any] = {}
         self._available_keys: Optional[Set[str]] = None
         if list_secrets and (only_toml_fragments or only_secrets):
@@ -58,7 +60,7 @@ class VaultDocProvider(BaseDocProvider):
         self, key: str, hint: type, pipeline_name: str, *sections: str
     ) -> Tuple[Optional[Any], str]:
         # global settings must be updated first
-        self._update_from_vault(SECRETS_TOML_KEY, None, AnyType, None, ())
+        self._update_from_vault(self.secret_variable_name, None, AnyType, None, ())
         # then regular keys
         full_key = self.get_key_name(key, pipeline_name, *sections)
         value, _ = super().get_value(key, hint, pipeline_name, *sections)
@@ -93,7 +95,7 @@ class VaultDocProvider(BaseDocProvider):
         """
         if pipeline_name:
             # loads dlt_secrets_toml for particular pipeline
-            lookup_fk = self.get_key_name(SECRETS_TOML_KEY, pipeline_name)
+            lookup_fk = self.get_key_name(self.secret_variable_name, pipeline_name)
             self._update_from_vault(lookup_fk, "", AnyType, pipeline_name, ())
 
         # generate auxiliary paths to get from vault
