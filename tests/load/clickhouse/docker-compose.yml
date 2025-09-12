@@ -1,7 +1,8 @@
----
 services:
   clickhouse:
     image: clickhouse/clickhouse-server
+    container_name: dlt_test_clickhouse
+    restart: on-failure
     ports:
       - "9000:9000"
       - "8123:8123"

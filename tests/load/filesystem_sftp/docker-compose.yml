@@ -4,6 +4,8 @@ services:
       context: bootstrap
       dockerfile: Dockerfile
     image: sftpserver:latest
+    container_name: dlt_test_filesystem-sftp
+    restart: on-failure
     networks:
       - sftpserver
     ports:
