@@ -6,7 +6,7 @@ from typing import (
     ClassVar,
     Dict,
     Iterable,
-    Iterator,
+    Generator,
     List,
     Sequence,
     Tuple,
@@ -184,7 +184,7 @@ class DltResourceDict(Dict[str, DltResource]):
         )
 
     @contextlib.contextmanager
-    def _add_multiple_resources(self) -> Iterator[None]:
+    def _add_multiple_resources(self) -> Generator[TDataItem, None, None]:
         # temporarily block cloning when single resource is added
         try:
             self._suppress_clone_on_setitem = True
@@ -580,7 +580,7 @@ class DltSource(Iterable[TDataItem]):
             self.schema.clone(with_name=with_name), self.section, list(self._resources.values())
         )
 
-    def __iter__(self) -> Iterator[TDataItem]:
+    def __iter__(self) -> Generator[TDataItem, None, None]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.
 
         A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.

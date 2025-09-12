@@ -22,7 +22,7 @@ def start_telemetry(config: RuntimeConfiguration) -> None:
     # enable telemetry only once
 
     global _TELEMETRY_STARTED
-    if _TELEMETRY_STARTED:
+    if is_telemetry_started():
         return
 
     if config.sentry_dsn:
@@ -46,8 +46,7 @@ def start_telemetry(config: RuntimeConfiguration) -> None:
 
 @atexit.register
 def stop_telemetry() -> None:
-    global _TELEMETRY_STARTED
-    if not _TELEMETRY_STARTED:
+    if not is_telemetry_started():
         return
 
     try:
@@ -63,6 +62,7 @@ def stop_telemetry() -> None:
 
     disable_platform_tracker()
 
+    global _TELEMETRY_STARTED
     _TELEMETRY_STARTED = False
 
 

@@ -6,7 +6,7 @@ keywords: [mcp, llm, agents, ai]
 
 # MCP Server
 
-Currently, dltHub is [building two MCP servers](https://dlthub.com/blog/deep-dive-assistants-mcp-continue) that you can run locally and integrate with your preferred IDE. One server is for the open-source `dlt` library and the other integrates with `dlt+` features ([Learn more](../../plus/features/ai.md)).
+Currently, dltHub is [building two MCP servers](https://dlthub.com/blog/deep-dive-assistants-mcp-continue) that you can run locally and integrate with your preferred IDE. One server is for the open-source `dlt` library and the other integrates with `dlt+` features ([Learn more](ai.md)).
 
 This page gives an overview of what we're building and includes detailed instructions to install the MCP in your favorite IDE.
 
@@ -86,7 +86,7 @@ Then, to enable the MCP server and tool usage, several IDEs require you to enabl
 
 ### dlt+ MCP server
 
-To run the `dlt+` MCP server, you will need to set your [dlt+ License](../../plus/getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE) and use `dlt mcp run_plus` in your configuration. If the `dlt+` license is missing, the dlt MCP server will be launched instead. You can tell the two apart by the tools, resources, and prompts available­.
+To run the `dlt+` MCP server, you will need to set your [dlt+ License](../getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE) and use `dlt mcp run_plus` in your configuration. If the `dlt+` license is missing, the dlt MCP server will be launched instead. You can tell the two apart by the tools, resources, and prompts available­.
 
 
 ### Continue
@@ -144,7 +144,7 @@ There's also a global configuration specs in JSON
 
 ### Claude Desktop
 
-You need to [add a JSON configuration file](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server) on your system. See our [full Claude Desktop tutorial](../../plus/features/ai.md)
+You need to [add a JSON configuration file](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server) on your system. See our [full Claude Desktop tutorial](ai.md)
 
 ```json
 {

@@ -1,5 +1,6 @@
+import sys
 import contextlib
-from typing import Any, Iterable, Iterator, Optional
+from typing import Any, Iterable, Iterator, Optional, ContextManager
 import click
 
 
@@ -38,6 +39,13 @@ def suppress_echo() -> Iterator[None]:
     finally:
         echo, secho = original_echo, original_secho
         error, warning, note = original_error, original_warning, original_note
+
+
+def maybe_no_stdin() -> ContextManager[None]:
+    """Automatically choose default values if stdin not connected"""
+    return always_choose(
+        True if not sys.stdin.isatty() else ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE
+    )
 
 
 echo = click.echo

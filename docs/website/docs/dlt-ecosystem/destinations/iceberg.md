@@ -20,8 +20,8 @@ While ephemeral catalogs make it easy to get started with Iceberg, it comes with
 - the latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores
 :::
 
-:::tip dlt+
-If you're interested in a multi-user cloud experience and integration with vendor catalogs, such as Polaris or Unity Catalog, check out [dlt+](../../plus/ecosystem/iceberg.md).
+:::tip dltHub Features
+If you're interested in a multi-user cloud experience and integration with vendor catalogs, such as Polaris or Unity Catalog, check out [dltHub Iceberg destination](https://info.dlthub.com/waiting-list).
 :::
 
 ## Iceberg dependencies

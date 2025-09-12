@@ -10,10 +10,6 @@ files or secure vaults. It understands both simple and verbose layouts of [confi
 
 ## Choose where to store configuration
 
-:::tip dlt+
-To define your configuration (including sources, destinations, pipeline and parameters) in a declarative way using YAML files, check out [dlt+](../../plus/features/projects.md).
-:::
-
 `dlt` looks for configuration and secrets in various locations (environment variables, toml files or secure vaults) through **config providers** that are queried when your pipeline runs. You can pick a single location or combine them - for example, define secret `api_key` in environment variables and `api_url` in a TOML file. Providers are queried in the following order:
 
 1. [Environment Variables](#environment-variables): If a value is found in an environment variable, `dlt` uses it and doesn't check lower-priority providers.

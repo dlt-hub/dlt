@@ -5,7 +5,7 @@ How to create a data loading pipeline with dlt in 3 seconds:
 1. Write a pipeline script
 >>> import dlt
 >>> from dlt.sources.helpers import requests
->>> dlt.run(requests.get("https://pokeapi.co/api/v2/pokemon/").json()["results"], destination="duckdb", table_name="pokemon")
+>>> print(dlt.run(requests.get("https://pokeapi.co/api/v2/pokemon/").json()["results"], destination="duckdb", table_name="pokemon"))
 
 2. Run your pipeline script
   > $ python pokemon.py
@@ -42,6 +42,7 @@ from dlt.pipeline import (
 )
 from dlt.pipeline import progress
 from dlt import destinations
+from dlt import hub as hub
 
 pipeline = _pipeline
 current = _current
