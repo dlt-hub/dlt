@@ -2141,6 +2141,10 @@ lancedb = [
     { name = "pyarrow" },
     { name = "tantivy" },
 ]
+marimo = [
+    { name = "marimo" },
+    { name = "mowidgets" },
+]
 motherduck = [
     { name = "duckdb", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "os_name == 'nt'" },
     { name = "duckdb", version = "1.3.2", source = { registry = "https://pypi.org/simple" }, marker = "os_name != 'nt'" },
@@ -2364,7 +2368,9 @@ requires-dist = [
     { name = "ibis-framework", extras = ["duckdb"], marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3" },
     { name = "lancedb", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=0.22.0" },
+    { name = "marimo", marker = "extra == 'marimo'", specifier = ">=0.14.5" },
     { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
+    { name = "mowidgets", marker = "extra == 'marimo'", specifier = ">=0.1.2" },
     { name = "orjson", marker = "python_full_version >= '3.14'", specifier = ">=3.11.0" },
     { name = "orjson", marker = "sys_platform != 'emscripten'", specifier = ">=3.10.1" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
@@ -2423,7 +2429,7 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.22" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
-provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "filesystem", "s3", "gs", "az", "sftp", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml"]
+provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "filesystem", "s3", "gs", "az", "sftp", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "marimo", "dbml"]
 
 [package.metadata.requires-dev]
 adbc = [{ name = "adbc-driver-postgresql", specifier = ">=1.6.0" }]
@@ -5149,6 +5155,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ce/a0/834b0cebabbfc7e311f30b46c8188790a37f89fc8d756660346fe5abfd09/more_itertools-10.7.0.tar.gz", hash = "sha256:9fddd5403be01a94b204faadcff459ec3568cf110265d3c54323e1e866ad29d3", size = 127671, upload-time = "2025-04-22T14:17:41.838Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/9f/7ba6f94fc1e9ac3d2b853fdff3035fb2fa5afbed898c4a72b8a020610594/more_itertools-10.7.0-py3-none-any.whl", hash = "sha256:d43980384673cb07d2f7d2d918c616b30c659c089ee23953f601d6609c67510e", size = 65278, upload-time = "2025-04-22T14:17:40.49Z" },
+]
+
+[[package]]
+name = "mowidgets"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "marimo" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/10/78/8bcf171a0f7e99ac61a0043b3b244bb1cf4e4728034b3f86ef0dd602a8ec/mowidgets-0.1.2.tar.gz", hash = "sha256:db282cfe421c8b64e236ea2a2b1e50615757134d23f396715964e6f9a89f6493", size = 9372, upload-time = "2025-09-12T15:12:09.866Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/53/7c/d8dbcd796ce169d48634d9e64e796a5818b92e90e159989499ca8fc2a5c3/mowidgets-0.1.2-py3-none-any.whl", hash = "sha256:4d17f5aa63f2cd6602cfc0a65bff4b9a0fb2b8d079750dfe623f321027df4288", size = 9021, upload-time = "2025-09-12T15:12:08.656Z" },
 ]
 
 [[package]]
