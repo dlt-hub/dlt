@@ -43,6 +43,8 @@ from dlt.extract.decorators import (
 )
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
+from dlt.extract.items_transform import ItemTransform
+from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference
@@ -251,7 +253,15 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         }
         # aggregate by resource name
         resource_metrics = {
-            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            resource_name: DataWriterAndCustomMetrics.from_writer_metrics(
+                writer_metrics=sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS),
+                resource_metrics=source.resources[resource_name].metrics,
+                step_metrics={
+                    step.__class__.__name__: step.metrics
+                    for step in source.resources[resource_name]._pipe.steps
+                    if isinstance(step, ItemTransform)
+                },
+            )
             for resource_name, metrics in itertools.groupby(
                 table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
             )
