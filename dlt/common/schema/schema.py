@@ -367,13 +367,25 @@ class Schema:
     ) -> List[TTableSchema]:
         """Drops tables from the schema and returns the dropped tables"""
         result = []
-        # TODO: make sure all nested tables to table_names are also dropped
+        # TODO: make sure all nested tables to table_names are also dropped,
         for table_name in table_names:
             table = self.get_table(table_name)
             if table and (not seen_data_only or utils.has_table_seen_data(table)):
                 result.append(self._schema_tables.pop(table_name))
                 self.data_item_normalizer.remove_table(table_name)
         return result
+
+    def drop_columns(self, table_name: str, column_names: Sequence[str]) -> TPartialTableSchema:
+        """Drops columns from the table schema in place and returns the table schema with the dropped columns"""
+        table: TPartialTableSchema = {"name": table_name}
+        dropped_col_schemas: TTableSchemaColumns = {}
+
+        for col in column_names:
+            col_schema = self._schema_tables[table["name"]]["columns"].pop(col)
+            dropped_col_schemas[col] = col_schema
+
+        table["columns"] = dropped_col_schemas
+        return table
 
     def filter_row_with_hint(
         self, table_name: str, hint_type: TColumnDefaultHint, row: StrAny
