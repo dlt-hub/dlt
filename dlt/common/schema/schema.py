@@ -357,10 +357,14 @@ class Schema:
         self._settings = deepcopy(schema.settings)
         # make shallow copy of normalizer settings
         self._configure_normalizers(copy(schema._normalizers_config))
+        self.data_item_normalizer.extend_schema()
         self._compile_settings()
-        # update all tables
-        for table in schema.tables.values():
-            self.update_table(table)
+        # update all tables starting for parents and then nested tables in order
+        tables = list(schema.tables.values())
+        for table in tables:
+            if not utils.is_nested_table(table):
+                for chain_table in utils.get_nested_tables(schema._schema_tables, table["name"]):
+                    self.update_table(chain_table)
 
     def drop_tables(
         self, table_names: Sequence[str], seen_data_only: bool = False
@@ -766,6 +770,7 @@ class Schema:
         as textual parts can be extracted from an expression.
         """
         self._configure_normalizers(configured_normalizers(schema_name=self._schema_name))
+        self.data_item_normalizer.extend_schema()
         self._compile_settings()
 
     def will_update_normalizers(self) -> bool:
@@ -1042,7 +1047,6 @@ class Schema:
         self._replace_and_apply_naming(normalizers_config, to_naming, self.naming)
         # data item normalization function
         self.data_item_normalizer = item_normalizer_class(self)
-        self.data_item_normalizer.extend_schema()
 
     def _reset_schema(self, name: str, normalizers: TNormalizersConfig = None) -> None:
         self._schema_tables: TSchemaTables = {}
@@ -1072,6 +1076,7 @@ class Schema:
         if not normalizers:
             normalizers = configured_normalizers(schema_name=self._schema_name)
         self._configure_normalizers(normalizers)
+        self.data_item_normalizer.extend_schema()  # type: ignore[attr-defined]
         # add version tables
         self._add_standard_tables()
         # compile all known regexes
