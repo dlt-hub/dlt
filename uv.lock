@@ -2143,7 +2143,7 @@ lancedb = [
 ]
 marimo = [
     { name = "marimo" },
-    { name = "mowidgets", marker = "python_full_version >= '3.11'" },
+    { name = "mowidgets" },
 ]
 motherduck = [
     { name = "duckdb", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "os_name == 'nt'" },
@@ -2370,7 +2370,7 @@ requires-dist = [
     { name = "lancedb", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "marimo", marker = "extra == 'marimo'", specifier = ">=0.14.5" },
     { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
-    { name = "mowidgets", marker = "python_full_version >= '3.11' and extra == 'marimo'", specifier = ">=0.1.1" },
+    { name = "mowidgets", marker = "extra == 'marimo'", specifier = ">=0.1.2" },
     { name = "orjson", marker = "python_full_version >= '3.14'", specifier = ">=3.11.0" },
     { name = "orjson", marker = "sys_platform != 'emscripten'", specifier = ">=3.10.1" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
@@ -5159,14 +5159,14 @@ wheels = [
 
 [[package]]
 name = "mowidgets"
-version = "0.1.1"
+version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "marimo", marker = "python_full_version >= '3.11'" },
+    { name = "marimo" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/df/a81ea808dffa5650d4b8f7bac016ca3c840d013ceb156a9a32241c83aab9/mowidgets-0.1.1.tar.gz", hash = "sha256:4c4e65acbc2a2b35ea9f22fa32ec3e2107756c3faac5c5019e63efa35ffdfb9c", size = 259984, upload-time = "2025-09-11T16:01:34.798Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/78/8bcf171a0f7e99ac61a0043b3b244bb1cf4e4728034b3f86ef0dd602a8ec/mowidgets-0.1.2.tar.gz", hash = "sha256:db282cfe421c8b64e236ea2a2b1e50615757134d23f396715964e6f9a89f6493", size = 9372, upload-time = "2025-09-12T15:12:09.866Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/78/b19e847cafc758268b3b6919fc9e014a86c25f16fc342486e40dc9fe2c63/mowidgets-0.1.1-py3-none-any.whl", hash = "sha256:677f90e4ca9d55f0ad017897d65ba9a707b87d2fe38cca49fc2fcb33acf7ab6f", size = 8636, upload-time = "2025-09-11T16:01:33.618Z" },
+    { url = "https://files.pythonhosted.org/packages/53/7c/d8dbcd796ce169d48634d9e64e796a5818b92e90e159989499ca8fc2a5c3/mowidgets-0.1.2-py3-none-any.whl", hash = "sha256:4d17f5aa63f2cd6602cfc0a65bff4b9a0fb2b8d079750dfe623f321027df4288", size = 9021, upload-time = "2025-09-12T15:12:08.656Z" },
 ]
 
 [[package]]
