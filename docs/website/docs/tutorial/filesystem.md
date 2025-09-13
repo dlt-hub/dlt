@@ -327,7 +327,7 @@ After executing this code, you'll see a new column in the `encounters` table.
 
 ## 9. Load any other type of files
 
-dlt natively supports three file types: CSV, Parquet, and JSONL (more details in [filesystem transformer resource](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-transformer-resource)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
+dlt natively supports three file types: CSV, Parquet, and JSONL (more details in [filesystem readers](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-reader)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
 Let's create and apply a transformer that reads JSON files instead of CSV (the implementation for JSON is a little bit different from JSONL).
 
@@ -356,7 +356,7 @@ info = pipeline.run(json_resource, write_disposition="replace")
 print(info)
 ```
 
-Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced#create-your-own-transformer) showing how to read data from `excel` and `xml` files.
+Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced#create-your-own-readers) showing how to read data from `excel` and `xml` files.
 
 ## What's next?
 

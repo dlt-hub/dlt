@@ -16,17 +16,21 @@ To load unstructured data (PDF, plain text, e-mail), please refer to the [unstru
 The Filesystem source doesn't just give you an easy way to load data from both remote and local files — it also comes with a powerful set of tools that let you customize the loading process to fit your specific needs.
 
 Filesystem source loads data in two steps:
-1. It [accesses the files](#1-initialize-a-filesystem-resource) in your remote or local file storage without actually reading the content yet. At this point, you can [filter files by metadata or name](#6-filter-files). You can also set up [incremental loading](#5-incremental-loading) to load only new files.
-2. [The transformer](#2-choose-the-right-transformer-resource) reads the files' content and yields the records. At this step, you can filter out the actual data, enrich records with metadata from files, or [perform incremental loading](#load-new-records-based-on-a-specific-column) based on the file content.
+1. It [accesses the files](#1-initialize-a-filesystem-resource) in your remote or local file storage without actually reading the content yet. At this point, you can [filter files by metadata or name](#7-filter-files). You can also set up [incremental loading](#5-incremental-loading) to load only new files.
+2. [The reader](#2-choose-the-right-reader) reads the files' content and yields the records. At this step, you can filter out the actual data, enrich records with metadata from files, or [perform incremental loading](#load-new-records-based-on-a-specific-column) based on the file content.
+
+For the most common cases we provide `readers` source that does the above in a single step.
 
 ## Quick example
+
+In two steps:
 
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_parquet
 
 filesystem_resource = filesystem(
-  bucket_url="file://Users/admin/Documents/parquet_files",
+  bucket_url="s3://my-bucket/files",
   file_glob="**/*.parquet",
   incremental=dlt.sources.incremental("modification_date")
 )
@@ -35,6 +39,25 @@ filesystem_pipe = filesystem_resource | read_parquet()
 # We load the data into the table_name table
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(filesystem_pipe.with_name("table_name"))
+print(load_info)
+print(pipeline.last_trace.last_normalize_info)
+```
+
+With `readers` source:
+
+```py
+import dlt
+from dlt.sources.filesystem import readers
+
+parquet_files = readers(
+  bucket_url="s3://my-bucket/files",
+  file_glob="**/*.parquet",
+  incremental=dlt.sources.incremental("modification_date")
+).read_parquet()
+
+# We load the data into the table_name table
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+load_info = pipeline.run(parquet_files.with_name("table_name"))
 print(load_info)
 print(pipeline.last_trace.last_normalize_info)
 ```
@@ -66,8 +89,6 @@ To get started with your data pipeline, follow these steps:
    configuration settings to get started.
 
 ## Configuration
-
-
 
 ### Get credentials
 
@@ -184,7 +205,7 @@ azure_storage_account_name="Please set me up!"
 azure_storage_account_key="Please set me up!"
 
 # config.toml
-[sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+[sources.filesystem]
 bucket_url="az://<container_name>/<path_to_files>/"
 ```
 </TabItem>
@@ -223,7 +244,7 @@ sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your privat
 sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
 
 # config.toml
-[sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+[sources.filesystem]
 bucket_url = "sftp://[hostname]/[path]"
 ```
 </TabItem>
@@ -314,10 +335,10 @@ Full list of `filesystem` resource parameters:
 * `files_per_page` - number of files processed at once. The default value is `100`.
 * `extract_content` - if true, the content of the file will be read and returned in the resource. The default value is `False`.
 
-### 2. Choose the right transformer resource
+### 2. Choose the right reader
 
 The current implementation of the filesystem source natively supports three file types: CSV, Parquet, and JSONL.
-You can apply any of the above or [create your own transformer](advanced#create-your-own-transformer). To apply the selected transformer resource, use pipe notation `|`:
+You can apply any of the above or [create your own readers](advanced#create-your-own-readers). To apply the selected transformer resource, use pipe notation `|`:
 
 ```py
 from dlt.sources.filesystem import filesystem, read_csv
@@ -328,7 +349,7 @@ filesystem_pipe = filesystem(
 ) | read_csv()
 ```
 
-#### Available transformers
+#### Available readers
 
 - `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/)
 - `read_jsonl()` - processes JSONL files chunk by chunk
@@ -515,7 +536,7 @@ fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=increment
 
 # process one file in each run, you could also use max_time to process files ie. for an hour
 while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
-  print(pipeline.last_trace.last_load_info)
+    print(pipeline.last_trace.last_load_info)
 ```
 **Note that you must set row_order on incremental to not miss a file**:
 

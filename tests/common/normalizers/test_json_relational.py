@@ -914,7 +914,7 @@ def test_propagation_update_on_table_change(norm: RelationalNormalizer):
             "table_4"
         ] == {"primary_key": "_dlt_root_id"}
         # drop table from schema
-        norm.schema.drop_tables(["table_4"])
+        norm.schema.drop_tables(["table_4", "table_4__nested"])
         assert (
             "table_4"
             not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]

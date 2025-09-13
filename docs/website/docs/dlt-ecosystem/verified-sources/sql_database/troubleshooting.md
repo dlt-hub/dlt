@@ -26,12 +26,12 @@ modify the local pipeline state (after syncing with destination) to add/remove t
 ## Troubleshooting connection
 
 #### Pipeline state grows extremely large or I get deduplication state warnings when using incremental
-If you set incremental column on low resolution column (ie. of type **date**) then `dlt` will [deduplicate](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges-with-primary-key) such data by default. For low resolution column you may have many rows associated with a single
+If you set incremental column on low resolution column (ie. of type **date**) then `dlt` will [deduplicate](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges) such data by default. For low resolution column you may have many rows associated with a single
 cursor value and since hashes of such rows are stored in state - you will get large pipeline state. You can avoid that in many ways:
 1. [set the comparison to exclusive](advanced.md#inclusive-and-exclusive-filtering) but make sure that rows are not added with the last cursor column value
 between run (ie. if you have column on a **day** column and between runs, rows are added to that day - with open range those rows will be skipped)
 2. use high resolution cursor columns (ie. **datetime** type) so not many rows are associated with single value.
-3. disable deduplication [explicitly](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges-with-primary-key)
+3. disable deduplication [explicitly](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges)
 
 ### Connecting to MySQL with SSL 
 Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
