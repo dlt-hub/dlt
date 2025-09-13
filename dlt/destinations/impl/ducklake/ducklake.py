@@ -47,13 +47,35 @@ ATTACH 'ducklake:{catalog_database}' (DATA_PATH '{data_storage}');
 adds the ducklake `Catalog` to your duckdb database
 """
 import os
-from typing import Iterable
+import posixpath
+from typing import Iterable, Optional
 
 import dlt
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.destinations.impl.duckdb.duck import DuckDbClient
+from dlt.common.destination.client import LoadJob
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.metrics import LoadJobMetrics
+from dlt.destinations.impl.duckdb.duck import DuckDbClient, DuckDbCopyJob
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeClientConfiguration
+from dlt.destinations.insert_job_client import InsertValuesJobClient
+
+
+class DuckLakeCopyJob(DuckDbCopyJob):
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "DuckLakeClient" = None
+
+    def metrics(self) -> Optional[LoadJobMetrics]:
+        """Generate remote url metrics which point to the table in storage"""
+        m = super().metrics()
+        return m._replace(
+            remote_url=posixpath.join(
+                self._job_client.config.credentials.storage.bucket_url,
+                self._job_client.sql_client.dataset_name,
+                self.load_table_name,
+            )
+        )
 
 
 class DuckLakeClient(DuckDbClient):
@@ -90,3 +112,11 @@ class DuckLakeClient(DuckDbClient):
         # create local storage
         if self.config.credentials.storage.is_local_filesystem:
             os.makedirs(self.config.credentials.storage_url, exist_ok=True)
+
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = InsertValuesJobClient.create_load_job(self, table, file_path, load_id, restore)
+        if not job:
+            job = DuckLakeCopyJob(file_path)
+        return job
