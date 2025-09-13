@@ -182,6 +182,7 @@ const sidebars = {
           items: [
             'plus/production/pipeline-runner',
             'plus/production/observability',
+            'plus/production/prefect-integration',
           ]
         },
         'plus/reference',
