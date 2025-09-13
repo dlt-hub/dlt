@@ -1006,10 +1006,10 @@ def test_set_primary_key_deferred_incremental(
         assert _r.incremental._incremental.primary_key == ["id"]
         assert _r.incremental._incremental._make_or_get_transformer(
             JsonIncremental
-        ).primary_key == ["id"]
+        )._primary_key == ["id"]
         assert _r.incremental._incremental._make_or_get_transformer(
             ArrowIncremental
-        ).primary_key == ["id"]
+        )._primary_key == ["id"]
         return item
 
     pipeline = make_pipeline("duckdb")
@@ -1020,10 +1020,10 @@ def test_set_primary_key_deferred_incremental(
     assert resource.incremental._incremental.primary_key == ["id"]
     assert resource.incremental._incremental._make_or_get_transformer(
         JsonIncremental
-    ).primary_key == ["id"]
+    )._primary_key == ["id"]
     assert resource.incremental._incremental._make_or_get_transformer(
         ArrowIncremental
-    ).primary_key == ["id"]
+    )._primary_key == ["id"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

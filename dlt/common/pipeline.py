@@ -108,6 +108,11 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         except ValueError:
             return None
 
+    @property
+    def is_empty(self) -> bool:
+        """Returns True if step didn't process any load packages."""
+        return bool(self.loads_ids) is False
+
     def asdict(self) -> DictStrAny:
         # to be mixed with NamedTuple
         step_info: DictStrAny = self._asdict()  # type: ignore

@@ -139,7 +139,7 @@ def reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny]
         state_["resources"].pop(resource_name)
 
 
-def get_matching_sources(
+def _get_matching_sources(
     pattern: REPattern, pipeline_state: Optional[TPipelineState] = None, /
 ) -> List[str]:
     """Get all source names in state matching the regex pattern"""

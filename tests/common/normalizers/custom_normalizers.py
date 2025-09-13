@@ -19,7 +19,7 @@ class ColumnNamingConvention(SnakeCaseNamingConvention):
 
 
 class DataItemNormalizer(RelationalNormalizer):
-    def extend_schema(self) -> None:
+    def extend_schema(self, extend_tables: bool = False) -> None:
         json_config = self.schema._normalizers_config["json"]["config"]
         d_h = self.schema._settings.setdefault("default_hints", {})
         d_h["not_null"] = json_config["not_null"]

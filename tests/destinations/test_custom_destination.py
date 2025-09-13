@@ -657,7 +657,7 @@ def test_remove_internal_tables_and_columns(loader_file_format, remove_stuff) ->
 
 
 @pytest.mark.parametrize("nesting", [None, 0, 1, 3])
-def test_max_nesting_level(nesting: int) -> None:
+def test_max_table_nesting(nesting: int) -> None:
     # 4 nesting levels
     data = [
         {

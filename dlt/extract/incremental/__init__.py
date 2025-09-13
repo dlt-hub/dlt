@@ -201,7 +201,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._primary_key = value
         if self._transformers:
             for transform in self._transformers.values():
-                transform.primary_key = value
+                transform._primary_key = value
 
     @classmethod
     def from_existing_state(
