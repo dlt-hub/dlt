@@ -453,7 +453,7 @@ def test_update_schema_normalizer_props() -> None:
     schema = make_issues_schema_for_normalizers_update()
     schema_2 = make_issues_schema_for_normalizers_update()
     # remove issues table
-    schema_2.drop_tables(["issues"])
+    schema_2.drop_tables(["issues", "issues__assignees", "issues__labels"])
     schema_2.update_schema(schema)
 
     os.environ["SCHEMA__NAMING"] = "tests.common.cases.normalizers.sql_upper"

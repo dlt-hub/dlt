@@ -832,3 +832,60 @@ def test_get_new_columns(schema: Schema) -> None:
     ]
     with pytest.raises(SchemaCorruptedException):
         schema.get_new_table_columns("events", existing_columns, case_sensitive=False)
+
+
+def _setup_nested_tables(schema: Schema) -> None:
+    """helper to create a nested table chain a_events -> a_events___1 -> a_events___1___2"""
+    schema.update_table(utils.new_table("a_events", columns=[]))
+    schema.update_table(utils.new_table("a_events___1", columns=[], parent_table_name="a_events"))
+    schema.update_table(
+        utils.new_table("a_events___1___2", columns=[], parent_table_name="a_events___1")
+    )
+
+
+def test_drop_tables_full_chain(schema: Schema) -> None:
+    # create nested tables and drop the whole chain
+    _setup_nested_tables(schema)
+
+    dropped = schema.drop_tables(["a_events", "a_events___1", "a_events___1___2"])
+
+    assert set(t["name"] for t in dropped) == {"a_events", "a_events___1", "a_events___1___2"}
+    # ensure all dropped tables are gone
+    for name in ["a_events", "a_events___1", "a_events___1___2"]:
+        assert name not in schema.tables
+
+    # dlt system tables are kept
+    assert schema.version_table_name in schema.tables
+    assert schema.loads_table_name in schema.tables
+
+
+@pytest.mark.parametrize(
+    "to_drop",
+    [
+        pytest.param(["a_events"], id="missing_children_for_parent"),
+        pytest.param(["a_events___1"], id="missing_child_for_intermediate"),
+    ],
+)
+def test_drop_tables_inconsistent(schema: Schema, to_drop) -> None:
+    # dropping a table without including all its nested descendants should fail
+    _setup_nested_tables(schema)
+
+    with pytest.raises(SchemaCorruptedException):
+        schema.drop_tables(to_drop)
+
+    # nothing was dropped on failure
+    for name in ["a_events", "a_events___1", "a_events___1___2"]:
+        assert name in schema.tables
+
+
+def test_drop_tables_subtree_only(schema: Schema) -> None:
+    # dropping only a subtree is allowed if all its descendants are included
+    _setup_nested_tables(schema)
+
+    dropped = schema.drop_tables(["a_events___1", "a_events___1___2"])
+
+    assert set(t["name"] for t in dropped) == {"a_events___1", "a_events___1___2"}
+    # parent is preserved, subtree is gone
+    assert "a_events" in schema.tables
+    assert "a_events___1" not in schema.tables
+    assert "a_events___1___2" not in schema.tables

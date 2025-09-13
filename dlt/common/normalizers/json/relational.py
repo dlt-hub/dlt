@@ -296,7 +296,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 _r_lvl - 1,
             )
 
-    def extend_schema(self) -> None:
+    def extend_schema(self, extend_tables: bool = True) -> None:
         """Extends Schema with normalizer-specific hints and settings.
 
         This method is called by Schema when instance is created or restored from storage.
@@ -325,8 +325,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             normalize_identifiers=False,  # already normalized
         )
 
-        for table_name in self.schema.tables.keys():
-            self.extend_table(table_name)
+        if extend_tables:
+            for table_name in self.schema.tables.keys():
+                self.extend_table(table_name)
 
     def extend_table(self, table_name: str) -> None:
         """If the table has a merge write disposition, add propagation info to normalizer

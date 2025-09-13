@@ -41,7 +41,7 @@ from dlt.extract.decorators import (
     SourceInjectableContext,
     SourceSchemaInjectableContext,
 )
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
+from dlt.extract.exceptions import UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource

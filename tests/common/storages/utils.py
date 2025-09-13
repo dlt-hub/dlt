@@ -105,7 +105,7 @@ def assert_sample_files(
         assert content == dict_content
         with file_dict.open() as f:
             # content will be decompressed for gzip encoding
-            if item["encoding"] == "gzip":
+            if item.get("encoding") == "gzip":
                 content = gzip.decompress(content)
             open_content = f.read()
             assert content == open_content

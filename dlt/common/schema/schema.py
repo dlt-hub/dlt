@@ -357,7 +357,7 @@ class Schema:
         self._settings = deepcopy(schema.settings)
         # make shallow copy of normalizer settings
         self._configure_normalizers(copy(schema._normalizers_config))
-        self.data_item_normalizer.extend_schema()
+        self.data_item_normalizer.extend_schema(extend_tables=False)
         self._compile_settings()
         # update all tables starting for parents and then nested tables in order
         tables = list(schema.tables.values())
@@ -366,17 +366,33 @@ class Schema:
                 for chain_table in utils.get_nested_tables(schema._schema_tables, table["name"]):
                     self.update_table(chain_table)
 
-    def drop_tables(
-        self, table_names: Sequence[str], seen_data_only: bool = False
-    ) -> List[TTableSchema]:
-        """Drops tables from the schema and returns the dropped tables"""
+    def drop_tables(self, table_names: Sequence[str]) -> List[TTableSchema]:
+        """Drops tables from the schema and returns the dropped tables. List of table names
+        must contain all nested tables to tables being dropped.
+        """
         result = []
-        # TODO: make sure all nested tables to table_names are also dropped
+        candidates = set()
+
         for table_name in table_names:
-            table = self.get_table(table_name)
-            if table and (not seen_data_only or utils.has_table_seen_data(table)):
+            if self.get_table(table_name) and table_name not in candidates:
+                candidates.add(table_name)
+                # also add table chain
+                candidates.update(
+                    t["name"] for t in utils.get_nested_tables(self._schema_tables, table_name)
+                )
+        # compare extension with original list
+        if orphaned := candidates.difference(table_names):
+            raise SchemaCorruptedException(
+                self._schema_name,
+                "A set tables to drop would leave orphaned tables. Please use consistent list of "
+                f"table names in `drop_table`. Orphaned tabled: {orphaned}",
+            )
+        # final drop
+        for table_name in table_names:
+            if table_name in candidates:
                 result.append(self._schema_tables.pop(table_name))
                 self.data_item_normalizer.remove_table(table_name)
+
         return result
 
     def filter_row_with_hint(

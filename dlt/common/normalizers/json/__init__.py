@@ -29,7 +29,7 @@ class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
         pass
 
     @abc.abstractmethod
-    def extend_schema(self) -> None:
+    def extend_schema(self, extend_tables: bool = True) -> None:
         pass
 
     @abc.abstractmethod
