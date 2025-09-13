@@ -1,7 +1,7 @@
 # from __future__ import annotations
 
 import dataclasses
-from typing import Any, Dict, Final, List, Optional, TYPE_CHECKING, Union
+from typing import Any, ClassVar, Dict, Final, List, Optional, TYPE_CHECKING, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
@@ -49,6 +49,8 @@ class DuckLakeCredentials(DuckDbCredentials):
     catalog: Optional[ConnectionStringCredentials] = None
     # NOTE: consider moving to DuckLakeClientConfiguration so bucket_url is not a secret
     storage: Optional[FilesystemConfiguration] = None
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["catalog", "storage"]
 
     def __init__(
         self,
