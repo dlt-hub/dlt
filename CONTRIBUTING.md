@@ -49,7 +49,8 @@ When you're ready to contribute, follow these steps:
 3. Write your code and tests.
 4. Lint your code by running `make lint` and test common modules with `make test-common`.
 5. If you're working on destination code, contact us to get access to test destinations.
-6. Create a pull request targeting the **devel** branch of the main repository.
+6. If you have added, removed or updated dependencies in the `pyproject.toml`, make sure `uv.lock` is up to date by running `uv lock`. If you are merging in upstream changes from the devel branch and get a conflict on the lockfile, it's best to take the devel version and re-run `uv lock` to re-apply your changes.
+7. Create a pull request targeting the **devel** branch of the main repository.
 
 **Note:** for some special cases, you'd need to contact us to create a branch in this repository (not fork). See below.
 

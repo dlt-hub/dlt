@@ -4,8 +4,6 @@ import pytest
 from typing import Iterator, List
 
 from dlt.common.schema import Schema
-from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TColumnSchema, TTableSchemaColumns
@@ -16,10 +14,8 @@ from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
+from tests.cases import table_update_and_row
 from tests.load.utils import (
-    TABLE_ROW_ALL_DATA_TYPES,
-    TABLE_UPDATE,
-    TABLE_UPDATE_COLUMNS_SCHEMA,
     expect_load_file,
     write_dataset,
 )
@@ -77,36 +73,39 @@ def test_all_data_types(
     client: WeaviateClient, write_disposition: TWriteDisposition, file_storage: FileStorage
 ) -> None:
     class_name = "AllTypes"
+    column_schemas, data_types = table_update_and_row()
+    # CI version of weaviate can't change precision
+    column_schemas.pop("col12")
+    data_types.pop("col12")
+    columns_list = list(column_schemas.values())
+
     # we should have identical content with all disposition types
     client.schema.update_table(
-        new_table(class_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
+        new_table(class_name, write_disposition=write_disposition, columns=columns_list)
     )
     client.schema._bump_version()
     client.update_stored_schema()
 
     # write row
-    table_schema = new_table("sample_table", columns=deepcopy(TABLE_UPDATE))
+    table_schema = new_table("sample_table", columns=deepcopy(columns_list))
     with io.BytesIO() as f:
-        write_dataset(client, f, [TABLE_ROW_ALL_DATA_TYPES], table_schema)
+        write_dataset(client, f, [data_types], table_schema)
         query = f.getvalue().decode()
     expect_load_file(client, file_storage, query, class_name)
     _, table_columns = client.get_storage_table("AllTypes")
     # for now check if all columns are there
-    assert len(table_columns) == len(TABLE_UPDATE_COLUMNS_SCHEMA)
+    assert len(table_columns) == len(column_schemas)
     for col_name in table_columns:
-        assert col_name in TABLE_UPDATE_COLUMNS_SCHEMA
-        if TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] in ["decimal", "json", "time"]:
+        assert col_name in column_schemas
+        if column_schemas[col_name]["data_type"] in ["decimal", "json", "time"]:
             # no native representation
             assert table_columns[col_name]["data_type"] == "text"
-        elif TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] == "wei":
+        elif column_schemas[col_name]["data_type"] == "wei":
             assert table_columns[col_name]["data_type"] == "double"
-        elif TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] == "date":
+        elif column_schemas[col_name]["data_type"] == "date":
             assert table_columns[col_name]["data_type"] == "timestamp"
         else:
-            assert (
-                table_columns[col_name]["data_type"]
-                == TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"]
-            )
+            assert table_columns[col_name]["data_type"] == column_schemas[col_name]["data_type"]
 
 
 def test_case_sensitive_properties_create(client: WeaviateClient) -> None:

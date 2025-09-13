@@ -28,7 +28,7 @@ from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -187,7 +187,7 @@ class LoadWeaviateJob(RunnableLoadJob):
                         data[key] = json.dumps(data[key])
                 for key in self.date_indices:
                     if key in data:
-                        data[key] = ensure_pendulum_datetime(data[key]).isoformat()
+                        data[key] = ensure_pendulum_datetime_utc(data[key]).isoformat()
                 if self.unique_identifiers:
                     uuid = self.generate_uuid(data, self.unique_identifiers, self._class_name)
                 else:

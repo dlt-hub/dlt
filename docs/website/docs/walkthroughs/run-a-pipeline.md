@@ -89,7 +89,7 @@ table, do SQL queries, etc., by executing the following command from the same fo
 dlt pipeline chess_pipeline show
 ```
 
-This will launch a Streamlit app, which you can open in your browser:
+This will launch the pipeline dashboard, which you can open in your browser:
 
 ```text
 Found pipeline chess_pipeline in /home/user-name/.dlt/pipelines

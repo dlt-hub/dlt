@@ -2,9 +2,7 @@ import csv
 import os
 import posixpath
 from pathlib import Path
-from typing import Any, Callable, List, Dict, cast, Tuple
-from importlib.metadata import version as pkg_version
-from packaging.version import Version
+from typing import Any, Callable, List, Dict, cast
 
 from pytest_mock import MockerFixture
 import dlt
@@ -12,32 +10,23 @@ import pytest
 
 from dlt.common import json
 from dlt.common import pendulum
-from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.schema.typing import TWriteDisposition, TTableFormat
-from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
-from dlt.pipeline.exceptions import PipelineStepFailed
-from dlt.load.exceptions import LoadClientJobRetry
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
-from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
+from tests.cases import arrow_table_all_data_types
 from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    MEMORY_BUCKET,
-    FILE_BUCKET,
-    AZ_BUCKET,
-    SFTP_BUCKET,
 )
 
-from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
+from tests.pipeline.utils import load_table_counts
 
 
 skip_if_not_active("filesystem")

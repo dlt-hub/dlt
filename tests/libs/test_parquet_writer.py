@@ -12,13 +12,12 @@ from dlt.common.data_writers.writers import ArrowToParquetWriter, ParquetDataWri
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.time import ensure_pendulum_datetime
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
     TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS,
-    TABLE_UPDATE_COLUMNS_SCHEMA,
     TABLE_ROW_ALL_DATA_TYPES_DATETIMES,
+    table_update_and_row,
 )
 
 
@@ -108,10 +107,11 @@ def test_parquet_writer_json_serialization() -> None:
 
 def test_parquet_writer_all_data_fields() -> None:
     data = dict(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
+    columns_schema, _ = table_update_and_row()
 
     # this modifies original `data`
     with get_writer(ParquetDataWriter) as writer:
-        writer.write_data_item([dict(data)], TABLE_UPDATE_COLUMNS_SCHEMA)
+        writer.write_data_item([dict(data)], columns_schema)
 
     # We want to test precision for these fields is trimmed to millisecond
     data["col4_precision"] = data["col4_precision"].replace(  # type: ignore[attr-defined]
@@ -125,10 +125,7 @@ def test_parquet_writer_all_data_fields() -> None:
         table = pq.read_table(f)
 
     for key, value in data.items():
-        # what we have is pandas Timezone which is naive
         actual = table.column(key).to_pylist()[0]
-        if isinstance(value, datetime.datetime):
-            actual = ensure_pendulum_datetime(actual)
         if isinstance(value, dict):
             actual = json.loads(actual)
         assert actual == value

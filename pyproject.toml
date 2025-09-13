@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.15.0"
+version = "1.16.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -125,10 +125,10 @@ weaviate = [
     "weaviate-client>=3.22"
 ]
 mssql = [
-    "pyodbc>=4.0.39 ; python_version < '3.13'"
+    "pyodbc>=4.0.39"
 ]
 synapse = [
-    "pyodbc>=4.0.39 ; python_version < '3.13'",
+    "pyodbc>=4.0.39",
     "adlfs>=2024.7.0",
     "pyarrow>=16.0.0",
 ]
@@ -205,7 +205,7 @@ dev = [
     "mypy>=1.11.0,<1.13.0",
     "flake8>=7.0.0,<8",
     "bandit>=1.7.0,<2",
-    "black>=23.7.0,<24",
+    "black[jupyter]>=23.7.0,<24",
     "isort>=5.12.0,<6",
     "flake8-bugbear>=22.0.0,<23",
     "pytest-order>=1.0.0",
@@ -236,6 +236,7 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
     "graphviz>=0.21",
+    "nbqa>=1.9.1",
 ]
 
 # NOTE: those dependencies are used to test built in sources
@@ -342,6 +343,46 @@ include = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["dlt"]
+include = [
+    "dlt/**/*.py",
+    "tests/**/*.py",
+    "docs/**/*.py",
+]
+exclude = [
+    "docs/website/.dlt-repo",
+    "tests/reflection/module_cases/syntax_error.py",
+    "docs/website/docs/general-usage/transformations/transformation-snippets.py",
+]
+
+[tool.ruff.lint]
+preview = true
+ignore = [
+    # from tox.ini
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "F401",
+    "W391",
+    "W292",
+    "E501",
+    # additional ignores to appease ruff
+    "E713",
+    "E721",
+    "E731",
+    "E741",
+    "E999",
+    "F601",
+    "F821",
+    "F841",
+    "F811",
+]
 
 [tool.black]
 line-length = 100

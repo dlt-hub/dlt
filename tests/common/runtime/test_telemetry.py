@@ -1,17 +1,20 @@
-from typing import Any
+from typing import Any, Union
 from contextlib import nullcontext as does_not_raise
 import os
 import pytest
 import logging
 import base64
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from pytest_mock import MockerFixture
 
+import dlt
 from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.runtime.exec_info import get_execution_context
 from dlt.common.typing import DictStrAny, DictStrStr
+from dlt.common.schema import Schema
+from dlt.common.utils import digest128
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.version import DLT_PKG_NAME, __version__
@@ -25,6 +28,7 @@ from tests.utils import (
     disable_temporary_telemetry,
     init_test_logging,
     start_test_telemetry,
+    wipe_pipeline,
 )
 
 
@@ -133,7 +137,6 @@ def test_telemetry_endpoint_exceptions(
 def test_track_anon_event(
     mocker: MockerFixture, disable_temporary_telemetry: RuntimeConfiguration
 ) -> None:
-    from dlt.sources.helpers import requests
     from dlt.common.runtime import anon_tracker
 
     mock_github_env(os.environ)
@@ -141,11 +144,10 @@ def test_track_anon_event(
     SENT_ITEMS.clear()
     config = SentryLoggerConfiguration()
 
-    requests_post = mocker.spy(requests, "post")
-
     props = {"destination_name": "duckdb", "elapsed_time": 712.23123, "success": True}
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
         start_test_telemetry(config)
+        requests_post = mocker.spy(anon_tracker.requests, "post")
         track("pipeline", "run", props)
         # this will send stuff
         disable_anon_tracker()
@@ -192,6 +194,61 @@ def test_execution_context_with_plugin() -> None:
         assert context["plus"] == {"name": "dlt_plus", "version": "1.7.1"}
     finally:
         sys.path.remove(plus_path)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [Schema("my_schema"), "str_schema", None],
+)
+@pytest.mark.parametrize(
+    "success",
+    [True, False],
+)
+def test_on_first_dataset_access(
+    schema: Union[Schema, str, None], success: bool, monkeypatch
+) -> None:
+    pipeline = dlt.pipeline("test_on_first_dataset_access", destination="duckdb")
+
+    if not success:
+        monkeypatch.setattr(dlt, "dataset", Mock(side_effect=RuntimeError("fake_error")))
+
+    mock_github_env(os.environ)
+    mock_pod_env(os.environ)
+    SENT_ITEMS.clear()
+    config = SentryLoggerConfiguration()
+
+    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
+        start_test_telemetry(config)
+        # first access should always trigger telemetry
+        # second access should NOT trigger telemetry
+        if not success:
+            with pytest.raises(RuntimeError):
+                pipeline.dataset(schema)
+            with pytest.raises(RuntimeError):
+                pipeline.dataset(schema)
+        else:
+            pipeline.dataset(schema)
+            pipeline.dataset(schema)
+        disable_anon_tracker()
+
+    # should have exactly 1 event despite two dataset method calls
+    assert len(SENT_ITEMS) == 1
+    event = SENT_ITEMS[0]
+
+    assert event["event"] == "pipeline_access_dataset"
+    assert event["properties"]["event_category"] == "pipeline"
+    assert event["properties"]["event_name"] == "access_dataset"
+    assert event["properties"]["success"] == success
+    assert event["properties"]["destination_name"] == pipeline.destination.destination_name
+    assert event["properties"]["destination_type"] == pipeline.destination.destination_type
+    assert event["properties"]["dataset_name_hash"] == digest128(pipeline.dataset_name)
+    assert event["properties"]["default_schema_name_hash"] is None
+    requested_schema_name_hash = None
+    if isinstance(schema, Schema):
+        requested_schema_name_hash = digest128(schema.name)
+    elif isinstance(schema, str):
+        requested_schema_name_hash = digest128(schema)
+    assert event["properties"]["requested_schema_name_hash"] == requested_schema_name_hash
 
 
 def test_cleanup(environment: DictStrStr) -> None:

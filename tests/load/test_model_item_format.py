@@ -23,6 +23,7 @@ from tests.load.utils import (
     count_job_types,
     destinations_configs,
     DestinationTestConfiguration,
+    table_update_and_row_for_destination,
 )
 from tests.utils import preserve_environ
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts, load_table_counts
@@ -682,25 +683,16 @@ def test_load_model_with_all_types(
 
     pipeline = destination_config.setup_pipeline("test_load_model_with_all_types", dev_mode=True)
 
-    exclude_types: List[TDataType] = []
-    exclude_columns: List[str] = []
-    if destination_config.destination_type in ["databricks", "redshift", "athena"]:
-        exclude_types.append("time")
-    elif destination_config.destination_name == "sqlalchemy_sqlite":
-        exclude_types.extend(["decimal", "wei"])
+    with pipeline._maybe_destination_capabilities() as caps:
+        pass
 
-    # for tsql dialect, sqlglot generates a statement that creates False if the column is empty
-    if destination_config.destination_type == "mssql":
-        exclude_columns.append("col3_null")
-    elif destination_config.destination_type == "dremio":
-        exclude_columns.append("col7_precision")
-    # TODO: Synapse doesn't support IIF statements which are created by sqlglot for col3
-    elif destination_config.destination_type == "synapse":
-        exclude_columns += ["col3", "col3_null"]
+    # this is simplistic way to set default file format
+    if not destination_config.file_format:
+        destination_config.file_format = (
+            caps.preferred_loader_file_format or caps.preferred_staging_file_format
+        )
 
-    column_schemas, data_types = table_update_and_row(
-        exclude_types=exclude_types, exclude_columns=exclude_columns
-    )
+    column_schemas, data_types = table_update_and_row_for_destination(destination_config)
 
     @dlt.resource(table_name="data_types", columns=column_schemas)
     def my_resource() -> Any:
@@ -730,10 +722,10 @@ def test_load_model_with_all_types(
     assert len(rows) == 10
 
     assert_all_data_types_row(
+        pipeline.destination.capabilities(),
         rows[0],
         schema=column_schemas,
         allow_base64_binary=destination_config.destination_type == "clickhouse",
-        timestamp_precision=pipeline.destination.capabilities().timestamp_precision,
     )
 
 

@@ -197,11 +197,13 @@ SELECT 1
                     ret.append(result)
         return ret
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
         # default is no catalogue component of the name, which typically means that
         # connection is scoped to a current database
         return None
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def fully_qualified_dataset_name(
         self, quote: bool = True, staging: bool = False, casefold: bool = True
     ) -> str:
@@ -212,6 +214,7 @@ SELECT 1
             path = self.make_qualified_table_name_path(None, quote=quote, casefold=casefold)
         return ".".join(path)
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def make_qualified_table_name(
         self, table_name: str, quote: bool = True, casefold: bool = True
     ) -> str:
@@ -219,6 +222,7 @@ SELECT 1
             self.make_qualified_table_name_path(table_name, quote=quote, casefold=casefold)
         )
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def make_qualified_table_name_path(
         self, table_name: Optional[str], quote: bool = True, casefold: bool = True
     ) -> List[str]:

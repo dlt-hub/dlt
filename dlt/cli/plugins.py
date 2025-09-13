@@ -162,12 +162,6 @@ The `dlt pipeline` command provides a set of commands to inspect the pipeline wo
             action="store_true",
             help="List local pipelines",
         )
-        pipe_cmd.add_argument(
-            "--hot-reload",
-            default=False,
-            action="store_true",
-            help="Reload streamlit app (for core development)",
-        )
         pipe_cmd.add_argument("pipeline_name", nargs="?", help="Pipeline name")
         pipe_cmd.add_argument("--pipelines-dir", help="Pipelines working directory", default=None)
         pipe_cmd.add_argument(
