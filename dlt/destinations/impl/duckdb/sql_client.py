@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import re
 import duckdb
+from fsspec import AbstractFileSystem
 import semver
 from pathlib import Path
 import sqlglot
@@ -245,6 +246,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         scope: str,
         credentials: FileSystemCredentials,
         secret_name: str = None,
+        persist_secrets: bool = False,
     ) -> bool:
         #  home dir is a bad choice, it should be more explicit
         if not secret_name:
@@ -254,9 +256,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             raise ValueError(
                 f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
             )
-
-        if self.persist_secrets and self.memory_db:
-            raise Exception("Creating persistent secrets for in memory db is not allowed.")
 
         secrets_path = Path(
             self._conn.sql(
@@ -270,7 +269,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             and secrets_path.parts[-2] == ".duckdb"
         )
 
-        if is_default_secrets_directory and self.persist_secrets:
+        if is_default_secrets_directory and persist_secrets:
             logger.warn(
                 "You are persisting duckdb secrets but are storing them in the default folder"
                 f" {secrets_path}. These secrets are saved there unencrypted, we"
@@ -278,7 +277,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             )
 
         persistent_stmt = ""
-        if self.persist_secrets:
+        if persist_secrets:
             persistent_stmt = " PERSISTENT "
 
         if "@" in scope:
@@ -342,7 +341,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                     SCOPE '{scope}'
                 )""")
-        elif self.persist_secrets:
+        elif persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
                 f" `{protocol}`. If you are trying to use persistent secrets"
@@ -353,6 +352,18 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             return False
         self._conn.sql(";\n".join(sql))
         return True
+
+    def _register_filesystem(self, fs: AbstractFileSystem, scheme: str) -> None:
+        protocols = [fs.protocol] if isinstance(fs.protocol, str) else fs.protocol
+        for protocol in protocols:
+            if self._conn.filesystem_is_registered(protocol):
+                self._conn.unregister_filesystem(protocol)
+        self._conn.register_filesystem(fs)
+        if scheme not in protocols:
+            fs.protocol = scheme
+            if self._conn.filesystem_is_registered(fs.protocol):
+                self._conn.unregister_filesystem(fs.protocol)
+            self._conn.register_filesystem(fs)
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
@@ -432,6 +443,8 @@ class WithTableScanners(DuckDbSqlClient):
         # if no credentials are passed from the outside
         # we know to keep an in memory instance here
         if not cache_db:
+            if persist_secrets:
+                raise Exception("Creating persistent secrets for in memory db is not allowed.")
             self.memory_db = duckdb.connect(":memory:")
             cache_db = DuckDbCredentials(self.memory_db)
         if not cache_db.is_resolved():
@@ -578,39 +591,3 @@ class WithTableScanners(DuckDbSqlClient):
         if self.memory_db:
             self.memory_db.close()
             self.memory_db = None
-
-
-def _install_extension(duckdb_sql_client: DuckDbSqlClient, extension_name: LiteralString) -> None:
-    """
-    The first time this runs on a machine, it downloads the extension and stores it
-    on disk. Subsequent calls to `INSTALL ducklake` are a no-op. This is ensured by the duckdb
-    library.
-
-    NOTE This method is at risk of SQL-injection. Only use internally with string literals.
-    """
-    with duckdb_sql_client as client:
-        client.execute(f"INSTALL {extension_name}")
-
-
-def _is_extension_installed(duckdb_sql_client: DuckDbSqlClient, extension_name: str) -> bool:
-    extension_is_installed = False
-    with duckdb_sql_client as client:
-        for extension_data in client.execute("FROM duckdb_extensions();").fetchall():
-            extension_name_found, is_loaded, is_installed, _, _, aliases, *_ = extension_data
-            if (extension_name == extension_name_found) or (extension_name in aliases):
-                extension_is_installed = is_installed
-                break
-
-    return extension_is_installed
-
-
-def _is_extension_loaded(duckdb_sql_client: DuckDbSqlClient, extension_name: str) -> bool:
-    extension_is_loaded = False
-    with duckdb_sql_client as client:
-        for extension_data in client.execute("FROM duckdb_extensions();").fetchall():
-            extension_name_found, is_loaded, is_installed, _, _, aliases, *_ = extension_data
-            if (extension_name == extension_name_found) or (extension_name in aliases):
-                extension_is_loaded = is_loaded
-                break
-
-    return extension_is_loaded

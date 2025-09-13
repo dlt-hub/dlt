@@ -62,8 +62,6 @@ def create_ibis_backend(
     ):
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
-        # import duckdb
-
         assert isinstance(client, DuckDbClient)
         # always open in read only mode
         client.config.credentials.read_only = read_only

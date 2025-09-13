@@ -66,11 +66,14 @@ class FilesystemSqlClient(WithTableScanners):
         scope: str,
         credentials: FileSystemCredentials,
         secret_name: str = None,
+        persist_secrets: bool = False,
     ) -> bool:
         protocol = self.remote_client.config.protocol
         if protocol == "file":
             return True
-        if not super().create_secret(scope, credentials, secret_name=secret_name):
+        if not super().create_secret(
+            scope, credentials, secret_name=secret_name, persist_secrets=persist_secrets
+        ):
             # native google storage implementation is not supported..
             if protocol in ["gs", "gcs"]:
                 logger.warn(

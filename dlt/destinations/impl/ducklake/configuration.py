@@ -129,7 +129,6 @@ class DuckLakeCredentials(DuckDbCredentials):
 
 
 # TODO add connection to a specific snapshot
-# TODO does it make sense for ducklake to have a staging destination?
 @configspec
 class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingConfiguration):
     destination_type: str = dataclasses.field(

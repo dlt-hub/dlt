@@ -19,6 +19,7 @@ secrets.toml
 *.wal
 logs/
 .continuerules
+.continue
 # temporary directory used by marimo for layout, caching, HTML snapshots; see marimo docs
 **/__marimo__  
 

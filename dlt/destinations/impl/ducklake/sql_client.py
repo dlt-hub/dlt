@@ -1,11 +1,15 @@
+from duckdb import DuckDBPyConnection
+
+from dlt.common import logger
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+
+from dlt.common.storages.configuration import FileSystemCredentials
+from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 from dlt.destinations.sql_client import raise_open_connection_error
-
-from duckdb import DuckDBPyConnection
 
 
 class DuckLakeSqlClient(DuckDbSqlClient):
@@ -41,19 +45,9 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         # creates a separate connection for each sql_client
         try:
             if not self.credentials.storage.is_local_filesystem:
-                if not super().create_secret(
+                self.create_secret(
                     self.credentials.storage.bucket_url, self.credentials.storage.credentials
-                ):
-                    protocol = self.credentials.storage.protocol
-                    if protocol in ["gs", "gcs"]:
-                        raise ValueError(
-                            "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility"
-                            " layer"
-                        )
-                    else:
-                        raise ValueError(
-                            f"Cannot create secret or register filesystem for `{protocol=:}`"
-                        )
+                )
             # NOTE: database must be detached otherwise it is left in inconsistent state
             # TODO: perhaps move attach/detach to connection pool
             self._conn.execute(self.attach_statement)
@@ -83,6 +77,36 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 # `memory` is a name of initial memory database opened
                 self._conn.execute(f"USE memory;DETACH {self.credentials.ducklake_name}")
         return super().close_connection()
+
+    def create_secret(
+        self,
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str = None,
+        persist_secrets: bool = False,
+    ) -> None:
+        protocol = self.credentials.storage.protocol
+        if protocol in ["az", "abfss"]:
+            logger.warning(
+                "abfss is not supported by DuckLake. "
+                "Falling back to fsspec which degrades scanning performance."
+            )
+            self._register_filesystem(fsspec_from_config(self.credentials.storage)[0], "abfss")
+        elif not super().create_secret(
+            scope,
+            credentials,
+            secret_name=secret_name,
+            persist_secrets=persist_secrets,
+        ):
+            if protocol in ["gs", "gcs"]:
+                logger.warning(
+                    "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility"
+                    "layer if possible. "
+                    "Falling back to fsspec which degrades scanning performance."
+                )
+                self._register_filesystem(fsspec_from_config(self.credentials.storage)[0], "gcs")
+            else:
+                raise ValueError(f"Cannot create secret or register filesystem for `{protocol=:}`")
 
     @staticmethod
     def build_attach_statement(
@@ -120,7 +144,3 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 catalog=self.credentials.catalog,
                 storage_url=self.credentials.storage_url,
             )
-
-    @attach_statement.setter
-    def attach_statement(self, value: str) -> None:
-        self._attach_statement = value

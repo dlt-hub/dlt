@@ -252,7 +252,6 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         return self.database == ":pipeline:"
 
     def on_resolved(self) -> None:
-        # TODO Why don't we support `:memory:` string?
         if isinstance(self.database, str) and self.database == ":memory:":
             raise InvalidInMemoryDuckdbCredentials()
         self.conn_pool = DuckDbConnectionPool(self)
