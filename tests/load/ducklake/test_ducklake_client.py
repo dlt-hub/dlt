@@ -1,34 +1,18 @@
 import os
 import pytest
 import pathlib
-import unittest.mock
 import duckdb
 
-import dlt
-from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 
-from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DuckLakeClientConfiguration,
-    _get_ducklake_capabilities,
-    DUCKLAKE_STORAGE_PATTERN,
 )
-from dlt.destinations import ducklake
-from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 
-from tests.pipeline.utils import assert_load_info
-from tests.utils import (
-    TEST_STORAGE_ROOT,
-    # already configured via conftest
-    # patch_home_dir,
-    # autouse_test_storage,
-    # preserve_environ,
-    # wipe_pipeline,
-)
+from tests.utils import TEST_STORAGE_ROOT
 
 
 def test_native_duckdb_workflow(tmp_path):
@@ -232,115 +216,3 @@ def test_ducklake_conn_pool_always_open() -> None:
                 dataset_name="foo"
             )
         )
-
-
-@pytest.mark.skip("not implemented")
-def test_ducklake_sqlclient(tmp_path):
-    # TODO: test attach/detach here
-    # expected_attach_statement = (
-    #     f"ATTACH IF NOT EXISTS 'ducklake:{expected_ducklake_name}.ducklake' AS"
-    #     f" {expected_ducklake_name}"
-    # )
-    pipeline_name = "foo"
-    configuration = resolve_configuration(
-        DuckLakeClientConfiguration(pipeline_name=pipeline_name)._bind_dataset_name(
-            dataset_name="test_conf"
-        )
-    )
-
-    # TODO patch `ducklake` extension directory to unit test extension installation
-    # NOTE: extension is loaded via general mechanism which is already tested in duckdb client
-    # assert not _is_extension_loaded(ducklake_client, extension_name="ducklake")
-
-    ducklake_sql_client = DuckLakeSqlClient(
-        dataset_name=configuration.normalize_dataset_name(dlt.Schema(name=pipeline_name)),
-        staging_dataset_name=None,
-        credentials=configuration.credentials,
-        capabilities=_get_ducklake_capabilities(),
-    )
-
-    expected_attach_statement = (
-        f"ATTACH IF NOT EXISTS 'ducklake:{pipeline_name}.ducklake' AS {pipeline_name}"
-    )
-    assert ducklake_sql_client.attach_statement == expected_attach_statement
-
-    extension_is_installed = False
-    extension_is_loaded = False
-
-    with ducklake_sql_client as client:
-        for extension_data in client.execute("FROM duckdb_extensions();").fetchall():
-            extension_name_found, is_loaded, is_installed, _, _, aliases, *_ = extension_data
-            if (extension_name_found == "ducklake") or ("ducklake" in aliases):
-                extension_is_installed = is_installed
-                extension_is_loaded = is_loaded
-
-    assert extension_is_installed is True
-    assert extension_is_loaded is True
-
-    with ducklake_sql_client as client:
-        client.create_dataset()
-        assert client.has_dataset() is True
-
-
-@pytest.mark.parametrize(
-    "catalog",
-    (
-        None,
-        "sqlite:///catalog.sqlite",
-        "duckdb:///catalog.duckdb",
-        "postgres://loader:loader@localhost:5432/dlt_data",
-    ),
-)
-def test_destination_defaults(catalog: str) -> None:
-    """Check that catalog and storage are materialized at the right
-    location and properly derive their name from the pipeline name.
-    """
-    if catalog is None:
-        # use destination alias
-        destination: TDestinationReferenceArg = "ducklake"
-    else:
-        destination = ducklake(credentials=DuckLakeCredentials(catalog=catalog))
-    pipeline = dlt.pipeline(
-        "destination_defaults", destination=destination, dataset_name="lake_schema", dev_mode=True
-    )
-    # print(pipeline.destination.configuration())
-    # expected_location = pathlib.Path("_storage", DUCKLAKE_NAME_PATTERN % pipeline.dataset_name)
-
-    # with (
-    #     unittest.mock.patch("pendulum.now", return_value="2025-08-25T20:44:02.143226+00:00"),
-    #     unittest.mock.patch("pendulum.instance", return_value="2025-08-25T20:44:02.143226+00:00"),
-    #     unittest.mock.patch("pendulum.datetime", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
-    #     unittest.mock.patch("pendulum.from_timestamp", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
-    #     unittest.mock.patch("dlt.common.time.ensure_pendulum_datetime", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
-    #     unittest.mock.patch("dlt.pipeline.track.on_end_trace", return_value=None)
-    # ):
-    load_info = pipeline.run(
-        [{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet"
-    )
-    assert_load_info(load_info)
-
-    # test basic data access
-    ds = pipeline.dataset()
-    assert ds.table_foo["foo"].fetchall() == [(1,), (2,)]
-
-    # test lake location
-    expected_location = pathlib.Path(
-        TEST_STORAGE_ROOT, DUCKLAKE_STORAGE_PATTERN % pipeline.pipeline_name
-    )
-    assert expected_location.exists()
-    # test dataset in lake
-    assert (expected_location / pipeline.dataset_name).exists()
-
-    # test catalog location if applicable
-    catalog_location = pipeline.destination_client().config.credentials.catalog.database  # type: ignore
-    if "." in catalog_location:
-        # it is a file
-        assert pathlib.Path(TEST_STORAGE_ROOT, catalog_location).exists()
-
-
-# def test_assert_configure_catalog_location():
-#     ...
-
-
-# def test_assert_configure_storage_location():
-#     ...
