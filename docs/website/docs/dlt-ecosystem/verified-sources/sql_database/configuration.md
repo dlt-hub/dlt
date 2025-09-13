@@ -145,7 +145,7 @@ will create `sql_database` folder with the source code that you can import and u
 
 ## Incremental loading
 Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only new or updated data. In essence, arguments that you pass
-to [dlt.sources.incremental](../../../general-usage/incremental/) are used by `dlt` to generate SQL query that will select the rows that you need. 
+to [dlt.sources.incremental](../../../general-usage/incremental/cursor) are used by `dlt` to generate SQL query that will select the rows that you need. 
 
 Read [step by step guide on how to use incremental with sql_database](../../../walkthroughs/sql-incremental-configuration).
 
