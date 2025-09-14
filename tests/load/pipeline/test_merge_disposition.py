@@ -1597,9 +1597,11 @@ def test_merge_strategy_config() -> None:
     assert "scd2" not in p.destination.capabilities().supported_merge_strategies
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r())
-    assert pip_ex.value.step == "normalize"  # failed already in normalize when generating row ids
+    assert (
+        pip_ex.value.step == "extract"
+    )  # fails when table is added to schema and root key requirements are validated
     # PipelineStepFailed -> NormalizeJobFailed -> DestinationCapabilitiesException
-    assert isinstance(pip_ex.value.__cause__.__cause__, DestinationCapabilitiesException)
+    assert isinstance(pip_ex.value.__cause__, DestinationCapabilitiesException)
 
 
 @pytest.mark.parametrize(
