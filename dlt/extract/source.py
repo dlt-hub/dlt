@@ -546,6 +546,7 @@ class DltSource(Iterable[TDataItem]):
         Notes:
             1. Transformers resources won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
+            3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 
         Args:
             max_items (Optional[int]): The maximum number of items (not rows!) to yield, set to None for no limit

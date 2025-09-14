@@ -177,9 +177,11 @@ class LimitItem(ItemTransform[TDataItem]):
         return self.max_items * (1 if self.count_rows else chunk_size)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        row_count = count_rows_in_items(item)
-        if row_count > 0:
-            self.count += row_count if self.count_rows else 1
+        if self.count_rows:
+            self.count += count_rows_in_items(item)
+        else:
+            # NOTE: we count empty batches/pages in this mode
+            self.count += 1
 
         # detect when the limit is reached, max time or yield count
         if (

@@ -1012,6 +1012,28 @@ def test_limit_edge_cases(limit: int) -> None:
         raise AssertionError(f"Unexpected limit: {limit}")
 
 
+def test_limit_empty_batches() -> None:
+    counter = 0
+
+    @dlt.resource
+    def empty_page():
+        nonlocal counter
+        for _ in range(3):
+            counter += 1
+            yield []
+
+    list(empty_page().add_limit(1))
+    assert counter == 1
+
+    counter = 0
+    list(empty_page().add_limit(1, count_rows=True))
+    assert counter == 3
+
+    counter = 0
+    list(empty_page().add_limit(max_time=10))
+    assert counter == 3
+
+
 def test_various_limit_setups() -> None:
     # basic test
     r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3)

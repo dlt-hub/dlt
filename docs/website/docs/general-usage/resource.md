@@ -465,12 +465,13 @@ def my_resource():
 
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10))
 ```
-The code above will extract `15*10=150` records. This is happening because in each iteration, 15 records are yielded, and we're limiting the number of iterations to 10.
+The code above will extract `15*10=150` records. This is happening because in each iteration, 15 records are yielded, and we're limiting the number of iterations to 10. In this mode `add_limit` also counts empty batches/pages.
 
 If you wish to count rows instead:
 ```py
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10, count_rows=True))
 ```
+In this mode `add_limit` skips empty pages as they contain no rows.
 Note that `dlt` will still process full pages/yields of data. They won't be trimmed even if large so your effective count will probably
 be different from limit that you set.
 :::
