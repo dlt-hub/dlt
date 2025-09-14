@@ -1,3 +1,4 @@
+from typing import ClassVar, Type
 from duckdb import DuckDBPyConnection
 
 from dlt.common import logger
@@ -7,12 +8,18 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.storages.configuration import FileSystemCredentials
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
-from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+from dlt.destinations.impl.duckdb.sql_client import DuckDBDBApiCursorImpl, DuckDbSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 from dlt.destinations.sql_client import raise_open_connection_error
 
 
+class DucklakeDBApiCursorImpl(DuckDBDBApiCursorImpl):
+    vector_size: ClassVar[int] = 700  # vector size for ducklake
+
+
 class DuckLakeSqlClient(DuckDbSqlClient):
+    cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DucklakeDBApiCursorImpl
+
     def __init__(
         self,
         dataset_name: str,
@@ -36,7 +43,6 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             )
         super().create_dataset()
 
-    # TODO support connecting to a snapshot
     @raise_open_connection_error
     def open_connection(self) -> DuckDBPyConnection:
         """Ensure the `ducklake` extension is loaded. This needs to be done on every connection"""

@@ -19,9 +19,9 @@ from typing import (
     Optional,
     Sequence,
     Generator,
+    Type,
     cast,
 )
-from typing_extensions import LiteralString
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -91,6 +91,7 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = duckdb
+    cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckDBDBApiCursorImpl
 
     def __init__(
         self,
@@ -182,7 +183,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             query = query.replace("%s", "?")
         try:
             self._conn.execute(query, db_args)
-            yield DuckDBDBApiCursorImpl(self._conn)  # type: ignore
+            yield self.cursor_impl(self._conn)  # type: ignore
         except duckdb.Error as outer:
             self.close_connection()
             self.open_connection()
@@ -352,6 +353,11 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             return False
         self._conn.sql(";\n".join(sql))
         return True
+
+    def use_dataset(self) -> None:
+        """Makes duckdb schema corresponding to dataset_name the default"""
+        fq_name = self.fully_qualified_dataset_name()
+        self._conn.sql(f"SET search_path = '{fq_name}'")
 
     def _register_filesystem(self, fs: AbstractFileSystem, scheme: str) -> None:
         protocols = [fs.protocol] if isinstance(fs.protocol, str) else fs.protocol

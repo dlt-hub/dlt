@@ -319,7 +319,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     if client.config.destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
-    elif client.config.destination_type == "mssql":
+    elif client.config.destination_type in ("mssql", "ducklake"):
         chunk_size = 700
         total_records = 1000
     else:
