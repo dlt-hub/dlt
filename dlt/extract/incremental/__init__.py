@@ -164,6 +164,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.start_value: Any = initial_value
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
+        # TODO: deprecate primary_key, use deduplication_key
         self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
         self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
@@ -201,7 +202,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._primary_key = value
         if self._transformers:
             for transform in self._transformers.values():
-                transform._primary_key = value
+                transform.primary_key = value
 
     @classmethod
     def from_existing_state(
