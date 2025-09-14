@@ -41,9 +41,11 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         **destination_config.run_kwargs,
     )
     assert_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    # if merge is not supported, root key propagation is disabled
+    if destination_config.supports_merge:
+        assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+            "tables"
+        ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
     info = pipeline.run(
         data_with_subtables(10),
@@ -59,9 +61,10 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
             "items__sub_items": 100 if destination_config.supports_merge else 200,
         },
     )
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    if destination_config.supports_merge:
+        assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+            "tables"
+        ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
     info = pipeline.run(
         data_with_subtables(10),
@@ -77,9 +80,10 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
             "items__sub_items": 200 if destination_config.supports_merge else 300,
         },
     )
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    if destination_config.supports_merge:
+        assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+            "tables"
+        ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
     info = pipeline.run(
         data_with_subtables(10),
@@ -89,9 +93,10 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
     )
     assert_load_info(info)
     assert_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    if destination_config.supports_merge:
+        assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+            "tables"
+        ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
 
 @pytest.mark.parametrize(

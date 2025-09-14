@@ -141,7 +141,7 @@ def test_load_sql_table_partitioned(
             case_params,
         )
 
-        # Verify the distribution
+        # verify the distribution
         result = conn.exec_driver_sql(f"""
             SELECT date_trunc('day', updated_at) as day, COUNT(*)
             FROM {postgres_db.schema}.chat_message
@@ -150,11 +150,12 @@ def test_load_sql_table_partitioned(
             """)
         day_counts = {str(row[0]): row[1] for row in result.fetchall()}
         print(day_counts)
+        assert len(day_counts) == 4
 
     # run dlt pipeline 4 times with incremental set to particular days (via initial_value and end_value)
     pipeline = dlt.pipeline("test_load_sql_table_partitioned", destination="duckdb")
 
-    # Load each date range separately
+    # load each date range separately
     for _, date_range in enumerate(date_ranges):
         incremental_table = sql_table(
             credentials=postgres_db.credentials,
@@ -165,8 +166,8 @@ def test_load_sql_table_partitioned(
                 "updated_at",
                 initial_value=date_range["start"],
                 end_value=date_range["end"],
-                range_start="open",
-                range_end="closed",
+                range_start="closed",
+                range_end="open",
             ),
         )
 
@@ -183,7 +184,7 @@ def test_load_sql_table_partitioned(
     assert sorted(duckdb_ids) == sorted(message_ids)
 
     # update one message updated_at to now()
-    current_time = pendulum.now()
+    current_time = pendulum.now().add(days=1)
     with engine.connect() as conn:
         # Update the first message to have the current time
         first_id = conn.exec_driver_sql(
@@ -207,20 +208,23 @@ def test_load_sql_table_partitioned(
         incremental=dlt.sources.incremental(
             "updated_at",
             initial_value=date_ranges[-1]["end"],  # Use the last day as the starting point
-            range_start="open",  # Include records from the last day
+            range_start="closed",  # Include records from the last day
         ),
     )
 
     pipeline.run(incremental_table)
     print(pipeline.last_trace.last_normalize_info)
 
-    # Verify that we loaded the updated record
-    # Should have loaded only 1 record - the one we just updated
+    # verify that we loaded the updated record
+    # should have loaded only 1 record - the one we just updated
     assert pipeline.last_trace.last_normalize_info.row_counts["chat_message"] == 1
 
-    # Verify the total record count is still correct (no duplicates)
+    # verify the total record count is still correct (one duplicate, or use merge loading)
     total_duckdb_count = len(pipeline.dataset().chat_message["id"].fetchall())
-    assert total_duckdb_count == total_count
+    assert total_duckdb_count == total_count + 1
+
+    pipeline.run(incremental_table)
+    assert "chat_message" not in pipeline.last_trace.last_normalize_info.row_counts
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow"])
