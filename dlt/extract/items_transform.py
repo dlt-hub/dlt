@@ -177,6 +177,10 @@ class LimitItem(ItemTransform[TDataItem]):
         return self.max_items * (1 if self.count_rows else chunk_size)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        # do not count None
+        if item is None:
+            return None
+
         if self.count_rows:
             self.count += count_rows_in_items(item)
         else:

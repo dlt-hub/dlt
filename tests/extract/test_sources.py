@@ -1034,6 +1034,21 @@ def test_limit_empty_batches() -> None:
     assert counter == 3
 
 
+def test_limit_skip_filtered_batches() -> None:
+    counter = 0
+
+    @dlt.resource
+    def just_counter():
+        nonlocal counter
+        for i in range(10):
+            counter += 1
+            yield [i]
+
+    # fully filtered items are skipped
+    assert list(just_counter().add_filter(lambda i: i % 2 == 0).add_limit(2)) == [0, 2]
+    assert counter == 3  # one odd number skipped
+
+
 def test_various_limit_setups() -> None:
     # basic test
     r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3)

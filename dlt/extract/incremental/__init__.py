@@ -492,7 +492,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.start_value = self.last_value
         logger.info(
             f"Bind incremental on {self.resource_name} with initial_value: {self.initial_value},"
-            f" start_value: {self.start_value}, end_value: {self.end_value}"
+            f" start_value: {self.start_value}, end_value: {self.end_value}, func:"
+            f" {self.last_value_func.__name__}, row_order: {self.row_order}, on_missing:"
+            f" {self.on_cursor_value_missing}, range_start: {self.range_start}, range_end:"
+            f" {self.range_end}"
         )
         # cache state
         self._cached_state = self.get_state()
@@ -563,6 +566,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # example: MaterializedEmptyList
         if rows is None or (isinstance(rows, list) and len(rows) == 0):
             return rows
+
         transformer = self._get_transform(rows)
         if isinstance(rows, list):
             rows = [
@@ -570,6 +574,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 for item in (self._transform_item(transformer, row) for row in rows)
                 if item is not None
             ]
+            # return None if fully consumed like FilterItem (Incremental is just a very complicated FilterItem)
+            if len(rows) == 0:
+                rows = None
         else:
             rows = self._transform_item(transformer, rows)
 
