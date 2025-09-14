@@ -15,6 +15,7 @@ from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 
+from dlt.common.utils import uniq_id
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
@@ -301,6 +302,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
         "dlt.destinations.filesystem",
         "dlt.destinations.snowflake",
+        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
     ]
 
     # full frame
@@ -1267,10 +1269,9 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
     # make sure the not implemented error is raised if the ibis backend can't be created
     try:
-        ibis_connection = populated_pipeline.dataset().ibis()
+        ibis_connection = populated_pipeline.dataset().ibis(read_only=True)
     except NotImplementedError:
-        pytest.raises(NotImplementedError)
-        return
+        pytest.skip("ibis not implemented for this destination")
     except Exception as e:
         pytest.fail(f"Unexpected error raised: {e}")
 
@@ -1333,6 +1334,29 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                 raise
     finally:
         ibis_connection.disconnect()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_no_dataset(populated_pipeline: Pipeline) -> None:
+    try:
+        ds = populated_pipeline.dataset()
+        ds._dataset_name = "no_dataset_" + uniq_id(4)
+        ibis_connection = ds.ibis(read_only=True)
+    except NotImplementedError:
+        pytest.skip("ibis not implemented for this destination")
+    except Exception as e:
+        print(e)
+        pass
+    else:
+        ibis_connection.disconnect()
+        pytest.fail("Exception expected on opening non exiting dataset")
 
 
 @pytest.mark.no_load

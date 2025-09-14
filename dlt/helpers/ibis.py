@@ -67,13 +67,25 @@ def create_ibis_backend(
         client.config.credentials.read_only = read_only
         # this will open connection to duckdb, take a clone and close the clone
         with client:
+            # make sure we can access tables from current dataset without qualification
+            # also prevents empty duckdb files from being created
+            client.sql_client.use_dataset()
             # move main connection ownership to ibis
             con = ibis.duckdb.from_connection(client.config.credentials.conn_pool.move_conn())
     elif issubclass(destination.spec, DuckLakeClientConfiguration):
         assert isinstance(client, DuckLakeClient)
         # open connection but do not close it, ducklake always creates a separate connection
         # and will not close it in destructor
-        con = ibis.duckdb.from_connection(client.sql_client.open_connection())
+        conn = client.sql_client.open_connection()
+        try:
+            # make sure we can access tables from current dataset without qualification
+            # also prevents empty duckdb files from being created
+            client.sql_client.use_dataset()
+        except Exception:
+            # close explicitly, wont be done by the conn pool
+            client.sql_client.close_connection()
+            raise
+        con = ibis.duckdb.from_connection(conn)
     elif issubclass(destination.spec, PostgresClientConfiguration):
         from dlt.destinations.impl.postgres.postgres import PostgresClient
         from dlt.destinations.impl.redshift.redshift import RedshiftClient
