@@ -1,4 +1,3 @@
-version: '3.4'
 services:
   weaviate:
     command:
@@ -9,9 +8,10 @@ services:
     - --scheme
     - http
     image: semitechnologies/weaviate:1.21.1
+    container_name: dlt_test_weaviate
+    restart: on-failure
     ports:
     - 8080:8080
-    restart: on-failure:0
     environment:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
@@ -28,5 +28,7 @@ services:
       NEIGHBOR_OCCURRENCE_IGNORE_PERCENTILE: 5
       ENABLE_COMPOUND_SPLITTING: 'false'
     image: semitechnologies/contextionary:en0.16.0-v1.2.1
+    container_name: dlt_test_weaviate-contextionary
+    restart: on-failure
     ports:
     - 9999:9999

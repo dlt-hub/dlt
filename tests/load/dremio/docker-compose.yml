@@ -1,7 +1,8 @@
-version: "3.7"
 services:
   dremio:
     image: dremio/dremio-oss:25.0
+    container_name: dlt_test_dremio
+    restart: on-failure
     ports:
       - "9047:9047"
       - "31010:31010"
@@ -11,6 +12,7 @@ services:
       - dremio
   minio:
     image: minio/minio
+    container_name: dlt_test_dremio-minio-bucket
     command: server /data --console-address ":9001"
     environment:
       - MINIO_ROOT_USER=minioadmin

@@ -1,7 +1,8 @@
----
 services:
   clickhouse:
     image: clickhouse/clickhouse-server
+    container_name: dlt_test_clickhouse
+    restart: on-failure
     ports:
       - "9000:9000"
       - "8123:8123"
@@ -13,7 +14,6 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse/
       - clickhouse_logs:/var/log/clickhouse-server/
-    restart: unless-stopped
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
       interval: 3s
