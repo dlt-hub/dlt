@@ -911,8 +911,11 @@ def get_nested_tables(
     Note that this function follows only NESTED TABLE reference typically expressed on _dlt_parent_id (PARENT_KEY) to _dlt_id (ROW_KEY).
 
     Args:
-        max_nesting: If specified, limits the depth of nesting. 0 = only the root table, 1 = root + direct children, etc.
-        include_self: If False, the root table itself is excluded from the returned list.
+        tables (TSchemaTables): A mapping of table names to their table schema definitions. This is used to look up the root table
+            and to recursively find its nested child tables by following their "parent" references.
+        table_name (str): The name of the root table from which to collect nested tables.
+        max_nesting (Optional[int]): If specified, limits the depth of nesting. 0 = only the root table, 1 = root + direct children, etc.
+        include_self (Optional[bool]): If False, the root table itself is excluded from the returned list.
 
     Returns:
         List[TTableSchema]: A list of nested tables.

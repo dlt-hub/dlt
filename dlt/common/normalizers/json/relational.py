@@ -247,7 +247,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 wrap_v = wrap_in_dict(self.c_value, v)
                 DataItemNormalizer._extend_row(extend, wrap_v)
                 self._add_row_id(table, wrap_v, wrap_v, parent_row_id, idx, is_root)
-                yield (table, self._shorten_fragments(*parent_path)), wrap_v
+                yield (table, self._shorten_fragments(*parent_path), ident_path), wrap_v
 
     def _normalize_row(
         self,
@@ -280,7 +280,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
         # yield parent table first
         should_descend = yield (
-            (table, self._shorten_fragments(*parent_path)),
+            (table, self._shorten_fragments(*parent_path), ident_path if not is_root else ()),
             flattened_row,
         )
         if should_descend is False:

@@ -634,33 +634,44 @@ def test_coerce_null_value_in_nested_table_chunk(
         )
         return schema_update
 
+    # use very long column names
+    col_name_a = "a" * (item_normalizer.naming.max_length + 1)
+    norm_col_name_a = item_normalizer.naming.normalize_path(col_name_a)
+    nested_tbl_name = item_normalizer.naming.shorten_fragments("nested", f"{norm_col_name_a}")
+
+    col_name_b = "b" * (item_normalizer.naming.max_length + 1)
+    norm_col_name_b = item_normalizer.naming.normalize_path(col_name_b)
+    nested_nested_tbl_name = item_normalizer.naming.shorten_fragments(
+        "nested", f"{norm_col_name_a}", f"{norm_col_name_b}"
+    )
+
     # create parent and child tables
     schema_update = _normalize_items_chunk(
         [
             {
                 "timestamp": 82178.1298812,
-                "nested": [
+                col_name_a: [
                     {
                         "timestamp": 82178.1298812,
-                        "nested": nested_item,
+                        col_name_b: nested_item,
                     }
                 ],
             },
         ]
     )
     assert "nested" in schema_update
-    assert "nested__nested" in schema_update
-    assert "nested__nested__nested" in schema_update
+    assert nested_tbl_name in schema_update
+    assert nested_nested_tbl_name in schema_update
 
     # verify that empty child table columns don't create schema updates
     schema_update = _normalize_items_chunk(
         [
             {
                 "timestamp": 82178.1298812,
-                "nested": [
+                col_name_a: [
                     {
                         "timestamp": 82178.1298812,
-                        "nested": None,
+                        col_name_b: None,
                     }
                 ],
             },
@@ -671,7 +682,7 @@ def test_coerce_null_value_in_nested_table_chunk(
         [
             {
                 "timestamp": 82178.1298812,
-                "nested": None,
+                col_name_a: None,
             },
         ]
     )
