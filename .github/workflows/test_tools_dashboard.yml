@@ -82,8 +82,8 @@ jobs:
         run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
         if: matrix.python-version != '3.14.0-beta.4'
 
-      - name: Install playwright
-        run: playwright install
+      - name: Install playwright & deps
+        run: playwright install && playwright install-deps
         if: matrix.python-version != '3.14.0-beta.4'
 
       # Run pipeline dashboard unit tests
