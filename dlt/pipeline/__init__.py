@@ -194,10 +194,13 @@ def attach(
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
+    dataset_name: str = None,
     **injection_kwargs: Any,
 ) -> Pipeline:
-    """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder.
+    """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory.
     Pre-configured `destination` and `staging` factories may be provided. If not present, default factories are created from pipeline state.
+
+    If no local pipeline state is found, dlt will attempt to restore the pipeline from the provided destination and dataset.
     """
     ensure_correct_pipeline_kwargs(attach, **injection_kwargs)
 
@@ -225,7 +228,7 @@ def attach(
             pipeline_salt,
             destination,
             staging,
-            None,
+            dataset_name,
             None,
             None,
             False,  # always False as dev_mode so we do not wipe the working folder
@@ -238,9 +241,40 @@ def attach(
         p.activate()
         return p
     except CannotRestorePipelineException:
+        if not pipeline_name:
+            raise
+
         # we can try to sync a pipeline with the given name
-        p = pipeline(pipeline_name, pipelines_dir, destination=destination, staging=staging)
+        p = pipeline(
+            pipeline_name,
+            pipelines_dir,
+            destination=destination,
+            staging=staging,
+            dataset_name=dataset_name,
+        )
+
+        # we cannot restore the pipeline if the destination is not provided
+        # or found in the env, wipe the working folder and re-raise
+        if not p.destination:
+            p._wipe_working_folder()
+            raise CannotRestorePipelineException(
+                pipeline_name,
+                p.working_dir,
+                f"Local pipeline not in {p.working_dir} found and no destination provided to"
+                " restore from.",
+            )
         p.sync_destination()
+
+        # if remote state was not found,
+        # wipe the working folder and re-raise
+        if p.first_run:
+            p._wipe_working_folder()
+            raise CannotRestorePipelineException(
+                pipeline_name,
+                p.working_dir,
+                f"Local pipeline not in {p.working_dir} found and provided destination and dataset"
+                " do not contain state for this pipeline.",
+            )
         return p
 
 

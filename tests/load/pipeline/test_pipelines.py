@@ -260,6 +260,71 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
 
 
 @pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_attach_edgecases(destination_config: DestinationTestConfiguration) -> None:
+    """
+    Tests various attach edge cases and automated syncing. Only needs to be done for one destination (duckdb)
+    """
+
+    EXAMPLE_DATA = ["a", "b", "c"]
+
+    @dlt.resource
+    def data_table():
+        for d in EXAMPLE_DATA:
+            yield d
+
+    p = destination_config.setup_pipeline("test_attach_edgecases")
+    p.run(data_table())
+    state_version_hash = p.state["_state_version"]
+    dataset_name = p.dataset_name
+
+    # re-attaching works
+    p = dlt.attach("test_attach_edgecases")
+    assert_table_column(p, "data_table", EXAMPLE_DATA)
+    assert p._pipeline_storage.has_folder("")
+    assert p.state["_state_version"] == state_version_hash
+
+    # re-attaching only with name will fail
+    p._wipe_working_folder()
+    with pytest.raises(CannotRestorePipelineException) as exc_info:
+        dlt.attach("test_attach_edgecases")
+    assert "no destination provided to restore from" in str(exc_info.value)
+    # no working folder left behing
+    assert not p._pipeline_storage.has_folder("")
+
+    # re-attaching with destination but incorrect dataset name will fail
+    p._wipe_working_folder()
+    with pytest.raises(CannotRestorePipelineException) as exc_info:
+        dlt.attach("test_attach_edgecases", destination="duckdb", dataset_name="incorrect")
+    # no working folder left behing
+    assert "provided destination and dataset do not contain state for this pipeline" in str(
+        exc_info.value
+    )
+    assert not p._pipeline_storage.has_folder("")
+
+    # re-attaching with destination and dataset name will work
+    p = dlt.attach("test_attach_edgecases", destination="duckdb", dataset_name=dataset_name)
+    assert_table_column(p, "data_table", EXAMPLE_DATA)
+    assert p.state["_state_version"] == state_version_hash
+    # working folder is here again
+    assert p._pipeline_storage.has_folder("")
+
+    p._wipe_working_folder()
+
+    # re-attaching with env vars will work
+    os.environ["PIPELINES__TEST_ATTACH_EDGECASES__DESTINATION_TYPE"] = "duckdb"
+    os.environ["PIPELINES__TEST_ATTACH_EDGECASES__DATASET_NAME"] = dataset_name
+    p = dlt.attach("test_attach_edgecases")
+    assert_table_column(p, "data_table", EXAMPLE_DATA)
+    assert p.state["_state_version"] == state_version_hash
+    # working folder is here again
+    assert p._pipeline_storage.has_folder("")
+
+
+@pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_skip_sync_schema_for_tables_without_columns(
