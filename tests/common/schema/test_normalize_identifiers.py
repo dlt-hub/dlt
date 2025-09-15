@@ -446,7 +446,7 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     assert schema.naming.make_path("A", "B", "!C") == "A__B__!C"
     assert schema.naming.break_path("A__B__!C") == ["A", "B", "!C"]
     row = list(schema.normalize_data_item({"bool": True}, "load_id", "a_table"))
-    assert row[0] == (("a_table", None), {"bool": True})
+    assert row[0] == (("a_table", None, ()), {"bool": True})
 
 
 def test_update_schema_normalizer_props() -> None:

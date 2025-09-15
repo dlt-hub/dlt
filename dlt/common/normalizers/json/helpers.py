@@ -87,18 +87,6 @@ def is_nested_type(
     return data_type == "json"
 
 
-def is_column_nested_table_in_schema(
-    schema: Schema, table_name: str, column_name: str, path: Tuple[str, ...]
-) -> bool:
-    """Tells if the column points to a previously detected nested table in the schema."""
-    potential_nested_table_name = schema.naming.normalize_tables_path(
-        schema.naming.make_path(*path, column_name)
-    )
-    if schema.tables.get(potential_nested_table_name):
-        return True
-    return False
-
-
 def should_be_nested(schema: Schema, table_name: str) -> bool:
     """Tells if table should be nested or should be a root table. All tables created by the normalizer
     are nested, defined tables are checked.
