@@ -260,8 +260,8 @@ def attach(
             raise CannotRestorePipelineException(
                 pipeline_name,
                 p.working_dir,
-                f"Local pipeline not in {p.working_dir} found and no destination provided to"
-                " restore from.",
+                f"the pipeline was not found in {p.working_dir} found and no destination was"
+                " provided to restore from.",
             )
         p.sync_destination()
 
@@ -272,8 +272,8 @@ def attach(
             raise CannotRestorePipelineException(
                 pipeline_name,
                 p.working_dir,
-                f"Local pipeline not in {p.working_dir} found and provided destination and dataset"
-                " do not contain state for this pipeline.",
+                f"the pipeline was not found in {p.working_dir} found and provided destination and"
+                " dataset do not contain state for this pipeline.",
             )
         return p
 

@@ -291,7 +291,7 @@ def test_attach_edgecases(destination_config: DestinationTestConfiguration) -> N
     p._wipe_working_folder()
     with pytest.raises(CannotRestorePipelineException) as exc_info:
         dlt.attach("test_attach_edgecases")
-    assert "no destination provided to restore from" in str(exc_info.value)
+    assert "no destination was provided to restore from" in str(exc_info.value)
     # no working folder left behing
     assert not p._pipeline_storage.has_folder("")
 
