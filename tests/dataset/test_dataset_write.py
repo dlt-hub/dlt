@@ -18,3 +18,4 @@ def test_dataset_get_write_pipeline():
     assert write_pipeline.dataset_name == dataset_name
     assert write_pipeline.destination == destination
     assert is_same_physical_destination(dataset, write_dataset)
+    assert dataset.schema == write_dataset.schema
