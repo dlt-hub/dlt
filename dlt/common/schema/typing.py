@@ -276,15 +276,16 @@ TWriteDispositionConfig = Union[
 ]
 
 
-TReferenceCardinality = Literal["-", "<", ">", "<>"]
+TReferenceCardinality = Literal[
+    "zero_to_one",
+    "zero_to_many",
+    "one_to_one",
+    "one_to_many",
+    "many_to_many",
+]
 """Represents cardinality between `column` (left) and `referenced_column` (right)
-`-`: one-to-one
-`<`: one-to-many
-`>`: many-to-one
-`<>`: many-to-many
-
-Note that `column <> referenced_column` is equivalent to specifying
-both `column < referenced_column` and `column > referenced_column` 
+Note that `(column, many_to_many, referenced_column)` is equivalent to specifying
+both `(column, one_to_many, referenced_column)` and `(column, many_to_one, referenced_column)` 
 """
 
 
@@ -294,7 +295,10 @@ class TTableReference(TypedDict):
     """
 
     label: NotRequired[str]
-    """Label to describe the relation 'liked'."""
+    """Text providing semantic information about the reference.
+    
+    For example, the label "liked" describe the relationship between `user` and `post` (user.id, "liked", post.id)
+    """
 
     cardinality: NotRequired[TReferenceCardinality]
     """Cardinality of the relationship between `table.column` (left) and `referenced_table.referenced_column` (right)."""
