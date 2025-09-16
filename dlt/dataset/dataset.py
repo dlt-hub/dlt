@@ -15,8 +15,6 @@ from dlt.common.destination.client import JobClientBase, SupportsOpenTables, Wit
 from dlt.common.typing import Self, TDataItems
 from dlt.common.schema.typing import C_DLT_LOAD_ID, TWriteDisposition
 from dlt.common.pipeline import LoadInfo
-from dlt.extract.hints import TResourceHints
-from dlt.sources import DltResource
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
@@ -174,7 +172,7 @@ class Dataset:
         helpful if we want to run sql queries without extracting the data
         """
         return is_same_physical_destination(self, other)
-    
+
     # TODO explain users can inspect `_dlt_loads` table to differentiate data originating
     # from `pipeline.run()` or `dataset.write()`
     def get_write_pipeline(self) -> dlt.Pipeline:
@@ -489,7 +487,9 @@ def _get_dataset_schema_from_destination_using_dataset_name(
     return schema
 
 
-def _get_internal_pipeline(dataset_name: str, destination: AnyDestination) -> dlt.Pipeline:
+def _get_internal_pipeline(
+    dataset_name: str, destination: TDestinationReferenceArg
+) -> dlt.Pipeline:
     """Setup the internal pipeline used by `Dataset.write()`"""
     pipeline = dlt.pipeline(
         pipeline_name=_INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE.format(dataset_name=dataset_name),
