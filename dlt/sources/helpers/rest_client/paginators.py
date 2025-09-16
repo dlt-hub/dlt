@@ -99,16 +99,18 @@ class RangePaginator(BasePaginator):
         total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
         stop_after_empty_page: Optional[bool] = True,
+        *,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
-        param_body_path: Optional[jsonpath.TJsonPath] = None,
+        param_body_path: Optional[str] = None,
     ):
         """
         Args:
             param_name (str): The query parameter name for the numeric value.
                 For example, 'page'.
-            param_body_path (jsonpath.TJsonPath): The JSONPath expression specifying
+            param_body_path (str): The dot-separated path specifying
                 where to place the numeric parameter in the request JSON body.
-                Defaults to `None`.
+                Defaults to `None`. Either `param_name` or `param_body_path`
+                must be provided, not both.
             initial_value (int): The initial value of the numeric parameter.
             value_step (int): The step size to increment the numeric parameter.
             base_index (int, optional): The index of the initial element.
@@ -141,6 +143,10 @@ class RangePaginator(BasePaginator):
                 "One of `total_path`, `maximum_value`, `has_more_path`, or `stop_after_empty_page`"
                 " must be provided."
             )
+
+        if bool(param_name) == bool(param_body_path):
+            raise ValueError("Either 'param_name' or 'param_body_path' must be provided, not both.")
+
         self.param_name = param_name
         self.param_body_path = param_body_path
         self.initial_value = initial_value
@@ -239,14 +245,18 @@ class RangePaginator(BasePaginator):
     def _update_request_with_param_name(
         request: Request, param_name: str, current_value: int
     ) -> None:
+        if not param_name:
+            raise ValueError("`param_name` must not be empty.")
         if request.params is None:
             request.params = {}
         request.params[param_name] = current_value
 
     @staticmethod
     def _update_request_with_body_path(
-        request: Request, body_path: jsonpath.TJsonPath, current_value: int
+        request: Request, body_path: str, current_value: int
     ) -> None:
+        if not body_path:
+            raise ValueError("`body_path` must not be empty.")
         if request.json is None:
             request.json = {}
         jsonpath.set_value_at_path(request.json, body_path, current_value)
@@ -328,8 +338,9 @@ class PageNumberPaginator(RangePaginator):
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_page: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
+        *,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
-        page_body_path: Optional[jsonpath.TJsonPath] = None,
+        page_body_path: Optional[str] = None,
     ):
         """
         Args:
@@ -340,8 +351,9 @@ class PageNumberPaginator(RangePaginator):
             page (int): The page number for the first request. If not provided,
                 the initial value will be set to `base_page`.
             page_param (str): The query parameter name for the page number.
-                Defaults to 'page'.
-            page_body_path (jsonpath.TJsonPath): A JSONPath expression specifying where
+                Defaults to 'page'. Either `page_param` or `page_body_path`
+                must be provided, not both.
+            page_body_path (str): A dot-separated path specifying where
                 to place the page number in the request JSON body. Use this instead
                 of `page_param` when sending the page number in the request body.
                 Defaults to `None`.
@@ -361,8 +373,9 @@ class PageNumberPaginator(RangePaginator):
         if page_param is None and page_body_path is None:
             page_param = "page"
         # Check that only one of page_param or page_body_path is provided
-        elif page_param is not None and page_body_path is not None:
+        elif (not page_param and not page_body_path) or (page_param and page_body_path):
             raise ValueError("Either 'page_param' or 'page_body_path' must be provided, not both.")
+
         if (
             total_path is None
             and maximum_page is None
@@ -482,9 +495,10 @@ class OffsetPaginator(RangePaginator):
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_offset: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
+        *,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
-        offset_body_path: Optional[jsonpath.TJsonPath] = None,
-        limit_body_path: Optional[jsonpath.TJsonPath] = None,
+        offset_body_path: Optional[str] = None,
+        limit_body_path: Optional[str] = None,
     ) -> None:
         """
         Args:
@@ -494,13 +508,13 @@ class OffsetPaginator(RangePaginator):
                 Defaults to 0.
             offset_param (str): The query parameter name for the offset.
                 Defaults to 'offset'.
-            offset_body_path (jsonpath.TJsonPath): A JSONPath expression specifying
+            offset_body_path (str): A dot-separated path specifying
                 where to place the offset in the request JSON body.
                 If provided, the paginator will use this instead of `offset_param`
                 to send the offset in the request body. Defaults to `None`.
             limit_param (str): The query parameter name for the limit.
                 Defaults to 'limit'.
-            limit_body_path (jsonpath.TJsonPath): A JSONPath expression specifying
+            limit_body_path (str): A dot-separated path specifying
                 where to place the limit in the request JSON body.
                 If provided, the paginator will use this instead of `limit_param`
                 to send the limit in the request body. Defaults to `None`.
@@ -520,7 +534,7 @@ class OffsetPaginator(RangePaginator):
         if offset_param is None and offset_body_path is None:
             offset_param = "offset"
         # Check that only one of offset_param or offset_body_path is provided
-        if offset_param is not None and offset_body_path is not None:
+        elif (not offset_param and not offset_body_path) or (offset_param and offset_body_path):
             raise ValueError(
                 "Either 'offset_param' or 'offset_body_path' must be provided, not both."
             )
@@ -528,7 +542,7 @@ class OffsetPaginator(RangePaginator):
         if limit_param is None and limit_body_path is None:
             limit_param = "limit"
         # Check that only one of limit_param or limit_body_path is provided
-        if limit_param is not None and limit_body_path is not None:
+        elif (not limit_param and not limit_body_path) or (limit_param and limit_body_path):
             raise ValueError(
                 "Either 'limit_param' or 'limit_body_path' must be provided, not both."
             )
@@ -831,7 +845,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         self,
         cursor_path: jsonpath.TJsonPath = "cursors.next",
         cursor_param: Optional[str] = None,
-        cursor_body_path: Optional[jsonpath.TJsonPath] = None,
+        cursor_body_path: Optional[str] = None,
     ):
         """
         Args:
@@ -839,7 +853,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
                 the response.
             cursor_param: The name of the query parameter to be used in
                 the request to get the next page.
-            cursor_body_path: The JSON path where to place the cursor in the request body.
+            cursor_body_path: The dot-separated path where to place the cursor in the request body.
         """
         super().__init__()
         self.cursor_path = jsonpath.compile_path(cursor_path)
