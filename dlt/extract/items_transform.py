@@ -47,7 +47,7 @@ class ItemTransform(ABC, Generic[TAny]):
             self._f = transform_f  # type: ignore
         else:  # TODO: do better check
             self._f_meta = transform_f  # type: ignore
-        self._metrics: Dict[str, Any] = {}
+        self._custom_metrics: Dict[str, Any] = {}
 
     def bind(self: "ItemTransform[TAny]", pipe: SupportsPipe) -> "ItemTransform[TAny]":
         return self
@@ -58,11 +58,11 @@ class ItemTransform(ABC, Generic[TAny]):
         pass
 
     @property
-    def metrics(self) -> Dict[str, Any]:
+    def custom_metrics(self) -> Dict[str, Any]:
         """Customizable resource metrics"""
-        if not hasattr(self, "_metrics"):
-            self._metrics = {}
-        return self._metrics
+        if not hasattr(self, "_custom_metrics"):
+            self._custom_metrics = {}
+        return self._custom_metrics
 
 
 class FilterItem(ItemTransform[bool]):

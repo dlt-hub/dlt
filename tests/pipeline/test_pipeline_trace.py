@@ -737,7 +737,7 @@ def test_trace_custom_metrics_schema() -> None:
     # force metrics in transform steps
     for step in resource_with_metrics._pipe.steps:
         if isinstance(step, ItemTransform):
-            step.metrics["transformation_type"] = "anything"
+            step.custom_metrics["transformation_type"] = "anything"
 
     pipeline = dlt.pipeline(
         pipeline_name="test_custom_metrics_trace", destination=dummy(completed_prob=1.0)
@@ -755,14 +755,14 @@ def test_trace_custom_metrics_schema() -> None:
         "trace__steps__extract_info__resource_metrics"
     )["columns"]
 
-    assert "custom_count" in resource_metrics_table_cols
-    assert "random_constant" in resource_metrics_table_cols
-    assert "random_nested__value" in resource_metrics_table_cols
-    assert "random_nested__unit" in resource_metrics_table_cols
-    assert "map_item__transformation_type" in resource_metrics_table_cols
-    assert "yield_map_item__transformation_type" in resource_metrics_table_cols
-    assert "limit_item__transformation_type" in resource_metrics_table_cols
-    assert "trace__steps__extract_info__resource_metrics__list_metric" in inferred_schema.tables
+    assert "custom_metrics__custom_count" in resource_metrics_table_cols
+    assert "custom_metrics__random_constant" in resource_metrics_table_cols
+    assert "custom_metrics__random_nested__value" in resource_metrics_table_cols
+    assert "custom_metrics__random_nested__unit" in resource_metrics_table_cols
+    assert (
+        "trace__steps__extract_info__resource_metrics__custom_metrics__list_metric"
+        in inferred_schema.tables
+    )
 
 
 def _find_resolved_value(

@@ -700,48 +700,51 @@ pipeline.run(
 
 The `with_name` method returns a deep copy of the original resource, its data pipe, and the data pipes of a parent resource. A renamed clone is fully separated from the original resource (and other clones) when loading: it maintains a separate [resource state](state.md#read-and-write-pipeline-state-in-a-resource) and will load to a table.
 
-## Collect custom metrics in resources
+## Collect custom metrics
 
-You can track custom statistics during resource extraction with `dlt.current.resource_metrics()`:
+You can track custom statistics during resource extraction with `dlt.current.resource_metrics()`, which might otherwise be lost:
 
 ```py
 import dlt
-import random
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
+github_client = RESTClient(
+    base_url="https://pokeapi.co/api/v2",
+    paginator=JSONLinkPaginator(next_url_path="next"),
+    data_selector="results",
+)
 
-@dlt.resource(name='rows_table', write_disposition='replace')
-def generate_rows():
+@dlt.resource
+def get_pokemons():
     custom_metrics = dlt.current.resource_metrics()
-    min_value = float("inf")
-
-    for i in range(10):
-        value = random.randint(0, 100)
-
-        # Track minimum value seen
-        if value < min_value:
-            min_value = value
-        
-        yield {'id': i, 'example_string': 'abc', "value": value}
-
-    custom_metrics["random_min"] = min_value
+    custom_metrics["page_count"] = 0
+    for page in github_client.paginate(
+        "/pokemon",
+        params={
+            "limit": 100,
+        },
+    ):
+        custom_metrics["page_count"] += 1
+        yield page
 
 pipeline = dlt.pipeline(
-    pipeline_name="rows_pipeline",
+    pipeline_name="get_pokemons",
     destination="duckdb",
-    dataset_name="rows_data_with_metrics",
+    dataset_name="github_data",
 )
-load_info = pipeline.run(generate_rows())
+load_info = pipeline.run(get_pokemons)
 print(load_info)
 
 # Access custom metrics from last trace
 trace = pipeline.last_trace
 load_id = load_info.loads_ids[0]
-resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["rows_table"]
+resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]
 
 print(f"Custom metrics: {resource_metrics.custom_metrics}")
 ```
 
-Custom metrics are included in pipeline traces and cannot use reserved keys (`file_path`, `items_count`, `file_size`, `created`, `last_modified`). Use them with [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for pipeline monitoring.
+As shown above, custom metrics are included in pipeline traces. Refer to [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for more details.
 
 ## Load resources
 

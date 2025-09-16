@@ -1028,7 +1028,7 @@ def get_resource_metrics() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: The customizable metrics dictionary
     """
-    return get_resource().metrics
+    return get_resource().custom_metrics
 
 
 TBoundItems = TypeVar("TBoundItems", bound=TDataItems)

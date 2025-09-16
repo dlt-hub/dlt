@@ -141,7 +141,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._explicit_args: DictStrAny = None
         self.source_name = None
         self._parent: DltResource = None
-        self._metrics: Dict[str, Any] = {}
+        self._custom_metrics: Dict[str, Any] = {}
         super().__init__(hints)
         self._update_wrapper()
 
@@ -224,9 +224,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return r_
 
     @property
-    def metrics(self) -> Dict[str, Any]:
+    def custom_metrics(self) -> Dict[str, Any]:
         """Customizable resource metrics"""
-        return self._metrics
+        return self._custom_metrics
 
     @property
     def name(self) -> str:
@@ -731,7 +731,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def _clone(
         self, *, new_name: str = None, new_section: str = None, with_parent: bool = False
     ) -> Self:
-        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source."""
+        """Creates a deep copy of a current resource, optionally renaming the resource.
+        The clone will not be part of the source and will not include the custom resource metrics.
+        """
         pipe = self._pipe
         if pipe and not pipe.is_empty:
             pipe = pipe._clone(new_name=new_name)

@@ -34,7 +34,12 @@ from dlt.common.storages.load_package import (
     TLoadPackageState,
     commit_load_package_state,
 )
-from dlt.common.utils import get_callable_name, get_full_obj_class_name, group_dict_of_lists
+from dlt.common.utils import (
+    get_callable_name,
+    get_full_obj_class_name,
+    group_dict_of_lists,
+    update_dict_nested,
+)
 
 from dlt.extract.decorators import (
     _DltSingleSource,
@@ -251,16 +256,19 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 job_metrics.items(), lambda pair: pair[0].table_name
             )
         }
+
         # aggregate by resource name
+        def _get_all_resource_custom_metrics(resource_name: str) -> Dict[str, Any]:
+            all_custom_metrics = source.resources[resource_name].custom_metrics
+            for step in source.resources[resource_name]._pipe.steps:
+                if isinstance(step, ItemTransform):
+                    all_custom_metrics = update_dict_nested(all_custom_metrics, step.custom_metrics)
+            return all_custom_metrics
+
         resource_metrics = {
-            resource_name: DataWriterAndCustomMetrics.from_writer_metrics(
-                writer_metrics=sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS),
-                resource_metrics=source.resources[resource_name].metrics,
-                step_metrics={
-                    step.__class__.__name__: step.metrics
-                    for step in source.resources[resource_name]._pipe.steps
-                    if isinstance(step, ItemTransform)
-                },
+            resource_name: DataWriterAndCustomMetrics(
+                *sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS),
+                custom_metrics=_get_all_resource_custom_metrics(resource_name),
             )
             for resource_name, metrics in itertools.groupby(
                 table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]

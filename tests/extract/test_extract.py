@@ -582,7 +582,7 @@ def test_materialize_table_schema_with_pipe_items():
 
     class LazyValidator(ValidateItem):
         def __init__(self):
-            pass
+            super().__init__(lambda x: x)
 
         def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
             return item
@@ -611,17 +611,35 @@ def test_materialize_table_schema_with_pipe_items():
     assert found_empty_list
 
 
-def test_resource_custom_metrics(extract_step: Extract) -> None:
+@pytest.mark.parametrize(
+    "with_custom_metrics",
+    [True, False],
+)
+def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
     """Ensure that custom metrics from resources are collected and transform steps are available in extract info"""
+
+    if with_custom_metrics:
+        expected_custom_metrics = {
+            "resource_with_metrics": {
+                "custom_count": 42,
+                "random_constant": 1.5,
+                "random_nested": {"value": 100, "unit": "items"},
+                "items_count": 90,
+            },
+            "resource_with_other_metrics": {
+                "custom_count": 3,
+                "random_constant": 251.3,
+                "random_nested": {"value": 4, "unit": None},
+            },
+        }
+    else:
+        expected_custom_metrics = {"resource_with_metrics": {}, "resource_with_other_metrics": {}}
 
     @dlt.resource
     def resource_with_metrics():
         custom_metrics = dlt.current.resource_metrics()
-        custom_metrics["custom_count"] = 42
-        custom_metrics["random_constant"] = 1.5
-        custom_metrics["random_nested"] = {"value": 100, "unit": "items"}
-        # "item_count" also exists in data writer metrics, but we should allow anyway
-        custom_metrics["items_count"] = 90
+        for metric, value in expected_custom_metrics["resource_with_metrics"].items():
+            custom_metrics[metric] = value
         yield [{"id": 1}, {"id": 2}]
 
     resource_with_metrics.add_limit(10)
@@ -631,38 +649,83 @@ def test_resource_custom_metrics(extract_step: Extract) -> None:
     @dlt.resource
     def resource_with_other_metrics():
         custom_metrics = dlt.current.resource_metrics()
-        custom_metrics["custom_count"] = 3
-        custom_metrics["random_constant"] = 251.3
-        custom_metrics["random_nested"] = {"value": 4, "unit": None}
+        for metric, value in expected_custom_metrics["resource_with_other_metrics"].items():
+            custom_metrics[metric] = value
         yield [{"id": 1}, {"id": 2}]
-
-    resource_with_other_metrics.add_limit(10)
-    resource_with_other_metrics.add_map(lambda x: x)
 
     source = DltSource(
         dlt.Schema("metrics"), "module", [resource_with_metrics(), resource_with_other_metrics()]
     )
     load_id = extract_step.extract(source, 20, 1)
+
+    assert (
+        expected_custom_metrics["resource_with_metrics"]
+        == source.resources["resource_with_metrics"].custom_metrics
+    )
+    assert (
+        expected_custom_metrics["resource_with_other_metrics"]
+        == source.resources["resource_with_other_metrics"].custom_metrics
+    )
+
     step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
 
     all_resource_metrics = step_info.metrics[load_id][0]["resource_metrics"]
     assert "resource_with_metrics" in all_resource_metrics
     assert "resource_with_other_metrics" in all_resource_metrics
 
-    assert all_resource_metrics["resource_with_metrics"].custom_metrics == {
-        "custom_count": 42,
-        "random_constant": 1.5,
-        "random_nested": {"value": 100, "unit": "items"},
-        "items_count": 90,
-        "LimitItem": {},
-        "MapItem": {},
-        "YieldMapItem": {},
-    }
+    assert (
+        expected_custom_metrics["resource_with_metrics"]
+        == all_resource_metrics["resource_with_metrics"].custom_metrics
+    )
+    assert (
+        expected_custom_metrics["resource_with_other_metrics"]
+        == all_resource_metrics["resource_with_other_metrics"].custom_metrics
+    )
 
-    assert all_resource_metrics["resource_with_other_metrics"].custom_metrics == {
-        "custom_count": 3,
-        "random_constant": 251.3,
-        "random_nested": {"value": 4, "unit": None},
-        "LimitItem": {},
-        "MapItem": {},
-    }
+
+@pytest.mark.parametrize(
+    "with_custom_metrics",
+    [True, False],
+)
+def test_resource_step_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
+    """Ensure that custom metrics from both resources and their transform steps are collected and merged"""
+
+    class SimpleStep(ValidateItem):
+        def __init__(self):
+            super().__init__(lambda x: x)
+
+        def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+            if with_custom_metrics:
+                self.custom_metrics["from_step"] = "hi"
+                self.custom_metrics["overrided"] = 2
+            return item
+
+    @dlt.resource
+    def resource_with_step_metrics():
+        if with_custom_metrics:
+            custom_metrics = dlt.current.resource_metrics()
+            custom_metrics["from_resource"] = "hey"
+            # Overlapping metrics will be overrided by those in steps
+            custom_metrics["overrided"] = 1
+        yield {"id": 1}
+
+    resource = resource_with_step_metrics()
+    resource._pipe._steps.append(SimpleStep())
+
+    source = DltSource(dlt.Schema("step_metrics"), "module", [resource])
+    load_id = extract_step.extract(source, 20, 1)
+
+    step_info = extract_step.get_step_info(MockPipeline("test", first_run=False))  # type: ignore[abstract]
+    resource_metrics = step_info.metrics[load_id][0]["resource_metrics"][
+        "resource_with_step_metrics"
+    ]
+
+    if with_custom_metrics:
+        expected_metrics = {
+            "from_resource": "hey",
+            "from_step": "hi",
+            "overrided": 2,
+        }
+        assert resource_metrics.custom_metrics == expected_metrics
+    else:
+        assert resource_metrics.custom_metrics == {}

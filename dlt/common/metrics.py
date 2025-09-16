@@ -1,8 +1,6 @@
-from dataclasses import dataclass, field, asdict
 import datetime  # noqa: I251
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Mapping  # noqa: 251
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple  # noqa: 251
 from dlt.common.typing import TypedDict
-from types import MappingProxyType
 
 
 class DataWriterMetrics(NamedTuple):
@@ -25,53 +23,13 @@ class DataWriterMetrics(NamedTuple):
         return NotImplemented
 
 
-@dataclass(frozen=True)
-class DataWriterAndCustomMetrics:
-    writer_metrics: DataWriterMetrics
-    _custom: Dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_writer_metrics(
-        cls,
-        writer_metrics: DataWriterMetrics,
-        resource_metrics: Dict[str, Any] = None,
-        step_metrics: Dict[str, Any] = None,
-    ) -> "DataWriterAndCustomMetrics":
-        custom = {}
-        if resource_metrics:
-            custom.update(resource_metrics)
-        if step_metrics:
-            custom.update(step_metrics)
-        return cls(writer_metrics, custom)
-
-    @property
-    def file_path(self) -> str:
-        return self.writer_metrics.file_path
-
-    @property
-    def items_count(self) -> int:
-        return self.writer_metrics.items_count
-
-    @property
-    def file_size(self) -> int:
-        return self.writer_metrics.file_size
-
-    @property
-    def created(self) -> float:
-        return self.writer_metrics.created
-
-    @property
-    def last_modified(self) -> float:
-        return self.writer_metrics.last_modified
-
-    @property
-    def custom_metrics(self) -> Mapping[str, Any]:
-        return MappingProxyType(self._custom)
-
-    def _asdict(self) -> Dict[str, Any]:
-        d = self.writer_metrics._asdict()
-        d.update(self._custom)
-        return d
+class DataWriterAndCustomMetrics(NamedTuple):
+    file_path: str
+    items_count: int
+    file_size: int
+    created: float
+    last_modified: float
+    custom_metrics: Dict[str, Any]
 
 
 class StepMetrics(TypedDict):
