@@ -388,8 +388,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         # quick access to column schema for writers below
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
-        self._check_table_exists = lru_cache(maxsize=None)(self._check_if_table_exists_impl)
         self._full_ident_path_tracker: Dict[str, Tuple[str, ...]] = {}
+        self._shorten_fragments = lru_cache(maxsize=None)(self.schema.naming.shorten_fragments)
+        self._check_table_exists = lru_cache(maxsize=None)(self._check_if_table_exists_impl)
 
     def _filter_columns(
         self, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny
@@ -418,16 +419,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 # use send to prevent descending into child rows when row was discarded
                 while row_info := items_gen.send(should_descend):
                     should_descend = True
-                    (table_name, parent_table, ident_path), row = row_info
+                    (table_name, parent_path, ident_path), row = row_info
 
                     # track full ident paths of tables
                     if table_name not in self._full_ident_path_tracker:
-                        current_ident_path = (
-                            (table_name,)
-                            if not parent_table
-                            else self._full_ident_path_tracker.get(parent_table) + ident_path
-                        )
-                        self._full_ident_path_tracker[table_name] = current_ident_path
+                        self._full_ident_path_tracker[table_name] = parent_path + ident_path
+
+                    parent_table = self._shorten_fragments(*parent_path)
 
                     # rows belonging to filtered out tables are skipped
                     if table_name in self._filtered_tables:
@@ -619,7 +617,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         Returns:
             bool: True if a table exists for this path combination, False otherwise
         """
-        possible_table_name = self.schema.naming.shorten_fragments(*ident_path, col_name)
+        possible_table_name = self._shorten_fragments(*ident_path, col_name)
         return possible_table_name in self.schema._schema_tables
 
     def _coerce_null_value(
