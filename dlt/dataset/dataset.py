@@ -193,16 +193,15 @@ class Dataset:
         This method uses a full-on `dlt.Pipeline` internally. You can retrieve this pipeline
         using `Dataset.get_write_pipeline()` for complete flexibility.
         """
-        resource = _data_to_resource(
-            data,
-            schema=self.schema,
-            table_name=table_name,
-            dataset_name=self.dataset_name,
-            write_disposition=write_disposition,
-        )
         internal_pipeline = _get_internal_pipeline(self.dataset_name, destination=self._destination)
         # TODO should we try/except this run to gracefully handle failed writes?
-        info = internal_pipeline.run([resource], schema=self.schema)
+        info = internal_pipeline.run(
+            data,
+            dataset_name=self.dataset_name,
+            table_name=table_name,
+            schema=self.schema,
+            write_disposition=write_disposition,
+        )
         # maybe update the dataset schema
         self._schema = internal_pipeline.default_schema
         return info
@@ -488,24 +487,6 @@ def _get_dataset_schema_from_destination_using_dataset_name(
                 schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
 
     return schema
-
-# TODO move this to `dlt.extract`. Maybe there's an existing function?
-def _data_to_resource(
-    data: TDataItems,
-    *,
-    schema: dlt.Schema,
-    table_name: str,
-    dataset_name: str,
-    write_disposition: TWriteDisposition,
-) -> DltResource:
-    """Create a resource from a `data` argument."""
-    table_schema = schema.tables.get(table_name)
-    hints: TResourceHints = (
-        table_schema
-        if table_schema  # type: ignore
-        else dlt.mark.make_hints(table_name=table_name, write_disposition=write_disposition)
-    )
-    return DltResource.from_data(data, name=table_name, section=dataset_name, hints=hints)
 
 
 def _get_internal_pipeline(dataset_name: str, destination: AnyDestination) -> dlt.Pipeline:
