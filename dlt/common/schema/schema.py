@@ -37,8 +37,10 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
     TSchemaSettings,
     TSimpleRegex,
+    TStandaloneTableReference,
     TStoredSchema,
     TSchemaTables,
+    TTableReference,
     TTableSchema,
     TTableSchemaColumns,
     TColumnSchema,
@@ -604,6 +606,22 @@ class Schema:
     def tables(self) -> TSchemaTables:
         """Dictionary of schema tables"""
         return self._schema_tables
+
+    @property
+    def references(self) -> list[TStandaloneTableReference]:
+        """References between tables"""
+        all_references: list[TStandaloneTableReference] = []
+        for table_name, table in self.tables.items():
+            refs = table.get("references")
+            if not refs:
+                continue
+
+            for ref in refs:
+                top_level_ref: TTableReference = ref.copy()
+                if top_level_ref.get("table") is None:
+                    top_level_ref["table"] = table_name
+
+        return all_references
 
     @property
     def settings(self) -> TSchemaSettings:

@@ -13,7 +13,7 @@ from typing import (
     NewType,
     Union,
 )
-from typing_extensions import Never, NotRequired
+from typing_extensions import Never, NotRequired, Required
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
@@ -317,6 +317,13 @@ class TTableReference(TypedDict):
 
     referenced_columns: Sequence[str]
     """Name of the columns(s) from `referenced_table`"""
+
+
+TInlineTableReference = TTableReference
+
+
+class TStandaloneTableReference(TTableReference):
+    table: Required[str]  # type: ignore[misc]
 
 
 TTableReferenceParam = Sequence[TTableReference]
