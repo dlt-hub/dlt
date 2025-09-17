@@ -285,7 +285,7 @@ TReferenceCardinality = Literal[
 ]
 """Represents cardinality between `column` (left) and `referenced_column` (right)
 Note that `(column, many_to_many, referenced_column)` is equivalent to specifying
-both `(column, one_to_many, referenced_column)` and `(column, many_to_one, referenced_column)` 
+both `(column, one_to_many, referenced_column)` and `(column, many_to_one, referenced_column)`
 """
 
 
@@ -296,7 +296,7 @@ class TTableReference(TypedDict):
 
     label: NotRequired[str]
     """Text providing semantic information about the reference.
-    
+
     For example, the label "liked" describe the relationship between `user` and `post` (user.id, "liked", post.id)
     """
 
