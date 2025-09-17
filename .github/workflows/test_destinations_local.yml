@@ -81,7 +81,7 @@ jobs:
     defaults:
       run:
         shell: bash
-    runs-on: "ubuntu-latest"
+    runs-on: "windows-latest"
 
     # Service containers to run with `container-job`
     services:
