@@ -1,6 +1,7 @@
 import os
 from typing import Dict, Optional, Sequence, List, cast, Union
 from urllib.parse import urlparse
+from pathlib import Path
 
 from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
@@ -136,7 +137,10 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         volume_path = f"/Volumes/{volume_catalog}/{volume_database}/{volume_name}/{uniq_id()}"
         volume_file_path = f"{volume_path}/{volume_file_name}"
 
-        self._sql_client.execute_sql(f"PUT '{local_file_path}' INTO '{volume_file_path}' OVERWRITE")
+        posix_path = Path(
+            local_file_path
+        ).as_posix()  # backslash in Windows local path causes issues with PUT command
+        self._sql_client.execute_sql(f"PUT '{posix_path}' INTO '{volume_file_path}' OVERWRITE")
 
         from_clause = f"FROM '{volume_path}'"
 
