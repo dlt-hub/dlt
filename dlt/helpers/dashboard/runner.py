@@ -13,10 +13,9 @@ try:
     import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt pipeline dashboard",
+        "dlt pipeline [pipeline_name] show",
         ['dlt["workspace"]'],
-        "the dlt dashboard requires additional dependencies which you may install with the dlt"
-        " workspace extra.",
+        "to install the dlt workspace extra.",
     )
 
 EJECTED_APP_FILE_NAME = "dlt_dashboard.py"
