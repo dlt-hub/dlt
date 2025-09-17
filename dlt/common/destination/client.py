@@ -621,7 +621,9 @@ class WithStagingDataset(ABC):
         return self  # type: ignore
 
     @staticmethod
-    def create_dataset_names(schema: Schema, config: DestinationClientDwhConfiguration) -> Tuple[str, str]:
+    def create_dataset_names(
+        schema: Schema, config: DestinationClientDwhConfiguration
+    ) -> Tuple[str, str]:
         """
         Creates regular and staging dataset names for given schema and config.
         Raises a value error if the staging name is same as final dataset name.
@@ -633,19 +635,15 @@ class WithStagingDataset(ABC):
 
         if dataset_name == staging_dataset_name:
             logger.error(
-                f"Staging dataset name '{staging_dataset_name}' is the same as final dataset name."
+                f"Staging dataset name '{staging_dataset_name}' is the same as final dataset name '{dataset_name}'."
             )
 
             raise ValueError(
-                (
-                    f"Changing the dataset name to '{staging_dataset_name}' would result in it "
-                    "being the same as the final dataset. This could result in data loss as data "
-                    "in the final dataset will be truncated by the setup commands that should "
-                    "only truncate the staging dataset. "
-                    "Please modify the value of `staging_dataset_name_layout`. For more "
-                    "information refer to: "
-                    "https://dlthub.com/docs/dlt-ecosystem/staging#staging-dataset"
-                )
+                f"The staging dataset name '{staging_dataset_name}' is identical to the final dataset name '{dataset_name}'. "
+                f"This configuration will cause data loss because setup commands will truncate the final dataset "
+                f"when they should only truncate the staging dataset.\n"
+                f"To fix this, modify the `staging_dataset_name_layout` setting in your destination configuration. "
+                f"For more information, see: https://dlthub.com/docs/dlt-ecosystem/staging#staging-dataset"
             )
 
         return dataset_name, staging_dataset_name
