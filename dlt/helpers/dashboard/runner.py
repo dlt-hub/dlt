@@ -13,7 +13,7 @@ try:
     import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt pipeline [pipeline_name] show",
+        "dlt dashboard or dlt pipeline [pipeline_name] show",
         ['dlt["workspace"]'],
         "to install the dlt workspace extra.",
     )
