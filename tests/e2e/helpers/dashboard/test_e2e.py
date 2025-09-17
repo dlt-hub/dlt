@@ -1,6 +1,7 @@
 from typing import Any, Literal
-import asyncio  #
+import asyncio
 import sys
+import pathlib
 
 import dlt
 import pytest
@@ -98,7 +99,7 @@ def failed_pipeline() -> Any:
 
 def _normpath(path: str) -> str:
     """normalize path to unix style and lowercase for windows tests"""
-    return path.replace("/", "\\").lower() if sys.platform.startswith("win") else path
+    return str(pathlib.Path(path)) if sys.platform.startswith("win") else path
 
 
 def _go_home(page: Page) -> None:
