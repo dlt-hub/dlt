@@ -648,7 +648,7 @@ class WithStagingDataset(ABC):
                 " https://dlthub.com/docs/dlt-ecosystem/staging#staging-dataset"
             )
 
-        return dataset_name, staging_dataset_name
+        return (dataset_name, staging_dataset_name)
 
 
 class SupportsStagingDestination(ABC):
