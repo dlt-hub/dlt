@@ -22,8 +22,8 @@ jobs:
         include:
 
           # macos tests
-          - os: macos-latest
-            python-version: "3.11"
+          - os: "macos-14"
+            python-version: "3.12"
             shell: bash
 
           # linux tests
@@ -43,7 +43,7 @@ jobs:
           
           # windows tests
           - os: windows-latest
-            python-version: "3.11"
+            python-version: "3.12"
             shell: cmd
             pytest_args: '-m "not forked"'
 
@@ -82,8 +82,8 @@ jobs:
         run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
         if: matrix.python-version != '3.14.0-beta.4'
 
-      - name: Install playwright
-        run: playwright install
+      - name: Install playwright & deps
+        run: playwright install && playwright install-deps
         if: matrix.python-version != '3.14.0-beta.4'
 
       # Run pipeline dashboard unit tests
@@ -95,10 +95,14 @@ jobs:
       # Mac is also disabled for the time being
       - name: Run dashboard e2e
         run: |
-          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines/ --with_test_identifiers true & 
-          sleep 10
+          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
+        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4' && matrix.os != 'windows-latest'
+
+      - name: Run dashboard e2e windows
+        run: |
+          start marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage\.dlt\pipelines\ --with_test_identifiers true
           pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.os != 'macos-latest' && matrix.python-version != '3.14.0-beta.4'
+        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4' && matrix.os == 'windows-latest'
   
   matrix_job_required_check:
     name: common | common tests
