@@ -182,6 +182,6 @@ test-e2e-dashboard-headed:
 start-dlt-dashboard-e2e:
 	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
 
-# creates the dashboard test pipelines globally for manual testingn of the dashboard app and cli
+# creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
 	uv run python tests/helpers/dashboard/example_pipelines.py
