@@ -6,6 +6,17 @@ from typing import Any
 from pathlib import Path
 from dlt.common.exceptions import MissingDependencyException
 
+
+def _detect_dashboard_command() -> str:
+    command = sys.argv[1]
+    if command == "pipeline":
+        return f"dlt pipeline {sys.argv[2]} show"
+    elif command == "dashboard":
+        return "dlt dashboard"
+    else:
+        raise ValueError(f"Invalid command: {command}")
+
+
 # keep this, will raise if user tries to run dashboard without dependencies
 try:
     import marimo
@@ -13,7 +24,7 @@ try:
     import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt dashboard or dlt pipeline [pipeline_name] show",
+        _detect_dashboard_command(),
         ['dlt["workspace"]'],
         "to install the dlt workspace extra.",
     )
