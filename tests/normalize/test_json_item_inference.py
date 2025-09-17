@@ -20,7 +20,7 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.time import ensure_pendulum_datetime_non_utc
-from dlt.common.typing import StrAny, TDataItem
+from dlt.common.typing import StrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from dlt.normalize.normalize import Normalize
@@ -621,11 +621,15 @@ def test_coerce_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) 
             }
         ],
     ],
+    ids=["nested_item_list", "nested_item_dict"],
 )
-def test_coerce_null_value_in_nested_table_chunk(
-    item_normalizer: JsonLItemsNormalizer, nested_item: List[TDataItem]
+def test_coerce_null_value_in_nested_table(
+    item_normalizer: JsonLItemsNormalizer, nested_item: TDataItems
 ) -> None:
-    def _normalize_items_chunk(items: List[TDataItem]) -> TSchemaUpdate:
+    """Ensure that a column previously created as a child table
+    does not attempt new column updates in a subsequent run when it has no values."""
+
+    def _normalize_items_chunk(items: TDataItems) -> TSchemaUpdate:
         schema_update = item_normalizer._normalize_chunk(
             root_table_name="nested",
             items=items,
