@@ -22,7 +22,7 @@ jobs:
         include:
 
           # macos tests
-          - os: macos-latest
+          - os: "macos-14"
             python-version: "3.12"
             shell: bash
 
