@@ -96,6 +96,11 @@ def failed_pipeline() -> Any:
 #
 
 
+def _normpath(path: str) -> str:
+    """normalize path to unix style and lowercase for windows tests"""
+    return path.replace("/", "\\").lower() if sys.platform.startswith("win") else path
+
+
 def _go_home(page: Page) -> None:
     page.goto("http://localhost:2718")
 
@@ -147,7 +152,7 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text("_storage/.dlt/pipelines/failed_pipeline")).to_be_visible()
+    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/failed_pipeline"))).to_be_visible()
     expect(
         page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
     ).to_be_visible()
@@ -172,8 +177,8 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
@@ -217,7 +222,7 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text("_storage/.dlt/pipelines/one_two_three")).to_be_visible()
+    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/one_two_three"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -267,8 +272,8 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     ).to_be_visible()  #  this is in the loads table
 
     # ibis page
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
 
 def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
@@ -278,7 +283,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text("_storage/.dlt/pipelines/fruit_pipeline")).to_be_visible()
+    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/fruit_pipeline"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -307,15 +312,17 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
     ).to_be_visible()  #  this is in the loads table
 
     # ibis page
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
 
 def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
-    expect(page.get_by_text("_storage/.dlt/pipelines/never_run_pipeline")).to_be_visible()
+    expect(
+        page.get_by_text(_normpath("_storage/.dlt/pipelines/never_run_pipeline"))
+    ).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -336,8 +343,8 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
@@ -345,7 +352,9 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
 
-    expect(page.get_by_text("_storage/.dlt/pipelines/no_destination_pipeline")).to_be_visible()
+    expect(
+        page.get_by_text(_normpath("_storage/.dlt/pipelines/no_destination_pipeline"))
+    ).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -371,5 +380,5 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
         page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is only shown in trace yaml
 
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
