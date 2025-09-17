@@ -50,7 +50,9 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         config: SqlalchemyClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(schema, config)
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
         self.sql_client = SqlalchemyClient(
             dataset_name,
             staging_dataset_name,

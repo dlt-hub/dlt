@@ -83,7 +83,9 @@ class MsSqlJobClient(InsertValuesJobClient):
         config: MsSqlClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(schema, config)
+        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(
+            schema, config
+        )
         sql_client = PyOdbcMsSqlClient(
             dataset_name,
             staging_dataset_name,

@@ -123,7 +123,9 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         config: SnowflakeClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(schema, config)
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
         sql_client = SnowflakeSqlClient(
             dataset_name,
             staging_dataset_name,

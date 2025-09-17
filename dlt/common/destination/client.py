@@ -635,15 +635,17 @@ class WithStagingDataset(ABC):
 
         if dataset_name == staging_dataset_name:
             logger.error(
-                f"Staging dataset name '{staging_dataset_name}' is the same as final dataset name '{dataset_name}'."
+                f"Staging dataset name '{staging_dataset_name}' is the same as final dataset name"
+                f" '{dataset_name}'."
             )
 
             raise ValueError(
-                f"The staging dataset name '{staging_dataset_name}' is identical to the final dataset name '{dataset_name}'. "
-                f"This configuration will cause data loss because setup commands will truncate the final dataset "
-                f"when they should only truncate the staging dataset.\n"
-                f"To fix this, modify the `staging_dataset_name_layout` setting in your destination configuration. "
-                f"For more information, see: https://dlthub.com/docs/dlt-ecosystem/staging#staging-dataset"
+                f"The staging dataset name '{staging_dataset_name}' is identical to the final"
+                f" dataset name '{dataset_name}'. This configuration will cause data loss because"
+                " setup commands will truncate the final dataset when they should only truncate"
+                " the staging dataset.\nTo fix this, modify the `staging_dataset_name_layout`"
+                " setting in your destination configuration. For more information, see:"
+                " https://dlthub.com/docs/dlt-ecosystem/staging#staging-dataset"
             )
 
         return dataset_name, staging_dataset_name

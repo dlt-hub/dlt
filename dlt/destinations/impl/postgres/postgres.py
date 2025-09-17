@@ -174,7 +174,9 @@ class PostgresClient(InsertValuesJobClient):
         config: PostgresClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(schema, config)
+        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(
+            schema, config
+        )
         sql_client = Psycopg2SqlClient(
             dataset_name,
             staging_dataset_name,
