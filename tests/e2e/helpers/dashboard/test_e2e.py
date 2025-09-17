@@ -1,4 +1,6 @@
 from typing import Any, Literal
+import asyncio  #
+import sys
 
 import dlt
 import pytest
@@ -19,6 +21,10 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
 from dlt import Schema
 
 from dlt.helpers.dashboard import strings as app_strings
+
+# NOTE: The line below is needed for playwright to work on windows
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
 @pytest.fixture()
