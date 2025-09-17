@@ -20,12 +20,22 @@ def test_build_title_and_subtitle():
 def test_build_page_header(success_pipeline_duckdb: dlt.Pipeline):
     title = "Test Title"
     subtitle = "Test Subtitle"
-    subtitle_long = "Test Subtitle Long"
+    subtitle_long = "Test Alternative Subtitle Long"
+
+    # not opened
     html = build_page_header(
         success_pipeline_duckdb, title, subtitle, subtitle_long, mo.ui.button()
-    ).text
+    )[0].text
     assert title in html
     assert subtitle in html
+    assert subtitle_long not in html
+
+    # opened
+    html = build_page_header(
+        success_pipeline_duckdb, title, subtitle, subtitle_long, mo.ui.button(value=True)
+    )[0].text
+    assert title in html
+    assert subtitle not in html
     assert subtitle_long in html
 
 
