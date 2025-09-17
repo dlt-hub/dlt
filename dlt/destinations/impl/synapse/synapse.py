@@ -62,9 +62,10 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
     ) -> None:
         super().__init__(schema, config, capabilities)
         self.config: SynapseClientConfiguration = config
+        dataset_name, staging_dataset_name = MsSqlJobClient.create_dataset_names(schema, config)
         self.sql_client = SynapseSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )

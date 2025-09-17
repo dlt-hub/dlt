@@ -208,9 +208,11 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                 table_needs_own_folder=True,
             )
 
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(schema, config)
+
         sql_client = AthenaSQLClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config,
             capabilities,
         )

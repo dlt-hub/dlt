@@ -167,9 +167,10 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         config: RedshiftClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(schema, config)
         sql_client = RedshiftSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )
