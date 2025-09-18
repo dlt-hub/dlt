@@ -7,7 +7,7 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 1. [Getting Started](#getting-started)
 2. [Submitting Changes](#submitting-changes)
 3. [Adding or Updating Core Dependencies](#adding-or-updating-core-dependencies)
-4. [Linting](#linting)
+4. [Formatting and Linting](#formatting-and-linting)
 5. [Testing](#testing)
 6. [Local Development](#local-development)
 7. [Publishing (Maintainers Only)](#publishing-maintainers-only)
@@ -150,11 +150,15 @@ Our goal is to maintain stability and compatibility across all environments. Ple
 
 ## Formatting and Linting
 
-`dlt` uses `mypy` and `flake8` (with several plugins) for linting. You can run the linter locally with `make lint`. We also run a code formatter with `black` which you can run with `make format`. The lint step will also ensure that the code is formatted correctly.
+`dlt` uses `mypy` and `flake8` (with several plugins) for linting. You can run the linter locally with `make lint`. We also run a code formatter with `black` which you can run with `make format`. The lint step will also ensure that the code is formatted correctly. It is good practice to run `make format && make lint` before every commit.
 
 ## Testing
 
-`dlt` uses `pytest` for testing. You can view our GitHub Actions setup in `.github/workflows` to see which tests are run with which dependencies  / extras installed, and which platforms and python versions are used for linting and testing.
+`dlt` uses `pytest` for testing. 
+
+### CI Setup
+
+You can view our GitHub Actions setup in `.github/workflows` to see which tests are run with which dependencies  / extras installed, and which platforms and python versions are used for linting and testing. The main entry point is `.github/workflows/main.yml` which orchestrates all other workflows. Certain dependencies exist, for example no tests will be run if the linter reports problems. Some workflows use test matrixes to test several destinations or run tests on various operating systems and with various python versions or dependency resolution strategies. 
 
 ### Common Components
 
@@ -204,10 +208,24 @@ You can see the GitHub actions setup for remote destinations in `.github/workflo
 
 1. Install all dependenices with `make dev`
 2. Install the dashboard testing dependencies with `uv sync --group dashboard-tests`
-3. Start the dashboard in silent mode from one terminal window: `make start-dlt-dashboard-e2e`
-4. Start the dashboard e2e test in another windows in headed mode so you can see what is going on: `make test-e2e-dashboard-headed`
+3. Install playwright dependencies with `playwright install`
+4. Start the dashboard in silent mode from one terminal window: `make start-dlt-dashboard-e2e`
+5. Start the dashboard e2e test in another windows in headed mode so you can see what is going on: `make test-e2e-dashboard-headed`
 
 You can see the GitHub actions setup for the dashboard unit and e2e tests in `.github/workflows/test_tools_dashboard.yml`.
+
+
+### Testing tips and tricks
+
+When developing, you generally want to avoid catching test errors only in CI, as you'll have to commit and push your code and wait a while to get a report about what works and what doesn't. Here are some strategies you can use to get fast local test results to rule out major problems in your code. Note that when working on internals that change how data gets loaded to destinations, sometimes there's no way around relying on CI results, since all destinations need to work with your code and running the full suite can take considerable time.
+
+- If you're working on code in the extraction and normalizing parts, it's usually sufficient to run the common tests with `make test-common` or run specific files/folders that test those aspects. You can also run all loader tests for DuckDB with `pytest tests/load -k "duckdb"` before final submission, which will rule out many destination-related tests and complete relatively quickly.
+
+- If you're working on code in the loader part of dlt which manages pushing data to destinations, it's best to run relevant tests against DuckDB first and then fix problems that appear in other destinations. For example, if you're working on changing the merge write_disposition, you'll likely modify `tests/load/pipeline/test_merge_disposition.py`. Get it to pass with DuckDB and Postgres locally first before testing on all other destinations or running on CI: `pytest tests/load/pipeline/test_merge_disposition.py -k "duckdb"`, `pytest tests/load/pipeline/test_merge_disposition.py -k "postgres"`
+
+- You can also select which destination tests to run using the `ACTIVE_DESTINATIONS` and `ALL_FILESYSTEM_DRIVERS` environment variables. The former selects destinations to use, while the latter determines which buckets to use for the filesystem destination and staging destinations. For example, the command `ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' ALL_FILESYSTEM_DRIVERS='["memory", "file"]' uv run pytest tests/load` will run all loader tests on DuckDB and the filesystem (in-memory filesystem and local files). You can see these environment variables being used in our workflow setup.
+
+
 
 ## Local Development
 
