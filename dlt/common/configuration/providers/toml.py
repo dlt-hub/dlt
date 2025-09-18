@@ -98,9 +98,14 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
     def set_value(self, key: str, value: Any, pipeline_name: Optional[str], *sections: str) -> None:
         # write both into tomlkit and dict representations
+        ConvertError = (
+            tomlkit.items.ConvertError
+            if hasattr(tomlkit.items, "ConvertError")
+            else tomlkit.items._ConvertError
+        )
         try:
             self._set_value(self._config_toml, key, value, pipeline_name, *sections)
-        except tomlkit.items._ConvertError:
+        except ConvertError:
             pass
         if hasattr(value, "unwrap"):
             value = value.unwrap()
@@ -114,11 +119,16 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         self, key: Optional[str], value_or_fragment: str, pipeline_name: str, *sections: str
     ) -> None:
         # write both into tomlkit and dict representations
+        ConvertError = (
+            tomlkit.items.ConvertError
+            if hasattr(tomlkit.items, "ConvertError")
+            else tomlkit.items._ConvertError
+        )
         try:
             self._config_toml = self._set_fragment(
                 self._config_toml, key, value_or_fragment, pipeline_name, *sections
             )
-        except tomlkit.items._ConvertError:
+        except ConvertError:
             pass
         super().set_fragment(key, value_or_fragment, pipeline_name, *sections)
 
