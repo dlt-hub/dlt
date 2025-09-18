@@ -34,7 +34,7 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 1. Fork the `dlt` repository and clone it to your local machine.
 2. Install `uv` with `make install-uv` (or follow the [official instructions](https://docs.astral.sh/uv/getting-started/installation/)).
 3. Run `make dev` to install all dependencies, including development ones.
-4. Activate your virtual environment with `make shell` and start working, or prepend all commands with `uv run` to run them within the uv environment. `uv run` is encouraged because it automatically keeps your project dependencies up to date.
+4. Activate your virtual environment with `make shell` and start working, or prepend all commands with `uv run` to run them within the uv environment. `uv run` is encouraged, it automatically keeps your project dependencies up to date.
 
 ## Submitting Changes
 
@@ -47,7 +47,7 @@ When you're ready to contribute, follow these steps:
 5. If you're working on destination code, contact us to get access to test destinations.
 6. If you’ve added, removed, or updated dependencies in `pyproject.toml`, make sure `uv.lock` is up to date by running `uv lock`.  
    - If you merge upstream changes from the **devel** branch and get a conflict on the lockfile, it’s best to keep the **devel** version and re-run `uv lock` to re-apply your changes.
-7. Create a pull request targeting the **devel** branch of the main repository.
+7. Create a pull request targeting the **devel** branch of the main repository. Please link the ticket that describes what you are doing in the PR, or write a PR comment that makes it clear to us and other users without prior knowledge what you are doing here.
 
 **Note:** In some special cases, you’ll need us to create a branch in this repository (not in your fork). See below.
 
@@ -127,7 +127,7 @@ Please review the `warnings.py` module to see how deprecation warnings and decor
 
 ## Adding or Updating Core Dependencies
 
-Our goal is to maintain stability and compatibility across all environments. Please consider the following guidelines carefully when proposing dependency updates.
+Our goal is to maintain stability and compatibility across all environments. Please consider the following guidelines carefully when proposing dependency updates. Our CI runs the tests for the common modules as well as some smoke tests on DuckDB on the lowest allowed version and the newest allowed version additionally to the versions pinned in `uv.lock` to try to catch problems in dependent packages.
 
 ### Updating Guidelines
 
@@ -148,13 +148,13 @@ Our goal is to maintain stability and compatibility across all environments. Ple
 
    Maintaining minimum versions also prevents cases where dependencies cannot be resolved.
 
-## Linting
+## Formatting and Linting
 
-`dlt` uses `mypy` and `flake8` (with several plugins) for linting.
+`dlt` uses `mypy` and `flake8` (with several plugins) for linting. You can run the linter locally with `make lint`. We also run a code formatter with `black` which you can run with `make format`. The lint step will also ensure that the code is formatted correctly.
 
 ## Testing
 
-`dlt` uses `pytest` for testing.
+`dlt` uses `pytest` for testing. You can view our GitHub Actions setup in `.github/workflows` to see which tests are run with which dependencies  / extras installed, and which platforms and python versions are used for linting and testing.
 
 ### Common Components
 
@@ -164,36 +164,50 @@ To test components that don’t require external resources, run:
 make test-common
 ```
 
+You can see the GitHub actions setup for the common tests, including DuckDb smoke-tests in `.github/workflows/test_common.yml`.
+
 ### Local Destinations
 
-To test local destinations (`duckdb` and `postgres`), run:
+Several destinations can be tested locally. `duckdb` does not require a running database service, while `postgres`, `clickhouse` and others provide Docker containers that can be launched locally for testing. To test these destinations:
+
+1. Install Docker on your machine
+2. Launch all test containers with `make start-test-containers`, or launch just the specific service you need
+3. Copy the local dev credentials from `tests/.dlt/dev.secrets.toml` to `tests/.dlt/secrets.toml`
+4. Now you can run your tests - for example, to run all Postgres load tests, use `pytest tests/load -k postgres`
+
+To test the two primary local destinations (`duckdb` and `postgres`), start your test containers and run:
 
 ```sh
 make test-load-local
 ```
 
+You can see the GitHub actions setup for local destinations in `.github/workflows/test_destinations_local.yml`.
+
 ### External Destinations
 
-To test external destinations, run:
+To run all tests including all external destinations run:
 
 ```sh
 make test
 ```
 
-You’ll need access to:
-
-1. A `BigQuery` project
-2. A `Redshift` cluster
-3. A `Postgres` instance (see [docker-compose.yml](tests/load/postgres/docker-compose.yml) for setup).
-
-```sh
-cd tests/load/postgres/
-docker-compose up --build -d
-```
-
-See `tests/.example.env` for expected environment variables. Copy it to `tests/.env` and configure it as you would configure your dlt pipeline.
+For this to work you will need credentials to all destinations supported by dlt in scope of the tests in `tests/.dlt/secrets.tom`. Note that these tests will take a long time to run. See below how to develop for a particular destination efficiently.
 
 We can provide access to these resources if you’d like to test locally.
+
+You can see the GitHub actions setup for remote destinations in `.github/workflows/test_destinations_remote.yml`.
+
+
+### E2E Tests
+
+`dlt` ships with the Pipeline Dashboard (https://dlthub.com/docs/general-usage/dashboard). To ensure that the dashboard works correctly in the Browser on all Platforms, we have e2e tests with Playwright as part of our test suite. To run the e2e tests locally, please:
+
+1. Install all dependenices with `make dev`
+2. Install the dashboard testing dependencies with `uv sync --group dashboard-tests`
+3. Start the dashboard in silent mode from one terminal window: `make start-dlt-dashboard-e2e`
+4. Start the dashboard e2e test in another windows in headed mode so you can see what is going on: `make test-e2e-dashboard-headed`
+
+You can see the GitHub actions setup for the dashboard unit and e2e tests in `.github/workflows/test_tools_dashboard.yml`.
 
 ## Local Development
 
@@ -203,7 +217,7 @@ Use Python 3.9 for development, as it is the lowest supported version. You can s
 uv venv --python 3.11.6
 ```
 
-See the [uv docs on Python versions](https://docs.astral.sh/uv/concepts/python-versions/#managed-and-system-python-installations).
+In rare cases you may find you will have to check your code in several Python version. See the [uv docs on Python versions](https://docs.astral.sh/uv/concepts/python-versions/#managed-and-system-python-installations).
 
 ## Publishing (Maintainers Only)
 
