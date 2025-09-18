@@ -289,21 +289,21 @@ both `(column, one_to_many, referenced_column)` and `(column, many_to_one, refer
 """
 
 
-class TTableReference(TypedDict):
+class TTableReference(TypedDict, total=False):
     """Describes a reference to another table's columns.
     `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
     """
 
-    label: NotRequired[str]
+    label: Optional[str]
     """Text providing semantic information about the reference.
 
     For example, the label "liked" describe the relationship between `user` and `post` (user.id, "liked", post.id)
     """
 
-    cardinality: NotRequired[TReferenceCardinality]
+    cardinality: Optional[TReferenceCardinality]
     """Cardinality of the relationship between `table.column` (left) and `referenced_table.referenced_column` (right)."""
 
-    table: NotRequired[str]
+    table: Optional[str]
     """Name of the table.
     When `TTableReference` is defined on a `TTableSchema` (i.e., "inline reference"), the `table`
     value is determined by `TTableSchema["name"]`
@@ -322,8 +322,35 @@ class TTableReference(TypedDict):
 TInlineTableReference = TTableReference
 
 
-class TStandaloneTableReference(TTableReference):
-    table: Required[str]  # type: ignore[misc]
+# Compared to `TTableReference` or `TInlineTableReference`, `table` is required
+class TStandaloneTableReference(TypedDict, total=False):
+    """Describes a reference to another table's columns.
+    `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
+    """
+
+    label: Optional[str]
+    """Text providing semantic information about the reference.
+
+    For example, the label "liked" describe the relationship between `user` and `post` (user.id, "liked", post.id)
+    """
+
+    cardinality: Optional[TReferenceCardinality]
+    """Cardinality of the relationship between `table.column` (left) and `referenced_table.referenced_column` (right)."""
+
+    table: str
+    """Name of the table.
+    When `TTableReference` is defined on a `TTableSchema` (i.e., "inline reference"), the `table`
+    value is determined by `TTableSchema["name"]`
+    """
+
+    columns: Sequence[str]
+    """Name of the column(s) from `table`"""
+
+    referenced_table: str
+    """Name of the referenced table"""
+
+    referenced_columns: Sequence[str]
+    """Name of the columns(s) from `referenced_table`"""
 
 
 TTableReferenceParam = Sequence[TTableReference]
