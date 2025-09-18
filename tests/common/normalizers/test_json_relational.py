@@ -96,8 +96,8 @@ def test_nested_table_linking(norm: RelationalNormalizer) -> None:
     assert len(rows) == 7
     # root elem will not have a root hash if not explicitly added, "extend" is added only to child
     root_row = next(t for t in rows if t[0][0] == "table")
-    # root row must have parent table none
-    assert root_row[0][1] is None
+    # root row must have parent path ()
+    assert root_row[0][1] == ()
 
     root = root_row[1]
     assert "_dlt_root_id" not in root
@@ -116,12 +116,12 @@ def test_nested_table_linking(norm: RelationalNormalizer) -> None:
     # filter 3 entries with list
     list_rows = [t for t in rows if t[0][0] == "table__f__l"]
     assert len(list_rows) == 3
-    # all list rows must have table_f as parent
-    assert all(r[0][1] == "table__f" for r in list_rows)
+    # all list rows must have ("table", "f") as parent path
+    assert all(r[0][1] == ("table", "f") for r in list_rows)
     # get parent for list
     f_row = next(t for t in rows if t[0][0] == "table__f")
-    # parent of the list must be "table"
-    assert f_row[0][1] == "table"
+    # parent path of the list must be ("table",)
+    assert f_row[0][1] == ("table",)
     f_row_v = f_row[1]
     # parent of "f" must be row_id
     assert f_row_v["_dlt_parent_id"] == row_id
@@ -160,10 +160,10 @@ def test_skip_nested_link_when_no_parent(norm: RelationalNormalizer) -> None:
     assert all(
         e[1]["_dlt_parent_id"] != digest128("level1", DLT_ID_LENGTH_BYTES) for e in list_rows
     )
-    assert all(r[0][1] == "table__f" for r in list_rows)
+    assert all(r[0][1] == ("table", "f") for r in list_rows)
     obj_rows = [t for t in rows if t[0][0] == "table__f__o"]
     assert all(e[1]["_dlt_parent_id"] != digest128("level1", DLT_ID_LENGTH_BYTES) for e in obj_rows)
-    assert all(r[0][1] == "table__f" for r in obj_rows)
+    assert all(r[0][1] == ("table", "f") for r in obj_rows)
 
 
 def test_yields_parents_first(norm: RelationalNormalizer) -> None:
@@ -222,19 +222,19 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
     # normalizer must return parent table first and move in order of the list elements when yielding child tables
     # the yielding order if fully defined
     expected_parents = [
-        ("table", None),
-        ("table__f", "table"),
-        ("table__f__l", "table__f"),
-        ("table__f__o", "table__f"),
+        ("table", (), ("table",)),
+        ("table__f", ("table",), ("f",)),
+        ("table__f__l", ("table", "f"), ("l",)),
+        ("table__f__o", ("table", "f"), ("o",)),
         # "table__f__b" is not yielded as it is fully flattened into table__f
-        ("table__f__b__a", "table__f"),
+        ("table__f__b__a", ("table", "f"), ("b", "a")),
         # same for table__d -> fully flattened into table
-        ("table__d__a", "table"),
-        ("table__d__b__a", "table"),
+        ("table__d__a", ("table",), ("d", "a")),
+        ("table__d__b__a", ("table",), ("d", "b", "a")),
         # table__e is yielded it however only contains linking information
-        ("table__e", "table"),
-        ("table__e__o", "table__e"),
-        ("table__e__b__a", "table__e"),
+        ("table__e", ("table",), ("e",)),
+        ("table__e__o", ("table", "e"), ("o",)),
+        ("table__e__b__a", ("table", "e"), ("b", "a")),
     ]
     parents = list(r[0] for r in rows)
     assert parents == expected_parents
@@ -329,7 +329,7 @@ def test_control_descending(norm: RelationalNormalizer) -> None:
     # prevent yielding descendants of "f" but yield all else
     rows_gen = norm.normalize_data_item(row, "load_id", "table")
     rows_gen.send(None)
-    (table, _), _ = rows_gen.send(True)
+    (table, _, _), _ = rows_gen.send(True)
     assert table == "table__f"
     # won't yield anything else
     with pytest.raises(StopIteration):
@@ -339,11 +339,11 @@ def test_control_descending(norm: RelationalNormalizer) -> None:
     rows_gen = norm.normalize_data_item(row, "load_id", "table")
     rows_gen.send(None)
     rows_gen.send(True)
-    (table, _), one_row = rows_gen.send(True)
+    (table, _, _), one_row = rows_gen.send(True)
     assert table == "table__f__l"
     assert one_row["value"] == "a"
     # get next element in the list - even with sending False - we do not descend
-    (table, _), one_row = rows_gen.send(False)
+    (table, _, _), one_row = rows_gen.send(False)
     assert table == "table__f__l"
     assert one_row["value"] == "b"
 
@@ -355,7 +355,7 @@ def test_control_descending(norm: RelationalNormalizer) -> None:
     next(rows_gen)
     next(rows_gen)
     next(rows_gen)
-    (table, _), one_row = rows_gen.send(True)
+    (table, _, _), one_row = rows_gen.send(True)
     assert table == "table__f__lo"
     # do not descend into lists
     with pytest.raises(StopIteration):
@@ -393,12 +393,12 @@ def test_list_in_list() -> None:
     zen__webpath = [row for row in rows if row[0][0] == "zen__webpath"]
     # two rows in web__zenpath for two lists
     assert len(zen__webpath) == 2
-    assert zen__webpath[0][0] == ("zen__webpath", "zen")
+    assert zen__webpath[0][0] == ("zen__webpath", ("zen",), ("webpath",))
     # _dlt_id was hardcoded in the original row
     assert zen__webpath[0][1]["_dlt_parent_id"] == "123456"
     assert zen__webpath[0][1]["_dlt_list_idx"] == 0
     assert zen__webpath[1][1]["_dlt_list_idx"] == 1
-    assert zen__webpath[1][0] == ("zen__webpath", "zen")
+    assert zen__webpath[1][0] == ("zen__webpath", ("zen",), ("webpath",))
     # inner lists
     zen__webpath__list = [row for row in rows if row[0][0] == "zen__webpath__list"]
     # actually both list of objects and list of number will be in the same table
@@ -441,7 +441,7 @@ def test_child_row_deterministic_hash(norm: RelationalNormalizer) -> None:
     assert len(distinct_hashes) == len(children)
 
     # compute hashes for all children
-    for (table, _), ch in children:
+    for (table, _, _), ch in children:
         expected_hash = digest128(
             f"{ch['_dlt_parent_id']}_{table}_{ch['_dlt_list_idx']}", DLT_ID_LENGTH_BYTES
         )
@@ -520,7 +520,7 @@ def test_propagates_root_context(norm: RelationalNormalizer) -> None:
     }
     normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
     # all non-root rows must have:
-    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    non_root = [r for r in normalized_rows if r[0][1] != ()]
     assert all(r[1]["_dlt_root_id"] == "###" for r in non_root)
     assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
     assert all("__not_found" not in r[1] for r in non_root)
@@ -558,7 +558,7 @@ def test_propagates_table_context(
         row["lvl1"][0]["_dlt_id"] = "row_id_lvl1"  # type: ignore[index]
 
     normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
-    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    non_root = [r for r in normalized_rows if r[0][1] != ()]
     # _dlt_root_id in all non root
     assert all(r[1]["_dlt_root_id"] == "###" for r in non_root)
     # __not_found nowhere
@@ -591,7 +591,7 @@ def test_propagates_table_context_to_lists(norm: RelationalNormalizer) -> None:
     row = {"_dlt_id": "###", "timestamp": 12918291.1212, "lvl1": [1, 2, 3, [4, 5, 6]]}
     normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
     # _partition_ts == timestamp on all child tables
-    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    non_root = [r for r in normalized_rows if r[0][1] != ()]
     assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
     # just make sure that list of lists are present
     assert len([r for r in non_root if r[0][0] == "table__lvl1__list"]) == 3
@@ -630,7 +630,7 @@ def test_preserves_json_types_list(norm: RelationalNormalizer) -> None:
     # make sure only 1 row is emitted, the list is not normalized
     assert len(normalized_rows) == 1
     # value is kept in root row -> market as json
-    root_row = next(r for r in normalized_rows if r[0][1] is None)
+    root_row = next(r for r in normalized_rows if r[0][1] == ())
     assert root_row[1]["value"] == row["value"]
 
     # same should work for a list
@@ -639,7 +639,7 @@ def test_preserves_json_types_list(norm: RelationalNormalizer) -> None:
     # make sure only 1 row is emitted, the list is not normalized
     assert len(normalized_rows) == 1
     # value is kept in root row -> market as json
-    root_row = next(r for r in normalized_rows if r[0][1] is None)
+    root_row = next(r for r in normalized_rows if r[0][1] == ())
     assert root_row[1]["value"] == row["value"]
 
 
@@ -653,9 +653,10 @@ def test_wrap_in_dict(norm: RelationalNormalizer) -> None:
     assert len(rows) == 6
     assert rows[0][0] == (
         "listex",
-        None,
+        (),
+        ("listex",),
     )
-    assert rows[1][0] == ("listex__value", "listex")
+    assert rows[1][0] == ("listex__value", ("listex",), ("value",))
     assert rows[-1][1]["value"] == "A"
 
 

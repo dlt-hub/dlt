@@ -1,5 +1,5 @@
 import os
-from typing import Dict
+from typing import Dict, Any
 from types import MethodType
 
 import pytest
@@ -832,3 +832,55 @@ def test_get_new_columns(schema: Schema) -> None:
     ]
     with pytest.raises(SchemaCorruptedException):
         schema.get_new_table_columns("events", existing_columns, case_sensitive=False)
+
+
+@pytest.mark.parametrize(
+    "include_self",
+    [True, False],
+)
+@pytest.mark.parametrize("max_nesting", [0, 1, 2, 3, 4, 5])
+def test_get_nested_tables(include_self: bool, max_nesting: int) -> None:
+    # Use a schema with tables that have a nesting level higher than 1
+    eth_v3: Dict[str, Any] = load_yml_case("schemas/eth/ethereum_schema_v3")
+    schema_eth = Schema.from_dict(eth_v3)
+
+    # Ensure max table nesting and include salf args are respected
+    children = [
+        "blocks__transactions",
+        "blocks__uncles",
+    ]
+    grandchildren = [
+        "blocks__transactions__logs",
+        "blocks__transactions__access_list",
+    ]
+    grandgrandchildren = [
+        "blocks__transactions__logs__topics",
+        "blocks__transactions__access_list__storage_keys",
+    ]
+    levels = [
+        [],
+        children,
+        children + grandchildren,
+        children + grandchildren + grandgrandchildren,
+    ]
+
+    descendant_tbl_schemas = utils.get_nested_tables(
+        tables=schema_eth.tables,
+        table_name="blocks",
+        max_nesting=max_nesting,
+        include_self=include_self,
+    )
+    descendant_tbl_names = [tbl["name"] for tbl in descendant_tbl_schemas]
+
+    expected = levels[min(max_nesting, 3)]
+    if include_self:
+        expected = ["blocks"] + expected
+
+    assert set(expected) == set(descendant_tbl_names)
+
+    # Ensure non existend table doesn't return anything
+
+    assert [] == utils.get_nested_tables(
+        tables=schema_eth.tables,
+        table_name="non_existend",
+    )

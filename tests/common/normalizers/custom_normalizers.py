@@ -27,4 +27,4 @@ class DataItemNormalizer(RelationalNormalizer):
     def normalize_data_item(
         self, source_event: TDataItem, load_id: str, table_name
     ) -> TNormalizedRowIterator:
-        yield (table_name, None), source_event
+        yield (table_name, (), ()), source_event
