@@ -89,7 +89,7 @@ pipe = dlt.pipeline("my_pipe", destination=dest, dataset_name="lake_schema", dev
 
 TOML (secrets/config)
 ```toml
-destination.ducklake.credentials = "ducklake:///my_lake"
+destination.ducklake.credentials.catalog_name = "my_lake"
 # pick a catalog backend
 destination.ducklake.credentials.catalog = "sqlite:///catalog.sqlite"
 # or
@@ -111,9 +111,9 @@ Storage is where your table files live. Provide a bucket URL (or a local path). 
 - Azure ADLS Gen2: abfss://container@account.dfs.core.windows.net/prefix (uses fsspec fallback)
 
 Defaults and layout
-- if you do not specify storage, a local folder is created using the pattern "<ducklake_name>.files" under the pipeline working directory (see DUCKLAKE_STORAGE_PATTERN in configuration.py).
-- dlt writes data under <storage>/<dataset_name>/<table_name>/… so each table has its own directory.
-- metrics.remote_url points to <bucket_url>/<dataset_name>/<table_name>.
+- if you do not specify storage, a local folder is created using the pattern "-ducklake_name-.files" under the pipeline working directory (see DUCKLAKE_STORAGE_PATTERN in configuration.py).
+- dlt writes data under storage/dataset_name/table_name/… so each table has its own directory.
+- metrics.remote_url points to bucket_url/dataset_name>/table_name.
 
 Examples
 
@@ -129,8 +129,8 @@ pipe.run([{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="p
 
 TOML
 ```toml
-destination.ducklake.credentials = "ducklake:///my_lake"
-destination.ducklake.credentials.storage = "s3://my-bucket/prefix"
+destination.ducklake.credentials.catalog_name="my_lake"
+destination.ducklake.credentials.storage="s3://my-bucket/prefix"
 ```
 
 Cloud-specific notes (from sql_client.py)
@@ -179,7 +179,7 @@ when run via pipeline.sql_client(). This mirrors the check performed in the test
 ## How it works under the hood (selected details)
 
 - Each connection loads the ducklake extension, attaches the catalog and storage with:
-  ATTACH IF NOT EXISTS 'ducklake:<catalog>' AS <ducklake_name> (DATA_PATH '<storage_url>' ...)
+  ATTACH IF NOT EXISTS 'ducklake:catalog' AS ducklake_name> (DATA_PATH 'storage_url>' ...)
   and then sets the search_path to the dlt dataset. See DuckLakeSqlClient.open_connection and build_attach_statement.
 - Connections always detach the DuckLake cleanly on close to avoid catalog corruption.
 - Insert vs Copy: if insert-values is selected, dlt uses INSERT VALUES; otherwise a COPY-backed job writes Parquet and reports remote_url (see DuckLakeClient.create_load_job and DuckLakeCopyJob).
