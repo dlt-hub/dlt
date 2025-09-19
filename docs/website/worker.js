@@ -1,11 +1,45 @@
 // cloudflare worker implementation to serve the website docs
 
+
+const REDIRECTS = [
+    // basic root redirects
+    {
+        from: "/",
+        to: "/docs/intro/",
+        code: 301
+    },
+    {
+        from: "/docs",
+        to: "/docs/intro/",
+        code: 301
+    },
+    {
+        from: "/docs/",
+        to: "/docs/intro/",
+        code: 301
+    },
+    {
+        from: "/docs/intro",
+        to: "/docs/intro/",
+        code: 301
+    },
+    
+]
+
 export default {
     async fetch(request, env, ctx) {
 
         const url = new URL(request.url);
 
-        // rewrite /docs/* → /*
+        // handle redirects
+        for (const redirect of REDIRECTS) {
+            if (url.pathname === redirect.from) {
+                url.pathname = redirect.to;
+                return Response.redirect(url.toString(), redirect.code);
+            }
+        }   
+
+        // normalize urls prefixed with /docs
         if (url.pathname.startsWith("/docs/")) {
             url.pathname = url.pathname.replace(/^\/docs/, "");
             // forward the modified request to ASSETS
