@@ -84,8 +84,11 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         )
 
     def __str__(self) -> str:
-        url = self.to_url()
-        # do not display query. it often contains secret values
-        url = url._replace(query=None)
-        # we only have control over netloc/path
-        return url.render_as_string(hide_password=True)
+        try:
+            url = self.to_url()
+            # do not display query. it often contains secret values
+            url = url._replace(query=None)
+            # we only have control over netloc/path
+            return url.render_as_string(hide_password=True)
+        except Exception:
+            return ""
