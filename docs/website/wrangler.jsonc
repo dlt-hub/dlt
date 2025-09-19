@@ -1,7 +1,14 @@
 {
     "name": "docs",
-    "compatibility_date": "2025-03-25",
+    "compatibility_date": "2025-09-19",
+    "preview_urls": true,
     "assets": {
         "directory": "./build"
-    }
+    },
+    "routes": [
+        {
+          "pattern": "stage.dlthub.com/docs*",
+          "zone_name": "dlthub.com"
+        }
+      ]
   } 
