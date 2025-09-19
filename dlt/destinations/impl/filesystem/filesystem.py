@@ -363,7 +363,7 @@ class FilesystemClient(
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
         current_dataset_name = self.dataset_name
         try:
-            self.dataset_name = self.config.normalize_staging_dataset_name(self.schema)
+            _, self.dataset_name = WithStagingDataset.create_dataset_names(self.schema, self.config)
             yield self
         finally:
             # restore previous dataset name
