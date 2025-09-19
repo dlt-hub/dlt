@@ -47,14 +47,18 @@ ATTACH 'ducklake:{catalog_database}' (DATA_PATH '{data_storage}');
 adds the ducklake `Catalog` to your duckdb database
 """
 import os
+import semver
 import posixpath
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional, Sequence
 
 import dlt
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import LoadJob
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.metrics import LoadJobMetrics
+from dlt.common.schema.typing import TColumnSchema
+
 from dlt.destinations.impl.duckdb.duck import DuckDbClient, DuckDbCopyJob
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeClientConfiguration
@@ -120,3 +124,38 @@ class DuckLakeClient(DuckDbClient):
         if not job:
             job = DuckLakeCopyJob(file_path)
         return job
+
+    def _get_table_update_sql(
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
+        separate_alters: bool = False,
+    ) -> List[str]:
+        sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+
+        # TODO: evolve partitioning here. we should change the scheme if there's actual change vs.
+        #  partition in schema
+        if not generate_alter:
+            partition_list = [
+                self.sql_client.escape_column_name(c["name"])
+                for c in new_columns
+                if c.get("partition")
+            ]
+
+            if partition_list:
+                import duckdb
+
+                if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.4.0"):
+                    logger.warning(
+                        "Partitioning is disabled for duckdb < 1.4.0 due to malformed catalog"
+                        " update statements."
+                    )
+                else:
+                    qualified_name = self.sql_client.make_qualified_table_name(table_name)
+                    sql.append(
+                        f"ALTER TABLE {qualified_name} SET PARTITIONED BY ("
+                        + ",".join(partition_list)
+                        + ")"
+                    )
+        return sql
