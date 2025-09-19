@@ -137,7 +137,6 @@ def test_telemetry_endpoint_exceptions(
 def test_track_anon_event(
     mocker: MockerFixture, disable_temporary_telemetry: RuntimeConfiguration
 ) -> None:
-    from dlt.sources.helpers import requests
     from dlt.common.runtime import anon_tracker
 
     mock_github_env(os.environ)
@@ -145,11 +144,10 @@ def test_track_anon_event(
     SENT_ITEMS.clear()
     config = SentryLoggerConfiguration()
 
-    requests_post = mocker.spy(requests, "post")
-
     props = {"destination_name": "duckdb", "elapsed_time": 712.23123, "success": True}
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
         start_test_telemetry(config)
+        requests_post = mocker.spy(anon_tracker.requests, "post")
         track("pipeline", "run", props)
         # this will send stuff
         disable_anon_tracker()

@@ -34,6 +34,12 @@ If you prefer to truncate it, put the following line in `config.toml`:
 [load]
 truncate_staging_dataset=true
 ```
+> **⚠️ Important:** When configuring a custom staging dataset naming pattern, ensure that the resulting staging dataset name differs from the final dataset name. If the pattern results in identical names, dlt will raise a `ValueError` to alert you that the pattern must be adjusted. This prevents potential data loss from setup commands accidentally truncating the final dataset instead of the staging dataset.
+>
+> **Examples:**
+> - ✅ **Good:** `staging_dataset_name_layout="%s_staging"` → `my_data` becomes `my_data_staging`
+> - ✅ **Good:** `staging_dataset_name_layout="staging_%s"` → `my_data` becomes `staging_my_data`
+> - ❌ **Bad:** `staging_dataset_name_layout="%s"` → `my_data` becomes `my_data` (same name!)
 
 ## Staging storage
 `dlt` allows chaining destinations where the first one (`staging`) is responsible for uploading the files from the local filesystem to the remote storage. It then generates follow-up jobs for the second destination that (typically) copy the files from remote storage into the destination.

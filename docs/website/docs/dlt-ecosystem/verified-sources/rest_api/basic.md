@@ -240,6 +240,7 @@ The `client` configuration is used to connect to the API's endpoints. It include
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
 - `session` (requests.Session, optional): A custom session object. When provided, this session will be used for all HTTP requests instead of the default session. Can be used, for example, with [requests-oauthlib](https://github.com/requests/requests-oauthlib) for OAuth authentication.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
+- `session` (optional): Custom `requests` session to setup custom [timeouts and retry strategies.](advanced.md#setup-timeouts-and-retry-strategies)
 
 #### `resource_defaults` (optional)
 

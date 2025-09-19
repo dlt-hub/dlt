@@ -620,6 +620,36 @@ class WithStagingDataset(ABC):
         """Executes job client methods on staging dataset"""
         return self  # type: ignore
 
+    @staticmethod
+    def create_dataset_names(
+        schema: Schema, config: DestinationClientDwhConfiguration
+    ) -> Tuple[str, str]:
+        """
+        Creates regular and staging dataset names for given schema and config.
+        Raises a value error if the staging name is same as final dataset name.
+        returns (dataset_name, staging_dataset_name)
+
+        """
+        dataset_name = config.normalize_dataset_name(schema)
+        staging_dataset_name = config.normalize_staging_dataset_name(schema)
+
+        if dataset_name == staging_dataset_name:
+            logger.error(
+                f"Staging dataset name '{staging_dataset_name}' is the same as final dataset name"
+                f" '{dataset_name}'."
+            )
+
+            raise ValueError(
+                f"The staging dataset name '{staging_dataset_name}' is identical to the final"
+                f" dataset name '{dataset_name}'. This configuration will cause data loss because"
+                " setup commands will truncate the final dataset when they should only truncate"
+                " the staging dataset.\nTo fix this, modify the `staging_dataset_name_layout`"
+                " setting in your destination configuration. For more information, see:"
+                " https://dlthub.com/docs/dlt-ecosystem/staging#staging-dataset"
+            )
+
+        return (dataset_name, staging_dataset_name)
+
 
 class SupportsStagingDestination(ABC):
     """Adds capability to support a staging destination for the load"""

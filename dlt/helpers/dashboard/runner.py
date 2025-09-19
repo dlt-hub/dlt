@@ -23,7 +23,13 @@ EJECTED_APP_FILE_NAME = "dlt_dashboard.py"
 STYLE_FILE_NAME = "dlt_dashboard_styles.css"
 
 
-def run_dashboard(pipeline_name: str = None, edit: bool = False, pipelines_dir: str = None) -> None:
+def run_dashboard(
+    pipeline_name: str = None,
+    edit: bool = False,
+    pipelines_dir: str = None,
+    port: int = None,
+    host: str = None,
+) -> None:
     from dlt.helpers.dashboard import dlt_dashboard
 
     ejected_app_path = os.path.join(os.getcwd(), EJECTED_APP_FILE_NAME)
@@ -53,6 +59,14 @@ def run_dashboard(pipeline_name: str = None, edit: bool = False, pipelines_dir: 
 
     dashboard_cmd = ["marimo", "run" if not edit else "edit", app_file_path]
 
+    if port:
+        dashboard_cmd.append("--port")
+        dashboard_cmd.append(str(port))
+
+    if host:
+        dashboard_cmd.append("--host")
+        dashboard_cmd.append(host)
+
     if pipeline_name:
         dashboard_cmd.append("--")
         dashboard_cmd.append("--pipeline")
@@ -61,6 +75,7 @@ def run_dashboard(pipeline_name: str = None, edit: bool = False, pipelines_dir: 
         dashboard_cmd.append("--")
         dashboard_cmd.append("--pipelines-dir")
         dashboard_cmd.append(pipelines_dir)
+
     try:
         subprocess.run(dashboard_cmd)
     except KeyboardInterrupt:
