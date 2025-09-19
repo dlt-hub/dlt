@@ -4,6 +4,7 @@ import sys
 from urllib.parse import urlencode
 from typing import Any, ClassVar, Dict, Final, List, TYPE_CHECKING
 
+from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.version import __version__
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
@@ -44,7 +45,7 @@ class MotherduckConnectionPool(DuckDbConnectionPool):
 
 
 @configspec(init=False)
-class MotherDuckCredentials(DuckDbBaseCredentials):
+class MotherDuckCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(  # type: ignore
         default="md", init=False, repr=False, compare=False
     )

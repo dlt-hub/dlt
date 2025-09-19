@@ -6,7 +6,7 @@ from pathvalidate import is_valid_filepath
 from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.configuration.specs.base_configuration import NotResolved
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, NotResolved
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.storages import WithLocalFiles
@@ -23,7 +23,7 @@ DUCK_DB_NAME_PAT = "%s.duckdb"
 
 
 @configspec(init=False)
-class DuckDbBaseCredentials(ConnectionStringCredentials):
+class DuckDbBaseCredentials(CredentialsConfiguration):
     read_only: bool = False
     """Open database r or rw"""
     extensions: Optional[List[str]] = None
@@ -238,18 +238,11 @@ class DuckDbConnectionPool:
 
 
 @configspec
-class DuckDbCredentials(DuckDbBaseCredentials):
+class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
     username: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = []
-
-    def is_partial(self) -> bool:
-        partial = super().is_partial()
-        if partial:
-            return True
-        # Wait until pipeline context is set up before resolving
-        return self.database == ":pipeline:"
 
     def on_resolved(self) -> None:
         if isinstance(self.database, str) and self.database == ":memory:":
