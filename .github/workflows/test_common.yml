@@ -52,6 +52,12 @@ jobs:
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+
+          # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--upgrade' # could also be 'direct'
           
           # windows tests
           - os: windows-latest
