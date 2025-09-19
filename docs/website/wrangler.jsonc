@@ -2,7 +2,6 @@
     "name": "docs",
     "compatibility_date": "2025-03-25",
     "assets": {
-      "directory": "./build",
-      "binding": "ASSETS"
+        "directory": "./build"
     }
   } 
