@@ -75,6 +75,11 @@ def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> Non
     client.update_stored_schema()
     load_id = "182879721.182912"
     client.complete_load(load_id)
+
+    # client should reopen the connection to set search paths. dataset was created
+    client.sql_client.close_connection()
+    client.sql_client.open_connection()
+
     curr: DBApiCursor
     # get data from unqualified name
     with client.sql_client.execute_query(
