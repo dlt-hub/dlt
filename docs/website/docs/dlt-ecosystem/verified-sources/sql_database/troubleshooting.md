@@ -25,7 +25,7 @@ modify the local pipeline state (after syncing with destination) to add/remove t
 
 ## Troubleshooting connection
 
-#### Pipeline state grows extremely large or I get deduplication state warnings when using incremental
+### Pipeline state grows extremely large or I get deduplication state warnings when using incremental
 If you set incremental column on low resolution column (ie. of type **date**) then `dlt` will [deduplicate](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges) such data by default. For low resolution column you may have many rows associated with a single
 cursor value and since hashes of such rows are stored in state - you will get large pipeline state. You can avoid that in many ways:
 1. [set the comparison to exclusive](advanced.md#inclusive-and-exclusive-filtering) but make sure that rows are not added with the last cursor column value

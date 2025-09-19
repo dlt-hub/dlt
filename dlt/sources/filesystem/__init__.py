@@ -46,7 +46,7 @@ def readers(  # noqa DOC
         file_glob (str, optional): The filter to apply to the files in glob format. by default lists all files in bucket_url non-recursively
         kwargs: (Optional[Dict[str, Any]], optional): Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs
         client_kwargs: (Optional[Dict[str, Any]], optional): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
-        incremental (Optional[dlt.sources.incremental[Any]]): defines incremental cursor on listed files, with `modification_date`
+        incremental (Optional[dlt.sources.incremental[Any]]): Defines incremental cursor on listed files, with `modification_date`
             being the most common choice that returns only files created from the previous run.
 
     Returns:
@@ -115,7 +115,7 @@ def filesystem(  # noqa DOC
             false it will return a fsspec file, defaults to False.
         kwargs (Optional[Dict[str, Any]]): Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs
         client_kwargs (Optional[Dict[str, Any]]): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
-        incremental (Optional[dlt.sources.incremental[Any]]): defines incremental cursor on listed files, with `modification_date`
+        incremental (Optional[dlt.sources.incremental[Any]]): Defines incremental cursor on listed files, with `modification_date`
             being the most common choice that returns only files created from the previous run.
 
     Yields:

@@ -178,7 +178,8 @@ def create_table(
     schema = ensure_iceberg_compatible_arrow_schema(schema)
 
     if partition_columns:
-        # use two staged table create if we have a partition
+        # If the table is partitioned, create it in two steps:
+        # (1) start a create-table transaction, and (2) add the partition spec before committing
         with catalog.create_table_transaction(
             table_id,
             schema=schema,

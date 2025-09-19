@@ -741,8 +741,17 @@ def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load
             2,  # falls back to len(list) because first item has no .shape
             id="mixed_first_scalar",
         ),
+        pytest.param(
+            lambda: [pd.DataFrame({"a": [0, 1]}), 1],
+            None,  # this is error case, len() fails on scalar
+            id="mixed_last_scalar",
+        ),
     ],
 )
 def test_count_rows_in_items(item_factory, expected_rows):
     item = item_factory()  # fresh object(s) each time
-    assert count_rows_in_items(item) == expected_rows
+    if expected_rows is None:
+        with pytest.raises(TypeError):
+            count_rows_in_items(item)
+    else:
+        assert count_rows_in_items(item) == expected_rows

@@ -828,7 +828,7 @@ def count_rows_in_items(item: TDataItems) -> int:
     """Count total number of rows of `items` which may be
     * single item
     * list of single items
-    * list of tables like data frames or
+    * list of tables like data frames or arrow
     """
 
     if isinstance(item, list):

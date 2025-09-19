@@ -67,7 +67,8 @@ incremental_table = sql_table(
     incremental=dlt.sources.incremental(
         "updated_at",
         initial_value=date_ranges[-1]["end"],  # use the last day as the starting point
-        range_start="open",  # exclude start boundary as it was loaded by last partition
+        range_start="open",  # skip the last partition’s end value by using an open start boundary as it was loaded by the last partition
+
     ),
 )
 pipeline.run(incremental_table)

@@ -151,7 +151,7 @@ This is an experimental feature and may change in future releases.
   - a list of callables, each accepting and returning the response object.
 
 
-### Example A
+#### Example A
 
 ```py
 {
@@ -166,7 +166,7 @@ This is an experimental feature and may change in future releases.
 
 In this example, the source will ignore responses with a status code of 404, responses with the content "Not found", and responses with a status code of 200 _and_ content "some text".
 
-### Example B
+#### Example B
 
 ```py
 from requests.models import Response
@@ -213,7 +213,7 @@ source_config = {
 
 In this example, the resource will set the correct encoding for all responses first. Thereafter, for all responses that have the status code 200, we will add a field `custom_field` and remove the field `email`.
 
-### Example C
+#### Example C
 
 ```py
 def set_encoding(response, *args, **kwargs):
