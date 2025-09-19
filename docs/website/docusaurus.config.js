@@ -49,7 +49,7 @@ const config = {
   title: 'dlt Docs',
   tagline: 'data load tool',
   url: 'https://dlthub.com',
-  baseUrl: process.env.DOCUSAURUS_BASE_URL || '/',
+  baseUrl: '/docs',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
   onBrokenAnchors: 'throw',

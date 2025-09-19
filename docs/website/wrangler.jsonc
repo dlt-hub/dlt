@@ -1,9 +1,12 @@
 {
     "name": "docs",
     "compatibility_date": "2025-09-19",
+    "main": "worker.js",
     "preview_urls": true,
     "assets": {
-        "directory": "./build"
+        "directory": "./build",
+        "run_worker_first": ["/*"],
+        "binding": "ASSETS" // <-- creates env.ASSETS variable
     },
     "routes": [
         {
