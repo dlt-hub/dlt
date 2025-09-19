@@ -612,6 +612,24 @@ class Schema:
         """References between tables"""
         all_references: list[TStandaloneTableReference] = []
         for table_name, table in self.tables.items():
+            try:
+                parent_ref = utils.create_parent_child_reference(self.tables, table_name)
+                all_references.append(cast(TStandaloneTableReference, parent_ref))
+            except ValueError:
+                pass
+
+            try:
+                root_ref = utils.create_root_child_reference(self.tables, table_name)
+                all_references.append(cast(TStandaloneTableReference, root_ref))
+            except ValueError:
+                pass
+
+            try:
+                load_table_ref = utils.create_root_child_reference(self.tables, table_name)
+                all_references.append(cast(TStandaloneTableReference, load_table_ref))
+            except ValueError:
+                pass
+
             refs = table.get("references")
             if not refs:
                 continue
@@ -620,6 +638,8 @@ class Schema:
                 top_level_ref: TTableReference = ref.copy()
                 if top_level_ref.get("table") is None:
                     top_level_ref["table"] = table_name
+
+                all_references.append(cast(TStandaloneTableReference, top_level_ref))
 
         return all_references
 

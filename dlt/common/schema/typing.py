@@ -278,14 +278,21 @@ TWriteDispositionConfig = Union[
 
 TReferenceCardinality = Literal[
     "zero_to_one",
+    "one_to_zero",
     "zero_to_many",
-    "one_to_one",
+    "many_to_zero",
     "one_to_many",
+    "many_to_one",
+    "one_to_one",
     "many_to_many",
 ]
 """Represents cardinality between `column` (left) and `referenced_column` (right)
-Note that `(column, many_to_many, referenced_column)` is equivalent to specifying
-both `(column, one_to_many, referenced_column)` and `(column, many_to_one, referenced_column)`
+
+Note that cardinality is not symmetric. For example:
+- `Author, 0 to many, Book` an author can have 0 to many book
+- `Book, 1 to 1, Author` a book must have exactly 1 author
+
+The statement (Author, 0 to many, Book) doesn't imply (Book, many to 0, Author).
 """
 
 

@@ -5,6 +5,7 @@ from types import MethodType
 import pytest
 from copy import deepcopy
 
+import dlt
 from dlt.common.json import json
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException
@@ -760,6 +761,62 @@ def test_remove_processing_hints() -> None:
     cloned._bump_version()
     no_hints = schema.from_dict(eth_V11, remove_processing_hints=True)
     assert no_hints.stored_version_hash == cloned.stored_version_hash
+
+
+def test_schema_tables_property() -> None:
+    schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
+
+    assert isinstance(schema.tables, dict)
+    assert schema.tables == schema._schema_tables
+    # check that keys are table names
+    assert set(schema.tables) == set(
+        [
+            "_dlt_loads",
+            "_dlt_version",
+            "blocks",
+            "blocks__transactions",
+            "blocks__transactions__logs",
+            "blocks__transactions__logs__topics",
+            "blocks__transactions__access_list",
+            "blocks__transactions__access_list__storage_keys",
+            "blocks__uncles",
+        ]
+    )
+    # check that values are TTableSchema
+    # can't do `isinstance(..., TTableSchema)` on a `TypedDict`
+    assert set(schema.tables["blocks"]) == set(
+        [
+            "description",
+            "x-annotation",
+            "write_disposition",
+            "filters",
+            "columns",
+            "schema_contract",
+            "resource",
+            "x-normalizer",
+            "name",
+        ]
+    )
+
+
+def test_schema_references_property() -> None:
+    schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
+
+    assert isinstance(schema.references, list)
+    assert len(schema.references) == 12
+    assert isinstance(schema.references[0], dict)
+    # check that keys are from TStandaloneTableReference
+    # can't do `isinstance(..., TStandaloneTableReference)` on a `TypedDict`
+    assert set(schema.references[0]) == set(
+        [
+            "label",
+            "table",
+            "columns",
+            "referenced_table",
+            "referenced_columns",
+            "cardinality",
+        ]
+    )
 
 
 def test_schema_repr() -> None:
