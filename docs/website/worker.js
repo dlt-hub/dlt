@@ -26,6 +26,8 @@ const REDIRECTS = [
     
 ]
 
+const ROUTE_404 = "/docs/404";
+
 export default {
     async fetch(request, env, ctx) {
 
@@ -43,14 +45,17 @@ export default {
         if (url.pathname.startsWith("/docs/")) {
             url.pathname = url.pathname.replace(/^\/docs/, "");
             // forward the modified request to ASSETS
-            return env.ASSETS.fetch(new Request(url.toString(), request));
+            let res = await env.ASSETS.fetch(new Request(url.toString(), request));
+            if (res.status === 404) {
+                url.pathname = ROUTE_404;
+                return Response.redirect(url.toString(), 301);
+            }
+            return res;
         }
 
         // Let the platform resolve ./build and set cache headers
-        const res = await env.ASSETS.fetch(request);  // preserves URL→file + caching
-
-        // Fire-and-forget tracking; do not mutate the returned response
-        const resClone = res.clone();
+        let res = await env.ASSETS.fetch(request);  // preserves URL→file + caching
+        
 
         return res; // unchanged response (transparent externally)
     }
