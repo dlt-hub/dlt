@@ -88,6 +88,10 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
         for item in self.native_cursor.fetch_record_batch(chunk_size):
             yield ArrowTable.from_batches([item])
 
+    def close(self, *args: Any, **kwargs: Any) -> None:
+        # duckdb cursor is just original connection so we cannot close it
+        pass
+
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = duckdb
@@ -147,8 +151,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 self.rollback_transaction()
             except DatabaseTransientException:
                 pass
-            self.close_connection()
-            self.open_connection()
             raise
 
     @raise_database_error
@@ -170,8 +172,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             if curr.description is None:
                 return None
             else:
-                f = curr.fetchall()
-                return f
+                return curr.fetchall()
 
     @contextmanager
     @raise_database_error
@@ -181,13 +182,20 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if db_args:
             # TODO: must provide much better refactoring of params
             query = query.replace("%s", "?")
+
+        # we can't duplicate connection because local settings (ie. search path) are lost
+        cur = self._conn
         try:
-            self._conn.execute(query, db_args)
-            yield self.cursor_impl(self._conn)  # type: ignore
+            yield self.cursor_impl(cur.execute(query, db_args))  # type: ignore
         except duckdb.Error as outer:
-            self.close_connection()
-            self.open_connection()
+            try:
+                cur.rollback()
+            except Exception:
+                pass
             raise outer
+        finally:
+            # we should somehow cleanup result set if present but no suitable method on connection
+            pass
 
     def warn_if_catalog_equals_dataset_name(self) -> None:
         """
