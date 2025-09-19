@@ -41,17 +41,21 @@ export default {
             }
         }   
 
-        // normalize urls prefixed with /docs
+        // normalize urls prefixed with /docs, only needed locally
         let res = null;
-        if (url.pathname.startsWith("/docs/") && false) {
+        if (url.pathname.startsWith("/docs/")) {
             url.pathname = url.pathname.replace(/^\/docs/, "");
             // forward the modified request to ASSETS
             res = await env.ASSETS.fetch(new Request(url.toString(), request));
+            // retry below with original url
+            if (res.status === 404) {
+                res = null;
+            }
         }
 
         // Let the platform resolve ./build and set cache headers
         if (res === null) {
-             res = await env.ASSETS.fetch(request);  // preserves URL→file + caching
+            res = await env.ASSETS.fetch(request);  // preserves URL→file + caching
         }
 
         if (res.status === 404) {
