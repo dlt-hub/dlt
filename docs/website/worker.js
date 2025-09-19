@@ -42,21 +42,23 @@ export default {
         }   
 
         // normalize urls prefixed with /docs
-        if (url.pathname.startsWith("/docs/")) {
+        let res = null;
+        if (url.pathname.startsWith("/docs/") && false) {
             url.pathname = url.pathname.replace(/^\/docs/, "");
             // forward the modified request to ASSETS
-            let res = await env.ASSETS.fetch(new Request(url.toString(), request));
-            if (res.status === 404) {
-                url.pathname = ROUTE_404;
-                return Response.redirect(url.toString(), 301);
-            }
-            return res;
+            res = await env.ASSETS.fetch(new Request(url.toString(), request));
         }
 
         // Let the platform resolve ./build and set cache headers
-        let res = await env.ASSETS.fetch(request);  // preserves URL→file + caching
-        
+        if (res === null) {
+             res = await env.ASSETS.fetch(request);  // preserves URL→file + caching
+        }
 
+        if (res.status === 404) {
+            url.pathname = ROUTE_404;
+            return Response.redirect(url.toString(), 301);
+        }
+    
         return res; // unchanged response (transparent externally)
     }
   };
