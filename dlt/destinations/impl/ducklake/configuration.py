@@ -4,6 +4,7 @@ import dataclasses
 from typing import Any, ClassVar, Dict, Final, List, Optional, TYPE_CHECKING, Union
 
 from dlt.common.configuration import configspec
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
@@ -13,7 +14,7 @@ from dlt.common.storages.configuration import (
     WithLocalFiles,
 )
 from dlt.common.utils import digest128
-from dlt.destinations.impl.duckdb.configuration import DuckDbConnectionPool, DuckDbCredentials
+from dlt.destinations.impl.duckdb.configuration import DuckDbConnectionPool, DuckDbBaseCredentials
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 
 if TYPE_CHECKING:
@@ -36,25 +37,17 @@ def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
 
 
 @configspec(init=False)
-class DuckLakeCredentials(DuckDbCredentials):
-    """
-    For DuckLakeCredentials, the field `database` refers to the name
-    of the DuckLake.
-    """
-
-    drivername: Final[str] = dataclasses.field(  # type: ignore[misc]
-        default="ducklake", init=False, repr=False, compare=False
-    )
-
-    catalog: Optional[ConnectionStringCredentials] = None
+class DuckLakeCredentials(DuckDbBaseCredentials):
+    catalog_name: str = "ducklake_catalog"
+    catalog: ConnectionStringCredentials = None
     # NOTE: consider moving to DuckLakeClientConfiguration so bucket_url is not a secret
-    storage: Optional[FilesystemConfiguration] = None
+    storage: FilesystemConfiguration = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["catalog", "storage"]
+    __config_gen_annotations__: ClassVar[List[str]] = ["catalog_name", "catalog", "storage"]
 
     def __init__(
         self,
-        name_or_conn_str: str = None,
+        catalog_name: str = "ducklake_catalog",
         catalog: Union[str, ConnectionStringCredentials] = None,
         storage: Union[str, FilesystemConfiguration] = None,
     ) -> None:
@@ -62,10 +55,7 @@ class DuckLakeCredentials(DuckDbCredentials):
         configuration.
 
         Args:
-            name_or_conn_str: DuckLake name or URI. Accepted forms include:
-                - "ducklake:my_ducklake" (normalized to "ducklake:///my_ducklake")
-                - "ducklake:///my_ducklake"
-                - "my_ducklake" (just a name)
+            catalog_name: str
                 This value is mainly used as ATTACH name for the ducklake database and
                 as names for catalog and storage files if not configured explicitly.
                 If omitted, ducklake name is derived from destination name or pipeline name.
@@ -81,7 +71,7 @@ class DuckLakeCredentials(DuckDbCredentials):
                 derived from the name_or_conn_str argument.
 
         """
-        self._apply_init_value(name_or_conn_str)
+        self.catalog_name = catalog_name
         if isinstance(catalog, str):
             catalog = ConnectionStringCredentials(catalog)
         self.catalog = catalog
@@ -92,15 +82,28 @@ class DuckLakeCredentials(DuckDbCredentials):
     def _conn_str(self) -> str:
         return ":memory:"
 
-    def on_resolved(self) -> None:
-        # use local duckdb
-        if self.catalog is None:
+    def on_partial(self) -> None:
+        # this works only if wired to right exception type
+        config_exception = self.__exception__
+        if not isinstance(config_exception, ConfigFieldMissingException):
+            return
+        # set default catalog only if not present in config, partially resolved should generate exception
+        if self.catalog is None and not config_exception.was_partially_resolved("catalog"):
             # use sqllite as default catalog
-            self.catalog = ConnectionStringCredentials({"drivername": "sqlite"})
-        # if self.storage is None:
-        #     # create data in run_dir
-        #     self.storage = FilesystemConfigurationWithLocalFiles(bucket_url=".")
+            self.catalog = ConnectionStringCredentials(
+                {"drivername": "sqlite", "database": self.catalog_name + ".sqlite"}
+            ).resolve()
+            config_exception.drop_traces_for_field("catalog")
 
+        if self.storage is None and "bucket_url" in config_exception.traces["storage"][0].traces:  # type: ignore
+            self.storage = FilesystemConfigurationWithLocalFiles(
+                bucket_url=DUCKLAKE_STORAGE_PATTERN % self.catalog_name, local_dir="."
+            ).resolve()
+
+        if not self.is_partial():
+            self.resolve()
+
+    def on_resolved(self) -> None:
         if self.extensions:
             self.extensions = list(set([*self.extensions, "ducklake"]))
         else:
@@ -110,24 +113,12 @@ class DuckLakeCredentials(DuckDbCredentials):
         self.conn_pool = DuckDbConnectionPool(self, always_open_connection=True)
 
     @property
-    def ducklake_name(self) -> str:
-        # database is ducklake name ie. ducklake:my_ducklake
-        return self.database
-
-    @property
     def storage_url(self) -> str:
         """Convert file:// url into native os path so duckdb can read it"""
         if self.storage.is_local_filesystem:
             return self.storage.make_local_path(self.storage.bucket_url)
         else:
             return self.storage.bucket_url
-
-    def parse_native_representation(self, native_value: Any) -> None:
-        # allow to set ducklake name directly
-        if isinstance(native_value, str):
-            if native_value.startswith("ducklake:") and not native_value.startswith("ducklake:/"):
-                native_value = "ducklake:///" + native_value[9:]
-        super().parse_native_representation(native_value)
 
 
 # TODO add connection to a specific snapshot
@@ -146,23 +137,17 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
         return digest128(self.__str__())
 
     def on_resolved(self) -> None:
-        # if database was not provided, pick a default location "ducklake"
-        if not self.credentials.database:
-            self.credentials.database = self.make_default_location("%s")
         # redirect local catalog database file to `local_dir`
         if self.credentials.catalog.drivername in ("duckdb", "sqlite"):
             # name is <pipeline|dest name>.<duckdb|sqlite>
             local_db = self.make_location(
-                self.credentials.catalog.database, "%s." + self.credentials.catalog.drivername
+                self.credentials.catalog.database
+                or self.credentials.catalog_name + "." + self.credentials.catalog.drivername,
+                "%s",
             )
             self.credentials.catalog.database = local_db
 
-        # redirect compliant storage to local filesystem
-        if not self.credentials.storage:
-            self.credentials.storage = FilesystemConfigurationWithLocalFiles(
-                bucket_url=DUCKLAKE_STORAGE_PATTERN % self.credentials.ducklake_name
-            )
-
+        # redirect storage to local filesystem
         if isinstance(self.credentials.storage, WithLocalFiles):
             self.credentials.storage.attach_from(self)
             if not self.credentials.storage.is_resolved():
@@ -174,4 +159,6 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
         """Return ducklake displayable location that contains catalog and storage locations"""
         if not self.credentials or not self.credentials.catalog or not self.credentials.storage:
             return ""
-        return f"{self.credentials.ducklake_name}@{self.credentials.catalog}@{self.credentials.storage}"
+        return (
+            f"{self.credentials.catalog_name}@{self.credentials.catalog}@{self.credentials.storage}"
+        )
