@@ -287,8 +287,12 @@ def _resolve_config_fields(
                     #     if type(default_value) != type(explicit_value):
                     #         raise ConfigurationValueError()
                     specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
+                    if len(specs_in_union) == 1:
+                        is_optional = is_optional_type(hint)
+                        hint = Optional[specs_in_union[0]] if is_optional else specs_in_union[0]  # type: ignore[assignment]
             if not current_value:
                 if len(specs_in_union) > 1:
+                    is_optional = is_optional_type(hint)
                     for idx, alt_spec in enumerate(specs_in_union):
                         # return first resolved config from an union
                         try:

@@ -116,8 +116,7 @@ def test_resolve_union() -> None:
 
 def test_resolve_optional_union() -> None:
     c = resolve_configuration(ZenConfigOptCredentials())  # type: ignore[type-var]
-    assert c.is_partial  # type: ignore[attr-defined]
-    # assert c.is
+    assert c.is_partial() is False  # type: ignore[attr-defined]
     assert c.credentials is None
 
     # if we provide values for second union, it will be tried and resolved
