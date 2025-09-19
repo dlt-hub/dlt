@@ -612,8 +612,7 @@ def test_materialize_table_schema_with_pipe_items():
 
 
 @pytest.mark.parametrize(
-    "with_custom_metrics",
-    [True, False],
+    "with_custom_metrics", [True, False], ids=["with_custom_metrics", "without_custom_metrics"]
 )
 def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
     """Ensure that custom metrics from resources are collected and transform steps are available in extract info"""
@@ -684,8 +683,7 @@ def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: boo
 
 
 @pytest.mark.parametrize(
-    "with_custom_metrics",
-    [True, False],
+    "with_custom_metrics", [True, False], ids=["with_custom_metrics", "without_custom_metrics"]
 )
 def test_resource_step_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
     """Ensure that custom metrics from both resources and their transform steps are collected and merged"""

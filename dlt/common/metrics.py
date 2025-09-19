@@ -23,13 +23,29 @@ class DataWriterMetrics(NamedTuple):
         return NotImplemented
 
 
-class DataWriterAndCustomMetrics(NamedTuple):
-    file_path: str
-    items_count: int
-    file_size: int
-    created: float
-    last_modified: float
+class DataWriterAndCustomMetrics(DataWriterMetrics):
     custom_metrics: Dict[str, Any]
+
+    def __new__(
+        cls,
+        file_path: str,
+        items_count: int,
+        file_size: int,
+        created: float,
+        last_modified: float,
+        custom_metrics: Dict[str, Any] = None,
+    ) -> "DataWriterAndCustomMetrics":
+        self = super(DataWriterAndCustomMetrics, cls).__new__(
+            cls, file_path, items_count, file_size, created, last_modified
+        )
+        self.custom_metrics = custom_metrics or {}
+        return self
+
+    def _asdict(self) -> Dict[str, Any]:
+        """Override _asdict to include custom_metrics in serialization"""
+        result = super()._asdict()
+        result["custom_metrics"] = self.custom_metrics
+        return result
 
 
 class StepMetrics(TypedDict):

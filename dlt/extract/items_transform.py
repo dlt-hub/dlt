@@ -32,7 +32,16 @@ ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
 ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
 
 
-class ItemTransform(ABC, Generic[TAny]):
+class BaseItemTransform:
+    def __init__(self) -> None:
+        self._custom_metrics: Dict[str, Any] = {}
+
+    @property
+    def custom_metrics(self) -> Dict[str, Any]:
+        return self._custom_metrics
+
+
+class ItemTransform(BaseItemTransform, ABC, Generic[TAny]):
     _f_meta: ItemTransformFunctionWithMeta[TAny] = None
     _f: ItemTransformFunctionNoMeta[TAny] = None
 
@@ -40,6 +49,7 @@ class ItemTransform(ABC, Generic[TAny]):
     """Tell how strongly an item sticks to start (-1) or end (+1) of pipe."""
 
     def __init__(self, transform_f: ItemTransformFunc[TAny]) -> None:
+        super().__init__()
         # inspect the signature
         sig = inspect.signature(transform_f)
         # TODO: use TypeGuard here to get rid of type ignore
@@ -47,7 +57,6 @@ class ItemTransform(ABC, Generic[TAny]):
             self._f = transform_f  # type: ignore
         else:  # TODO: do better check
             self._f_meta = transform_f  # type: ignore
-        self._custom_metrics: Dict[str, Any] = {}
 
     def bind(self: "ItemTransform[TAny]", pipe: SupportsPipe) -> "ItemTransform[TAny]":
         return self
@@ -56,13 +65,6 @@ class ItemTransform(ABC, Generic[TAny]):
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""
         pass
-
-    @property
-    def custom_metrics(self) -> Dict[str, Any]:
-        """Customizable resource metrics"""
-        if not hasattr(self, "_custom_metrics"):
-            self._custom_metrics = {}
-        return self._custom_metrics
 
 
 class FilterItem(ItemTransform[bool]):
@@ -158,6 +160,7 @@ class LimitItem(ItemTransform[TDataItem]):
     def __init__(
         self, max_items: Optional[int], max_time: Optional[float], count_rows: bool
     ) -> None:
+        BaseItemTransform.__init__(self)
         self.max_items = max_items if max_items is not None else -1
         self.max_time = max_time
         self.count_rows = count_rows

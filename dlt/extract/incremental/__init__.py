@@ -43,7 +43,7 @@ from dlt.common.incremental.typing import (
     TIncrementalRange,
 )
 from dlt.extract.items import SupportsPipe, TTableHintTemplate
-from dlt.extract.items_transform import ItemTransform
+from dlt.extract.items_transform import BaseItemTransform, ItemTransform
 from dlt.extract.state import resource_state
 from dlt.extract.incremental.transform import (
     JsonIncremental,
@@ -644,6 +644,7 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         Args:
             primary_key (TTableHintTemplate[TColumnKey], optional): A primary key to be passed to Incremental Instance at execution. Defaults to None.
         """
+        BaseItemTransform.__init__(self)
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
         self._allow_external_schedulers: bool = None
