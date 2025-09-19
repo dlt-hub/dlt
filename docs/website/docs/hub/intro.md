@@ -10,7 +10,7 @@ description: Introduction to dlt+
 dlt+ is an commercial extension to the open-source data load tool (dlt). It augments it with a set of features like transformations, data validations,
 iceberg with full catalog support and provides a yaml interface to define data platforms. dlt+ features include:
 
-- [@dlt_plus.transformation](features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
+- [@dlt.hub.transformation](features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
 - [Project](features/projects.md): a declarative YAML interface that allows any team member to easily define sources, destinations, and pipelines.
 - [dbt transformations](features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
 - [Iceberg support](ecosystem/iceberg.md)
@@ -33,11 +33,11 @@ dlt license scopes
 
 2. Issue license for the feature you want to test.
 
-``sh
-dlt license issue dlt_plus.transformation
+```sh
+dlt license issue dlthub.transformation
 ```
 
-The command above will enable access to new `@dlt_plus.transformation` decorator. Note that you may
+The command above will enable access to new `@dlt.hub.transformation` decorator. Note that you may
 self issue licenses several times and the command above will carry-over features from previously issued license.
 
 3. Do not forget to read our [EULA](EULA.md) and [Special Terms](EULA.md#specific-terms-for-the-self-issued-trial-license-self-issued-trial-terms)
