@@ -13,6 +13,5 @@ def test_config_sections_resolution():
 
     # NOTE: we check that the first trace related to filesystem has the correct
     # sections set
-    assert list(exc_info.value.traces.values())[1][0].key.startswith(
-        "SOURCES__FILESYSTEM__FILESYSTEM__"
-    )
+    flat_trace = exc_info.value.attrs()["traces"]["bucket_url"]
+    assert flat_trace[0].key.startswith("SOURCES__FILESYSTEM__FILESYSTEM__")

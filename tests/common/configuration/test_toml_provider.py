@@ -189,7 +189,7 @@ def test_secrets_toml_embedded_credentials(
         resolve.resolve_configuration(c, sections=("middleware", "storage"))
     # so we can read partially filled configuration here
     assert c.credentials.project_id.endswith("-credentials")
-    assert set(py_ex.value.traces.keys()) == {"client_email", "private_key"}
+    assert set(py_ex.value.traces.keys()) == {"credentials"}
 
     # embed "gcp_storage" will bubble up to the very top, never reverts to "credentials"
     c2 = resolve.resolve_configuration(
