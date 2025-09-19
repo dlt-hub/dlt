@@ -14,10 +14,11 @@ class MotherDuckClient(DuckDbClient):
         config: MotherDuckClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = DuckDbClient.create_dataset_names(schema, config)
         super().__init__(schema, config, capabilities)  # type: ignore
         sql_client = MotherDuckSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )

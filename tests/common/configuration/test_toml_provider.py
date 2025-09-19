@@ -526,7 +526,7 @@ def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
     provider = CustomLoaderDocProvider("yaml", loader, True)
     assert provider.name == "yaml"
     assert provider.supports_secrets is True
-    assert provider.to_toml().startswith("[destination]")
+    assert provider.to_toml().startswith("[destination")
     assert provider.to_yaml().startswith("destination:")
     value, _ = provider.get_value("datetime", datetime.datetime, None, "data_types")
     assert value == pendulum.parse("1979-05-27 07:32:00-08:00")

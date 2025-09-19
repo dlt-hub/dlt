@@ -139,7 +139,7 @@ clean-dist:
 
 publish-library: clean-dist build-library
 	ls -l dist/
-	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
+	@read -sp "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
 	uv publish --token "$$PYPI_API_TOKEN"
 
 test-build-images: build-library
@@ -182,6 +182,6 @@ test-e2e-dashboard-headed:
 start-dlt-dashboard-e2e:
 	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
 
-# creates the dashboard test pipelines globally for manual testingn of the dashboard app and cli
+# creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
 	uv run python tests/helpers/dashboard/example_pipelines.py

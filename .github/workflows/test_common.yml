@@ -52,6 +52,12 @@ jobs:
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+
+          # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--upgrade' # could also be 'direct'
           
           # windows tests
           - os: windows-latest
@@ -133,24 +139,6 @@ jobs:
         run: |
           pytest tests/sources/sql_database
         if: matrix.python-version != '3.14.0-beta.4'
-
-      # test pipeline dashboard app, does not work with python 3.13
-      - name: Install dlt with duckdb and dashboard
-        # note: this also tests the workspace extra installation
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
-        if: matrix.python-version != '3.14.0-beta.4'
-
-      - name: Install playwright
-        run: playwright install
-        if: matrix.python-version != '3.14.0-beta.4'
-
-
-      # Run pipeline dashboard unit tests
-      - name: Run pipeline dashboard unit tests
-        run: |
-          pytest tests/helpers/dashboard
-        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4'
-  
   matrix_job_required_check:
     name: common | common tests
     needs: run_common

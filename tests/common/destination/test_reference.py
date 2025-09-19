@@ -1,11 +1,12 @@
 from collections.abc import MutableMapping
+from operator import eq
 from typing import Dict
 
 import pytest
 
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination import Destination, DestinationReference
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration, WithStagingDataset
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema import Schema
@@ -476,6 +477,27 @@ def test_normalize_dataset_name_none_default_schema() -> None:
         .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )
+
+
+def test_create_dataset_names() -> None:
+    result = WithStagingDataset.create_dataset_names(
+        Schema("banana"),
+        DestinationClientDwhConfiguration()._bind_dataset_name(
+            dataset_name="test", default_schema_name=""
+        ),
+    )
+    assert result == ("test_banana", "test_banana_staging")
+
+    with pytest.raises(ValueError) as exc_info:
+        WithStagingDataset.create_dataset_names(
+            Schema("staging"),
+            DestinationClientDwhConfiguration(staging_dataset_name_layout="%s")._bind_dataset_name(
+                dataset_name="test", default_schema_name=None
+            ),
+        )
+    assert exc_info.type is ValueError
+    assert "staging dataset name" in str(exc_info.value)
+    assert "final dataset name" in str(exc_info.value)
 
 
 def test_destination_repr() -> None:
