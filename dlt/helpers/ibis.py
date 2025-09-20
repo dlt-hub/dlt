@@ -63,8 +63,9 @@ def create_ibis_backend(
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
         assert isinstance(client, DuckDbClient)
-        # always open in read only mode
-        client.config.credentials.read_only = read_only
+        # do not set read_only flag on motherduck, it is managed on server side
+        if not issubclass(destination.spec, MotherDuckClientConfiguration):
+            client.config.credentials.read_only = read_only
         # this will open connection to duckdb, take a clone and close the clone
         with client:
             # make sure we can access tables from current dataset without qualification
@@ -159,14 +160,14 @@ def create_ibis_backend(
             secure=bool(ch_client.config.credentials.secure),
             # compression=True,
         )
-    # elif issubclass(destination.spec, DatabricksClientConfiguration):
-    #     from dlt.destinations.impl.databricks.databricks import DatabricksClient
+    elif issubclass(destination.spec, DatabricksClientConfiguration):
+        from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
-    #     bricks_client = cast(DatabricksClient, client)
-    #     con = ibis.databricks.connect(
-    #         **bricks_client.config.credentials.to_connector_params(),
-    #         schema=bricks_client.sql_client.dataset_name,
-    #     )
+        bricks_client = cast(DatabricksClient, client)
+        con = ibis.databricks.connect(
+            **bricks_client.config.credentials.to_connector_params(),
+            schema=bricks_client.sql_client.dataset_name,
+        )
     elif issubclass(destination.spec, AthenaClientConfiguration):
         from dlt.destinations.impl.athena.athena import AthenaClient
 
@@ -177,19 +178,15 @@ def create_ibis_backend(
         )
     # TODO: allow for sqlalchemy mysql and sqlite here
     elif issubclass(destination.spec, FilesystemConfiguration):
-        import duckdb
         from dlt.destinations.impl.filesystem.sql_client import (
             FilesystemClient,
             FilesystemSqlClient,
         )
-        from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
         # we create an in memory duckdb and create the ibis backend from it
         fs_client = cast(FilesystemClient, client)
-        sql_client = FilesystemSqlClient(
-            fs_client,
-            dataset_name=fs_client.dataset_name,
-        )
+        sql_client = fs_client.sql_client
+        assert isinstance(sql_client, FilesystemSqlClient)
         # do not use context manager to not return and close the cloned connection
         duckdb_conn = sql_client.open_connection()
         # make all tables available here
@@ -199,6 +196,10 @@ def create_ibis_backend(
         # apply only to it. old code was setting `curl` on the internal clone of sql_client
         # now we export this clone directly to ibis to it works
         con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable destructor
+        fs_client.sql_client = None
+        sql_client.memory_db = None
+        del sql_client
     else:
         # NOTE: Athena could theoretically work with trino backend, but according to
         # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
