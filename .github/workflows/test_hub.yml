@@ -65,11 +65,11 @@ jobs:
         run: uv run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.plus_dep }}
 
       - name: Run tests
-        run: pytest tests/plus
+        run: pytest tests/hub
         if: matrix.os == 'ubuntu-latest'
 
       - name: Run tests on mac on win without mssql driver
-        run: pytest tests/plus -m "not mssql"
+        run: pytest tests/hub -m "not mssql"
         if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
 
   matrix_job_required_check:
