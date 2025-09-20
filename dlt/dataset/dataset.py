@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+import tempfile
 from types import TracebackType
-from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload
+from typing import Any, Generator, Optional, Type, Union, TYPE_CHECKING, Literal, overload
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
@@ -175,9 +177,17 @@ class Dataset:
 
     # TODO explain users can inspect `_dlt_loads` table to differentiate data originating
     # from `pipeline.run()` or `dataset.write()`
-    def get_write_pipeline(self) -> dlt.Pipeline:
-        """Get the internal pipeline used by `Dataset.write()`"""
-        return _get_internal_pipeline(self.dataset_name, destination=self._destination)
+    @contextmanager
+    def write_pipeline(self) -> Generator[dlt.Pipeline, None, None]:
+        """Get the internal pipeline used by `Dataset.write()`.
+
+        Passing a `pipelines_dir` allows you to set a
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pipeline = _get_internal_pipeline(
+                dataset_name=self.dataset_name, destination=self._destination, pipelines_dir=tmp_dir
+            )
+            yield pipeline
 
     def write(
         self,
@@ -191,15 +201,16 @@ class Dataset:
         This method uses a full-on `dlt.Pipeline` internally. You can retrieve this pipeline
         using `Dataset.get_write_pipeline()` for complete flexibility.
         """
-        internal_pipeline = _get_internal_pipeline(self.dataset_name, destination=self._destination)
-        # TODO should we try/except this run to gracefully handle failed writes?
-        info = internal_pipeline.run(
-            data,
-            dataset_name=self.dataset_name,
-            table_name=table_name,
-            schema=self.schema,
-            write_disposition=write_disposition,
-        )
+        with self.write_pipeline() as internal_pipeline:
+            # TODO should we try/except this run to gracefully handle failed writes?
+            info = internal_pipeline.run(
+                data,
+                dataset_name=self.dataset_name,
+                table_name=table_name,
+                schema=self.schema,
+                write_disposition=write_disposition,
+            )
+
         # maybe update the dataset schema
         self._schema = internal_pipeline.default_schema
         return info
@@ -488,13 +499,16 @@ def _get_dataset_schema_from_destination_using_dataset_name(
 
 
 def _get_internal_pipeline(
-    dataset_name: str, destination: TDestinationReferenceArg
+    dataset_name: str,
+    destination: TDestinationReferenceArg,
+    pipelines_dir: str = None,
 ) -> dlt.Pipeline:
     """Setup the internal pipeline used by `Dataset.write()`"""
     pipeline = dlt.pipeline(
         pipeline_name=_INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE.format(dataset_name=dataset_name),
         dataset_name=dataset_name,
         destination=destination,
+        pipelines_dir=pipelines_dir,
     )
     # the internal write pipeline should be stateless; it is limited to the data passed
     # it shouldn't persist state (e.g., incremntal cursor) and interfere with other `pipeline.run()`

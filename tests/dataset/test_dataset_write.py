@@ -1,3 +1,5 @@
+import pathlib
+
 import duckdb
 import pytest
 
@@ -10,7 +12,7 @@ from dlt.dataset.dataset import (
 )
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
-from tests.utils import preserve_environ, patch_home_dir, autouse_test_storage
+from tests.utils import preserve_environ, patch_home_dir, autouse_test_storage, TEST_STORAGE_ROOT
 
 
 def test_get_internal_pipeline():
@@ -40,13 +42,14 @@ def test_dataset_get_write_pipeline():
         dataset_name=dataset_name
     )
 
-    write_pipeline = dataset.get_write_pipeline()
-    write_dataset = write_pipeline.dataset()
+    with dataset.write_pipeline() as write_pipeline:
+        write_dataset = write_pipeline.dataset()
 
-    assert isinstance(write_pipeline, dlt.Pipeline)
-    assert write_pipeline.pipeline_name == expected_pipeline_name
-    assert write_pipeline.dataset_name == dataset_name
-    assert write_pipeline.destination == destination
+        assert isinstance(write_pipeline, dlt.Pipeline)
+        assert write_pipeline.pipeline_name == expected_pipeline_name
+        assert write_pipeline.dataset_name == dataset_name
+        assert write_pipeline.destination == destination
+
     assert is_same_physical_destination(dataset, write_dataset)
     assert dataset.schema == write_dataset.schema
 
@@ -73,3 +76,18 @@ def test_dataset_write():
     assert dataset.table("bar").select("id", "value").fetchall() == [
         tuple(i.values()) for i in items
     ]
+
+
+def test_data_write_temporary_dir():
+    dataset_name = "foo"
+    destination = dlt.destinations.duckdb(duckdb.connect())
+    dataset = dlt.dataset(destination, dataset_name)
+    table_name = "bar"
+    items = [{"id": 0, "value": "bingo"}, {"id": 1, "value": "bongo"}]
+    storage_dir = pathlib.Path(TEST_STORAGE_ROOT)
+
+    dataset.write(items, table_name=table_name)
+
+    # check that pipeline used a temp directory
+    # the patched test `pipelines_dir` should be empty
+    assert [str(p) for p in storage_dir.iterdir()] == ["_storage/.dlt"]
