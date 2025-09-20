@@ -11,7 +11,13 @@ from dlt.destinations.impl.ducklake.configuration import (
 )
 from dlt.destinations import ducklake
 
-from tests.load.utils import ABFS_BUCKET, AWS_BUCKET, GCS_BUCKET, DestinationTestConfiguration
+from tests.load.utils import (
+    ABFS_BUCKET,
+    AWS_BUCKET,
+    GCS_BUCKET,
+    DestinationTestConfiguration,
+    destinations_configs,
+)
 from tests.pipeline.utils import assert_load_info
 from tests.utils import TEST_STORAGE_ROOT
 
@@ -65,16 +71,16 @@ def test_all_catalogs(catalog: str) -> None:
         assert pathlib.Path(TEST_STORAGE_ROOT, catalog_location).exists()
 
 
-@pytest.mark.parametrize("bucket_url", (GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET))
-def test_all_buckets(bucket_url: str) -> None:
-    # create filesystem destination to get configuration
-    setup = DestinationTestConfiguration(
-        destination_type="filesystem",
-        bucket_url=bucket_url,
-        supports_merge=False,
-    )
-
-    filesystem = setup.setup_pipeline("filesystem_config")
+# @pytest.mark.parametrize("bucket_url", (GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET))
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        all_buckets_filesystem_configs=True, bucket_subset=(GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET)
+    ),
+    ids=lambda x: x.name,
+)
+def test_all_buckets(destination_config: DestinationTestConfiguration) -> None:
+    filesystem = destination_config.setup_pipeline("filesystem_config")
     with filesystem.destination_client() as client:
         destination = ducklake(credentials=DuckLakeCredentials("bucket_cat", storage=client.config))  # type: ignore
         pipeline = dlt.pipeline(
@@ -96,7 +102,7 @@ def test_all_buckets(bucket_url: str) -> None:
         for job_id, metrics in all_metrics["job_metrics"].items():
             remote_url = metrics.remote_url
             print(remote_url)
-            assert remote_url.startswith(bucket_url)
+            assert remote_url.startswith(destination_config.bucket_url)
             table_name = job_id.split(".")[0]
             with pipeline.sql_client() as sql:
                 with sql.execute_query(

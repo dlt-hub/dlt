@@ -100,6 +100,12 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
 
+            # Ducklake
+            - name: ducklake
+              destinations: "[\"ducklake\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "--extra ducklake --extra s3 --extra gs --extra az --extra parquet"
+
             # MSSQL
             - name: mssql
               destinations: "[\"mssql\"]"
