@@ -344,7 +344,7 @@ def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> Non
                 max_pimary_key_expr = output_dataset.table(
                     "cleaned_customers", table_type="ibis"
                 ).id.max()
-                max_pimary_key = output_dataset(max_pimary_key_expr).scalar()
+                max_pimary_key = output_dataset(max_pimary_key_expr).fetchscalar()
         except PipelineNeverRan:
             # we get this exception if the destination dataset has not been run yet
             # so we can assume that all customers are new

@@ -1,4 +1,4 @@
-name: plus | plus
+name: hub | dlthub features
 
 #
 # dlt-plus smoke tests against the nightly build.
@@ -12,7 +12,7 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
 
 jobs:
-  run_plus:
+  run_hub_features:
     name: test
     strategy:
       fail-fast: false
@@ -73,8 +73,8 @@ jobs:
         if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
 
   matrix_job_required_check:
-    name: plus | plus tests
-    needs: run_plus
+    name: hub | dlthub features tests
+    needs: run_hub_features
     runs-on: ubuntu-latest
     if: always()
     steps:
