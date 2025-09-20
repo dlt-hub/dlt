@@ -334,10 +334,12 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy")
+            if destination
+            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
+            DestinationTestConfiguration(destination_type="ducklake", supports_dbt=False),
             DestinationTestConfiguration(
                 destination_type="motherduck", file_format="insert_values"
             ),

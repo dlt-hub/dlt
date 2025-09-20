@@ -227,8 +227,8 @@ class DuckDbConnectionPool:
                     raise
 
     def _close_conn(self) -> None:
-        # connection can be closed many times
         if self._conn:
+            # duckdb allow to call close on closed connection without error
             self._conn.close()
             self._conn = None
 

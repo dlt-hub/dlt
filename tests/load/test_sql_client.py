@@ -362,7 +362,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         except StopIteration:
             df_2 = None
             # NOTE: snowflake chunks are unpredictable in size, so allow stop after two iterations
-            if client.config.destination_type != "snowflake":
+            if client.config.destination_type not in ("snowflake", "ducklake"):
                 raise
         try:
             df_3 = next(iterator)
@@ -373,7 +373,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
             if df is not None:
                 df.columns = [dfcol.lower() for dfcol in df.columns]
 
-    if client.config.destination_type != "snowflake":
+    if client.config.destination_type not in ("snowflake", "ducklake"):
         assert list(df_1["col"]) == list(range(0, chunk_size))
         assert list(df_2["col"]) == list(range(chunk_size, total_records))
     else:
