@@ -1146,7 +1146,8 @@ def test_incremental_object_interpolation(mock_api_server) -> None:
     list(source.with_resources("posts").add_limit(1))
 
     history = mock_api_server.request_history
-    assert len(history) == 1
+    # there will be 5 requests because pages are empty and incremental will remove those
+    assert len(history) == 5
     request_call = history[0]
     qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
     assert qs == {
@@ -1230,7 +1231,7 @@ def test_incremental_convert_without_end_value(mock_api_server, config) -> None:
     list(source.with_resources("posts").add_limit(1))
 
     history = mock_api_server.request_history
-    assert len(history) == 1
+    assert len(history) == 5
     request_call = history[0]
     qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
     assert qs == {"since": ["1600000000"]}
@@ -1474,7 +1475,7 @@ def test_headers_with_incremental_values(mock_api_server):
     list(source.with_resources("posts").add_limit(1))
 
     history = mock_api_server.request_history
-    assert len(history) == 1
+    assert len(history) == 5
     request_call = history[0]
     assert request_call.headers["X-Initial-Value"] == "1600000000"
     assert request_call.headers["X-Start-Value"] == "1600000000"

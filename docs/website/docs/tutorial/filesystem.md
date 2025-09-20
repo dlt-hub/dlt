@@ -246,14 +246,13 @@ You can learn more about `write_disposition` in the [write dispositions section]
 
 ## 7. Loading data incrementally
 
-When loading data from files, you often only want to load files that have been modified. dlt makes this easy with [incremental loading](../general-usage/incremental-loading). To load only modified files, you can use the `apply_hint` method:
+When loading data from files, you often only want to load files that have been modified. dlt makes this easy with [incremental loading](../general-usage/incremental-loading). To load only modified files:
 
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-files = filesystem(file_glob="encounters*.csv")
-files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+files = filesystem(file_glob="encounters*.csv", incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id")
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
@@ -262,7 +261,7 @@ info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
 
-Notice that we used `apply_hints` on the `files` resource, not on `reader`. As mentioned before, the `filesystem` resource lists all files in the storage based on the `file_glob` parameter. So at this point, we can also specify additional conditions to filter out files. In this case, we only want to load files that have been modified since the last load. dlt will automatically keep the state of the incremental load and manage the correct filtering.
+Note that we used `apply_hints` on the `files` resource, not on `reader`. As mentioned before, the `filesystem` resource lists all files in the storage based on the `file_glob` parameter. So at this point, we can also specify additional conditions to filter out files. In this case, we only want to load files that have been modified since the last load. dlt will automatically keep the state of the incremental load and manage the correct filtering.
 
 But what if we not only want to process modified files but also want to load only new records? In the `encounters` table, we can see the column named `STOP` indicating the timestamp of the end of the encounter. Let's modify our code to load only those records whose `STOP` timestamp was updated since our last load.
 
@@ -270,8 +269,7 @@ But what if we not only want to process modified files but also want to load onl
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
-files = filesystem(file_glob="encounters*.csv")
-files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+files = filesystem(file_glob="encounters*.csv", incremental=dlt.sources.incremental("modification_date"))
 reader = (files | read_csv()).with_name("encounters")
 reader.apply_hints(primary_key="id", incremental=dlt.sources.incremental("STOP"))
 pipeline = dlt.pipeline(pipeline_name="hospital_data_pipeline", dataset_name="hospital_data", destination="duckdb")
@@ -280,11 +278,12 @@ info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
 
-Notice that we applied incremental loading both for `files` and for `reader`. Therefore, dlt will first filter out only modified files and then filter out new records based on the `STOP` column.
+Note that we applied incremental loading both for `files` and for `reader`. Therefore, dlt will first filter out only modified files and then filter out new records based on the `STOP` column.
 
 If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable.
 
 To learn more about incremental loading, check out the [filesystem incremental loading section](../dlt-ecosystem/verified-sources/filesystem/basic#5-incremental-loading).
+
 
 ## 8. Enrich records with the files metadata
 
@@ -328,7 +327,7 @@ After executing this code, you'll see a new column in the `encounters` table.
 
 ## 9. Load any other type of files
 
-dlt natively supports three file types: CSV, Parquet, and JSONL (more details in [filesystem transformer resource](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-transformer-resource)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
+dlt natively supports three file types: CSV, Parquet, and JSONL (more details in [filesystem readers](../dlt-ecosystem/verified-sources/filesystem/basic#2-choose-the-right-reader)). But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
 Let's create and apply a transformer that reads JSON files instead of CSV (the implementation for JSON is a little bit different from JSONL).
 
@@ -357,7 +356,7 @@ info = pipeline.run(json_resource, write_disposition="replace")
 print(info)
 ```
 
-Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced#create-your-own-transformer) showing how to read data from `excel` and `xml` files.
+Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced#create-your-own-readers) showing how to read data from `excel` and `xml` files.
 
 ## What's next?
 

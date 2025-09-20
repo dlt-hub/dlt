@@ -11,8 +11,8 @@ from typing import (
     Optional,
     Union,
 )
-from concurrent.futures import Future
 
+from dlt.common.data_writers.writers import count_rows_in_items
 from dlt.common.typing import (
     TAny,
     TDataItem,
@@ -146,9 +146,12 @@ class ValidateItem(ItemTransform[TDataItem]):
 class LimitItem(ItemTransform[TDataItem]):
     placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
 
-    def __init__(self, max_items: Optional[int], max_time: Optional[float]) -> None:
+    def __init__(
+        self, max_items: Optional[int], max_time: Optional[float], count_rows: bool
+    ) -> None:
         self.max_items = max_items if max_items is not None else -1
         self.max_time = max_time
+        self.count_rows = count_rows
 
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         # we also wrap iterators to make them stoppable
@@ -164,18 +167,29 @@ class LimitItem(ItemTransform[TDataItem]):
 
     def limit(self, chunk_size: int) -> Optional[int]:
         """Calculate the maximum number of rows to which result is limited. Limit works in chunks
-        that controlled by the data source and this must be provided in `chunk_size`
+        that controlled by the data source and this must be provided in `chunk_size`.
+        `chunk_size` will be ignore if counting rows (`count_rows` is `True`). Mind that
+        this count method will not split batches so you may get more items (up to the full last batch)
+        than `limit` method indicates.
         """
         if self.max_items in (None, -1):
             return None
-        return self.max_items * chunk_size
+        return self.max_items * (1 if self.count_rows else chunk_size)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        self.count += 1
+        # do not count None
+        if item is None:
+            return None
+
+        if self.count_rows:
+            self.count += count_rows_in_items(item)
+        else:
+            # NOTE: we count empty batches/pages in this mode
+            self.count += 1
 
         # detect when the limit is reached, max time or yield count
         if (
-            (self.count == self.max_items)
+            (self.count >= self.max_items and self.max_items >= 0)
             or (self.max_time and time.time() - self.start_time > self.max_time)
             or self.max_items == 0
         ):

@@ -33,6 +33,7 @@ def readers(  # noqa DOC
     file_glob: str = "*",
     kwargs: Optional[Dict[str, Any]] = None,
     client_kwargs: Optional[Dict[str, Any]] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = None,
 ) -> Tuple[DltResource, ...]:
     """This source provides a few resources that are chunked file readers. Readers can be further parametrized before use
        read_csv(chunksize, **pandas_kwargs)
@@ -45,25 +46,47 @@ def readers(  # noqa DOC
         file_glob (str, optional): The filter to apply to the files in glob format. by default lists all files in bucket_url non-recursively
         kwargs: (Optional[Dict[str, Any]], optional): Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs
         client_kwargs: (Optional[Dict[str, Any]], optional): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
+        incremental (Optional[dlt.sources.incremental[Any]]): Defines incremental cursor on listed files, with `modification_date`
+            being the most common choice that returns only files created from the previous run.
 
     Returns:
         Tuple[DltResource, ...]: A tuple of resources that are chunked file readers.
     """
     return (
         filesystem(
-            bucket_url, credentials, file_glob=file_glob, kwargs=kwargs, client_kwargs=client_kwargs
+            bucket_url,
+            credentials,
+            file_glob=file_glob,
+            kwargs=kwargs,
+            client_kwargs=client_kwargs,
+            incremental=incremental,
         )
         | dlt.transformer(name="read_csv")(_read_csv),
         filesystem(
-            bucket_url, credentials, file_glob=file_glob, kwargs=kwargs, client_kwargs=client_kwargs
+            bucket_url,
+            credentials,
+            file_glob=file_glob,
+            kwargs=kwargs,
+            client_kwargs=client_kwargs,
+            incremental=incremental,
         )
         | dlt.transformer(name="read_jsonl")(_read_jsonl),
         filesystem(
-            bucket_url, credentials, file_glob=file_glob, kwargs=kwargs, client_kwargs=client_kwargs
+            bucket_url,
+            credentials,
+            file_glob=file_glob,
+            kwargs=kwargs,
+            client_kwargs=client_kwargs,
+            incremental=incremental,
         )
         | dlt.transformer(name="read_parquet")(_read_parquet),
         filesystem(
-            bucket_url, credentials, file_glob=file_glob, kwargs=kwargs, client_kwargs=client_kwargs
+            bucket_url,
+            credentials,
+            file_glob=file_glob,
+            kwargs=kwargs,
+            client_kwargs=client_kwargs,
+            incremental=incremental,
         )
         | dlt.transformer(name="read_csv_duckdb")(_read_csv_duckdb),
     )
@@ -78,6 +101,7 @@ def filesystem(  # noqa DOC
     extract_content: bool = False,
     kwargs: Optional[Dict[str, Any]] = None,
     client_kwargs: Optional[Dict[str, Any]] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = None,
 ) -> Iterator[List[FileItem]]:
     """This resource lists files in `bucket_url` using `file_glob` pattern. The files are yielded as FileItem which also
     provide methods to open and read file data. It should be combined with transformers that further process (ie. load files)
@@ -89,8 +113,10 @@ def filesystem(  # noqa DOC
         files_per_page (int, optional): The number of files to process at once, defaults to 100.
         extract_content (bool, optional): If true, the content of the file will be extracted if
             false it will return a fsspec file, defaults to False.
-        kwargs: (Optional[Dict[str, Any]]): Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs
-        client_kwargs: (Optional[Dict[str, Any]]): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
+        kwargs (Optional[Dict[str, Any]]): Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs
+        client_kwargs (Optional[Dict[str, Any]]): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
+        incremental (Optional[dlt.sources.incremental[Any]]): Defines incremental cursor on listed files, with `modification_date`
+            being the most common choice that returns only files created from the previous run.
 
     Yields:
         List[FileItem]: The list of files.
@@ -103,7 +129,25 @@ def filesystem(  # noqa DOC
         )[0]
 
     files_chunk: List[FileItem] = []
-    for file_model in glob_files(fs_client, bucket_url, file_glob):
+
+    iter_ = glob_files(fs_client, bucket_url, file_glob)
+
+    # if incremental is set with row order, use it to order the results
+    # NOTE: fsspec glob for buckets reads all files before running iterator
+    #  so below we do not have real batching anyway
+    if incremental and incremental.row_order:
+        reverse = (incremental.row_order == "asc" and incremental.last_value_func is min) or (
+            incremental.row_order == "desc" and incremental.last_value_func is max
+        )
+        iter_ = iter(
+            sorted(
+                list(glob_files(fs_client, bucket_url, file_glob)),
+                key=lambda f_: f_[incremental.cursor_path],  # type: ignore[literal-required]
+                reverse=reverse,
+            )
+        )
+
+    for file_model in iter_:
         file_dict = FileItemDict(file_model, fs_client)
         if extract_content:
             file_dict["file_content"] = file_dict.read_bytes()

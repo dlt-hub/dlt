@@ -52,9 +52,9 @@ When using a nested or recursive glob pattern, `relative_path` will include the 
 - `open()` - method which provides a file object when opened.
 - `filesystem` - field, which gives access to authorized `AbstractFilesystem` with standard fsspec methods.
 
-## Create your own transformer
+## Create your own readers
 
-Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. dlt natively supports three file types: [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) (more details in [filesystem transformer resource](../filesystem/basic#2-choose-the-right-transformer-resource)).
+Although the `filesystem` resource yields the files from cloud storage or a local filesystem, you need to apply a transformer resource to retrieve the records from files. dlt natively supports three file types: [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) (more details in [filesystem transformer resource](../filesystem/basic#2-choose-the-right-reader)).
 
 But you can easily create your own. In order to do this, you just need a function that takes as input a `FileItemDict` iterator and yields a list of records (recommended for performance) or individual records.
 
@@ -67,7 +67,7 @@ from typing import Iterator
 
 import dlt
 from dlt.common.storages.fsspec_filesystem import FileItemDict
-from dlt.common.typing import TDataItems
+from dlt.common.typing import TDataItem
 from dlt.sources.filesystem import filesystem
 
 BUCKET_URL = "s3://my_bucket/data"

@@ -8,6 +8,7 @@ from typing import (
     Iterable,
     Generator,
     List,
+    Optional,
     Sequence,
     Tuple,
     Any,
@@ -20,6 +21,7 @@ from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.normalizers.json.typing import RelationalNormalizerConfig
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
 from dlt.common.schema.utils import normalize_table_identifiers
@@ -389,7 +391,6 @@ class DltSource(Iterable[TDataItem]):
     def name(self) -> str:
         return self._schema.name
 
-    # TODO: max_table_nesting/root_key below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
@@ -405,41 +406,44 @@ class DltSource(Iterable[TDataItem]):
             RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
 
     @property
-    def root_key(self) -> bool:
-        """Enables merging on all resources by propagating root foreign key to nested tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
+    def root_key(self) -> Optional[bool]:
+        """Enables merging on all resources by propagating root foreign key to nested tables.
+        This option is most useful if you plan to change write disposition of a resource to disable/enable merge.
+
+        """
         # this also check the normalizer type
-        config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
-        data_normalizer = self._schema.data_item_normalizer
-        assert isinstance(data_normalizer, RelationalNormalizer)
-        return (
-            config is not None
-            and "root" in config
-            and data_normalizer.c_dlt_id in config["root"]
-            and config["root"][data_normalizer.c_dlt_id] == data_normalizer.c_dlt_root_id
-        )
+        config = RelationalNormalizer.get_normalizer_config(self._schema)
+        is_root_key = config.get("root_key_propagation")
+        if is_root_key is None:
+            # if not found get legacy value
+            is_root_key = self._get_root_key_legacy(config)
+            if is_root_key:
+                # set the root key if legacy value set
+                self.root_key = True
+        return is_root_key
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
         # this also check the normalizer type
         config = RelationalNormalizer.get_normalizer_config(self._schema)
-        data_normalizer = self._schema.data_item_normalizer
-        assert isinstance(data_normalizer, RelationalNormalizer)
-
-        if value is True:
+        if value is None:
+            value = self._get_root_key_legacy(config)
+        if value is not None:
             RelationalNormalizer.update_normalizer_config(
                 self._schema,
-                {
-                    "propagation": {
-                        "root": {
-                            data_normalizer.c_dlt_id: TColumnName(data_normalizer.c_dlt_root_id)
-                        }
-                    }
-                },
+                {"root_key_propagation": value},
             )
-        else:
-            if self.root_key:
-                propagation_config = config["propagation"]
-                propagation_config["root"].pop(data_normalizer.c_dlt_id)
+
+    def _get_root_key_legacy(self, config: RelationalNormalizerConfig) -> Optional[bool]:
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
+        # we must remove root key propagation
+        with contextlib.suppress(KeyError):
+            propagation_config = config["propagation"]
+            propagation_config["root"].pop(data_normalizer.c_dlt_id)
+            # and set the value below
+            return True
+        return None
 
     @property
     def schema_contract(self) -> TSchemaContract:
@@ -525,23 +529,35 @@ class DltSource(Iterable[TDataItem]):
         else:
             raise ValueError(strategy)
 
-    def add_limit(self, max_items: int) -> "DltSource":  # noqa: A003
-        """Adds a limit `max_items` yielded from all selected resources in the source that are not transformers.
+    def add_limit(
+        self,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+        count_rows: Optional[bool] = False,
+    ) -> "DltSource":  # noqa: A003
+        """Limits the items processed in all selected resources in the source that are not transformers: by count or time.
 
         This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
         you'd need to wait hours for the full loading to complete.
 
+        For incremental resources that return rows in deterministic order, you can use this function to process large load
+        in batches.
+
         Notes:
             1. Transformers resources won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
+            3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 
         Args:
-            max_items (int): The maximum number of items to yield
+            max_items (Optional[int]): The maximum number of items (not rows!) to yield, set to None for no limit
+            max_time (Optional[float]): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+            count_rows (Optional[bool]): Default: false.
+                Count rows instead of pages. Note that if resource yields pages of rows, last page will not be trimmed and more rows that expected will be received.
         Returns:
             "DltSource": returns self
         """
         for resource in self.resources.selected.values():
-            resource.add_limit(max_items)
+            resource.add_limit(max_items, max_time=max_time, count_rows=count_rows)
         return self
 
     def parallelize(self) -> "DltSource":
