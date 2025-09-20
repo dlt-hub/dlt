@@ -114,7 +114,7 @@ def test_load_sql_table_partitioned(
     ]
 
     # Get total count and message IDs to verify later
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         result = conn.exec_driver_sql(
             "SELECT COUNT(*), array_agg(id) FROM {}.chat_message".format(postgres_db.schema)
         )
@@ -185,7 +185,7 @@ def test_load_sql_table_partitioned(
 
     # update one message updated_at to now()
     current_time = pendulum.now().add(days=1)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         # Update the first message to have the current time
         first_id = conn.exec_driver_sql(
             f"SELECT MIN(id) FROM {postgres_db.schema}.chat_message"
