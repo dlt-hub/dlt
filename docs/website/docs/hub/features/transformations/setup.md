@@ -8,7 +8,6 @@ dlt+ provides a powerful mechanism for executing transformations on your data us
 A transformation consists of functions that modify data stored in a [cache](../../core-concepts/cache.md). These transformations can be implemented using:
 
 * [dbt models](./dbt-transformations.md)
-* [🧪 Python user-defined functions](./python-transformations.md)
 
 By combining a cache and transformations, you can efficiently process data loaded via dlt and move it to a new destination.
 
@@ -87,7 +86,6 @@ dlt transformation <transformation-name> render-t-layer
 
 This will generate transformation files inside the `./transformations` folder. Depending on the engine:
 
-* For Python transformations: a Python script with transformation functions ([learn more](./python-transformations.md))
 * For dbt transformations: dbt models ([learn more](./dbt-transformations.md))
 
 Each generated transformation includes models for managing incremental loading states via `dlt_load_id`.
