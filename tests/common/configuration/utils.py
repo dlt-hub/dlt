@@ -86,6 +86,28 @@ class ConnectionStringCompatCredentials(ConnectionStringCredentials):
     username: str = None
 
 
+@configspec
+class InstrumentedConfiguration(BaseConfiguration):
+    head: str = None
+    tube: List[str] = None
+    heels: str = None
+
+    def to_native_representation(self) -> Any:
+        return self.head + ">" + ">".join(self.tube) + ">" + self.heels
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        if not isinstance(native_value, str):
+            raise ValueError(native_value)
+        parts = native_value.split(">")
+        self.head = parts[0]
+        self.heels = parts[-1]
+        self.tube = parts[1:-1]
+
+    def on_resolved(self) -> None:
+        if self.head > self.heels:
+            raise RuntimeError("Head over heels")
+
+
 @pytest.fixture(scope="function")
 def environment() -> Any:
     saved_environ = environ.copy()

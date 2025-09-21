@@ -83,6 +83,7 @@ from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from tests.utils import preserve_environ, TEST_STORAGE_ROOT
 from tests.common.configuration.utils import (
+    InstrumentedConfiguration,
     MockProvider,
     CoercionTestConfiguration,
     COERCIONS,
@@ -158,28 +159,6 @@ class MockProdConfiguration(RuntimeConfiguration):
 @configspec
 class FieldWithNoDefaultConfiguration(RuntimeConfiguration):
     no_default: str = None
-
-
-@configspec
-class InstrumentedConfiguration(BaseConfiguration):
-    head: str = None
-    tube: List[str] = None
-    heels: str = None
-
-    def to_native_representation(self) -> Any:
-        return self.head + ">" + ">".join(self.tube) + ">" + self.heels
-
-    def parse_native_representation(self, native_value: Any) -> None:
-        if not isinstance(native_value, str):
-            raise ValueError(native_value)
-        parts = native_value.split(">")
-        self.head = parts[0]
-        self.heels = parts[-1]
-        self.tube = parts[1:-1]
-
-    def on_resolved(self) -> None:
-        if self.head > self.heels:
-            raise RuntimeError("Head over heels")
 
 
 @configspec
@@ -1688,22 +1667,6 @@ def test_configuration_with_configuration_as_default() -> None:
     c_resolved = resolve.resolve_configuration(c_instance)
     assert c_resolved.is_resolved()
     assert c_resolved.conn_str.is_resolved()
-
-
-def test_configuration_with_section_propagation_to_embedded(environment: Dict[str, str]) -> None:
-    @configspec
-    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
-        default: str = "STR"
-        instrumented: InstrumentedConfiguration = None
-
-        __section__ = "top_level"
-
-    # NOTE: top level will be stripped in less specific searches
-    environment["TOP_LEVEL__INSTRUMENTED__HEAD"] = "h"
-    environment["TOP_LEVEL__INSTRUMENTED__TUBE"] = '["t"]'
-    environment["TOP_LEVEL__INSTRUMENTED__HEELS"] = "he"
-    c_resolved = resolve.resolve_configuration(EmbeddedConfigurationWithDefaults())
-    assert c_resolved.is_resolved()
 
 
 def test_configuration_with_generic(environment: Dict[str, str]) -> None:

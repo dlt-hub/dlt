@@ -447,16 +447,16 @@ def _resolve_config_field(
 
             # check if hint optional
             is_optional = is_optional_type(hint)
-            # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
+            # accept partial becomes True if type is optional so we do not fail on optional configs that do not resolve fully
             accept_partial = accept_partial or is_optional
             # create new instance and pass value from the provider as initial, add key to sections
-            # if current config has section, propagate it
-            sec_ = (config_section,) if config_section else ()
+            # propagate top level config section, any other sections should be replaced with keys
+            top_level_section = () if embedded_sections or not config_section else (config_section,)
 
             value = _resolve_configuration(
                 embedded_config,
                 explicit_sections,
-                embedded_sections + sec_ + (key,),
+                embedded_sections + top_level_section + (key,),
                 explicit_value,
                 accept_partial,
             )
