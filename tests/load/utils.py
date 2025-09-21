@@ -788,22 +788,24 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
     """Drops all the datasets for a given pipeline"""
 
     def _drop_dataset(schema_name: str) -> None:
-        with p.destination_client(schema_name) as client:
-            # print("DROP FROM", client.config, client.config.dataset_name)
-            try:
-                client.drop_storage()
-            except DestinationUndefinedEntity:
-                pass
-            except Exception as exc:
-                print(exc)
-            if isinstance(client, WithStagingDataset):
-                with client.with_staging_dataset():
-                    try:
-                        client.drop_storage()
-                    except DestinationUndefinedEntity:
-                        pass
-                    except Exception as exc:
-                        print(exc)
+        try:
+            with p.destination_client(schema_name) as client:
+                try:
+                    client.drop_storage()
+                except DestinationUndefinedEntity:
+                    pass
+                except Exception as exc:
+                    print("drop dataset", exc)
+                if isinstance(client, WithStagingDataset):
+                    with client.with_staging_dataset():
+                        try:
+                            client.drop_storage()
+                        except DestinationUndefinedEntity:
+                            pass
+                        except Exception as exc:
+                            print("drop staging dataset", exc)
+        except Exception as exc:
+            print("connect to dataset", exc)
 
     # take all schemas and if destination was set
     if p.destination:

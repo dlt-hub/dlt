@@ -30,7 +30,7 @@ def test_secrets_management(
     os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "secret_key"
     os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = "key"
 
-    warning_mesage = "You are persisting duckdb secrets but are storing them in the default folder"
+    warning_message = "You are persisting duckdb secrets but are storing them in the default folder"
 
     logger_spy = mocker.spy(logger, "warn")
 
@@ -91,14 +91,12 @@ def test_secrets_management(
     external_db.close()
 
     # prevent creating persistent secrets on in mem databases
-    fs_sql_client = FilesystemSqlClient(
-        dataset_name="second",
-        remote_client=pipeline.destination_client(),  #  type: ignore
-        persist_secrets=True,
-    )
     with pytest.raises(Exception):
-        with fs_sql_client as sql_client:
-            pass
+        FilesystemSqlClient(
+            dataset_name="second",
+            remote_client=pipeline.destination_client(),  #  type: ignore
+            persist_secrets=True,
+        )
 
     # check that no warning was logged
     logger_spy.assert_not_called()
@@ -111,5 +109,5 @@ def test_secrets_management(
     with fs_sql_client as sql_client:
         pass
     logger_spy.assert_called_once()
-    assert warning_mesage in logger_spy.call_args_list[0][0][0]
+    assert warning_message in logger_spy.call_args_list[0][0][0]
     duck_db.close()

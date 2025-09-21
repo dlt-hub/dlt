@@ -98,7 +98,7 @@ jobs:
             # Motherduck
             - name: motherduck
               destinations: "[\"motherduck\"]"
-              filesystem_drivers: "[\"memory\"]"
+              filesystem_drivers: "[\"s3\", \"gs\", \"abfss\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
 
             # Ducklake

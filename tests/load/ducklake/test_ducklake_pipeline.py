@@ -5,12 +5,14 @@ import dlt
 from dlt.common.destination.reference import TDestinationReferenceArg
 
 from dlt.common.utils import uniq_id
+from dlt.destinations.exceptions import DestinationConnectionError
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DUCKLAKE_STORAGE_PATTERN,
 )
 from dlt.destinations import ducklake
 
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.utils import (
     ABFS_BUCKET,
     AWS_BUCKET,
@@ -49,9 +51,17 @@ def test_all_catalogs(catalog: str) -> None:
         "destination_defaults", destination=destination, dataset_name="lake_schema", dev_mode=True
     )
 
-    load_info = pipeline.run(
-        [{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet"
-    )
+    try:
+        load_info = pipeline.run(
+            [{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet"
+        )
+    except PipelineStepFailed as conn_ex:
+        # skip test gracefully if local postgres is not running. allows to run on ci when only
+        # remote postgres is available. TODO: allow to use configured catalog if present
+        if "postgres" not in catalog or "localhost" not in str(conn_ex):
+            raise
+        pytest.skip(f"Requires localhost postgres running: {catalog}")
+
     assert_load_info(load_info)
 
     # test basic data access
