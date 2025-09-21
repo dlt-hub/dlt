@@ -17,11 +17,6 @@ from dlt.common.utils import digest128
 from dlt.destinations.impl.duckdb.configuration import DuckDbConnectionPool, DuckDbBaseCredentials
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 
-if TYPE_CHECKING:
-    from duckdb import DuckDBPyConnection
-else:
-    DuckDBPyConnection = Any  # type: ignore[assignment,misc]
-
 
 DUCKLAKE_STORAGE_PATTERN = "%s.files"
 

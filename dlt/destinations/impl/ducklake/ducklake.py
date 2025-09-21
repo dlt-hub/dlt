@@ -73,6 +73,7 @@ class DuckLakeCopyJob(DuckDbCopyJob):
     def metrics(self) -> Optional[LoadJobMetrics]:
         """Generate remote url metrics which point to the table in storage"""
         m = super().metrics()
+        # TODO: read location from catalog. ducklake supports customized table layouts
         return m._replace(
             remote_url=posixpath.join(
                 self._job_client.config.credentials.storage.bucket_url,

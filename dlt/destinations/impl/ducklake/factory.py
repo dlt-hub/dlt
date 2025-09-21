@@ -19,7 +19,7 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
     """Instantiate a DuckLake destination.
 
     A DuckLake has 3 components:
-        - ducklake client: this is a `duckdb` instance with the `ducklake` extension
+        - ducklake client: this is a `duckdb` :memory: instance with the `ducklake` ATTACHed
         - catalog: this is an SQL database storing metadata. It can be a duckdb instance
             (typically the ducklake client) or a remote database (sqlite, postgres, mysql)
         - storage: this is a filesystem where data is stored in files
@@ -43,7 +43,7 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
         Args:
             credentials(Optional[DuckLakeCredentials]): DuckLake credentials or instantiated connection to a DuckLake
                 client (which is a duckdb instance). The DuckLake credentials include
-                credentials for ducklake client, catalog, and storage
+                catalog name, catalog, and storage
             destination_name(Optional[str]): Name of a destination which. May be used as ducklake name, if
                 explicit name is not set in `credentials`.
             environment (Optional[str]): Environment of the destination
