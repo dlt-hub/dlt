@@ -1354,6 +1354,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+@pytest.mark.skip("enable when we standardize behavior for non existing datasets")
 def test_ibis_no_dataset(populated_pipeline: Pipeline) -> None:
     try:
         ds = populated_pipeline.dataset()

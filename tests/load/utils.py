@@ -763,7 +763,7 @@ def destinations_configs(
 
 
 @pytest.fixture(autouse=True)
-def drop_pipeline(request, preserve_environ) -> Iterator[None]:
+def drop_pipeline(request, preserve_environ, patch_home_dir) -> Iterator[None]:
     # NOTE: keep `preserve_environ` to make sure fixtures are executed in order``
     # enable activation history (for the main thread) to be able to drop pipelines active during test
     Container()[PipelineContext].enable_activation_history = True
