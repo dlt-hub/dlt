@@ -77,7 +77,8 @@ def sql_database(
 
         defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
             Enable this option when running on Airflow and other orchestrators that create execution DAGs.
-
+            Note: When True, schema is decided during execution which may override `query_adapter_callback` modifications or `apply_hints`.
+        
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
         backend_kwargs (Dict[str, Any]): kwargs passed to table backend ie. "conn" is used to pass specialized connection string to connectorx.
@@ -209,6 +210,7 @@ def sql_table(
 
         defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data.
             Enable this option when running on Airflow and other orchestrators that create execution DAGs.
+            Note: When True, schema is decided during execution which may override `query_adapter_callback` modifications or `apply_hints`.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
