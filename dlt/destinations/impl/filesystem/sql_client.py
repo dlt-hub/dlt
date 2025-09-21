@@ -105,7 +105,9 @@ class FilesystemSqlClient(WithTableScanners):
 
             # create single authentication for the whole client
             self.create_secret(
-                self.remote_client.config.bucket_url, self.remote_client.config.credentials
+                self.remote_client.config.bucket_url,
+                self.remote_client.config.credentials,
+                persist_secrets=self.persist_secrets,
             )
         return self._conn
 
