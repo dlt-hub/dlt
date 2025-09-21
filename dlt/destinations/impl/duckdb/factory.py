@@ -1,4 +1,5 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
+import semver
+from typing import Any, Optional, Sequence, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -6,7 +7,7 @@ from dlt.common.data_writers.escape import escape_postgres_identifier, escape_du
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.schema.typing import TColumnSchema, TColumnType, TLoaderMergeStrategy, TTableSchema
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
 
@@ -125,6 +126,20 @@ class DuckDbTypeMapper(TypeMapperImpl):
         return super().from_destination_type(db_type, precision, scale)
 
 
+def duckdb_merge_strategies_selector(
+    supported_merge_strategies: Sequence[TLoaderMergeStrategy],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> Sequence[TLoaderMergeStrategy]:
+    import duckdb as _duckdb
+
+    if semver.Version.parse(_duckdb.__version__) < semver.Version.parse("1.4.0"):
+        return supported_merge_strategies
+    else:
+        return list(supported_merge_strategies) + ["upsert"]
+
+
 def _set_duckdb_raw_capabilities(
     caps: DestinationCapabilitiesContext,
 ) -> DestinationCapabilitiesContext:
@@ -150,6 +165,7 @@ def _set_duckdb_raw_capabilities(
     caps.supports_truncate_command = False
     caps.supported_merge_strategies = ["delete-insert", "scd2"]
     caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+    caps.merge_strategies_selector = duckdb_merge_strategies_selector
     caps.sqlglot_dialect = "duckdb"
     caps.timestamp_precision = 6
     caps.max_timestamp_precision = 9  # nanosecond precision supported
