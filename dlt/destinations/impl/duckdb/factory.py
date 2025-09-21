@@ -132,12 +132,18 @@ def duckdb_merge_strategies_selector(
     *,
     table_schema: TTableSchema,
 ) -> Sequence[TLoaderMergeStrategy]:
-    import duckdb as _duckdb
+    try:
+        import duckdb as _duckdb
 
-    if semver.Version.parse(_duckdb.__version__) < semver.Version.parse("1.4.0"):
-        return supported_merge_strategies
-    else:
-        return list(supported_merge_strategies) + ["upsert"]
+        if semver.Version.parse(_duckdb.__version__) < semver.Version.parse("1.4.0"):
+            legacy_strategies = list(supported_merge_strategies)
+            legacy_strategies.remove("upsert")
+            supported_merge_strategies = legacy_strategies
+    except ImportError:
+        # return default if duckdb not installed
+        pass
+
+    return supported_merge_strategies
 
 
 def _set_duckdb_raw_capabilities(
@@ -163,7 +169,7 @@ def _set_duckdb_raw_capabilities(
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = False
     caps.supports_truncate_command = False
-    caps.supported_merge_strategies = ["delete-insert", "scd2"]
+    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
     caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
     caps.merge_strategies_selector = duckdb_merge_strategies_selector
     caps.sqlglot_dialect = "duckdb"

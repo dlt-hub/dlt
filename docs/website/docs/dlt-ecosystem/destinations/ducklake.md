@@ -167,7 +167,7 @@ As mentioned above, `filesystem` and `ducklake` share the same configuration obj
 
 # `filesystem` below is a pipeline with configured filesystem destination
 
-destination = ducklake(
+destination = dlt.destinations.ducklake(
     credentials=DuckLakeCredentials(
         "lake_catalog",
         storage=filesystem.destination_client().config
