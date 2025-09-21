@@ -312,6 +312,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/dremio',
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
+        'dlt-ecosystem/destinations/ducklake',
         'walkthroughs/create-new-destination'
       ]
     },

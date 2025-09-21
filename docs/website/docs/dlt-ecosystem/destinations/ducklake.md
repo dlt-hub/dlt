@@ -6,19 +6,13 @@ keywords: [ducklake, duckdb, destination, data lake, lakehouse]
 
 # DuckLake
 
-DuckLake is a lakehouse-style destination that builds on the DuckDB engine via the ducklake extension. It stores your `dlt` tables as files on a filesystem or object store while keeping table metadata in a separate SQL catalog.
+[DuckLake](https://ducklake.select/) is a lakehouse-style destination that builds on the DuckDB engine with the [ducklake extension](https://ducklake.select/docs/stable/duckdb/introduction). It stores your `dlt` tables as files on a filesystem or object store while keeping table metadata in a separate SQL catalog.
 
-It has three building blocks (see the in-code docs in dlt/destinations/impl/ducklake/ducklake.py):
-- ducklake client: a DuckDB process with the ducklake extension loaded
-- catalog: a SQL database that stores table/partition metadata (sqlite, duckdb, postgres, mysql are supported)
-- storage: a filesystem or object store holding table files (local files, s3, gcs, abfss, etc.)
+In order to use ducklake you must provide the following infrastructure:
+- **catalog**: a SQL database that stores table/partition metadata (sqlite, duckdb, postgres, mysql are supported)
+- **storage**: a filesystem or object store holding table files (local files, s3, gcs, abfss, etc.)
 
-For general DuckDB behavior (SQL semantics, naming, dbt, etc.), see the DuckDB destination page. DuckLake reuses DuckDB client code and capabilities. Refer to docs/dlt-ecosystem/destinations/duckdb.md.
-
-```sh
-dlt init chess ducklake
-```
-will create a sample `secrets.toml` for postgres catalog and s3 bucket storage.
+If you are looking for a managed ducklake infra, check the [Motherduck Ducklake support](motherduck.md#ducklake-setup). `dlt` is also able to set-up a local ducklake with `sqlite` as catalog fully automatically.
 
 ## Quick start
 
@@ -27,169 +21,217 @@ will create a sample `secrets.toml` for postgres catalog and s3 bucket storage.
 pip install "dlt[ducklake]"
 ```
 
-- Run a pipeline that writes Parquet to a local DuckLake (defaults shown below):
+- Initialize new test pipeline
+```sh
+dlt init foo ducklake
+```
+`dlt init` will create a sample `secrets.toml` for **postgres** catalog and **s3** bucket storage. For local automatic setup comment out catalog and storage entries:
+```toml
+[destination.ducklake.credentials]
+catalog_name="lake_catalog"  # we recommend explicit catalog name
+```
+
+- Run a test pipeline that writes to a local DuckLake:
 ```py
 import dlt
-from dlt.destinations import ducklake
 
-pipe = dlt.pipeline(
-    pipeline_name="destination_defaults",
-    destination=ducklake(),
+pipeline = dlt.pipeline(
+    pipeline_name="foo",
+    destination="ducklake",
     dataset_name="lake_schema",
     dev_mode=True,
 )
 
-info = pipe.run(
+info = pipeline.run(
     [{"foo": 1}, {"foo": 2}],
     table_name="table_foo",
-    loader_file_format="parquet",
 )
 print(info)
-print(pipe.dataset().table_foo["foo"].arrow())
+print(pipeline.dataset().table_foo["foo"].df())
 ```
+The console output will point you to where `sqlite` catalog database and data store were created:
+- `lake_catalog.sqlite` catalog in current working directory
+- `lake_catalog.files` folder with `lake_schema` subfolder for the dataset.
 
-## What DuckLake configures for you
+## Configure Ducklake
+Pick your `catalog_name` as described above. This name is the used:
+- as attach name for the ducklake - each ducklake connection starts with **:memory:** connection to which we `ATTACH` the ducklake
+- to set default folder name of the local filesystem storage and database file name for `sqlite` and `duckdb` (if no explicit configuration is provided)
+- as **postgres** schema name where catalog tables will be created (if postgres configured)
 
-DuckLake’s configuration surface is centered on the catalog and storage. The destination class and credential types live in:
-- dlt/destinations/impl/ducklake/factory.py
-- dlt/destinations/impl/ducklake/configuration.py
-- dlt/destinations/impl/ducklake/sql_client.py
-- dlt/destinations/impl/ducklake/ducklake.py
-
-Key defaults and behaviors from the code:
-- preferred loader file format is Parquet and is used by default.
-- when using a local catalog (sqlite or duckdb), loads run sequentially to avoid catalog contention. With postgres/mysql catalogs, parallel loading is enabled.
-- each SQL connection attaches the DuckLake with an ATTACH ... (DATA_PATH ...) statement and detaches it on close to keep the catalog consistent.
-- for non-local storage, credentials are registered as DuckDB secrets; abfss and gcs/gs fall back to fsspec for access, which may affect scan performance.
-- job metrics expose a remote_url that points to the table’s directory in the storage (see DuckLakeCopyJob in ducklake.py).
-
-## Catalog configuration
-
-The catalog holds table metadata. You can point it at:
-- sqlite: sqlite:///catalog.sqlite (default if you do not specify a catalog)
-- duckdb: duckdb:///catalog.duckdb
-- postgres: postgres://user:pass@host:5432/dbname
-- mysql: mysql://user:pass@host:3306/dbname
-
-Notes based on sql_client.py:
-- sqlite/duckdb catalogs are attached with WAL and reasonable busy-timeout/synchronous settings.
-- postgres/mysql catalogs are attached via a ducklake:postgres:… URL.
-
-Examples
-
-Python
-```py
-from dlt.destinations import ducklake
-from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
-
-# explicit sqlite catalog file
-dest = ducklake(credentials=DuckLakeCredentials(catalog="sqlite:///catalog.sqlite"))
-pipe = dlt.pipeline("my_pipe", destination=dest, dataset_name="lake_schema", dev_mode=True)
-```
-
-TOML (secrets/config)
+### Configure catalog
+You have the following options when configuring the catalog
+- **sqlite**: very fast local catalog. You can set it up as follows:
 ```toml
-destination.ducklake.credentials.catalog_name = "my_lake"
-# pick a catalog backend
-destination.ducklake.credentials.catalog = "sqlite:///catalog.sqlite"
-# or
-# destination.ducklake.credentials.catalog = "duckdb:///catalog.duckdb"
-# or
-# destination.ducklake.credentials.catalog = "postgres://loader:loader@localhost:5432/dlt_data"
+[destination.ducklake.credentials]
+catalog="sqlite:///catalog_x.db"
 ```
+Snippet above stores catalog in `catalog_x.db` in cwd. Refer to [sqlite](sqlalchemy.md) configuration in `sqlalchemy` destination which reused the same configuration structure.
+Note that we are not able to setup **sqlite** to write in parallel, even with `WAL` journaling.
+Parallel writes produce conflicts on practically every catalog transactions so we had to put loader in **sequential mode**.
 
-Behavior and performance
-- with sqlite/duckdb catalogs, loader parallelism is set to sequential.
-- with postgres/mysql catalogs, parallel loading is enabled.
+- **duckdb**: pretty fast and working **only in sequential mode** like **sqlite**. Parallel loads generate page faults and corrupt the catalog database.
+```toml
+[destination.ducklake.credentials]
+catalog="duckdb:///catalog_y.duckdb"
+```
+Refer to [duckdb](duckdb.md) configuration for more options.
 
-## Storage configuration
+- **postgres**: currently the only catalog that can be considered production-grade with full parallelism support.
+```toml
+[destination.ducklake.credentials]
+catalog="postgres://loader:pass@localhost:5432/dlt_data"
+```
+`ducklake` will use postgres schema with the name of `catalog_name` config option and create required tables automatically.
 
-Storage is where your table files live. Provide a bucket URL (or a local path). Supported schemes are handled either natively by DuckDB or via fsspec:
+- 🧪 **mysql**: uses the same code path as for **postgres** but we never tested it
+
+- 🧪 **motherduck**: theoretically you could use Motherduck as catalog database. We were able to establish connection but unfortunately ducklake 1.2 segfaults when catalog is being attached.
+```toml
+[destination.ducklake.credentials]
+catalog="md:///dlt_data"
+```
+Make sure that you have Motherduck token in your environment. Hopefully situation improves when duckdb 1.4 is supported.
+
+### Configure storage
+**storage** config reuses configuration of [filesystem](filesystem.md) destination. You can pick the following options:
+
 - Local files: file:///path or a plain relative path
 - S3: s3://bucket/prefix
-- GCS: gs://bucket/prefix or gcs://bucket/prefix (uses fsspec fallback)
-- Azure ADLS Gen2: abfss://container@account.dfs.core.windows.net/prefix (uses fsspec fallback)
+- GCS: gs://bucket/prefix or gcs://bucket/prefix (**uses fsspec fallback**)
+- Azure ADLS Gen2: abfss://container@account.dfs.core.windows.net/prefix (**uses fsspec fallback**)
 
-Defaults and layout
-- if you do not specify storage, a local folder is created using the pattern "-ducklake_name-.files" under the pipeline working directory (see DUCKLAKE_STORAGE_PATTERN in configuration.py).
-- dlt writes data under storage/dataset_name/table_name/… so each table has its own directory.
-- metrics.remote_url points to bucket_url/dataset_name>/table_name.
-
-Examples
-
-Python
-```py
-from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
-
-# use an explicit lake name and S3 storage
-dest = ducklake(credentials=DuckLakeCredentials("my_lake", storage="s3://my-bucket/prefix"))
-pipe = dlt.pipeline("s3_example", destination=dest, dataset_name="lake_schema", dev_mode=True)
-pipe.run([{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet")
-```
-
-TOML
+Example s3 configuration:
 ```toml
-destination.ducklake.credentials.catalog_name="my_lake"
-destination.ducklake.credentials.storage="s3://my-bucket/prefix"
+[destination.ducklake.credentials]
+catalog_name="lake_catalog"
+catalog="postgres://loader:pass@localhost:5432/dlt_data"
+
+[destination.ducklake.credentials.storage]
+bucket_url="s3://dlt-ci-bucket"
+
+[destination.ducklake.credentials.storage.credentials]
+aws_access_key_id = "<configure me>" # fill this in!
+aws_secret_access_key = "<configure me>" # fill this in!
 ```
 
-Cloud-specific notes (from sql_client.py)
-- abfss/az: registered via fsspec; expect lower scanning performance than native connectors.
-- gs/gcs: also uses fsspec fallback if a native secret cannot be created.
+### Configure additional connection options, pragmas and extensions
+You can set additional connection options, pragmas and extensions - `ducklake` configuration reuses [duckdb configuration](duckdb.md#additional-configuration)
+```toml
+[destination.ducklake.credentials.global_config]
+ducklake_max_retry_count=100
+```
 
-## End-to-end examples (mirroring tests)
-
-Using different catalogs (see tests/load/ducklake/test_ducklake_pipeline.py::test_all_catalogs)
+### Configure in code
+You can create ducklake destination instance and configure it in code. In most cases you will just set additional options while still using the configuration:
 ```py
 import dlt
-from dlt.destinations import ducklake
-from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 
-for cat in (None, "sqlite:///catalog.sqlite", "duckdb:///catalog.duckdb", "postgres://loader:loader@localhost:5432/dlt_data"):
-    dest = ducklake() if cat is None else ducklake(credentials=DuckLakeCredentials(catalog=cat))
-    p = dlt.pipeline("destination_defaults", destination=dest, dataset_name="lake_schema", dev_mode=True)
-    info = p.run([{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet")
-    assert p.dataset().table_foo["foo"].fetchall() == [(1,), (2,)]
+# force parallel loads on sqlite
+ducklake = dlt.destinations.ducklake(loader_parallelism_strategy="parallel")
+pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
 ```
+Above we force parallel loading on (default) sqlite catalog.
 
-Using different object stores (see tests/load/ducklake/test_ducklake_pipeline.py::test_all_buckets)
+`DuckLakeCredentials` have friendly constructor where you can pass [catalog and storage credentials](../../general-usage/credentials/complex_types.md)
+as shorthand strings and objects:
 ```py
-# assuming you already have appropriate cloud credentials configured in your environment
-from dlt.destinations import ducklake
-from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
+import dlt
+from dlt.destinations.impl.ducklake.configuration import DuckDbBaseCredentials
 
-for bucket_url in ("gs://your-bucket", "abfss://container@account.dfs.core.windows.net/prefix", "s3://your-bucket/prefix"):
-    dest = ducklake(credentials=DuckLakeCredentials("bucket_cat", storage=bucket_url))
-    p = dlt.pipeline("destination_defaults", destination=dest, dataset_name="lake_schema", dev_mode=True)
-    info = p.run([{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet")
-    # verify data
-    assert p.dataset().table_foo["foo"].fetchall() == [(1,), (2,)]
-    # each job metric reports where files were written
-    metrics = info.metrics[info.loads_ids[0]][0]["job_metrics"]
-    for job_id, m in metrics.items():
-        assert m.remote_url.startswith(bucket_url)
+# set ducklake credentials using shorthands, s3 bucket requires secrets in config
+credentials = DuckLakeCredentials(
+    "lake_catalog",
+    catalog="postgresql://loader:pass@localhost:5432/dlt_data",
+    storage="s3://dlt-ci-test-bucket/lake",
+)
+ducklake = dlt.destinations.ducklake(credentials=credentials)
 ```
 
-Tip: you can list files produced for a given table using the DuckLake SQL helper, for example:
-```sql
-FROM ducklake_list_files('bucket_cat', 'table_foo');
+```py
+import dlt
+from dlt.sources.credentials import ConnectionStringCredentials
+
+# set catalog name using connection string credentials    
+catalog_credentials = ConnectionStringCredentials()
+# use duckdb with the default name
+catalog_credentials.drivername = "duckdb"
+credentials = DuckLakeCredentials(
+    "lake_catalog",
+    catalog=catalog_credentials,
+)
 ```
-when run via pipeline.sql_client(). This mirrors the check performed in the tests.
 
-## How it works under the hood (selected details)
+As mentioned above, `filesystem` and `ducklake` share the same configuration object. Configuration for the `filesystem` can be reused:
+```py
 
-- Each connection loads the ducklake extension, attaches the catalog and storage with:
-  ATTACH IF NOT EXISTS 'ducklake:catalog' AS ducklake_name> (DATA_PATH 'storage_url>' ...)
-  and then sets the search_path to the dlt dataset. See DuckLakeSqlClient.open_connection and build_attach_statement.
-- Connections always detach the DuckLake cleanly on close to avoid catalog corruption.
-- Insert vs Copy: if insert-values is selected, dlt uses INSERT VALUES; otherwise a COPY-backed job writes Parquet and reports remote_url (see DuckLakeClient.create_load_job and DuckLakeCopyJob).
+# `filesystem` below is a pipeline with configured filesystem destination
 
-## See also
+destination = ducklake(
+    credentials=DuckLakeCredentials(
+        "lake_catalog",
+        storage=filesystem.destination_client().config
+    )
+)
+```
 
-- DuckDB destination (shared concepts, configuration and caveats): ./duckdb.md
-- Source code for this destination:
-  - dlt/destinations/impl/ducklake/ducklake.py
-  - dlt/destinations/impl/ducklake/sql_client.py
-  - dlt/destinations/impl/ducklake/configuration.py
-  - dlt/destinations/impl/ducklake/factory.py
+## Maintain ducklake
 
+### Data access
+You have read and write access to the data in ducklake. You can take native duckdb connection with attached catalog and authenticated
+storage using `sql_client`. This is demonstrated in examples below.
+
+[dataset access](../../general-usage/dataset-access/) and **ibis** handover are fully supported.
+
+### Set catalog options
+Certain **ducklake** options are persisted in the catalog and are set differently than [connection options](#configure-additional-connection-options-pragmas-and-extensions). You can do that from code:
+
+```py
+import dlt
+import duckdb
+
+pipeline = dlt.pipeline(pipeline_name="foo", destination="ducklake", dataset_name="lake_schema")
+
+# set per thread output option before pipeline runs so options are applied
+with pipeline.sql_client() as client:
+    con: duckdb.DuckDBPyConnection = client.native_connection
+    # set option on `lake_catalog` we configured above
+    con.sql("CALL lake_catalog.set_option('per_thread_output', true)")
+```
+Above we set `per_thread_output` (1.4.x only) before pipeline runs.
+
+### Table maintenance
+`dlt` has a standard interface to access open tables and catalogs but this is not implemented for ducklake (yet). However in case of
+`ducklake` you just need configured and authorized connection which you can get after pipeline runs to do the maintenance.
+```py
+
+# pipeline.run(...)
+
+with pipeline.sql_client() as client:
+    print(client.execute_sql("CALL bucket_cat.merge_adjacent_files()"))
+```
+
+## Write disposition
+All write dispositions are supported. `upsert` is supported on **duckdb 1.4.x** (without hard deletes for now)
+
+## Data loading
+By default, Parquet files and the `COPY` command are used to move local files to the remote storage, 
+
+The **INSERT** format is also supported and will execute large INSERT queries directly into the remote database. This method is significantly slower and may exceed the maximum query size, so it is not advised.
+
+**partition** hint on a column is supported and works on **duckdb 1.4.x**. Simple identity partitions are created. Partition evolution is not supported.
+
+**parallel** loading is supported via thread pool for postgres catalog (and probably mysql). We could not use [recommended method](https://duckdb.org/docs/stable/guides/python/multiple_threads.html) because the threads were (dead)locking. We open separate in-memory database for each thread to which we attach the catalog.
+
+## dbt support
+Not supported. We'd need to handover secrets and `ATTACH` command which is not planned at this moment.
+
+## Syncing of `dlt` state
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
+
+## ToDo
+* open table interface for table maintenance like we have for iceberg and delta.
+* better partitioning support.
+* Motherduck as catalog if possible.
+* support additional `ATTACH` options like `OVERRIDE_DATA_PATH`
+* implement callbacks that will be called on creation of :memory: database and `ATTACH` command so those can be fully customized.
