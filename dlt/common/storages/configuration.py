@@ -166,12 +166,12 @@ class FilesystemConfiguration(BaseConfiguration):
     """A configuration defining filesystem location and access credentials.
 
     When configuration is resolved, `bucket_url` is used to extract a protocol and request corresponding credentials class.
-    * s3
-    * gs, gcs
-    * az, abfs, adl, abfss, azure
+    * s3 (AwsCredentials)
+    * gs, gcs (GcpServiceAccountCredentials, GcpOAuthCredentials)
+    * az, abfs, adl, abfss, azure (AzureCredentials, AzureServicePrincipalCredentials)
     * file, memory
-    * gdrive
-    * sftp
+    * gdrive (GcpServiceAccountCredentials, GcpOAuthCredentials)
+    * sftp (SFTPCredentials)
     """
 
     PROTOCOL_CREDENTIALS: ClassVar[Dict[str, Any]] = {
@@ -421,7 +421,7 @@ class WithLocalFiles(BaseConfiguration):
 
 @configspec
 class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):
-    """FilesystemConfiguration that adjust relative local filesystem bucket_url to
+    """FilesystemConfiguration subclass that adjust relative local filesystem bucket_url to
     be relative to `local_dir`.
     """
 

@@ -5,11 +5,16 @@ from dlt.common.configuration.specs import (
     AwsCredentials,
     AzureCredentials,
     AzureServicePrincipalCredentials,
+    SFTPCredentials,
 )
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs import OAuth2Credentials
 from dlt.common.configuration.specs import CredentialsConfiguration, configspec
-from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
+from dlt.common.storages.configuration import (
+    FileSystemCredentials,
+    FilesystemConfiguration,
+    FilesystemConfigurationWithLocalFiles,
+)
 
 
 __all__ = [
@@ -24,4 +29,7 @@ __all__ = [
     "configspec",
     "FileSystemCredentials",
     "FilesystemConfiguration",
+    "FilesystemConfigurationWithLocalFiles",
+    "AzureServicePrincipalCredentials",
+    "SFTPCredentials",
 ]

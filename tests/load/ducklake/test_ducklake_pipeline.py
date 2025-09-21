@@ -71,7 +71,6 @@ def test_all_catalogs(catalog: str) -> None:
         assert pathlib.Path(TEST_STORAGE_ROOT, catalog_location).exists()
 
 
-# @pytest.mark.parametrize("bucket_url", (GCS_BUCKET, ABFS_BUCKET, AWS_BUCKET))
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -81,32 +80,51 @@ def test_all_catalogs(catalog: str) -> None:
 )
 def test_all_buckets(destination_config: DestinationTestConfiguration) -> None:
     filesystem = destination_config.setup_pipeline("filesystem_config")
-    with filesystem.destination_client() as client:
-        destination = ducklake(credentials=DuckLakeCredentials("bucket_cat", storage=client.config))  # type: ignore
-        pipeline = dlt.pipeline(
-            "destination_defaults",
-            destination=destination,
-            dataset_name="lake_schema",
-            dev_mode=True,
+    destination = ducklake(
+        credentials=DuckLakeCredentials(
+            "bucket_cat", storage=filesystem.destination_client().config  # type: ignore
         )
+    )
 
-        load_info = pipeline.run(
-            [{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet"
+    pipeline = dlt.pipeline(
+        "destination_defaults",
+        destination=destination,
+        dataset_name="lake_schema",
+        dev_mode=True,
+    )
+
+    import duckdb
+
+    # set per thread catalog option
+    with pipeline.sql_client() as client:
+        con: duckdb.DuckDBPyConnection = client.native_connection
+        con.sql("CALL bucket_cat.set_option('target_file_size', '1GB')")
+
+    load_info = pipeline.run(
+        [{"foo": 1}, {"foo": 2}], table_name="table_foo", loader_file_format="parquet"
+    )
+    assert_load_info(load_info)
+    # get data
+    assert pipeline.dataset().table_foo["foo"].fetchall() == [(1,), (2,)]
+
+    # make sure that data is really in the bucket
+    all_metrics = load_info.metrics[load_info.loads_ids[0]][0]
+    for job_id, metrics in all_metrics["job_metrics"].items():
+        remote_url = metrics.remote_url
+        print(remote_url)
+        assert remote_url.startswith(destination_config.bucket_url)
+        table_name = job_id.split(".")[0]
+        with pipeline.sql_client() as sql:
+            with sql.execute_query(
+                f"FROM ducklake_list_files('bucket_cat', '{table_name}');"
+            ) as cur:
+                for row in cur.fetchall():
+                    assert row[0].startswith(remote_url)
+
+    # verify options
+    with pipeline.sql_client() as client:
+        opt_val = client.execute_sql(
+            "SELECT value FROM bucket_cat.options() WHERE option_name = 'target_file_size'"
         )
-        assert_load_info(load_info)
-        # get data
-        assert pipeline.dataset().table_foo["foo"].fetchall() == [(1,), (2,)]
-
-        # make sure that data is really in the bucket
-        all_metrics = load_info.metrics[load_info.loads_ids[0]][0]
-        for job_id, metrics in all_metrics["job_metrics"].items():
-            remote_url = metrics.remote_url
-            print(remote_url)
-            assert remote_url.startswith(destination_config.bucket_url)
-            table_name = job_id.split(".")[0]
-            with pipeline.sql_client() as sql:
-                with sql.execute_query(
-                    f"FROM ducklake_list_files('bucket_cat', '{table_name}');"
-                ) as cur:
-                    for row in cur.fetchall():
-                        assert row[0].startswith(remote_url)
+        assert opt_val[0][0] == "1000000000"
+        print(client.execute_sql("CALL bucket_cat.merge_adjacent_files()"))

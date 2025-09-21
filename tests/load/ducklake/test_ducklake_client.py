@@ -3,7 +3,7 @@ import pytest
 import pathlib
 import duckdb
 
-from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 
@@ -225,3 +225,40 @@ def test_ducklake_conn_pool_always_open() -> None:
                 dataset_name="foo"
             )
         )
+
+
+@pytest.mark.no_load
+def test_ducklake_factory_instantiation() -> None:
+    import dlt
+
+    # force parallel loads on sqlite
+    ducklake = dlt.destinations.ducklake(loader_parallelism_strategy="parallel")
+    pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
+
+    with pipeline.destination_client() as client:
+        assert client.capabilities.loader_parallelism_strategy == "parallel"
+
+    from dlt.destinations.impl.ducklake.configuration import DuckDbBaseCredentials
+
+    # set ducklake credentials using shorthands, s3 bucket requires secrets in config
+    credentials = DuckLakeCredentials(
+        "lake_catalog",
+        catalog="postgresql://loader:pass@localhost:5432/dlt_data",
+        storage="s3://dlt-ci-test-bucket/lake",
+    )
+    ducklake = dlt.destinations.ducklake(credentials=credentials)
+    pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
+
+    with pytest.raises(ConfigFieldMissingException):
+        pipeline.destination_client()
+
+    from dlt.sources.credentials import ConnectionStringCredentials
+
+    # set catalog name using connection string credentials
+    catalog_credentials = ConnectionStringCredentials()
+    # use duckdb with the default name
+    catalog_credentials.drivername = "duckdb"
+    credentials = DuckLakeCredentials(
+        "lake_catalog",
+        catalog=catalog_credentials,
+    )
