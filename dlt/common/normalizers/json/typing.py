@@ -11,3 +11,4 @@ class RelationalNormalizerConfigPropagation(TypedDict, total=False):
 class RelationalNormalizerConfig(TypedDict, total=False):
     max_nesting: Optional[int]
     propagation: Optional[RelationalNormalizerConfigPropagation]
+    root_key_propagation: Optional[bool]

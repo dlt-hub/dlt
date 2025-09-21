@@ -3871,8 +3871,13 @@ def test_incremental_table_hint_datetime_column(
     ],
     incremental_settings: Dict[str, Any],
 ) -> None:
-    initial_value_override = pendulum.now()
-    initial_value_default = pendulum.now().subtract(seconds=10)
+    # make sure all cases generate some data
+    initial_value_override = pendulum.now().subtract(
+        seconds=3 if incremental_settings["last_value_func"] == "max" else -3
+    )
+    initial_value_default = pendulum.now().subtract(
+        seconds=10 if incremental_settings["last_value_func"] == "max" else -10
+    )
     rs = _resource_for_table_hint(
         hint_type,
         [{"updated_at": pendulum.now().add(seconds=i)} for i in range(1, 12)],
@@ -3885,7 +3890,9 @@ def test_incremental_table_hint_datetime_column(
     )
 
     pipeline = dlt.pipeline(pipeline_name="p" + uniq_id())
-    pipeline.extract(rs)
+    extract_info = pipeline.extract(rs)
+    metrics = extract_info.metrics[extract_info.loads_ids[0]][0]
+    assert metrics["resource_metrics"]["some_data"].items_count > 0
 
     table_schema = pipeline.default_schema.tables["some_data"]
 

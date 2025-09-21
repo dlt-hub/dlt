@@ -54,7 +54,7 @@ def get_table(
     pipeline: dlt.Pipeline,
     table_name: str,
     sort_column: str = None,
-    include_root_id: bool = True,
+    # include_root_id: bool = True,
     include_dlt_id: bool = False,
     ts_columns: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
@@ -69,9 +69,8 @@ def get_table(
                 else v
             )
             for k, v in r.items()
-            if not k.startswith("_dlt")
-            or k in DEFAULT_VALIDITY_COLUMN_NAMES
-            or (k == "_dlt_root_id" if include_root_id else False)
+            if not k.startswith("_dlt") or k in DEFAULT_VALIDITY_COLUMN_NAMES
+            # or (k == "_dlt_root_id" if include_root_id else False)
             or (k == "_dlt_id" if include_dlt_id else False)
         }
         for r in load_tables_to_dicts(pipeline, table_name)[table_name]
@@ -260,8 +259,8 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
 
     # load 1 — initial load
     dim_snap: List[Dict[str, Any]] = [
-        l1_1 := {"nk": 1, "c1": "foo", "c2": [1] if simple else [{"cc1": 1}]},
-        l1_2 := {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
+        {"nk": 1, "c1": "foo", "c2": [1] if simple else [{"cc1": 1}]},
+        {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_1 = get_load_package_created_at(p, info)
@@ -276,17 +275,14 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     print(get_table(p, "dim_test__c2", cname, include_dlt_id=True))
     assert get_table(p, "dim_test__c2", cname, include_dlt_id=True) == [
         {
-            "_dlt_root_id": get_row_hash(l1_1),
             "_dlt_id": "DVp8ashfqPeSOA" if simple else "sjy4J8zAS+i32w",
             cname: 1,
         },
         {
-            "_dlt_root_id": get_row_hash(l1_2),
             "_dlt_id": "fnGe0kXmwR/ncw" if simple else "+WoC2dwHIVolng",
             cname: 2,
         },
         {
-            "_dlt_root_id": get_row_hash(l1_2),
             "_dlt_id": "HScKaAcv1HMq3Q" if simple else "P60aqq9jQtVwRQ",
             cname: 3,
         },
@@ -294,7 +290,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
 
     # load 2 — update a record — change not in nested column
     dim_snap = [
-        l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [1] if simple else [{"cc1": 1}]},
+        {"nk": 1, "c1": "foo_updated", "c2": [1] if simple else [{"cc1": 1}]},
         {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
@@ -308,16 +304,16 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     assert_records_as_set(
         get_table(p, "dim_test__c2"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l2_1), cname: 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+            {cname: 1},
+            {cname: 1},  # new
+            {cname: 2},
+            {cname: 3},
         ],
     )
 
     # load 3 — update a record — change in nested column
     dim_snap = [
-        l3_1 := {
+        {
             "nk": 1,
             "c1": "foo_updated",
             "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}],
@@ -337,12 +333,12 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         ],
     )
     exp_3 = [
-        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l3_1), cname: 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-        {"_dlt_root_id": get_row_hash(l3_1), cname: 2},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+        {cname: 1},
+        {cname: 1},
+        {cname: 1},  # new
+        {cname: 2},
+        {cname: 2},  # new
+        {cname: 3},
     ]
     assert_records_as_set(get_table(p, "dim_test__c2"), exp_3)
 
@@ -369,7 +365,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     # load 5 — insert a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
-        l5_3 := {"nk": 3, "c1": "baz", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
+        {"nk": 3, "c1": "baz", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_5 = get_load_package_created_at(p, info)
@@ -387,14 +383,14 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     assert_records_as_set(
         get_table(p, "dim_test__c2"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l3_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l5_3), cname: 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-            {"_dlt_root_id": get_row_hash(l3_1), cname: 2},
-            {"_dlt_root_id": get_row_hash(l5_3), cname: 2},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+            {cname: 1},
+            {cname: 1},
+            {cname: 1},
+            {cname: 1},  # new
+            {cname: 2},
+            {cname: 2},
+            {cname: 2},  # new
+            {cname: 3},
         ],
     )
 
@@ -415,51 +411,51 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
 
     # load 1 — initial load
     dim_snap = [
-        l1_1 := {"nk": 1, "c1": "foo", "c2": [{"cc1": [1]}]},
-        l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
+        {"nk": 1, "c1": "foo", "c2": [{"cc1": [1]}]},
+        {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         get_table(p, "dim_test__c2__cc1"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+            {"value": 1},
+            {"value": 1},
+            {"value": 2},
         ],
     )
 
     # load 2 — update a record — change not in nested column
     dim_snap = [
-        l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1]}]},
-        l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
+        {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1]}]},
+        {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         (get_table(p, "dim_test__c2__cc1")),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-            {"_dlt_root_id": get_row_hash(l2_1), "value": 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},  # new
+            {"value": 2},
         ],
     )
 
     # load 3 — update a record — change in nested column
     dim_snap = [
-        l3_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
+        {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
         {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     exp_3 = [
-        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-        {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l3_1), "value": 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
-        {"_dlt_root_id": get_row_hash(l3_1), "value": 2},  # new
+        {"value": 1},
+        {"value": 1},
+        {"value": 1},
+        {"value": 1},  # new
+        {"value": 2},
+        {"value": 2},  # new
     ]
     assert_records_as_set(get_table(p, "dim_test__c2__cc1"), exp_3)
 
@@ -474,20 +470,20 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     # load 5 — insert a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
-        l5_3 := {"nk": 3, "c1": "baz", "c2": [{"cc1": [1]}]},
+        {"nk": 3, "c1": "baz", "c2": [{"cc1": [1]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         get_table(p, "dim_test__c2__cc1"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-            {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l3_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l5_3), "value": 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
-            {"_dlt_root_id": get_row_hash(l3_1), "value": 2},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},  # new
+            {"value": 2},
+            {"value": 2},
         ],
     )
 
@@ -545,9 +541,9 @@ def test_record_reinsert(destination_config: DestinationTestConfiguration) -> No
 
     # assert child records
     expected = [
-        {"_dlt_root_id": get_row_hash(r1), "value": 1},  # links to two records in parent
-        {"_dlt_root_id": get_row_hash(r2), "value": 2},
-        {"_dlt_root_id": get_row_hash(r2), "value": 3},
+        {"value": 1},  # links to two records in parent
+        {"value": 2},
+        {"value": 3},
     ]
     assert_records_as_set(get_table(p, "dim_test__child"), expected)
 
@@ -1037,8 +1033,7 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
             "row_hash": "mocked_hash_1_upd",
         },
     ]
-    # root id is not deterministic when a user provided row hash is used
-    assert get_table(p, "dim_test__c2", "value", include_root_id=False) == [
+    assert get_table(p, "dim_test__c2", "value") == [
         {"value": 1},
         {"value": 1},
         {"value": 2},

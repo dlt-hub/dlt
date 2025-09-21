@@ -17,7 +17,7 @@ There are two options to run dlt pipelines and load data:
 * Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
 
 :::note
-If you'd like to load data to Databricks Managed Iceberg tables, use [dlt+ Iceberg destination](../../plus/ecosystem/iceberg#unity-catalog)
+If you'd like to load data to Databricks Managed Iceberg tables, use [dltHub Iceberg destination](https://info.dlthub.com/waiting-list)
 :::
 
 ## Install dlt with Databricks

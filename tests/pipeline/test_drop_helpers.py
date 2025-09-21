@@ -4,8 +4,8 @@ from copy import deepcopy
 import dlt
 from dlt.common.schema.typing import LOADS_TABLE_NAME, PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.versioned_state import decompress_state
-from dlt.pipeline.drop import drop_resources
-from dlt.pipeline.helpers import DropCommand, refresh_source
+from dlt.pipeline.drop import prepare_drop_resources
+from dlt.pipeline.helpers import pipeline_drop, prepare_refresh_source
 
 from tests.pipeline.utils import airtable_emojis, assert_load_info
 
@@ -23,12 +23,14 @@ def test_drop_helper_utils(seen_data: bool) -> None:
         pipeline.extract(source)
 
     # drop nothing
-    drop_info = drop_resources(pipeline.default_schema.clone(), pipeline.state)
+    drop_info = prepare_drop_resources(pipeline.default_schema.clone(), pipeline.state)
     assert drop_info.modified_tables == []
     assert drop_info.info["tables"] == []
 
     # drop all resources
-    drop_info = drop_resources(pipeline.default_schema.clone(), pipeline.state, drop_all=True)
+    drop_info = prepare_drop_resources(
+        pipeline.default_schema.clone(), pipeline.state, drop_all=True
+    )
     # no tables to drop
     tables_to_drop = (
         {"_schedule", "_peacock", "_wide_peacock", "_peacock__peacock", "_wide_peacock__peacock"}
@@ -56,7 +58,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     source_clone.schema = pipeline.default_schema.clone()
     with pipeline.managed_state() as state:
         emoji_state = deepcopy(state["sources"]["airtable_emojis"])
-        package_state = refresh_source(pipeline, source_clone, refresh="drop_sources")
+        package_state = prepare_refresh_source(pipeline, source_clone, refresh="drop_sources")
         # managed state modified
         assert state["sources"]["airtable_emojis"] == {"resources": {}}
         # restore old state for next tests
@@ -75,7 +77,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
         if seen_data
         else {"_peacock", "_wide_peacock"}
     )
-    drop_info = drop_resources(
+    drop_info = prepare_drop_resources(
         pipeline.default_schema.clone(), pipeline.state, resources=["📆 Schedule"]
     )
     assert set(t["name"] for t in drop_info.modified_tables) == tables_to_drop
@@ -86,7 +88,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     source_clone = source_clone.with_resources("📆 Schedule")
     source_clone.schema = pipeline.default_schema.clone()
     with pipeline.managed_state() as state:
-        package_state = refresh_source(pipeline, source_clone, refresh="drop_resources")
+        package_state = prepare_refresh_source(pipeline, source_clone, refresh="drop_resources")
         # state not modified
         assert state["sources"]["airtable_emojis"] == {"resources": {"🦚Peacock": {"🦚🦚🦚": "🦚"}}}
     if seen_data:
@@ -106,7 +108,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
         if seen_data
         else {"_schedule", "_peacock", "_wide_peacock"}
     )
-    drop_info = drop_resources(
+    drop_info = prepare_drop_resources(
         pipeline.default_schema.clone(),
         pipeline.state,
         resources=["🦚Peacock", "🦚WidePeacock"],
@@ -122,7 +124,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     source_clone = source_clone.with_resources("🦚Peacock", "🦚WidePeacock")
     source_clone.schema = pipeline.default_schema.clone()
     with pipeline.managed_state() as state:
-        package_state = refresh_source(pipeline, source_clone, refresh="drop_data")
+        package_state = prepare_refresh_source(pipeline, source_clone, refresh="drop_data")
         # state modified
         assert state["sources"]["airtable_emojis"] == {"resources": {}}
     if seen_data:
@@ -140,11 +142,11 @@ def test_drop_unknown_resource() -> None:
     )
     info = pipeline.run(source)
     assert_load_info(info)
-    drop = DropCommand(pipeline, resources=["💰Budget"])
+    drop = pipeline_drop(pipeline, resources=["💰Budget"])
     assert drop.is_empty
 
     source.schema = pipeline.default_schema
-    package_state = refresh_source(
+    package_state = prepare_refresh_source(
         pipeline, source.with_resources("💰Budget"), refresh="drop_resources"
     )
     assert package_state == {}

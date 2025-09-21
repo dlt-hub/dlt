@@ -1,4 +1,6 @@
 import os
+import sys
+import pytest
 import shutil
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
@@ -8,8 +10,9 @@ from dlt.common.known_env import DLT_DATA_DIR
 from dlt.common.runners.venv import Venv
 from dlt.common.utils import custom_environ, set_working_dir
 from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.cli import echo as fmt
 
-from tests.cli.utils import echo_default_choice, repo_dir, cloned_init_repo
+# from tests.cli.utils import echo_default_choice, repo_dir, cloned_init_repo
 from tests.utils import TEST_STORAGE_ROOT
 
 BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
@@ -215,3 +218,10 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
             "command": "deploy",
             "secrets_format": "env",
         }
+
+
+@pytest.mark.skipif(sys.stdin.isatty(), reason="stdin connected, test skipped")
+def test_no_tty() -> None:
+    with fmt.maybe_no_stdin():
+        assert fmt.confirm("test", default=True) is True
+        assert fmt.prompt("test prompt", ("y", "n"), default="y") == "y"

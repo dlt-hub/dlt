@@ -431,7 +431,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         nested_tables = table_chain[1:]
         for table in nested_tables:
-            row_key_column = cls.get_root_key_col(
+            row_key_column = cls.get_row_key_col(
                 table_chain,
                 table,
                 sql_client.fully_qualified_dataset_name(),
