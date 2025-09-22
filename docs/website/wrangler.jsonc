@@ -17,7 +17,8 @@
     },
   	"vars": {
       "AXIOM_DATASET": "vibes",
-      "AXIOM_URL": "https://api.axiom.co/v1/traces"
+      "AXIOM_URL": "https://api.axiom.co/v1/traces",
+      "ENV": "production"
     },
     "routes": [
         {

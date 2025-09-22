@@ -19,7 +19,8 @@
     "gen-api-ref-netlify": "PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py",
     "render-cli-docs": "PYTHONPATH=. uv run dlt render-docs > docs/reference/command-line-interface-generated.md",
     "build:cloudflare": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref-netlify && docusaurus build --out-dir build/docs",
-		"preview:cloudflare": "npm run build:cloudflare && wrangler dev --port 3001 --local",
+    "serve:cloudflare": "wrangler dev --port 3001 --local",
+		"preview:cloudflare": "npm run build:cloudflare && npm run serve:cloudflare",
 		"deploy:cloudflare": "npm run build:cloudflare && wrangler deploy" 
   },
   "dependencies": {
