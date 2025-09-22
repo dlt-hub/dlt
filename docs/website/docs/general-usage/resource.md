@@ -700,6 +700,52 @@ pipeline.run(
 
 The `with_name` method returns a deep copy of the original resource, its data pipe, and the data pipes of a parent resource. A renamed clone is fully separated from the original resource (and other clones) when loading: it maintains a separate [resource state](state.md#read-and-write-pipeline-state-in-a-resource) and will load to a table.
 
+## Collect custom metrics
+
+You can track custom statistics during resource extraction with `dlt.current.resource_metrics()`, which might otherwise be lost:
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
+
+github_client = RESTClient(
+    base_url="https://pokeapi.co/api/v2",
+    paginator=JSONLinkPaginator(next_url_path="next"),
+    data_selector="results",
+)
+
+@dlt.resource
+def get_pokemons():
+    custom_metrics = dlt.current.resource_metrics()
+    custom_metrics["page_count"] = 0
+    for page in github_client.paginate(
+        "/pokemon",
+        params={
+            "limit": 100,
+        },
+    ):
+        custom_metrics["page_count"] += 1
+        yield page
+
+pipeline = dlt.pipeline(
+    pipeline_name="get_pokemons",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+load_info = pipeline.run(get_pokemons)
+print(load_info)
+
+# Access custom metrics from last trace
+trace = pipeline.last_trace
+load_id = load_info.loads_ids[0]
+resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]
+
+print(f"Custom metrics: {resource_metrics.custom_metrics}")
+```
+
+As shown above, custom metrics are included in pipeline traces. Refer to [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for more details.
+
 ## Load resources
 
 You can pass individual resources or a list of resources to the `dlt.pipeline` object. The resources loaded outside the source context will be added to the [default schema](schema.md) of the pipeline.

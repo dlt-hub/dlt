@@ -1022,6 +1022,15 @@ def get_resource() -> DltResource:
     return source.resources.with_pipe(get_current_pipe())
 
 
+def get_resource_metrics() -> Dict[str, Any]:
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        Dict[str, Any]: The customizable metrics dictionary
+    """
+    return get_resource().custom_metrics
+
+
 TBoundItems = TypeVar("TBoundItems", bound=TDataItems)
 TDeferred = Callable[[], TBoundItems]
 TDeferredFunParams = ParamSpec("TDeferredFunParams")

@@ -33,6 +33,7 @@ from dlt.pipeline.track import slack_notify_load_success
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extract import describe_extract_data
 from dlt.extract.pipe import Pipe
+from dlt.extract.items_transform import ItemTransform
 
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH
 from tests.utils import TEST_STORAGE_ROOT, start_test_telemetry, temporary_telemetry
@@ -290,6 +291,9 @@ def test_trace_schema() -> None:
     def github():
         @dlt.resource
         def get_shuffled_events():
+            # Add a custom metric
+            custom_metrics = dlt.current.resource_metrics()
+            custom_metrics["good_old_github"] = True
             for _ in range(1):
                 with open(
                     "tests/normalize/cases/github.events.load_page_1_duck.json",
@@ -712,6 +716,53 @@ def test_last_pipeline_step_trace_returns_latest() -> None:
     assert p.last_trace.last_extract_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_normalize_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_load_info.loads_ids == third_load_info.loads_ids
+
+
+def test_trace_custom_metrics_schema() -> None:
+    """Test that custom metrics are properly included in trace data"""
+
+    @dlt.resource
+    def resource_with_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        custom_metrics["custom_count"] = 42
+        custom_metrics["random_constant"] = 1.5
+        custom_metrics["random_nested"] = {"value": 100, "unit": "items"}
+        custom_metrics["list_metric"] = [1, 2, 3]
+        yield [{"id": 1}, {"id": 2}]
+
+    resource_with_metrics.add_limit(10)
+    resource_with_metrics.add_map(lambda x: x)
+    resource_with_metrics.add_yield_map(lambda x: (yield from x))
+
+    # force metrics in transform steps
+    for step in resource_with_metrics._pipe.steps:
+        if isinstance(step, ItemTransform):
+            step.custom_metrics["transformation_type"] = "anything"
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_custom_metrics_trace", destination=dummy(completed_prob=1.0)
+    )
+
+    pipeline.run(resource_with_metrics())
+    trace = pipeline.last_trace
+
+    trace_pipeline = dlt.pipeline(
+        pipeline_name="test_custom_metrics_trace_schema", destination=dummy(completed_prob=1.0)
+    )
+    trace_pipeline.run([trace], table_name="trace")
+    inferred_schema = trace_pipeline.default_schema
+    resource_metrics_table_cols = inferred_schema.get_table(
+        "trace__steps__extract_info__resource_metrics"
+    )["columns"]
+
+    assert "custom_metrics__custom_count" in resource_metrics_table_cols
+    assert "custom_metrics__random_constant" in resource_metrics_table_cols
+    assert "custom_metrics__random_nested__value" in resource_metrics_table_cols
+    assert "custom_metrics__random_nested__unit" in resource_metrics_table_cols
+    assert (
+        "trace__steps__extract_info__resource_metrics__custom_metrics__list_metric"
+        in inferred_schema.tables
+    )
 
 
 def _find_resolved_value(
