@@ -47,7 +47,7 @@ ATTACH 'ducklake:{catalog_database}' (DATA_PATH '{data_storage}');
 adds the ducklake `Catalog` to your duckdb database
 """
 import os
-import semver
+from packaging.version import Version
 import posixpath
 from typing import Iterable, List, Optional, Sequence
 
@@ -147,7 +147,7 @@ class DuckLakeClient(DuckDbClient):
             if partition_list:
                 import duckdb
 
-                if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.4.0"):
+                if Version(duckdb.__version__) < Version("1.4.0"):
                     logger.warning(
                         "Partitioning is disabled for duckdb < 1.4.0 due to malformed catalog"
                         " update statements."

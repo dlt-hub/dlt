@@ -2,7 +2,7 @@ from abc import abstractmethod
 import re
 import duckdb
 from fsspec import AbstractFileSystem
-import semver
+from packaging.version import Version
 from pathlib import Path
 import sqlglot
 import sqlglot.expressions as exp
@@ -484,7 +484,7 @@ class WithTableScanners(DuckDbSqlClient):
             }
         )
 
-        if semver.Version.parse(duckdb.__version__) >= semver.Version.parse("1.2.0"):
+        if Version(duckdb.__version__) >= Version("1.2.0"):
             self._global_config.update(
                 {
                     # prevents HEAD command by caching parquet metadata
@@ -587,7 +587,7 @@ class WithTableScanners(DuckDbSqlClient):
 
     @staticmethod
     def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
-        if semver.Version.parse(duckdb.__version__) <= semver.Version.parse("1.1.2"):
+        if Version(duckdb.__version__) <= Version("1.1.2"):
             raise NotImplementedError(
                 f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
                 " snapshot discovery. Please install duckdb >= 1.1.3"
@@ -598,7 +598,7 @@ class WithTableScanners(DuckDbSqlClient):
 
         # `duckdb_iceberg` extension does not support autoloading
         # https://github.com/duckdb/duckdb_iceberg/issues/71
-        if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
+        if Version(duckdb.__version__) < Version("1.2.0"):
             conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg")
 
     def __del__(self) -> None:

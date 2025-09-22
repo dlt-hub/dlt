@@ -1,4 +1,4 @@
-import semver
+from packaging.version import Version
 from typing import Any, Optional, Sequence, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
@@ -135,7 +135,7 @@ def duckdb_merge_strategies_selector(
     try:
         import duckdb as _duckdb
 
-        if semver.Version.parse(_duckdb.__version__) < semver.Version.parse("1.4.0"):
+        if Version(_duckdb.__version__) < Version("1.4.0"):
             legacy_strategies = list(supported_merge_strategies)
             legacy_strategies.remove("upsert")
             supported_merge_strategies = legacy_strategies

@@ -1,6 +1,6 @@
 import abc
 import csv
-import semver
+from packaging.version import Version
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -379,7 +379,7 @@ class ParquetDataWriter(DataWriter):
 
         table = pyarrow.Table.from_pylist(items, schema=self.schema)
         # detect non-null columns receiving nulls. above v.19 it is checked in `write_table`
-        if semver.Version.parse(pyarrow.__version__).major < 19:
+        if Version(pyarrow.__version__).major < 19:
             table = table.cast(self.schema)
         # Write
         self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)

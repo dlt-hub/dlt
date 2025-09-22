@@ -1,5 +1,5 @@
 from typing import Any, TYPE_CHECKING, Tuple, List
-import semver
+from packaging.version import Version
 import duckdb
 
 from dlt.common import logger
@@ -165,7 +165,7 @@ class FilesystemSqlClient(WithTableScanners):
             else:
                 compression = ""
 
-            if semver.Version.parse(duckdb.__version__) > semver.Version.parse("1.3.0"):
+            if Version(duckdb.__version__) > Version("1.3.0"):
                 scanner_options = "union_by_name=true"
             else:
                 scanner_options = "skip_schema_inference=false"
