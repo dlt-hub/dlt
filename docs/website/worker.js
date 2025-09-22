@@ -1,5 +1,5 @@
 // cloudflare worker implementation to serve the website docs
-
+import { instrument } from '@microlabs/otel-cf-workers';
 
 const REDIRECTS = [
     // basic root redirects
@@ -23,12 +23,11 @@ const REDIRECTS = [
         to: "/docs/intro/",
         code: 301
     },
-    
 ]
 
 const ROUTE_404 = "/docs/404";
 
-export default {
+const handler = {
     async fetch(request, env, ctx) {
 
         const url = new URL(request.url);
@@ -66,3 +65,17 @@ export default {
         return res; // unchanged response (transparent externally)
     }
   };
+
+
+const config = (env) => ({
+exporter: {
+    url: `${env.AXIOM_URL}`,
+    headers: {
+    'Authorization': `Bearer ${env.AXIOM_API_TOKEN}`,
+    'X-Axiom-Dataset': `${env.AXIOM_DATASET}`
+    },
+},
+service: { name: 'axiom-cloudflare-workers' },
+});
+
+export default instrument(handler, (env) => config(env));

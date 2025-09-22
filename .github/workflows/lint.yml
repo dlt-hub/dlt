@@ -62,6 +62,8 @@ jobs:
             **/*.lock
             **/*.md
             **/*.ipynb
+            **/package-lock.json
+
 
   matrix_job_required_check:
     name: lint | code & tests
