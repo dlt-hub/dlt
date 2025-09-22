@@ -4,8 +4,8 @@
     "main": "worker.js",
     "preview_urls": true,
   	"compatibility_flags": [
-      "nodejs_compat_v2"
-    ],
+		"nodejs_compat_v2"
+	],
     "assets": {
         "directory": "./build",
         "run_worker_first": ["/*"],
@@ -16,13 +16,18 @@
       "head_sampling_rate": 1
     },
   	"vars": {
-      "AXIOM_DATASET": "test",
+      "AXIOM_DATASET": "vibes",
       "AXIOM_URL": "https://api.axiom.co/v1/traces"
     },
     "routes": [
         {
           "pattern": "stage.dlthub.com/docs*",
           "zone_name": "dlthub.com"
+        },
+        {
+          "pattern": "dlthub.com/docs*",
+          "zone_name": "dlthub.com"
         }
       ]
-  } 
+  }
+  
