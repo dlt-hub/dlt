@@ -43,11 +43,10 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         else:
             raise ValueError(self._file_path)
 
-        with self._sql_client.begin_transaction():
-            self._sql_client.execute_sql(
-                f"INSERT INTO {qualified_table_name} BY NAME SELECT * FROM"
-                f" {source_format}('{self._file_path}' {options})"
-            )
+        self._sql_client.execute_sql(
+            f"INSERT INTO {qualified_table_name} BY NAME SELECT * FROM"
+            f" {source_format}('{self._file_path}' {options})"
+        )
 
 
 class DuckDbClient(InsertValuesJobClient):

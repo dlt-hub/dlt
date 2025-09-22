@@ -98,13 +98,13 @@ jobs:
             # Motherduck
             - name: motherduck
               destinations: "[\"motherduck\"]"
-              filesystem_drivers: "[\"s3\", \"gs\", \"abfss\"]"
+              filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
 
             # Ducklake
             - name: ducklake
               destinations: "[\"ducklake\"]"
-              filesystem_drivers: "[\"memory\"]"
+              filesystem_drivers: "[\"s3\", \"gs\", \"abfss\"]"
               extras: "--extra ducklake --extra s3 --extra gs --extra az --extra parquet"
               always_run_all_tests: true
 
@@ -156,6 +156,23 @@ jobs:
       run:
         shell: bash
     runs-on: "ubuntu-latest"
+
+    services:
+      # we need local postgres to run ducklake tests quickly
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_DB: dlt_data
+          POSTGRES_USER: loader
+          POSTGRES_PASSWORD: loader
+        ports:
+          - 5432:5432
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
 
