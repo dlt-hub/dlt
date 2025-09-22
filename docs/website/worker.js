@@ -5,19 +5,15 @@ const REDIRECTS = [
     // basic root redirects
     {
         from: "/",
-        to: "/docs/intro/"
+        to: "/docs/intro"
     },
     {
         from: "/docs",
-        to: "/docs/intro/"
+        to: "/docs/intro"
     },
     {
         from: "/docs/",
-        to: "/docs/intro/"
-    },
-    {
-        from: "/docs/intro",
-        to: "/docs/intro/"
+        to: "/docs/intro"
     },
 
     // docs section redirects
@@ -83,20 +79,20 @@ const handler = {
         }   
 
         // normalize urls prefixed with /docs, only needed locally
-        let res = null;
-        if (url.pathname.startsWith("/docs/")) {
+        if (env.ENV === "development" && url.pathname.startsWith("/docs/")) {
             url.pathname = url.pathname.replace(/^\/docs/, "");
-            // forward the modified request to ASSETS
-            res = await env.ASSETS.fetch(new Request(url.toString(), request));
-            // retry below with original url
-            if (res.status === 404) {
-                res = null;
-            }
         }
 
-        // Let the platform resolve ./build and set cache headers
-        if (res === null) {
-            res = await env.ASSETS.fetch(request);  // preserves URL→file + caching
+        // always redirect away from trailing slashes
+        if (url.pathname.endsWith("/")) {
+            url.pathname = url.pathname.slice(0, -1);
+            return Response.redirect(url.toString(), 301);
+        }
+        
+        let res = await env.ASSETS.fetch(new Request(url.toString(), request));  
+        if (res.status === 307 && !url.pathname.endsWith("/")) {
+            url.pathname = url.pathname + "/";
+            res = await env.ASSETS.fetch(new Request(url.toString(), request));
         }
 
         if (res.status === 404) {
