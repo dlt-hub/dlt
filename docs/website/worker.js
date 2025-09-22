@@ -89,6 +89,8 @@ const handler = {
             return Response.redirect(url.toString(), 301);
         }
         
+        // here we try to fetch the asset and try again with a trailing slash
+        // to hide redirects comming from cloudflare worker assets
         let res = await env.ASSETS.fetch(new Request(url.toString(), request));  
         if (res.status === 307 && !url.pathname.endsWith("/")) {
             url.pathname = url.pathname + "/";
