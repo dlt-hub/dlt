@@ -6,7 +6,7 @@ keywords: [introduction, who, what, how]
 
 import snippets from '!!raw-loader!./intro-snippets.py';
 
-# Getting started
+# Getting started (testing)
 
 ![dlt pacman](/img/dlt-pacman.gif)
 
