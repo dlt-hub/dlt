@@ -4,7 +4,7 @@ description: Validate your data and control its quality
 keywords: ["dlt+", "data quality", "contracts"]
 ---
 
-:::caution
+:::warning
 🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).
 :::
 

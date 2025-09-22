@@ -9,7 +9,7 @@ Incremental loading is the act of loading only new or changed data and not old r
 For example, a bank loads only the latest transactions, or a company updates its database with new or modified user
 information. In this article, we’ll discuss a few incremental loading strategies.
 
-:::important
+:::info
 Processing data incrementally, or in batches, enhances efficiency, reduces costs, lowers latency, improves scalability,
 and optimizes resource utilization.
 :::

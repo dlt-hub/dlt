@@ -32,7 +32,7 @@ pip install -r requirements.txt
 ```
 or with `pip install "dlt[athena]"`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
 
-:::caution
+:::warning
 
 You may also install the dependencies independently. Try
 ```sh
@@ -150,7 +150,7 @@ Athena tables store timestamps with millisecond precision, and with that precisi
 
 Athena does not support JSON fields, so JSON is stored as a string.
 
-:::caution
+:::warning
 **Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
 :::
 

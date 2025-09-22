@@ -41,7 +41,7 @@ Once you have a `Relation`, you can read data in various formats and sizes.
 
 ### Fetch the entire table
 
-:::caution
+:::warning
 Loading full tables into memory without limiting or iterating over them can consume a large amount of memory and may cause your program to crash if the table is too large. It's recommended to use chunked iteration or apply limits when dealing with large datasets. 
 :::
 

@@ -213,7 +213,7 @@ class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
         return type_
 ```
 
-:::caution
+:::warning
 When extending type mapper for mssql, mysql and trino start with MssqlVariantTypeMapper, MysqlVariantTypeMapper and
 TrinoVariantTypeMapper respectively
 :::

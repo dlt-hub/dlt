@@ -135,7 +135,7 @@ The tables are deleted both from the pipeline's schema and from the destination 
 
 If you only have one source or run with all your sources together, then this is practically like running the pipeline again for the first time.
 
-:::caution
+:::warning
 This erases schema history for the selected sources and only the latest version is stored.
 :::
 
@@ -164,7 +164,7 @@ The tables are deleted both from the pipeline's schema and from the destination 
 
 Source level state keys are not deleted in this mode (i.e., `dlt.current.source_state()[<'my_key>'] = '<my_value>'`)
 
-:::caution
+:::warning
 This erases schema history for all affected sources, and only the latest schema version is stored.
 :::
 
