@@ -41,7 +41,7 @@ Run the example:
 python postgres_to_postgres.py --replace
 ```
 
-:::warn
+:::warning
 Attention: There were problems with data type TIME that includes nano seconds. More details in
 [Slack](https://dlthub-community.slack.com/archives/C04DQA7JJN6/p1711579390028279?thread_ts=1711477727.553279&cid=C04DQA7JJN60)
 
