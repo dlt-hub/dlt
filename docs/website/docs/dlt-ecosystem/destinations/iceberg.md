@@ -13,7 +13,7 @@ dlt uses the [PyIceberg](https://py.iceberg.apache.org/) library to write Iceber
 ## Iceberg single-user ephemeral catalog
 dlt uses single-table, ephemeral, in-memory, SQLite-based [Iceberg catalogs](https://iceberg.apache.org/terms/#catalog). These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
 
-:::caution
+:::warning
 While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
 - concurrent writes are not handled and may lead to corrupt table state
 - we cannot guarantee that reads concurrent with writes are clean
@@ -87,7 +87,7 @@ def my_iceberg_resource():
 Iceberg uses [hidden partioning](https://iceberg.apache.org/docs/latest/partitioning/).
 :::
 
-:::caution
+:::warning
 Partition evolution (changing partition columns after a table has been created) is not supported.
 :::
 

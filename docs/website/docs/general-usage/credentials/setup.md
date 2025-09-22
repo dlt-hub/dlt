@@ -465,7 +465,7 @@ dlt.secrets["destination.filesystem.credentials"] = credentials
 
 </Tabs>
 
-:::caution
+:::warning
 While you can put all configuration and credentials in `secrets.toml` for convenience, sensitive information should never be placed in `config.toml` or other non-secure locations. `dlt` will raise an exception if it detects secrets in inappropriate locations.
 :::
 

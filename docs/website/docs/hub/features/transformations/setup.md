@@ -11,7 +11,7 @@ A transformation consists of functions that modify data stored in a [cache](../.
 
 By combining a cache and transformations, you can efficiently process data loaded via dlt and move it to a new destination.
 
-:::caution
+:::warning
 Local transformations are currently limited to specific use cases and are only compatible with data stored in filesystem-based destinations:
 
 * [Iceberg](../../ecosystem/iceberg.md)
@@ -50,7 +50,7 @@ caches:
           items_aggregated: items_aggregated
 ```
 
-:::caution
+:::warning
 Please make sure that the input dataset for the cache is located in a filesystem-based destination ([Iceberg](../../ecosystem/iceberg.md), [Delta](../../ecosystem/delta.md), or [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md)).
 :::
 

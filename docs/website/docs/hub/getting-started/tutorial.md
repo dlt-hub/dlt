@@ -45,7 +45,7 @@ This command generates a project named `tutorial` with:
 - one DuckDB destination
 - one dataset on the DuckDB destination
 
-:::caution
+:::warning
 Currently, `dlt project init` only supports a limited number of sources (for example, [REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md), etc.). To list all available sources, please use the [cli command](../reference.md#dlt-source-list):
 
 ```sh

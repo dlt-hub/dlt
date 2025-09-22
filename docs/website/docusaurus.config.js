@@ -69,6 +69,15 @@ const config = {
     locales: ['en'],
   },
 
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true, // required
+    },
+    experimental_faster: {
+      ssgWorkerThreads: true,
+    },
+  },
+
   presets: [
     [
       '@docusaurus/preset-classic',

@@ -170,7 +170,7 @@ Destination functions that raise exceptions are retried 5 times before giving up
 
 If your exception derives from `DestinationTerminalException`, the whole load job will be marked as failed and not retried again.
 
-:::caution
+:::warning
 If you wipe out the pipeline folder (where job files and destination state are saved), you will not be able to restart from the last failed batch.
 However, it is fairly easy to back up and restore the pipeline directory, [see details below](#manage-pipeline-state-for-incremental-loading).
 :::

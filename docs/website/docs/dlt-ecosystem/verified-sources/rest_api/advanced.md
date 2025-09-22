@@ -137,7 +137,7 @@ See the [incremental loading](./basic.md#incremental-loading) section for more d
 The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses or all responses from the API. For example, responses with specific status codes or content substrings can be ignored.
 Additionally, all responses or only responses with specific status codes or content substrings can be transformed with a custom callable, such as a function. This callable is passed on to the requests library as a [response hook](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks). The callable can modify the response object and must return it for the modifications to take effect.
 
-:::caution Experimental Feature
+:::warning Experimental Feature
 This is an experimental feature and may change in future releases.
 :::
 

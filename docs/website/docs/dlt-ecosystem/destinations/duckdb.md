@@ -94,7 +94,7 @@ or via the env variable `SCHEMA__NAMING` or directly in the code:
 ```py
 dlt.config["schema.naming"] = "duck_case"
 ```
-:::caution
+:::warning
 **duckdb** identifiers are **case insensitive** but display names preserve case. This may create name collisions if, for example, you load JSON with
 `{"Column": 1, "column": 2}` as it will map data to a single column.
 :::
@@ -157,7 +157,7 @@ p = dlt.pipeline(
 ```
 creates database `chessdb.duckdb`.
 
-:::caution
+:::warning
 Avoid naming dataset the same as database. That will confuse `duckdb` binder as both catalog and schema are the same. For
 example:
 ```py
