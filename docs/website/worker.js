@@ -5,23 +5,65 @@ const REDIRECTS = [
     // basic root redirects
     {
         from: "/",
-        to: "/docs/intro/",
-        code: 301
+        to: "/docs/intro/"
     },
     {
         from: "/docs",
-        to: "/docs/intro/",
-        code: 301
+        to: "/docs/intro/"
     },
     {
         from: "/docs/",
-        to: "/docs/intro/",
-        code: 301
+        to: "/docs/intro/"
     },
     {
         from: "/docs/intro",
-        to: "/docs/intro/",
-        code: 301
+        to: "/docs/intro/"
+    },
+
+    // docs section redirects
+    {
+        from: "/docs/getting-started",
+        to: "/docs/intro/"
+    },
+    {
+        from: "/docs/dlt-ecosystem",
+        to: "/docs/dlt-ecosystem/verified-sources/"
+    },
+    {
+        from: "/docs/general-usage/credentials/config_providers",
+        to: "/docs/general-usage/credentials/setup/"
+    },
+    {
+        from: "/docs/general-usage/credentials/configuration",
+        to: "/docs/general-usage/credentials/setup/"
+    },
+    {
+        from: "/docs/general-usage/credentials/config_specs",
+        to: "/docs/general-usage/credentials/complex_types/"
+    },
+
+    // tutorial redirects
+    {
+        from: "/docs/tutorial/intro",
+        to: "/docs/tutorial/load-data-from-an-api/"
+    },
+    {
+        from: "/docs/tutorial/grouping-resources",
+        to: "/docs/tutorial/load-data-from-an-api/"
+    },
+
+    // reference + misc redirects
+    {
+        from: "/docs/telemetry",
+        to: "/docs/reference/telemetry/"
+    },
+    {
+        from: "/docs/walkthroughs",
+        to: "/docs/intro/"
+    },
+    {
+        from: "/docs/visualizations",
+        to: "/docs/general-usage/dataset-access/"
     },
 ]
 
@@ -36,7 +78,7 @@ const handler = {
         for (const redirect of REDIRECTS) {
             if (url.pathname === redirect.from) {
                 url.pathname = redirect.to;
-                return Response.redirect(url.toString(), redirect.code);
+                return Response.redirect(url.toString(), redirect.code || 301);
             }
         }   
 
