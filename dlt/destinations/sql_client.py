@@ -446,7 +446,10 @@ def raise_database_error(f: TFun) -> TFun:
             return (yield from f(self, *args, **kwargs))
         except Exception as ex:
             db_ex = self._make_database_exception(ex)
-            raise db_ex.with_traceback(ex.__traceback__) from ex
+            if db_ex is ex:
+                raise db_ex.with_traceback(ex.__traceback__)
+            else:
+                raise db_ex.with_traceback(ex.__traceback__) from ex
 
     @wraps(f)
     def _wrap(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
@@ -454,7 +457,10 @@ def raise_database_error(f: TFun) -> TFun:
             return f(self, *args, **kwargs)
         except Exception as ex:
             db_ex = self._make_database_exception(ex)
-            raise db_ex.with_traceback(ex.__traceback__) from ex
+            if db_ex is ex:
+                raise db_ex.with_traceback(ex.__traceback__)
+            else:
+                raise db_ex.with_traceback(ex.__traceback__) from ex
 
     if inspect.isgeneratorfunction(f):
         return _wrap_gen  # type: ignore[return-value]
