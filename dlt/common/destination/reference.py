@@ -25,7 +25,11 @@ from dlt.common.destination.exceptions import (
     InvalidDestinationReference,
     UnknownDestinationModule,
 )
-from dlt.common.destination.client import DestinationClientConfiguration, JobClientBase
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    JobClientBase,
+    DestinationTypeConfiguration,
+)
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
@@ -267,9 +271,30 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 )
             return ref
 
-        return DestinationReference.from_reference(
-            ref, credentials, destination_name, environment, **kwargs
-        )
+        try:
+            return DestinationReference.from_reference(
+                ref, credentials, destination_name, environment, **kwargs
+            )
+        except UnknownDestinationModule:
+            if destination_name or "." in ref:
+                raise
+
+            resolved_config = resolve_configuration(
+                DestinationTypeConfiguration(),
+                sections=(known_sections.DESTINATION, ref),
+                accept_partial=True,
+            )
+            destination_type = getattr(resolved_config, "destination_type", None)
+            if not destination_type:
+                raise
+
+            return DestinationReference.from_reference(
+                ref=resolved_config.destination_type,
+                credentials=credentials,
+                destination_name=ref,
+                environment=environment,
+                **kwargs,
+            )
 
 
 class DestinationReference:
