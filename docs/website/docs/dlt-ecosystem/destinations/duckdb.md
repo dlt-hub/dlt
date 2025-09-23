@@ -291,7 +291,7 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-d
 
 NOTE: extensions, pragmas and configs are not propagated from `dlt` configuration to the dbt profile at this moment.
 
-###Syncing of `dlt` state
+### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA duckdb-->
