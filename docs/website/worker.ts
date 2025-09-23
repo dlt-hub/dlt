@@ -1,5 +1,6 @@
 // cloudflare worker implementation to serve the website docs
-import { instrument } from '@microlabs/otel-cf-workers';
+import { instrument, ResolveConfigFn } from '@microlabs/otel-cf-workers';
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
 const REDIRECTS = [
     // basic root redirects
@@ -100,22 +101,34 @@ const handler = {
         if (res.status === 404) {
             url.pathname = ROUTE_404;
             return Response.redirect(url.toString(), 301);
-        }
-    
+        }    
         return res; // unchanged response (transparent externally)
     }
   };
 
 
-const config = (env) => ({
-exporter: {
-    url: `${env.AXIOM_URL}`,
-    headers: {
-    'Authorization': `Bearer ${env.AXIOM_API_TOKEN}`,
-    'X-Axiom-Dataset': `${env.AXIOM_DATASET}`
+
+// tracking post processor to remove static assets
+const postProcessor = (spans: ReadableSpan[]): ReadableSpan[] => {
+    return spans.filter((span) => {
+        const attrs = span.attributes ?? {}
+        const url = attrs['url.full'] || '' as string;
+        // Keep non-static only
+        let keep =  !/\.(?:css|js|mjs|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot)(?:$|\?)/i.test(url);
+        return keep
+    })
+}
+
+const config: ResolveConfigFn = (env) => ({
+    exporter: {
+        url: `${env.AXIOM_URL}`,
+        headers: {
+        'Authorization': `Bearer ${env.AXIOM_API_TOKEN}`,
+        'X-Axiom-Dataset': `${env.AXIOM_DATASET}`
+        },
     },
-},
-service: { name: 'axiom-cloudflare-workers' },
+    service: { name: 'axiom-cloudflare-workers' },
+    postProcessor: postProcessor,
 });
 
-export default instrument(handler, (env) => config(env));
+export default instrument(handler, config);
