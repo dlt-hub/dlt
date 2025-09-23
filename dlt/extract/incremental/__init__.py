@@ -28,7 +28,7 @@ from dlt.common.data_types.type_helpers import (
     coerce_value,
     py_type_to_sc_type,
 )
-
+from dlt.common.data_writers.writers import count_rows_in_items
 from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
@@ -191,6 +191,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Bound pipe"""
         self.range_start = range_start
         self.range_end = range_end
+        # Initialize custom metrics
+        BaseItemTransform.__init__(self)
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -567,6 +569,15 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if rows is None or (isinstance(rows, list) and len(rows) == 0):
             return rows
 
+        # collect metrics
+        self.custom_metrics["unfiltered_items_count"] = self.custom_metrics.get(
+            "unfiltered_items_count", 0
+        ) + count_rows_in_items(rows)
+        self.custom_metrics["unfiltered_batches_count"] = (
+            self.custom_metrics.get("unfiltered_batches_count", 0) + 1
+        )
+        self.custom_metrics["unique_hashes_count"] = len(self.get_state().get("unique_hashes", []))
+
         transformer = self._get_transform(rows)
         if isinstance(rows, list):
             rows = [
@@ -644,7 +655,6 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         Args:
             primary_key (TTableHintTemplate[TColumnKey], optional): A primary key to be passed to Incremental Instance at execution. Defaults to None.
         """
-        BaseItemTransform.__init__(self)
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
         self._allow_external_schedulers: bool = None
@@ -786,6 +796,13 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         self._allow_external_schedulers = value
         if self._incremental:
             self._incremental.allow_external_schedulers = value
+
+    @property
+    def custom_metrics(self) -> Dict[str, Any]:
+        """Returns custom metrics of the Incremental object itself"""
+        if self._incremental:
+            return self._incremental.custom_metrics
+        return {}
 
     def bind(self, pipe: SupportsPipe) -> "IncrementalResourceWrapper":
         # if pipe is None we are re-binding internal incremental

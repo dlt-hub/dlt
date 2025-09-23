@@ -4372,3 +4372,99 @@ def test_incremental_and_limit(offset_by_last_value: bool):
     assert resource_called == 30 if offset_by_last_value else 60
     # check that we have items 0-29
     assert p.dataset().items.df().id.tolist() == list(range(30))
+
+
+@pytest.mark.parametrize(
+    "with_duplicates",
+    [True, False],
+    ids=["no_duplicates", "with_duplicates"],
+)
+@pytest.mark.parametrize(
+    "diff_items_and_batches_counts",
+    [True, False],
+    ids=["diff_items_and_batches_counts", "same_items_and_batches_counts"],
+)
+def test_custom_metrics_in_incremental(
+    with_duplicates: bool, diff_items_and_batches_counts: bool
+) -> None:
+    """Ensure that custom metrics from the incremental transform are correctly collected along with
+    the custom metrics from the resource itself"""
+
+    @dlt.resource(
+        table_name="items",
+    )
+    def resource_with_incremental_metrics(
+        start_id: int,
+        end_id: int,
+        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1),
+    ):
+        custom_metrics = dlt.current.resource_metrics()
+        custom_metrics["from_resource"] = "hey"
+        if diff_items_and_batches_counts:
+            for start in range(start_id, end_id, 20):
+                batch = [{"id": i, "value": str(i)} for i in range(start, min(start + 20, end_id))]
+                yield batch
+        else:
+            for i in range(start_id, end_id):
+                yield {
+                    "id": i,
+                    "value": str(i),
+                }
+            # add two duplicates of the last row with different values,
+            # so that we get a higher unique hash count
+        if with_duplicates:
+            last_val = end_id - 1
+            yield {"id": last_val, "value": "hello"}
+            yield {"id": last_val, "value": "from"}
+            yield {"id": last_val, "value": "hello"}
+
+    p = dlt.pipeline(
+        pipeline_name="p" + uniq_id(),
+        destination="duckdb",
+    )
+
+    load_info = p.run(resource_with_incremental_metrics(start_id=0, end_id=1000))
+    load_id = load_info.loads_ids[0]
+
+    resource_metrics = p.last_trace.last_extract_info.metrics[load_id][0]["resource_metrics"][
+        "resource_with_incremental_metrics"
+    ]
+
+    # on the first run, the unfiltered items count should match normalized items count
+    expected_metrics = {
+        "from_resource": "hey",
+        "unfiltered_items_count": 1003 if with_duplicates else 1000,
+        "unfiltered_batches_count": 1003 if with_duplicates else 1000,
+        "unique_hashes_count": 3 if with_duplicates else 1,
+    }
+    if diff_items_and_batches_counts:
+        expected_metrics["unfiltered_batches_count"] = 53 if with_duplicates else 50
+
+    assert resource_metrics.custom_metrics == expected_metrics
+    assert (
+        p.last_trace.last_normalize_info.row_counts.get("items")
+        == expected_metrics["unfiltered_items_count"]
+    )
+
+    # on the second run, the normalized items count should be the count of items
+    # that have successfully passed the incremental transform
+    load_info = p.run(resource_with_incremental_metrics(start_id=0, end_id=1200))
+    load_id = load_info.loads_ids[0]
+
+    resource_metrics = p.last_trace.last_extract_info.metrics[load_id][0]["resource_metrics"][
+        "resource_with_incremental_metrics"
+    ]
+
+    expected_metrics = {
+        "from_resource": "hey",
+        "unfiltered_items_count": 1203 if with_duplicates else 1200,
+        "unfiltered_batches_count": 1203 if with_duplicates else 1200,
+        "unique_hashes_count": 3 if with_duplicates else 1,
+    }
+    if diff_items_and_batches_counts:
+        expected_metrics["unfiltered_batches_count"] = 63 if with_duplicates else 60
+
+    assert resource_metrics.custom_metrics == expected_metrics
+    assert (
+        p.last_trace.last_normalize_info.row_counts.get("items") == 203 if with_duplicates else 200
+    )
