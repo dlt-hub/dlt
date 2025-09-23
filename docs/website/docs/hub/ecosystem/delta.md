@@ -8,7 +8,7 @@ keywords: [delta, delta lake]
 
 The Delta destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
-:::caution
+:::warning
 Under the hood, dlt+ uses the [deltalake library](https://pypi.org/project/deltalake/) to write Delta tables. Beware that when loading a large amount of data for one table, the underlying Rust implementation will consume a lot of memory. This is a known issue, and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
 :::
 
@@ -70,7 +70,7 @@ azure_storage_account_key="Please set me up!"
 
 <TabItem value="gcp">
 
-:::caution
+:::warning
 Only [Service Account](../../dlt-ecosystem/destinations/bigquery#setup-guide) and [Application Default Credentials](../../dlt-ecosystem/destinations/bigquery#using-default-credentials) authentication methods are supported for Google Cloud Storage.
 :::
 
@@ -113,7 +113,7 @@ The Delta destination handles the write dispositions as follows:
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - can be used only with the `upsert` [merge strategy](../../general-usage/merge-loading.md#upsert-strategy).
 
-:::caution
+:::warning
 The `upsert` merge strategy for the Delta destination is **experimental**.
 :::
 
@@ -191,7 +191,7 @@ Delta tables can be partitioned (using [Hive-style partitioning](https://delta.i
   </TabItem>
 </Tabs>
 
-:::caution
+:::warning
 Partition evolution (changing partition columns after a table has been created) is currently not supported.
 :::
 

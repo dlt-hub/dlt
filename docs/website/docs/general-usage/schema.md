@@ -70,7 +70,7 @@ To retain the original naming convention (like keeping `"createdAt"` as it is in
 [schema]
 naming="direct"
 ```
-:::caution
+:::warning
 Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
 :::
 
@@ -208,7 +208,7 @@ explicitly on a column or by a source/resource. Normalizers do not infer this hi
 | tz-aware        | `False`         | to UTC and then naive |
 |                 |                 |                       |
 
-:::caution
+:::warning
 naive timestamps will **always be considered as UTC**, system timezone settings are ignored by `dlt`
 :::
 

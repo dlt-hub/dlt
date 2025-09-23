@@ -143,7 +143,7 @@ destination-bigquery-location
 ```
 This will obviously require several calls to Secrets backend.
 
-:::caution
+:::warning
 Vault provider will cache all retrieved keys internally and will not fetch those secrets again (until process is restarted). This
 reduces number of calls to backend (which cost money) but will also not pick up changes at runtime.
 :::
@@ -161,7 +161,7 @@ Vault will fetch only secret values (credentials, `dlt.secrets.value` marked arg
 in the above section, without fetching single values.
 
 
-:::caution
+:::warning
 `dlt` probes several locations for a single value so if you disable `only_toml_fragments` you may receive large amount of calls
 to Secrets backend.
 :::

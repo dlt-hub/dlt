@@ -9,7 +9,7 @@ except ModuleNotFoundError:
 from dlt.common.typing import TDataItems
 from dlt.common.schema.typing import TAnySchemaColumns, TSchemaContract, TSchemaEvolutionMode
 from dlt.extract.items import TTableHintTemplate
-from dlt.extract.items_transform import ValidateItem
+from dlt.extract.items_transform import BaseItemTransform, ValidateItem
 
 
 _TPydanticModel = TypeVar("_TPydanticModel", bound=PydanticBaseModel)
@@ -26,6 +26,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
     ) -> None:
         from dlt.common.libs.pydantic import apply_schema_contract_to_model, create_list_model
 
+        BaseItemTransform.__init__(self)
         self.column_mode: TSchemaEvolutionMode = column_mode
         self.data_mode: TSchemaEvolutionMode = data_mode
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)

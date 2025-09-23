@@ -23,6 +23,31 @@ class DataWriterMetrics(NamedTuple):
         return NotImplemented
 
 
+class DataWriterAndCustomMetrics(DataWriterMetrics):
+    custom_metrics: Dict[str, Any]
+
+    def __new__(
+        cls,
+        file_path: str,
+        items_count: int,
+        file_size: int,
+        created: float,
+        last_modified: float,
+        custom_metrics: Dict[str, Any] = None,
+    ) -> "DataWriterAndCustomMetrics":
+        self = super(DataWriterAndCustomMetrics, cls).__new__(
+            cls, file_path, items_count, file_size, created, last_modified
+        )
+        self.custom_metrics = custom_metrics or {}
+        return self
+
+    def _asdict(self) -> Dict[str, Any]:
+        """Override _asdict to include custom_metrics in serialization"""
+        result = super()._asdict()
+        result["custom_metrics"] = self.custom_metrics
+        return result
+
+
 class StepMetrics(TypedDict):
     """Metrics for particular package processed in particular pipeline step"""
 
@@ -43,7 +68,7 @@ class ExtractMetrics(StepMetrics):
     """Metrics collected per job id during writing of job file"""
     table_metrics: Dict[str, DataWriterMetrics]
     """Job metrics aggregated by table"""
-    resource_metrics: Dict[str, DataWriterMetrics]
+    resource_metrics: Dict[str, DataWriterAndCustomMetrics]
     """Job metrics aggregated by resource"""
     dag: List[Tuple[str, str]]
     """A resource dag where elements of the list are graph edges"""

@@ -1094,7 +1094,7 @@ When the API endpoint supports incremental loading, you can configure dlt to loa
 2. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration) (DEPRECATED)
 3. Using the `incremental` field in the [endpoint configuration](#endpoint-configuration) with the `start_param` field (DEPRECATED)
 
-:::caution
+:::warning
 The last two methods are deprecated and will be removed in a future dlt version.
 :::
 
@@ -1206,7 +1206,7 @@ You can also use different placeholder variants depending on your needs:
 
 ### Legacy method: Incremental loading in `params` (DEPRECATED)
 
-:::caution
+:::warning
 DEPRECATED: This method is deprecated and will be removed in a future version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 
@@ -1250,7 +1250,7 @@ The fields are:
 
 ### Incremental loading using the `incremental` field (DEPRECATED)
 
-:::caution
+:::warning
 DEPRECATED: This method is deprecated and will be removed in a future dlt version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 

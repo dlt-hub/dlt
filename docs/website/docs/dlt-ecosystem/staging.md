@@ -116,7 +116,7 @@ Before `dlt` loads data to the staging storage, it truncates previously loaded f
 truncate_tables_on_staging_destination_before_load=false
 ```
 
-:::caution
+:::warning
 The [Athena](destinations/athena#staging-support) destination only truncates non-iceberg tables with `replace` merge_disposition.
 Therefore, the parameter `truncate_tables_on_staging_destination_before_load` only controls the truncation of corresponding files for these tables.
 :::

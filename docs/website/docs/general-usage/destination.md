@@ -155,7 +155,7 @@ snow_ = dlt.destinations.snowflake(naming_convention="sql_cs_v1")
 ```
 Setting the naming convention will impact all new schemas being created (i.e., on the first pipeline run) and will re-normalize all existing identifiers.
 
-:::caution
+:::warning
 `dlt` prevents re-normalization of identifiers in tables that were already created at the destination. Use [refresh](pipeline.md#refresh-pipeline-data-and-state) mode to drop the data. You can also disable this behavior via [configuration](naming-convention.md#avoid-identifier-collisions).
 :::
 
@@ -163,7 +163,7 @@ Setting the naming convention will impact all new schemas being created (i.e., o
 Destinations that support case-sensitive identifiers but use a case folding convention to enable case-insensitive identifiers are configured in case-insensitive mode by default. Examples: Postgres, Snowflake, Oracle.
 :::
 
-:::caution
+:::warning
 If you use a case-sensitive naming convention with a case-insensitive destination, `dlt` will:
 1. Fail the load if it detects an identifier collision due to case folding.
 2. Warn if any case folding is applied by the destination.

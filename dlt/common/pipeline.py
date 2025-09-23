@@ -17,6 +17,8 @@ from typing import (
     TypeVar,
     Mapping,
     Literal,
+    Union,
+    Mapping,
 )
 from typing_extensions import NotRequired
 
@@ -43,6 +45,7 @@ from dlt.common.metrics import (
     LoadMetrics,
     NormalizeMetrics,
     StepMetrics,
+    DataWriterAndCustomMetrics,
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
@@ -158,7 +161,9 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
 
     @staticmethod
     def writer_metrics_asdict(
-        job_metrics: Dict[str, DataWriterMetrics], key_name: str = "job_id", extend: StrAny = None
+        job_metrics: Mapping[str, Union[DataWriterMetrics, DataWriterAndCustomMetrics]],
+        key_name: str = "job_id",
+        extend: StrAny = None,
     ) -> List[DictStrAny]:
         entities = []
         for entity_id, metrics in job_metrics.items():

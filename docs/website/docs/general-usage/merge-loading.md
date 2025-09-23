@@ -618,7 +618,7 @@ column in the root table to stamp changes in nested data.
 
 ## `upsert` strategy
 
-:::caution
+:::warning
 The `upsert` merge strategy is currently supported for these destinations:
 - `athena`
 - `bigquery`

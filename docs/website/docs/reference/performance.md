@@ -186,7 +186,7 @@ You can control the number of async functions/awaitables being evaluated in para
 of callables to be evaluated in a thread pool with a size of 5. This limit will instantiate only the desired amount of workers.
 :::
 
-:::caution
+:::warning
 Generators and iterators are always evaluated in a single thread: item by item. If you have a loop that yields items that you want to evaluate
 in parallel, instead yield functions or async functions that will be evaluated in separate threads or in an async pool.
 :::
@@ -204,7 +204,7 @@ The default is to not parallelize normalization and to perform it in the main pr
 Normalization is CPU-bound and can easily saturate all your cores. Never allow `dlt` to use all cores on your local machine.
 :::
 
-:::caution
+:::warning
 The default method of spawning a process pool on Linux is **fork**. If you are using threads in your code (or libraries that use threads),
 you should switch to **spawn**. Process forking does not respawn the threads and may destroy the critical sections in your code. Even logging
 with Python loggers from multiple threads may lock the `normalize` step. Here's how you switch to **spawn**:

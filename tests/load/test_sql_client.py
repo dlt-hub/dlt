@@ -17,7 +17,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
+from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn
 from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
@@ -726,6 +726,30 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
 
     client.complete_load("LMN")
     assert_load_id(client.sql_client, "LMN")
+
+
+def test_raise_database_error_no_circular_dependency():
+    """Test that raise_database_error decorator doesn't create circular __cause__ dependencies"""
+
+    class MockSqlClient:
+        @staticmethod
+        def _make_database_exception(ex):
+            # simulate problematic destinations that return original exception
+            return ex
+
+        @raise_database_error
+        def execute_query(self):
+            raise ValueError("Database connection failed because it failed.")
+
+    client = MockSqlClient()
+
+    with pytest.raises(Exception) as exc_info:
+        client.execute_query()
+
+    exception = exc_info.value
+
+    # exception should not cause itself
+    assert exception is not exception.__cause__
 
 
 def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None:

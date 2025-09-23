@@ -351,7 +351,7 @@ print(source.resources.keys())
 
 To read more about tables, columns, and datatypes, please refer to [our documentation here.](../../general-usage/schema#tables-and-columns)
 
-:::caution
+:::warning
 `dlt` will **not modify** tables after they are created.
 So if you changed data types with hints,
 then you need to **delete the dataset**

@@ -10,7 +10,7 @@ Currently, dltHub is [building two MCP servers](https://dlthub.com/blog/deep-div
 
 This page gives an overview of what we're building and includes detailed instructions to install the MCP in your favorite IDE.
 
-:::caution
+:::warning
 🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).
 :::
 
@@ -199,7 +199,7 @@ The following methods allow the user to manually launch the MCP server from thei
 
 We won't use `uv tool run` because we want to use the local Python environment instead of an isolated one. We assume that `dlt-plus[mcp]` is installed in the environment, giving access to the `dlt mcp` command.
 
-:::caution
+:::warning
 🚧 The MCP, IDE features, and the dlt MCP server are all rapidly evolving and some details are likely to change.
 :::
 

@@ -167,7 +167,7 @@ In particular:
 when using `min()` "higher" and "lower" are inverted.
 :::
 
-:::caution
+:::warning
 If you use `row_order`, **make sure that the data source returns ordered records** (ascending / descending) on the cursor field,
 e.g., if an API returns results both higher and lower
 than the given `end_value` in no particular order, data reading stops and you'll miss the data items that were out of order.
@@ -210,7 +210,7 @@ stop retrieving data at `end_value`. Instead, we set `row_order` to `asc` and `d
 getting more pages from the API after the first page with a cursor value `updated_at` is found older
 than `end_value`.
 
-:::caution
+:::warning
 In rare cases when you use Incremental with a transformer, `dlt` will not be able to automatically close
 the generator associated with a row that is out of range. You can still call the `can_close()` method on
 incremental and exit the yield loop when true.
@@ -271,7 +271,7 @@ while not pipeline.run(messages.add_limit(max_time=60)).is_empty:
 Note how we combine `incremental` and `add_limit` to generate chunk each minute. If you create and index on `created_at`, the database
 engine will be able to stream data using the index without the need to scan the whole table.
 
-:::caution
+:::warning
 If your source returns unordered data, you will most probably miss some data items or load them twice.
 :::
 
@@ -323,7 +323,7 @@ def stripe():
 
 Please note that in the example above, `get_resource` is passed as a function to `dlt.resource` to which we bind the endpoint: **dlt.resource(...)(endpoint)**.
 
-:::caution
+:::warning
 The typical mistake is to pass a generator (not a function) as below:
 
 `yield dlt.resource(get_resource(endpoint), name=endpoint.value, write_disposition="merge", primary_key="id")`.
@@ -535,7 +535,7 @@ assert len(result) == 1
 If you want to load data that includes `None` values, you can transform the records before the incremental processing.
 You can add steps to the pipeline that [filter, transform, or pivot your data](../resource.md#filter-transform-and-pivot-data).
 
-:::caution
+:::warning
 It is important to set the `insert_at` parameter of the `add_map` function to control the order of execution and ensure that your custom steps are executed before the incremental processing starts.
 In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
 :::
