@@ -29,7 +29,7 @@
     "@docusaurus/preset-classic": "^3.7.0",
     "@docusaurus/theme-common": "^3.7.0",
     "@mdx-js/react": "^3.1.0",
-    "@microlabs/otel-cf-workers": "^1.0.0-rc.52",
+    "@microlabs/otel-cf-workers": "1.0.0-rc.49",
     "clsx": "^1.2.1",
     "dedent": "^1.5.1",
     "dotenv": "^16.3.1",

@@ -1,7 +1,7 @@
 {
     "name": "docs",
     "compatibility_date": "2025-09-19",
-    "main": "worker.js",
+    "main": "worker.ts",
     "preview_urls": true,
   	"compatibility_flags": [
 		"nodejs_compat_v2"
@@ -17,7 +17,7 @@
     },
   	"vars": {
       "AXIOM_DATASET": "vibes",
-      "AXIOM_URL": "https://api.axiom.co/v1/traces"
+      "AXIOM_URL": "https://api.axiom.co/v1/traces",
     },
     "routes": [
         {
