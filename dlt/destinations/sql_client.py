@@ -477,7 +477,10 @@ def raise_open_connection_error(f: TFun) -> TFun:
         except Exception as ex:
             db_ex = self._make_database_exception(ex)
             if isinstance(db_ex, DestinationUndefinedEntity):
-                raise db_ex.with_traceback(ex.__traceback__) from ex
+                if db_ex is ex:
+                    raise db_ex.with_traceback(ex.__traceback__)
+                else:
+                    raise db_ex.with_traceback(ex.__traceback__) from ex
             raise DestinationConnectionError(type(self).__name__, self.dataset_name, str(ex), ex)
 
     return _wrap  # type: ignore
