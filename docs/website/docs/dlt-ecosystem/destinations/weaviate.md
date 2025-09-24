@@ -317,3 +317,4 @@ Weaviate destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA weaviate-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES weaviate-->

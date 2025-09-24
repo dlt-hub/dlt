@@ -280,7 +280,7 @@ dest_ = dlt.destinations.duckdb(
     DuckDbCredentials("duck.db", extensions=["spatial"], local_config={"errors_as_json": True})
 )
 ```
-Code above install **spatial** (`dlt` only loads extension) and passes duckdb credentials to the destination constructor. Database file is **duck.db**, logging and error messages as `json` are enabled. 
+Code above install **spatial** (`dlt` only loads extension) and passes duckdb credentials to the destination constructor. Database file is **duck.db**, logging and error messages as `json` are enabled.
 
 ## Data access after loading
 After loading, it is available in **read/write** mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details. If you want to **read** data, use [pipeline.dataset()](../../general-usage/dataset-access/dataset) instead of `sql_client`.
@@ -296,3 +296,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 <!--@@@DLT_TUBA duckdb-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES duckdb-->
