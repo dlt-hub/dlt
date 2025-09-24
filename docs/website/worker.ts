@@ -5,8 +5,9 @@ import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 const REDIRECTS = [
     // basic root redirects
     {
+        // NOTE: We only ever hit the root path on dev previews, so we can redirect to the devel version
         from: "/",
-        to: "/docs/intro"
+        to: "/docs/devel/intro"
     },
     {
         from: "/docs",
@@ -78,11 +79,6 @@ const handler = {
                 return Response.redirect(url.toString(), redirect.code || 301);
             }
         }   
-
-        // normalize urls prefixed with /docs, only needed locally
-        if (env.ENV === "development" && url.pathname.startsWith("/docs/")) {
-            url.pathname = url.pathname.replace(/^\/docs/, "");
-        }
 
         // always redirect away from trailing slashes
         if (url.pathname.endsWith("/")) {
