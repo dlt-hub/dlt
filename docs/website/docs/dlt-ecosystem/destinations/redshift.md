@@ -163,3 +163,4 @@ Supported loader file formats for Redshift are `sql` and `insert_values` (defaul
 
 <!--@@@DLT_TUBA redshift-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES redshift-->

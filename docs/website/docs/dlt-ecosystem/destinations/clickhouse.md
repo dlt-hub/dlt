@@ -259,3 +259,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 <!--@@@DLT_TUBA clickhouse-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES clickhouse-->
