@@ -34,13 +34,13 @@ Check out [dltHub Features](https://info.dlthub.com/waiting-list) for support of
 We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/), which include, but are not limited to, the following database engines:
 
 
-* [PostgreSQL](./troubleshooting#postgres--mssql)
-* [MySQL](./troubleshooting#mysql)
+* [PostgreSQL](./troubleshooting.md#postgres--mssql)
+* [MySQL](./troubleshooting.md#mysql)
 * SQLite
-* [Oracle](./troubleshooting#oracle)
-* [Microsoft SQL Server](./troubleshooting#postgres--mssql)
+* [Oracle](./troubleshooting.md#oracle)
+* [Microsoft SQL Server](./troubleshooting.md#postgres--mssql)
 * MariaDB
-* [IBM DB2 and Informix](./troubleshooting#db2)
+* [IBM DB2 and Informix](./troubleshooting.md#db2)
 * Google BigQuery
 * Snowflake
 * Redshift

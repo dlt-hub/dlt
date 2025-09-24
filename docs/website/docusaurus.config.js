@@ -55,6 +55,7 @@ const config = {
   onBrokenAnchors: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
+  trailingSlash: false,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.

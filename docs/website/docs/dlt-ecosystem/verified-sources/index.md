@@ -34,7 +34,7 @@ item => item.label !== '30+ SQL databases' && item.label !== 'REST APIs' && item
 ### What's the difference between core and verified sources?
 
 The main difference between the [core sources](#core-sources) and [verified sources](#verified-sources) lies in their structure.
-Core sources are generic collections, meaning they can connect to a variety of systems. For example, the [SQL Database source](sql_database) can connect to any
+Core sources are generic collections, meaning they can connect to a variety of systems. For example, the [SQL Database source](./sql_database/index.md) can connect to any
 database that supports SQLAlchemy.
 
 According to our telemetry, core sources are the most widely used among our users!
