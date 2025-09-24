@@ -84,7 +84,7 @@ You should keep the import schema as simple as possible and let `dlt` do the res
 
 In the next steps, we'll experiment a lot; you will be warned to set `dev_mode=True` until we are done experimenting.
 
-:::caution
+:::warning
 dlt does **not modify** existing columns in a table after creation. While new columns can be added, changes to existing 
 columns (such as altering data types or adding hints) will not take effect automatically.
 

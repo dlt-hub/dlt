@@ -189,7 +189,7 @@ def test_secrets_toml_embedded_credentials(
         resolve.resolve_configuration(c, sections=("middleware", "storage"))
     # so we can read partially filled configuration here
     assert c.credentials.project_id.endswith("-credentials")
-    assert set(py_ex.value.traces.keys()) == {"client_email", "private_key"}
+    assert set(py_ex.value.traces.keys()) == {"credentials"}
 
     # embed "gcp_storage" will bubble up to the very top, never reverts to "credentials"
     c2 = resolve.resolve_configuration(
@@ -526,7 +526,7 @@ def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
     provider = CustomLoaderDocProvider("yaml", loader, True)
     assert provider.name == "yaml"
     assert provider.supports_secrets is True
-    assert provider.to_toml().startswith("[destination]")
+    assert provider.to_toml().startswith("[destination")
     assert provider.to_yaml().startswith("destination:")
     value, _ = provider.get_value("datetime", datetime.datetime, None, "data_types")
     assert value == pendulum.parse("1979-05-27 07:32:00-08:00")

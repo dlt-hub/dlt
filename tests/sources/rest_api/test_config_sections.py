@@ -10,6 +10,6 @@ def test_config_sections_resolution():
 
     # NOTE: we check that the first trace related to rest_api has the correct
     # sections set
-    assert list(exc_info.value.traces.values())[1][0].key.startswith(
+    assert list(exc_info.value.traces.values())[1][0].key.startswith(  # type: ignore[union-attr]
         "SOURCES__REST_API__REST_API__"
     )

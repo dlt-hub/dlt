@@ -8,16 +8,17 @@ _test_storage
 _secrets/
 _backup_storage/
 experiments/*
-# !experiments/
-# !experiments/pipeline/
-# !experiments/pipeline/*
 secrets.toml
 *.session.sql
 *.duckdb
+*.ducklake
+**.ducklake.files/
 *.wal
 logs/
 .continuerules
 .continue
+# playwright dumps
+test-results/
 # temporary directory used by marimo for layout, caching, HTML snapshots; see marimo docs
 **/__marimo__  
 

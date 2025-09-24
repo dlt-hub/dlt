@@ -17,7 +17,7 @@ There are two options to run dlt pipelines and load data:
 * Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
 
 :::note
-If you'd like to load data to Databricks Managed Iceberg tables, use [dlt+ Iceberg destination](../../plus/ecosystem/iceberg#unity-catalog)
+If you'd like to load data to Databricks Managed Iceberg tables, use [dltHub Iceberg destination](https://info.dlthub.com/waiting-list)
 :::
 
 ## Install dlt with Databricks
@@ -319,7 +319,7 @@ print(pipeline.dataset().pokemon.df())
 - **For production**, explicitly setting *staging_volume_name* is recommended.
 - The volume is used as a **temporary location** to store files before loading.
 
-:::caution Module conflict
+:::warning Module conflict
 When using dlt within Databricks Notebooks, you may encounter naming conflicts with Databricks' built-in Delta Live Tables (DLT) module.
 To avoid these conflicts, follow the steps in the [Troubleshooting section](#troubleshooting) below.
 :::
@@ -619,7 +619,7 @@ for name, module in list(sys.modules.items()):
 ```
 This ensures the dlt package from dltHub is used instead of the built-in Databricks DLT module.
 
-:::caution
+:::warning
 It is best practice to use an `init.sh` script.
 
 Modifying `sys.meta_path` or `sys.modules` is fragile and may break after Databricks updates, potentially causing unexpected issues.

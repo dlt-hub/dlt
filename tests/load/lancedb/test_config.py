@@ -41,7 +41,7 @@ def test_lancedb_follows_local_dir() -> None:
     c = resolve_configuration(
         LanceDBClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    db_path = os.path.join(local_dir, ".lancedb")
+    db_path = os.path.join(local_dir, "lancedb.lancedb")
     # db path is relative
     assert c.lance_uri.endswith(db_path)
     assert c.lance_uri == os.path.abspath(db_path)

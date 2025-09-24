@@ -127,6 +127,9 @@ class LoadStorage(VersionedStorage):
         return self.loaded_packages.list_failed_jobs_infos(load_id)
 
     def begin_schema_update(self, load_id: str) -> Optional[TSchemaTables]:
+        """Reads the update file from load package `load_id` and returns its content.
+        Returns none if update file is already processed (deleted in commit_schema_update)
+        """
         package_path = self.get_normalized_package_path(load_id)
         if not self.storage.has_folder(package_path):
             raise FileNotFoundError(package_path)
@@ -138,7 +141,9 @@ class LoadStorage(VersionedStorage):
             return None
 
     def commit_schema_update(self, load_id: str, applied_update: TSchemaTables) -> None:
-        """Marks schema update as processed and stores the update that was applied at the destination"""
+        """Marks schema update as processed by removing schema update file and saving the applied
+        (effective) updates as reported by destination
+        """
         load_path = self.get_normalized_package_path(load_id)
         schema_update_file = join(load_path, PackageStorage.SCHEMA_UPDATES_FILE_NAME)
         applied_schema_update_file = join(

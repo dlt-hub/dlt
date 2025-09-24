@@ -1,7 +1,5 @@
-from copy import copy
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, Optional
 
-from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnHint, Schema
 from dlt.common.destination.client import (
@@ -45,11 +43,10 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         else:
             raise ValueError(self._file_path)
 
-        with self._sql_client.begin_transaction():
-            self._sql_client.execute_sql(
-                f"INSERT INTO {qualified_table_name} BY NAME SELECT * FROM"
-                f" {source_format}('{self._file_path}' {options})"
-            )
+        self._sql_client.execute_sql(
+            f"INSERT INTO {qualified_table_name} BY NAME SELECT * FROM"
+            f" {source_format}('{self._file_path}' {options})"
+        )
 
 
 class DuckDbClient(InsertValuesJobClient):
@@ -59,9 +56,12 @@ class DuckDbClient(InsertValuesJobClient):
         config: DuckDbClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(
+            schema, config
+        )
         sql_client = DuckDbSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )

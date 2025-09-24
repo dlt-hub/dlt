@@ -198,7 +198,7 @@ When staging is enabled:
 * [Parquet](../file-formats/parquet.md) is supported.
 * [CSV](../file-formats/csv.md) is supported.
 
-:::caution
+:::warning
 When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 

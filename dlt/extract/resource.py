@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Iterable,
     Iterator,
+    Generator,
     Type,
     Union,
     Any,
@@ -14,6 +15,7 @@ from typing import (
     Mapping,
     List,
     Tuple,
+    Dict,
 )
 
 from dlt.common import logger
@@ -139,6 +141,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._explicit_args: DictStrAny = None
         self.source_name = None
         self._parent: DltResource = None
+        self._custom_metrics: Dict[str, Any] = {}
         super().__init__(hints)
         self._update_wrapper()
 
@@ -219,6 +222,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if data_from:
             r_.pipe_data_from(data_from)
         return r_
+
+    @property
+    def custom_metrics(self) -> Dict[str, Any]:
+        """Customizable resource metrics"""
+        return self._custom_metrics
 
     @property
     def name(self) -> str:
@@ -383,19 +391,24 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self,
         max_items: Optional[int] = None,
         max_time: Optional[float] = None,
+        count_rows: Optional[bool] = False,
     ) -> Self:  # noqa: A003
-        """Adds a limit `max_items` to the resource pipe.
+        """Limit the number of items that will be processed by the resource: by count and by time. By default, dlt counts
+        number of "yields/batches/pages" not the number of rows inside.
 
-         This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
+        For incremental resources that return rows in deterministic order, you can use this function to process large load
+        in batches.
 
          Notes:
              1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
-             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
-             3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
+             2. Each yielded item may contain several rows. By default `add_limit` only limits the "number of yields", not the total number of rows.
+             3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 
         Args:
-             max_items (int): The maximum number of items to yield, set to None for no limit
+             max_items (int): The maximum number of items (not rows!) to yield, set to None for no limit
              max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+             count_rows (bool): Default: false.
+                Count rows instead of pages. Note that if resource yields pages of rows, last page will not be trimmed and more rows that expected will be received.
          Returns:
              "DltResource": returns self
         """
@@ -408,7 +421,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             # remove existing limit if any
             self._pipe.remove_by_type(LimitItem)
-            self.add_step(LimitItem(max_items=max_items, max_time=max_time))
+            self.add_step(LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows))
 
         return self
 
@@ -610,7 +623,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self.pipe_data_from(self.from_data(data, name="iter_" + uniq_id(4)))
         return self
 
-    def __iter__(self) -> Iterator[TDataItem]:
+    def __iter__(self) -> Generator[TDataItem, None, None]:
         """Opens iterator that yields the data items from the resources in the same order as in Pipeline class.
 
         A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
@@ -718,7 +731,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def _clone(
         self, *, new_name: str = None, new_section: str = None, with_parent: bool = False
     ) -> Self:
-        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source."""
+        """Creates a deep copy of a current resource, optionally renaming the resource.
+        The clone will not be part of the source and will not include the custom resource metrics.
+        """
         pipe = self._pipe
         if pipe and not pipe.is_empty:
             pipe = pipe._clone(new_name=new_name)

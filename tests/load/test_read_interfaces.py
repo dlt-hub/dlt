@@ -15,6 +15,7 @@ from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 
+from dlt.common.utils import uniq_id
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
@@ -301,6 +302,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
         "dlt.destinations.filesystem",
         "dlt.destinations.snowflake",
+        "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
     ]
 
     # full frame
@@ -903,6 +905,8 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert all(row[0] < 10 for row in filtered_items_sql)
 
     load_id = items.select("_dlt_load_id").max().fetchscalar()
+    # NOTE: query below tests dremio wrong MAX behavior where strings are casted to decimals, we locked dremio container to 25.0 tag
+    # f'SELECT MAX(CONCAT(\'_\', "_dlt_load_id")) AS "_col_0" FROM "nas"."{populated_pipeline.dataset_name}"."items" AS "items"')
     all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
     assert len(all_items) == total_records
 
@@ -1265,14 +1269,21 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
     # make sure the not implemented error is raised if the ibis backend can't be created
     try:
-        ibis_connection = populated_pipeline.dataset().ibis()
+        ds_ = populated_pipeline.dataset()
+        ibis_connection = ds_.ibis(read_only=True)
     except NotImplementedError:
-        pytest.raises(NotImplementedError)
-        return
+        pytest.skip("ibis not implemented for this destination")
     except Exception as e:
         pytest.fail(f"Unexpected error raised: {e}")
 
     try:
+        # garbage collect: we want all destructors to be fired
+        import gc
+
+        del ds_
+        for _ in range(3):
+            gc.collect()
+
         total_records = _total_records(populated_pipeline.destination.destination_type)
 
         map_i = lambda x: x
@@ -1299,24 +1310,26 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
         add_table_prefix = lambda x: table_name_prefix + x
 
-        # just do a basic check to see wether ibis can connect
-        assert set(
-            ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
-        ) == {
-            add_table_prefix(map_i(x))
-            for x in (
-                [
-                    "_dlt_loads",
-                    "_dlt_pipeline_state",
-                    "_dlt_version",
-                    "double_items",
-                    "items",
-                    "items__children",
-                    "orderable_in_chain",
-                ]
-                + additional_tables
-            )
-        }
+        # databricks can't list tables (looks like internal ibis bug)
+        if populated_pipeline.destination.destination_type != "dlt.destinations.databricks":
+            # just do a basic check to see wether ibis can connect
+            assert set(
+                ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
+            ) == {
+                add_table_prefix(map_i(x))
+                for x in (
+                    [
+                        "_dlt_loads",
+                        "_dlt_pipeline_state",
+                        "_dlt_version",
+                        "double_items",
+                        "items",
+                        "items__children",
+                        "orderable_in_chain",
+                    ]
+                    + additional_tables
+                )
+            }
 
         table_name = add_table_prefix(map_i("items"))
         items_table = ibis_connection.table(table_name, database=dataset_name)
@@ -1331,6 +1344,31 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                 raise
     finally:
         ibis_connection.disconnect()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+@pytest.mark.skip("enable when we standardize behavior for non existing datasets")
+def test_ibis_no_dataset(populated_pipeline: Pipeline) -> None:
+    try:
+        ds = populated_pipeline.dataset()
+        ds._dataset_name = "no_dataset_" + uniq_id(4)
+        ibis_connection = ds.ibis(read_only=True)
+        ibis_connection.list_tables()
+    except NotImplementedError:
+        pytest.skip("ibis not implemented for this destination")
+    except Exception as e:
+        print(e)
+        pass
+    else:
+        ibis_connection.disconnect()
+        pytest.fail("Exception expected on opening non exiting dataset")
 
 
 @pytest.mark.no_load

@@ -49,3 +49,7 @@ to = "/docs/intro"
 [[redirects]]
 from = "/docs/visualizations"
 to = "/docs/general-usage/dataset-access"
+
+[[redirects]]
+from = "/product/data-platform-teams"
+to = "https://info.dlthub.com/waiting-list"

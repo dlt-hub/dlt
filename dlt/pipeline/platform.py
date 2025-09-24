@@ -29,9 +29,10 @@ class TPipelineSyncPayload(TypedDict):
 def init_platform_tracker() -> None:
     # lazily import requests to avoid binding config before initialization
     global requests
-    from dlt.sources.helpers import requests as r_
+    from dlt.sources.helpers.requests import Client
 
-    requests = r_  # type: ignore[assignment]
+    # fail fast, don't block user
+    requests = Client(request_timeout=(2, 10), request_max_attempts=0)  # type: ignore[assignment]
 
     global _THREAD_POOL
     if _THREAD_POOL is None:

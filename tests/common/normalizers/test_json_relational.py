@@ -1,8 +1,11 @@
+from typing import Any, Dict, Optional
 import pytest
 
 from dlt.common.typing import StrAny, DictStrAny
+from dlt.common.configuration.container import Container
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.schema.typing import TColumnName, TSimpleRegex
+from dlt.common.schema.typing import TColumnName, TLoaderMergeStrategy, TSimpleRegex
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
@@ -96,8 +99,8 @@ def test_nested_table_linking(norm: RelationalNormalizer) -> None:
     assert len(rows) == 7
     # root elem will not have a root hash if not explicitly added, "extend" is added only to child
     root_row = next(t for t in rows if t[0][0] == "table")
-    # root row must have parent table none
-    assert root_row[0][1] is None
+    # root row must have parent path ()
+    assert root_row[0][1] == ()
 
     root = root_row[1]
     assert "_dlt_root_id" not in root
@@ -116,12 +119,12 @@ def test_nested_table_linking(norm: RelationalNormalizer) -> None:
     # filter 3 entries with list
     list_rows = [t for t in rows if t[0][0] == "table__f__l"]
     assert len(list_rows) == 3
-    # all list rows must have table_f as parent
-    assert all(r[0][1] == "table__f" for r in list_rows)
+    # all list rows must have ("table", "f") as parent path
+    assert all(r[0][1] == ("table", "f") for r in list_rows)
     # get parent for list
     f_row = next(t for t in rows if t[0][0] == "table__f")
-    # parent of the list must be "table"
-    assert f_row[0][1] == "table"
+    # parent path of the list must be ("table",)
+    assert f_row[0][1] == ("table",)
     f_row_v = f_row[1]
     # parent of "f" must be row_id
     assert f_row_v["_dlt_parent_id"] == row_id
@@ -160,10 +163,10 @@ def test_skip_nested_link_when_no_parent(norm: RelationalNormalizer) -> None:
     assert all(
         e[1]["_dlt_parent_id"] != digest128("level1", DLT_ID_LENGTH_BYTES) for e in list_rows
     )
-    assert all(r[0][1] == "table__f" for r in list_rows)
+    assert all(r[0][1] == ("table", "f") for r in list_rows)
     obj_rows = [t for t in rows if t[0][0] == "table__f__o"]
     assert all(e[1]["_dlt_parent_id"] != digest128("level1", DLT_ID_LENGTH_BYTES) for e in obj_rows)
-    assert all(r[0][1] == "table__f" for r in obj_rows)
+    assert all(r[0][1] == ("table", "f") for r in obj_rows)
 
 
 def test_yields_parents_first(norm: RelationalNormalizer) -> None:
@@ -222,19 +225,19 @@ def test_yields_parent_relation(norm: RelationalNormalizer) -> None:
     # normalizer must return parent table first and move in order of the list elements when yielding child tables
     # the yielding order if fully defined
     expected_parents = [
-        ("table", None),
-        ("table__f", "table"),
-        ("table__f__l", "table__f"),
-        ("table__f__o", "table__f"),
+        ("table", (), ("table",)),
+        ("table__f", ("table",), ("f",)),
+        ("table__f__l", ("table", "f"), ("l",)),
+        ("table__f__o", ("table", "f"), ("o",)),
         # "table__f__b" is not yielded as it is fully flattened into table__f
-        ("table__f__b__a", "table__f"),
+        ("table__f__b__a", ("table", "f"), ("b", "a")),
         # same for table__d -> fully flattened into table
-        ("table__d__a", "table"),
-        ("table__d__b__a", "table"),
+        ("table__d__a", ("table",), ("d", "a")),
+        ("table__d__b__a", ("table",), ("d", "b", "a")),
         # table__e is yielded it however only contains linking information
-        ("table__e", "table"),
-        ("table__e__o", "table__e"),
-        ("table__e__b__a", "table__e"),
+        ("table__e", ("table",), ("e",)),
+        ("table__e__o", ("table", "e"), ("o",)),
+        ("table__e__b__a", ("table", "e"), ("b", "a")),
     ]
     parents = list(r[0] for r in rows)
     assert parents == expected_parents
@@ -329,7 +332,7 @@ def test_control_descending(norm: RelationalNormalizer) -> None:
     # prevent yielding descendants of "f" but yield all else
     rows_gen = norm.normalize_data_item(row, "load_id", "table")
     rows_gen.send(None)
-    (table, _), _ = rows_gen.send(True)
+    (table, _, _), _ = rows_gen.send(True)
     assert table == "table__f"
     # won't yield anything else
     with pytest.raises(StopIteration):
@@ -339,11 +342,11 @@ def test_control_descending(norm: RelationalNormalizer) -> None:
     rows_gen = norm.normalize_data_item(row, "load_id", "table")
     rows_gen.send(None)
     rows_gen.send(True)
-    (table, _), one_row = rows_gen.send(True)
+    (table, _, _), one_row = rows_gen.send(True)
     assert table == "table__f__l"
     assert one_row["value"] == "a"
     # get next element in the list - even with sending False - we do not descend
-    (table, _), one_row = rows_gen.send(False)
+    (table, _, _), one_row = rows_gen.send(False)
     assert table == "table__f__l"
     assert one_row["value"] == "b"
 
@@ -355,7 +358,7 @@ def test_control_descending(norm: RelationalNormalizer) -> None:
     next(rows_gen)
     next(rows_gen)
     next(rows_gen)
-    (table, _), one_row = rows_gen.send(True)
+    (table, _, _), one_row = rows_gen.send(True)
     assert table == "table__f__lo"
     # do not descend into lists
     with pytest.raises(StopIteration):
@@ -393,12 +396,12 @@ def test_list_in_list() -> None:
     zen__webpath = [row for row in rows if row[0][0] == "zen__webpath"]
     # two rows in web__zenpath for two lists
     assert len(zen__webpath) == 2
-    assert zen__webpath[0][0] == ("zen__webpath", "zen")
+    assert zen__webpath[0][0] == ("zen__webpath", ("zen",), ("webpath",))
     # _dlt_id was hardcoded in the original row
     assert zen__webpath[0][1]["_dlt_parent_id"] == "123456"
     assert zen__webpath[0][1]["_dlt_list_idx"] == 0
     assert zen__webpath[1][1]["_dlt_list_idx"] == 1
-    assert zen__webpath[1][0] == ("zen__webpath", "zen")
+    assert zen__webpath[1][0] == ("zen__webpath", ("zen",), ("webpath",))
     # inner lists
     zen__webpath__list = [row for row in rows if row[0][0] == "zen__webpath__list"]
     # actually both list of objects and list of number will be in the same table
@@ -441,7 +444,7 @@ def test_child_row_deterministic_hash(norm: RelationalNormalizer) -> None:
     assert len(distinct_hashes) == len(children)
 
     # compute hashes for all children
-    for (table, _), ch in children:
+    for (table, _, _), ch in children:
         expected_hash = digest128(
             f"{ch['_dlt_parent_id']}_{table}_{ch['_dlt_list_idx']}", DLT_ID_LENGTH_BYTES
         )
@@ -520,7 +523,7 @@ def test_propagates_root_context(norm: RelationalNormalizer) -> None:
     }
     normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
     # all non-root rows must have:
-    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    non_root = [r for r in normalized_rows if r[0][1] != ()]
     assert all(r[1]["_dlt_root_id"] == "###" for r in non_root)
     assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
     assert all("__not_found" not in r[1] for r in non_root)
@@ -558,7 +561,7 @@ def test_propagates_table_context(
         row["lvl1"][0]["_dlt_id"] = "row_id_lvl1"  # type: ignore[index]
 
     normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
-    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    non_root = [r for r in normalized_rows if r[0][1] != ()]
     # _dlt_root_id in all non root
     assert all(r[1]["_dlt_root_id"] == "###" for r in non_root)
     # __not_found nowhere
@@ -591,7 +594,7 @@ def test_propagates_table_context_to_lists(norm: RelationalNormalizer) -> None:
     row = {"_dlt_id": "###", "timestamp": 12918291.1212, "lvl1": [1, 2, 3, [4, 5, 6]]}
     normalized_rows = list(norm._normalize_row(row, {}, ("table",), _r_lvl=1000, is_root=True))
     # _partition_ts == timestamp on all child tables
-    non_root = [r for r in normalized_rows if r[0][1] is not None]
+    non_root = [r for r in normalized_rows if r[0][1] != ()]
     assert all(r[1]["_partition_ts"] == 12918291.1212 for r in non_root)
     # just make sure that list of lists are present
     assert len([r for r in non_root if r[0][0] == "table__lvl1__list"]) == 3
@@ -630,7 +633,7 @@ def test_preserves_json_types_list(norm: RelationalNormalizer) -> None:
     # make sure only 1 row is emitted, the list is not normalized
     assert len(normalized_rows) == 1
     # value is kept in root row -> market as json
-    root_row = next(r for r in normalized_rows if r[0][1] is None)
+    root_row = next(r for r in normalized_rows if r[0][1] == ())
     assert root_row[1]["value"] == row["value"]
 
     # same should work for a list
@@ -639,7 +642,7 @@ def test_preserves_json_types_list(norm: RelationalNormalizer) -> None:
     # make sure only 1 row is emitted, the list is not normalized
     assert len(normalized_rows) == 1
     # value is kept in root row -> market as json
-    root_row = next(r for r in normalized_rows if r[0][1] is None)
+    root_row = next(r for r in normalized_rows if r[0][1] == ())
     assert root_row[1]["value"] == row["value"]
 
 
@@ -653,9 +656,10 @@ def test_wrap_in_dict(norm: RelationalNormalizer) -> None:
     assert len(rows) == 6
     assert rows[0][0] == (
         "listex",
-        None,
+        (),
+        ("listex",),
     )
-    assert rows[1][0] == ("listex__value", "listex")
+    assert rows[1][0] == ("listex__value", ("listex",), ("value",))
     assert rows[-1][1]["value"] == "A"
 
 
@@ -859,58 +863,63 @@ def test_propagation_update_on_table_change(norm: RelationalNormalizer):
     norm.schema.update_table(table_1)
     assert "config" not in norm.schema._normalizers_config["json"]
 
-    # change table to merge
-    table_1["write_disposition"] = "merge"
-    norm.schema.update_table(table_1)
-    assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        table_1["name"]
-    ] == {"_dlt_id": "_dlt_root_id"}
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=["delete-insert"])
+    ):
+        # change table to merge
+        table_1["write_disposition"] = "merge"
+        norm.schema.update_table(table_1)
+        assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
+            table_1["name"]
+        ] == {"_dlt_id": "_dlt_root_id"}
 
-    # add subtable
-    table_2 = new_table("table_2", parent_table_name="table_1")
-    norm.schema.update_table(table_2)
-    assert (
-        "table_2" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
-    )
+        # add subtable
+        table_2 = new_table("table_2", parent_table_name="table_1")
+        norm.schema.update_table(table_2)
+        assert (
+            "table_2"
+            not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+        )
 
-    # test merging into existing propagation
-    norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]["table_3"] = {
-        "prop1": "prop2"
-    }
-    table_3 = new_table("table_3", write_disposition="merge")
-    norm.schema.update_table(table_3)
-    assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "table_3"
-    ] == {"_dlt_id": "_dlt_root_id", "prop1": "prop2"}
+        # test merging into existing propagation
+        norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]["table_3"] = {
+            "prop1": "prop2"
+        }
+        table_3 = new_table("table_3", write_disposition="merge")
+        norm.schema.update_table(table_3)
+        assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
+            "table_3"
+        ] == {"_dlt_id": "_dlt_root_id", "prop1": "prop2"}
 
-    # force propagation when table has nested table that needs root_key
-    # also use custom name for row_key
-    table_4 = new_table(
-        "table_4", write_disposition="replace", columns=[{"name": "primary_key", "row_key": True}]
-    )
-    table_4_nested = new_table(
-        "table_4__nested",
-        parent_table_name="table_4",
-        columns=[{"name": "_dlt_root_id", "root_key": True}],
-    )
-    # must add table_4 first
-    norm.schema.update_table(table_4)
-    norm.schema.update_table(table_4_nested)
-    # row key table_4 not propagated because it was added before nested that needs that
-    # TODO: maybe fix it
-    assert (
-        "table_4" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
-    )
-    norm.schema.update_table(table_4)
-    # also custom key was used
-    assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "table_4"
-    ] == {"primary_key": "_dlt_root_id"}
-    # drop table from schema
-    norm.schema.drop_tables(["table_4"])
-    assert (
-        "table_4" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
-    )
+        # force propagation when table has nested table that needs root_key
+        # also use custom name for row_key
+        table_4 = new_table(
+            "table_4",
+            write_disposition="replace",
+            columns=[{"name": "primary_key", "row_key": True}],
+        )
+        table_4_nested = new_table(
+            "table_4__nested",
+            parent_table_name="table_4",
+            columns=[{"name": "_dlt_root_id", "root_key": True}],
+        )
+        # must add table_4 first
+        norm.schema.update_table(table_4)
+        norm.schema.update_table(table_4_nested)
+        assert (
+            "table_4" in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+        )
+        norm.schema.update_table(table_4)
+        # also custom key was used
+        assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][
+            "table_4"
+        ] == {"primary_key": "_dlt_root_id"}
+        # drop table from schema
+        norm.schema.drop_tables(["table_4", "table_4__nested"])
+        assert (
+            "table_4"
+            not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+        )
 
 
 def test_caching_perf(norm: RelationalNormalizer) -> None:
@@ -925,8 +934,229 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
     print(f"{time() - start}")
 
 
-def test_extend_table(norm: RelationalNormalizer) -> None:
-    pass
+@pytest.mark.parametrize(
+    "merge_strategy, root_key_propagation, has_nested_with_root_key, expected",
+    [
+        # Test with different merge strategies when root_key_propagation is None
+        ("delete-insert", None, False, True),
+        ("upsert", None, False, True),
+        ("scd2", None, False, False),
+        ("append", None, False, False),
+        ("replace", None, False, False),
+        # Test with root_key_propagation explicitly True (should always be True)
+        ("delete-insert", True, False, True),
+        ("upsert", True, False, True),
+        ("scd2", True, False, True),
+        ("append", True, False, True),
+        ("replace", True, False, True),
+        # Test with root_key_propagation explicitly False (should always be False)
+        ("delete-insert", False, False, False),
+        ("upsert", False, False, False),
+        ("scd2", False, False, False),
+        ("append", False, False, False),
+        ("replace", False, False, False),
+        # Test with nested table having root_key (should always be True regardless of other settings)
+        ("delete-insert", None, True, True),
+        ("upsert", None, True, True),
+        ("scd2", None, True, True),
+        ("append", None, True, True),
+        ("replace", None, True, True),
+        ("delete-insert", False, True, True),
+        ("upsert", False, True, True),
+        ("scd2", False, True, True),
+        ("append", False, True, True),
+        ("replace", False, True, True),
+    ],
+    ids=[
+        # Names for default behavior tests (root_key_propagation=None)
+        "delete-insert_default_no-nested_requires-key",
+        "upsert_default_no-nested_requires-key",
+        "scd2_default_no-nested_no-key-required",
+        "append_default_no-nested_no-key-required",
+        "replace_default_no-nested_no-key-required",
+        # Names for explicit True tests
+        "delete-insert_explicit-true_no-nested_requires-key",
+        "upsert_explicit-true_no-nested_requires-key",
+        "scd2_explicit-true_no-nested_requires-key",
+        "append_explicit-true_no-nested_requires-key",
+        "replace_explicit-true_no-nested_requires-key",
+        # Names for explicit False tests
+        "delete-insert_explicit-false_no-nested_no-key-required",
+        "upsert_explicit-false_no-nested_no-key-required",
+        "scd2_explicit-false_no-nested_no-key-required",
+        "append_explicit-false_no-nested_no-key-required",
+        "replace_explicit-false_no-nested_no-key-required",
+        # Names for nested table with root_key tests (default behavior)
+        "delete-insert_default_with-nested_requires-key",
+        "upsert_default_with-nested_requires-key",
+        "scd2_default_with-nested_requires-key",
+        "append_default_with-nested_requires-key",
+        "replace_default_with-nested_requires-key",
+        # Names for nested table with root_key tests (explicit False - should still require key)
+        "delete-insert_explicit-false_with-nested_requires-key",
+        "upsert_explicit-false_with-nested_requires-key",
+        "scd2_explicit-false_with-nested_requires-key",
+        "append_explicit-false_with-nested_requires-key",
+        "replace_explicit-false_with-nested_requires-key",
+    ],
+)
+def test_requires_root_key(
+    norm: RelationalNormalizer,
+    merge_strategy: TLoaderMergeStrategy,
+    root_key_propagation: Optional[bool],
+    has_nested_with_root_key: bool,
+    expected: bool,
+) -> None:
+    # Create parent table with specified write disposition
+    table_1 = new_table("table_1", write_disposition="merge")
+    # do not call extend schema, set table directly
+    norm.schema.tables["table_1"] = table_1
+
+    # Create nested table with root_key if needed
+    if has_nested_with_root_key:
+        nested_table = new_table(
+            "table_1__nested",
+            parent_table_name="table_1",
+            columns=[{"name": "_dlt_root_id", "root_key": True}],
+        )
+        norm.schema.tables["nested_table"] = nested_table
+
+    # Inject destination with specific strategy supported
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=[merge_strategy])
+    ):
+        result = normalize_helpers.requires_root_key(
+            norm.schema, table_1, root_key_propagation=root_key_propagation
+        )
+        assert result == expected, (
+            f"Failed with merge_strategy={merge_strategy}, "
+            f"root_key_propagation={root_key_propagation}, "
+            f"has_nested_with_root_key={has_nested_with_root_key}"
+        )
+
+
+def test_dlt_table_no_root_key(norm: RelationalNormalizer) -> None:
+    table_1 = new_table("_dlt_versions", write_disposition="append")
+    # do not call extend schema, set table directly
+    norm.schema.tables["_dlt_versions"] = table_1
+
+    result = normalize_helpers.requires_root_key(norm.schema, table_1, root_key_propagation=True)
+    assert result is False
+
+    # Create nested table with root_key if needed
+    nested_table = new_table(
+        "table_1__nested",
+        parent_table_name="_dlt_versions",
+        columns=[{"name": "_dlt_root_id", "root_key": True}],
+    )
+    norm.schema.tables["nested_table"] = nested_table
+    # always enabled if root key is nested table
+    result = normalize_helpers.requires_root_key(norm.schema, table_1, root_key_propagation=False)
+    assert result is True
+
+
+@pytest.mark.parametrize(
+    "table_config, merge_strategy, has_nested_with_root_key, expected_propagation",
+    [
+        # Case 1: Merge table with delete-insert strategy - should add propagation
+        (
+            {"table_name": "table1", "write_disposition": "merge"},
+            "delete-insert",
+            False,
+            {"_dlt_id": "_dlt_root_id"},
+        ),
+        # Case 2: Append table with no nested tables - no propagation needed
+        ({"table_name": "table2", "write_disposition": "append"}, "append", False, {}),
+        # Case 3: Append table with nested table that has root_key - should add propagation
+        (
+            {"table_name": "table3", "write_disposition": "append"},
+            "append",
+            True,
+            {"_dlt_id": "_dlt_root_id"},
+        ),
+        # Case 4: Custom row_key column - should use that for propagation
+        (
+            {
+                "table_name": "table4",
+                "write_disposition": "merge",
+                "columns": [{"name": "custom_id", "row_key": True}],
+            },
+            "delete-insert",
+            False,
+            {"custom_id": "_dlt_root_id"},
+        ),
+        # Case 5: Table with merge strategy that doesn't require root key
+        ({"table_name": "table5", "write_disposition": "merge"}, "scd2", False, {}),
+    ],
+    ids=[
+        "merge_delete-insert_adds_propagation",
+        "append_no_nested_no_propagation",
+        "append_with_nested_root_key_adds_propagation",
+        "custom_row_key_propagation",
+        "merge_scd2_no_propagation",
+    ],
+)
+def test_extend_table(
+    norm: RelationalNormalizer,
+    table_config: Dict[str, Any],
+    merge_strategy: TLoaderMergeStrategy,
+    has_nested_with_root_key: bool,
+    expected_propagation: Dict[str, str],
+) -> None:
+    """Test the extend_table method in DataItemNormalizer class."""
+
+    # Create parent table
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=[merge_strategy])
+    ):
+        table = new_table(**table_config)
+        # note: update_table extends table
+        norm.schema.update_table(table)
+
+        # Create nested table with root_key if needed
+        if has_nested_with_root_key:
+            nested_table_name = f"{table_config['table_name']}__nested"
+            nested_table = new_table(
+                nested_table_name,
+                parent_table_name=table_config["table_name"],
+                columns=[{"name": "_dlt_root_id", "root_key": True}],
+            )
+            norm.schema.update_table(nested_table)
+
+        # Get the propagation config for this table
+        config = norm.get_normalizer_config(norm.schema)
+        table_propagation = {}
+        if config.get("propagation") and config["propagation"].get("tables"):
+            table_propagation = config["propagation"]["tables"].get(table_config["table_name"], {})
+
+        # Verify the propagation matches expectations
+        assert table_propagation == expected_propagation, (
+            f"Table: {table_config['table_name']}, "
+            f"Expected propagation: {expected_propagation}, "
+            f"Actual propagation: {table_propagation}"
+        )
+
+
+def test_extend_table_nested(norm: RelationalNormalizer) -> None:
+    """Test that extend_table is not applied to nested tables."""
+    # Create parent and nested tables
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=["delete-insert"])
+    ):
+        # Create parent table
+        parent_table = new_table("parent", write_disposition="merge")
+        norm.schema.tables["parent"] = parent_table
+
+        # Create nested table
+        nested_table = new_table("parent__child", parent_table_name="parent")
+        norm.schema.update_table(nested_table)
+
+        # Get the propagation config
+        config = norm.get_normalizer_config(norm.schema)
+
+        # Verify parent has propagation but nested doesn't
+        assert "parent" in config["propagation"]["tables"]
+        assert "parent__child" not in config["propagation"]["tables"]
 
 
 def set_max_nesting(norm: RelationalNormalizer, max_nesting: int) -> None:

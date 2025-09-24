@@ -10,7 +10,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.json import custom_pua_decode
 from dlt.common.schema import Schema, utils
-from dlt.common.schema.typing import TColumnSchema
+from dlt.common.schema.typing import TColumnSchema, TSchemaUpdate
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
     CannotCoerceNullException,
@@ -20,7 +20,7 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.time import ensure_pendulum_datetime_non_utc
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from dlt.normalize.normalize import Normalize
@@ -609,6 +609,88 @@ def test_coerce_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) 
     row = {"timestamp": None}
     with pytest.raises(CannotCoerceNullException):
         item_normalizer._coerce_row("event_user", None, row)
+
+
+@pytest.mark.parametrize(
+    "nested_item",
+    [
+        [1, 2],
+        [
+            {
+                "timestamp": 82178.1298812,
+            }
+        ],
+    ],
+    ids=["nested_item_list", "nested_item_dict"],
+)
+def test_coerce_null_value_in_nested_table(
+    item_normalizer: JsonLItemsNormalizer, nested_item: TDataItems
+) -> None:
+    """Ensure that a column previously created as a child table
+    does not attempt new column updates in a subsequent run when it has no values."""
+
+    def _normalize_items_chunk(items: TDataItems) -> TSchemaUpdate:
+        schema_update = item_normalizer._normalize_chunk(
+            root_table_name="nested",
+            items=items,
+            may_have_pua=False,
+            skip_write=True,
+        )
+        return schema_update
+
+    # use very long column names
+    col_name_a = "a" * (item_normalizer.naming.max_length + 1)
+    norm_col_name_a = item_normalizer.naming.normalize_path(col_name_a)
+    nested_tbl_name = item_normalizer.naming.shorten_fragments("nested", f"{norm_col_name_a}")
+
+    col_name_b = "b" * (item_normalizer.naming.max_length + 1)
+    norm_col_name_b = item_normalizer.naming.normalize_path(col_name_b)
+    nested_nested_tbl_name = item_normalizer.naming.shorten_fragments(
+        "nested", f"{norm_col_name_a}", f"{norm_col_name_b}"
+    )
+
+    # create parent and child tables
+    schema_update = _normalize_items_chunk(
+        [
+            {
+                "timestamp": 82178.1298812,
+                col_name_a: [
+                    {
+                        "timestamp": 82178.1298812,
+                        col_name_b: nested_item,
+                    }
+                ],
+            },
+        ]
+    )
+    assert "nested" in schema_update
+    assert nested_tbl_name in schema_update
+    assert nested_nested_tbl_name in schema_update
+
+    # verify that empty child table columns don't create schema updates
+    schema_update = _normalize_items_chunk(
+        [
+            {
+                "timestamp": 82178.1298812,
+                col_name_a: [
+                    {
+                        "timestamp": 82178.1298812,
+                        col_name_b: None,
+                    }
+                ],
+            },
+        ]
+    )
+    assert not schema_update
+    schema_update = _normalize_items_chunk(
+        [
+            {
+                "timestamp": 82178.1298812,
+                col_name_a: None,
+            },
+        ]
+    )
+    assert not schema_update
 
 
 # def test_coerce_new_null_value(item_normalizer: JsonLItemsNormalizer) -> None:

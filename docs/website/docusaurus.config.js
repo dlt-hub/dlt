@@ -49,7 +49,7 @@ const config = {
   title: 'dlt Docs',
   tagline: 'data load tool',
   url: 'https://dlthub.com',
-  baseUrl: process.env.DOCUSAURUS_BASE_URL || '/docs',
+  baseUrl: '/docs',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -67,6 +67,15 @@ const config = {
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
+  },
+
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true, // required
+    },
+    experimental_faster: {
+      ssgWorkerThreads: true,
+    },
   },
 
   presets: [

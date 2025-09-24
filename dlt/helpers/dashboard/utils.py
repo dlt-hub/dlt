@@ -1,3 +1,4 @@
+import shutil
 import functools
 from itertools import chain
 from pathlib import Path
@@ -607,6 +608,9 @@ def open_local_folder(folder: str) -> None:
         os.startfile(folder)  # type: ignore[attr-defined]
     elif system == "Darwin":
         subprocess.run(["open", folder], check=True)
+    elif shutil.which("wslview"):
+        # WSL detected
+        subprocess.run(["wslview", folder], check=True)
     else:
         subprocess.run(["xdg-open", folder], check=True)
 
@@ -690,11 +694,7 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
     _result.append(
         mo.accordion(
-            {
-                "Show full stacktrace": mo.ui.code_editor(
-                    "".join(_exception_traces), language="shell"
-                )
-            },
+            {"Show full stacktrace": mo.ui.code_editor("".join(_exception_traces), language="sh")},
             lazy=True,
         )
     )

@@ -57,7 +57,7 @@ export default function DocBreadcrumbs(): ReactNode {
     const homePageRoute = useHomePageRoute();
 
     const location = useLocation();
-    const showPlus = location.pathname.includes("/plus/");
+    const showPlus = location.pathname.includes("/hub/");
 
     if (!breadcrumbs) {
         return null;
@@ -88,7 +88,7 @@ export default function DocBreadcrumbs(): ReactNode {
             </ul>
             {showPlus && (
                 <div className={styles.customLogo}>
-                    <img src={require("@site/static/img/dlt+_logo.png").default} alt="dlt+ logo" style={{ width: "50px" }} />
+                    <img src={require("@site/static/img/dlthub_logo.png").default} alt="dltHub logo" style={{ width: "50px" }} />
                 </div>
             )}
         </nav>

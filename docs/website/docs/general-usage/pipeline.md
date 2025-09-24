@@ -107,14 +107,24 @@ experimenting a lot. If you want each time the pipeline resets its state and loa
 new dataset, set the `dev_mode` argument of the `dlt.pipeline` method to True. Each time the
 pipeline is created, `dlt` adds a datetime-based suffix to the dataset name.
 
+## Drop destination schema / dataset to start over
+If you drop the destination schema / dataset to which your pipeline loads data, the pipeline will fully reset its
+state and working directory and will execute its first run. 
+If your pipeline does not share the dataset with any other pipeline and you do not keep any additional data in it - this
+operation is also safe to be executed in production to trigger full refresh without a need to writing additional code.
+
 ## Refresh pipeline data and state
 
 You can reset parts or all of your sources by using the `refresh` argument to `dlt.pipeline` or the pipeline's `run` or `extract` method.
 That means when you run the pipeline, the sources/resources being processed will have their state reset and their tables either dropped or truncated,
 depending on which refresh mode is used.
 
-The `refresh` option works with all relational or SQL destinations and cloud storages and files (`filesystem`). It does not work with vector databases (we are working on that) and
-with custom destinations.
+:::tip
+`dlt` will modify your destination only if extract and normalize steps of refresh run succeeded. In any other case all modifications, including 
+schema and state, are discarded.
+:::
+
+The `refresh` option works with all relational or SQL destinations and cloud storages and files (`filesystem`). It does not work with vector databases (we are working on that) and with custom destinations.
 
 The `refresh` argument should have one of the following string values to decide the refresh mode:
 
@@ -125,7 +135,7 @@ The tables are deleted both from the pipeline's schema and from the destination 
 
 If you only have one source or run with all your sources together, then this is practically like running the pipeline again for the first time.
 
-:::caution
+:::warning
 This erases schema history for the selected sources and only the latest version is stored.
 :::
 
@@ -154,7 +164,7 @@ The tables are deleted both from the pipeline's schema and from the destination 
 
 Source level state keys are not deleted in this mode (i.e., `dlt.current.source_state()[<'my_key>'] = '<my_value>'`)
 
-:::caution
+:::warning
 This erases schema history for all affected sources, and only the latest schema version is stored.
 :::
 
@@ -238,4 +248,3 @@ pipeline = dlt.pipeline(
 
 Note that the value of the `progress` argument is
 [configurable](../walkthroughs/run-a-pipeline.md#2-see-the-progress-during-loading).
-
