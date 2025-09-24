@@ -23,7 +23,7 @@ item => item.label === '30+ SQL databases' || item.label === 'REST APIs' || item
 Choose from our collection of verified sources, developed and maintained by the `dlt` team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
 
 :::tip
-If you couldn't find a source implementation, you can easily create your own. Check out the [resource page](../../general-usage/resource) to learn how!
+If you couldn't find a source implementation, you can easily create your own. Check out the [resource page](../../general-usage/resource.md) to learn how!
 :::
 
 
