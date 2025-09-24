@@ -417,3 +417,4 @@ We enable Snowflake to identify that the connection is created by `dlt`. Snowfla
 
 <!--@@@DLT_TUBA snowflake-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->

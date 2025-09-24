@@ -124,3 +124,4 @@ This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clau
 
 <!--@@@DLT_TUBA dremio-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES dremio-->
