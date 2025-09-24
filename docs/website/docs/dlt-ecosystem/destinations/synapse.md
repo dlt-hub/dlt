@@ -236,3 +236,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 <!--@@@DLT_TUBA synapse-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES synapse-->

@@ -140,7 +140,7 @@ Please report issues with particular dialects. We'll try to make them work.
 
 ### Trino limitations
 * Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
-* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables) 
+* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
 
@@ -255,3 +255,5 @@ create_primary_keys=true
 ```
 * `unique` hints are translated to `UNIQUE` constraints via SQLAlchemy.
 * `primary_key` hints are translated to `PRIMARY KEY` constraints via SQLAlchemy.
+
+<!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
