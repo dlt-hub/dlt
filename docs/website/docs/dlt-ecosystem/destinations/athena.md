@@ -316,3 +316,4 @@ pipeline.run(partitioned_data)
 ```
 <!--@@@DLT_TUBA athena-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES athena-->

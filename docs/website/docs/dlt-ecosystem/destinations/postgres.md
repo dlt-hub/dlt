@@ -229,3 +229,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 <!--@@@DLT_TUBA postgres-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES postgres-->

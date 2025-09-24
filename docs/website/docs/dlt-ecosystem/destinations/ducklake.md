@@ -152,7 +152,7 @@ destination = dlt.destinations.ducklake(credentials=credentials)
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
 
-# set catalog name using connection string credentials    
+# set catalog name using connection string credentials
 catalog_credentials = ConnectionStringCredentials()
 # use duckdb with the default name
 catalog_credentials.drivername = "duckdb"
@@ -215,7 +215,7 @@ with pipeline.sql_client() as client:
 All write dispositions are supported. `upsert` is supported on **duckdb 1.4.x** (without hard deletes for now)
 
 ## Data loading
-By default, Parquet files and the `COPY` command are used to move local files to the remote storage, 
+By default, Parquet files and the `COPY` command are used to move local files to the remote storage,
 
 The **INSERT** format is also supported and will execute large INSERT queries directly into the remote database. This method is significantly slower and may exceed the maximum query size, so it is not advised.
 
@@ -235,3 +235,5 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 * Motherduck as catalog if possible.
 * support additional `ATTACH` options like `OVERRIDE_DATA_PATH`
 * implement callbacks that will be called on creation of :memory: database and `ATTACH` command so those can be fully customized.
+
+<!--@@@DLT_DESTINATION_CAPABILITIES ducklake-->
