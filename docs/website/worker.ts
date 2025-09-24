@@ -80,20 +80,7 @@ const handler = {
             }
         }   
 
-        // always redirect away from trailing slashes
-        if (url.pathname.endsWith("/")) {
-            url.pathname = url.pathname.slice(0, -1);
-            return Response.redirect(url.toString(), 301);
-        }
-        
-        // here we try to fetch the asset and try again with a trailing slash
-        // to hide redirects comming from cloudflare worker assets
-        let res = await env.ASSETS.fetch(new Request(url.toString(), request));  
-        if (res.status === 307 && !url.pathname.endsWith("/")) {
-            url.pathname = url.pathname + "/";
-            res = await env.ASSETS.fetch(new Request(url.toString(), request));
-        }
-
+        let res = await env.ASSETS.fetch(request);
         if (res.status === 404) {
             url.pathname = ROUTE_404;
             return Response.redirect(url.toString(), 301);

@@ -9,6 +9,7 @@
     "assets": {
         "directory": "./build",
         "run_worker_first": ["/*"],
+        "html_handling": "drop-trailing-slash",
         "binding": "ASSETS" // <-- creates env.ASSETS variable
     },
     "observability": {
