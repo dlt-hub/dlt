@@ -1,3 +1,4 @@
+from typing import List, Any, Dict
 import dlt, os
 import pytest
 
@@ -246,3 +247,66 @@ def test_import_schema_preserves_max_nesting(table_nesting: int) -> None:
         assert "my_table__children" not in p.default_schema.tables
     else:
         assert "my_table__children" in p.default_schema.tables
+
+
+def test_empty_column_later_becoming_child_table_removed() -> None:
+    name = "schema_test" + uniq_id()
+    p = dlt.pipeline(
+        pipeline_name=name,
+        destination=dummy(completed_prob=1),
+        export_schema_path=EXPORT_SCHEMA_PATH,
+    )
+
+    col_name_a = "a" * (p.destination.capabilities().max_identifier_length + 1)
+    col_name_b = "b" * (p.destination.capabilities().max_identifier_length + 1)
+
+    @dlt.resource(table_name="my_table")
+    def nested_data(with_grandchild: bool):
+        nested_example_data = EXAMPLE_DATA[0]
+        children_list: List[Dict[str, Any]] = [{"id": 2, "name": "Max"}]
+        nested_example_data[col_name_a] = children_list
+        if with_grandchild:
+            children_list[0][col_name_b] = [{"id": 3, "name": "Maximilian"}]
+        else:
+            children_list[0][col_name_b] = None
+        yield nested_example_data
+
+    p.run(nested_data(with_grandchild=False))
+
+    norm_col_name_a = p.default_schema.naming.shorten_fragments(col_name_a)
+    nested_tbl_name = p.default_schema.naming.shorten_fragments("my_table", f"{norm_col_name_a}")
+
+    norm_col_name_b = p.default_schema.naming.shorten_fragments(col_name_b)
+    nested_nested_tbl_name = p.default_schema.naming.shorten_fragments(
+        "my_table", f"{norm_col_name_a}", f"{norm_col_name_b}"
+    )
+
+    export_schema = _get_export_schema(name)
+    assert set(export_schema.tables[nested_tbl_name]["columns"].keys()) == {
+        "_dlt_list_idx",
+        "_dlt_parent_id",
+        "id",
+        "_dlt_id",
+        "name",
+        norm_col_name_b,
+    }
+    assert (
+        export_schema.tables[nested_tbl_name]["columns"]
+        .get(norm_col_name_b)["x-normalizer"]
+        .get("seen-null-first", False)
+    )
+
+    p.run(nested_data(with_grandchild=True))
+
+    export_schema = _get_export_schema(name)
+    assert set(export_schema.tables[nested_tbl_name]["columns"].keys()) == {
+        "_dlt_list_idx",
+        "_dlt_parent_id",
+        "id",
+        "_dlt_id",
+        "name",
+    }
+    assert nested_tbl_name in export_schema.tables
+    assert nested_nested_tbl_name in export_schema.tables
+    assert nested_tbl_name in p.default_schema.tables
+    assert nested_nested_tbl_name in p.default_schema.tables
