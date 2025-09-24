@@ -49,7 +49,7 @@ const envFileContent = `DOCUSAURUS_DLT_VERSION=${versions[0]}`;
 fs.writeFileSync(ENV_FILE, envFileContent, 'utf8');
 
 // in the future the only other version to build is the minor version below the latest
-const selectedVersions = ["master"];
+const selectedVersions = ["docs/fix-remaining-routing-problems"];
 // let lastVersion = versions[0];
 // for (let ver of versions) {
 //     console.log(semver.minor(ver))
@@ -80,7 +80,7 @@ if (branch != "devel") {
 }
 
 selectedVersions.reverse()
-for (const version of selectedVersions) {
+for (let version of selectedVersions) {
 
     // checkout verison and verify we have the right tag
     console.log(`Generating version ${version}, switching to tag:`)
@@ -100,6 +100,7 @@ for (const version of selectedVersions) {
     proc.execSync(`cd ${REPO_DOCS_DIR} && npm run preprocess-docs && PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py`)
 
     console.log(`Snapshotting version...`)
+    version = version.replace("/", "-").slice(0,10)
     proc.execSync(`cd ${REPO_DOCS_DIR} && npm run docusaurus docs:version ${version}`)
 
     console.log(`Moving snapshot`)
