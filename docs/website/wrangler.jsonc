@@ -9,6 +9,7 @@
     "assets": {
         "directory": "./build",
         "run_worker_first": ["/*"],
+        "html_handling": "drop-trailing-slash",
         "binding": "ASSETS" // <-- creates env.ASSETS variable
     },
     "observability": {
@@ -20,10 +21,6 @@
       "AXIOM_URL": "https://api.axiom.co/v1/traces",
     },
     "routes": [
-        {
-          "pattern": "stage.dlthub.com/docs*",
-          "zone_name": "dlthub.com"
-        },
         {
           "pattern": "dlthub.com/docs*",
           "zone_name": "dlthub.com"
