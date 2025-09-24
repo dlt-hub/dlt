@@ -28,6 +28,7 @@ from dlt.common.schema.typing import (
     TSchemaContractDict,
 )
 from dlt.common.schema.utils import (
+    is_nested_table,
     dlt_id_column,
     dlt_load_id_column,
     has_table_seen_data,
@@ -520,6 +521,19 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 pass
             # kill job if signalled
             signals.raise_if_signalled()
+
+        for table_name, table_updates in schema_update.items():
+            for table_update in table_updates:
+                if is_nested_table(table_update):
+                    parent_name = table_update.get("parent")
+                    last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
+                    parent_columns = schema.get_table_columns(parent_name, include_incomplete=True)
+                    if last_ident_path in parent_columns:
+                        column = parent_columns.get(last_ident_path)
+                        col_x_normalizer = column.setdefault("x-normalizer", {})
+                        if col_x_normalizer.get("seen-null-first"):
+                            schema.get_table(parent_name)["columns"].pop(last_ident_path)
+
         return schema_update
 
     def _coerce_row(
