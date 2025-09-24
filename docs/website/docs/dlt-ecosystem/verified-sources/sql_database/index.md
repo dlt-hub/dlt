@@ -38,7 +38,7 @@ We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/
 * [MySQL](./troubleshooting.md#mysql)
 * SQLite
 * [Oracle](./troubleshooting.md#oracle)
-* [Microsoft SQL Server](./troubleshooting#postgres--mssql)
+* [Microsoft SQL Server](./troubleshooting.md#postgres--mssql)
 * MariaDB
 * [IBM DB2 and Informix](./troubleshooting.md#db2)
 * Google BigQuery
