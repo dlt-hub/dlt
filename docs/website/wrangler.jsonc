@@ -22,10 +22,6 @@
     },
     "routes": [
         {
-          "pattern": "stage.dlthub.com/docs*",
-          "zone_name": "dlthub.com"
-        },
-        {
           "pattern": "dlthub.com/docs*",
           "zone_name": "dlthub.com"
         }
