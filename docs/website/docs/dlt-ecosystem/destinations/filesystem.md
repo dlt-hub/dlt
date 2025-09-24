@@ -699,3 +699,5 @@ pipeline = dlt.pipeline(
 :::
 
 <!--@@@DLT_TUBA filesystem-->
+
+<!--@@@DLT_DESTINATION_CAPABILITIES filesystem-->

@@ -171,3 +171,4 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-s
 
 <!--@@@DLT_TUBA mssql-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES mssql-->

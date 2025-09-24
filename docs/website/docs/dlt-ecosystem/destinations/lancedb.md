@@ -209,7 +209,7 @@ If you plan to use `merge` write disposition, remember to [enable load ids](../v
 
 ## Access loaded data
 
-You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline 
+You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
 for loading and then use it for querying:
 ```py
 import dlt
@@ -369,3 +369,4 @@ The LanceDB destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA lancedb-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES lancedb-->
