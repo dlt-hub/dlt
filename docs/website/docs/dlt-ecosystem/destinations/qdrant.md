@@ -247,3 +247,4 @@ Qdrant destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA qdrant-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES qdrant-->

@@ -786,3 +786,4 @@ If this workaround is necessary, validate your setup after each platform upgrade
 
 <!--@@@DLT_TUBA databricks-->
 
+<!--@@@DLT_DESTINATION_CAPABILITIES databricks-->
