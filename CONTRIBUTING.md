@@ -65,7 +65,7 @@ To ensure that our git history clearly explains what was changed by which branch
 {category}/{ticket-id}-description-of-the-branch
 # example:
 feat/4922-add-avro-support
-````
+```
 
 #### Branch Categories
 
