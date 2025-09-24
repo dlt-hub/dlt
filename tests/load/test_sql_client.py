@@ -75,6 +75,11 @@ def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> Non
     client.update_stored_schema()
     load_id = "182879721.182912"
     client.complete_load(load_id)
+
+    # client should reopen the connection to set search paths. dataset was created
+    client.sql_client.close_connection()
+    client.sql_client.open_connection()
+
     curr: DBApiCursor
     # get data from unqualified name
     with client.sql_client.execute_query(
@@ -150,6 +155,7 @@ def test_has_dataset(naming: str, client: SqlJobClientBase) -> None:
 def test_create_drop_dataset(naming: str, client: SqlJobClientBase) -> None:
     # client.sql_client.create_dataset()
     # Dataset is already create in fixture, so next time it fails
+    assert client.is_storage_initialized()
     with pytest.raises(DatabaseException):
         client.sql_client.create_dataset()
     assert client.is_storage_initialized() is True
@@ -318,7 +324,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     if client.config.destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
-    elif client.config.destination_type == "mssql":
+    elif client.config.destination_type in ("mssql", "ducklake"):
         chunk_size = 700
         total_records = 1000
     else:
@@ -356,7 +362,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         except StopIteration:
             df_2 = None
             # NOTE: snowflake chunks are unpredictable in size, so allow stop after two iterations
-            if client.config.destination_type != "snowflake":
+            if client.config.destination_type not in ("snowflake", "ducklake"):
                 raise
         try:
             df_3 = next(iterator)
@@ -367,7 +373,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
             if df is not None:
                 df.columns = [dfcol.lower() for dfcol in df.columns]
 
-    if client.config.destination_type != "snowflake":
+    if client.config.destination_type not in ("snowflake", "ducklake"):
         assert list(df_1["col"]) == list(range(0, chunk_size))
         assert list(df_2["col"]) == list(range(chunk_size, total_records))
     else:

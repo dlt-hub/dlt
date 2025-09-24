@@ -4,8 +4,13 @@ import pytest
 from typing import Optional, Union, Any
 
 import dlt
-from dlt.common.configuration.exceptions import InvalidNativeValue, ConfigFieldMissingException
+from dlt.common.configuration.exceptions import (
+    InvalidNativeValue,
+    ConfigFieldMissingException,
+    LookupTraces,
+)
 from dlt.common.configuration.providers import EnvironProvider
+from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import CredentialsConfiguration, BaseConfiguration
 from dlt.common.configuration import configspec, resolve_configuration
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
@@ -14,7 +19,8 @@ from dlt.common.configuration.specs.connection_string_credentials import Connect
 from dlt.common.configuration.resolve import initialize_credentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 
-from tests.common.configuration.utils import environment
+from dlt.common.utils import get_exception_trace_chain
+from tests.common.configuration.utils import environment, env_provider
 from tests.utils import preserve_environ
 
 
@@ -82,6 +88,8 @@ def test_resolve_union() -> None:
     assert isinstance(c.credentials, ZenApiKeyCredentials)
     assert c.credentials.api_key == "api key"
     assert c.credentials.api_secret == "api secret"
+    assert c.__resolved_fields_set__ == ["credentials"]
+    assert c.credentials.__resolved_fields_set__ == ["api_key", "api_secret"]
 
     # if values for both spec in union exist, first one is returned
     os.environ["CREDENTIALS__EMAIL"] = "email"
@@ -108,8 +116,7 @@ def test_resolve_union() -> None:
 
 def test_resolve_optional_union() -> None:
     c = resolve_configuration(ZenConfigOptCredentials())  # type: ignore[type-var]
-    assert c.is_partial  # type: ignore[attr-defined]
-    # assert c.is
+    assert c.is_partial() is False  # type: ignore[attr-defined]
     assert c.credentials is None
 
     # if we provide values for second union, it will be tried and resolved
@@ -139,22 +146,41 @@ def test_resolve_union_from_native_value() -> None:
         c = resolve_configuration(ZenConfig())
 
 
-def test_unresolved_union() -> None:
+def test_unresolved_union(environment: Any, env_provider: ConfigProvider) -> None:
     with pytest.raises(ConfigFieldMissingException) as cfm_ex:
         resolve_configuration(ZenConfig())
     assert cfm_ex.value.fields == ["credentials"]
+    assert isinstance(cfm_ex.value.config, ZenConfig)
+    # trace contains attempts for all union elements
+    union_trace = cfm_ex.value.traces["credentials"]
+    assert len(union_trace) == 2
+    # traces in union order
+    zen_api_trace = union_trace[0]
+    assert isinstance(zen_api_trace, LookupTraces)
+    assert zen_api_trace.spec_name == "ZenApiKeyCredentials"
+    assert zen_api_trace.union_pos == 1
+    assert zen_api_trace.union_count == 2
+    assert set(zen_api_trace.traces) == {"api_key", "api_secret"}
+    zen_email_trace = union_trace[1]
+    assert isinstance(zen_email_trace, LookupTraces)
+    assert zen_email_trace.spec_name == "ZenEmailCredentials"
+    assert zen_email_trace.union_pos == 2
+    assert zen_email_trace.union_count == 2
+    assert set(zen_email_trace.traces) == {"email", "password"}
+
     # all the missing fields from all the union elements are present
-    checked_keys = set(
-        t.key
-        for t in itertools.chain(*cfm_ex.value.traces.values())
-        if t.provider == EnvironProvider().name
-    )
+    flat_traces = cfm_ex.value.attrs()["traces"]
+    checked_keys = set(t.key for t in flat_traces["credentials"])
     assert checked_keys == {
         "CREDENTIALS__EMAIL",
         "CREDENTIALS__PASSWORD",
         "CREDENTIALS__API_KEY",
         "CREDENTIALS__API_SECRET",
     }
+
+    # get stacktrace info
+    exception_traces = get_exception_trace_chain(cfm_ex.value)
+    assert exception_traces[0]["exception_attrs"]["traces"] == flat_traces
 
 
 def test_union_decorator() -> None:

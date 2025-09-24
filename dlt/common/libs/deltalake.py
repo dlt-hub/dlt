@@ -1,4 +1,4 @@
-import semver
+from packaging.version import Version
 from collections.abc import Mapping
 from typing import Optional, Dict, Union, List
 from pathlib import Path
@@ -19,7 +19,7 @@ try:
     import deltalake
     from deltalake import write_deltalake, DeltaTable
 
-    deltalake_semver = semver.Version.parse(deltalake.__version__)
+    deltalake_semver = Version(deltalake.__version__)
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt deltalake helpers",

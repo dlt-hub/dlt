@@ -233,6 +233,7 @@ def _run_dataset_checks(
                 fs_sql_client.remote_client.config.bucket_url,
                 fs_sql_client.remote_client.config.credentials,
                 secret_name=TEST_SECRET_NAME,
+                persist_secrets=True,
             )
         external_db.close()
 

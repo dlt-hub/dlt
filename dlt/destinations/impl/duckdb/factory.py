@@ -1,4 +1,5 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+from packaging.version import Version
+from typing import Any, Optional, Sequence, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -6,8 +7,7 @@ from dlt.common.data_writers.escape import escape_postgres_identifier, escape_du
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.pipeline import SupportsPipeline
-from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.schema.typing import TColumnSchema, TColumnType, TLoaderMergeStrategy, TTableSchema
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
 
@@ -126,37 +126,65 @@ class DuckDbTypeMapper(TypeMapperImpl):
         return super().from_destination_type(db_type, precision, scale)
 
 
+def duckdb_merge_strategies_selector(
+    supported_merge_strategies: Sequence[TLoaderMergeStrategy],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> Sequence[TLoaderMergeStrategy]:
+    try:
+        import duckdb as _duckdb
+
+        if Version(_duckdb.__version__) < Version("1.4.0"):
+            legacy_strategies = list(supported_merge_strategies)
+            legacy_strategies.remove("upsert")
+            supported_merge_strategies = legacy_strategies
+    except ImportError:
+        # return default if duckdb not installed
+        pass
+
+    return supported_merge_strategies
+
+
+def _set_duckdb_raw_capabilities(
+    caps: DestinationCapabilitiesContext,
+) -> DestinationCapabilitiesContext:
+    caps.preferred_loader_file_format = "insert_values"
+    caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl", "model"]
+    caps.preferred_staging_file_format = None  # TODO remove because is default value
+    caps.supported_staging_file_formats = []  # TODO is this different from default `None`?
+    caps.type_mapper = DuckDbTypeMapper
+    caps.escape_identifier = escape_postgres_identifier
+    # all identifiers are case insensitive but are stored as is
+    caps.escape_literal = escape_duckdb_literal
+    caps.has_case_sensitive_identifiers = False
+    caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+    caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
+    caps.max_identifier_length = 65536
+    caps.max_column_identifier_length = 65536
+    caps.max_query_length = 32 * 1024 * 1024
+    caps.is_max_query_length_in_bytes = True
+    caps.max_text_data_type_length = 1024 * 1024 * 1024
+    caps.is_max_text_data_type_length_in_bytes = True
+    caps.supports_ddl_transactions = True
+    caps.alter_add_multi_column = False
+    caps.supports_truncate_command = False
+    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+    caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+    caps.merge_strategies_selector = duckdb_merge_strategies_selector
+    caps.sqlglot_dialect = "duckdb"
+    caps.timestamp_precision = 6
+    caps.max_timestamp_precision = 9  # nanosecond precision supported
+
+    return caps
+
+
 class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
     spec = DuckDbClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
-        caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl", "model"]
-        caps.preferred_staging_file_format = None
-        caps.supported_staging_file_formats = []
-        caps.type_mapper = DuckDbTypeMapper
-        caps.escape_identifier = escape_postgres_identifier
-        # all identifiers are case insensitive but are stored as is
-        caps.escape_literal = escape_duckdb_literal
-        caps.has_case_sensitive_identifiers = False
-        caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
-        caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
-        caps.max_identifier_length = 65536
-        caps.max_column_identifier_length = 65536
-        caps.max_query_length = 32 * 1024 * 1024
-        caps.is_max_query_length_in_bytes = True
-        caps.max_text_data_type_length = 1024 * 1024 * 1024
-        caps.is_max_text_data_type_length_in_bytes = True
-        caps.supports_ddl_transactions = True
-        caps.alter_add_multi_column = False
-        caps.supports_truncate_command = False
-        caps.supported_merge_strategies = ["delete-insert", "scd2"]
-        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
-        caps.sqlglot_dialect = "duckdb"
-        caps.timestamp_precision = 6
-        caps.max_timestamp_precision = 9  # nanosecond precision supported
-
+        caps = _set_duckdb_raw_capabilities(caps)
         return caps
 
     @property

@@ -88,6 +88,10 @@ parquet = [
 duckdb = [
     "duckdb>=0.9"
     ]
+ducklake = [
+    "duckdb>=1.2.0",
+    "pyarrow>=16.0.0",
+    ]
 filesystem = [
     "s3fs>=2022.4.0",
     "botocore>=1.28",

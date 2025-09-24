@@ -334,10 +334,12 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy")
+            if destination
+            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
+            DestinationTestConfiguration(destination_type="ducklake", supports_dbt=False),
             DestinationTestConfiguration(
                 destination_type="motherduck", file_format="insert_values"
             ),
@@ -761,7 +763,7 @@ def destinations_configs(
 
 
 @pytest.fixture(autouse=True)
-def drop_pipeline(request, preserve_environ) -> Iterator[None]:
+def drop_pipeline(request, preserve_environ, patch_home_dir) -> Iterator[None]:
     # NOTE: keep `preserve_environ` to make sure fixtures are executed in order``
     # enable activation history (for the main thread) to be able to drop pipelines active during test
     Container()[PipelineContext].enable_activation_history = True
@@ -786,22 +788,24 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
     """Drops all the datasets for a given pipeline"""
 
     def _drop_dataset(schema_name: str) -> None:
-        with p.destination_client(schema_name) as client:
-            # print("DROP FROM", client.config, client.config.dataset_name)
-            try:
-                client.drop_storage()
-            except DestinationUndefinedEntity:
-                pass
-            except Exception as exc:
-                print(exc)
-            if isinstance(client, WithStagingDataset):
-                with client.with_staging_dataset():
-                    try:
-                        client.drop_storage()
-                    except DestinationUndefinedEntity:
-                        pass
-                    except Exception as exc:
-                        print(exc)
+        try:
+            with p.destination_client(schema_name) as client:
+                try:
+                    client.drop_storage()
+                except DestinationUndefinedEntity:
+                    pass
+                except Exception as exc:
+                    print("drop dataset", exc)
+                if isinstance(client, WithStagingDataset):
+                    with client.with_staging_dataset():
+                        try:
+                            client.drop_storage()
+                        except DestinationUndefinedEntity:
+                            pass
+                        except Exception as exc:
+                            print("drop staging dataset", exc)
+        except Exception as exc:
+            print("connect to dataset", exc)
 
     # take all schemas and if destination was set
     if p.destination:

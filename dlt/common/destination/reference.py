@@ -17,6 +17,7 @@ from typing_extensions import TypeAlias
 import inspect
 
 from dlt.common import logger
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.configuration import resolve_configuration, known_sections
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -109,6 +110,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 credentials.__is_resolved__ = True
             else:
                 credentials = init_config.credentials
+                if isinstance(credentials, BaseConfiguration):
+                    credentials = credentials.copy()
             config = self.spec(credentials=credentials)
             try:
                 config = self.configuration(config, accept_partial=True)
@@ -166,7 +169,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         config = resolve_configuration(
             initial_config or self.spec(),
             sections=(known_sections.DESTINATION, self.destination_name),
-            # Already populated values will supersede resolved env config
+            # already populated values will supersede resolved env config
             explicit_value=self.config_params,
             accept_partial=accept_partial,
         )

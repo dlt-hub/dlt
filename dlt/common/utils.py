@@ -632,6 +632,8 @@ def get_exception_trace(exc: BaseException) -> ExceptionTrace:
                 from dlt.common.json import json
 
                 # must be json serializable, other attrs are skipped
+                # TODO: be more picky re. what is serialized. exceptions contain data items and
+                #  other value that should not be serialized
                 if not isinstance(v, str):
                     json.dumps(v)
                 str_attrs[k] = v
