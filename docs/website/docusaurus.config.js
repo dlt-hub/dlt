@@ -50,7 +50,7 @@ const config = {
   tagline: 'data load tool',
   url: 'https://dlthub.com',
   baseUrl: '/docs',
-  onBrokenLinks: 'warn',
+  onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
   onBrokenAnchors: 'throw',
   favicon: 'img/favicon.ico',
