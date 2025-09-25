@@ -29,6 +29,9 @@ from dlt.common.storages.fsspec_filesystem import (
 )
 from dlt.destinations.impl.databricks.databricks_adapter import (
     CLUSTER_HINT,
+    PARTITION_HINT,
+    TABLE_FORMAT_HINT,
+    TABLE_PROPERTIES_HINT,
     TABLE_COMMENT_HINT,
     TABLE_TAGS_HINT,
     COLUMN_COMMENT_HINT,
@@ -393,34 +396,113 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         separate_alters: bool = False,
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
-        sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
-        qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
+        # Check for AUTO clustering at table level
+        cluster_by_auto = table.get(CLUSTER_HINT) == "AUTO"
+
+        # Get cluster columns from column hints
         cluster_list = [
             self.sql_client.escape_column_name(c["name"])
             for c in new_columns
             if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]
 
-        if cluster_list:
-            sql.append(f"ALTER TABLE {qualified_name} CLUSTER BY (" + ",".join(cluster_list) + ")")
+        # Get partition columns from column hints
+        partition_list = [
+            self.sql_client.escape_column_name(c["name"])
+            for c in new_columns
+            if c.get(PARTITION_HINT, False)
+        ]
+
+        # Determine the CLUSTER BY clause
+        cluster_clause = None
+        if cluster_by_auto:
+            cluster_clause = "CLUSTER BY AUTO"
+        elif cluster_list:
+            cluster_clause = f"CLUSTER BY ({','.join(cluster_list)})"
+
+        # Determine the PARTITIONED BY clause
+        partition_clause = None
+        if partition_list:
+            partition_clause = f"PARTITIONED BY ({','.join(partition_list)})"
+
+        # Get table properties
+        table_properties = table.get(TABLE_PROPERTIES_HINT)
+        tblproperties_clause = None
+        if table_properties:
+            props = []
+            for key, value in table_properties.items():
+                # Escape key and value properly
+                escaped_key = f"'{key}'"
+                if isinstance(value, str):
+                    escaped_value = f"'{value}'"
+                elif isinstance(value, bool):
+                    escaped_value = str(value).lower()
+                else:
+                    escaped_value = str(value)
+                props.append(f"{escaped_key}={escaped_value}")
+            tblproperties_clause = f"TBLPROPERTIES ({', '.join(props)})"
+
+        # Get table format
+        table_format = table.get(TABLE_FORMAT_HINT, "DELTA")
+        using_clause = None
+        if table_format == "ICEBERG":
+            using_clause = "USING ICEBERG"
+        # Note: DELTA is the default format, no explicit USING clause needed
+
+        # For CREATE TABLE, we need custom generation if we have any custom clauses or non-DELTA format
+        if not generate_alter and (cluster_clause or partition_clause or tblproperties_clause or using_clause):
+            # Build CREATE TABLE with all custom clauses
+            qualified_name = self.sql_client.make_qualified_table_name(table_name)
+            sql = self._make_create_table(qualified_name, table)
+
+            # Add USING clause immediately after table name (before column definitions)
+            if using_clause:
+                sql += f" {using_clause}"
+
+            sql += " (\n"
+            sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
+            sql += self._get_constraints_sql(table_name, new_columns, generate_alter)
+            sql += ")"
+
+            # Add PARTITIONED BY clause (must come before CLUSTER BY)
+            if partition_clause:
+                sql += f" {partition_clause}"
+            # Add CLUSTER BY clause
+            if cluster_clause:
+                sql += f" {cluster_clause}"
+            # Add TBLPROPERTIES clause (comes after CLUSTER BY)
+            if tblproperties_clause:
+                sql += f" {tblproperties_clause}"
+            sql_result = [sql]
+        else:
+            # Use parent implementation for ALTER or non-clustered/non-partitioned tables
+            sql_result = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+
+            # For ALTER TABLE, add CLUSTER BY as a separate statement
+            # Note: PARTITIONED BY cannot be added via ALTER TABLE in Databricks
+            if generate_alter and cluster_clause:
+                qualified_name = self.sql_client.make_qualified_table_name(table_name)
+                sql_result.append(f"ALTER TABLE {qualified_name} {cluster_clause}")
+            
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
         if table.get(TABLE_COMMENT_HINT) or table.get("description"):
             comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
             escaped_comment = escape_databricks_literal(comment)
-            sql.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")
+            sql_result.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")
 
         if table.get(TABLE_TAGS_HINT):
             table_tags = cast(List[Union[str, Dict[str, str]]], table.get(TABLE_TAGS_HINT))
             for tag in table_tags:
                 if isinstance(tag, str):
                     escaped_tag = escape_databricks_literal(tag)
-                    sql.append(f"ALTER TABLE {qualified_name} SET TAGS ({escaped_tag})")
+                    sql_result.append(f"ALTER TABLE {qualified_name} SET TAGS ({escaped_tag})")
                 elif isinstance(tag, dict):
                     (key, value), *rest = tag.items()
                     escaped_key = escape_databricks_literal(key)
                     escaped_value = escape_databricks_literal(value)
-                    sql.append(
+                    sql_result.append(
                         f"ALTER TABLE {qualified_name} SET TAGS ({escaped_key}={escaped_value})"
                     )
 
@@ -436,7 +518,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 for column_tag in column_tags_typed:
                     if isinstance(column_tag, str):
                         escaped_tag = escape_databricks_literal(column_tag)
-                        sql.append(
+                        sql_result.append(
                             f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS"
                             f" ({escaped_tag})"
                         )
@@ -444,12 +526,12 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                         (key, value), *rest = column_tag.items()
                         escaped_key = escape_databricks_literal(key)
                         escaped_value = escape_databricks_literal(value)
-                        sql.append(
+                        sql_result.append(
                             f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS"
                             f" ({escaped_key}={escaped_value})"
                         )
 
-        return sql
+        return sql_result
 
     def _get_table_post_update_sql(
         self,
