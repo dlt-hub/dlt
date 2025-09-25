@@ -429,7 +429,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         # Get table properties
         table_properties = table.get(TABLE_PROPERTIES_HINT)
         tblproperties_clause = None
-        if table_properties:
+        if table_properties and isinstance(table_properties, dict):
             props = []
             for key, value in table_properties.items():
                 # Escape key and value properly

@@ -594,5 +594,5 @@ def test_databricks_adapter_invalid_property_types():
     with pytest.raises(ValueError, match="must be a string, integer, boolean, or float"):
         databricks_adapter(
             dummy_resource,
-            table_properties={"test_prop": {"nested": "value"}}  # type: ignore[arg-type]
+            table_properties={"test_prop": {"nested": "value"}}  # type: ignore[dict-item]
         )
