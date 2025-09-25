@@ -1,4 +1,4 @@
-from typing import Iterator, Dict
+from typing import Iterator, Dict, Any
 import pytest
 
 import dlt
@@ -7,6 +7,9 @@ from dlt.destinations.adapters import databricks_adapter
 from dlt.destinations import databricks
 from dlt.destinations.impl.databricks.databricks_adapter import (
     CLUSTER_HINT,
+    PARTITION_HINT,
+    TABLE_FORMAT_HINT,
+    TABLE_PROPERTIES_HINT,
 )
 from tests.load.utils import (
     destinations_configs,
@@ -237,3 +240,359 @@ def test_databricks_adapter_special_characters(
             """) as cur:
             row = cur.fetchone()
             assert row[0] == 5  # All rows should be loaded successfully
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["databricks"]),
+    ids=lambda x: x.name,
+)
+def test_databricks_adapter_clustering(destination_config: DestinationTestConfiguration) -> None:
+    """Test clustering features including AUTO clustering"""
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
+    )
+
+    @dlt.resource(
+        columns={
+            "event_id": {"data_type": "bigint", "nullable": False},
+            "event_date": {"data_type": "date"},
+            "customer_id": {"data_type": "bigint"},
+        },
+        primary_key="event_id",
+    )
+    def events_auto_cluster() -> Iterator[Dict[str, Any]]:
+        for i in range(10):
+            yield {
+                "event_id": i,
+                "event_date": "2024-01-01",
+                "customer_id": i % 3,
+            }
+
+    # Test AUTO clustering
+    databricks_adapter(events_auto_cluster, cluster="AUTO")
+
+    @dlt.resource(
+        columns={
+            "event_id": {"data_type": "bigint", "nullable": False},
+            "event_date": {"data_type": "date"},
+            "customer_id": {"data_type": "bigint"},
+        },
+        primary_key="event_id",
+    )
+    def events_manual_cluster() -> Iterator[Dict[str, Any]]:
+        for i in range(10):
+            yield {
+                "event_id": i,
+                "event_date": "2024-01-01",
+                "customer_id": i % 3,
+            }
+
+    # Test manual clustering on specific columns
+    databricks_adapter(events_manual_cluster, cluster=["event_date", "customer_id"])
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source():
+        return [events_auto_cluster, events_manual_cluster]
+
+    pipeline.run(demo_source())
+
+    # Verify clustering using DESCRIBE DETAIL
+    with pipeline.sql_client() as c:
+        # Check AUTO clustering
+        with c.execute_query(
+            f"DESCRIBE DETAIL {pipeline.dataset_name}.events_auto_cluster"
+        ) as cur:
+            row = cur.fetchone()
+            # For AUTO clustering, clusteringColumns might be empty or contain auto-selected columns
+            # The important thing is that the table was created successfully
+
+        # Check manual clustering
+        with c.execute_query(
+            f"DESCRIBE DETAIL {pipeline.dataset_name}.events_manual_cluster"
+        ) as cur:
+            row = cur.fetchone()
+            # Get clusteringColumns field (usually at index 8, but let's get it by column description)
+            columns = [desc[0] for desc in cur.description]
+            if "clusteringColumns" in columns:
+                cluster_col_idx = columns.index("clusteringColumns")
+                cluster_cols = row[cluster_col_idx]
+                # Cluster columns should contain event_date and customer_id
+                assert "event_date" in str(cluster_cols)
+                assert "customer_id" in str(cluster_cols)
+
+        # Verify data was loaded
+        with c.execute_query(
+            f"SELECT COUNT(*) FROM {pipeline.dataset_name}.events_auto_cluster"
+        ) as cur:
+            assert cur.fetchone()[0] == 10
+
+        with c.execute_query(
+            f"SELECT COUNT(*) FROM {pipeline.dataset_name}.events_manual_cluster"
+        ) as cur:
+            assert cur.fetchone()[0] == 10
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["databricks"]),
+    ids=lambda x: x.name,
+)
+def test_databricks_adapter_partitioning(destination_config: DestinationTestConfiguration) -> None:
+    """Test partitioning features"""
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
+    )
+
+    @dlt.resource(
+        columns={
+            "event_id": {"data_type": "bigint", "nullable": False},
+            "year": {"data_type": "bigint"},
+            "month": {"data_type": "bigint"},
+            "customer_id": {"data_type": "bigint"},
+        },
+        primary_key="event_id",
+    )
+    def partitioned_events() -> Iterator[Dict[str, Any]]:
+        for i in range(10):
+            yield {
+                "event_id": i,
+                "year": 2024,
+                "month": (i % 3) + 1,
+                "customer_id": i % 5,
+            }
+
+    # Test partitioning by year and month
+    # Note: Databricks doesn't allow both PARTITIONED BY and CLUSTER BY in the same table
+    databricks_adapter(
+        partitioned_events,
+        partition=["year", "month"]
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source():
+        return partitioned_events
+
+    pipeline.run(demo_source())
+
+    # Verify partitioning using DESCRIBE DETAIL
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            f"DESCRIBE DETAIL {pipeline.dataset_name}.partitioned_events"
+        ) as cur:
+            row = cur.fetchone()
+            columns = [desc[0] for desc in cur.description]
+
+            # Check partitionColumns
+            if "partitionColumns" in columns:
+                partition_col_idx = columns.index("partitionColumns")
+                partition_cols = row[partition_col_idx]
+                assert "year" in str(partition_cols)
+                assert "month" in str(partition_cols)
+
+            # Note: Can't have clustering with partitioning in Databricks
+
+        # Verify data was loaded
+        with c.execute_query(
+            f"SELECT COUNT(*) FROM {pipeline.dataset_name}.partitioned_events"
+        ) as cur:
+            assert cur.fetchone()[0] == 10
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["databricks"]),
+    ids=lambda x: x.name,
+)
+def test_databricks_adapter_table_properties(destination_config: DestinationTestConfiguration) -> None:
+    """Test table properties feature including statistics columns"""
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
+    )
+
+    @dlt.resource(
+        columns={
+            "event_id": {"data_type": "bigint", "nullable": False},
+            "event_date": {"data_type": "date"},
+            "customer_id": {"data_type": "bigint"},
+            "amount": {"data_type": "double"},
+        },
+        primary_key="event_id",
+    )
+    def events_with_properties() -> Iterator[Dict[str, Any]]:
+        for i in range(5):
+            yield {
+                "event_id": i,
+                "event_date": "2024-01-01",
+                "customer_id": i % 3,
+                "amount": i * 100.5,
+            }
+
+    # Test table properties including data skipping statistics
+    databricks_adapter(
+        events_with_properties,
+        table_properties={
+            "delta.appendOnly": True,
+            "delta.logRetentionDuration": "30 days",
+            "delta.dataSkippingStatsColumns": "event_date,customer_id,amount",
+            "delta.autoOptimize.optimizeWrite": True,
+            "delta.autoOptimize.autoCompact": True,
+            "custom.team": "data-eng",
+            "custom.version": 1,
+            "custom.optimized": True,
+        }
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source():
+        return events_with_properties
+
+    pipeline.run(demo_source())
+
+    # Verify table properties using SHOW TBLPROPERTIES
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            f"SHOW TBLPROPERTIES {pipeline.dataset_name}.events_with_properties"
+        ) as cur:
+            properties = {row[0]: row[1] for row in cur.fetchall()}
+
+            # Check Delta optimization properties
+            assert properties.get("delta.appendOnly") == "true"
+            assert properties.get("delta.logRetentionDuration") == "30 days"
+            assert properties.get("delta.dataSkippingStatsColumns") == "event_date,customer_id,amount"
+            assert properties.get("delta.autoOptimize.optimizeWrite") == "true"
+            assert properties.get("delta.autoOptimize.autoCompact") == "true"
+
+            # Check custom properties
+            assert properties.get("custom.team") == "data-eng"
+            assert properties.get("custom.version") == "1"
+            assert properties.get("custom.optimized") == "true"
+
+        # Verify data was loaded
+        with c.execute_query(
+            f"SELECT COUNT(*) FROM {pipeline.dataset_name}.events_with_properties"
+        ) as cur:
+            assert cur.fetchone()[0] == 5
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["databricks"]),
+    ids=lambda x: x.name,
+)
+def test_databricks_adapter_iceberg_format(destination_config: DestinationTestConfiguration) -> None:
+    """Test ICEBERG table format"""
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
+    )
+
+    @dlt.resource(
+        columns={
+            "event_id": {"data_type": "bigint", "nullable": False},
+            "event_date": {"data_type": "date"},
+            "customer_id": {"data_type": "bigint"},
+        },
+        primary_key="event_id",
+    )
+    def iceberg_events() -> Iterator[Dict[str, Any]]:
+        for i in range(10):
+            yield {
+                "event_id": i,
+                "event_date": "2024-01-01",
+                "customer_id": i % 3,
+            }
+
+    # Test ICEBERG table format
+    # Note: ICEBERG tables don't support clustering without specific table properties
+    databricks_adapter(
+        iceberg_events,
+        table_format="ICEBERG",
+        table_comment="Iceberg table for testing"
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source():
+        return iceberg_events
+
+    pipeline.run(demo_source())
+
+    # Verify table format using DESCRIBE DETAIL
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            f"DESCRIBE DETAIL {pipeline.dataset_name}.iceberg_events"
+        ) as cur:
+            row = cur.fetchone()
+            columns = [desc[0] for desc in cur.description]
+
+            # Check format/provider column
+            if "format" in columns:
+                format_idx = columns.index("format")
+                table_format = row[format_idx]
+                assert "ICEBERG" in str(table_format).upper()
+            elif "provider" in columns:
+                provider_idx = columns.index("provider")
+                provider = row[provider_idx]
+                assert "ICEBERG" in str(provider).upper()
+
+        # Verify data was loaded
+        with c.execute_query(
+            f"SELECT COUNT(*) FROM {pipeline.dataset_name}.iceberg_events"
+        ) as cur:
+            assert cur.fetchone()[0] == 10
+
+
+def test_databricks_adapter_invalid_table_format():
+    """Test that invalid table formats are rejected"""
+    def dummy_resource():
+        yield {"event_id": 1}
+
+    # Should raise ValueError for invalid table format
+    with pytest.raises(ValueError, match="table_format.*DELTA.*ICEBERG"):
+        databricks_adapter(dummy_resource, table_format="PARQUET")  # type: ignore[arg-type]
+
+
+def test_databricks_adapter_iceberg_with_delta_properties():
+    """Test that Delta-specific properties are rejected for ICEBERG tables"""
+    def dummy_resource():
+        yield {"event_id": 1}
+
+    # Should raise ValueError when using Delta properties with ICEBERG
+    with pytest.raises(ValueError, match="delta.dataSkippingStatsColumns.*not supported with ICEBERG"):
+        databricks_adapter(
+            dummy_resource,
+            table_format="ICEBERG",
+            table_properties={"delta.dataSkippingStatsColumns": "col1,col2"}
+        )
+
+
+def test_databricks_adapter_reserved_table_properties():
+    """Test that reserved table property keys are rejected"""
+    def dummy_resource():
+        yield {"event_id": 1}
+
+    # Test reserved key "owner"
+    with pytest.raises(ValueError, match="owner.*reserved"):
+        databricks_adapter(
+            dummy_resource,
+            table_properties={"owner": "test_user"}
+        )
+
+    # Test option. prefix
+    with pytest.raises(ValueError, match="option\\..*reserved"):
+        databricks_adapter(
+            dummy_resource,
+            table_properties={"option.test": "value"}
+        )
+
+
+def test_databricks_adapter_invalid_property_types():
+    """Test that invalid table property value types are rejected"""
+    def dummy_resource():
+        yield {"event_id": 1}
+
+    # Should raise ValueError for dict value
+    with pytest.raises(ValueError, match="must be a string, integer, boolean, or float"):
+        databricks_adapter(
+            dummy_resource,
+            table_properties={"test_prop": {"nested": "value"}}  # type: ignore[arg-type]
+        )

@@ -456,14 +456,14 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             qualified_name = self.sql_client.make_qualified_table_name(table_name)
             sql = self._make_create_table(qualified_name, table)
 
-            # Add USING clause immediately after table name (before column definitions)
-            if using_clause:
-                sql += f" {using_clause}"
-
             sql += " (\n"
             sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
             sql += self._get_constraints_sql(table_name, new_columns, generate_alter)
             sql += ")"
+
+            # Add USING clause after column definitions for ICEBERG
+            if using_clause:
+                sql += f" {using_clause}"
 
             # Add PARTITIONED BY clause (must come before CLUSTER BY)
             if partition_clause:
