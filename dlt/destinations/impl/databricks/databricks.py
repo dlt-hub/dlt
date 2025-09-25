@@ -451,7 +451,9 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         # Note: DELTA is the default format, no explicit USING clause needed
 
         # For CREATE TABLE, we need custom generation if we have any custom clauses or non-DELTA format
-        if not generate_alter and (cluster_clause or partition_clause or tblproperties_clause or using_clause):
+        if not generate_alter and (
+            cluster_clause or partition_clause or tblproperties_clause or using_clause
+        ):
             # Build CREATE TABLE with all custom clauses
             qualified_name = self.sql_client.make_qualified_table_name(table_name)
             sql = self._make_create_table(qualified_name, table)

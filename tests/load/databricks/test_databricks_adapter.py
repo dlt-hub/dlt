@@ -300,9 +300,7 @@ def test_databricks_adapter_clustering(destination_config: DestinationTestConfig
     # Verify clustering using DESCRIBE DETAIL
     with pipeline.sql_client() as c:
         # Check AUTO clustering
-        with c.execute_query(
-            f"DESCRIBE DETAIL {pipeline.dataset_name}.events_auto_cluster"
-        ) as cur:
+        with c.execute_query(f"DESCRIBE DETAIL {pipeline.dataset_name}.events_auto_cluster") as cur:
             row = cur.fetchone()
             # For AUTO clustering, clusteringColumns might be empty or contain auto-selected columns
             # The important thing is that the table was created successfully
@@ -364,10 +362,7 @@ def test_databricks_adapter_partitioning(destination_config: DestinationTestConf
 
     # Test partitioning by year and month
     # Note: Databricks doesn't allow both PARTITIONED BY and CLUSTER BY in the same table
-    databricks_adapter(
-        partitioned_events,
-        partition=["year", "month"]
-    )
+    databricks_adapter(partitioned_events, partition=["year", "month"])
 
     @dlt.source(max_table_nesting=0)
     def demo_source():
@@ -377,9 +372,7 @@ def test_databricks_adapter_partitioning(destination_config: DestinationTestConf
 
     # Verify partitioning using DESCRIBE DETAIL
     with pipeline.sql_client() as c:
-        with c.execute_query(
-            f"DESCRIBE DETAIL {pipeline.dataset_name}.partitioned_events"
-        ) as cur:
+        with c.execute_query(f"DESCRIBE DETAIL {pipeline.dataset_name}.partitioned_events") as cur:
             row = cur.fetchone()
             columns = [desc[0] for desc in cur.description]
 
@@ -404,7 +397,9 @@ def test_databricks_adapter_partitioning(destination_config: DestinationTestConf
     destinations_configs(default_sql_configs=True, subset=["databricks"]),
     ids=lambda x: x.name,
 )
-def test_databricks_adapter_table_properties(destination_config: DestinationTestConfiguration) -> None:
+def test_databricks_adapter_table_properties(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     """Test table properties feature including statistics columns"""
     pipeline = destination_config.setup_pipeline(
         f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
@@ -440,7 +435,7 @@ def test_databricks_adapter_table_properties(destination_config: DestinationTest
             "custom.team": "data-eng",
             "custom.version": 1,
             "custom.optimized": True,
-        }
+        },
     )
 
     @dlt.source(max_table_nesting=0)
@@ -459,7 +454,9 @@ def test_databricks_adapter_table_properties(destination_config: DestinationTest
             # Check Delta optimization properties
             assert properties.get("delta.appendOnly") == "true"
             assert properties.get("delta.logRetentionDuration") == "30 days"
-            assert properties.get("delta.dataSkippingStatsColumns") == "event_date,customer_id,amount"
+            assert (
+                properties.get("delta.dataSkippingStatsColumns") == "event_date,customer_id,amount"
+            )
             assert properties.get("delta.autoOptimize.optimizeWrite") == "true"
             assert properties.get("delta.autoOptimize.autoCompact") == "true"
 
@@ -480,7 +477,9 @@ def test_databricks_adapter_table_properties(destination_config: DestinationTest
     destinations_configs(default_sql_configs=True, subset=["databricks"]),
     ids=lambda x: x.name,
 )
-def test_databricks_adapter_iceberg_format(destination_config: DestinationTestConfiguration) -> None:
+def test_databricks_adapter_iceberg_format(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     """Test ICEBERG table format"""
     pipeline = destination_config.setup_pipeline(
         f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
@@ -505,9 +504,7 @@ def test_databricks_adapter_iceberg_format(destination_config: DestinationTestCo
     # Test ICEBERG table format
     # Note: ICEBERG tables don't support clustering without specific table properties
     databricks_adapter(
-        iceberg_events,
-        table_format="ICEBERG",
-        table_comment="Iceberg table for testing"
+        iceberg_events, table_format="ICEBERG", table_comment="Iceberg table for testing"
     )
 
     @dlt.source(max_table_nesting=0)
@@ -518,9 +515,7 @@ def test_databricks_adapter_iceberg_format(destination_config: DestinationTestCo
 
     # Verify table format using DESCRIBE DETAIL
     with pipeline.sql_client() as c:
-        with c.execute_query(
-            f"DESCRIBE DETAIL {pipeline.dataset_name}.iceberg_events"
-        ) as cur:
+        with c.execute_query(f"DESCRIBE DETAIL {pipeline.dataset_name}.iceberg_events") as cur:
             row = cur.fetchone()
             columns = [desc[0] for desc in cur.description]
 
@@ -535,14 +530,13 @@ def test_databricks_adapter_iceberg_format(destination_config: DestinationTestCo
                 assert "ICEBERG" in str(provider).upper()
 
         # Verify data was loaded
-        with c.execute_query(
-            f"SELECT COUNT(*) FROM {pipeline.dataset_name}.iceberg_events"
-        ) as cur:
+        with c.execute_query(f"SELECT COUNT(*) FROM {pipeline.dataset_name}.iceberg_events") as cur:
             assert cur.fetchone()[0] == 10
 
 
 def test_databricks_adapter_invalid_table_format():
     """Test that invalid table formats are rejected"""
+
     def dummy_resource():
         yield {"event_id": 1}
 
@@ -553,40 +547,39 @@ def test_databricks_adapter_invalid_table_format():
 
 def test_databricks_adapter_iceberg_with_delta_properties():
     """Test that Delta-specific properties are rejected for ICEBERG tables"""
+
     def dummy_resource():
         yield {"event_id": 1}
 
     # Should raise ValueError when using Delta properties with ICEBERG
-    with pytest.raises(ValueError, match="delta.dataSkippingStatsColumns.*not supported with ICEBERG"):
+    with pytest.raises(
+        ValueError, match="delta.dataSkippingStatsColumns.*not supported with ICEBERG"
+    ):
         databricks_adapter(
             dummy_resource,
             table_format="ICEBERG",
-            table_properties={"delta.dataSkippingStatsColumns": "col1,col2"}
+            table_properties={"delta.dataSkippingStatsColumns": "col1,col2"},
         )
 
 
 def test_databricks_adapter_reserved_table_properties():
     """Test that reserved table property keys are rejected"""
+
     def dummy_resource():
         yield {"event_id": 1}
 
     # Test reserved key "owner"
     with pytest.raises(ValueError, match="owner.*reserved"):
-        databricks_adapter(
-            dummy_resource,
-            table_properties={"owner": "test_user"}
-        )
+        databricks_adapter(dummy_resource, table_properties={"owner": "test_user"})
 
     # Test option. prefix
     with pytest.raises(ValueError, match="option\\..*reserved"):
-        databricks_adapter(
-            dummy_resource,
-            table_properties={"option.test": "value"}
-        )
+        databricks_adapter(dummy_resource, table_properties={"option.test": "value"})
 
 
 def test_databricks_adapter_invalid_property_types():
     """Test that invalid table property value types are rejected"""
+
     def dummy_resource():
         yield {"event_id": 1}
 
@@ -594,5 +587,5 @@ def test_databricks_adapter_invalid_property_types():
     with pytest.raises(ValueError, match="must be a string, integer, boolean, or float"):
         databricks_adapter(
             dummy_resource,
-            table_properties={"test_prop": {"nested": "value"}}  # type: ignore[dict-item]
+            table_properties={"test_prop": {"nested": "value"}},  # type: ignore[dict-item]
         )

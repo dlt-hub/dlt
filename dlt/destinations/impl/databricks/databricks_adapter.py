@@ -99,14 +99,17 @@ def databricks_adapter(
                 "delta.deletedFileRetentionDuration",
                 "delta.enableChangeDataFeed",
                 "delta.columnMapping.mode",
-                "delta.appendOnly"
+                "delta.appendOnly",
             ]
 
             for prop_key in table_properties.keys():
-                if any(prop_key.startswith(delta_prop) or prop_key == delta_prop for delta_prop in delta_only_props):
+                if any(
+                    prop_key.startswith(delta_prop) or prop_key == delta_prop
+                    for delta_prop in delta_only_props
+                ):
                     raise ValueError(
-                        f"Table property '{prop_key}' is Delta Lake specific and not supported with ICEBERG tables. "
-                        f"Remove this property when using table_format='ICEBERG'."
+                        f"Table property '{prop_key}' is Delta Lake specific and not supported with"
+                        " ICEBERG tables. Remove this property when using table_format='ICEBERG'."
                     )
 
     if cluster:
@@ -119,7 +122,8 @@ def databricks_adapter(
                 cluster = [cluster]
             if not isinstance(cluster, list):
                 raise ValueError(
-                    "`cluster` must be a list of column names, a single column name as a string, or 'AUTO'."
+                    "`cluster` must be a list of column names, a single column name as a string, or"
+                    " 'AUTO'."
                 )
             for column_name in cluster:
                 additional_column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
@@ -215,8 +219,8 @@ def databricks_adapter(
             # Validate value types
             if not isinstance(value, (str, int, bool, float)):
                 raise ValueError(
-                    f"Table property value for key '{key}' must be a string, integer, boolean, or float. "
-                    f"Got {type(value).__name__}."
+                    f"Table property value for key '{key}' must be a string, integer, boolean, or"
+                    f" float. Got {type(value).__name__}."
                 )
 
         additional_table_hints[TABLE_PROPERTIES_HINT] = table_properties
