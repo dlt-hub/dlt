@@ -1,4 +1,4 @@
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Dict
 import pytest
 from itertools import zip_longest
 
@@ -45,7 +45,7 @@ def expect_extracted_file(
         assert line == file_line
 
 
-class AssertItems(ItemTransform[TDataItem]):
+class AssertItems(ItemTransform[TDataItem, Dict[str, Any]]):
     placement_affinity = 2.0  # even more sticky than incremental so gathers data after it
 
     def __init__(self, expected_items: Any, item_type: TestDataItemFormat = "object") -> None:

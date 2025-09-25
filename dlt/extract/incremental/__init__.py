@@ -1,6 +1,16 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal, Tuple
+from typing import (
+    Generic,
+    ClassVar,
+    Any,
+    Optional,
+    Type,
+    Dict,
+    Union,
+    Literal,
+    Tuple,
+)
 
 import inspect
 from functools import wraps
@@ -20,6 +30,7 @@ from dlt.common.typing import (
     is_optional_type,
     is_subclass,
     TColumnNames,
+    TypedDict,
 )
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
@@ -63,8 +74,17 @@ except MissingDependencyException:
     pandas = None
 
 
+class IncrementalCustomMetrics(TypedDict, total=False):
+    unfiltered_items_count: int
+    unfiltered_batches_count: int
+    initial_unique_hashes_count: int
+    final_unique_hashes_count: int
+
+
 @configspec
-class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorValue]):
+class Incremental(
+    ItemTransform[TDataItem, IncrementalCustomMetrics], BaseConfiguration, Generic[TCursorValue]
+):
     """Adds incremental extraction for a resource by storing a cursor value in persistent state.
 
     The cursor could for example be a timestamp for when the record was created and you can use this to load only
@@ -191,8 +211,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Bound pipe"""
         self.range_start = range_start
         self.range_end = range_end
-        # Initialize custom metrics
-        BaseItemTransform.__init__(self)
+        self._custom_metrics: IncrementalCustomMetrics = {
+            "unfiltered_items_count": 0,
+            "unfiltered_batches_count": 0,
+            "initial_unique_hashes_count": 0,
+            "final_unique_hashes_count": 0,
+        }
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -570,13 +594,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             return rows
 
         # collect metrics
-        self.custom_metrics["unfiltered_items_count"] = self.custom_metrics.get(
-            "unfiltered_items_count", 0
-        ) + count_rows_in_items(rows)
-        self.custom_metrics["unfiltered_batches_count"] = (
-            self.custom_metrics.get("unfiltered_batches_count", 0) + 1
-        )
-        self.custom_metrics["unique_hashes_count"] = len(self.get_state().get("unique_hashes", []))
+        self.custom_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
+        self.custom_metrics["unfiltered_batches_count"] += 1
 
         transformer = self._get_transform(rows)
         if isinstance(rows, list):
@@ -599,6 +618,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # writing back state
         self._cached_state["last_value"] = transformer.last_value
 
+        initial_hash_list = self._cached_state.get("unique_hashes")
+        initial_hash_count = len(initial_hash_list) if initial_hash_list else 0
+        self.custom_metrics["initial_unique_hashes_count"] = initial_hash_count
+
         if transformer.boundary_deduplication:
             # compute hashes for new last rows
             # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
@@ -607,11 +630,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 transformer.compute_unique_value(row, self.primary_key)
                 for row in transformer.last_rows
             )
-            initial_hash_count = len(self._cached_state.get("unique_hashes", []))
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
             final_hash_count = len(self._cached_state["unique_hashes"])
+            self.custom_metrics["final_unique_hashes_count"] = final_hash_count
 
             self._check_duplicate_cursor_threshold(initial_hash_count, final_hash_count)
         return rows
@@ -636,7 +659,7 @@ Incremental.EMPTY.__is_resolved__ = True
 TIncrementalConfig = Union[Incremental[Any], IncrementalArgs]
 
 
-class IncrementalResourceWrapper(ItemTransform[TDataItem]):
+class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetrics]):
     placement_affinity: ClassVar[float] = 1  # stick to end
 
     _incremental: Optional[Incremental[Any]] = None
@@ -798,8 +821,8 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             self._incremental.allow_external_schedulers = value
 
     @property
-    def custom_metrics(self) -> Dict[str, Any]:
-        """Returns custom metrics of the Incremental object itself"""
+    def custom_metrics(self) -> IncrementalCustomMetrics:
+        """Returns custom metrics of the Incremental object itself if exists"""
         if self._incremental:
             return self._incremental.custom_metrics
         return {}
