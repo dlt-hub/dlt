@@ -107,7 +107,7 @@ function buildSnippetMap(lines, fileName) {
   return snippetMap;
 }
 
-/** 
+/**
  * Get snippet from file
  */
 function getSnippetFromFile(snippetsFileName, snippetName) {
@@ -131,7 +131,7 @@ function getSnippet(fileName, snippetName) {
 
   // regular snippet
   const ext = path.extname(fileName);
-  const snippetParts = snippetName.split("::"); 
+  const snippetParts = snippetName.split("::");
 
   // regular snippet
   let snippetsFileName = fileName.slice(0, -ext.length) + SNIPPETS_FILE_SUFFIX;
@@ -185,7 +185,7 @@ function insertTubaLinks(lines) {
         // shuffle links
         links = links.sort(() => 0.5 - Math.random());
         let count = 0;
-        for (const link of links) {          
+        for (const link of links) {
           result.push(`- [${link.title}](${link.public_url})`)
           count += 1;
           if (count >= NUM_TUBA_LINKS) {
@@ -202,7 +202,7 @@ function insertTubaLinks(lines) {
   return [tubaCount, result];
 }
 
-/** 
+/**
  * Remove all lines that contain a DLT_MARKER
  * TODO: we should probably warn here if we find a DLT_MARKER
  * that was not processed before
@@ -400,12 +400,12 @@ function checkDocs() {
         foundError = true;
         console.error(`Found absolute md link in file ${fileName}, line ${lineNo}`)
       }
-  
+
       if (line.includes(HTTP_LINK)) {
         foundError = true;
         console.error(`Found http md link referencing these docs in file ${fileName}, line ${lineNo}`)
       }
-  
+
     }
 
 
@@ -418,11 +418,45 @@ function checkDocs() {
   console.info("Found no errors in md files")
 }
 
+/**
+ * Execute Python script for destination capabilities
+ */
+function executeDestinationCapabilities() {
+    const { execSync } = require('child_process');
+
+    console.log("Inserting destination capabilities...");
+
+    const pythonScript = path.join(__dirname, 'insert_destination_capabilities.py');
+    const command = `uv run python "${pythonScript}"`;
+
+    try {
+        const output = execSync(command, {
+            encoding: 'utf8',
+            stdio: 'pipe'
+        });
+
+        if (output && output.trim()) {
+            console.log(`Python script output: ${output.trim()}`);
+        }
+
+        console.log("Destination capabilities inserted successfully.");
+    } catch (error) {
+        console.error(`Error executing destination capabilities script: ${error.message}`);
+        if (error.stdout) {
+            console.log(`Python script stdout: ${error.stdout}`);
+        }
+        if (error.stderr) {
+            console.error(`Python script stderr: ${error.stderr}`);
+        }
+        throw error;
+    }
+}
 
 function processDocs() {
   fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
   syncExamples();
   preprocess_docs();
+  executeDestinationCapabilities();
   checkDocs();
 }
 
