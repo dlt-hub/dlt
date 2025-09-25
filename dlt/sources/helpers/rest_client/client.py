@@ -110,6 +110,7 @@ class RESTClient:
         headers: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Any] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
     ) -> Request:
@@ -127,6 +128,7 @@ class RESTClient:
             headers=request_headers,
             params=params,
             json=json,
+            data=data,
             auth=auth or self.auth,
             hooks=hooks,
         )
@@ -152,7 +154,7 @@ class RESTClient:
             logger.debug(
                 f"Making {request.method.upper()} request to {request.url}"
                 f" with params={request.params}, json={request.json},"
-                f" headers={request.headers}"
+                f" data={request.data}, headers={request.headers}"
             )
         else:
             sanitized_url = sanitize_url(prepared_url)
@@ -165,6 +167,7 @@ class RESTClient:
             headers=kwargs.pop("headers", None),
             params=kwargs.pop("params", None),
             json=kwargs.pop("json", None),
+            data=kwargs.pop("data", None),
             auth=kwargs.pop("auth", None),
             hooks=kwargs.pop("hooks", None),
         )
@@ -173,8 +176,14 @@ class RESTClient:
     def get(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Response:
         return self.request(path, method="GET", params=params, **kwargs)
 
-    def post(self, path: str, json: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Response:
-        return self.request(path, method="POST", json=json, **kwargs)
+    def post(
+        self,
+        path: str,
+        json: Optional[Dict[str, Any]] = None,
+        data: Optional[Any] = None,
+        **kwargs: Any
+    ) -> Response:
+        return self.request(path, method="POST", json=json, data=data, **kwargs)
 
     def paginate(
         self,
@@ -182,6 +191,7 @@ class RESTClient:
         method: HTTPMethodBasic = "GET",
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Any] = None,
         auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
         data_selector: Optional[jsonpath.TJsonPath] = None,
@@ -200,6 +210,8 @@ class RESTClient:
                 Overwrites default headers.
             params (Optional[Dict[str, Any]]): URL parameters for the request.
             json (Optional[Dict[str, Any]]): JSON payload for the request.
+            data (Optional[Any]): Data to send in the body of the request. Can be a dictionary
+                (form-encoded), bytes, string, or file-like object. Mutually exclusive with json.
             auth (Optional[AuthBase): Authentication configuration for the request.
             paginator (Optional[BasePaginator]): Paginator instance for handling
                 pagination logic.
@@ -241,6 +253,7 @@ class RESTClient:
             method=method,
             params=params,
             json=json,
+            data=data,
             auth=auth,
             hooks=hooks,
         )

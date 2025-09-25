@@ -102,6 +102,7 @@ class ProcessedParentData(NamedTuple):
     headers: Optional[Dict[str, Any]]
     params: Dict[str, Any]
     json: Optional[Dict[str, Any]]
+    data: Optional[Any]
     parent_record: Dict[str, Any]
 
 
@@ -743,6 +744,7 @@ def process_parent_data_item(
     headers: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
     request_json: Optional[Dict[str, Any]] = None,
+    request_data: Optional[Any] = None,
     include_from_parent: Optional[List[str]] = None,
     incremental: Optional[Incremental[Any]] = None,
     incremental_value_convert: Optional[Callable[..., Any]] = None,
@@ -754,6 +756,7 @@ def process_parent_data_item(
     expanded_headers = expand_placeholders(headers, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
     expanded_json = expand_placeholders(request_json, params_values, preserve_value_type=True)
+    expanded_data = expand_placeholders(request_data, params_values, preserve_value_type=True)
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
@@ -763,6 +766,7 @@ def process_parent_data_item(
         headers=expanded_headers,
         params=expanded_params,
         json=expanded_json,
+        data=expanded_data,
         parent_record=parent_record,
     )
 
@@ -1016,6 +1020,7 @@ def paginate_dependent_resource(
     headers: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     json: Optional[Dict[str, Any]],
+    data: Optional[Any],
     paginator: Optional[BasePaginator],
     data_selector: Optional[jsonpath.TJsonPath],
     hooks: Optional[Dict[str, Any]],
@@ -1041,6 +1046,7 @@ def paginate_dependent_resource(
             headers=headers,
             params=params,
             request_json=json,
+            request_data=data,
             resolved_params=resolved_params,
             include_from_parent=include_from_parent,
             incremental=incremental_object,
@@ -1053,6 +1059,7 @@ def paginate_dependent_resource(
             headers=processed_data.headers,
             params=processed_data.params,
             json=processed_data.json,
+            data=processed_data.data,
             paginator=paginator,
             data_selector=data_selector,
             hooks=hooks,
@@ -1069,6 +1076,7 @@ def paginate_resource(
     headers: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     json: Optional[Dict[str, Any]],
+    data: Optional[Any],
     paginator: Optional[BasePaginator],
     data_selector: Optional[jsonpath.TJsonPath],
     hooks: Optional[Dict[str, Any]],
@@ -1096,6 +1104,7 @@ def paginate_resource(
     headers = expand_placeholders(headers, format_kwargs)
     params = expand_placeholders(params, format_kwargs)
     json = expand_placeholders(json, format_kwargs, preserve_value_type=True)
+    data = expand_placeholders(data, format_kwargs, preserve_value_type=True)
 
     yield from client.paginate(
         method=method,
@@ -1103,6 +1112,7 @@ def paginate_resource(
         headers=headers,
         params=params,
         json=json,
+        data=data,
         paginator=paginator,
         data_selector=data_selector,
         hooks=hooks,
