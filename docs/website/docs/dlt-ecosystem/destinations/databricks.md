@@ -674,10 +674,10 @@ from dlt.destinations.adapters import databricks_adapter
     columns=[
         {"name": "transaction_date", "data_type": "date"},
         {"name": "customer_id", "data_type": "bigint"},
-        {"name": "amount", "data_type": "decimal(10,2)"},
-        {"name": "region", "data_type": "string"},
-        {"name": "year", "data_type": "int"},
-        {"name": "month", "data_type": "int"}
+        {"name": "amount", "data_type": "decimal"},
+        {"name": "region", "data_type": "text"},
+        {"name": "year", "data_type": "bigint"},
+        {"name": "month", "data_type": "bigint"}
     ]
 )
 def transactions():
