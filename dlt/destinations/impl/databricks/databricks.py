@@ -484,7 +484,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             if generate_alter and cluster_clause:
                 qualified_name = self.sql_client.make_qualified_table_name(table_name)
                 sql_result.append(f"ALTER TABLE {qualified_name} {cluster_clause}")
-            
+
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
         if table.get(TABLE_COMMENT_HINT) or table.get("description"):
