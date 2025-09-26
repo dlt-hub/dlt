@@ -319,20 +319,24 @@ def test_import_destination_type_config(
     destination_name: str = "my_destination",
 ) -> None:
     environment[f"DESTINATION__{destination_name.upper()}__DESTINATION_TYPE"] = destination_type
-
+    msg_from_fallback = "configure a valid destination type"
     if destination_type == "wrong_type":
-        with pytest.raises(UnknownDestinationModule):
+        with pytest.raises(UnknownDestinationModule) as py_exc:
             Destination.from_reference(ref=destination_name)
+        assert msg_from_fallback in str(py_exc.value)
 
         # if destination_name is provided, ref should be a valid destination type
-        with pytest.raises(UnknownDestinationModule):
+        with pytest.raises(UnknownDestinationModule) as py_exc:
             Destination.from_reference(
                 ref=f"dlt.destinations.{destination_type}", destination_name=destination_name
             )
+        assert msg_from_fallback not in str(py_exc.value)
 
         # if ref contains dots, it's a module path and should be valid
+        # names with dots will not resolve correctly from configs anyway
         with pytest.raises(UnknownDestinationModule):
             Destination.from_reference(ref=f"dlt.destinations.{destination_type}")
+        assert msg_from_fallback not in str(py_exc.value)
 
     else:
         dest = Destination.from_reference(ref=destination_name)

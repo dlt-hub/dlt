@@ -67,6 +67,31 @@ info = pipeline.run(generate_rows(10))
 
 print(info)
 ```
+## Named destination configuration
+You can use a custom destination name in your pipeline and configure the actual destination type through configuration files or environment variables. This approach allows you to switch between different destinations (e.g., from development to production) without changing your pipeline code.
+
+Example:
+```py
+import dlt
+
+pipeline = dlt.pipeline(destination="custom_pipeline", dataset_name="sql_database_data")
+```
+
+Then configure the actual destination type in your `.dlt/secrets.toml`:
+
+```toml
+[destination.custom_pipeline]
+# for development
+destination_type = "duckdb" 
+
+# for production
+# destination_type = "bigquery"
+
+# [destination.custom_pipeline.credentials]
+# project_id = "project_id" # please set me up!
+# private_key = "private_key" # please set me up!
+# client_email = "client_email" # please set me up!
+```
 
 ## Pipeline working directory
 

@@ -3,6 +3,7 @@ import pytest
 
 import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
 from dlt.common.storages import FilesystemConfiguration
@@ -216,3 +217,33 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     )
     pathlib = p._fs_client().pathlib  # type: ignore[attr-defined]
     assert p._fs_client().dataset_path.endswith(p.dataset_name + pathlib.sep)
+
+
+@pytest.mark.parametrize(
+    "destination_type_configured",
+    [True, False],
+)
+def test_destination_name_as_destination(environment, destination_type_configured: bool) -> None:
+    msg_from_fallback = "configure a valid destination type"
+    if destination_type_configured:
+        environment["DESTINATION__CUSTOM_NAME__DESTINATION_TYPE"] = "duckdb"
+
+        p = dlt.pipeline(destination="custom_name")
+        assert p.destination.destination_type == "dlt.destinations.duckdb"
+        assert p.destination.destination_name == "custom_name"
+
+    else:
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            dlt.pipeline(destination="custom_name")
+        assert msg_from_fallback in str(py_exc.value)
+
+    # if destination contains dots, no fallbacks must happen
+    with pytest.raises(UnknownDestinationModule) as py_exc:
+        dlt.pipeline(destination="dlt.destinations.unknown")
+    assert msg_from_fallback not in str(py_exc.value)
+
+    # if destination_name is provided, destination must not be a custom name
+    environment["DESTINATION_NAME"] = "custom_name"
+    with pytest.raises(UnknownDestinationModule):
+        dlt.pipeline(destination="custom_name")
+    assert msg_from_fallback not in str(py_exc.value)
