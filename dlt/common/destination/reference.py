@@ -282,7 +282,6 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             resolved_config = resolve_configuration(
                 DestinationTypeConfiguration(),
                 sections=(known_sections.DESTINATION, ref),
-                accept_partial=True,
             )
             destination_type = getattr(resolved_config, "destination_type", None)
             if not destination_type:

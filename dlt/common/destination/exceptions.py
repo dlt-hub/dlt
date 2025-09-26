@@ -19,15 +19,22 @@ class UnknownDestinationModule(ReferenceImportError, DestinationException, KeyEr
 
     def __str__(self) -> str:
         if "." in self.ref:
-            msg = f"Destination module `{self.ref}` is not registered."
+            msg = f"Destination module `{self.ref}` is not registered. "
         else:
-            msg = f"Destination `{self.ref}` is not one of the standard dlt destinations."
+            msg = (
+                f"Destination `{self.ref}` is not one of the standard dlt destinations. If it's a "
+                f"""custom destination name, you need to set 'dlt.pipeline(destination="{self.ref}")' """
+                "and configure a valid destination type either as an environment variable:\n\n"
+                f"DESTINATION__{self.ref.upper()}__DESTINATION_TYPE=duckdb\n\n"
+                f"or in .dlt/secrets.toml:\n\n[destination.{self.ref}]\ndestination_type ="
+                ' "duckdb"\n\n'
+            )
 
         if len(self.qualified_refs) == 1 and self.qualified_refs[0] == self.ref:
             pass
         else:
             msg += (
-                " Following fully qualified refs were tried in the registry:\n\t%s\n"
+                "Following fully qualified refs were tried in the registry:\n\t%s\n"
                 % "\n\t".join(self.qualified_refs)
             )
         if self.traces:
