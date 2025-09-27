@@ -329,19 +329,27 @@ def build_resource_dependency_graph(
             endpoint_resource["endpoint"]["path"], available_contexts
         )
 
-        # Find all expressions in params, json, or header, but error if any of them is not in available_contexts
+        # Find all expressions in params, json, data, or headers, but error if any of them
+        # are not in available_contexts
         params_expressions = _find_expressions(endpoint_resource["endpoint"].get("params", {}))
         _raise_if_any_not_in(params_expressions, available_contexts, message="params")
 
         json_expressions = _find_expressions(endpoint_resource["endpoint"].get("json", {}))
         _raise_if_any_not_in(json_expressions, available_contexts, message="json")
 
+        data_expressions = _find_expressions(endpoint_resource["endpoint"].get("data", {}))
+        _raise_if_any_not_in(data_expressions, available_contexts, message="data")
+
         headers_expressions = _find_expressions(endpoint_resource["endpoint"].get("headers", {}))
         _raise_if_any_not_in(headers_expressions, available_contexts, message="headers")
 
         resolved_params += _expressions_to_resolved_params(
             _filter_resource_expressions(
-                path_expressions | params_expressions | json_expressions | headers_expressions
+                path_expressions
+                | params_expressions
+                | json_expressions
+                | data_expressions
+                | headers_expressions
             )
         )
 
@@ -697,7 +705,7 @@ def _find_expressions(
             for key, val in value.items():
                 recursive_search(key)
                 recursive_search(val)
-        elif isinstance(value, list):
+        elif isinstance(value, (list, tuple)):
             for item in value:
                 recursive_search(item)
         elif isinstance(value, str):
@@ -756,7 +764,7 @@ def process_parent_data_item(
     expanded_headers = expand_placeholders(headers, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
     expanded_json = expand_placeholders(request_json, params_values, preserve_value_type=True)
-    expanded_data = expand_placeholders(request_data, params_values, preserve_value_type=True)
+    expanded_data = expand_placeholders(request_data, params_values)
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
@@ -881,7 +889,7 @@ def expand_placeholders(
             for k, v in obj.items()
         }
 
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple)):
         return [expand_placeholders(item, placeholders, preserve_value_type) for item in obj]
 
     return obj  # For other data types, do nothing

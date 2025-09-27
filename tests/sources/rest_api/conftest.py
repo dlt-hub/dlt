@@ -168,6 +168,21 @@ def mock_api_server():
             post_id = int(body.get("post_id", 0))
             return paginate_by_page_number(request, generate_comments(post_id))
 
+        @router.post(r"/post_comments_via_form_data(\?.*)?$")
+        def post_comments_via_form_data(request, context):
+            content_type = request.headers.get("Content-Type")
+            if content_type and content_type.lower() == "application/x-www-form-urlencoded":
+                body = parse_qs(request.text) if request.text else {}
+                post_id = int(body.get("post_id", [0])[0])
+            elif not content_type:
+                raw_body = request.text
+                # this is just to test the raw "data" param case
+                post_id = int(raw_body)
+            else:
+                raise ValueError(f"Unsupported content type: {content_type}")
+
+            return paginate_by_page_number(request, generate_comments(post_id))
+
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
             post_id = request.url.split("/")[-1]
@@ -356,6 +371,23 @@ def mock_api_server():
             elif cursor_param == "cursor_final":
                 # Final page - return null data and null cursor
                 return {"users": None, "next_token": None}
+
+        @router.post(r"/post_form_data$")
+        def posts_form_data(request, context):
+            content_type = request.headers.get("Content-Type")
+            if content_type == "application/x-www-form-urlencoded":
+                data = parse_qs(request.text)
+                return {"data": data}
+            else:
+                return {"error": f"Unsupported content type: {content_type}", "data": request.text}
+
+        @router.post(r"/post_raw_data$")
+        def posts_raw_data(request, context):
+            return {"data": request.text}
+
+        @router.post(r"/posts_form_data_incremental$")
+        def posts(request, context):
+            return paginate_by_page_number(request, generate_posts())
 
         router.register_routes(m)
 

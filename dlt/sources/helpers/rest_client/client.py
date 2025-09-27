@@ -114,6 +114,11 @@ class RESTClient:
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
     ) -> Request:
+        if json and data:
+            raise ValueError(
+                "Cannot use both 'json' and 'data' parameters simultaneously. "
+                "Use 'json' for JSON payloads or 'data' for form-encoded/raw data."
+            )
         parsed_url = urlparse(path_or_url)
         if parsed_url.scheme in ("http", "https"):
             url = path_or_url
@@ -180,8 +185,9 @@ class RESTClient:
         self,
         path: str,
         json: Optional[Dict[str, Any]] = None,
+        *,
         data: Optional[Any] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Response:
         return self.request(path, method="POST", json=json, data=data, **kwargs)
 
@@ -191,12 +197,13 @@ class RESTClient:
         method: HTTPMethodBasic = "GET",
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
-        data: Optional[Any] = None,
         auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
         data_selector: Optional[jsonpath.TJsonPath] = None,
         hooks: Optional[Hooks] = None,
         headers: Optional[Dict[str, Any]] = None,
+        *,
+        data: Optional[Any] = None,
         **kwargs: Any,
     ) -> Iterator[PageData[Any]]:
         """Iterates over paginated API responses, yielding pages of data.
@@ -286,6 +293,7 @@ class RESTClient:
     def extract_response(self, response: Response, data_selector: jsonpath.TJsonPath) -> List[Any]:
         # we should compile data_selector
         data: Any = jsonpath.find_values(data_selector, response.json())
+
         # extract if single item selected
         data = data[0] if isinstance(data, list) and len(data) == 1 else data
         if isinstance(data, list):

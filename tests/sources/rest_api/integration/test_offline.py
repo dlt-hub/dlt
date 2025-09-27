@@ -20,6 +20,15 @@ from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAG
 from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_column
 
 
+def _parse_single_valued_qs(body) -> dict[str, str]:
+    """Parse query string expecting single values per key."""
+    return {k: v[0] for k, v in parse_qs(body).items()}
+
+
+def _filter_by_path_prefix(request_history: list[Any], path_prefix: str) -> list[Any]:
+    return [request for request in request_history if request.path.startswith(path_prefix)]
+
+
 @pytest.mark.parametrize(
     "config",
     [
@@ -1606,3 +1615,260 @@ def test_secret_redaction_in_http_errors(mock_api_server):
 
     assert "404" in error_str
     assert "Resource not found" not in error_str
+
+
+@pytest.mark.parametrize(
+    "endpoint_config,expected_content_type,expected_body_contains",
+    [
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+                "data": {},
+            },
+            None,
+            None,
+            id="empty_data_dict",
+        ),
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+                "data": {"key1": "value1", "key2": "value2"},
+            },
+            "application/x-www-form-urlencoded",
+            "key1=value1&key2=value2",
+            id="data_as_dict",
+        ),
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+                "data": [("key1", "value1"), ("key2", "value2"), ("key1", "another_value")],
+            },
+            "application/x-www-form-urlencoded",
+            "key1=value1&key2=value2&key1=another_value",
+            id="data_as_list_of_tuples",
+        ),
+        pytest.param(
+            {
+                "path": "post_raw_data",
+                "method": "POST",
+                "data": "raw string data",
+            },
+            None,
+            "raw string data",
+            id="data_as_string",
+        ),
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+            },
+            None,
+            None,
+            id="no_data_post",
+        ),
+    ],
+)
+def test_request_data_body(
+    mock_api_server, endpoint_config, expected_content_type, expected_body_contains
+) -> None:
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "test_data",
+                    "endpoint": endpoint_config,
+                },
+            ],
+        }
+    )
+    list(source.with_resources("test_data").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) >= 1
+    request = history[0]
+
+    assert expected_content_type == request.headers.get("Content-Type")
+    assert request.body == expected_body_contains
+
+
+def test_data_and_json_mutual_exclusivity(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts/search",
+                        "method": "POST",
+                        "json": {"search_term": "test"},
+                        "data": {"should_be_ignored": "yes"},
+                    },
+                },
+            ],
+        }
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        list(source.with_resources("posts").add_limit(1))
+
+    assert "Cannot use both 'json' and 'data' parameters simultaneously" in str(exc_info.value)
+
+
+def test_dependent_resource_post_data_param(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "post_comments_via_form_data",
+                        "method": "POST",
+                        "data": {
+                            "post_id": "{resources.posts.id}",
+                            "static_value": "constant",
+                            "escaped_braces": "{{not_interpolated}}",
+                        },
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts", "post_comments").add_limit(1))
+
+    post_comments_calls = _filter_by_path_prefix(
+        mock_api_server.request_history, "/post_comments_via_form_data"
+    )
+    assert len(post_comments_calls) == 5
+
+    for index, call in enumerate(post_comments_calls):
+        assert _parse_single_valued_qs(call.body) == {
+            "post_id": str(index),
+            "static_value": "constant",
+            "escaped_braces": "{not_interpolated}",
+        }
+
+
+def test_post_data_param_with_incremental_values(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts_form_data_incremental",
+                    "endpoint": {
+                        "path": "/posts_form_data_incremental",
+                        "method": "POST",
+                        "data": {
+                            "initial_value": "{incremental.initial_value}",
+                            "start_value": "{incremental.start_value}",
+                            "end_value": "{incremental.end_value}",
+                            "escaped": "{{not_this}}",
+                        },
+                        "incremental": {
+                            "cursor_path": "id",
+                            "initial_value": 100,
+                            "end_value": 200,
+                        },
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts_form_data_incremental").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    actual_data = _parse_single_valued_qs(request_call.body)
+
+    assert actual_data == {
+        "initial_value": "100",
+        "start_value": "100",
+        "end_value": "200",
+        "escaped": "{not_this}",
+    }
+
+
+def test_post_data_param_with_raw_data(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "post_comments_via_form_data",
+                        "method": "POST",
+                        "data": "{resources.posts.id}",
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts", "post_comments").add_limit(1))
+    post_comments_calls = _filter_by_path_prefix(
+        mock_api_server.request_history, "/post_comments_via_form_data"
+    )
+
+    assert len(post_comments_calls) == 5
+    for index, call in enumerate(post_comments_calls):
+        assert call.body == str(index)
+        assert call.headers.get("Content-Type") is None, "Content-Type should be None for raw data"
+
+
+def test_post_data_param_with_list_of_tuples(mock_api_server):
+    """Test interpolation works with list of tuples data format"""
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "post_comments_via_form_data",
+                        "method": "POST",
+                        "data": [
+                            ("post_id", "{resources.posts.id}"),
+                            ("action", "comment"),
+                            ("post_id", "{resources.posts.id}_duplicate"),  # Test duplicate keys
+                            ("title", "{resources.posts.title}"),
+                            ("escaped", "{{literal_braces}}"),
+                        ],
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts", "post_comments").add_limit(1))
+
+    post_comments_calls = _filter_by_path_prefix(
+        mock_api_server.request_history, "/post_comments_via_form_data"
+    )
+    assert len(post_comments_calls) == 5
+
+    for index, call in enumerate(post_comments_calls):
+        actual_data = parse_qs(call.body)
+
+        assert actual_data == {
+            "post_id": [str(index), f"{index}_duplicate"],
+            "action": ["comment"],
+            "title": [f"Post {index}"],
+            "escaped": ["{literal_braces}"],
+        }
