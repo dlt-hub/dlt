@@ -20,6 +20,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     host: str = None
     database: str = None
+    account: Optional[str] = None
     username: Optional[str] = None
     warehouse: Optional[str] = None
     role: Optional[str] = None
@@ -82,7 +83,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             query,
             # user=self.username,
             # password=self.password,
-            account=self.host,
+            account=self.account,
+            host=self.host,
             database=self.database,
         )
 
