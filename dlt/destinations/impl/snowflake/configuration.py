@@ -81,7 +81,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         conn_params: Dict[str, Any] = dict(
             query,
             # user=self.username,
-            password=self.password,
+            # password=self.password,
             account=self.host,
             database=self.database,
         )
