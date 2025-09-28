@@ -364,6 +364,7 @@ used as-is and `base_url` will be ignored.
 - `headers`: Additional headers specific to this endpoint. See the [headers configuration](./advanced#headers-configuration) section for more details.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also may be used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
+- `data`: The data payload to be sent with the request body. Can be a dictionary (form-encoded) or string. Mutually exclusive with `json` parameter. Use this for APIs that expect form-encoded data or raw payloads instead of JSON.
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
 - `response_actions`: A list of actions that define how to process the response data. See the [response actions](./advanced#response-actions) section for more details.
