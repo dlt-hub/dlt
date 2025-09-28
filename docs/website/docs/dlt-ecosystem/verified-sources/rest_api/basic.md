@@ -486,7 +486,7 @@ To change this behavior for a specific endpoint, explicitly set the `paginator` 
 {
     "name": "user_details",
     "endpoint": {
-        "path": "user/{id}/comments",
+        "path": "user/{resources.users.id}/comments",
         "paginator": {"type": "json_link", "next_url_path": "next"}
     }
 }
