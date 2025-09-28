@@ -1,3 +1,4 @@
+import re
 from typing import Any, List, Optional
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
@@ -25,8 +26,9 @@ def _parse_single_valued_qs(body) -> dict[str, str]:
     return {k: v[0] for k, v in parse_qs(body).items()}
 
 
-def _filter_by_path_prefix(request_history: list[Any], path_prefix: str) -> list[Any]:
-    return [request for request in request_history if request.path.startswith(path_prefix)]
+def _filter_by_path_pattern(request_history: list[Any], path_pattern: str) -> list[Any]:
+    pattern = re.compile(path_pattern)
+    return [request for request in request_history if pattern.match(request.path)]
 
 
 @pytest.mark.parametrize(
@@ -514,7 +516,9 @@ def test_dependent_resource_query_string_params(
     list(mock_source.with_resources("posts", "post_comments").add_limit(1))
 
     history = mock_api_server.request_history
-    post_comments_calls = [h for h in history if "/comments" in h.url]
+    post_comments_calls = _filter_by_path_pattern(
+        mock_api_server.request_history, r"/posts/\d+/comments"
+    )
     assert len(post_comments_calls) == 50
 
     for call in post_comments_calls:
@@ -596,8 +600,7 @@ def test_interpolate_params_in_query_string(
     )
     list(mock_source.with_resources("posts", "post_details").add_limit(1))
 
-    history = mock_api_server.request_history
-    post_details_calls = [h for h in history if "/post_detail" in h.url]
+    post_details_calls = _filter_by_path_pattern(mock_api_server.request_history, "/post_detail")
     assert len(post_details_calls) == 5
 
     for index, call in enumerate(post_details_calls):
@@ -646,7 +649,9 @@ def test_request_json_body(mock_api_server, endpoint_config, expected_body) -> N
     )
     list(source.with_resources("posts", "posts_comments").add_limit(1))
 
-    post_comments_calls = [h for h in mock_api_server.request_history if "/comments" in h.url]
+    post_comments_calls = _filter_by_path_pattern(
+        mock_api_server.request_history, r"/posts/\d+/comments"
+    )
     assert len(post_comments_calls) == 50
 
     request = post_comments_calls[0]
@@ -1442,9 +1447,7 @@ def test_headers_in_dependent_resource(mock_api_server):
     )
 
     list(source.with_resources("posts", "post_details").add_limit(1))
-
-    history = mock_api_server.request_history
-    post_details_calls = [h for h in history if "/post_detail" in h.url]
+    post_details_calls = _filter_by_path_pattern(mock_api_server.request_history, "/post_detail")
     assert len(post_details_calls) == 5
 
     for index, call in enumerate(post_details_calls):
@@ -1744,7 +1747,7 @@ def test_dependent_resource_post_data_param(mock_api_server):
 
     list(source.with_resources("posts", "post_comments").add_limit(1))
 
-    post_comments_calls = _filter_by_path_prefix(
+    post_comments_calls = _filter_by_path_pattern(
         mock_api_server.request_history, "/post_comments_via_form_data"
     )
     assert len(post_comments_calls) == 5
@@ -1820,7 +1823,7 @@ def test_post_data_param_with_raw_data(mock_api_server):
     )
 
     list(source.with_resources("posts", "post_comments").add_limit(1))
-    post_comments_calls = _filter_by_path_prefix(
+    post_comments_calls = _filter_by_path_pattern(
         mock_api_server.request_history, "/post_comments_via_form_data"
     )
 
@@ -1858,7 +1861,7 @@ def test_post_data_param_with_list_of_tuples(mock_api_server):
 
     list(source.with_resources("posts", "post_comments").add_limit(1))
 
-    post_comments_calls = _filter_by_path_prefix(
+    post_comments_calls = _filter_by_path_pattern(
         mock_api_server.request_history, "/post_comments_via_form_data"
     )
     assert len(post_comments_calls) == 5
