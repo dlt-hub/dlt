@@ -234,7 +234,7 @@ You can use the usual configuration options (env-vars or `config.toml`) or use t
 
 <Tabs
   groupId="config-type"
-  defaultValue="env-vars"
+  defaultValue="env"
   values={[
     {"label": ".env", "value": "env"},
     {"label": "config.toml", "value": "config.toml"},
