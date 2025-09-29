@@ -195,7 +195,10 @@ def test_attach_statement_doesnt_use_postgresl() -> None:
 
     Make sure that the produced ATTACH statement doesn't use postgresql
     """
-    expected_attach_statement = "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data' AS foo (DATA_PATH './path/to/storage', METADATA_SCHEMA 'foo')"
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH './path/to/storage', METADATA_SCHEMA 'foo')"
+    )
     attach_statement = DuckLakeSqlClient.build_attach_statement(
         catalog=ConnectionStringCredentials("postgresql://loader:loader@localhost:5432/dlt_data"),
         catalog_name="foo",
