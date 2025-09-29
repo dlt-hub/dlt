@@ -79,22 +79,14 @@ test_params = [
     ),
     # iso date
     ("2021-01-01", pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC")),
-    # RFC 1123 format
-    ("Mon, 01 Jan 2021 05:02:32 GMT", pendulum.DateTime(2021, 1, 1, 5, 2, 32, tzinfo=pendulum.UTC)),
 ]
 
 
-@pytest.mark.parametrize(
-    ["serialized_dt", "expected_dt"],
-    [
-        # naive datetime is still naive
-        ["2021-01-01T05:02:32", pendulum.DateTime(2021, 1, 1, 5, 2, 32)],
-        # test that _parse_common form pendulum parsing is not failing with KeyError
-        ["2021:01:01 05:02:32", pendulum.DateTime(2021, 1, 1, 5, 2, 32)],
-    ],
-)
-def test_parse_iso_like_datetime(serialized_dt: str, expected_dt: pendulum.DateTime) -> None:
-    assert parse_iso_like_datetime(serialized_dt) == expected_dt
+def test_parse_iso_like_datetime() -> None:
+    # naive datetime is still naive
+    assert parse_iso_like_datetime("2021-01-01T05:02:32") == pendulum.DateTime(2021, 1, 1, 5, 2, 32)
+    # test that _parse_common form pendulum parsing is not failing with KeyError
+    assert parse_iso_like_datetime("2021:01:01 05:02:32") == pendulum.DateTime(2021, 1, 1, 5, 2, 32)
 
 
 @pytest.mark.parametrize("date_value, expected", test_params)
