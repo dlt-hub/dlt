@@ -116,6 +116,13 @@ will disable connection caching.
 
 Additional `duckdb` configuration, [where you can set up extensions, pragmas, global and local setting](duckdb.md#additional-configuration), is also supported.
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Motherduck destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
+
 ## Write disposition
 All write dispositions are supported.
 
@@ -149,4 +156,4 @@ before opening the connection.
 
 <!--@@@DLT_TUBA motherduck-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
+

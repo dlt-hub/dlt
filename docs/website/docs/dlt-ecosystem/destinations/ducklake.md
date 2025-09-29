@@ -53,6 +53,13 @@ The console output will point you to where `sqlite` catalog database and data st
 - `lake_catalog.sqlite` catalog in current working directory
 - `lake_catalog.files` folder with `lake_schema` subfolder for the dataset.
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Ducklake destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES ducklake-->
+
 ## Configure Ducklake
 Pick your `ducklake_name` as described above. This name is the used:
 - as attach name for the ducklake - each ducklake connection starts with **:memory:** connection to which we `ATTACH` the ducklake
@@ -236,4 +243,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 * support additional `ATTACH` options like `OVERRIDE_DATA_PATH`
 * implement callbacks that will be called on creation of :memory: database and `ATTACH` command so those can be fully customized.
 
-<!--@@@DLT_DESTINATION_CAPABILITIES ducklake-->
+
