@@ -1,6 +1,13 @@
-import sqlalchemy as sa
+import pytest
+from typing import Optional, Union
 
-from dlt.sources.sql_database.schema_types import get_table_references
+import pyarrow as pa
+import sqlalchemy as sa
+from sqlalchemy.dialects.oracle import NUMBER
+from sqlalchemy.sql.type_api import TypeEngine
+
+from dlt.common.data_types import TDataType
+from dlt.sources.sql_database.schema_types import get_table_references, sqla_col_to_column_schema
 
 
 def test_get_table_references() -> None:
@@ -116,3 +123,49 @@ def test_get_table_references() -> None:
 
     refs = get_table_references(child)
     assert refs == []
+
+
+@pytest.mark.parametrize(
+    "oracle_type,expected_type,expected_precision,expected_scale,test_value",
+    [
+        (NUMBER(), "bigint", None, None, 123456789),
+        (NUMBER(precision=17), "bigint", 17, None, 9309935020231023),
+        (NUMBER(precision=17, scale=0), "bigint", 17, None, 9309935020231023),
+        (NUMBER(precision=10, scale=2), "decimal", 10, 2, 12345.67),
+    ],
+    ids=["NUMBER", "NUMBER(17)", "NUMBER(17,0)", "NUMBER(10,2)"],
+)
+def test_oracle_number_type_inference(
+    oracle_type: TypeEngine,
+    expected_type: TDataType,
+    expected_precision: Optional[int],
+    expected_scale: Optional[int],
+    test_value: Union[int, float],
+) -> None:
+    """Test Oracle NUMBER type inference to prevent PyArrow conversion errors.
+
+    Oracle NUMBER types can represent both integers and decimals based on their scale:
+    - NUMBER with scale=0 or no scale → should be inferred as 'bigint'
+    - NUMBER with scale>0 → should be inferred as 'decimal'
+
+    Previously, all Oracle NUMBER types were incorrectly inferred as 'double',
+    causing PyArrow conversion failures for large integers like 9309935020231023
+    that cannot be precisely represented as float64.
+    """
+    sql_col = sa.Column("test_col", oracle_type, nullable=True)
+    column_schema = sqla_col_to_column_schema(sql_col, reflection_level="full_with_precision")
+
+    assert column_schema["data_type"] == expected_type
+    if expected_precision is not None:
+        assert column_schema.get("precision") == expected_precision
+    if expected_scale is not None and expected_type == "decimal":
+        assert column_schema.get("scale") == expected_scale
+
+    # the inferred bigint type should work with PyArrow
+    if expected_type == "bigint" and test_value == 9309935020231023:
+        pa_array = pa.array([test_value], type="int64")
+        assert pa_array[0].as_py() == test_value
+        with pytest.raises(
+            pa.ArrowInvalid, match="Integer value 9309935020231023 is outside of the range"
+        ):
+            pa.array([test_value], type="float64")

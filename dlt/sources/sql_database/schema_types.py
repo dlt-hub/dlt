@@ -112,21 +112,25 @@ def sqla_col_to_column_schema(
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
     elif isinstance(sql_t, sqltypes.Numeric):
-        # check for Numeric type first and integer later, some numeric types (ie. Oracle)
-        # derive from both
-        # all Numeric types that are returned as floats will assume "double" type
-        # and returned as decimals will assume "decimal" type
-        if sql_t.asdecimal is False:
-            col["data_type"] = "double"
-        else:
-            col["data_type"] = "decimal"
-            if sql_t.precision is not None:
+        # Oracle's Numeric type with integer affinity (e.g., NUMBER(17,0)) should be bigint
+        if hasattr(sql_t, "_type_affinity") and sql_t._type_affinity is sqltypes.Integer:
+            col["data_type"] = "bigint"
+            if add_precision and sql_t.precision is not None:
                 col["precision"] = sql_t.precision
-                # must have a precision for any meaningful scale
-                if sql_t.scale is not None:
-                    col["scale"] = sql_t.scale
-                elif sql_t.decimal_return_scale is not None:
-                    col["scale"] = sql_t.decimal_return_scale
+        else:
+            # all Numeric types that are returned as floats will assume "double" type
+            # and those that are returned as decimals will assume "decimal" type
+            if sql_t.asdecimal is False:
+                col["data_type"] = "double"
+            else:
+                col["data_type"] = "decimal"
+                if sql_t.precision is not None:
+                    col["precision"] = sql_t.precision
+                    # must have a precision for any meaningful scale
+                    if sql_t.scale is not None:
+                        col["scale"] = sql_t.scale
+                    elif sql_t.decimal_return_scale is not None:
+                        col["scale"] = sql_t.decimal_return_scale
     elif isinstance(sql_t, sqltypes.SmallInteger):
         col["data_type"] = "bigint"
         if add_precision:
