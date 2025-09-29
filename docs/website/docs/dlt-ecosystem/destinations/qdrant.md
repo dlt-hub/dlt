@@ -91,6 +91,13 @@ The data is now loaded into Qdrant.
 
 To use vector search after the data has been loaded, you must specify which fields Qdrant needs to generate embeddings for. You do that by wrapping the data (or dlt resource) with the `qdrant_adapter` function.
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Qdrant destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES qdrant-->
+
 ## qdrant_adapter
 
 The `qdrant_adapter` is a helper function that configures the resource for the Qdrant destination:
@@ -247,4 +254,4 @@ Qdrant destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA qdrant-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES qdrant-->
+
