@@ -12,8 +12,8 @@ Once you have run a pipeline locally, you can launch a web app that displays the
 The Streamlit app does not work with all destinations supported by `dlt`. Only destinations that provide a SQL client will work. The filesystem destination has support via the [Filesystem SQL client](./sql-client#the-filesystem-sql-client) and will work in most cases. Vector databases generally are unsupported.
 :::
 
-:::caution
-The Streamlit app is not under active development anymore and may soon be deprecated. We encourage all users to use the [pipeline dashboard](./dashboard.md)
+:::warning
+The Streamlit app is not under active development anymore and may soon be deprecated. We encourage all users to use the [pipeline dashboard](../dashboard.md)
 :::
 
 ## Prerequisites

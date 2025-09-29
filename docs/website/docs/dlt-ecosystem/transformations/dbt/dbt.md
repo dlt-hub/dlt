@@ -6,10 +6,6 @@ keywords: [transform, dbt, runner]
 
 # Transform data with dbt
 
-:::tip dlt+
-If you want to generate your dbt models automatically, check out [dlt+](../../../plus/features/transformations/dbt-transformations.md).
-:::
-
 [dbt](https://github.com/dbt-labs/dbt-core) is a framework that allows for the simple structuring of your transformations into DAGs. The benefits of using dbt include:
 
 - End-to-end cross-db compatibility for dlt→dbt pipelines.

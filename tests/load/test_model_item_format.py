@@ -44,6 +44,7 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "postgres",
     "synapse",
     "dremio",
+    "ducklake",
 ]
 
 # Get config with iceberg table format if supported

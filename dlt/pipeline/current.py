@@ -8,6 +8,7 @@ from dlt.common.runtime.run_context import active as _run_context
 
 from dlt.extract.decorators import (
     get_resource,
+    get_resource_metrics,
     get_source_schema as _get_source_schema,
     get_source as _get_source,
 )
@@ -35,6 +36,7 @@ resource = get_resource
 pipe = _get_current_pipe
 resource_name = _get_current_pipe_name
 run_context = _run_context
+resource_metrics = get_resource_metrics
 
 __all__ = [
     "load_package_state",
@@ -47,4 +49,5 @@ __all__ = [
     "run_context",
     "source",
     "resource",
+    "resource_metrics",
 ]

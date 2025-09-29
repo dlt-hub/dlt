@@ -1,7 +1,16 @@
-import pytest
+from typing import cast
 
-from dlt.destinations.queries import build_row_counts_expr, build_select_expr
+import duckdb
+import pytest
+import sqlglot
+from sqlglot import exp as sge
+from sqlglot.schema import MappingSchema as SQLGlotSchema
+
+import dlt
 from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.dataset.lineage import compute_columns_schema
+from dlt.destinations.queries import build_row_counts_expr, build_select_expr, _normalize_query
+from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
 
 def test_basic() -> None:
@@ -60,3 +69,72 @@ def test_selected_columns():
     )
     expected = "SELECT event_id, created_at FROM events"
     assert stmt.sql() == expected
+
+
+def test_qualified_query():
+    sqlglot_schema = SQLGlotSchema(
+        {"dataset_name": {"items": {"id": str}, "double_items": {"double_id": str, "id": str}}}
+    )
+    query_expr = sqlglot.parse_one("""
+SELECT
+    i.id AS id,
+    di.double_id AS double_id
+FROM dataset_name.items AS i
+JOIN dataset_name.double_items as di
+ON (i.id = di.id)
+WHERE i.id < 20
+ORDER BY i.id ASC
+""")
+
+    expected_qualified_query = (
+        "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
+        " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    )
+
+    _, qualified_query_expr = compute_columns_schema(
+        expression=query_expr,
+        sqlglot_schema=sqlglot_schema,
+        dialect="duckdb",
+    )
+    qualified_query = qualified_query_expr.sql()
+
+    assert qualified_query == expected_qualified_query
+
+
+def test_normalize_query():
+    sqlglot_schema = SQLGlotSchema(
+        {"dataset_name": {"items": {"id": str}, "double_items": {"double_id": str, "id": str}}}
+    )
+    qualified_query_expr = sqlglot.parse_one("""
+SELECT
+    i.id AS id,
+    di.double_id AS double_id
+FROM dataset_name.items AS i
+JOIN dataset_name.double_items as di
+ON (i.id = di.id)
+WHERE i.id < 20
+ORDER BY i.id ASC
+""")
+
+    expected_normalized_query = (
+        'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
+        ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
+        ' "i"."id" < 20 ORDER BY "i"."id" ASC'
+    )
+
+    con = duckdb.connect(":memory:")
+    duckdb_dest = dlt.destinations.duckdb(con)
+    duckdb_destination_client = duckdb_dest.client(
+        dlt.Schema("foobar"), DuckDbClientConfiguration()._bind_dataset_name("dataset_name")
+    )
+
+    with duckdb_destination_client.sql_client as sql_client:
+        normalized_query_expr = _normalize_query(
+            qualified_query=cast(sge.Query, qualified_query_expr),
+            sqlglot_schema=sqlglot_schema,
+            sql_client=sql_client,
+            casefold_identifier=sql_client.capabilities.casefold_identifier,
+        )
+        normalized_query = normalized_query_expr.sql()
+
+    assert normalized_query == expected_normalized_query

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 import os
 from pathlib import Path
 import sys
@@ -26,6 +26,7 @@ from typing import (
     Dict,
     MutableMapping,
     Iterator,
+    Generator,
     Optional,
     Sequence,
     Set,
@@ -48,6 +49,7 @@ from dlt.common.exceptions import (
     ValueErrorWithKnownValues,
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
+from dlt.common.warnings import Dlt100DeprecationWarning, deprecated
 
 
 T = TypeVar("T")
@@ -162,7 +164,9 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
     return o
 
 
-def flatten_list_or_items(_iter: Union[Iterable[TAny], Iterable[List[TAny]]]) -> Iterator[TAny]:
+def flatten_list_or_items(
+    _iter: Union[Iterable[TAny], Iterable[List[TAny]]]
+) -> Generator[TAny, None, None]:
     for items in _iter:
         if isinstance(items, List):
             yield from items
@@ -294,8 +298,13 @@ def clone_dict_nested(src: TDict) -> TDict:
     return update_dict_nested({}, src, copy_src_dicts=True)  # type: ignore[return-value]
 
 
-def map_nested_in_place(func: AnyFun, _nested: TAny, *args: Any, **kwargs: Any) -> TAny:
-    """Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
+def map_nested_values_in_place(
+    func: AnyFun,
+    _nested: TAny,
+    *args: Any,
+    **kwargs: Any,
+) -> TAny:
+    """Applies `func` to all values in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
     Additional `*args` and `**kwargs` are passed to `func`.
     """
     if isinstance(_nested, tuple):
@@ -307,15 +316,54 @@ def map_nested_in_place(func: AnyFun, _nested: TAny, *args: Any, **kwargs: Any) 
     if isinstance(_nested, dict):
         for k, v in _nested.items():
             if isinstance(v, (dict, list, tuple)):
-                _nested[k] = map_nested_in_place(func, v, *args, **kwargs)
+                _nested[k] = map_nested_values_in_place(func, v, *args, **kwargs)
             else:
                 _nested[k] = func(v, *args, **kwargs)
     elif isinstance(_nested, list):
         for idx, _l in enumerate(_nested):
             if isinstance(_l, (dict, list, tuple)):
-                _nested[idx] = map_nested_in_place(func, _l, *args, **kwargs)
+                _nested[idx] = map_nested_values_in_place(func, _l, *args, **kwargs)
             else:
                 _nested[idx] = func(_l, *args, **kwargs)
+    else:
+        raise ValueError(_nested, "Not a nested type")
+    return _nested
+
+
+# keep old name for backwards compatibility
+map_nested_in_place = deprecated(
+    "Use `map_nested_values_in_place` instead.", category=Dlt100DeprecationWarning
+)(map_nested_values_in_place)
+
+
+def map_nested_keys_in_place(
+    func: AnyFun,
+    _nested: TAny,
+    *args: Any,
+    **kwargs: Any,
+) -> TAny:
+    """Applies `func` to all keys in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
+    Additional `*args` and `**kwargs` are passed to `func`. List indexes will remain untouched.
+    """
+    if isinstance(_nested, tuple):
+        if hasattr(_nested, "_asdict"):
+            _nested = _nested._asdict()
+        else:
+            _nested = list(_nested)  # type: ignore
+
+    if isinstance(_nested, dict):
+        # NOTE: to modify the dictionary in place, exhaust the iterator into a list before iterating over it
+        for k, v in list(_nested.items()):
+            _nested.pop(k)
+            k = func(k, *args, **kwargs)
+            if isinstance(v, (dict, list, tuple)):
+                _nested[k] = map_nested_keys_in_place(func, v, *args, **kwargs)
+            else:
+                _nested[k] = v
+    elif isinstance(_nested, list):
+        for idx, _l in enumerate(_nested):
+            if isinstance(_l, (dict, list, tuple)):
+                _nested[idx] = map_nested_keys_in_place(func, _l, *args, **kwargs)
     else:
         raise ValueError(_nested, "Not a nested type")
     return _nested
@@ -584,6 +632,8 @@ def get_exception_trace(exc: BaseException) -> ExceptionTrace:
                 from dlt.common.json import json
 
                 # must be json serializable, other attrs are skipped
+                # TODO: be more picky re. what is serialized. exceptions contain data items and
+                #  other value that should not be serialized
                 if not isinstance(v, str):
                     json.dumps(v)
                 str_attrs[k] = v

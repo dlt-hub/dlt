@@ -74,8 +74,8 @@ lint-and-test-snippets: lint-snippets
 	uv pip install docstring_parser_fork --reinstall
 	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/ --exclude docs/website/docs/general-usage/transformations/transformation-snippets.py
 	uv run ruff check
-	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo --exclude docs/website/docs/general-usage/transformations/transformation-snippets.py
-	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore general-usage/transformations/transformation-snippets.py
+	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo --exclude docs/website/docs/hub/features/transformations/transformation-snippets.py
+	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
 
 lint-and-test-examples:
 	uv pip install docstring_parser_fork --reinstall
@@ -139,7 +139,7 @@ clean-dist:
 
 publish-library: clean-dist build-library
 	ls -l dist/
-	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
+	@read -sp "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
 	uv publish --token "$$PYPI_API_TOKEN"
 
 test-build-images: build-library
@@ -170,6 +170,9 @@ update-cli-docs:
 check-cli-docs:
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
 
+# Commands for running dashboard e2e tests
+# To run these tests locally, run `make start-dlt-dashboard-e2e` in one terminal and `make test-e2e-dashboard-headed` in another terminal
+
 test-e2e-dashboard:
 	uv run pytest --browser chromium tests/e2e
 
@@ -178,3 +181,7 @@ test-e2e-dashboard-headed:
 
 start-dlt-dashboard-e2e:
 	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
+
+# creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
+create-test-pipelines:
+	uv run python tests/helpers/dashboard/example_pipelines.py

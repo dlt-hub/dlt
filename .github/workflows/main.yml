@@ -61,10 +61,10 @@ jobs:
     needs: test_common
     uses: ./.github/workflows/test_sources_local.yml
 
-  test_plus:
-    name: test dlt+ connection
+  test_hub:
+    name: test dlthub features
     needs: lint
-    uses: ./.github/workflows/test_plus.yml
+    uses: ./.github/workflows/test_hub.yml
 
   test_tools_airflow:
     name: test airflow helpers

@@ -32,8 +32,9 @@ jobs:
             needs_ftp: true
             post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
-          - name: postgres, duckdb and dummy with cli commands
-            destinations: "[\"postgres\", \"duckdb\", \"dummy\"]"
+          # TODO: also test ducklake in remote mode with a buckets and remote postgres
+          - name: postgres, duckdb, ducklake, and dummy with cli commands
+            destinations: "[\"postgres\", \"duckdb\", \"ducklake\", \"dummy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb --extra cli --extra filesystem"
             needs_postgres: true

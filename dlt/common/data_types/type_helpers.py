@@ -18,7 +18,7 @@ from dlt.common.time import (
     ensure_pendulum_date,
     ensure_pendulum_time,
 )
-from dlt.common.utils import map_nested_in_place, str2bool
+from dlt.common.utils import map_nested_values_in_place, str2bool
 
 
 def _py_type_to_sc_type(t: Type[Any]) -> TDataType:
@@ -75,7 +75,7 @@ py_type_to_sc_type = copy_sig(_py_type_to_sc_type)(lru_cache(maxsize=None)(_py_t
 
 
 def json_to_str(value: Any) -> str:
-    return json.dumps(map_nested_in_place(custom_pua_remove, value))
+    return json.dumps(map_nested_values_in_place(custom_pua_remove, value))
 
 
 def coerce_from_date_types(
@@ -101,7 +101,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
     if to_type == from_type:
         if to_type == "json":
             # nested types need custom encoding to be removed
-            return map_nested_in_place(custom_pua_remove, value)
+            return map_nested_values_in_place(custom_pua_remove, value)
         # Make sure we use enum value instead of the object itself
         # This check is faster than `isinstance(value, Enum)` for non-enum types
         if hasattr(value, "value"):

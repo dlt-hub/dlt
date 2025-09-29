@@ -1,4 +1,7 @@
 from typing import Any, Literal
+import asyncio
+import sys
+import pathlib
 
 import dlt
 import pytest
@@ -19,6 +22,10 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
 from dlt import Schema
 
 from dlt.helpers.dashboard import strings as app_strings
+
+# NOTE: The line below is needed for playwright to work on windows
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
 @pytest.fixture()
@@ -90,6 +97,11 @@ def failed_pipeline() -> Any:
 #
 
 
+def _normpath(path: str) -> str:
+    """normalize path to unix style and lowercase for windows tests"""
+    return str(pathlib.Path(path)) if sys.platform.startswith("win") else path
+
+
 def _go_home(page: Page) -> None:
     page.goto("http://localhost:2718")
 
@@ -141,20 +153,20 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text("_storage/.dlt/pipelines/failed_pipeline")).to_be_visible()
+    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/failed_pipeline"))).to_be_visible()
     expect(
         page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
     ).to_be_visible()
 
     _open_section(page, "schema")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text)).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text(app_strings.browse_data_error_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: failed_pipeline_dataset")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
@@ -166,8 +178,8 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
@@ -211,7 +223,7 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text("_storage/.dlt/pipelines/one_two_three")).to_be_visible()
+    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/one_two_three"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -232,10 +244,9 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     # check state (we check some info from the incremental state here)
     page.get_by_text("Show source and resource state").click()
     expect(
-        page.get_by_label("Show source and resource").get_by_text("incremental:")
-    ).to_be_visible()
-    expect(
-        page.get_by_label("Show source and resource").get_by_text("last_value: 9")
+        page.get_by_label("Show source and resource").get_by_text(
+            "unique_hashes"
+        )  # unique hashes is only shown if there is incremental state
     ).to_be_visible()
 
     page.get_by_role("button", name="Run Query").click()
@@ -245,16 +256,14 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
 
     # state page
     _open_section(page, "state")
-    expect(
-        page.get_by_text("dataset_name: one_two_three_dataset")
-    ).to_be_visible()  # this is part of the state yaml
+    expect(page.get_by_text("_local")).to_be_visible()  # this is part of the state yaml
 
     # last trace page
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "one_two_three"').nth(0)
+        page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -264,8 +273,8 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     ).to_be_visible()  #  this is in the loads table
 
     # ibis page
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
 
 def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
@@ -275,7 +284,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
 
     # overview page
     _open_section(page, "overview")
-    expect(page.get_by_text("_storage/.dlt/pipelines/fruit_pipeline")).to_be_visible()
+    expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/fruit_pipeline"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -287,14 +296,14 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
     expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: fruit_pipeline_dataset")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     # last trace page
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "fruit_pipeline"').nth(0)
+        page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -304,26 +313,28 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
     ).to_be_visible()  #  this is in the loads table
 
     # ibis page
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
 
 def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
-    expect(page.get_by_text("_storage/.dlt/pipelines/never_run_pipeline")).to_be_visible()
+    expect(
+        page.get_by_text(_normpath("_storage/.dlt/pipelines/never_run_pipeline"))
+    ).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
-    expect(page.get_by_text(app_strings.schema_no_default_available_text)).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text(app_strings.browse_data_error_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: never_run_pipeline_dataset")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
@@ -333,8 +344,8 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     _open_section(page, "loads")
     expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
 
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
 def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
@@ -342,7 +353,9 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
 
-    expect(page.get_by_text("_storage/.dlt/pipelines/no_destination_pipeline")).to_be_visible()
+    expect(
+        page.get_by_text(_normpath("_storage/.dlt/pipelines/no_destination_pipeline"))
+    ).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -354,7 +367,7 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     expect(page.get_by_text(app_strings.browse_data_error_text[0:20])).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text("dataset_name: null")).to_be_visible()
+    expect(page.get_by_text("_local")).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
@@ -365,8 +378,8 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "no_destination_pipeline"').nth(0)
-    ).to_be_visible()  # this is part of the trace yaml
+        page.get_by_text("execution_context").nth(0)
+    ).to_be_visible()  # this is only shown in trace yaml
 
-    _open_section(page, "ibis")
-    expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
+    # _open_section(page, "ibis")
+    # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()

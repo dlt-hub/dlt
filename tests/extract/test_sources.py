@@ -12,6 +12,7 @@ from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema import Schema
@@ -39,6 +40,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import dynstr, make_schema_with_default_name
+from tests.common.utils import load_yml_case
 
 
 @pytest.fixture(autouse=True)
@@ -58,7 +60,7 @@ def test_basic_source() -> None:
     assert s.name == "test"
     assert s.section == "section"
     assert s.max_table_nesting is None
-    assert s.root_key is False
+    assert s.root_key is None
     assert s.schema_contract is None
     assert s.exhausted is False
     assert s.schema is schema
@@ -80,6 +82,32 @@ def test_basic_source() -> None:
     assert s.max_table_nesting is None
     assert s.root_key is False
     assert s.schema_contract is None
+
+
+def test_root_key_backward_compat() -> None:
+    def basic_gen():
+        yield 1
+
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    orig_schema = Schema.from_dict(eth_V11)
+    s = DltSource.from_data(orig_schema, "section", basic_gen)
+
+    # set none surfaces a real value
+    s.root_key = None
+    assert s.root_key is True
+    config = RelationalNormalizer.get_normalizer_config(orig_schema)
+    # dropped root propagation so this is false
+    assert config["propagation"]["root"] == {}
+    assert s._get_root_key_legacy(config) is None
+
+    eth_V11 = load_yml_case("schemas/eth/ethereum_schema_v11")
+    orig_schema = Schema.from_dict(eth_V11)
+    s = DltSource.from_data(orig_schema, "section", basic_gen)
+
+    assert s.root_key is True
+    assert s.root_key is True
+    config = RelationalNormalizer.get_normalizer_config(orig_schema)
+    assert config["propagation"]["root"] == {}
 
 
 def test_call_data_resource() -> None:
@@ -984,6 +1012,43 @@ def test_limit_edge_cases(limit: int) -> None:
         raise AssertionError(f"Unexpected limit: {limit}")
 
 
+def test_limit_empty_batches() -> None:
+    counter = 0
+
+    @dlt.resource
+    def empty_page():
+        nonlocal counter
+        for _ in range(3):
+            counter += 1
+            yield []
+
+    list(empty_page().add_limit(1))
+    assert counter == 1
+
+    counter = 0
+    list(empty_page().add_limit(1, count_rows=True))
+    assert counter == 3
+
+    counter = 0
+    list(empty_page().add_limit(max_time=10))
+    assert counter == 3
+
+
+def test_limit_skip_filtered_batches() -> None:
+    counter = 0
+
+    @dlt.resource
+    def just_counter():
+        nonlocal counter
+        for i in range(10):
+            counter += 1
+            yield [i]
+
+    # fully filtered items are skipped
+    assert list(just_counter().add_filter(lambda i: i % 2 == 0).add_limit(2)) == [0, 2]
+    assert counter == 3  # one odd number skipped
+
+
 def test_various_limit_setups() -> None:
     # basic test
     r = dlt.resource([1, 2, 3, 4, 5], name="test").add_limit(3)
@@ -1018,19 +1083,15 @@ def test_various_limit_setups() -> None:
     assert list(r) == [1, 2, 3, 4]
 
 
-def test_limit_source() -> None:
-    def mul_c(item):
-        yield from "A" * (item + 2)
-
-    @dlt.source
-    def infinite_source():
-        for idx in range(3):
-            r = dlt.resource(itertools.count(), name=f"infinity_{idx}").add_limit(10)
-            yield r
-            yield r | dlt.transformer(name=f"mul_c_{idx}")(mul_c)
-
-    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
-    assert list(infinite_source().add_limit(2)) == ["A", "A", 0, "A", "A", "A", 1] * 3
+def test_limit_empty_items() -> None:
+    r = (
+        dlt.resource([[1], [2, 3, 4, 5], [6]], name="test")
+        .add_filter(lambda i: i != 1)
+        .add_limit(1)
+    )
+    # we filter [1] so it becomes [] and we do not count empty list
+    # into limit so we get
+    assert list(r) == [2, 3, 4, 5]
 
 
 def test_limit_max_time() -> None:
@@ -1059,6 +1120,60 @@ def test_limit_max_time() -> None:
     allowed_results = [list(range(i)) for i in [12, 11, 10, 9, 8, 7, 6, 5, 4]]
     assert sync_list in allowed_results
     assert async_list in allowed_results
+
+
+def test_limit_count_by_rows() -> None:
+    # no batching - processing row by row
+    r = dlt.resource([1, 2, 3, 4, 5], name="test")
+    r_limit = r._clone().add_limit(3, count_rows=True)
+    assert list(r_limit) == [1, 2, 3]
+    # chunk size ignored when counting by rows
+    assert r_limit.limit.limit(chunk_size=5) == 3
+
+    # counts batches
+    r = dlt.resource([[1, 2, 3], [4, 5], [6, 7]], name="test")
+    # NOTE: if batches are irregular, LimitItem::limit has no meaning
+    assert list(r._clone().add_limit(3, count_rows=False)) == [1, 2, 3, 4, 5, 6, 7]
+    # counts rows
+    assert list(r._clone().add_limit(3, count_rows=True)) == [1, 2, 3]
+
+    # last batch will not be cut so we get it in full
+    r_limit = r._clone().add_limit(4, count_rows=True)
+    assert list(r_limit) == [1, 2, 3, 4, 5]
+    # still the limit is 3 items
+    assert r_limit.limit.limit(5) == 4
+
+    # list in batches are single rows
+    r = dlt.resource([[1, [2, 3]], [4, [5]]], name="test")
+    assert list(r._clone().add_limit(2, count_rows=True)) == [1, [2, 3]]
+
+
+def test_limit_source() -> None:
+    def mul_c(item):
+        yield from "A" * (item + 2)
+
+    @dlt.source
+    def infinite_source():
+        for idx in range(3):
+            r = dlt.resource(itertools.count(), name=f"infinity_{idx}").add_limit(10)
+            yield r
+            yield r | dlt.transformer(name=f"mul_c_{idx}")(mul_c)
+
+    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
+    assert list(infinite_source().add_limit(2)) == ["A", "A", 0, "A", "A", "A", 1] * 3
+
+
+def test_limit_source_count_items() -> None:
+    def mul_c():
+        while True:
+            yield ["A", "B"]
+
+    @dlt.source
+    def infinite_source():
+        return dlt.resource(mul_c)
+
+    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
+    assert list(infinite_source().add_limit(3, count_rows=True)) == ["A", "B", "A", "B"]
 
 
 def test_limit_yield_cleanup() -> None:
@@ -2166,7 +2281,7 @@ def test_resource_repr() -> None:
     assert getattr(resource, "is_transformer", sentinel) is not sentinel
 
     # the resource repr check if `._pipe.step` includes a `LimitItem` step
-    assert getattr(LimitItem(None, None), "max_items", sentinel) is not sentinel
+    assert getattr(LimitItem(None, None, False), "max_items", sentinel) is not sentinel
 
     # repr for empty resource
     repr_ = DltResource.Empty.__repr__()

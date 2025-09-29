@@ -16,7 +16,7 @@ class _Accessor(abc.ABC):
     def __getitem__(self, field: str) -> Any:
         value, traces = self._get_value(field)
         if value is None:
-            raise ConfigFieldMissingException("Any", {field: traces})
+            raise ConfigFieldMissingException(BaseConfiguration(), {field: traces})  # type: ignore[dict-item]
         if isinstance(value, str):
             return auto_cast(value)
         else:

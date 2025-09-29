@@ -10,8 +10,10 @@ else:
 
 # type definitions for json normalization function
 
-# iterator of form ((table_name, parent_table), dict) must be returned from normalization function
-TNormalizedRowIterator = Generator[Tuple[Tuple[str, str], StrAny], bool, None]
+# iterator of form ((table_name, parent_path, ident_path), dict) must be returned from normalization function
+TNormalizedRowIterator = Generator[
+    Tuple[Tuple[str, Tuple[str, ...], Tuple[str, ...]], StrAny], bool, None
+]
 
 # type var for data item normalizer config
 TNormalizerConfig = TypeVar("TNormalizerConfig", bound=Any)
@@ -29,7 +31,7 @@ class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
         pass
 
     @abc.abstractmethod
-    def extend_schema(self) -> None:
+    def extend_schema(self, extend_tables: bool = True) -> None:
         pass
 
     @abc.abstractmethod

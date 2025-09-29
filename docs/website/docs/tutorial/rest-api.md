@@ -101,7 +101,7 @@ dlt pipeline rest_api_pokemon show
 
 The command opens a new browser window with the data browser application. `rest_api_pokemon` is the name of the pipeline defined in the `rest_api_pipeline.py` file.
 
-You can explore the loaded data, run queries, and see some pipeline execution details:
+You can explore the loaded data, run queries, and see some pipeline execution details.
 
 ## Configuring the REST API source
 

@@ -56,13 +56,17 @@ That command generates static content into the `build` directory, which can be s
 
 ## Deployment
 
-The site is deployed using `netlify`. The `netlify` build command is:
+The site is deployed using `cloudflare workers`. There are several commands specific to cloudflare to deploy the docs or test them locally. 
 
 ```
-npm run build:netlify
+npm run preview:cloudflare
 ```
 
-It will place the build in `build/docs` folder. The `netlify.toml` redirects from root path `/` into `/docs`.
+This will build the project fully and serve via a local wrangler webserver which simulates a cloudflare worker. This way you can also test tracking and redirects. Please be aware that cloudflare preview and build commands expect certain python depdendencies, so you need to be inside the uv shell or run the command with uv run: `uv run npm run preview:cloudflare` for it to work locally.
+
+## Redirects
+
+Simple redirects are managed with the cloudflare worker in `worker.js`. 
 
 ## Docs versions
 

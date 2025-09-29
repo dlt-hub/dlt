@@ -30,7 +30,7 @@ def _sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictS
     return sources_state_
 
 
-def source_state() -> DictStrAny:
+def source_state(source_state_key: Optional[str] = None) -> DictStrAny:
     """Returns a dictionary with the source-scoped state. Source-scoped state may be shared across the resources of a particular source. Please avoid using source scoped state. Check
     the `resource_state` function for resource-scoped state that is visible within particular resource. Dlt state is preserved across pipeline runs and may be used to implement incremental loads.
 
@@ -47,10 +47,10 @@ def source_state() -> DictStrAny:
     container = Container()
 
     # get the source name from the section context
-    source_state_key: str = None
-    with contextlib.suppress(ContextDefaultCannotBeCreated):
-        sections_context = container[ConfigSectionContext]
-        source_state_key = sections_context.source_state_key
+    if not source_state_key:
+        with contextlib.suppress(ContextDefaultCannotBeCreated):
+            sections_context = container[ConfigSectionContext]
+            source_state_key = sections_context.source_state_key
 
     if not source_state_key:
         raise SourceSectionNotAvailable()
@@ -139,7 +139,7 @@ def reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny]
         state_["resources"].pop(resource_name)
 
 
-def get_matching_sources(
+def _get_matching_sources(
     pattern: REPattern, pipeline_state: Optional[TPipelineState] = None, /
 ) -> List[str]:
     """Get all source names in state matching the regex pattern"""

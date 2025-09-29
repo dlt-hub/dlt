@@ -174,7 +174,7 @@ info = pipeline.run(
 
 Internally, dlt will use the `primary_key` (`document_id` in the example above) to generate a unique identifier (UUID) for each point in Qdrant. If the object with the same UUID already exists in Qdrant, it will be updated with the new data. Otherwise, a new point will be created.
 
-:::caution
+:::warning
 
 If you are using the merge write disposition, you must set it from the first run of your pipeline; otherwise, the data will be duplicated in the database on subsequent loads.
 

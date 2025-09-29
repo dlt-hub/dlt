@@ -30,7 +30,7 @@ from pymongo import MongoClient
 import dlt
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TDataItem
-from dlt.common.utils import map_nested_in_place
+from dlt.common.utils import map_nested_values_in_place
 
 CHUNK_SIZE = 10000
 
@@ -101,7 +101,7 @@ class CollectionLoader:
     def load_documents(self) -> Iterator[TDataItem]:
         cursor = self.collection.find(self._filter_op)
         while docs_slice := list(islice(cursor, CHUNK_SIZE)):
-            yield map_nested_in_place(convert_mongo_objs, docs_slice)
+            yield map_nested_values_in_place(convert_mongo_objs, docs_slice)
 
 
 def convert_mongo_objs(value: Any) -> Any:

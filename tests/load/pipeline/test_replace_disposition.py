@@ -35,6 +35,9 @@ def test_replace_disposition(
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
     # share the same database across many pipelines in this test
     os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = "duckdb:///test_replace_disposition.duckdb"
+    # os.environ["DESTINATION__DUCKLAKE__CREDENTIALS__CATALOG"] = (
+    #     "sqlite:///test_replace_disposition.db"
+    # )
 
     increase_state_loads = lambda info: len(
         [
@@ -46,8 +49,8 @@ def test_replace_disposition(
     )
 
     # filesystem does not have child tables, prepend defaults
-    def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
-        return {**{t: 0 for t in child_tables}, **counts}
+    # def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
+    #     return {**{t: 0 for t in child_tables}, **counts}
 
     dataset_name = "test_replace_strategies_ds" + uniq_id()
     pipeline = destination_config.setup_pipeline(
@@ -167,9 +170,6 @@ def test_replace_disposition(
         "append_items": 12,
         "items": 0,
     }
-
-    # drop and deactivate existing pipeline
-    # drop_active_pipeline_data()
 
     # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
     pipeline_2 = destination_config.setup_pipeline(

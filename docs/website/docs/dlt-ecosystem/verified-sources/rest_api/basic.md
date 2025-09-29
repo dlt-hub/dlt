@@ -240,6 +240,7 @@ The `client` configuration is used to connect to the API's endpoints. It include
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
 - `session` (requests.Session, optional): A custom session object. When provided, this session will be used for all HTTP requests instead of the default session. Can be used, for example, with [requests-oauthlib](https://github.com/requests/requests-oauthlib) for OAuth authentication.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
+- `session` (optional): Custom `requests` session to setup custom [timeouts and retry strategies.](advanced.md#setup-timeouts-and-retry-strategies)
 
 #### `resource_defaults` (optional)
 
@@ -1093,7 +1094,7 @@ When the API endpoint supports incremental loading, you can configure dlt to loa
 2. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration) (DEPRECATED)
 3. Using the `incremental` field in the [endpoint configuration](#endpoint-configuration) with the `start_param` field (DEPRECATED)
 
-:::caution
+:::warning
 The last two methods are deprecated and will be removed in a future dlt version.
 :::
 
@@ -1205,7 +1206,7 @@ You can also use different placeholder variants depending on your needs:
 
 ### Legacy method: Incremental loading in `params` (DEPRECATED)
 
-:::caution
+:::warning
 DEPRECATED: This method is deprecated and will be removed in a future version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 
@@ -1249,7 +1250,7 @@ The fields are:
 
 ### Incremental loading using the `incremental` field (DEPRECATED)
 
-:::caution
+:::warning
 DEPRECATED: This method is deprecated and will be removed in a future dlt version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 

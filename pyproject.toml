@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.15.0"
+version = "1.17.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -87,6 +87,10 @@ parquet = [
 ]
 duckdb = [
     "duckdb>=0.9"
+    ]
+ducklake = [
+    "duckdb>=1.2.0",
+    "pyarrow>=16.0.0",
     ]
 filesystem = [
     "s3fs>=2022.4.0",

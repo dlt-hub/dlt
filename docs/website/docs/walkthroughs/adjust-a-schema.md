@@ -84,7 +84,7 @@ You should keep the import schema as simple as possible and let `dlt` do the res
 
 In the next steps, we'll experiment a lot; you will be warned to set `dev_mode=True` until we are done experimenting.
 
-:::caution
+:::warning
 dlt does **not modify** existing columns in a table after creation. While new columns can be added, changes to existing 
 columns (such as altering data types or adding hints) will not take effect automatically.
 
@@ -125,7 +125,7 @@ players_games:
 ```
 
 Run the pipeline script again and make sure that the change is visible in the export schema. Then,
-[launch the dashboard app](../general-usage/dataset-access/dashboard) to see the changed data.
+[launch the dashboard app](../general-usage/dashboard) to see the changed data.
 
 :::note
 Do not rename the tables or columns in the YAML file. `dlt` infers those from the data, so the schema will be recreated.

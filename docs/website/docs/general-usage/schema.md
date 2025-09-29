@@ -70,7 +70,7 @@ To retain the original naming convention (like keeping `"createdAt"` as it is in
 [schema]
 naming="direct"
 ```
-:::caution
+:::warning
 Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
 :::
 
@@ -208,7 +208,7 @@ explicitly on a column or by a source/resource. Normalizers do not infer this hi
 | tz-aware        | `False`         | to UTC and then naive |
 |                 |                 |                       |
 
-:::caution
+:::warning
 naive timestamps will **always be considered as UTC**, system timezone settings are ignored by `dlt`
 :::
 
@@ -243,6 +243,10 @@ for a key is not present at all, nullability check is not done
 evolve nested types and will not migrate destination schemas to match. Nested types are enabled for `filesystem`, `iceberg`, `delta` and `lancedb` destinations.
 
 
+:::info
+You can materialize a schema in the destination without loading data.
+See [Materialize schema without loading data](resource.md#materialize-schema-without-loading-data).
+:::
 ## Table references
 `dlt` tables refer to other tables. It supports two types of such references:
 1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](merge-loading.md).

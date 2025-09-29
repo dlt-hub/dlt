@@ -117,6 +117,7 @@ class SqlModel:
     def to_sql(self) -> str:
         return self._query
 
+    @property
     def query_dialect(self) -> str:
         return self._dialect
 

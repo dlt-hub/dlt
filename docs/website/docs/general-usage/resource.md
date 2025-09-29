@@ -440,7 +440,7 @@ resource.max_table_nesting = 0
 ```
 
 Several data sources are prone to contain semi-structured documents with very deep nesting, i.e.,
-MongoDB databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
+MongoDB databases. Our practical experience is that setting the `max_table_nesting` to 2 or 3
 produces the clearest and human-readable schemas.
 
 ### Sample from large data
@@ -465,10 +465,18 @@ def my_resource():
 
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10))
 ```
-The code above will extract `15*10=150` records. This is happening because in each iteration, 15 records are yielded, and we're limiting the number of iterations to 10.
+The code above will extract `15*10=150` records. This is happening because in each iteration, 15 records are yielded, and we're limiting the number of iterations to 10. In this mode `add_limit` also counts empty batches/pages.
+
+If you wish to count rows instead:
+```py
+dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10, count_rows=True))
+```
+In this mode `add_limit` skips empty pages as they contain no rows.
+Note that `dlt` will still process full pages/yields of data. They won't be trimmed even if large so your effective count will probably
+be different from limit that you set.
 :::
 
-Altenatively you can also apply a time limit to the resource. The code below will run the extraction for 10 seconds and extract how ever many items are yielded in that time. In combination with incrementals, this can be useful for batched loading or for loading on machines that have a run time limit.
+Alternatively you can also apply a time limit to the resource. The code below will run the extraction for 10 seconds and extract how ever many items are yielded in that time. In combination with incrementals, this can be useful for batched loading or for loading on machines that have a run time limit.
 
 ```py
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(max_time=10))
@@ -479,7 +487,6 @@ You can also apply a combination of both limits. In this case the extraction wil
 ```py
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(max_items=10, max_time=10))
 ```
-
 
 Some notes about the `add_limit`:
 
@@ -547,6 +554,71 @@ In the example above, we use `dlt.mark.with_hints` and `dlt.mark.make_hints` to 
 :::tip
 You can emit columns as a Pydantic model and use dynamic hints (i.e., lambda for table name) as well. You should avoid redefining `Incremental` this way.
 :::
+
+### Materialize schema without loading data
+
+Sometimes you need a table to exist with no rows. Examples:
+
+- Prepare empty tables for downstream jobs.
+- [Publish a schema](../walkthroughs/adjust-a-schema) before data arrives.
+- Ensure tables exist even when an upstream returns zero records.
+
+dlt’s default behavior is that it creates tables only when a resource yields data. If no rows are yieled, the table is not created.
+
+#### Options for schema materialization
+
+At the resource level, there are two ways to materialize an empty schema in the destination.
+
+#### Provide schema explicitly
+To create an empty table, declare the schema explicitly in one of two ways:
+
+- in the resource function with `@dlt.resource`, or
+- by applying hints with `apply_hints`.
+
+You can also [adjust schemas manually](../walkthroughs/adjust-a-schema) using import/export folders.
+
+Declaring the schema ensures dlt updates the schema even when no data is present.
+
+Then define the resource function and yield an empty dict (`{}`). dlt creates an empty table with all declared columns. Only the metadata columns `_dlt_id` and `_dlt_load_id` will have values.
+
+:::note
+The load will fail if the schema marks any columns as `NOT NULL` i.e. `"nullable": False`. Ensure all non-metadata columns are nullable when loading an empty table.
+:::
+
+Example: 
+```py
+@dlt.resource(
+    table_name="your_table_name",
+    columns={
+        "id": {"data_type": "bigint", "nullable": True},
+        "event_type": {"data_type": "text", "nullable": True}
+    },
+    write_disposition="replace"
+)
+def raw_events():
+    yield {}
+```
+
+#### Materialize schema without rows
+
+Use `dlt.mark.materialize_table_schema()` together with `dlt.mark.with_hints()` to define a schema without inserting rows.
+
+Unlike the explicit schema method, this works even if the schema contains non-nullable columns, since no data is written.
+
+Example:
+```py
+@dlt.resource(table_name="raw_events")
+def raw_events():
+    yield dlt.mark.with_hints(
+        dlt.mark.materialize_table_schema(),  # create schema only (no rows)
+        dlt.mark.make_hints(columns=[
+            {"name": "id", "data_type": "bigint", "primary_key": True, "nullable": False},  # PK ⇒ non-nullable
+            {"name": "event_type", "data_type": "text", "nullable": True},
+        ])
+    )
+```
+Result: 
+Table `raw_events` is created with the defined schema and no rows.
 
 ### Import external files
 You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
@@ -627,6 +699,52 @@ pipeline.run(
 ```
 
 The `with_name` method returns a deep copy of the original resource, its data pipe, and the data pipes of a parent resource. A renamed clone is fully separated from the original resource (and other clones) when loading: it maintains a separate [resource state](state.md#read-and-write-pipeline-state-in-a-resource) and will load to a table.
+
+## Collect custom metrics
+
+You can track custom statistics during resource extraction with `dlt.current.resource_metrics()`, which might otherwise be lost:
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
+
+github_client = RESTClient(
+    base_url="https://pokeapi.co/api/v2",
+    paginator=JSONLinkPaginator(next_url_path="next"),
+    data_selector="results",
+)
+
+@dlt.resource
+def get_pokemons():
+    custom_metrics = dlt.current.resource_metrics()
+    custom_metrics["page_count"] = 0
+    for page in github_client.paginate(
+        "/pokemon",
+        params={
+            "limit": 100,
+        },
+    ):
+        custom_metrics["page_count"] += 1
+        yield page
+
+pipeline = dlt.pipeline(
+    pipeline_name="get_pokemons",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+load_info = pipeline.run(get_pokemons)
+print(load_info)
+
+# Access custom metrics from last trace
+trace = pipeline.last_trace
+load_id = load_info.loads_ids[0]
+resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]
+
+print(f"Custom metrics: {resource_metrics.custom_metrics}")
+```
+
+As shown above, custom metrics are included in pipeline traces. Refer to [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for more details.
 
 ## Load resources
 

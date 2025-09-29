@@ -21,7 +21,7 @@ from dlt import version
 from dlt.common.exceptions import MissingDependencyException, DltException
 from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TColumnSchema, TTableSchemaColumns
 from dlt.common import logger
-from dlt.common.json import json, custom_encode, map_nested_in_place
+from dlt.common.json import json, custom_encode, map_nested_values_in_place
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column, dlt_load_id_column
@@ -1062,10 +1062,10 @@ def convert_numpy_to_arrow(
                 try:
                     # the 3 types match those supported by `map_nested_in_place()`
                     if isinstance(value, (tuple, dict, list)):
-                        encoded_value = map_nested_in_place(custom_encode, value)
+                        encoded_value = map_nested_values_in_place(custom_encode, value)
                     # convert set to list
                     elif isinstance(value, set):
-                        encoded_value = map_nested_in_place(custom_encode, list(value))
+                        encoded_value = map_nested_values_in_place(custom_encode, list(value))
                     # no nesting
                     else:
                         encoded_value = custom_encode(value)  # type: ignore[assignment]

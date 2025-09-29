@@ -12,10 +12,10 @@ import dlt.cli.echo as fmt
 from dlt.cli.exceptions import CliCommandException
 
 from dlt.cli.command_wrappers import (
-    deploy_command_wrapper,
     telemetry_change_status_command_wrapper,
 )
 from dlt.cli import debug
+from dlt.cli.echo import maybe_no_stdin
 
 
 ACTION_EXECUTED = False
@@ -190,7 +190,9 @@ def main() -> int:
 
     if cmd := installed_commands.get(args.command):
         try:
-            cmd.execute(args)
+            # switch to non-interactive if tty not connected
+            with maybe_no_stdin():
+                cmd.execute(args)
         except Exception as ex:
             docs_url = cmd.docs_url if hasattr(cmd, "docs_url") else DEFAULT_DOCS_URL
             error_code = -1

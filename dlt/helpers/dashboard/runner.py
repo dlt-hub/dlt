@@ -6,6 +6,17 @@ from typing import Any
 from pathlib import Path
 from dlt.common.exceptions import MissingDependencyException
 
+
+def _detect_dashboard_command() -> str:
+    command = sys.argv[1]
+    if command == "pipeline":
+        return f"dlt pipeline {sys.argv[2]} show"
+    elif command == "dashboard":
+        return "dlt dashboard"
+    else:
+        raise ValueError(f"Invalid command: {command}")
+
+
 # keep this, will raise if user tries to run dashboard without dependencies
 try:
     import marimo
@@ -13,17 +24,22 @@ try:
     import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt pipeline dashboard",
+        _detect_dashboard_command(),
         ['dlt["workspace"]'],
-        "the dlt dashboard requires additional dependencies which you may install with the dlt"
-        " workspace extra.",
+        "to install the dlt workspace extra.",
     )
 
 EJECTED_APP_FILE_NAME = "dlt_dashboard.py"
 STYLE_FILE_NAME = "dlt_dashboard_styles.css"
 
 
-def run_dashboard(pipeline_name: str = None, edit: bool = False, pipelines_dir: str = None) -> None:
+def run_dashboard(
+    pipeline_name: str = None,
+    edit: bool = False,
+    pipelines_dir: str = None,
+    port: int = None,
+    host: str = None,
+) -> None:
     from dlt.helpers.dashboard import dlt_dashboard
 
     ejected_app_path = os.path.join(os.getcwd(), EJECTED_APP_FILE_NAME)
@@ -53,6 +69,14 @@ def run_dashboard(pipeline_name: str = None, edit: bool = False, pipelines_dir: 
 
     dashboard_cmd = ["marimo", "run" if not edit else "edit", app_file_path]
 
+    if port:
+        dashboard_cmd.append("--port")
+        dashboard_cmd.append(str(port))
+
+    if host:
+        dashboard_cmd.append("--host")
+        dashboard_cmd.append(host)
+
     if pipeline_name:
         dashboard_cmd.append("--")
         dashboard_cmd.append("--pipeline")
@@ -61,6 +85,7 @@ def run_dashboard(pipeline_name: str = None, edit: bool = False, pipelines_dir: 
         dashboard_cmd.append("--")
         dashboard_cmd.append("--pipelines-dir")
         dashboard_cmd.append(pipelines_dir)
+
     try:
         subprocess.run(dashboard_cmd)
     except KeyboardInterrupt:

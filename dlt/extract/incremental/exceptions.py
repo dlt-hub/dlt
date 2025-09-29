@@ -25,7 +25,7 @@ class IncrementalCursorPathHasValueNone(PipeException):
         self.item = item
         msg = (
             msg
-            or f"Cursor element with JSON path `{json_path}` has the value `None` in extracted data item. All data items must contain a value != None. Construct the incremental with `on_cursor_value_none='include'` if you want to include such rows"
+            or f"Cursor element with JSON path `{json_path}` has the value `None` in extracted data item. All data items must contain a value != None. Construct the incremental with `on_cursor_value_missing='include'` if you want to include such rows"
         )
         super().__init__(pipe_name, msg)
 

@@ -137,7 +137,7 @@ See the [incremental loading](./basic.md#incremental-loading) section for more d
 The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses or all responses from the API. For example, responses with specific status codes or content substrings can be ignored.
 Additionally, all responses or only responses with specific status codes or content substrings can be transformed with a custom callable, such as a function. This callable is passed on to the requests library as a [response hook](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks). The callable can modify the response object and must return it for the modifications to take effect.
 
-:::caution Experimental Feature
+:::warning Experimental Feature
 This is an experimental feature and may change in future releases.
 :::
 
@@ -241,3 +241,22 @@ source_config = {
 
 In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
 
+
+### Setup timeouts and retry strategies
+`rest_api` uses `dlt` [custom sessions](../../../general-usage/http/requests.md) and [`RESTClient`](../../../general-usage/http/rest-client.md) to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
+```py
+from dlt.sources.helpers import requests
+
+source_config: RESTAPIConfig = {
+    "client": {
+        "session": requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0)
+    },
+}
+```
+will set-up all endpoints to use a short connect and read timeouts with no retries.
+Most settings [can be configured](../../../general-usage/http/requests.md#customizing-retry-settings) using `toml` files or environment variables.
+
+:::note
+By default, we set connection timeout and read timeout to 60 seconds, with
+5 retry attempts without backoff.
+:::

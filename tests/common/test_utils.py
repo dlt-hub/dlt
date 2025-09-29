@@ -15,7 +15,8 @@ from dlt.common.utils import (
     graph_edges_to_nodes,
     group_dict_of_lists,
     is_typeerror_due_to_wrong_call,
-    map_nested_in_place,
+    map_nested_values_in_place,
+    map_nested_keys_in_place,
     reveal_pseudo_secret,
     obfuscate_pseudo_secret,
     get_module_name,
@@ -46,23 +47,45 @@ def test_digest128_length() -> None:
 
 
 def test_map_dicts_in_place() -> None:
-    _d = {"a": "1", "b": ["a", "b", ["a", "b"], {"a": "c"}], "c": {"d": "e", "e": ["a", 2]}}
-    exp_d = {
+    _d_orig = {"a": "1", "b": ["a", "b", ["a", "b"], {"a": "c"}], "c": {"d": "e", "e": ["a", 2]}}
+    exp_d_values = {
         "a": "11",
         "b": ["aa", "bb", ["aa", "bb"], {"a": "cc"}],
         "c": {"d": "ee", "e": ["aa", 4]},
     }
-    assert map_nested_in_place(lambda v: v * 2, _d) == exp_d
-    # in place
-    assert _d == exp_d
+    exp_d_keys = {
+        "aa": "1",
+        "bb": ["a", "b", ["a", "b"], {"aa": "c"}],
+        "cc": {"dd": "e", "ee": ["a", 2]},
+    }
 
-    _l = ["a", "b", ["a", "b"], {"a": "c"}]
-    exp_l = ["aa", "bb", ["aa", "bb"], {"a": "cc"}]
-    assert map_nested_in_place(lambda v: v * 2, _l) == exp_l
-    assert _l == exp_l
+    # assert values are mapped
+    _d = deepcopy(_d_orig)
+    assert map_nested_values_in_place(lambda v: v * 2, _d) == exp_d_values
+    assert _d == exp_d_values  #  done in place
+
+    # assert keys are mapped
+    _d = deepcopy(_d_orig)
+    assert map_nested_keys_in_place(lambda k: k * 2, _d) == exp_d_keys
+    assert _d == exp_d_keys  # done in place
+
+    _l_orig = ["a", "b", ["a", "b"], {"a": "c"}]
+    exp_l_values = ["aa", "bb", ["aa", "bb"], {"a": "cc"}]
+    exp_l_keys = ["a", "b", ["a", "b"], {"aa": "c"}]
+
+    _l = deepcopy(_l_orig)
+    assert map_nested_values_in_place(lambda v: v * 2, _l) == exp_l_values
+    assert _l == exp_l_values  # done in place
+
+    _l = deepcopy(_l_orig)
+    assert map_nested_keys_in_place(lambda k: k * 2, _l) == exp_l_keys
+    assert _l == exp_l_keys
 
     with pytest.raises(ValueError):
-        map_nested_in_place(lambda v: v * 2, "a")
+        map_nested_values_in_place(lambda v: v * 2, "a")
+
+    with pytest.raises(ValueError):
+        map_nested_keys_in_place(lambda k: k * 2, "a")
 
 
 def test_pseudo_obfuscation() -> None:
