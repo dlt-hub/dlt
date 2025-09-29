@@ -515,7 +515,6 @@ def test_dependent_resource_query_string_params(
 
     list(mock_source.with_resources("posts", "post_comments").add_limit(1))
 
-    history = mock_api_server.request_history
     post_comments_calls = _filter_by_path_pattern(
         mock_api_server.request_history, r"/posts/\d+/comments"
     )
