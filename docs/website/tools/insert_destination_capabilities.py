@@ -9,7 +9,7 @@ from typing import List, Optional
 
 # constants
 MD_TARGET_DIR = "./docs_processed/dlt-ecosystem/destinations"
-MD_SOURCE_DIR = "docs/dlt-ecosystem/destinations"
+MD_SOURCE_DIR = "../../dlt/destinations/impl"
 DOCS_EXTENSIONS = [".md", ".mdx"]
 
 # markers
@@ -43,15 +43,32 @@ def walk_sync(directory: str):
             yield os.path.join(root, file)
 
 
-def should_process_file(file_name: str) -> bool:
+def get_impl_destination_names() -> set[str]:
+    """Get a set of supported destination names from /dlt/destinations/impl, we are only going to create capabilities for those destinations."""
+    if not os.path.exists(MD_SOURCE_DIR):
+        print(f"Source directory {MD_SOURCE_DIR} does not exist")
+        return set()
+
+    try:
+        source_dirs = [d for d in os.listdir(MD_SOURCE_DIR)
+                      if os.path.isdir(os.path.join(MD_SOURCE_DIR, d))]
+        return set(source_dirs)
+    except OSError as e:
+        print(f"Error reading source directory {MD_SOURCE_DIR}: {e}")
+        return set()
+
+
+def should_process_file(file_name: str, impl_destinations: set[str]) -> bool:
     """Check if file should be processed based on various criteria."""
     if not file_name.endswith(tuple(DOCS_EXTENSIONS)):
         return False
 
-    # Check if a file with the same name exists in the source directory
-    source_file_path = os.path.join(MD_SOURCE_DIR, file_name)
-    if not os.path.exists(source_file_path):
-        print(f"Skipping {file_name} - no matching file in {MD_SOURCE_DIR}")
+    # Extract destination name from filename (remove .md/.mdx extension)
+    destination_name = os.path.splitext(file_name)[0]
+
+    # Check if destination exists in available destinations
+    if destination_name not in impl_destinations:
+        print(f"Skipping {file_name} - no matching destination directory '{destination_name}' in {MD_SOURCE_DIR}")
         return False
 
     return True
@@ -64,8 +81,6 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
     """
     # Start building the table
     table_lines = [
-        f"## {destination_name.title()} Destination Capabilities\n",
-        "\n",
         "| Capability | Value | Description |\n",
         "|------------|-------|-------------|\n"
     ]
@@ -79,7 +94,7 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
     # Add footer
     table_lines.extend([
         "\n",
-        f"*This table shows the key capabilities of the {destination_name} destination in dlt.*\n",
+        f"*This table shows the supported features of the {destination_name} destination in dlt.*\n",
         "\n"
     ])
 
@@ -106,7 +121,6 @@ def write_file_content(file_path: str, lines: List[str]) -> bool:
     except Exception as e:
         print(f"Error writing file {file_path}: {e}")
         return False
-
 
 def process_markers(file_path: str, lines: List[str]) -> bool:
     """Process capabilities markers in file lines. Returns True if markers were found."""
@@ -140,13 +154,13 @@ def process_markers(file_path: str, lines: List[str]) -> bool:
     return False
 
 
-def process_doc_file(file_path: str) -> bool:
+def process_doc_file(file_path: str, impl_destinations: set[str]) -> bool:
     """
     Process a single documentation file.
     Returns True if file was successfully processed.
     """
     file_name = os.path.basename(file_path)
-    if not should_process_file(file_name):
+    if not should_process_file(file_name, impl_destinations):
         return False
 
     # 1. Read file content
@@ -158,17 +172,23 @@ def process_doc_file(file_path: str) -> bool:
     return process_markers(file_path, lines)
 
 
-def insert_destination_capabilities():
+def insert_destination_capabilities(impl_destinations: set[str]):
     """Process all docs in the processed docs folder"""
     print("Inserting destination capabilities...")
     if not os.path.exists(MD_TARGET_DIR):
         print(f"Target directory {MD_TARGET_DIR} does not exist. Skipping.")
         return
 
+    if not impl_destinations:
+        print("No available destinations found. Skipping.")
+        return
+
+    print(f"Found {len(impl_destinations)} available destinations: {sorted(impl_destinations)}")
+
     processed_files = 0
 
     for file_path in walk_sync(MD_TARGET_DIR):
-        if process_doc_file(file_path):
+        if process_doc_file(file_path, impl_destinations):
             processed_files += 1
 
     print(f"Processed {processed_files} files for destination capabilities.")
@@ -176,7 +196,8 @@ def insert_destination_capabilities():
 
 def main():
     """Main function"""
-    insert_destination_capabilities()
+    impl_destinations = get_impl_destination_names()
+    insert_destination_capabilities(impl_destinations)
 
 
 if __name__ == "__main__":
