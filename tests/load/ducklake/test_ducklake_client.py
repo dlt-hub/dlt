@@ -1,12 +1,14 @@
 import os
-import pytest
 import pathlib
-import duckdb
 
+import duckdb
+import pytest
+
+import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
-
+from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DuckLakeClientConfiguration,
@@ -190,6 +192,25 @@ def test_default_ducklake_configuration() -> None:
     assert credentials.storage_url == str(local_dir / "ducklake_catalog.files")
 
 
+def test_ducklake_attach_statement() -> None:
+    """Low-level method to attach the ducklake catalog to the ducklake client.
+
+    A bug was found because of differences between sqlalchemy <2 and >=2.
+    """
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH '/path/to/storage', METADATA_SCHEMA 'foo')"
+    )
+
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
+        catalog_name="foo",
+        storage_url="/path/to/storage",
+    )
+
+    assert expected_attach_statement == attach_statement
+
+
 def test_attach_statement_doesnt_use_postgresl() -> None:
     """`drivername="postgresql"` is supported by dlt / sqlalchemy, but it doesn't exist in duckdb.
 
@@ -249,16 +270,12 @@ def test_ducklake_conn_pool_always_open() -> None:
 
 @pytest.mark.no_load
 def test_ducklake_factory_instantiation() -> None:
-    import dlt
-
     # force parallel loads on sqlite
     ducklake = dlt.destinations.ducklake(loader_parallelism_strategy="parallel")
     pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
 
     with pipeline.destination_client() as client:
         assert client.capabilities.loader_parallelism_strategy == "parallel"
-
-    from dlt.destinations.impl.ducklake.configuration import DuckDbBaseCredentials
 
     # set ducklake credentials using shorthands, s3 bucket requires secrets in config
     credentials = DuckLakeCredentials(
@@ -272,8 +289,7 @@ def test_ducklake_factory_instantiation() -> None:
     with pytest.raises(ConfigFieldMissingException):
         pipeline.destination_client()
 
-    from dlt.sources.credentials import ConnectionStringCredentials
-
+    # TODO what is being asserted in the next block?
     # set catalog name using connection string credentials
     catalog_credentials = ConnectionStringCredentials()
     # use duckdb with the default name

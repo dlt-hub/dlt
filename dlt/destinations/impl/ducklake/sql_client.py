@@ -1,10 +1,10 @@
 from typing import ClassVar, Type
+
 from duckdb import DuckDBPyConnection
 
 from dlt.common import logger
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-
 from dlt.common.storages.configuration import FileSystemCredentials
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
@@ -129,9 +129,8 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             if catalog.drivername == "postgresql":
                 catalog.drivername = "postgres"
 
-            attach_statement = (
-                f"ATTACH IF NOT EXISTS 'ducklake:{catalog.drivername}:{catalog.to_url()}'"
-            )
+            db_url = catalog.to_url().render_as_string(hide_password=False)
+            attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog.drivername}:{db_url}'"
             attach_params = f", METADATA_SCHEMA '{catalog_name}'"
         elif catalog.drivername == "md":
             logger.warning(
