@@ -67,6 +67,13 @@ If you have your credentials stored in `~/.aws/credentials`, just remove the **[
 profile_name="dlt-ci-user"
 ```
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Dremio destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES dremio-->
+
 ## Write disposition
 
 `dremio` destination handles the write dispositions as follows:
@@ -124,4 +131,4 @@ This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clau
 
 <!--@@@DLT_TUBA dremio-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES dremio-->
+

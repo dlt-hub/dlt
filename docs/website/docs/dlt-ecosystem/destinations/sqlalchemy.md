@@ -91,6 +91,13 @@ pipeline = dlt.pipeline(
 )
 ```
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Sqlalchemy destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
+
 ## Notes on SQLite
 
 ### Dataset files
@@ -256,4 +263,4 @@ create_primary_keys=true
 * `unique` hints are translated to `UNIQUE` constraints via SQLAlchemy.
 * `primary_key` hints are translated to `PRIMARY KEY` constraints via SQLAlchemy.
 
-<!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
+

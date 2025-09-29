@@ -105,6 +105,13 @@ dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for s
 staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
 ```
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Clickhouse destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES clickhouse-->
+
 ## Write disposition
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
@@ -259,4 +266,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 <!--@@@DLT_TUBA clickhouse-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES clickhouse-->
+
