@@ -187,6 +187,13 @@ pipeline = dlt.pipeline(destination="snowflake")
 pipeline.run(events())
 ```
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Snowflake destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->
+
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
 * [Parquet](../file-formats/parquet.md) is supported.
@@ -417,4 +424,4 @@ We enable Snowflake to identify that the connection is created by `dlt`. Snowfla
 
 <!--@@@DLT_TUBA snowflake-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->
+

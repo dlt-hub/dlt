@@ -423,6 +423,13 @@ sftp_password = "pass"                   # Replace "pass" with your SFTP passwor
 
 This configuration allows flexible SFTP authentication, whether you're using passwords, keys, or agents, and ensures secure communication between your local environment and the SFTP server.
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Filesystem destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES filesystem-->
+
 ## Write disposition
 The filesystem destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder
@@ -700,4 +707,4 @@ pipeline = dlt.pipeline(
 
 <!--@@@DLT_TUBA filesystem-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES filesystem-->
+

@@ -158,6 +158,13 @@ will name the table `movies_db___movies` where `___` (3 underscores) is a config
 
 :::
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Lancedb destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES lancedb-->
+
 ## Use an adapter to specify columns to vectorize
 
 Out of the box, LanceDB will act as a normal database. To use LanceDB's embedding facilities, you'll need to specify which fields you'd like to embed in your dlt resource.
@@ -369,4 +376,4 @@ The LanceDB destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA lancedb-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES lancedb-->
+
