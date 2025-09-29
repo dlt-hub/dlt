@@ -89,6 +89,13 @@ Settings above ensure that the shape of the data you receive in the destination 
 - The `table` parameter contains the schema table the current call belongs to, including all table hints and columns. For example, the table name can be accessed with `table["name"]`.
 - You can also add config values and secrets to the function arguments, see below!
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Destination destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES destination-->
+
 ## Add configuration, credentials, and other secrets to the destination function
 
 The destination decorator supports settings and secrets variables. If you, for example, plan to connect to a service that requires an API secret or a login, you can do the following:
@@ -217,4 +224,4 @@ While we are working on a pluggable state storage, you can fix the problem above
 - Check out our [Custom BigQuery Destination](../../examples/custom_destination_bigquery/) example.
 - Need help with building a custom destination? Ask your questions in our [Slack Community](https://dlthub.com/community) technical help channel.
 
-<!--@@@DLT_DESTINATION_CAPABILITIES destination-->
+
