@@ -12,6 +12,7 @@ from typing import (
 from typing_extensions import TypeAlias
 
 from sqlalchemy.exc import NoReferencedTableError
+from sqlalchemy.dialects.oracle import NUMBER
 
 from dlt.common.typing import TypedDict
 from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
@@ -112,25 +113,24 @@ def sqla_col_to_column_schema(
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
     elif isinstance(sql_t, sqltypes.Numeric):
-        # Oracle's Numeric type with integer affinity (e.g., NUMBER(17,0)) should be bigint
-        if hasattr(sql_t, "_type_affinity") and sql_t._type_affinity is sqltypes.Integer:
+        # special handling for oracle NUMBER types
+        if isinstance(sql_t, NUMBER) and sql_t.scale is None or sql_t.scale == 0:
             col["data_type"] = "bigint"
             if add_precision and sql_t.precision is not None:
                 col["precision"] = sql_t.precision
+        # all Numeric types that are returned as floats will assume "double" type
+        # and those that are returned as decimals will assume "decimal" type
+        elif sql_t.asdecimal is False:
+            col["data_type"] = "double"
         else:
-            # all Numeric types that are returned as floats will assume "double" type
-            # and those that are returned as decimals will assume "decimal" type
-            if sql_t.asdecimal is False:
-                col["data_type"] = "double"
-            else:
-                col["data_type"] = "decimal"
-                if sql_t.precision is not None:
-                    col["precision"] = sql_t.precision
-                    # must have a precision for any meaningful scale
-                    if sql_t.scale is not None:
-                        col["scale"] = sql_t.scale
-                    elif sql_t.decimal_return_scale is not None:
-                        col["scale"] = sql_t.decimal_return_scale
+            col["data_type"] = "decimal"
+            if sql_t.precision is not None:
+                col["precision"] = sql_t.precision
+                # must have a precision for any meaningful scale
+                if sql_t.scale is not None:
+                    col["scale"] = sql_t.scale
+                elif sql_t.decimal_return_scale is not None:
+                    col["scale"] = sql_t.decimal_return_scale
     elif isinstance(sql_t, sqltypes.SmallInteger):
         col["data_type"] = "bigint"
         if add_precision:
