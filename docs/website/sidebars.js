@@ -561,6 +561,7 @@ const sidebars = {
           items: [
             'hub/production/pipeline-runner',
             'hub/production/observability',
+            'hub/production/prefect-integration',
           ]
         },
         'hub/reference',
