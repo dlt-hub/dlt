@@ -1112,7 +1112,7 @@ def paginate_resource(
     headers = expand_placeholders(headers, format_kwargs)
     params = expand_placeholders(params, format_kwargs)
     json = expand_placeholders(json, format_kwargs, preserve_value_type=True)
-    data = expand_placeholders(data, format_kwargs, preserve_value_type=True)
+    data = expand_placeholders(data, format_kwargs)
 
     yield from client.paginate(
         method=method,
