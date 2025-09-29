@@ -29,6 +29,13 @@ pip install -r requirements.txt
 python3 chess_pipeline.py
 ```
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Duckdb destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES duckdb-->
+
 ## Supported version
 `dlt` supports `duckdb` versions starting from **0.9**. Below are a few notes on problems with particular versions observed
 in our tests:
@@ -296,4 +303,4 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 <!--@@@DLT_TUBA duckdb-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES duckdb-->
+

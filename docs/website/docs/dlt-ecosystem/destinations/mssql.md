@@ -103,6 +103,13 @@ pipeline = dlt.pipeline(
   dataset_name='chess_data')
 ```
 
+
+## Destination capabilities
+
+The following table shows the key capabilities of the Mssql destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES mssql-->
+
 ## Write disposition
 All write dispositions are supported.
 
@@ -171,4 +178,4 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-s
 
 <!--@@@DLT_TUBA mssql-->
 
-<!--@@@DLT_DESTINATION_CAPABILITIES mssql-->
+
