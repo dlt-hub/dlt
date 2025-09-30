@@ -6,12 +6,6 @@ keywords: [redshift, destination, data warehouse]
 
 # Amazon Redshift
 
-## Destination capabilities
-
-The following table shows the capabilities of the Amazon Redshift destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES redshift-->
-
 ## Install dlt with Redshift
 **To install the dlt library with Redshift dependencies:**
 ```sh

@@ -6,12 +6,6 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 
 # Microsoft SQL Server
 
-## Destination capabilities
-
-The following table shows the capabilities of the Microsoft SQL Server destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES mssql-->
-
 ## Install dlt with MS SQL
 **To install the dlt library with MS SQL dependencies, use:**
 ```sh

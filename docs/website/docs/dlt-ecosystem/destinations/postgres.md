@@ -6,12 +6,6 @@ keywords: [postgres, destination, data warehouse]
 
 # Postgres
 
-## Destination capabilities
-
-The following table shows the capabilities of the Postgres destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES postgres-->
-
 ## Install dlt with PostgreSQL
 **To install the dlt library with PostgreSQL dependencies, run:**
 ```sh

@@ -14,12 +14,6 @@ In order to use ducklake you must provide the following infrastructure:
 
 If you are looking for a managed ducklake infra, check the [Motherduck Ducklake support](motherduck.md#ducklake-setup). `dlt` is also able to set-up a local ducklake with `sqlite` as catalog fully automatically.
 
-## Destination capabilities
-
-The following table shows the capabilities of the DuckLake destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES ducklake-->
-
 ## Quick start
 
 - Install dlt with DuckDB dependencies:

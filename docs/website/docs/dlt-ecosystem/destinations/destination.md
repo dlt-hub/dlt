@@ -12,12 +12,6 @@ You can also use this for sending data to a queue or a simple database destinati
 
 It will also allow you to simply get a path to the files of your normalized data. So, if you need direct access to parquet or jsonl files to copy them somewhere or push them to a database, you can do this here too.
 
-## Destination capabilities
-
-The following table shows the capabilities of the custom destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES destination-->
-
 ## Install `dlt` for reverse ETL
 
 To install `dlt` without additional dependencies:
