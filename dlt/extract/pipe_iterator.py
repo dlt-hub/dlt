@@ -35,6 +35,7 @@ from dlt.extract.exceptions import (
     PipeItemProcessingError,
     ResourceExtractionError,
 )
+from dlt.extract.history import History
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import DataItemWithMeta, PipeItem, ResolvablePipeItem, SourcePipeItem
 from dlt.extract.state import pipe_context
@@ -94,7 +95,7 @@ class PipeIterator(Iterator[PipeItem]):
             raise PipeGenInvalid(pipe.name, pipe.gen)
 
         # create extractor
-        sources = [SourcePipeItem(pipe.gen, 0, pipe, None)]
+        sources = [SourcePipeItem(pipe.gen, 0, pipe, None, None)]
         return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
 
     @classmethod
@@ -133,7 +134,7 @@ class PipeIterator(Iterator[PipeItem]):
                     raise PipeGenInvalid(pipe.name, pipe.gen)
                 # add every head as source only once
                 if not any(i.pipe == pipe for i in sources):
-                    sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
+                    sources.append(SourcePipeItem(pipe.gen, 0, pipe, None, None))
 
         # reverse pipes for current mode, as we start processing from the back
         pipes.reverse()
@@ -181,7 +182,9 @@ class PipeIterator(Iterator[PipeItem]):
             # if item is iterator, then add it as a new source
             if isinstance(item, Iterator):
                 self._sources.append(
-                    SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta)
+                    SourcePipeItem(
+                        item, pipe_item.step, pipe_item.pipe, pipe_item.meta, pipe_item.history
+                    )
                 )
                 pipe_item = None
                 continue
@@ -190,7 +193,11 @@ class PipeIterator(Iterator[PipeItem]):
             if isinstance(item, AsyncIterator):
                 self._sources.append(
                     SourcePipeItem(
-                        wrap_async_iterator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
+                        wrap_async_iterator(item),
+                        pipe_item.step,
+                        pipe_item.pipe,
+                        pipe_item.meta,
+                        pipe_item.history,
                     ),
                 )
                 pipe_item = None
@@ -222,7 +229,7 @@ class PipeIterator(Iterator[PipeItem]):
                 step = pipe_item.pipe[pipe_item.step + 1]
                 try:
                     next_meta = pipe_item.meta
-                    next_item = step(item, meta=pipe_item.meta)  # type: ignore
+                    next_item = step(item, meta=pipe_item.meta, history=pipe_item.history)  # type: ignore
                     if isinstance(next_item, DataItemWithMeta):
                         next_meta = next_item.meta
                         next_item = next_item.data
@@ -244,7 +251,7 @@ class PipeIterator(Iterator[PipeItem]):
             # create next pipe item if a value was returned. A None means that item was consumed/filtered out and should not be further processed
             if next_item is not None:
                 pipe_item = ResolvablePipeItem(
-                    next_item, pipe_item.step + 1, pipe_item.pipe, next_meta
+                    next_item, pipe_item.step + 1, pipe_item.pipe, next_meta, pipe_item.history
                 )
             else:
                 pipe_item = None
@@ -269,7 +276,7 @@ class PipeIterator(Iterator[PipeItem]):
                 if self._current_source_index == first_evaluated_index:
                     return None
                 # get next item from the current source
-                gen, step, pipe, meta = self._sources[self._current_source_index]
+                gen, step, pipe, meta, history = self._sources[self._current_source_index]
                 with pipe_context(pipe):
                     pipe_item = next(gen)
                 if pipe_item is not None:
@@ -279,9 +286,11 @@ class PipeIterator(Iterator[PipeItem]):
                     if not isinstance(pipe_item, ResolvablePipeItem):
                         # keep the item assigned step and pipe when creating resolvable item
                         if isinstance(pipe_item, DataItemWithMeta):
-                            return ResolvablePipeItem(pipe_item.data, step, pipe, pipe_item.meta)
+                            return ResolvablePipeItem(
+                                pipe_item.data, step, pipe, pipe_item.meta, history
+                            )
                         else:
-                            return ResolvablePipeItem(pipe_item, step, pipe, meta)
+                            return ResolvablePipeItem(pipe_item, step, pipe, meta, history)
 
                 if pipe_item is not None:
                     return pipe_item
@@ -309,7 +318,7 @@ class PipeIterator(Iterator[PipeItem]):
         self._futures_pool.close()
 
         # close all generators
-        for gen, _, _, _ in self._sources:
+        for gen, _, _, _, _ in self._sources:
             if inspect.isgenerator(gen):
                 gen.close()
 

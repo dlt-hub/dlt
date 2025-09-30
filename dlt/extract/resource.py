@@ -155,6 +155,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         selected: bool = True,
         data_from: "DltResource" = None,
         inject_config: bool = False,
+        keep_history: bool = False,
     ) -> Self:
         """Creates an instance of DltResource from compatible `data` with a given `name` and `section`.
 
@@ -198,9 +199,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 if data_from:
                     # verify transformer gen before populating steps
                     DltResource._ensure_valid_transformer_resource(name, data)
-                    pipe = Pipe.from_data(name, data, parent=DltResource.Empty._pipe)
+                    pipe = Pipe.from_data(
+                        name, data, parent=DltResource.Empty._pipe, keep_history=keep_history
+                    )
                 else:
-                    pipe = Pipe.from_data(name, data)
+                    pipe = Pipe.from_data(name, data, keep_history=keep_history)
 
                 r_ = cls(
                     pipe,

@@ -127,7 +127,7 @@ class FuturesPool:
         self.used_slots += 1
 
         self.futures[future] = FuturePipeItem(
-            future, pipe_item.step, pipe_item.pipe, pipe_item.meta
+            future, pipe_item.step, pipe_item.pipe, pipe_item.meta, pipe_item.history
         )
         return future
 
@@ -135,7 +135,7 @@ class FuturesPool:
         sleep(self.poll_interval)
 
     def _resolve_future(self, future: TItemFuture) -> Optional[ResolvablePipeItem]:
-        future, step, pipe, meta = self.futures.pop(future)
+        future, step, pipe, meta, history = self.futures.pop(future)
 
         if ex := future.exception():
             if isinstance(ex, StopAsyncIteration):
@@ -152,9 +152,9 @@ class FuturesPool:
         if item is None:
             return None
         elif isinstance(item, DataItemWithMeta):
-            return ResolvablePipeItem(item.data, step, pipe, item.meta)
+            return ResolvablePipeItem(item.data, step, pipe, item.meta, history)
         else:
-            return ResolvablePipeItem(item, step, pipe, meta)
+            return ResolvablePipeItem(item, step, pipe, meta, history)
 
     def _next_done_future(self) -> Optional[TItemFuture]:
         """Get the done future in the pool (if any). This does not block."""

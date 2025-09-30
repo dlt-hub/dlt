@@ -25,6 +25,7 @@ from dlt.extract.utils import (
 )
 
 from dlt.extract.items import SupportsPipe
+from dlt.extract.history import History
 
 
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
@@ -62,7 +63,9 @@ class ItemTransform(BaseItemTransform, ABC, Generic[TAny]):
         return self
 
     @abstractmethod
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = None
+    ) -> Optional[TDataItems]:
         """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""
         pass
 
@@ -72,7 +75,9 @@ class FilterItem(ItemTransform[bool]):
     _f_meta: ItemTransformFunctionWithMeta[bool]
     _f: ItemTransformFunctionNoMeta[bool]
 
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = None
+    ) -> Optional[TDataItems]:
         if isinstance(item, list):
             # preserve type of empty lists
             if len(item) == 0:
@@ -98,7 +103,9 @@ class MapItem(ItemTransform[TDataItem]):
     _f_meta: ItemTransformFunctionWithMeta[TDataItem]
     _f: ItemTransformFunctionNoMeta[TDataItem]
 
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = None
+    ) -> Optional[TDataItems]:
         if isinstance(item, list):
             # preserve type of empty lists
             if len(item) == 0:
@@ -120,7 +127,9 @@ class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
     _f_meta: ItemTransformFunctionWithMeta[TDataItem]
     _f: ItemTransformFunctionNoMeta[TDataItem]
 
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = None
+    ) -> Optional[TDataItems]:
         if isinstance(item, list):
             # preserve type of empty lists
             if len(item) == 0:
@@ -188,7 +197,9 @@ class LimitItem(ItemTransform[TDataItem]):
             return None
         return self.max_items * (1 if self.count_rows else chunk_size)
 
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = None
+    ) -> Optional[TDataItems]:
         # do not count None
         if item is None:
             return None

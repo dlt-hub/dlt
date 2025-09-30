@@ -11,6 +11,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    Mapping,
     Optional,
     Tuple,
     Type,
@@ -465,6 +466,7 @@ def resource(
     section: Optional[TTableHintTemplate[str]] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
     standalone: bool = None,
+    keep_history: bool = False,
 ) -> ResourceFactory[TResourceFunParams, TDltResourceImpl]: ...
 
 
@@ -492,6 +494,7 @@ def resource(
     section: Optional[TTableHintTemplate[str]] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
     standalone: bool = None,
+    keep_history: bool = False,
 ) -> Callable[
     [Callable[TResourceFunParams, Any]], ResourceFactory[TResourceFunParams, TDltResourceImpl]
 ]: ...
@@ -521,6 +524,7 @@ def resource(
     section: Optional[str] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
     standalone: bool = None,
+    keep_history: bool = False,
 ) -> TDltResourceImpl: ...
 
 
@@ -547,6 +551,7 @@ def resource(
     section: Optional[TTableHintTemplate[str]] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
     standalone: bool = None,
+    keep_history: bool = False,
     data_from: TUnboundDltResource = None,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
@@ -629,6 +634,8 @@ def resource(
 
         standalone (bool, optional): Deprecated. Past functionality got merged into regular resource
 
+        keep_history (bool, optional): When `True` the result is added to the history. Now in subsequent nodes the result can be retrieved from the history.
+
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
     Raises:
@@ -654,13 +661,14 @@ def resource(
             incremental=incremental,
         )
         resource = _impl_cls.from_data(
-            _data,
-            _name,
-            _section,
-            table_template,
-            selected,
-            cast(DltResource, data_from),
-            True,
+            data=_data,
+            name=_name,
+            section=_section,
+            hints=table_template,
+            selected=selected,
+            data_from=cast(DltResource, data_from),
+            inject_config=True,
+            keep_history=keep_history,
         )
 
         if incremental:
@@ -796,6 +804,7 @@ def transformer(
     parallelized: bool = False,
     section: Optional[TTableHintTemplate[str]] = None,
     standalone: bool = None,
+    keep_history: bool = False,
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
     ResourceFactory[TResourceFunParams, DltResource],
@@ -824,6 +833,7 @@ def transformer(
     parallelized: bool = False,
     section: Optional[TTableHintTemplate[str]] = None,
     standalone: bool = None,
+    keep_history: bool = False,
 ) -> ResourceFactory[TResourceFunParams, DltResource]: ...
 
 
@@ -848,6 +858,7 @@ def transformer(
     parallelized: bool = False,
     section: Optional[TTableHintTemplate[str]] = None,
     standalone: bool = None,
+    keep_history: bool = False,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> Any:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
@@ -925,6 +936,8 @@ def transformer(
 
         standalone (bool, optional): Deprecated. Past functionality got merged into regular resource
 
+        keep_history (bool, optional): When `True` the result is added to the history. Now in subsequent nodes the result can be retrieved from the history.
+
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
 
     Raises:
@@ -960,6 +973,7 @@ def transformer(
         parallelized=parallelized,
         _impl_cls=_impl_cls,
         section=section,
+        keep_history=keep_history,
     )
 
 

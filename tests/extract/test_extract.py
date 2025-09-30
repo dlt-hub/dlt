@@ -1,4 +1,5 @@
 from typing import Dict, Optional, Any
+from dlt.extract.history import History
 import pytest
 import os
 
@@ -584,7 +585,9 @@ def test_materialize_table_schema_with_pipe_items():
         def __init__(self):
             super().__init__(lambda x: x)
 
-        def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        def __call__(
+            self, item: TDataItems, meta: Any = None, history: History = None
+        ) -> Optional[TDataItems]:
             return item
 
     @dlt.resource
@@ -692,7 +695,9 @@ def test_resource_step_custom_metrics(extract_step: Extract, with_custom_metrics
         def __init__(self):
             super().__init__(lambda x: x)
 
-        def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        def __call__(
+            self, item: TDataItems, meta: Any = None, history: History = None
+        ) -> Optional[TDataItems]:
             if with_custom_metrics:
                 self.custom_metrics["from_step"] = "hi"
                 self.custom_metrics["overrided"] = 2

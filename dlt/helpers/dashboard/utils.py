@@ -605,7 +605,7 @@ def open_local_folder(folder: str) -> None:
     """Open a folder in the file explorer"""
     system = platform.system()
     if system == "Windows":
-        os.startfile(folder)  # type: ignore[attr-defined]
+        os.startfile(folder)
     elif system == "Darwin":
         subprocess.run(["open", folder], check=True)
     elif shutil.which("wslview"):

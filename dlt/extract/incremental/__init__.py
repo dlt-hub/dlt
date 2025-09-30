@@ -30,6 +30,7 @@ from dlt.common.data_types.type_helpers import (
 )
 
 from dlt.extract.exceptions import IncrementalUnboundError
+from dlt.extract.history import History
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
@@ -561,7 +562,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             return self._make_or_get_transformer(JsonIncremental)
         return self._make_or_get_transformer(JsonIncremental)
 
-    def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(
+        self, rows: TDataItems, meta: Any = None, history: History = None
+    ) -> Optional[TDataItems]:
         # NOTE: we also forward empty lists, so special empty list types are preserved
         # example: MaterializedEmptyList
         if rows is None or (isinstance(rows, list) and len(rows) == 0):
@@ -798,7 +801,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             self._incremental.bind(pipe)
         return self
 
-    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = None
+    ) -> Optional[TDataItems]:
         if not self._incremental:
             return item
         if self._incremental.primary_key is None:

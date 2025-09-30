@@ -22,6 +22,7 @@ from dlt.common.typing import (
     TFunHintTemplate,
     TDynHintType,
 )
+from dlt.extract.history import History
 
 TDecompositionStrategy = Literal["none", "scc"]
 TDeferredDataItems = Callable[[], TDataItems]
@@ -40,6 +41,7 @@ class PipeItem(NamedTuple):
     step: int
     pipe: "SupportsPipe"
     meta: Any
+    history: History
 
 
 class ResolvablePipeItem(NamedTuple):
@@ -48,6 +50,7 @@ class ResolvablePipeItem(NamedTuple):
     step: int
     pipe: "SupportsPipe"
     meta: Any
+    history: History
 
 
 class FuturePipeItem(NamedTuple):
@@ -55,6 +58,7 @@ class FuturePipeItem(NamedTuple):
     step: int
     pipe: "SupportsPipe"
     meta: Any
+    history: History
 
 
 class SourcePipeItem(NamedTuple):
@@ -62,6 +66,7 @@ class SourcePipeItem(NamedTuple):
     step: int
     pipe: "SupportsPipe"
     meta: Any
+    history: History
 
 
 # pipeline step may be iterator of data items or mapping function that returns data item or another iterator

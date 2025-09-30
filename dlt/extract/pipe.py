@@ -40,6 +40,7 @@ from dlt.extract.utils import (
     wrap_resource_gen,
     wrap_async_iterator,
 )
+from dlt.extract.history import History
 
 
 class ForkPipe(ItemTransform[ResolvablePipeItem]):
@@ -59,24 +60,37 @@ class ForkPipe(ItemTransform[ResolvablePipeItem]):
     def has_pipe(self, pipe: "Pipe") -> bool:
         return pipe in [p[0] for p in self._pipes]
 
-    def __call__(self, item: TDataItems, meta: Any = None) -> Iterator[ResolvablePipeItem]:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = None
+    ) -> Iterator[ResolvablePipeItem]:
         for i, (pipe, step) in enumerate(self._pipes):
             if i == 0 or not self.copy_on_fork:
                 _it = item
             else:
                 # shallow copy the item
                 _it = copy(item)
+            # add history info
+            if pipe.parent is not None and pipe.parent.keep_history and pipe.name:
+                history = history or History()
+                history[pipe.parent.name] = _it
             # always start at the beginning
-            yield ResolvablePipeItem(_it, step, pipe, meta)
+            yield ResolvablePipeItem(_it, step, pipe, meta, history)
 
 
 class Pipe(SupportsPipe):
-    def __init__(self, name: str, steps: List[TPipeStep] = None, parent: "Pipe" = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        steps: List[TPipeStep] = None,
+        parent: "Pipe" = None,
+        keep_history: bool = False,
+    ) -> None:
         self.name = name
         self._gen_idx = 0
         self._steps: List[TPipeStep] = []
         self.parent = parent
         self.instance_id = uniq_id()
+        self.keep_history = keep_history
         # add the steps, this will check and mod transformations
         if steps:
             for index, step in enumerate(steps):
@@ -88,8 +102,9 @@ class Pipe(SupportsPipe):
         name: str,
         gen: Union[Iterable[TPipedDataItems], Iterator[TPipedDataItems], AnyFun],
         parent: "Pipe" = None,
+        keep_history: bool = False,
     ) -> "Pipe":
-        return cls(name, [gen], parent=parent)
+        return cls(name, [gen], parent=parent, keep_history=keep_history)
 
     @property
     def is_empty(self) -> bool:
@@ -244,6 +259,8 @@ class Pipe(SupportsPipe):
         p = Pipe(self.name, [])
         # set the steps so they are not evaluated again
         p._steps = steps
+        # keep history flag
+        p.keep_history = self.keep_history
         # return pipe with resolved dependencies
         return p
 
@@ -363,7 +380,6 @@ class Pipe(SupportsPipe):
             )
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
-        # step must be a callable: a transformer or a transformation
         if isinstance(step, (Iterable, Iterator)) and not callable(step):
             if self.has_parent:
                 raise CreatePipeException(
@@ -380,42 +396,61 @@ class Pipe(SupportsPipe):
                 "Pipe step must be a callable taking one data item as argument and optional second"
                 " meta argument",
             )
-        else:
-            # check the signature
-            sig = inspect.signature(step)
-            meta_arg = check_compat_transformer(self.name, step, sig)
-            if meta_arg is None:
-                # add meta parameter when not present
 
-                meta_arg = inspect.Parameter(
-                    "meta", inspect._ParameterKind.KEYWORD_ONLY, default=None
+        # inspect signature
+        sig = inspect.signature(step)
+
+        # Determine if `meta` or `history` are present
+        has_meta = "meta" in sig.parameters
+        has_history = "history" in sig.parameters
+
+        # Prepare parameter list for patching
+        params = list(sig.parameters.values())
+        new_sig = sig
+
+        # Add meta if not present and not **kwargs
+        if not has_meta:
+            kwargs_arg = next(
+                (p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD),
+                None,
+            )
+            if not kwargs_arg:
+                meta_param = inspect.Parameter("meta", inspect.Parameter.KEYWORD_ONLY, default=None)
+                params.append(meta_param)
+
+        # Add history if not present and not **kwargs
+        if not has_history:
+            kwargs_arg = next(
+                (p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD),
+                None,
+            )
+            if not kwargs_arg:
+                history_param = inspect.Parameter(
+                    "history", inspect.Parameter.KEYWORD_ONLY, default=None
                 )
-                kwargs_arg = next(
-                    (p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD),
-                    None,
-                )
-                if kwargs_arg:
-                    # pass meta in variadic
-                    new_sig = sig
-                else:
-                    params = list(sig.parameters.values()) + [meta_arg]
-                    new_sig = sig.replace(parameters=params)
+                params.append(history_param)
 
-                orig_step = step
+        # Only patch if at least one param was added
+        if len(params) > len(sig.parameters):
+            new_sig = sig.replace(parameters=params)
 
-                @wraps(step)
-                def _partial(*args: Any, **kwargs: Any) -> Any:
-                    # orig step does not have meta
+            orig_step = step
+
+            @wraps(step)
+            def _partial(*args: Any, **kwargs: Any) -> Any:
+                if not has_meta:
                     kwargs.pop("meta", None)
-                    # del kwargs["meta"]
-                    return orig_step(*args, **kwargs)
+                if not has_history:
+                    kwargs.pop("history", None)
+                return orig_step(*args, **kwargs)
 
-                setattr(_partial, "__signature__", new_sig)
-                step = _partial
+            setattr(_partial, "__signature__", new_sig)
+            step = _partial
 
-            # verify the step callable, gen may be parametrized and will be evaluated at run time
-            if not self.is_empty:
-                self._ensure_transform_step(step_no, step)
+        # validate step
+        if not self.is_empty:
+            self._ensure_transform_step(step_no, step)
+
         return step
 
     def _ensure_transform_step(self, step_no: int, step: TPipeStep) -> None:
@@ -425,7 +460,7 @@ class Pipe(SupportsPipe):
         sig = inspect.signature(step)
         try:
             # get eventually modified sig
-            sig.bind("item", meta="meta")
+            sig.bind("item", meta="meta", history="history")
         except TypeError as ty_ex:
             callable_name = get_callable_name(step)
             if step_no == self._gen_idx:
@@ -447,7 +482,7 @@ class Pipe(SupportsPipe):
     def _clone(self, new_name: str = None) -> "Pipe":
         """Clones the pipe steps, optionally renaming the pipe. Used internally to clone a list of connected pipes."""
         new_parent = self.parent
-        p = Pipe(new_name or self.name, [], new_parent)
+        p = Pipe(new_name or self.name, [], new_parent, self.keep_history)
         # keep instance id
         p.instance_id = self.instance_id
         p._steps = self._steps.copy()

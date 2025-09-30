@@ -30,6 +30,7 @@ from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
 from dlt.dataset import dataset, Relation, Dataset
+from dlt.extract.history import History
 
 from dlt.pipeline import (
     pipeline as _pipeline,
