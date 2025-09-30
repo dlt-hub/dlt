@@ -125,6 +125,10 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         if isinstance(catalog, DuckDbCredentials):
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog._conn_str()}'"
         elif catalog.drivername in ("postgres", "postgresql", "mysql"):
+            # `drivername="postgresql"` is supported by dlt / sqlalchemy, but it doesn't exist in duckdb.
+            if catalog.drivername == "postgresql":
+                catalog.drivername = "postgres"
+
             attach_statement = (
                 f"ATTACH IF NOT EXISTS 'ducklake:{catalog.drivername}:{catalog.to_url()}'"
             )

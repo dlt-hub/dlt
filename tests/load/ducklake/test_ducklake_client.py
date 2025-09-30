@@ -12,6 +12,7 @@ from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeClientConfiguration,
 )
 
+from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from tests.utils import TEST_STORAGE_ROOT
 
 
@@ -187,6 +188,25 @@ def test_default_ducklake_configuration() -> None:
         == "postgresql://loader:loader@localhost:5432/dlt_data"
     )
     assert credentials.storage_url == str(local_dir / "ducklake_catalog.files")
+
+
+def test_attach_statement_doesnt_use_postgresl() -> None:
+    """`drivername="postgresql"` is supported by dlt / sqlalchemy, but it doesn't exist in duckdb.
+
+    Make sure that the produced ATTACH statement doesn't use postgresql
+    """
+    expected_attach_statement = (
+        "ATTACH IF NOT EXISTS 'ducklake:postgres:postgres://loader:loader@localhost:5432/dlt_data'"
+        " AS foo (DATA_PATH './path/to/storage', METADATA_SCHEMA 'foo')"
+    )
+    attach_statement = DuckLakeSqlClient.build_attach_statement(
+        catalog=ConnectionStringCredentials("postgresql://loader:loader@localhost:5432/dlt_data"),
+        catalog_name="foo",
+        storage_url="./path/to/storage",
+    )
+
+    assert expected_attach_statement == attach_statement
+    assert "postgresql" not in expected_attach_statement
 
 
 def test_ducklake_conn_pool_always_open() -> None:
