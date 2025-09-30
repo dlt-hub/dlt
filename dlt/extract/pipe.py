@@ -407,40 +407,34 @@ class Pipe(SupportsPipe):
         # Prepare parameter list for patching
         params = list(sig.parameters.values())
 
-        # Add meta if not present and not **kwargs
-        if not has_meta:
-            kwargs_arg = next(
-                (p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD),
-                None,
-            )
-            if not kwargs_arg:
-                meta_param = inspect.Parameter("meta", inspect.Parameter.KEYWORD_ONLY, default=None)
-                params.append(meta_param)
+        kwargs_arg = next(
+            (p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD),
+            None,
+        )
 
-        # Add history if not present and not **kwargs
-        if not has_history:
-            kwargs_arg = next(
-                (p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD),
-                None,
+        # Add meta if not present and no **kwargs
+        if not has_meta and kwargs_arg is None:
+            meta_param = inspect.Parameter(
+                "meta", inspect.Parameter.KEYWORD_ONLY, default=None
             )
-            if not kwargs_arg:
-                history_param = inspect.Parameter(
-                    "history", inspect.Parameter.KEYWORD_ONLY, default=None
-                )
-                params.append(history_param)
+            params.append(meta_param)
 
-        # Only patch if at least one param was added
-        if len(params) > len(sig.parameters):
-            new_sig = sig.replace(parameters=params)
+        # Add history if not present and no **kwargs
+        if not has_history and kwargs_arg is None:
+            history_param = inspect.Parameter(
+                "history", inspect.Parameter.KEYWORD_ONLY, default=None
+            )
+            params.append(history_param)
+
+        if not has_meta or not has_history:
+            new_sig = sig.replace(parameters=params) if kwargs_arg is None else sig
 
             orig_step = step
 
             @wraps(step)
             def _partial(*args: Any, **kwargs: Any) -> Any:
-                if not has_meta:
-                    kwargs.pop("meta", None)
-                if not has_history:
-                    kwargs.pop("history", None)
+                kwargs.pop("meta", None)
+                kwargs.pop("history", None)
                 return orig_step(*args, **kwargs)
 
             setattr(_partial, "__signature__", new_sig)
