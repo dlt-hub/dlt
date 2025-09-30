@@ -5,39 +5,70 @@ Similar structure to preprocess_docs.js
 
 import os
 import re
-import sys
 from typing import Any, Generator, List, Optional
-
-# Add dlt to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
-
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.reference import Destination
 
-# Constants
 MD_TARGET_DIR = "./docs_processed/dlt-ecosystem/destinations"
 MD_SOURCE_DIR = "../../dlt/destinations/impl"
 DOCS_EXTENSIONS = [".md", ".mdx"]
 
-# Markers
 DLT_MARKER = "@@@DLT"
 CAPABILITIES_MARKER = f"{DLT_MARKER}_DESTINATION_CAPABILITIES"
 
-# Table formatting
+DESTINATION_NAME_PATTERN = r"([a-z0-9_-]+?)(?:--|$)"
+
 TABLE_HEADER = "| Feature | Value | More |\n"
-TABLE_SEPARATOR = "|---------|-------|------|\n"
-DOC_LINK_PLACEHOLDER = "(link to feature info in docs)"
+
+SELECTED_ATTRIBUTES = {
+    "preferred_loader_file_format",
+    "supported_loader_file_formats",
+    "preferred_staging_file_format",
+    "supported_staging_file_formats",
+    "has_case_sensitive_identifiers",
+    "supported_merge_strategies",
+    "supported_replace_strategies",
+    "supports_tz_aware_datetime",
+    "supports_naive_datetime",
+}
+
+DOC_LINK_PATTERNS = [
+    ("_formats", "../file-formats/"),
+    ("_strategies", "../../general-usage/merge-loading#merge-strategies"),
+]
+
+DATA_TYPES_DOC_LINK = "[Data Types](../../general-usage/schema#data-types)"
 
 
-def get_raw_capabilities(destination_name: str) -> DestinationCapabilitiesContext:
-    """Get raw capabilities for a destination using Destination.from_reference()."""
+def _format_value(value: Any) -> str:
+    """Format value based on its type."""
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    elif hasattr(value, "__name__"):
+        return value.__name__
+    return str(value)
+
+
+def _generate_doc_link(attr_name: str) -> str:
+    """Generate documentation link based on attribute name pattern."""
+    for pattern, link in DOC_LINK_PATTERNS:
+        if attr_name.endswith(pattern):
+            section_name = link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").title()
+            return f"[{section_name}]({link})"
+    return DATA_TYPES_DOC_LINK
+
+
+def get_raw_capabilities(destination_name: str) -> Optional[DestinationCapabilitiesContext]:
     try:
         dest = Destination.from_reference(destination_name)
-        return dest._raw_capabilities()
+        caps = dest._raw_capabilities()
+        if not isinstance(caps, DestinationCapabilitiesContext):
+            print(f"Error: Invalid capabilities type for {destination_name}: {type(caps)}")
+            return None
+        return caps
     except Exception as e:
-        print(f"Error getting capabilities for {destination_name}: {e}")
-        # Return empty capabilities context as fallback
-        return DestinationCapabilitiesContext()
+        print(f"Error: Could not get capabilities for {destination_name}: {e}")
+        return None
 
 
 def walk_files_recursively(directory: str) -> Generator[str, None, None]:
@@ -50,14 +81,11 @@ def walk_files_recursively(directory: str) -> Generator[str, None, None]:
 def get_impl_destination_names() -> set[str]:
     """Get a set of supported destination names from /dlt/destinations/impl."""
     try:
-        source_dirs = [
-            d
-            for d in os.listdir(MD_SOURCE_DIR)
-            if os.path.isdir(os.path.join(MD_SOURCE_DIR, d))
-        ]
-        return set(source_dirs)
+        return {
+            d for d in os.listdir(MD_SOURCE_DIR) if os.path.isdir(os.path.join(MD_SOURCE_DIR, d))
+        }
     except OSError as e:
-        print(f"Error reading source directory {MD_SOURCE_DIR}: {e}")
+        print(f"Error: Could not read source directory {MD_SOURCE_DIR}: {e}")
         return set()
 
 
@@ -66,34 +94,31 @@ def should_process_file(file_name: str, impl_destinations: set[str]) -> bool:
     if not file_name.endswith(tuple(DOCS_EXTENSIONS)):
         return False
 
-    # Extract destination name from filename (remove .md/.mdx extension)
     destination_name = os.path.splitext(file_name)[0]
+    return destination_name in impl_destinations
 
-    # Check if destination exists in available destinations
-    if destination_name not in impl_destinations:
-        print(
-            f"Skipping {file_name} - no matching destination directory "
-            f"'{destination_name}' in {MD_SOURCE_DIR}"
-        )
+
+def _is_relevant_capability(attr_name: str, value: Any) -> bool:
+    """Check if capability should be included in table."""
+    if value is None or attr_name not in SELECTED_ATTRIBUTES:
         return False
 
-    return True
+    value_str = str(value)
+    return not (value_str.startswith("<") and value_str.endswith(">"))
 
 
-def _format_capability_row(attr_name: str, value: Any) -> str:
-    """Format a single capability attribute into a table row."""
-    # Convert attribute name to readable format
+def _format_capability_row(attr_name: str, value: Any) -> Optional[str]:
+    """Format a single capability attribute into a table row. Returns None if any column is missing."""
     feature_name = attr_name.replace("_", " ").title()
+    if not feature_name.strip():
+        return None
 
-    # Format the value based on its type
-    if isinstance(value, list):
-        formatted_value = ", ".join(str(v) for v in value)
-    elif hasattr(value, "__name__"):  # For function/class objects
-        formatted_value = value.__name__
-    else:
-        formatted_value = str(value)
+    formatted_value = _format_value(value)
+    if not formatted_value.strip():
+        return None
 
-    return f"| {feature_name} | {formatted_value} | {DOC_LINK_PLACEHOLDER} |\n"
+    doc_link = _generate_doc_link(attr_name)
+    return f"| {feature_name} | {formatted_value} | {doc_link} |\n"
 
 
 def generate_capabilities_table(destination_name: str) -> List[str]:
@@ -102,30 +127,24 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
 
     Returns list of lines for the table.
     """
-    # Get actual capabilities from destination implementation
     caps = get_raw_capabilities(destination_name)
 
-    # Start building the table
-    table_lines = [TABLE_HEADER, TABLE_SEPARATOR]
+    if caps is None:
+        return []
 
-    # Add dynamic data from actual capabilities
-    # Get all attributes that have values
-    non_empty_attrs = {
-        k: v for k, v in vars(caps).items()
-        if v is not None and not str(v).startswith('<') and not str(v).endswith('>')
-    }
+    table_lines = [TABLE_HEADER, "|---------|-------|------|\n"]
 
-    # Generate rows dynamically for all set attributes
-    for attr_name, value in non_empty_attrs.items():
-        print(f"Adding capability: {attr_name} = {value}")
-        table_lines.append(_format_capability_row(attr_name, value))
+    attrs = {k: v for k, v in vars(caps).items() if _is_relevant_capability(k, v)}
 
-    # Add footer
-    table_lines.extend([
-        "\n",
-        f"*This table shows the supported features of the {destination_name} destination in dlt.*\n",
-        "\n",
-    ])
+    for attr_name, value in attrs.items():
+        row = _format_capability_row(attr_name, value)
+        if row:
+            table_lines.append(row)
+
+    table_lines.append(
+        f"\n*This table shows the supported features of the {destination_name.title()} destination"
+        " in dlt.*\n\n"
+    )
 
     return table_lines
 
@@ -136,7 +155,7 @@ def read_file_content(file_path: str) -> Optional[List[str]]:
         with open(file_path, "r", encoding="utf-8") as f:
             return f.readlines()
     except Exception as e:
-        print(f"Error reading file {file_path}: {e}")
+        print(f"Error: reading file {file_path}: {e}")
         return None
 
 
@@ -148,7 +167,7 @@ def write_file_content(file_path: str, lines: List[str]) -> bool:
         print(f"Processed: {file_path} (markers replaced)")
         return True
     except Exception as e:
-        print(f"Error writing file {file_path}: {e}")
+        print(f"Error: writing file {file_path}: {e}")
         return False
 
 
@@ -158,39 +177,22 @@ def process_markers(file_path: str, lines: List[str], impl_destinations: set[str
     marker_found = False
 
     for line in lines:
-        # Check if this line contains the capabilities marker
         if CAPABILITIES_MARKER not in line:
             new_lines.append(line)
             continue
 
-        # Extract destination name from marker
-        # Format: <!--@@@DLT_DESTINATION_CAPABILITIES destination_name-->
-        # Match destination names: lowercase letters, digits, underscores, hyphens (but not trailing dashes)
-        match = re.search(rf"{re.escape(CAPABILITIES_MARKER)}\s+([a-z0-9_-]+?)(?:--|$)", line)
-        if not match:
+        match = re.search(rf"{re.escape(CAPABILITIES_MARKER)}\s+{DESTINATION_NAME_PATTERN}", line)
+        if not match or match.group(1) not in impl_destinations:
             new_lines.append(line)
             continue
 
         destination_name = match.group(1)
-
-        # Validate that destination exists in impl_destinations
-        if destination_name not in impl_destinations:
-            print(
-                f"Warning: Destination '{destination_name}' from marker not found in "
-                f"impl_destinations"
-            )
-            new_lines.append(line)  # Keep original line
-            continue
-
         print(f"Found capabilities marker for: {destination_name}")
 
-        # Generate capability tables and replace the marker line
         table_lines = generate_capabilities_table(destination_name)
         new_lines.extend(table_lines)
         marker_found = True
-        # Continue processing remaining lines after the marker
 
-    # Write the processed content back to the file
     if marker_found:
         return write_file_content(file_path, new_lines)
 
@@ -203,17 +205,12 @@ def process_doc_file(file_path: str, impl_destinations: set[str]) -> bool:
 
     Returns True if file was successfully processed.
     """
-    # 1. Read file content
     lines = read_file_content(file_path)
-    if lines is None:
-        return False
-
-    # 2. Find DESTINATION_CAPABILITIES markers and process them
     return process_markers(file_path, lines, impl_destinations)
 
 
 def insert_destination_capabilities(impl_destinations: set[str]) -> None:
-    """Process all docs in the processed docs folder."""
+    """Process all docs with progress feedback."""
     print("Inserting destination capabilities...")
 
     if not impl_destinations:
@@ -229,6 +226,7 @@ def insert_destination_capabilities(impl_destinations: set[str]) -> None:
         if not should_process_file(file_name, impl_destinations):
             continue
 
+        print(f"Processing {file_name}")
         if process_doc_file(file_path, impl_destinations):
             processed_files += 1
 
@@ -237,7 +235,6 @@ def insert_destination_capabilities(impl_destinations: set[str]) -> None:
 
 def main() -> None:
     """Main function."""
-    # Pre-check directories exist before processing
     if not os.path.exists(MD_SOURCE_DIR):
         print(f"Source directory {MD_SOURCE_DIR} does not exist. Exiting.")
         return
