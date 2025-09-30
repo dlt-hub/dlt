@@ -13,12 +13,12 @@ from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 from dlt.destinations.sql_client import raise_open_connection_error
 
 
-class DucklakeDBApiCursorImpl(DuckDBDBApiCursorImpl):
+class DuckLakeDBApiCursorImpl(DuckDBDBApiCursorImpl):
     vector_size: ClassVar[int] = 700  # vector size for ducklake
 
 
 class DuckLakeSqlClient(DuckDbSqlClient):
-    cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DucklakeDBApiCursorImpl
+    cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckLakeDBApiCursorImpl
 
     def __init__(
         self,
@@ -57,7 +57,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             # NOTE: database must be detached otherwise it is left in inconsistent state
             # TODO: perhaps move attach/detach to connection pool
             self._conn.execute(self.attach_statement)
-            self._conn.execute(f"USE {self.credentials.ducklake_name};")
+            self._conn.execute(f"USE {self.capabilities.escape_identifier(self.credentials.ducklake_name)};")
             # search path can only by set after database is attached
             try:
                 self._conn.execute(f"SET search_path = '{self.fully_qualified_dataset_name()}'")
@@ -112,7 +112,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 )
                 self._register_filesystem(fsspec_from_config(self.credentials.storage)[0], "gcs")
             else:
-                raise ValueError(f"Cannot create secret or register filesystem for `{protocol=:}`")
+                raise ValueError(f"Cannot create secret or register filesystem for `{protocol=}`")
 
     @staticmethod
     def build_attach_statement(
