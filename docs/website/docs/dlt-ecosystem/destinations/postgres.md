@@ -75,13 +75,6 @@ pipeline = dlt.pipeline(
 )
 ```
 
-
-## Destination capabilities
-
-The following table shows the key capabilities of the Postgres destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES postgres-->
-
 ## Write disposition
 All write dispositions are supported.
 
@@ -235,5 +228,4 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-po
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA postgres-->
-
 
