@@ -116,6 +116,12 @@ project_id = "project_id_credentials"
 ```
 In this scenario, `project_id_credentials` will be used for authentication, while `project_id_destination` will be used as the data destination.
 
+## Destination capabilities
+
+The following table shows the capabilities of the BigQuery destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES bigquery-->
+
 ## Write disposition
 
 All write dispositions are supported.
@@ -228,8 +234,8 @@ BigQuery supports the following [column hints](../../general-usage/schema#tables
 
 :::warning
 **Deprecation Notice:**
-Per-column `cluster` hints are deprecated and will be removed in a future release.  
-**To migrate, use the `cluster` argument of the `bigquery_adapter` instead.**  
+Per-column `cluster` hints are deprecated and will be removed in a future release.
+**To migrate, use the `cluster` argument of the `bigquery_adapter` instead.**
 See the [example below](#use-an-adapter-to-apply-hints-to-a-resource) for how to specify clustering columns with the adapter.
 :::
 

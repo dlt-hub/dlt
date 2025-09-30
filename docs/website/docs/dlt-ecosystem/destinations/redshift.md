@@ -6,13 +6,22 @@ keywords: [redshift, destination, data warehouse]
 
 # Amazon Redshift
 
+## Destination capabilities
+
+The following table shows the capabilities of the Amazon Redshift destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES redshift-->
+
 ## Install dlt with Redshift
+
 **To install the dlt library with Redshift dependencies:**
+
 ```sh
 pip install "dlt[redshift]"
 ```
 
 ## Setup guide
+
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
@@ -20,15 +29,19 @@ Let's start by initializing a new dlt project as follows:
 ```sh
 dlt init chess redshift
 ```
+
 > 💡 This command will initialize your pipeline with chess as the source and Redshift as the destination.
 
 The above command generates several files and directories, including `.dlt/secrets.toml` and a requirements file for Redshift. You can install the necessary dependencies specified in the requirements file by executing it as follows:
+
 ```sh
 pip install -r requirements.txt
 ```
+
 or with `pip install "dlt[redshift]"`, which installs the `dlt` library and the necessary dependencies for working with Amazon Redshift as a destination.
 
 ### 2. Setup Redshift cluster
+
 To load data into Redshift, you need to create a Redshift cluster and enable access to your IP address through the VPC inbound rules associated with the cluster. While we recommend asking our GPT-4 assistant for details, we have provided a general outline of the process below:
 
 1. You can use an existing cluster or create a new one.
@@ -40,28 +53,29 @@ To load data into Redshift, you need to create a Redshift cluster and enable acc
 
 1. Next, set up the Redshift credentials in the `.dlt/secrets.toml` file as shown below:
 
-    ```toml
-    [destination.redshift.credentials]
-    database = "please set me up!" # Copy your database name here
-    password = "please set me up!" # Keep your Redshift db instance password here
-    username = "please set me up!" # Keep your Redshift db instance username here
-    host = "please set me up!" # Copy your Redshift host from cluster endpoint here
-    port = 5439
-    connect_timeout = 15 # Enter the timeout value
-    ```
+   ```toml
+   [destination.redshift.credentials]
+   database = "please set me up!" # Copy your database name here
+   password = "please set me up!" # Keep your Redshift db instance password here
+   username = "please set me up!" # Keep your Redshift db instance username here
+   host = "please set me up!" # Copy your Redshift host from cluster endpoint here
+   port = 5439
+   connect_timeout = 15 # Enter the timeout value
+   ```
 
 2. The "host" is derived from the cluster endpoint specified in the “General Configuration.” For example:
 
-    ```sh
-    # If the endpoint is:
-    redshift-cluster-1.cv3cmsy7t4il.us-east-1.redshift.amazonaws.com:5439/your_database_name
-    # Then the host is:
-    redshift-cluster-1.cv3cmsy7t4il.us-east-1.redshift.amazonaws.com
-    ```
+   ```sh
+   # If the endpoint is:
+   redshift-cluster-1.cv3cmsy7t4il.us-east-1.redshift.amazonaws.com:5439/your_database_name
+   # Then the host is:
+   redshift-cluster-1.cv3cmsy7t4il.us-east-1.redshift.amazonaws.com
+   ```
 
 3. The `connect_timeout` is the number of minutes the pipeline will wait before timing out.
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
+
 ```toml
 # Keep it at the top of your TOML file, before any section starts
 destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
@@ -76,13 +90,16 @@ Use the PostgreSQL driver for PostgreSQL-based setups or the Amazon Redshift dri
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
 ## Supported file formats
+
 [SQL Insert](../file-formats/insert-format) is used by default.
 
 When staging is enabled:
-* [JSONL](../file-formats/jsonl.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
+
+- [JSONL](../file-formats/jsonl.md) is used by default.
+- [Parquet](../file-formats/parquet.md) is supported.
 
 :::warning
+
 - **Redshift cannot load `VARBYTE` columns from JSON files**. `dlt` will fail such jobs permanently. Switch to Parquet to load binaries.
 
 - **Redshift cannot load `TIME` columns from JSON or Parquet files**. `dlt` will fail such jobs permanently. Switch to direct `insert_values` to load time columns.
@@ -90,7 +107,7 @@ When staging is enabled:
 - **Redshift cannot detect compression type from JSON files**. `dlt` assumes that JSONL files are gzip compressed, which is the default.
 
 - **Redshift loads JSON types as strings into SUPER with Parquet**. Use JSONL format to store JSON in SUPER natively or transform your SUPER columns with `PARSE_JSON`.
-:::
+  :::
 
 ## Supported column hints
 
@@ -100,15 +117,16 @@ Amazon Redshift supports the following column hints:
 - `sort` - This hint creates a SORTKEY to order rows on disk physically. It is used to improve query and join speed in Redshift. Please read the [sort key docs](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html) to learn more.
 
 ### Table and column identifiers
+
 Redshift **by default** uses case-insensitive identifiers and **will lower case all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use
 [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway, and you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
 You can [put Redshift in case-sensitive mode](https://docs.aws.amazon.com/redshift/latest/dg/r_enable_case_sensitive_identifier.html). Configure your destination as below in order to use case-sensitive naming conventions:
+
 ```toml
 [destination.redshift]
 has_case_sensitive_identifiers=true
 ```
-
 
 ## Staging support
 
@@ -116,15 +134,17 @@ Redshift supports s3 as a file staging destination. `dlt` will upload files in t
 
 :::note
 If the S3 bucket is in a different region than your Redshift cluster:
+
 - You must set `region_name` in `[destination.filesystem.credentials]` in your `config.toml` file to ensure proper access
 - For Parquet files, cross-region COPY operations are not supported by Redshift, so the region setting will be ignored
-:::
+  :::
 
 ## Identifier names and case sensitivity
-* Up to 127 characters
-* Case insensitive
-* Stores identifiers in lower case
-* Has case-sensitive mode, if enabled you must [enable case sensitivity in destination factory](../../general-usage/destination.md#control-how-dlt-creates-table-column-and-other-identifiers)
+
+- Up to 127 characters
+- Case insensitive
+- Stores identifiers in lower case
+- Has case-sensitive mode, if enabled you must [enable case sensitivity in destination factory](../../general-usage/destination.md#control-how-dlt-creates-table-column-and-other-identifiers)
 
 ### Authentication IAM Role
 
@@ -150,11 +170,13 @@ pipeline = dlt.pipeline(
 ```
 
 ## Additional destination options
+
 ### dbt support
 
 - This destination [integrates with dbt](../transformations/dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift). Credentials and timeout settings are shared automatically with `dbt`.
 
 ### Syncing of `dlt` state
+
 - This destination fully supports [dlt state sync.](../../general-usage/state#syncing-state-with-destination)
 
 ## Supported loader file formats
