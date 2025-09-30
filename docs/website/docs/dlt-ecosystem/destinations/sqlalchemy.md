@@ -10,6 +10,12 @@ The SQLAlchemy destination allows you to use any database that has an [SQLAlchem
 
 Currently, MySQL and SQLite are considered to have full support and are tested as part of the `dlt` CI suite. Other dialects are not tested but should generally work.
 
+## Destination capabilities
+
+The following table shows the capabilities of the Sqlalchemy destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
+
 ## Install dlt with SQLAlchemy
 
 Install dlt with the `sqlalchemy` extra dependency:
@@ -140,7 +146,7 @@ Please report issues with particular dialects. We'll try to make them work.
 
 ### Trino limitations
 * Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
-* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables) 
+* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
 

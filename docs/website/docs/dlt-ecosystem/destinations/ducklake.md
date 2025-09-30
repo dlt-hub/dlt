@@ -14,6 +14,12 @@ In order to use ducklake you must provide the following infrastructure:
 
 If you are looking for a managed ducklake infra, check the [Motherduck Ducklake support](motherduck.md#ducklake-setup). `dlt` is also able to set-up a local ducklake with `sqlite` as catalog fully automatically.
 
+## Destination capabilities
+
+The following table shows the capabilities of the Ducklake destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES ducklake-->
+
 ## Quick start
 
 - Install dlt with DuckDB dependencies:
@@ -152,7 +158,7 @@ ducklake = dlt.destinations.ducklake(credentials=credentials)
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
 
-# set catalog name using connection string credentials    
+# set catalog name using connection string credentials
 catalog_credentials = ConnectionStringCredentials()
 # use duckdb with the default name
 catalog_credentials.drivername = "duckdb"
@@ -215,7 +221,7 @@ with pipeline.sql_client() as client:
 All write dispositions are supported. `upsert` is supported on **duckdb 1.4.x** (without hard deletes for now)
 
 ## Data loading
-By default, Parquet files and the `COPY` command are used to move local files to the remote storage, 
+By default, Parquet files and the `COPY` command are used to move local files to the remote storage,
 
 The **INSERT** format is also supported and will execute large INSERT queries directly into the remote database. This method is significantly slower and may exceed the maximum query size, so it is not advised.
 

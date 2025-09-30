@@ -73,6 +73,11 @@ profile_name="dlt-ci-user"
 [destination.athena.credentials]
 profile_name="dlt-ci-user"
 ```
+## Destination capabilities
+
+The following table shows the capabilities of the Athena destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES athena-->
 
 ## Additional destination configuration
 
