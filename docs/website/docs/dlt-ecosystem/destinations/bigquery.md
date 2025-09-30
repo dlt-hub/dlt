@@ -116,12 +116,6 @@ project_id = "project_id_credentials"
 ```
 In this scenario, `project_id_credentials` will be used for authentication, while `project_id_destination` will be used as the data destination.
 
-## Destination capabilities
-
-The following table shows the capabilities of the BigQuery destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES bigquery-->
-
 ## Write disposition
 
 All write dispositions are supported.

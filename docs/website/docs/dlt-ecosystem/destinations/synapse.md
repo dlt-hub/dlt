@@ -6,12 +6,6 @@ keywords: [synapse, destination, data warehouse]
 
 # Synapse
 
-## Destination capabilities
-
-The following table shows the capabilities of the Synapse destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES synapse-->
-
 ## Install dlt with Synapse
 **To install the dlt library with Synapse dependencies:**
 ```sh

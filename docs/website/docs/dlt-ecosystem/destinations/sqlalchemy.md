@@ -10,12 +10,6 @@ The SQLAlchemy destination allows you to use any database that has an [SQLAlchem
 
 Currently, MySQL and SQLite are considered to have full support and are tested as part of the `dlt` CI suite. Other dialects are not tested but should generally work.
 
-## Destination capabilities
-
-The following table shows the capabilities of the SQLAlchemy destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
-
 ## Install dlt with SQLAlchemy
 
 Install dlt with the `sqlalchemy` extra dependency:
