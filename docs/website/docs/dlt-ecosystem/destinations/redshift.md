@@ -71,13 +71,6 @@ destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_dat
 Use the PostgreSQL driver for PostgreSQL-based setups or the Amazon Redshift driver for native Redshift; [see documentation](https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-postgres-jdbc.html).
 :::
 
-
-## Destination capabilities
-
-The following table shows the key capabilities of the Redshift destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES redshift-->
-
 ## Write disposition
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
@@ -169,5 +162,4 @@ pipeline = dlt.pipeline(
 Supported loader file formats for Redshift are `sql` and `insert_values` (default). When using a staging location, Redshift supports Parquet and JSONL.
 
 <!--@@@DLT_TUBA redshift-->
-
 
