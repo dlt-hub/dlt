@@ -211,7 +211,7 @@ def test_ducklake_attach_statement() -> None:
     assert expected_attach_statement == attach_statement
 
 
-def test_attach_statement_doesnt_use_postgresl() -> None:
+def test_attach_statement_doesnt_use_postgresql() -> None:
     """`drivername="postgresql"` is supported by dlt / sqlalchemy, but it doesn't exist in duckdb.
 
     Make sure that the produced ATTACH statement doesn't use postgresql
