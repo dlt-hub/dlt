@@ -29,13 +29,6 @@ pip install -r requirements.txt
 python3 chess_pipeline.py
 ```
 
-
-## Destination capabilities
-
-The following table shows the key capabilities of the Duckdb destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES duckdb-->
-
 ## Supported version
 `dlt` supports `duckdb` versions starting from **0.9**. Below are a few notes on problems with particular versions observed
 in our tests:
@@ -287,7 +280,7 @@ dest_ = dlt.destinations.duckdb(
     DuckDbCredentials("duck.db", extensions=["spatial"], local_config={"errors_as_json": True})
 )
 ```
-Code above install **spatial** (`dlt` only loads extension) and passes duckdb credentials to the destination constructor. Database file is **duck.db**, logging and error messages as `json` are enabled.
+Code above install **spatial** (`dlt` only loads extension) and passes duckdb credentials to the destination constructor. Database file is **duck.db**, logging and error messages as `json` are enabled. 
 
 ## Data access after loading
 After loading, it is available in **read/write** mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details. If you want to **read** data, use [pipeline.dataset()](../../general-usage/dataset-access/dataset) instead of `sql_client`.
@@ -302,5 +295,4 @@ NOTE: extensions, pragmas and configs are not propagated from `dlt` configuratio
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA duckdb-->
-
 

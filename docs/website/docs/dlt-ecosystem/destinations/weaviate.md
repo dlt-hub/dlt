@@ -92,13 +92,6 @@ The data is now loaded into Weaviate.
 
 Weaviate destination is different from other [dlt destinations](../destinations/). To use vector search after the data has been loaded, you must specify which fields Weaviate needs to include in the vector index. You do that by wrapping the data (or dlt resource) with the `weaviate_adapter` function.
 
-
-## Destination capabilities
-
-The following table shows the key capabilities of the Weaviate destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES weaviate-->
-
 ## Weaviate adapter
 
 The `weaviate_adapter` is a helper function that configures the resource for the Weaviate destination:
@@ -323,5 +316,4 @@ Currently, Weaviate destination does not support dbt.
 Weaviate destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA weaviate-->
-
 

@@ -128,13 +128,6 @@ pipeline = dlt.pipeline(
 )
 ```
 
-
-## Destination capabilities
-
-The following table shows the key capabilities of the Synapse destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES synapse-->
-
 ## Write disposition
 All write dispositions are supported.
 
@@ -242,5 +235,4 @@ Integration with [dbt](../transformations/dbt/dbt.md) is supported via `dbt-syna
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA synapse-->
-
 

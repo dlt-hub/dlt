@@ -158,13 +158,6 @@ will name the table `movies_db___movies` where `___` (3 underscores) is a config
 
 :::
 
-
-## Destination capabilities
-
-The following table shows the key capabilities of the Lancedb destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES lancedb-->
-
 ## Use an adapter to specify columns to vectorize
 
 Out of the box, LanceDB will act as a normal database. To use LanceDB's embedding facilities, you'll need to specify which fields you'd like to embed in your dlt resource.
@@ -216,7 +209,7 @@ If you plan to use `merge` write disposition, remember to [enable load ids](../v
 
 ## Access loaded data
 
-You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
+You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline 
 for loading and then use it for querying:
 ```py
 import dlt
@@ -375,5 +368,4 @@ The LanceDB destination doesn't support dbt integration.
 The LanceDB destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA lancedb-->
-
 
