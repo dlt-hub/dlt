@@ -9,6 +9,12 @@ keywords: [qdrant, vector database, destination, dlt]
 [Qdrant](https://qdrant.tech/) is an open-source, high-performance vector search engine/database. It deploys as an API service, providing a search for the nearest high-dimensional vectors.
 This destination helps you load data into Qdrant from [dlt resources](../../general-usage/resource.md).
 
+## Destination capabilities
+
+The following table shows the capabilities of the Qdrant destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES qdrant-->
+
 ## Setup guide
 
 1. To use Qdrant as a destination, make sure `dlt` is installed with the `qdrant` extra:
