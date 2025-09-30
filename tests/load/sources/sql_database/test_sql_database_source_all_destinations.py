@@ -227,11 +227,12 @@ def test_load_mysql_data_load(
         backend=backend,
         reflection_level="minimal",
         backend_kwargs=backend_kwargs,
+        chunk_size=100,
         # table_adapter_callback=_double_as_decimal_adapter,
     )
 
     pipeline = destination_config.setup_pipeline("test_load_mysql_data_load", dev_mode=True)
-    load_info = pipeline.run(family_table, write_disposition="merge")
+    load_info = pipeline.run(family_table.add_limit(1), write_disposition="merge")
     assert_load_info(load_info)
     counts_1 = load_table_counts(pipeline, "family")
 
@@ -243,13 +244,14 @@ def test_load_mysql_data_load(
         reflection_level="minimal",
         # we also try to remove dialect automatically
         backend_kwargs={},
+        chunk_size=100,
         # table_adapter_callback=_double_as_decimal_adapter,
     )
-    load_info = pipeline.run(family_table, write_disposition="merge")
+    load_info = pipeline.run(family_table.add_limit(1), write_disposition="merge")
     assert_load_info(load_info)
     counts_2 = load_table_counts(pipeline, "family")
     # no duplicates
-    assert counts_1 == counts_2
+    assert counts_1 == counts_2 == {"family": 100}
 
 
 @pytest.mark.parametrize(
