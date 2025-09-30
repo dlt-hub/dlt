@@ -7,33 +7,27 @@ keywords: [dremio, iceberg, aws, glue catalog]
 # Dremio
 
 ## Install dlt with Dremio
-
 **To install the dlt library with Dremio and s3 dependencies:**
-
 ```sh
 pip install "dlt[dremio,s3]"
 ```
 
 ## Setup guide
-
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
+   ```sh
+   dlt init chess dremio
+   ```
+   > 💡 This command will initialize your pipeline with chess as the source and aws dremio as the destination using the filesystem staging destination.
 
-```sh
-dlt init chess dremio
-```
-
-> 💡 This command will initialize your pipeline with chess as the source and aws dremio as the destination using the filesystem staging destination.
 
 ### 2. Setup bucket storage and Dremio credentials
 
 First, install dependencies by running:
-
 ```sh
 pip install -r requirements.txt
 ```
-
 or with `pip install "dlt[dremio,s3]"` which will install `s3fs`, `pyarrow`, and `botocore` packages.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url` which holds the uploaded parquet files.
@@ -61,7 +55,6 @@ drivername="grpc" # either 'grpc' or 'grpc+tls'
 ```
 
 You can also pass a SqlAlchemy-like connection like below:
-
 ```toml
 [destination.dremio]
 staging_data_source="s3_staging"
@@ -69,7 +62,6 @@ credentials="grpc://<username>:<password>@<host>:<port>/<data_source>"
 ```
 
 If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** and **[destination.dremio.credentials]** sections above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
-
 ```toml
 [destination.filesystem.credentials]
 profile_name="dlt-ci-user"
@@ -84,7 +76,6 @@ The following table shows the capabilities of the Dremio destination:
 ## Write disposition
 
 `dremio` destination handles the write dispositions as follows:
-
 - `append`
 - `replace`
 - `merge`
@@ -114,9 +105,7 @@ Therefore, "Metastore" data sources, such as Hive or Glue, require that the data
 Using a staging destination is mandatory when using the Dremio destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
 
 ## Table partitioning and local sort
-
 Apache Iceberg table partitions and local sort properties can be configured as shown below:
-
 ```py
 import dlt
 from dlt.common.schema import TColumnSchema
@@ -132,13 +121,12 @@ from dlt.common.schema import TColumnSchema
 def my_table_resource():
   ...
 ```
-
 This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clauses being added to the `CREATE TABLE` DML statement.
 
-> **_Note:_** Table partition migration is not implemented. The table will need to be dropped and recreated to alter partitions or localsort.
+> ***Note:*** Table partition migration is not implemented. The table will need to be dropped and recreated to alter partitions or localsort.
 
 ### Syncing of `dlt` state
-
 - This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA dremio-->
+

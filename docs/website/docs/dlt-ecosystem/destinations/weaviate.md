@@ -42,8 +42,8 @@ You can host your own Weaviate instance using Docker Compose, Kubernetes, or emb
 [destination.weaviate.credentials.additional_headers]
 X-OpenAI-Api-Key = "your-openai-api-key"
 ```
-
 The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for the Weaviate container.
+
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
@@ -107,7 +107,6 @@ weaviate_adapter(data, vectorize, tokenization)
 ```
 
 It accepts the following arguments:
-
 - `data`: a dlt resource object or a Python data structure (e.g., a list of dictionaries).
 - `vectorize`: a name of the field or a list of names that should be vectorized by Weaviate.
 - `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word". See [Property tokenization](https://weaviate.io/developers/weaviate/config-refs/schema#property-tokenization) in Weaviate documentation for more details.
@@ -123,7 +122,6 @@ weaviate_adapter(
     tokenization={"title": "word", "description": "whitespace"},
 )
 ```
-
 When using the `weaviate_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
 
 ```py
@@ -184,6 +182,7 @@ info = pipeline.run(
 ```
 
 Internally, dlt will use `primary_key` (`document_id` in the example above) to generate a unique identifier ([UUID](https://weaviate.io/developers/weaviate/manage-data/create#id)) for each object in Weaviate. If the object with the same UUID already exists in Weaviate, it will be updated with the new data. Otherwise, a new object will be created.
+
 
 :::warning
 
@@ -253,30 +252,24 @@ Here's a summary of the naming normalization approach:
 - Snake case and camel case remain unchanged: `snake_case_name` and `camelCaseName`.
 - Names starting with a capital letter have it lowercased: `CamelCase` -> `camelCase`
 - Names with multiple underscores, such as `Snake-______c__ase_`, are compacted to `snake_c_asex`. Except for the case when underscores are leading, in which case they are kept: `___snake_case_name` becomes `___snake_case_name`.
-- Names starting with a number are prefixed with a "p\_". For example, `123snake_case_name` becomes `p_123snake_case_name`.
+- Names starting with a number are prefixed with a "p_". For example, `123snake_case_name` becomes `p_123snake_case_name`.
 
 #### Reserved property names
 
 Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id` becomes `__id` and `_id` is rendered as `___id`.
 
 ### Case insensitive naming convention
-
 The default naming convention described above will preserve the casing of the properties (besides the first letter which is lowercased). This generates nice classes in Weaviate but also requires that your input data does not have clashing property names when comparing case insensitively (i.e., `caseName` == `casename`). In such cases, Weaviate destination will fail to create classes and report a conflict.
 
 You can configure an alternative naming convention which will lowercase all properties. The clashing properties will be merged and the classes created. Still, if you have a document where clashing properties like:
-
 ```json
-{ "camelCase": 1, "CamelCase": 2 }
+{"camelCase": 1, "CamelCase": 2}
 ```
-
 it will be normalized to:
-
 ```json
-{ "camelcase": 2 }
+{"camelcase": 2}
 ```
-
 so your best course of action is to clean up the data yourself before loading and use the default naming convention. Nevertheless, you can configure the alternative in `config.toml`:
-
 ```toml
 [schema]
 naming="dlt.destinations.impl.weaviate.ci_naming"
@@ -287,9 +280,9 @@ naming="dlt.destinations.impl.weaviate.ci_naming"
 - `batch_size`: (int) the number of items in the batch insert request. The default is 100.
 - `batch_workers`: (int) the maximal number of concurrent threads to run batch import. The default is 1.
 - `batch_consistency`: (str) the number of replica nodes in the cluster that must acknowledge a write or read request before it's considered successful. The available consistency levels include:
-  - `ONE`: Only one replica node needs to acknowledge.
-  - `QUORUM`: Majority of replica nodes (calculated as `replication_factor / 2 + 1`) must acknowledge.
-  - `ALL`: All replica nodes in the cluster must send a successful response.
+    - `ONE`: Only one replica node needs to acknowledge.
+    - `QUORUM`: Majority of replica nodes (calculated as `replication_factor / 2 + 1`) must acknowledge.
+    - `ALL`: All replica nodes in the cluster must send a successful response.
     The default is `ONE`.
 - `batch_retries`: (int) number of retries to create a batch that failed with ReadTimeout. The default is 5.
 - `dataset_separator`: (str) the separator to use when generating the class names in Weaviate.
@@ -313,13 +306,11 @@ This ensures the `generative-openai` module is used for generative queries.
 ### Run Weaviate fully standalone
 
 Below is an example that configures the **contextionary** vectorizer. You can put this into `config.toml`. This configuration does not need external APIs for vectorization and may be used fully offline.
-
 ```toml
 [destination.weaviate]
 vectorizer="text2vec-contextionary"
 module_config={text2vec-contextionary = { vectorizeClassName = false, vectorizePropertyName = true}}
 ```
-
 You can find Docker Compose with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl/weaviate/README.md).
 
 ### dbt support
