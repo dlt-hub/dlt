@@ -8,19 +8,16 @@ from typing import (
     ClassVar,
     Generic,
     Iterator,
+    Mapping,
+    MutableMapping,
     Optional,
     Union,
     Dict,
-    TypeVar,
     cast,
 )
 
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.common.typing import (
-    TAny,
-    TDataItem,
-    TDataItems,
-)
+from dlt.common.typing import TAny, TDataItem, TDataItems, TypeVar
 
 from dlt.extract.utils import (
     wrap_iterator,
@@ -34,7 +31,9 @@ ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
 ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
 
 
-TCustomMetrics = TypeVar("TCustomMetrics", covariant=True)
+TCustomMetrics = TypeVar(
+    "TCustomMetrics", covariant=True, bound=Mapping[str, Any], default=Dict[str, Any]
+)
 
 
 class BaseItemTransform(Generic[TCustomMetrics]):
@@ -74,7 +73,7 @@ class ItemTransform(BaseItemTransform[TCustomMetrics], ABC, Generic[TAny, TCusto
         pass
 
 
-class FilterItem(ItemTransform[bool, Dict[str, Any]]):
+class FilterItem(ItemTransform[bool]):
     # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[bool]
     _f: ItemTransformFunctionNoMeta[bool]
@@ -100,7 +99,7 @@ class FilterItem(ItemTransform[bool, Dict[str, Any]]):
                 return item if self._f(item) else None
 
 
-class MapItem(ItemTransform[TDataItem, Dict[str, Any]]):
+class MapItem(ItemTransform[TDataItem]):
     # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[TDataItem]
     _f: ItemTransformFunctionNoMeta[TDataItem]
@@ -122,7 +121,7 @@ class MapItem(ItemTransform[TDataItem, Dict[str, Any]]):
                 return self._f(item)
 
 
-class YieldMapItem(ItemTransform[Iterator[TDataItem], Dict[str, Any]]):
+class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
     # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[TDataItem]
     _f: ItemTransformFunctionNoMeta[TDataItem]
@@ -145,7 +144,7 @@ class YieldMapItem(ItemTransform[Iterator[TDataItem], Dict[str, Any]]):
                 yield from self._f(item)
 
 
-class ValidateItem(ItemTransform[TDataItem, Dict[str, Any]]):
+class ValidateItem(ItemTransform[TDataItem]):
     """Base class for validators of data items.
 
     Subclass should implement the `__call__` method to either return the data item(s) or raise `extract.exceptions.ValidationError`.
@@ -161,7 +160,7 @@ class ValidateItem(ItemTransform[TDataItem, Dict[str, Any]]):
         return self
 
 
-class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
+class LimitItem(ItemTransform[TDataItem]):
     placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
 
     def __init__(
