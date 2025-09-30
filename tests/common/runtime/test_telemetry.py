@@ -147,7 +147,10 @@ def test_track_anon_event(
     props = {"destination_name": "duckdb", "elapsed_time": 712.23123, "success": True}
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
         start_test_telemetry(config)
-        requests_post = mocker.spy(anon_tracker.requests, "post")
+        requests_post = mocker.patch(
+            "dlt.common.runtime.anon_tracker.requests.post",
+            return_value=Mock(status_code=204),
+        )
         track("pipeline", "run", props)
         # this will send stuff
         disable_anon_tracker()
@@ -161,7 +164,7 @@ def test_track_anon_event(
         timeout=anon_tracker._REQUEST_TIMEOUT,
     )
     # was actually delivered
-    assert requests_post.spy_return.status_code == 204
+    assert requests_post.return_value.status_code == 204
 
     assert event["anonymousId"] == get_anonymous_id()
     assert event["event"] == "pipeline_run"
