@@ -177,9 +177,10 @@ def simulate_func_call(
     return sig, no_item_sig, bound_args
 
 
-def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> None:
+def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> Tuple[Optional[inspect.Parameter], Optional[inspect.Parameter]]:
     sig_arg_count = len(sig.parameters)
     callable_name = get_callable_name(f)
+    d = {}
 
     if sig_arg_count == 0:
         raise InvalidStepFunctionArguments(name, callable_name, sig, "Function takes no arguments")
@@ -195,6 +196,9 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> No
                     sig,
                     f"'{param_name}' must be keyword-only or positional-or-keyword",
                 )
+            d[param_name] = param
+
+    return d.get("meta"), d.get("history")
 
 
 def wrap_iterator(gen: Iterator[TDataItems]) -> Iterator[TDataItems]:

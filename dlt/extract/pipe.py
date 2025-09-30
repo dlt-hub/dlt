@@ -399,14 +399,13 @@ class Pipe(SupportsPipe):
 
         # inspect signature
         sig = inspect.signature(step)
+        meta_arg, history_arg = check_compat_transformer(self.name, step, sig)
 
-        # Determine if `meta` or `history` are present
-        has_meta = "meta" in sig.parameters
-        has_history = "history" in sig.parameters
+        has_meta = meta_arg is not None
+        has_history = history_arg is not None
 
         # Prepare parameter list for patching
         params = list(sig.parameters.values())
-        new_sig = sig
 
         # Add meta if not present and not **kwargs
         if not has_meta:
