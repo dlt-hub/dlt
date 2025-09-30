@@ -667,7 +667,7 @@ def assert_cloned_pipes(pipes: List[Pipe], cloned_pipes: List[Pipe]) -> None:
 
 
 def test_circular_deps() -> None:
-    def pass_gen(item, meta):
+    def pass_gen(item, meta, history):
         yield item * 2
 
     c_p1_p3 = Pipe("c_p1_p3", [pass_gen])

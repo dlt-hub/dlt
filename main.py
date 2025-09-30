@@ -14,7 +14,7 @@ def fetch_orders(user_id: int):
 
 # Step 3: Fetch payments for each order, but retain original user_id via history
 @dlt.transformer(data_from=fetch_orders)
-def fetch_payments(order_id: str, history: dlt.History):
+def fetch_payments(order_id: str, history: dlt.History = None):
     user_id = history.user_ids  # Access top-level parent
     # request.get(user_id, order_id)
     yield {
