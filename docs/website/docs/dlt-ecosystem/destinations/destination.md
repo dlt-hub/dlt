@@ -19,6 +19,12 @@ To install `dlt` without additional dependencies:
 pip install dlt
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Custom destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES destination-->
+
 ## Set up a destination function for your pipeline
 
 The custom destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function that gets called for all items loaded during a pipeline run or load operation. With the `@dlt.destination`, you can convert any function that takes two arguments into a `dlt` destination.

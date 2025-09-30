@@ -12,6 +12,12 @@ keywords: [redshift, destination, data warehouse]
 pip install "dlt[redshift]"
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Redshift destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES redshift-->
+
 ## Setup guide
 ### 1. Initialize the dlt project
 

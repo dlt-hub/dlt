@@ -12,6 +12,12 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 pip install "dlt[mssql]"
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Mssql destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES mssql-->
+
 ## Setup guide
 
 ### Prerequisites
