@@ -32,13 +32,13 @@ DESTINATION_CAPABILITIES_DATA = [
     ("Concurrency", "Yes", "Supports concurrent data loading"),
     ("Error Handling", "Robust", "Comprehensive error handling"),
     ("Monitoring", "Yes", "Built-in monitoring and logging"),
-    ("Scalability", "High", "Designed for high-scale processing")
+    ("Scalability", "High", "Designed for high-scale processing"),
 ]
 
 
 def walk_sync(directory: str):
     """Yield all files in directory recursively"""
-    for root, _ , files in os.walk(directory):
+    for root, _, files in os.walk(directory):
         for file in files:
             yield os.path.join(root, file)
 
@@ -50,8 +50,9 @@ def get_impl_destination_names() -> set[str]:
         return set()
 
     try:
-        source_dirs = [d for d in os.listdir(MD_SOURCE_DIR)
-                      if os.path.isdir(os.path.join(MD_SOURCE_DIR, d))]
+        source_dirs = [
+            d for d in os.listdir(MD_SOURCE_DIR) if os.path.isdir(os.path.join(MD_SOURCE_DIR, d))
+        ]
         return set(source_dirs)
     except OSError as e:
         print(f"Error reading source directory {MD_SOURCE_DIR}: {e}")
@@ -68,7 +69,10 @@ def should_process_file(file_name: str, impl_destinations: set[str]) -> bool:
 
     # Check if destination exists in available destinations
     if destination_name not in impl_destinations:
-        print(f"Skipping {file_name} - no matching destination directory '{destination_name}' in {MD_SOURCE_DIR}")
+        print(
+            f"Skipping {file_name} - no matching destination directory '{destination_name}' in"
+            f" {MD_SOURCE_DIR}"
+        )
         return False
 
     return True
@@ -82,7 +86,7 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
     # Start building the table
     table_lines = [
         "| Capability | Value | Description |\n",
-        "|------------|-------|-------------|\n"
+        "|------------|-------|-------------|\n",
     ]
 
     # Add data rows dynamically
@@ -92,11 +96,16 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
         table_lines.append(f"| {capability} | {value} | {formatted_description} |\n")
 
     # Add footer
-    table_lines.extend([
-        "\n",
-        f"*This table shows the supported features of the {destination_name} destination in dlt.*\n",
-        "\n"
-    ])
+    table_lines.extend(
+        [
+            "\n",
+            (
+                f"*This table shows the supported features of the {destination_name} destination in"
+                " dlt.*\n"
+            ),
+            "\n",
+        ]
+    )
 
     return table_lines
 
@@ -104,7 +113,7 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
 def read_file_content(file_path: str) -> Optional[List[str]]:
     """Read file content and return lines, or None if error."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return f.readlines()
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")
@@ -114,13 +123,14 @@ def read_file_content(file_path: str) -> Optional[List[str]]:
 def write_file_content(file_path: str, lines: List[str]) -> bool:
     """Write content to file. Returns True if successful."""
     try:
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
         print(f"Processed: {file_path} (markers replaced)")
         return True
     except Exception as e:
         print(f"Error writing file {file_path}: {e}")
         return False
+
 
 def process_markers(file_path: str, lines: List[str]) -> bool:
     """Process capabilities markers in file lines. Returns True if markers were found."""
@@ -134,7 +144,7 @@ def process_markers(file_path: str, lines: List[str]) -> bool:
             continue
         # Extract destination name from marker
         # Format: <!--@@@DLT_DESTINATION_CAPABILITIES destination_name-->
-        match = re.search(rf'{re.escape(CAPABILITIES_MARKER)}\s+(\w+)', line)
+        match = re.search(rf"{re.escape(CAPABILITIES_MARKER)}\s+(\w+)", line)
         if not match:
             new_lines.append(line)
             continue
