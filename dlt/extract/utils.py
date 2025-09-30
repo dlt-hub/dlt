@@ -163,19 +163,11 @@ def simulate_func_call(
     sig = inspect.signature(f)
     # simulate the call to the underlying callable
     no_item_sig = sig.replace(parameters=list(sig.parameters.values())[args_to_skip:])
-
-    # Auto-inject meta/history defaults if needed
-    if "meta" in no_item_sig.parameters and "meta" not in kwargs:
-        kwargs["meta"] = None
-    if "history" in no_item_sig.parameters and "history" not in kwargs:
-        kwargs["history"] = None
-
     try:
         bound_args = no_item_sig.bind(*args, **kwargs)
     except TypeError as v_ex:
         raise TypeError(f"{get_callable_name(f)}(): " + str(v_ex))
     return sig, no_item_sig, bound_args
-
 
 def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> Tuple[Optional[inspect.Parameter], Optional[inspect.Parameter]]:
     sig_arg_count = len(sig.parameters)
@@ -194,7 +186,7 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> Tu
                     name,
                     callable_name,
                     sig,
-                    f"'{param_name}' must be keyword-only or positional-or-keyword",
+                    f"'{param_name}' cannot be pos only argument ",
                 )
             d[param_name] = param
 
@@ -316,9 +308,7 @@ def wrap_compat_transformer(
 
     # If already compatible with meta and history, return as-is
     param_names = list(sig.parameters.keys())
-    if "meta" in param_names and "history" in param_names:
-        return f
-    if "meta" in param_names and len(param_names) == 2:
+    if "meta" in param_names and "history" in param_names and len(param_names) == 3:
         return f
 
     def _tx_partial(item: TDataItems, meta: Any = None, history: Any = None) -> Any:

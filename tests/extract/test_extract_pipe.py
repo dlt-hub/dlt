@@ -124,7 +124,7 @@ def test_add_step() -> None:
         assert item in data
         return item
 
-    def item_meta_step(item, meta):
+    def item_meta_step(item, meta, history):
         assert item in data
         assert meta is None
         return item
@@ -133,15 +133,15 @@ def test_add_step() -> None:
     p.append_step(item_meta_step)
     assert p.gen is data_iter
     assert p._gen_idx == 0
-    assert p.tail is item_meta_step
-    assert p.tail(3, None) == 3  # type: ignore[call-arg, operator]
+    assert p.tail.__name__ == item_meta_step.__name__
+    assert p.tail(3, None, None) == 3  # type: ignore[call-arg, operator]
     # the middle step should be wrapped
     mid = p.steps[1]
     assert mid is not item_step
     sig = inspect.signature(mid)  # type: ignore[arg-type]
 
     # includes meta
-    assert len(sig.parameters) == 2
+    assert len(sig.parameters) == 3
     # meta is ignored
     assert mid(2) == 2  # type: ignore[operator, call-arg]
     assert mid(2, meta="META>") == 2  # type: ignore[operator, call-arg]
@@ -190,7 +190,7 @@ def test_insert_remove_step() -> None:
     assert [pi.item for pi in _l] == [2, 4, 6]
 
     # add item with meta
-    def item_meta_step(item, meta):
+    def item_meta_step(item, meta, history):
         assert meta is None
         return item * 0.5
 
@@ -220,7 +220,7 @@ def test_insert_remove_step() -> None:
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item for pi in _l] == [-2, -4, -6]
 
-    # def tx_meta_minus(item, meta):
+    # def tx_meta_minus(item, meta, history):
     #     assert meta is None
     #     yield item*-2
 
@@ -228,7 +228,7 @@ def test_insert_remove_step() -> None:
     # _l = list(PipeIterator.from_pipe(p))
     # assert [pi.item for pi in _l] == [2, 4, 6]
 
-    def tx_minus(item, meta):
+    def tx_minus(item, meta, history):
         assert meta is None
         yield item * -4
 
@@ -302,7 +302,7 @@ def test_pipe_propagate_meta() -> None:
     # pass meta through mapping functions
     p = Pipe.from_data("data", iter(meta_data))
 
-    def item_meta_step(item: int, meta):
+    def item_meta_step(item: int, meta, history):
         assert _meta[item - 1] == meta
         return item * 2
 
@@ -319,7 +319,7 @@ def test_pipe_propagate_meta() -> None:
     def transformer(item):
         yield item * item
 
-    def item_meta_step_trans(item: int, meta):
+    def item_meta_step_trans(item: int, meta, history):
         # reverse all transformations on item
         meta_idx = int(item**0.5 // 2)
         assert _meta[meta_idx - 1] == meta
@@ -366,7 +366,7 @@ def test_pipe_transformation_changes_meta() -> None:
     meta_data = [DataItemWithMeta(m, d) for m, d in zip(_meta, data)]
     p = Pipe.from_data("data", iter(meta_data))
 
-    def item_meta_step(item: int, meta):
+    def item_meta_step(item: int, meta, history):
         assert _meta[item - 1] == meta
         # return meta, it should overwrite existing one
         return DataItemWithMeta("X" + str(item), item * 2)
@@ -378,7 +378,7 @@ def test_pipe_transformation_changes_meta() -> None:
 
     # also works for deferred transformations
     @dlt.defer
-    def item_meta_step_defer(item: int, meta):
+    def item_meta_step_defer(item: int, meta, history):
         assert _meta[item - 1] == meta
         sleep(item * 0.2)
         # return meta, it should overwrite existing one
@@ -391,7 +391,7 @@ def test_pipe_transformation_changes_meta() -> None:
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
     # also works for yielding transformations
-    def item_meta_step_flat(item: int, meta):
+    def item_meta_step_flat(item: int, meta, history):
         assert _meta[item - 1] == meta
         # return meta, it should overwrite existing one
         yield DataItemWithMeta("X" + str(item), item * 2)
@@ -403,7 +403,7 @@ def test_pipe_transformation_changes_meta() -> None:
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
     # also works for async
-    async def item_meta_step_async(item: int, meta):
+    async def item_meta_step_async(item: int, meta, history):
         assert _meta[item - 1] == meta
         await asyncio.sleep(item * 0.2)
         # this returns awaitable
@@ -479,10 +479,10 @@ def test_filter_step() -> None:
     # package items into meta wrapper
     meta_data = [DataItemWithMeta(m, d) for m, d in zip(meta, data)]
     p = Pipe.from_data("data", meta_data)
-    p.append_step(FilterItem(lambda _, meta: bool(meta)))
+    p.append_step(FilterItem(lambda _, meta: bool(meta, history)))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [1, 2]
 
-    # try the lambda that takes only item (no meta)
+    # try the lambda that takes only item (no meta, history)
     p = Pipe.from_data("data", [1, 2, 3, 4])
     p.append_step(FilterItem(lambda item: item % 2 == 0))
     assert _f_items(list(PipeIterator.from_pipe(p))) == [2, 4]
@@ -508,7 +508,7 @@ def test_map_step() -> None:
     # package items into meta wrapper
     meta_data = [DataItemWithMeta(m, d) for m, d in zip(meta, data)]
     p = Pipe.from_data("data", meta_data)
-    p.append_step(MapItem(lambda item, meta: item * meta))
+    p.append_step(MapItem(lambda item, meta: item * meta, history))
     assert _f_items(list(PipeIterator.from_pipe(p))) == ["A", "BB", "CCC"]
 
 
@@ -620,7 +620,7 @@ def test_clone_single_pipe() -> None:
 
 
 def test_clone_pipes() -> None:
-    def pass_gen(item, meta):
+    def pass_gen(item, meta, history):
         yield item * 2
 
     data = [1, 2, 3]
