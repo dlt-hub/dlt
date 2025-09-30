@@ -38,7 +38,7 @@ To set up a Postgres user, follow these steps:
     GRANT CREATE ON DATABASE dlt_data TO replication_user;
     ```
 
-3. The user must have ownership of the tables that need to be replicated:
+3. If not a superuser, the user must have ownership of the tables that need to be replicated:
     ```sql
    ALTER TABLE your_table OWNER TO replication_user;  
     ```
@@ -69,36 +69,16 @@ To get started with your data pipeline, follow these steps:
    dlt init pg_replication duckdb
    ```
     
-   It will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with a Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
-   The example below make use of the `init_replication` helper from the `pg_replication` source.  
-   When you run `init_replication`, Postgres is prepared for logical replication: a publication is created and tables (or the whole schema) are added, a replication slot is created, and—if `persist_snapshots=True` snapshot tables are generated to capture the initial state.
-
-   To perform these steps your Postgres user needs the following permissions: 
-   - `CREATE` on the database (or superuser) to create publications  
-   - Ownership of the publication and tables to add them  
-   - Superuser privileges if replicating an entire schema  
-   - `SELECT` on source tables and `CREATE` on the target schema for snapshots  
-   - Superuser or the `REPLICATION` attribute for replication slot operations
+   It will initialize [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with a Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
     
-    
-2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations).
-    
-3. This source uses the `sql_database` source; you can initialize it as follows:
-    
+2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations). For example:
    ```sh
-   dlt init sql_database duckdb
+   dlt init pg_replication bigquery
    ```
-   :::note
-   It is important to note that it is now only required if a user performs an initial load, specifically when `persist_snapshots` is set to `True`.
-   :::
-    
-4. After running these two commands, a new directory will be created with the necessary files and configuration settings to get started.
+       
+3. After running the command, a new directory will be created with the necessary files and configuration settings to get started.
    
    For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
-
-   :::note
-   You can omit the `[sql.sources.credentials]` section in `secrets.toml` as it is not required.
-   :::
 
 
 ### Add credentials
@@ -123,21 +103,22 @@ To get started with your data pipeline, follow these steps:
    sources.pg_replication.credentials="postgresql://username@password.host:port/database"
    ```
 
-3. Finally, follow the instructions in [Destinations](../../dlt-ecosystem/destinations/) to add credentials for your chosen destination. This will ensure that your data is properly routed.
+3. Finally, follow the instructions in the [Destinations section](../../dlt-ecosystem/destinations/) to add credentials for your chosen destination.
+
 
 For more information, read the [Configuration section.](../../general-usage/credentials)
 
 ## Run the pipeline
 
-1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+1. Ensure that you have installed all the necessary dependencies by running:
    ```sh
    pip install -r requirements.txt
    ```
-2. You're now ready to run the pipeline! To get started, run the following command:
+2. You're now ready to run the pipeline with the following command:
    ```sh
    python pg_replication_pipeline.py
    ```
-3. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+3. Once the pipeline has finished running, you can verify that everything loaded correctly with:
    ```sh
    dlt pipeline <pipeline_name> show
    ```
@@ -202,7 +183,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    You can configure and use the `get_postgres_pipeline()` function available in the `pg_replication_pipeline.py` file to achieve the same functionality. 
 
    :::note IMPORTANT
-    When working with large datasets from a Postgres database, it's important to consider the relevance of the source pipeline. For testing purposes, using the source pipeline can be beneficial to try out the data flow. However, in production use cases, there will likely be another process that mutates the Postgres database. In such cases, the user generally only needs to define a destination pipeline.
+    When working with large datasets from a Postgres database, it's important to consider the relevance of the source pipeline. For testing purposes, using the source pipeline can be beneficial to try out the data flow. However, in production use cases, there will likely be another process that mutates the Postgres database. In such cases, the user generally only needs to define a destination pipeline, as shown in `replicate_single_table_with_initial_load()`.
    :::
 
     
@@ -224,7 +205,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    pub_name = "example_pub"
    ```
     
-4. To initialize replication, you can use the `init_replication` function. A user can use this function to let `dlt` configure Postgres and make it ready for replication.
+4. To initialize replication, you can use the `init_replication` function. This function configures Postgres for logical replication by creating the necessary replication slot and publication.
     
    ```py
    # requires the Postgres user to have the REPLICATION attribute assigned
@@ -238,7 +219,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```
     
    :::note
-   To replicate the entire schema, you can omit the `table_names` argument from the `init_replication` function.
+   To replicate the entire schema, you can omit the `table_names` argument from the `init_replication` function. If table names are explicitly specified, the Postgres user must own the tables or be a superuser.
    :::
 
 5. To snapshot the data to the destination during the initial load, you can use the `persist_snapshots=True` argument as follows:
@@ -252,6 +233,10 @@ If you wish to create your own pipelines, you can leverage source and resource m
         reset=True,
     )
    ```
+   :::note
+   An initial load as shown above is needed in most cases because replication slots only capture changes that occur after the slot is created. Without snapshots, you'd miss all existing data in the tables.
+   :::
+
 
 6. To load this snapshot to the destination, run the destination pipeline as:
     
