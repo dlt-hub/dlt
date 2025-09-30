@@ -74,6 +74,12 @@ profile_name="dlt-ci-user"
 profile_name="dlt-ci-user"
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Athena destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES athena-->
+
 ## Additional destination configuration
 
 You can provide an Athena workgroup like so:

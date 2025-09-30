@@ -6,8 +6,16 @@ keywords: [Snowflake, destination, data warehouse]
 
 # Snowflake
 
+## Destination capabilities
+
+The following table shows the capabilities of the Snowflake destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->
+
 ## Install `dlt` with Snowflake
+
 **To install the `dlt` library with Snowflake dependencies, run:**
+
 ```sh
 pip install "dlt[snowflake]"
 ```
@@ -15,14 +23,17 @@ pip install "dlt[snowflake]"
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to Snowflake by running:**
+
 ```sh
 dlt init chess snowflake
 ```
 
 **2. Install the necessary dependencies for Snowflake by running:**
+
 ```sh
 pip install -r requirements.txt
 ```
+
 This will install `dlt` with the `snowflake` extra, which contains the Snowflake Python dbapi client.
 
 **3. Create a new database, user, and give `dlt` access.**
@@ -31,6 +42,7 @@ Read the next chapter below.
 
 **4. Enter your credentials into `.dlt/secrets.toml`.**
 It should now look like this:
+
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
@@ -40,12 +52,15 @@ host = "kgiotue-wn98412"
 warehouse = "COMPUTE_WH"
 role = "DLT_LOADER_ROLE"
 ```
+
 In the case of Snowflake, the **host** is your [Account Identifier](https://docs.snowflake.com/en/user-guide/admin-account-identifier). You can get it in **Admin**/**Accounts** by copying the account URL: https://kgiotue-wn98412.snowflakecomputing.com and extracting the host name (**kgiotue-wn98412**).
 
 The **warehouse** and **role** are optional if you assign defaults to your user. In the example below, we do not do that, so we set them explicitly.
 
 ### Set up the database user and permissions
+
 The instructions below assume that you use the default account setup that you get after creating a Snowflake account. You should have a default warehouse named **COMPUTE_WH** and a Snowflake account. Below, we create a new database, user, and assign permissions. The permissions are very generous. A more experienced user can easily reduce `dlt` permissions to just one schema in the database.
+
 ```sql
 -- create database with standard settings
 CREATE DATABASE dlt_data;
@@ -72,6 +87,7 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 ### Authentication types
 
 Snowflake destination accepts three authentication types:
+
 - Password authentication
 - [Key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
 - OAuth authentication
@@ -79,6 +95,7 @@ Snowflake destination accepts three authentication types:
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
 You can also pass credentials as a database connection string. For example:
+
 ```toml
 # Keep it at the top of your TOML file, before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
@@ -116,8 +133,8 @@ If you prefer to just pass a path to a private key file (in one of the formats a
 
 `DESTINATION__SNOWFLAKE__PRIVATE_KEY_PATH=path_to_pem.pem`
 
-
 In **OAuth authentication**, you can use an OAuth provider like Snowflake, Okta, or an external browser to authenticate. In the case of Snowflake OAuth, you pass your `authenticator` and refresh `token` as below:
+
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
@@ -125,6 +142,7 @@ username = "loader"
 authenticator="oauth"
 token="..."
 ```
+
 or in the connection string as query parameters.
 
 In the case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
@@ -167,6 +185,7 @@ keep_staged_files = false
 :::
 
 ### Data types
+
 `snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 
 - **Precision**: Allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 9. It can be used in combination with the `timezone` flag.
@@ -175,6 +194,7 @@ keep_staged_files = false
   - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP_TZ`.
 
 #### Example precision and timezone: TIMESTAMP_NTZ(3)
+
 ```py
 @dlt.resource(
     columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
@@ -188,15 +208,17 @@ pipeline.run(events())
 ```
 
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
-* [JSONL](../file-formats/jsonl.md) is supported.
-* [CSV](../file-formats/csv.md) is supported.
+
+- [insert-values](../file-formats/insert-format.md) is used by default.
+- [Parquet](../file-formats/parquet.md) is supported.
+- [JSONL](../file-formats/jsonl.md) is supported.
+- [CSV](../file-formats/csv.md) is supported.
 
 When staging is enabled:
-* [JSONL](../file-formats/jsonl.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
-* [CSV](../file-formats/csv.md) is supported.
+
+- [JSONL](../file-formats/jsonl.md) is used by default.
+- [Parquet](../file-formats/parquet.md) is supported.
+- [CSV](../file-formats/csv.md) is supported.
 
 :::warning
 When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
@@ -209,35 +231,41 @@ To enable the vectorized scanner, add the following to your configuration:
 [destination.snowflake]
 use_vectorized_scanner=true
 ```
+
 :::note
-The  **vectorized scanner** explicitly displays `NULL` values in the output and has specific characteristics. Please refer to the official Snowflake documentation.
+The **vectorized scanner** explicitly displays `NULL` values in the output and has specific characteristics. Please refer to the official Snowflake documentation.
 :::
 
 ### Custom CSV formats
+
 By default, we support the CSV format [produced by our writers](../file-formats/csv.md#default-settings), which is comma-delimited, with a header, and optionally quoted.
 
 You can configure your own formatting, i.e., when [importing](../../general-usage/resource.md#import-external-files) external `csv` files.
+
 ```toml
 [destination.snowflake.csv_format]
 delimiter="|"
 include_header=false
 on_error_continue=true
 ```
+
 This will read a `|` delimited file, without a header, and will continue on errors.
 
 Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and we will insert NULL into them.
 
 ## Supported column hints
+
 Snowflake supports the following [column hints](../../general-usage/schema#tables-and-columns):
-* `cluster` - Creates a cluster column(s). Many columns per table are supported and only when a new table is created.
-* `unique` - Creates UNIQUE hint on a Snowflake column, can be added to many columns. ([optional](#additional-destination-options))
-* `primary_key` - Creates PRIMARY KEY on selected column(s), may be compound. ([optional](#additional-destination-options))
+
+- `cluster` - Creates a cluster column(s). Many columns per table are supported and only when a new table is created.
+- `unique` - Creates UNIQUE hint on a Snowflake column, can be added to many columns. ([optional](#additional-destination-options))
+- `primary_key` - Creates PRIMARY KEY on selected column(s), may be compound. ([optional](#additional-destination-options))
 
 `unique` and `primary_key` are not enforced and `dlt` does not instruct Snowflake to `RELY` on them when
 query planning.
 
-
 ## Table and column identifiers
+
 Snowflake supports both case-sensitive and case-insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case-insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case-insensitive identifiers. Case-sensitive (like **sql_cs_v1**) will generate
 case-sensitive identifiers that must be quoted in SQL statements.
 
@@ -256,11 +284,11 @@ Alternatively to Parquet files, you can also specify jsonl as the staging file f
 Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For S3, the `dlt` loader will use the AWS credentials provided for S3 to access the S3 bucket if not specified otherwise (see config options below). Alternatively, you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
 The basic steps are as follows:
 
-* Create a storage integration linked to GCS and the right bucket.
-* Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
-* Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
-* Also grant access to this stage for the role you are using to load data into Snowflake.
-* Provide the name of your stage (including the namespace) to `dlt` like so:
+- Create a storage integration linked to GCS and the right bucket.
+- Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
+- Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
+- Also grant access to this stage for the role you are using to load data into Snowflake.
+- Provide the name of your stage (including the namespace) to `dlt` like so:
 
 To prevent `dlt` from forwarding the S3 bucket credentials on every command, and set your S3 stage, change these settings:
 
@@ -297,11 +325,11 @@ pipeline = dlt.pipeline(
 
 Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your bucket with the bucket_url and credentials. For GCS, you can define a stage in Snowflake and provide the stage identifier in the configuration (see config options below). Please consult the Snowflake Documentation on [how to create a stage for your GCS Bucket](https://docs.snowflake.com/en/user-guide/data-load-gcs-config). The basic steps are as follows:
 
-* Create a storage integration linked to GCS and the right bucket.
-* Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
-* Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
-* Also grant access to this stage for the role you are using to load data into Snowflake.
-* Provide the name of your stage (including the namespace) to `dlt` like so:
+- Create a storage integration linked to GCS and the right bucket.
+- Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
+- Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
+- Also grant access to this stage for the role you are using to load data into Snowflake.
+- Provide the name of your stage (including the namespace) to `dlt` like so:
 
 ```toml
 [destination]
@@ -336,11 +364,11 @@ pipeline = dlt.pipeline(
 
 Please refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure-blob-storage) to learn how to set up your bucket with the bucket_url and credentials. For Azure, the Snowflake loader will use the filesystem credentials for your Azure Blob Storage container if not specified otherwise (see config options below). Alternatively, you can define an external stage in Snowflake and provide the stage identifier. Please consult the Snowflake Documentation on [how to create a stage for your Azure Blob Storage Container](https://docs.snowflake.com/en/user-guide/data-load-azure). The basic steps are as follows:
 
-* Create a storage integration linked to Azure Blob Storage and the right container.
-* Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
-* Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
-* Also, grant access to this stage for the role you are using to load data into Snowflake.
-* Provide the name of your stage (including the namespace) to `dlt` like so:
+- Create a storage integration linked to Azure Blob Storage and the right container.
+- Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
+- Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
+- Also, grant access to this stage for the role you are using to load data into Snowflake.
+- Provide the name of your stage (including the namespace) to `dlt` like so:
 
 ```toml
 [destination]
@@ -399,7 +427,9 @@ delimiter="|"
 include_header=false
 on_error_continue=true
 ```
+
 or
+
 ```py
 from dlt.destinations import snowflake
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -408,6 +438,7 @@ csv_format = CsvFormatConfiguration(delimiter="|", include_header=False, on_erro
 
 dest_ = snowflake(csv_format=csv_format)
 ```
+
 Above, we set the CSV file format without a header, with **|** as a separator, and we request to ignore lines with errors.
 
 :::tip
@@ -417,11 +448,12 @@ You'll need these settings when [importing external files](../../general-usage/r
 ### Query tagging
 
 `dlt` [tags sessions](https://docs.snowflake.com/en/sql-reference/parameters#query-tag) that execute loading jobs with the following job properties:
-* **source** - name of the source (identical with the name of the `dlt` schema)
-* **resource** - name of the resource (if known, else empty string)
-* **table** - name of the table loaded by the job
-* **load_id** - load id of the job
-* **pipeline_name** - name of the active pipeline (or empty string if not found)
+
+- **source** - name of the source (identical with the name of the `dlt` schema)
+- **resource** - name of the resource (if known, else empty string)
+- **table** - name of the table loaded by the job
+- **load_id** - load id of the job
+- **pipeline_name** - name of the active pipeline (or empty string if not found)
 
 You can define a query tag by defining a query tag placeholder in Snowflake credentials:
 
@@ -429,22 +461,26 @@ You can define a query tag by defining a query tag placeholder in Snowflake cred
 [destination.snowflake]
 query_tag='{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
 ```
+
 which contains Python named formatters corresponding to tag names i.e., `{source}` will assume the name of the dlt source.
 
 :::note
+
 1. Query tagging is off by default. The `query_tag` configuration field is `None` by default and must be set to enable tagging.
 2. Only sessions associated with a job are tagged. Sessions that migrate schemas remain untagged.
 3. Jobs processing table chains (i.e., SQL merge jobs) will use the top-level table as **table**.
-:::
+   :::
 
 ### dbt support
+
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication are supported and shared with dbt runners.
 
 ### Syncing of `dlt` state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ### Snowflake connection identifier
+
 We enable Snowflake to identify that the connection is created by `dlt`. Snowflake will use this identifier to better understand the usage patterns associated with `dlt` integration. The connection identifier is `dltHub_dlt`.
 
 <!--@@@DLT_TUBA snowflake-->
-
