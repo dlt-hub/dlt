@@ -6,12 +6,6 @@ keywords: [MotherDuck, duckdb, destination, data warehouse, DuckLake]
 
 # MotherDuck / DuckLake
 
-## Destination capabilities
-
-The following table shows the capabilities of the MotherDuck destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
-
 ## Install dlt with MotherDuck
 **To install the dlt library with MotherDuck dependencies:**
 ```sh

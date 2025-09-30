@@ -6,12 +6,6 @@ keywords: [Snowflake, destination, data warehouse]
 
 # Snowflake
 
-## Destination capabilities
-
-The following table shows the capabilities of the Snowflake destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->
-
 ## Install `dlt` with Snowflake
 **To install the `dlt` library with Snowflake dependencies, run:**
 ```sh

@@ -96,12 +96,6 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 
     Go to "Catalog" and click "Create Catalog". Name your catalog and select the storage location you created in the previous step.
 
-## Destination capabilities
-
-The following table shows the capabilities of the Databricks destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES databricks-->
-
 ## Authentication
 
 `dlt` currently supports two options for authentication:
