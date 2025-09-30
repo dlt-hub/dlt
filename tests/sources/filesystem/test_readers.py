@@ -43,9 +43,7 @@ def _create_parquet_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> 
         relative_path=file_name,
         file_url=full_file_path.as_uri(),
         mime_type="application/parquet",
-        modification_date=pendulum.DateTime(
-            2025, 1, 1, 0, 0, 0, 0, tzinfo=pendulum.Timezone("UTC")
-        ),
+        modification_date=pendulum.DateTime(2025, 1, 1, 0, 0, 0, 0),
         size_in_bytes=111,
     )
 
@@ -64,9 +62,7 @@ def _create_csv_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> File
         relative_path=file_name,
         file_url=full_file_path.as_uri(),
         mime_type="text/csv",
-        modification_date=pendulum.DateTime(
-            2025, 1, 1, 0, 0, 0, 0, tzinfo=pendulum.Timezone("UTC")
-        ),
+        modification_date=pendulum.DateTime(2025, 1, 1, 0, 0, 0, 0),
         size_in_bytes=111,
     )
     return FileItemDict(mapping=file_item, fsspec=_fsspec_client(tmp_path))
@@ -85,9 +81,7 @@ def _create_jsonl_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> Fi
         relative_path=file_name,
         file_url=full_file_path.as_uri(),
         mime_type="text/jsonl",
-        modification_date=pendulum.DateTime(
-            2025, 1, 1, 0, 0, 0, 0, tzinfo=pendulum.Timezone("UTC")
-        ),
+        modification_date=pendulum.DateTime(2025, 1, 1, 0, 0, 0, 0),
         size_in_bytes=111,
     )
 
