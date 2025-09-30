@@ -1,7 +1,7 @@
 # from __future__ import annotations
 
 import dataclasses
-from typing import Any, ClassVar, Dict, Final, List, Optional, TYPE_CHECKING, Union
+from typing import ClassVar, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -18,6 +18,7 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbConnectionPool, Duc
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 
 
+DEFAULT_DUCKLAKE_NAME = "ducklake"
 DUCKLAKE_STORAGE_PATTERN = "%s.files"
 
 
@@ -33,12 +34,12 @@ def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
 
 @configspec(init=False)
 class DuckLakeCredentials(DuckDbBaseCredentials):
-    ducklake_name: str = "ducklake"
-    catalog: ConnectionStringCredentials = None
+    ducklake_name: str
+    catalog: ConnectionStringCredentials
     # NOTE: consider moving to DuckLakeClientConfiguration so bucket_url is not a secret
-    storage: FilesystemConfiguration = None
+    storage: FilesystemConfiguration
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["ducklake_name", "catalog", "storage"]
+    __config_gen_annotations__: ClassVar[list[str]] = ["ducklake_name", "catalog", "storage"]
 
     def __init__(
         self,
