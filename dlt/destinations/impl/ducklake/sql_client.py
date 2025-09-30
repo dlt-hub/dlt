@@ -57,7 +57,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             # NOTE: database must be detached otherwise it is left in inconsistent state
             # TODO: perhaps move attach/detach to connection pool
             self._conn.execute(self.attach_statement)
-            self._conn.execute(f"USE {self.credentials.catalog_name};")
+            self._conn.execute(f"USE {self.credentials.ducklake_name};")
             # search path can only by set after database is attached
             try:
                 self._conn.execute(f"SET search_path = '{self.fully_qualified_dataset_name()}'")
@@ -79,9 +79,9 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 pass
             # make sure catalog is attached
             current_db = self._conn.sql("SELECT current_database();").fetchone()[0]
-            if current_db == self.credentials.catalog_name:
+            if current_db == self.credentials.ducklake_name:
                 # `memory` is a name of initial memory database opened
-                self._conn.execute(f"USE memory;DETACH {self.credentials.catalog_name}")
+                self._conn.execute(f"USE memory;DETACH {self.credentials.ducklake_name}")
         return super().close_connection()
 
     def create_secret(
@@ -117,7 +117,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
     @staticmethod
     def build_attach_statement(
         *,
-        catalog_name: str,
+        ducklake_name: str,
         catalog: ConnectionStringCredentials,
         storage_url: str,
     ) -> str:
@@ -131,20 +131,20 @@ class DuckLakeSqlClient(DuckDbSqlClient):
 
             db_url = catalog.to_url().render_as_string(hide_password=False)
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog.drivername}:{db_url}'"
-            attach_params = f", METADATA_SCHEMA '{catalog_name}'"
+            attach_params = f", METADATA_SCHEMA '{ducklake_name}'"
         elif catalog.drivername == "md":
             logger.warning(
                 "Motherduck requires token present in the environment and will most probably crash."
             )
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:md:{catalog.database}'"
-            attach_params = f", METADATA_SCHEMA '{catalog_name}'"
+            attach_params = f", METADATA_SCHEMA '{ducklake_name}'"
         elif catalog.drivername in ("sqlite", "duckdb"):
             # attach sqllite with multi-process access
             attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{catalog.database}'"
             attach_params = ", META_TYPE 'sqlite', META_JOURNAL_MODE 'WAL', META_BUSY_TIMEOUT 1000"
         else:
             raise NotImplementedError(str(catalog))
-        attach_statement += f" AS {catalog_name}"
+        attach_statement += f" AS {ducklake_name}"
         attach_statement += f" (DATA_PATH '{storage_url}'{attach_params})"
         return attach_statement
 
@@ -155,7 +155,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             return self._attach_statement
         else:
             return self.build_attach_statement(
-                catalog_name=self.credentials.catalog_name,
+                ducklake_name=self.credentials.ducklake_name,
                 catalog=self.credentials.catalog,
                 storage_url=self.credentials.storage_url,
             )
