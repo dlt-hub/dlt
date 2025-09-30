@@ -35,19 +35,15 @@ Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to MS SQL by running:**
-
 ```sh
 dlt init chess sqlalchemy
 ```
 
 **2. Install the necessary dependencies for SQLAlchemy by running:**
-
 ```sh
 pip install -r requirements.txt
 ```
-
 or run:
-
 ```sh
 pip install "dlt[sqlalchemy]"
 ```
@@ -55,7 +51,6 @@ pip install "dlt[sqlalchemy]"
 **3. Install your database client library.**
 
 E.g., for MySQL:
-
 ```sh
 pip install mysqlclient
 ```
@@ -63,7 +58,6 @@ pip install mysqlclient
 **4. Enter your credentials into `.dlt/secrets.toml`.**
 
 For example, replace with your database connection info:
-
 ```toml
 [destination.sqlalchemy.credentials]
 database = "dlt_data"
@@ -106,7 +100,6 @@ pipeline = dlt.pipeline(
 ## Notes on SQLite
 
 ### Dataset files
-
 When using an SQLite database file, each dataset is stored in a separate file since SQLite does not support multiple schemas in a single database file.
 Under the hood, this uses [`ATTACH DATABASE`](https://www.sqlite.org/lang_attach.html).
 
@@ -118,7 +111,6 @@ is stored in `/home/me/data/chess_data__games.db`
 **Note**: If the dataset name is `main`, no additional file is created as this is the default SQLite database.
 
 ### In-memory databases
-
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
 To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
@@ -144,11 +136,9 @@ with engine.connect() as conn:
 ```
 
 ## Notes on other dialects
-
 We tested this destination on **mysql**, **sqlite** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
-
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
-   some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
+some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
 3. `merge` write disposition uses only `DELETE` and `INSERT` operations to enable as many dialects as possible.
 
@@ -156,20 +146,14 @@ Please report issues with particular dialects. We'll try to make them work.
 
 ### Trino limitations
 * Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
-* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
+* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables) 
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
 
-- Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
-- Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
-- We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
-- Trino does not support PRIMARY/UNIQUE constraints
 
 ### Adapting destination for a dialect
-
 You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
 converts `json` data into `text` on the fly.
-
 ```py
 from dlt.common import json
 
@@ -217,7 +201,6 @@ dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
 
 Custom type mapper is also useful when ie. you want to limit the length of the string. Below we are adding variant
 for `mssql` dialect:
-
 ```py
 import sqlalchemy as sa
 from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
@@ -240,6 +223,7 @@ class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
 When extending type mapper for mssql, mysql and trino start with MssqlVariantTypeMapper, MysqlVariantTypeMapper and
 TrinoVariantTypeMapper respectively
 :::
+
 
 ## Write dispositions
 
@@ -265,13 +249,11 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 
 ## Supported file formats
 
-- [typed-jsonl](../file-formats/jsonl.md) is used by default. JSON-encoded data with typing information included.
-- [Parquet](../file-formats/parquet.md) is supported.
+* [typed-jsonl](../file-formats/jsonl.md) is used by default. JSON-encoded data with typing information included.
+* [Parquet](../file-formats/parquet.md) is supported.
 
 ## Supported column hints
-
 No indexes or constraints are created on the table. You can enable the following via destination configuration
-
 ```toml
 [destination.sqlalchemy]
 create_unique_indexes=true

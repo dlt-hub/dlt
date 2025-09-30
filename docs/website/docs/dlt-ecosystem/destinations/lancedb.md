@@ -1,7 +1,7 @@
 ---
 title: LanceDB
 description: LanceDB is an open source vector database that can be used as a destination in dlt.
-keywords: [lancedb, vector database, destination, dlt]
+keywords: [ lancedb, vector database, destination, dlt ]
 ---
 
 # LanceDB
@@ -59,7 +59,6 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings. If you're using a provider that doesn't need authentication, such as Ollama, you don't need to supply this key.
 
 :::info Available model providers
-
 - "gemini-text"
 - "bedrock-text"
 - "cohere"
@@ -72,20 +71,18 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - "huggingface"
 - "colbert"
 - "ollama"
-  :::
+:::
 
 :::info
 Local database name and location:
 
 `lancedb` databases follow the same naming rules as `duckdb`:
-
 1. By default, the database file name is `<pipeline_name>.lancedb` and is placed in current working directory.
 2. For a named destination, database file name is `<destination name>.lancedb`
 3. The `:pipeline:` `lance_uri` will place database file in pipeline working folder
-   :::
+:::
 
 ### Configure cloud destination
-
 `lance_uri` starting with **db://** schema is interpreted as location on LandeDB cloud. In that case you need to pass `api_key` in order to connect. `dlt` uses [the same names as LanceDB connect() function](https://lancedb.github.io/lancedb/python/python/#connections-synchronous):
 
 ```toml
@@ -94,7 +91,6 @@ api_key = "api_key"
 region = "us-east-1"
 read_consistency_interval=2.5
 ```
-
 `read_consistency_interval` is None by default (no read consistency, `dlt` assumes that it is a single writer to particular table.)
 
 :::tip
@@ -157,7 +153,6 @@ To use **vector search** after loading, you **must specify which fields LanceDB 
 :::note
 We created `pipeline` without a dataset name. In the example above data is stored in `movies` table as expected. If dataset name is specified, `dlt` follows
 the same pattern as for other schema-less storages: it will prefix all the tables with `database_name`. For example:
-
 ```py
 pipeline = dlt.pipeline(
   pipeline_name="movies",
@@ -165,7 +160,6 @@ pipeline = dlt.pipeline(
   dataset_name="movies_db",
 )
 ```
-
 will name the table `movies_db___movies` where `___` (3 underscores) is a configurable separator.
 
 :::
@@ -214,16 +208,15 @@ info = pipeline.run(products_tables)
 ```
 
 ## Load data with Arrow or Pandas
-
 Both `dlt` and `LanceDB` support Arrow and Pandas natively. You will be able to [ingest data with high performance](../verified-sources/arrow-pandas.md) and without unnecessary rewrites and copies.
 
 If you plan to use `merge` write disposition, remember to [enable load ids](../verified-sources/) tracking for arrow tables.
 
+
 ## Access loaded data
 
-You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
+You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline 
 for loading and then use it for querying:
-
 ```py
 import dlt
 import lancedb
@@ -242,7 +235,6 @@ print(tbl.query("magic dog"))
 ```
 
 Alternatively you can get authenticated client from the pipeline:
-
 ```py
 import dlt
 from lancedb import DBConnection
@@ -262,7 +254,6 @@ with pipeline.destination_client() as job_client:
 ```
 
 ## Bring your own vectors
-
 By default `dlt` will add a vector column automatically using the embeddings indicated in `lancedb_adapter`. You can also choose to pass vector data explicitly. Currently this function is available only if
 you yield Arrow tables with properly created schema. Remember to declare your vector as fixed length:
 
@@ -340,6 +331,7 @@ It must be the first element of the `primary_key`.
 This `merge_key` is crucial for document identification and orphan removal during merge operations.
 This structure ensures proper record identification and maintains consistency with vector database concepts.
 
+
 #### Orphan Removal
 
 LanceDB **automatically removes orphaned chunks** when updating or deleting parent documents during a merge operation. To disable this feature:
@@ -369,7 +361,7 @@ This is the default disposition. It will append the data to the existing data in
 
 ## Additional destination options
 
-- `dataset_separator`: The character used to separate the dataset name from table names. Defaults to "\_\_\_".
+- `dataset_separator`: The character used to separate the dataset name from table names. Defaults to "___".
 - `vector_field_name`: The name of the special field to store vector embeddings. Defaults to "vector".
 - `max_retries`: The maximum number of retries for embedding operations. Set to 0 to disable retries. Defaults to 3.
 

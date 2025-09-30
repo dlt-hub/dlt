@@ -1,7 +1,7 @@
 ---
 title: ClickHouse
 description: ClickHouse `dlt` destination
-keywords: [clickhouse, destination, data warehouse]
+keywords: [ clickhouse, destination, data warehouse ]
 ---
 
 # ClickHouse
@@ -68,13 +68,13 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
    ```
 
    :::info Network Ports
-   The `http_port` parameter specifies the port number to use when connecting to the ClickHouse server's HTTP interface.
-   The default non-secure HTTP port for ClickHouse is `8123`.
-   This is different from the default port `9000`, which is used for the native TCP protocol.
+    The `http_port` parameter specifies the port number to use when connecting to the ClickHouse server's HTTP interface.
+    The default non-secure HTTP port for ClickHouse is `8123`.
+    This is different from the default port `9000`, which is used for the native TCP protocol.
 
-   You must additionaly set `http_port` if you are not using external staging (i.e., you don't set the `staging` destination parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
+    You must additionaly set `http_port` if you are not using external staging (i.e., you don't set the `staging` destination parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
 
-   Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example:
+    Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example:
 
    - If you set `http_port = 8123` (default non-secure HTTP port), then ClickHouse should be listening for HTTP requests on port 8123.
    - If you set `http_port = 8443`, then ClickHouse should be listening for secure HTTPS requests on port 8443.
@@ -104,12 +104,6 @@ table_engine_type = "merge_tree"                        # The default table engi
 dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
 staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
 ```
-
-## Destination capabilities
-
-The following table shows the capabilities of the ClickHouse destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES clickhouse-->
 
 ## Write disposition
 
@@ -264,3 +258,4 @@ we support datasets by prefixing the table names. You should take it into accoun
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA clickhouse-->
+
