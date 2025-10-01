@@ -69,12 +69,15 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         super().__init__(self.spec_name)
 
     @staticmethod
-    def _print_traces(
+    def _build_config_error_message(
         # spec_name: str, union_pos: int, union_count: int,
         spec_name: str,
         resolved_keys: List[str],
         traces: FieldLookupTraces,
     ) -> str:
+        """Takes in the configuration spec, the resolved key and the configuration resolution traces
+        to create a detailed exception / log message about failed configuration resolution.
+        """
         msg = ""
         for f, field_traces in traces.items():
             for idx, trace in enumerate(field_traces):
@@ -88,7 +91,7 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                         msg += f" (Union {trace.union_pos} of {trace.union_count})"
                     msg += "\n"
                     msg += textwrap.indent(
-                        ConfigFieldMissingException._print_traces(
+                        ConfigFieldMissingException._build_config_error_message(
                             trace.spec_name, trace.resolved_fields_set, trace.traces
                         ),
                         "  ",
@@ -113,7 +116,9 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
             f"Missing {len(self.fields)} field(s) in configuration`{self.spec_name}`:"
             f" {', '.join(f'`{f}`' for f in self.fields)}\n"
         )
-        msg += self._print_traces(self.spec_name, self.resolved_fields_set, self.traces)
+        msg += self._build_config_error_message(
+            self.spec_name, self.resolved_fields_set, self.traces
+        )
 
         from dlt.common.configuration.container import Container
         from dlt.common.configuration.specs import PluggableRunContext

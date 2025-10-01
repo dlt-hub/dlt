@@ -92,9 +92,9 @@ class DuckLakeClient(DuckDbClient):
 
     A DuckLake has 3 components:
         - ducklake client: this is a `duckdb` instance with the `ducklake` extension
-        - catalog_database: this is an SQL database storing metadata. It can be a duckdb instance
+        - catalog: this is an SQL database storing metadata. It can be a duckdb instance
             (typically the ducklake client) or a remote database (sqlite, postgres, mysql)
-        - data_storage: this is a filesystem where data is stored in files
+        - storage: this is a filesystem where data is stored in files
 
     The dlt DuckLake destination gives access to the "ducklake client".
     You never have to manage the catalog and storage directly;

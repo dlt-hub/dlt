@@ -38,13 +38,13 @@ def test_all_catalogs(catalog: str) -> None:
     """
     if catalog is None:
         # use destination alias
-        catalog_name = "ducklake_catalog"
+        ducklake_name = "ducklake"
         destination: TDestinationReferenceArg = "ducklake"
     else:
         # pick random catalog name so we isolate via postgres schema
-        catalog_name = "catalog_" + uniq_id(4)
+        ducklake_name = "ducklake_" + uniq_id(4)
         destination = ducklake(
-            credentials=DuckLakeCredentials(catalog_name=catalog_name, catalog=catalog)
+            credentials=DuckLakeCredentials(ducklake_name=ducklake_name, catalog=catalog)
         )
     pipeline = dlt.pipeline(
         "destination_defaults", destination=destination, dataset_name="lake_schema", dev_mode=True
@@ -68,7 +68,7 @@ def test_all_catalogs(catalog: str) -> None:
     assert ds.table_foo["foo"].fetchall() == [(1,), (2,)]
 
     # test lake location
-    expected_location = pathlib.Path(TEST_STORAGE_ROOT, DUCKLAKE_STORAGE_PATTERN % catalog_name)
+    expected_location = pathlib.Path(TEST_STORAGE_ROOT, DUCKLAKE_STORAGE_PATTERN % ducklake_name)
     assert expected_location.exists()
     # test dataset in lake
     assert (expected_location / pipeline.dataset_name).exists()

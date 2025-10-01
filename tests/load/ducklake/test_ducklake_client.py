@@ -12,6 +12,7 @@ from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DuckLakeClientConfiguration,
+    DEFAULT_DUCKLAKE_NAME,
 )
 
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
@@ -57,7 +58,7 @@ def test_default_credentials() -> None:
     assert credentials.is_partial() is True
     assert credentials.is_resolved() is False
 
-    assert credentials.catalog_name == "ducklake_catalog"
+    assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     assert credentials.catalog is None
     assert credentials.storage is None
 
@@ -66,6 +67,7 @@ def test_default_credentials() -> None:
     assert credentials.is_partial() is False
     assert credentials.is_resolved() is True
 
+    assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     assert credentials.catalog is not None
     assert credentials.catalog.drivername == "sqlite"
     assert credentials.storage is not None
@@ -73,34 +75,36 @@ def test_default_credentials() -> None:
 
 
 def test_ducklake_urls() -> None:
-    os.environ["DESTINATION__DUCKLAKE__CREDENTIALS__CATALOG_NAME"] = "env_ducklake_1"
+    os.environ["DESTINATION__DUCKLAKE__CREDENTIALS__DUCKLAKE_NAME"] = "env_ducklake_1"
     credentials = resolve_configuration(DuckLakeCredentials(), sections=("destination", "ducklake"))
-    assert credentials.catalog_name == "env_ducklake_1"
+    assert credentials.ducklake_name == "env_ducklake_1"
 
 
-def test_default_ducklake_configuration() -> None:
+def test_ducklake_configuration_default() -> None:
+    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
     # without pipeline context and destination name
     configuration = resolve_configuration(
         DuckLakeClientConfiguration()._bind_dataset_name(dataset_name="foo")
     )
-
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
     credentials = configuration.credentials
+
     assert credentials.is_partial() is False
     assert credentials.is_resolved() is True
-
-    assert credentials.catalog_name == "ducklake_catalog"
+    assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     # default catalog location should point to _storage (local_dir)
-    assert credentials.catalog.database == str(local_dir / "ducklake_catalog.sqlite")
+    assert credentials.catalog.database == str(local_dir / "ducklake.sqlite")
     # sqlite is default catalog
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.startswith("sqlite:")
-    assert conn_str.endswith(str(local_dir / "ducklake_catalog.sqlite"))
+    assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
     # storage in local dir, default name
-    assert credentials.storage_url == str(local_dir / "ducklake_catalog.files")
+    assert credentials.storage_url == str(local_dir / "ducklake.files")
     # file url
     assert credentials.storage.bucket_url.startswith("file://")
 
+
+def test_ducklake_configuration_duckdb_catalog() -> None:
+    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
     # plug default duckdb catalog
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -110,22 +114,30 @@ def test_default_ducklake_configuration() -> None:
         )._bind_dataset_name(dataset_name="foo")
     )
     credentials = configuration.credentials
-    assert credentials.catalog_name == "ducklake_catalog"
-    conn_str = credentials.catalog.to_native_representation()
-    assert conn_str.endswith(str(local_dir / "ducklake_catalog.duckdb"))
 
+    assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
+    conn_str = credentials.catalog.to_native_representation()
+    assert conn_str.endswith(str(local_dir / "ducklake.duckdb"))
+
+
+def test_ducklake_configuration_ducklake_name() -> None:
+    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
     # catalog name sets default locations
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
-            credentials=DuckLakeCredentials(catalog_name="custom_catalog")
+            credentials=DuckLakeCredentials(ducklake_name="my_ducklake")
         )._bind_dataset_name(dataset_name="foo")
     )
     credentials = configuration.credentials
-    assert credentials.catalog_name == "custom_catalog"
-    conn_str = credentials.catalog.to_native_representation()
-    assert conn_str.endswith(str(local_dir / "custom_catalog.sqlite"))
-    assert credentials.storage_url == str(local_dir / "custom_catalog.files")
 
+    assert credentials.ducklake_name == "my_ducklake"
+    conn_str = credentials.catalog.to_native_representation()
+    assert conn_str.endswith(str(local_dir / "my_ducklake.sqlite"))
+    assert credentials.storage_url == str(local_dir / "my_ducklake.files")
+
+
+def test_ducklake_configuration_destination_name() -> None:
+    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
     # destination name is set
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -134,10 +146,14 @@ def test_default_ducklake_configuration() -> None:
     )
     credentials = configuration.credentials
     # no impact on locations
-    assert credentials.catalog_name == "ducklake_catalog"
+    assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     conn_str = credentials.catalog.to_native_representation()
-    assert conn_str.endswith(str(local_dir / "ducklake_catalog.sqlite"))
-    assert credentials.storage_url == str(local_dir / "ducklake_catalog.files")
+    assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
+    assert credentials.storage_url == str(local_dir / "ducklake.files")
+
+
+def test_ducklake_configuration_pipeline_name() -> None:
+    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
 
     # pipeline name is set
     configuration = resolve_configuration(
@@ -146,33 +162,42 @@ def test_default_ducklake_configuration() -> None:
         )
     )
     credentials = configuration.credentials
-    assert credentials.catalog_name == "ducklake_catalog"
+
+    assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     # no impact on locations
     conn_str = credentials.catalog.to_native_representation()
-    assert conn_str.endswith(str(local_dir / "ducklake_catalog.sqlite"))
-    assert credentials.storage_url == str(local_dir / "ducklake_catalog.files")
+    assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
+    assert credentials.storage_url == str(local_dir / "ducklake.files")
 
+
+def test_ducklake_configuration_storage_credentials() -> None:
     # explicit values
     os.environ["CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "key"
     os.environ["CREDENTIALS__AWS_ACCESS_KEY_ID"] = "id"
+
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
             destination_name="named_lake",
             credentials=DuckLakeCredentials(
-                "explicit_ducklake",
+                "my_ducklake",
                 catalog="postgresql://loader:loader@localhost:5432/dlt_data",
                 storage="s3://dlt-ci-test-bucket/lake",
             ),
         )._bind_dataset_name(dataset_name="foo")
     )
     credentials = configuration.credentials
-    assert credentials.catalog_name == "explicit_ducklake"
+
+    assert credentials.ducklake_name == "my_ducklake"
     assert (
         credentials.catalog.to_native_representation()
         == "postgresql://loader:loader@localhost:5432/dlt_data"
     )
     # NOTE: dataset folders will be created in /lake/
     assert credentials.storage_url == "s3://dlt-ci-test-bucket/lake"
+
+
+def test_ducklake_configuration_catalog_credentials() -> None:
+    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
 
     # explicit catalog
     configuration = resolve_configuration(
@@ -184,12 +209,13 @@ def test_default_ducklake_configuration() -> None:
         )._bind_dataset_name(dataset_name="foo")
     )
     credentials = configuration.credentials
-    assert credentials.catalog_name == "ducklake_catalog"
+
+    assert credentials.ducklake_name == DEFAULT_DUCKLAKE_NAME
     assert (
         credentials.catalog.to_native_representation()
         == "postgresql://loader:loader@localhost:5432/dlt_data"
     )
-    assert credentials.storage_url == str(local_dir / "ducklake_catalog.files")
+    assert credentials.storage_url == str(local_dir / "ducklake.files")
 
 
 def test_ducklake_attach_statement() -> None:
@@ -204,7 +230,7 @@ def test_ducklake_attach_statement() -> None:
 
     attach_statement = DuckLakeSqlClient.build_attach_statement(
         catalog=ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data"),
-        catalog_name="foo",
+        ducklake_name="foo",
         storage_url="/path/to/storage",
     )
 
@@ -222,7 +248,7 @@ def test_attach_statement_doesnt_use_postgresql() -> None:
     )
     attach_statement = DuckLakeSqlClient.build_attach_statement(
         catalog=ConnectionStringCredentials("postgresql://loader:loader@localhost:5432/dlt_data"),
-        catalog_name="foo",
+        ducklake_name="foo",
         storage_url="./path/to/storage",
     )
 
