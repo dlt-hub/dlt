@@ -44,7 +44,7 @@ def _format_value(value: Any) -> str:
     """Format value based on its type."""
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
-    elif hasattr(value, "__name__"):
+    elif hasattr(value, "__name__") and isinstance(value.__name__, str):
         return value.__name__
     return str(value)
 
