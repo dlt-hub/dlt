@@ -34,16 +34,16 @@ def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
 
 @configspec(init=False)
 class DuckLakeCredentials(DuckDbBaseCredentials):
-    ducklake_name: str
-    catalog: ConnectionStringCredentials
+    ducklake_name: str = DEFAULT_DUCKLAKE_NAME
+    catalog: ConnectionStringCredentials = None
     # NOTE: consider moving to DuckLakeClientConfiguration so bucket_url is not a secret
-    storage: FilesystemConfiguration
+    storage: FilesystemConfiguration = None
 
     __config_gen_annotations__: ClassVar[list[str]] = ["ducklake_name", "catalog", "storage"]
 
     def __init__(
         self,
-        ducklake_name: str = "ducklake",
+        ducklake_name: str = DEFAULT_DUCKLAKE_NAME,
         catalog: Union[str, ConnectionStringCredentials] = None,
         storage: Union[str, FilesystemConfiguration] = None,
     ) -> None:

@@ -57,7 +57,9 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             # NOTE: database must be detached otherwise it is left in inconsistent state
             # TODO: perhaps move attach/detach to connection pool
             self._conn.execute(self.attach_statement)
-            self._conn.execute(f"USE {self.capabilities.escape_identifier(self.credentials.ducklake_name)};")
+            self._conn.execute(
+                f"USE {self.capabilities.escape_identifier(self.credentials.ducklake_name)};"
+            )
             # search path can only by set after database is attached
             try:
                 self._conn.execute(f"SET search_path = '{self.fully_qualified_dataset_name()}'")

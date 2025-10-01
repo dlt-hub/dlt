@@ -116,7 +116,9 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
             f"Missing {len(self.fields)} field(s) in configuration`{self.spec_name}`:"
             f" {', '.join(f'`{f}`' for f in self.fields)}\n"
         )
-        msg += self._build_config_error_message(self.spec_name, self.resolved_fields_set, self.traces)
+        msg += self._build_config_error_message(
+            self.spec_name, self.resolved_fields_set, self.traces
+        )
 
         from dlt.common.configuration.container import Container
         from dlt.common.configuration.specs import PluggableRunContext
