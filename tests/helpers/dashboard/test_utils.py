@@ -2,20 +2,13 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from this import d
 
-from ibis import pi
 import marimo as mo
+import pyarrow
 import pytest
-import pandas as pd
-
-from dlt.sources._single_file_templates.fruitshop_pipeline import (
-    fruitshop as fruitshop_source,
-)
-import pendulum
-
 
 import dlt
+from dlt.common import pendulum
 from dlt.helpers.dashboard.config import DashboardConfiguration
 from dlt.helpers.dashboard.utils import (
     PICKLE_TRACE_FILE,
@@ -346,10 +339,10 @@ def test_get_query_result(pipeline: dlt.Pipeline):
     )
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
-        assert isinstance(result, pd.DataFrame)
+        assert isinstance(result, pyarrow.Table)
         assert len(result) == 1
         assert (
-            result.iloc[0]["count"] == 100
+            result[0][0].as_py() == 100
             if pipeline.pipeline_name == SUCCESS_PIPELINE_DUCKDB
             else 103
         )  #  merge does not work on filesystem
@@ -697,7 +690,7 @@ def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
     )
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert len(query_result) == 13
-        assert query_result.iloc[0]["name"] == "simon"
+        assert query_result[0][0].as_py() == "simon"
         assert not error_message
         assert not traceback_string
     else:

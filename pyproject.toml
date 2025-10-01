@@ -179,9 +179,9 @@ postgis = [
 ]
 workspace = [
     "duckdb>=0.9",
-    "ibis-framework[duckdb]>=10.5.0 ; python_version >= '3.10'",
+    "ibis-framework>=10.5.0 ; python_version >= '3.10'",
+    "duckdb",
     "pyarrow>=16.0.0",
-    "pandas>=2.1.4",
     "marimo>=0.14.5",
 ]
 dbml = [
