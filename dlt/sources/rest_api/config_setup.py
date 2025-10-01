@@ -102,6 +102,7 @@ class ProcessedParentData(NamedTuple):
     headers: Optional[Dict[str, Any]]
     params: Dict[str, Any]
     json: Optional[Dict[str, Any]]
+    data: Optional[Any]
     parent_record: Dict[str, Any]
 
 
@@ -328,19 +329,27 @@ def build_resource_dependency_graph(
             endpoint_resource["endpoint"]["path"], available_contexts
         )
 
-        # Find all expressions in params, json, or header, but error if any of them is not in available_contexts
+        # Find all expressions in params, json, data, or headers, but error if any of them
+        # are not in available_contexts
         params_expressions = _find_expressions(endpoint_resource["endpoint"].get("params", {}))
         _raise_if_any_not_in(params_expressions, available_contexts, message="params")
 
         json_expressions = _find_expressions(endpoint_resource["endpoint"].get("json", {}))
         _raise_if_any_not_in(json_expressions, available_contexts, message="json")
 
+        data_expressions = _find_expressions(endpoint_resource["endpoint"].get("data", {}))
+        _raise_if_any_not_in(data_expressions, available_contexts, message="data")
+
         headers_expressions = _find_expressions(endpoint_resource["endpoint"].get("headers", {}))
         _raise_if_any_not_in(headers_expressions, available_contexts, message="headers")
 
         resolved_params += _expressions_to_resolved_params(
             _filter_resource_expressions(
-                path_expressions | params_expressions | json_expressions | headers_expressions
+                path_expressions
+                | params_expressions
+                | json_expressions
+                | data_expressions
+                | headers_expressions
             )
         )
 
@@ -696,7 +705,7 @@ def _find_expressions(
             for key, val in value.items():
                 recursive_search(key)
                 recursive_search(val)
-        elif isinstance(value, list):
+        elif isinstance(value, (list, tuple)):
             for item in value:
                 recursive_search(item)
         elif isinstance(value, str):
@@ -743,6 +752,7 @@ def process_parent_data_item(
     headers: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
     request_json: Optional[Dict[str, Any]] = None,
+    request_data: Optional[Any] = None,
     include_from_parent: Optional[List[str]] = None,
     incremental: Optional[Incremental[Any]] = None,
     incremental_value_convert: Optional[Callable[..., Any]] = None,
@@ -754,6 +764,7 @@ def process_parent_data_item(
     expanded_headers = expand_placeholders(headers, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
     expanded_json = expand_placeholders(request_json, params_values, preserve_value_type=True)
+    expanded_data = expand_placeholders(request_data, params_values)
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
@@ -763,6 +774,7 @@ def process_parent_data_item(
         headers=expanded_headers,
         params=expanded_params,
         json=expanded_json,
+        data=expanded_data,
         parent_record=parent_record,
     )
 
@@ -877,7 +889,7 @@ def expand_placeholders(
             for k, v in obj.items()
         }
 
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple)):
         return [expand_placeholders(item, placeholders, preserve_value_type) for item in obj]
 
     return obj  # For other data types, do nothing
@@ -1016,6 +1028,7 @@ def paginate_dependent_resource(
     headers: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     json: Optional[Dict[str, Any]],
+    data: Optional[Any],
     paginator: Optional[BasePaginator],
     data_selector: Optional[jsonpath.TJsonPath],
     hooks: Optional[Dict[str, Any]],
@@ -1041,6 +1054,7 @@ def paginate_dependent_resource(
             headers=headers,
             params=params,
             request_json=json,
+            request_data=data,
             resolved_params=resolved_params,
             include_from_parent=include_from_parent,
             incremental=incremental_object,
@@ -1053,6 +1067,7 @@ def paginate_dependent_resource(
             headers=processed_data.headers,
             params=processed_data.params,
             json=processed_data.json,
+            data=processed_data.data,
             paginator=paginator,
             data_selector=data_selector,
             hooks=hooks,
@@ -1069,6 +1084,7 @@ def paginate_resource(
     headers: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     json: Optional[Dict[str, Any]],
+    data: Optional[Any],
     paginator: Optional[BasePaginator],
     data_selector: Optional[jsonpath.TJsonPath],
     hooks: Optional[Dict[str, Any]],
@@ -1096,6 +1112,7 @@ def paginate_resource(
     headers = expand_placeholders(headers, format_kwargs)
     params = expand_placeholders(params, format_kwargs)
     json = expand_placeholders(json, format_kwargs, preserve_value_type=True)
+    data = expand_placeholders(data, format_kwargs)
 
     yield from client.paginate(
         method=method,
@@ -1103,6 +1120,7 @@ def paginate_resource(
         headers=headers,
         params=params,
         json=json,
+        data=data,
         paginator=paginator,
         data_selector=data_selector,
         hooks=hooks,
