@@ -137,3 +137,21 @@ def test_history_with_meta():
         yield 1
 
     assert list(check())
+
+
+def test_history_special_branching_case():
+    @dlt.resource(keep_history=True)
+    def objects():
+        yield "test"
+
+    @dlt.transformer(data_from=objects, keep_history=True)
+    def more_objects(user):
+        yield from ["object1", "object2"]
+
+    @dlt.transformer(data_from=more_objects)
+    def check(item, meta=None, history: dlt.History = None):
+        print(item)
+        print(history)
+        yield 1
+
+    assert list(check())

@@ -72,7 +72,7 @@ class ForkPipe(ItemTransform[ResolvablePipeItem]):
             # add history info
             if pipe.parent is not None and pipe.parent.keep_history and pipe.name:
                 history = History() if history is EMPTY_HISTORY else history
-                history[pipe.parent.name] = _it
+                history = history.record(pipe.parent.name, _it)
             # always start at the beginning
             yield ResolvablePipeItem(_it, step, pipe, meta, history)
 
