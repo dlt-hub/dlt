@@ -431,8 +431,10 @@ class Pipe(SupportsPipe):
 
             @wraps(step)
             def _partial(*args: Any, **kwargs: Any) -> Any:
-                kwargs.pop("meta", None)
-                kwargs.pop("history", None)
+                if not has_meta:
+                    kwargs.pop("meta", None)
+                if not has_history:
+                    kwargs.pop("history", None)
                 return orig_step(*args, **kwargs)
 
             setattr(_partial, "__signature__", new_sig)
