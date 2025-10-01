@@ -414,9 +414,7 @@ class Pipe(SupportsPipe):
 
         # Add meta if not present and no **kwargs
         if not has_meta and kwargs_arg is None:
-            meta_param = inspect.Parameter(
-                "meta", inspect.Parameter.KEYWORD_ONLY, default=None
-            )
+            meta_param = inspect.Parameter("meta", inspect.Parameter.KEYWORD_ONLY, default=None)
             params.append(meta_param)
 
         # Add history if not present and no **kwargs

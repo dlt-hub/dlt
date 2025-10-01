@@ -169,7 +169,10 @@ def simulate_func_call(
         raise TypeError(f"{get_callable_name(f)}(): " + str(v_ex))
     return sig, no_item_sig, bound_args
 
-def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> Tuple[Optional[inspect.Parameter], Optional[inspect.Parameter]]:
+
+def check_compat_transformer(
+    name: str, f: AnyFun, sig: inspect.Signature
+) -> Tuple[Optional[inspect.Parameter], Optional[inspect.Parameter]]:
     sig_arg_count = len(sig.parameters)
     callable_name = get_callable_name(f)
     d = {}

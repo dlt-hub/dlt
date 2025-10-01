@@ -88,7 +88,7 @@ TPipeStep = Union[
     # Callable with meta and history
     Callable[[TDataItems, Optional[Any], Optional[History]], TPipedDataItems],
     Callable[[TDataItems, Optional[Any], Optional[History]], Iterator[TPipedDataItems]],
-    Callable[[TDataItems, Optional[Any], Optional[History]], Iterator[ResolvablePipeItem]]
+    Callable[[TDataItems, Optional[Any], Optional[History]], Iterator[ResolvablePipeItem]],
 ]
 
 
