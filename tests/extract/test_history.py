@@ -4,6 +4,7 @@ import dlt
 from dlt.extract.exceptions import InvalidHistoryAccess
 from dlt.extract.history import EMPTY_HISTORY
 
+
 def test_history():
     @dlt.resource(keep_history=True)
     def objects():
