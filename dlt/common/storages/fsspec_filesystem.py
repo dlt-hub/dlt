@@ -298,6 +298,8 @@ class FileItemDict(DictStrAny):
                 bytes_io,
                 **text_kwargs,
             )
+        # `FileItemDict` kwarg `fsspec` is `Optional`. If `fsspec=None` this code branch
+        # will fail.
         else:
             if "file" in self.fsspec.protocol:
                 # use native local file path to open file:// uris

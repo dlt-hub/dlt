@@ -46,9 +46,11 @@ ATTACH 'ducklake:{catalog_database}' (DATA_PATH '{data_storage}');
 
 adds the ducklake `Catalog` to your duckdb database
 """
+from __future__ import annotations
+
 import os
+import pathlib
 from packaging.version import Version
-import posixpath
 from typing import Iterable, List, Optional, Sequence
 
 import dlt
@@ -68,17 +70,19 @@ from dlt.destinations.insert_job_client import InsertValuesJobClient
 class DuckLakeCopyJob(DuckDbCopyJob):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path)
-        self._job_client: "DuckLakeClient" = None
+        self._job_client: DuckLakeClient = None
 
     def metrics(self) -> Optional[LoadJobMetrics]:
         """Generate remote url metrics which point to the table in storage"""
         m = super().metrics()
         # TODO: read location from catalog. ducklake supports customized table layouts
         return m._replace(
-            remote_url=posixpath.join(
-                self._job_client.config.credentials.storage.bucket_url,
-                self._job_client.sql_client.dataset_name,
-                self.load_table_name,
+            remote_url=str(
+                pathlib.Path().joinpath(
+                    self._job_client.config.credentials.storage.bucket_url,
+                    self._job_client.sql_client.dataset_name,
+                    self.load_table_name,
+                )
             )
         )
 

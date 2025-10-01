@@ -11,8 +11,9 @@ keywords: [rest api, restful api, headers, response actions, advanced configurat
 - `section`: An optional section name in the configuration file.
 - `max_table_nesting`: Sets the maximum depth of nested tables above which the remaining nodes are loaded as structs or JSON.
 - `root_key` (bool): Enables merging on all resources by propagating the root foreign key to nested tables. This option is most useful if you plan to change the write disposition of a resource to disable/enable merge. Defaults to False.
+- `schema`: An explicit `dlt.Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with the provided `name`. If such `dlt.Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
 - `schema_contract`: Schema contract settings that will be applied to this resource.
-- `spec`: A specification of configuration and secret values required by the source.
+- `parallelized`: If `True`, resource generators will be extracted in parallel with other resources.
 
 ### Headers configuration
 

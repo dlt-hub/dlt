@@ -65,6 +65,6 @@ __all__ = [
     "TooManyRedirects",
     "URLRequired",
     "ChunkedEncodingError",
-    "RetryErrorClient",
+    "Client",
     "RetryError",
 ]

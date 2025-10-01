@@ -5,7 +5,6 @@ import dlt
 from dlt.common.destination.reference import TDestinationReferenceArg
 
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import DestinationConnectionError
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DUCKLAKE_STORAGE_PATTERN,

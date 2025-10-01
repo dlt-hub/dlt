@@ -193,28 +193,31 @@ class TableLoader:
     def _load_rows(self, query: SelectClause, backend_kwargs: Dict[str, Any]) -> TDataItem:
         with self.engine.connect() as conn:
             result = conn.execution_options(yield_per=self.chunk_size).execute(query)
-            # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect
-            # that normalizes columns
-            # columns = [c[0] for c in result.cursor.description]
-            columns = list(result.keys())
-            for partition in result.partitions(size=self.chunk_size):
-                if self.backend == "sqlalchemy":
-                    yield [dict(row._mapping) for row in partition]
-                elif self.backend == "pandas":
-                    from dlt.common.libs.pandas_sql import _wrap_result
+            try:
+                # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect
+                # that normalizes columns
+                # columns = [c[0] for c in result.cursor.description]
+                columns = list(result.keys())
+                for partition in result.partitions(size=self.chunk_size):
+                    if self.backend == "sqlalchemy":
+                        yield [dict(row._mapping) for row in partition]
+                    elif self.backend == "pandas":
+                        from dlt.common.libs.pandas_sql import _wrap_result
 
-                    df = _wrap_result(
-                        partition,
-                        columns,
-                        **{"dtype_backend": "pyarrow", **backend_kwargs},
-                    )
-                    yield df
-                elif self.backend == "pyarrow":
-                    yield row_tuples_to_arrow(
-                        partition,
-                        columns=_add_missing_columns(self.columns, columns),
-                        tz=backend_kwargs.get("tz", "UTC"),
-                    )
+                        df = _wrap_result(
+                            partition,
+                            columns,
+                            **{"dtype_backend": "pyarrow", **backend_kwargs},
+                        )
+                        yield df
+                    elif self.backend == "pyarrow":
+                        yield row_tuples_to_arrow(
+                            partition,
+                            columns=_add_missing_columns(self.columns, columns),
+                            tz=backend_kwargs.get("tz", "UTC"),
+                        )
+            finally:
+                result.close()
 
     def _load_rows_connectorx(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
