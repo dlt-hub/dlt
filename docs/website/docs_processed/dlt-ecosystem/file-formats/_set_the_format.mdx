@@ -1,0 +1,15 @@
+<span>There are several ways of configuring dlt to use <code>{props.file_type}</code> file format for normalization step and to store your data at the destination:</span>
+
+1. <span>You can set the <code>loader_file_format</code> argument to <code>{props.file_type}</code> in the run command:</span>
+
+<pre language="py">
+info = pipeline.run(some_source(), loader_file_format="{props.file_type}")
+</pre>
+
+2. Alternatively, you can set the file type directly in [the resource decorator](../../general-usage/resource#pick-loader-file-format-for-a-particular-resource).
+
+<pre language="py">
+@dlt.resource(file_format="{props.file_type}"){'\n'}
+def generate_rows(nr):{'\n'}
+&nbsp;&nbsp;&nbsp;&nbsp;pass
+</pre>
