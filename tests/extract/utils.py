@@ -1,5 +1,5 @@
 from typing import Any, Optional, List
-from dlt.extract.history import History
+from dlt.extract.history import History, EMPTY_HISTORY
 import pytest
 from itertools import zip_longest
 
@@ -55,7 +55,7 @@ class AssertItems(ItemTransform[TDataItem]):
         self.item_type = item_type
 
     def __call__(
-        self, item: TDataItems, meta: Any = None, history: History = None
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
     ) -> Optional[TDataItems]:
         assert data_item_to_list(self.item_type, item) == self.expected_items
         return item
