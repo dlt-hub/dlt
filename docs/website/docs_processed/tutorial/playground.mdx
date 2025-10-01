@@ -1,0 +1,20 @@
+---
+title: Playground
+description: dlt playground in Marimo Notebook
+keywords: [python, playground, notebook, marimo, wasm]
+---
+
+# dlt Playground
+
+A simple example of loading a Python structure into DuckDB with dlt. This [Marimo](https://marimo.io/) notebook runs in Pyodide/WASM directly in your browser, which brings [certain limitations](https://pyodide.org/en/stable/usage/wasm-constraints.html), such as the lack of raw TCP/IP connections (which means most databases will not work as sources or destinations) and the requirement to have the correct CORS headers on HTTP resources. If you'd like to test dlt with all features enabled in the browser, you can try our [Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
+
+<iframe
+  src="https://dlt-hub.github.io/dlt/playground/"
+  title="Playground notebook"
+  width="100%"
+  height="600px"
+  frameborder="0"
+  allowfullscreen
+></iframe>
+
+[Open this example](https://dlt-hub.github.io/dlt/playground/) fullscreen in a new brower window.
