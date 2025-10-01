@@ -46,12 +46,43 @@ client = RESTClient(base_url="https://api.example.com")
 response = client.get("/posts/1")
 ```
 
+### POST requests with data
+
+The `post()` method supports both JSON payloads and form-encoded/raw data through separate parameters:
+
+```py
+# JSON payload (sets Content-Type: application/json)
+response = client.post("/posts", json={"title": "New post", "content": "Post content"})
+
+# Form-encoded data (sets Content-Type: application/x-www-form-urlencoded)
+response = client.post("/posts", data={"field1": "value1", "field2": "value2"})
+
+# Raw string or bytes data
+response = client.post("/posts", data="raw text data")
+```
+
+:::note
+The `json` and `data` parameters are mutually exclusive. You cannot use both in the same request. Use `json` for JSON payloads or `data` for form-encoded/raw data.
+:::
+
 ## Paginating API responses
 
 The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` instances for each page:
 
 ```py
 for page in client.paginate("/posts"):
+    print(page)
+```
+
+The `paginate()` method supports the same request parameters as regular requests:
+
+```py
+# Paginating with JSON payload
+for page in client.paginate("/search", method="POST", json={"query": "python"}):
+    print(page)
+
+# Paginating with form-encoded data
+for page in client.paginate("/search", method="POST", data={"q": "python", "limit": 10}):
     print(page)
 ```
 
