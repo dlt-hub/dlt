@@ -43,7 +43,7 @@ from dlt.extract.items import (
     TFunHintTemplate,
     SupportsPipe,
 )
-from dlt.extract.history import History
+from dlt.extract.history import History, EMPTY_HISTORY
 
 from dlt.common.schema.typing import TFileFormat
 
@@ -295,7 +295,9 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
     return _gen_wrapper()  # type: ignore[return-value]
 
 
-def _transformer_compat(item: TDataItems, meta: Any = None, history: History = None) -> Any:
+def _transformer_compat(
+    item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
+) -> Any:
     pass
 
 
@@ -314,7 +316,7 @@ def wrap_compat_transformer(
     if "meta" in param_names and "history" in param_names and len(param_names) == 3:
         return f
 
-    def _tx_partial(item: TDataItems, meta: Any = None, history: Any = None) -> Any:
+    def _tx_partial(item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY) -> Any:
         # Inject into kwargs if expected
         if "meta" in kwargs:
             kwargs["meta"] = meta

@@ -25,7 +25,7 @@ from dlt.extract.utils import (
 )
 
 from dlt.extract.items import SupportsPipe
-from dlt.extract.history import History
+from dlt.extract.history import History, EMPTY_HISTORY
 
 
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
@@ -64,7 +64,7 @@ class ItemTransform(BaseItemTransform, ABC, Generic[TAny]):
 
     @abstractmethod
     def __call__(
-        self, item: TDataItems, meta: Any = None, history: History = None
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
     ) -> Optional[TDataItems]:
         """Transforms `item` (a list of TDataItem or a single TDataItem) and returns or yields TDataItems. Returns None to consume item (filter out)"""
         pass
@@ -76,7 +76,7 @@ class FilterItem(ItemTransform[bool]):
     _f: ItemTransformFunctionNoMeta[bool]
 
     def __call__(
-        self, item: TDataItems, meta: Any = None, history: History = None
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
     ) -> Optional[TDataItems]:
         if isinstance(item, list):
             # preserve type of empty lists
@@ -104,7 +104,7 @@ class MapItem(ItemTransform[TDataItem]):
     _f: ItemTransformFunctionNoMeta[TDataItem]
 
     def __call__(
-        self, item: TDataItems, meta: Any = None, history: History = None
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
     ) -> Optional[TDataItems]:
         if isinstance(item, list):
             # preserve type of empty lists
@@ -128,7 +128,7 @@ class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
     _f: ItemTransformFunctionNoMeta[TDataItem]
 
     def __call__(
-        self, item: TDataItems, meta: Any = None, history: History = None
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
     ) -> Optional[TDataItems]:
         if isinstance(item, list):
             # preserve type of empty lists
@@ -198,7 +198,7 @@ class LimitItem(ItemTransform[TDataItem]):
         return self.max_items * (1 if self.count_rows else chunk_size)
 
     def __call__(
-        self, item: TDataItems, meta: Any = None, history: History = None
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
     ) -> Optional[TDataItems]:
         # do not count None
         if item is None:

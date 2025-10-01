@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Union, Any
+from dlt.extract.exceptions import InvalidHistoryAccess
 
 if TYPE_CHECKING:
     from dlt.extract.resource import DltResource
@@ -12,13 +13,18 @@ class History(dict[str, Any]):
     - dot-access via attribute
     """
 
-    def __getattr__(self, item: str) -> Any:
-        try:
-            return self[item]
-        except KeyError:
-            raise AttributeError(f"'History' object has no attribute '{item}'")
-
     def __getitem__(self, key: Union[str, "DltResource"]) -> Any:
+        assert type(key) is str or hasattr(
+            key, "__name__"
+        ), "Key of a History object must be str or DltResource"
+
         if not isinstance(key, str):
             key = key.__name__
-        return super().__getitem__(key)
+
+        try:
+            return super().__getitem__(key)
+        except KeyError as e:
+            raise InvalidHistoryAccess(key) from e
+
+
+EMPTY_HISTORY = History()
