@@ -35,7 +35,7 @@ from dlt.extract.exceptions import (
     PipeItemProcessingError,
     ResourceExtractionError,
 )
-from dlt.extract.history import History
+from dlt.extract.history import History, EMPTY_HISTORY
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import DataItemWithMeta, PipeItem, ResolvablePipeItem, SourcePipeItem
 from dlt.extract.state import pipe_context
@@ -95,7 +95,7 @@ class PipeIterator(Iterator[PipeItem]):
             raise PipeGenInvalid(pipe.name, pipe.gen)
 
         # create extractor
-        sources = [SourcePipeItem(pipe.gen, 0, pipe, None, None)]
+        sources = [SourcePipeItem(pipe.gen, 0, pipe, None, EMPTY_HISTORY)]
         return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
 
     @classmethod
@@ -134,7 +134,7 @@ class PipeIterator(Iterator[PipeItem]):
                     raise PipeGenInvalid(pipe.name, pipe.gen)
                 # add every head as source only once
                 if not any(i.pipe == pipe for i in sources):
-                    sources.append(SourcePipeItem(pipe.gen, 0, pipe, None, None))
+                    sources.append(SourcePipeItem(pipe.gen, 0, pipe, None, EMPTY_HISTORY))
 
         # reverse pipes for current mode, as we start processing from the back
         pipes.reverse()

@@ -1,6 +1,6 @@
 from typing import Optional, Tuple, TypeVar, Generic, Type, Union, Any, List
 from dlt.common.schema.schema import Schema
-from dlt.extract.history import History
+from dlt.extract.history import History, EMPTY_HISTORY
 
 try:
     from pydantic import BaseModel as PydanticBaseModel
@@ -33,7 +33,9 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)
         self.list_model = create_list_model(self.model, data_mode)
 
-    def __call__(self, item: TDataItems, meta: Any = None, history: History = None) -> TDataItems:
+    def __call__(
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
+    ) -> TDataItems:
         """Validate a data item against the pydantic model"""
         if item is None:
             return None

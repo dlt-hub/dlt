@@ -14,6 +14,7 @@ from dlt.extract.items import DataItemWithMeta
 from dlt.extract.items_transform import FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe
 from dlt.extract.pipe_iterator import PipeIterator, ManagedPipeIterator, PipeItem
+from dlt.extract.history import EMPTY_HISTORY
 
 
 def test_next_item_mode() -> None:
@@ -124,17 +125,18 @@ def test_add_step() -> None:
         assert item in data
         return item
 
-    def item_meta_step(item, meta):
+    def item_meta_step(item, meta, history):
         assert item in data
         assert meta is None
+        assert history is EMPTY_HISTORY
         return item
 
     p.append_step(item_step)
     p.append_step(item_meta_step)
     assert p.gen is data_iter
     assert p._gen_idx == 0
-    assert p.tail.__name__ == item_meta_step.__name__
-    assert p.tail(3, None) == 3  # type: ignore[call-arg, operator]
+    assert p.tail == item_meta_step
+    assert p.tail(3, None, EMPTY_HISTORY) == 3  # type: ignore[call-arg, operator]
     # the middle step should be wrapped
     mid = p.steps[1]
     assert mid is not item_step

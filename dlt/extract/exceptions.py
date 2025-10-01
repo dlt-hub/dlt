@@ -425,3 +425,12 @@ class IncrementalUnboundError(DltResourceException):
             " https://dlthub.com/docs/general-usage/incremental-loading#incremental-loading-with-last-value"
             " for an example.",
         )
+
+
+class InvalidHistoryAccess(DltResourceException):
+    def __init__(self, resource_name: str) -> None:
+        super().__init__(
+            resource_name,
+            f"Resource `{resource_name}` does not have history enabled. To enable history set"
+            " `keep_history=True` in the resource or transformer.",
+        )

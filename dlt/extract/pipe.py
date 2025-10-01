@@ -40,7 +40,7 @@ from dlt.extract.utils import (
     wrap_resource_gen,
     wrap_async_iterator,
 )
-from dlt.extract.history import History
+from dlt.extract.history import History, EMPTY_HISTORY
 
 
 class ForkPipe(ItemTransform[ResolvablePipeItem]):
@@ -61,7 +61,7 @@ class ForkPipe(ItemTransform[ResolvablePipeItem]):
         return pipe in [p[0] for p in self._pipes]
 
     def __call__(
-        self, item: TDataItems, meta: Any = None, history: History = None
+        self, item: TDataItems, meta: Any = None, history: History = EMPTY_HISTORY
     ) -> Iterator[ResolvablePipeItem]:
         for i, (pipe, step) in enumerate(self._pipes):
             if i == 0 or not self.copy_on_fork:
@@ -71,7 +71,7 @@ class ForkPipe(ItemTransform[ResolvablePipeItem]):
                 _it = copy(item)
             # add history info
             if pipe.parent is not None and pipe.parent.keep_history and pipe.name:
-                history = history or History()
+                history = History() if history is EMPTY_HISTORY else history
                 history[pipe.parent.name] = _it
             # always start at the beginning
             yield ResolvablePipeItem(_it, step, pipe, meta, history)
@@ -420,7 +420,7 @@ class Pipe(SupportsPipe):
         # Add history if not present and no **kwargs
         if not has_history and kwargs_arg is None:
             history_param = inspect.Parameter(
-                "history", inspect.Parameter.KEYWORD_ONLY, default=None
+                "history", inspect.Parameter.KEYWORD_ONLY, default=EMPTY_HISTORY
             )
             params.append(history_param)
 
