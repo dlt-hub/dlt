@@ -13,14 +13,10 @@ with app.setup:
 
     import marimo as mo
 
-    import pandas as pd
-
     import dlt
-    from dlt.common.json import json
+    import pyarrow
     from dlt.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt.helpers.dashboard.config import DashboardConfiguration
-    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
-    from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 
 @app.cell(hide_code=True)
@@ -848,7 +844,7 @@ def utils_caches_and_state(
     """
 
     # some state variables
-    dlt_get_last_query_result, dlt_set_last_query_result = mo.state(pd.DataFrame())
+    dlt_get_last_query_result, dlt_set_last_query_result = mo.state(pyarrow.table({}))
     # a cache of query results in the form of {query: row_count}
     dlt_get_query_cache, dlt_set_query_cache = mo.state(cast(Dict[str, int], {}))
 
