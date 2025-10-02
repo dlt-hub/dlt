@@ -1,47 +1,45 @@
 import marimo
 
-__generated_with = "0.14.10"
+__generated_with = "0.16.4"
 app = marimo.App()
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        # Building custom sources using SQL Databases [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb)
+    # Building custom sources using SQL Databases [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb)
 
-        This lesson covers building flexible and powerful custom sources using the `sql_database` verified source.
+    This lesson covers building flexible and powerful custom sources using the `sql_database` verified source.
 
-        """)
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""![Lesson_2_Custom_sources_SQL_Databases_img1](https://storage.googleapis.com/dlt-blog-images/dlt-advanced-course/Lesson_2_Custom_sources_SQL_Databases_img1.png)"""
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ![Lesson_2_Custom_sources_SQL_Databases_img1](https://storage.googleapis.com/dlt-blog-images/dlt-advanced-course/Lesson_2_Custom_sources_SQL_Databases_img1.png)
-        """)
+
+    ## What you will learn
+
+    - How to build a custom pipeline using SQL sources
+    - How to use `query_adapter_callback`, `table_adapter_callback`, and `type_adapter_callback`
+    - How to load only new data with incremental loading
+
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-
-        ## What you will learn
-
-        - How to build a custom pipeline using SQL sources
-        - How to use `query_adapter_callback`, `table_adapter_callback`, and `type_adapter_callback`
-        - How to load only new data with incremental loading
-
-        """)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-        Setup & install dlt:
-        """)
+    mo.md(r"""Setup & install dlt:""")
     return
 
 
@@ -49,23 +47,21 @@ def _(mo):
 def _():
     # magic command not supported in marimo; please file an issue to add support
     # %%capture
-    # !pip install pymysql duckdb dlt
+    # # (use marimo's built-in package management features instead) !pip install pymysql duckdb dlt
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        ## Step 1: Load data from SQL Databases
-        """)
+    mo.md(r"""## Step 1: Load data from SQL Databases""")
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        We’ll use the [Rfam MySQL public DB](https://docs.rfam.org/en/latest/database.html) and load it into DuckDB:
-        """)
+    mo.md(
+        r"""We’ll use the [Rfam MySQL public DB](https://docs.rfam.org/en/latest/database.html) and load it into DuckDB:"""
+    )
     return
 
 
@@ -91,9 +87,7 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        Explore the `family` table:
-        """)
+    mo.md(r"""Explore the `family` table:""")
     return
 
 
@@ -106,19 +100,17 @@ def _(pipeline):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ## Step 2: Customize SQL queries with `query_adapter_callback`
+    ## Step 2: Customize SQL queries with `query_adapter_callback`
 
-        You can fully rewrite or modify the SQL SELECT statement per table.
+    You can fully rewrite or modify the SQL SELECT statement per table.
 
-        """)
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        ### Filter rows using a WHERE clause
-        """)
+    mo.md(r"""### Filter rows using a WHERE clause""")
     return
 
 
@@ -135,9 +127,9 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        To be able to use `sql_database` and not have to declare the connection string each time, we save it as an environment variable. This can also (should preferably) be done in `secrets.toml`
-        """)
+    mo.md(
+        r"""To be able to use `sql_database` and not have to declare the connection string each time, we save it as an environment variable. This can also (should preferably) be done in `secrets.toml`"""
+    )
     return
 
 
@@ -161,9 +153,7 @@ def _(query_adapter_callback, sql_database):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        Let's save this filtered data:
-        """)
+    mo.md(r"""Let's save this filtered data:""")
     return
 
 
@@ -176,9 +166,7 @@ def _(filtered_resource, pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        Explore the data:
-        """)
+    mo.md(r"""Explore the data:""")
     return
 
 
@@ -191,32 +179,30 @@ def _(pipeline):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ### **Question 1**:
+    ### **Question 1**:
 
-        How many rows are present in the `bacterias` table?
+    How many rows are present in the `bacterias` table?
 
-        >Answer this question and select the correct option in the homework Quiz.
+    >Answer this question and select the correct option in the homework Quiz.
 
-        """)
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ## Step 3: Modify table schema with `table_adapter_callback`
+    ## Step 3: Modify table schema with `table_adapter_callback`
 
-        Add columns, change types, or transform schema using this hook.
+    Add columns, change types, or transform schema using this hook.
 
-        """)
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        ### Example: Add computed column `max_timestamp`
-        """)
+    mo.md(r"""### Example: Add computed column `max_timestamp`""")
     return
 
 
@@ -234,9 +220,7 @@ def _(Any, Table):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        Use it with `sql_table`:
-        """)
+    mo.md(r"""Use it with `sql_table`:""")
     return
 
 
@@ -256,9 +240,7 @@ def _(add_max_timestamp, dlt, pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        Let's check out if this column exists!
-        """)
+    mo.md(r"""Let's check out if this column exists!""")
     return
 
 
@@ -271,12 +253,12 @@ def _(pipeline):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ## Step 4: Adapt column data types with `type_adapter_callback`
+    ## Step 4: Adapt column data types with `type_adapter_callback`
 
-        When the default types don’t match what you want in the destination, you can remap them.
+    When the default types don’t match what you want in the destination, you can remap them.
 
-        Let's look at the schema that has already been loaded:
-        """)
+    Let's look at the schema that has already been loaded:
+    """)
     return
 
 
@@ -291,21 +273,19 @@ def _(pipeline):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        Lets change `hmm_lambda` from decimal to float.
+    Lets change `hmm_lambda` from decimal to float.
 
-        💡 Quick fyi: The `float` data type is:
-        - Fast and uses less space
-        - But it's approximate — you may get 0.30000000000000004 instead of 0.3
-        - Bad for money, great for probabilities, large numeric ranges, scientific values
-        """)
+    💡 Quick fyi: The `float` data type is:
+    - Fast and uses less space
+    - But it's approximate — you may get 0.30000000000000004 instead of 0.3
+    - Bad for money, great for probabilities, large numeric ranges, scientific values
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        ### Example: Change data types
-        """)
+    mo.md(r"""### Example: Change data types""")
     return
 
 
@@ -323,9 +303,7 @@ def _(Any, sa):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        Use it with `sql_database`:
-        """)
+    mo.md(r"""Use it with `sql_database`:""")
     return
 
 
@@ -339,9 +317,7 @@ def _(pipeline, sql_database, type_adapter_callback):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        👀 Can you see how the column data types have changed?
-        """)
+    mo.md(r"""👀 Can you see how the column data types have changed?""")
     return
 
 
@@ -363,24 +339,24 @@ def _(pipeline):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ### **Question 2**:
+    ### **Question 2**:
 
-        How many columns had their type changed in the `type_changed_family` table?
+    How many columns had their type changed in the `type_changed_family` table?
 
-        """)
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ## Step 5: Incremental loads with `sql_database`
-        Track only new rows using a timestamp or ID column.
+    ## Step 5: Incremental loads with `sql_database`
+    Track only new rows using a timestamp or ID column.
 
-        We'll also be looking at where these incremental values are stored.
+    We'll also be looking at where these incremental values are stored.
 
-        Hint: they are stored in [dlt state](https://dlthub.com/docs/general-usage/state).
-        """)
+    Hint: they are stored in [dlt state](https://dlthub.com/docs/general-usage/state).
+    """)
     return
 
 
@@ -418,10 +394,10 @@ def _(json):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-        ## **Rename tables for `sql_database` source**
+    ## **Rename tables for `sql_database` source**
 
 
-        """)
+    """)
     return
 
 
@@ -440,9 +416,9 @@ def _(dlt, sql_database):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-        ✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1P8pOw9C6J9555o2jhZydESVuVb-3z__y#forceEdit=true&sandboxMode=true)!
-        """)
+    mo.md(
+        r"""✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1P8pOw9C6J9555o2jhZydESVuVb-3z__y#forceEdit=true&sandboxMode=true)!"""
+    )
     return
 
 
