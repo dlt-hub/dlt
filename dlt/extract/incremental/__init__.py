@@ -618,10 +618,6 @@ class Incremental(
         # writing back state
         self._cached_state["last_value"] = transformer.last_value
 
-        initial_hash_list = self._cached_state.get("unique_hashes")
-        initial_hash_count = len(initial_hash_list) if initial_hash_list else 0
-        self.custom_metrics["initial_unique_hashes_count"] = initial_hash_count
-
         if transformer.boundary_deduplication:
             # compute hashes for new last rows
             # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
@@ -630,6 +626,10 @@ class Incremental(
                 transformer.compute_unique_value(row, self.primary_key)
                 for row in transformer.last_rows
             )
+            initial_hash_list = self._cached_state.get("unique_hashes")
+            initial_hash_count = len(initial_hash_list) if initial_hash_list else 0
+            self.custom_metrics["initial_unique_hashes_count"] = initial_hash_count
+
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
@@ -637,6 +637,8 @@ class Incremental(
             self.custom_metrics["final_unique_hashes_count"] = final_hash_count
 
             self._check_duplicate_cursor_threshold(initial_hash_count, final_hash_count)
+        else:
+            self._cached_state["unique_hashes"] = []
         return rows
 
     def _check_duplicate_cursor_threshold(

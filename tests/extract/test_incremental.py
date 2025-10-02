@@ -4444,34 +4444,39 @@ def test_custom_metrics_in_incremental() -> None:
     load_id = _run_with_items([{"id": 3, "value": "3"}, {"id": 4, "value": "4"}], False)
     _assert_custom_metrics(load_id, 5, 4, 1, 1, 1)
 
-    # 4. run with duplicate cursor field values, but different hashes, as batch
+    # 4. run with duplicate cursor field values, but different hashes, as a single batch
     load_id = _run_with_items(
         [{"id": 5, "value": "5.1"}, {"id": 5, "value": "5.2"}, {"id": 5, "value": "5.3"}], True
     )
     _assert_custom_metrics(load_id, 8, 5, 1, 3, 3)
 
-    # 5. run with the same values as batch from previous run, but with no boundary deduplication
+    # 5. reset incremental with no boundary deduplication (primary_key=()) and run with the same values
+    # from previous run, should be loaded as a single batch with 3 items
     resource_with_metrics.apply_hints(
         incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1, primary_key=())
     )
     load_id = _run_with_items(
         [{"id": 5, "value": "5.1"}, {"id": 5, "value": "5.2"}, {"id": 5, "value": "5.3"}], True
     )
-    _assert_custom_metrics(load_id, 3, 1, 3, 0, 3)
+    _assert_custom_metrics(load_id, 3, 1, 0, 0, 3)
 
-    # 6. run with two new items as a single batch
-    load_id = _run_with_items([{"id": 6, "value": "6.1"}, {"id": 6, "value": "6.2"}], True)
-    _assert_custom_metrics(load_id, 5, 2, 3, 0, 2)
+    # 6. run with one old and one new item as a single batch (still no boundary deduplication)
+    # should be loaded as a single batch with 2 items
+    load_id = _run_with_items([{"id": 5, "value": "5.1"}, {"id": 6, "value": "6.1"}], True)
+    _assert_custom_metrics(load_id, 5, 2, 0, 0, 2)
 
-    # 7. run with two new items as a single batch, with boundary deduplication
+    # 7. enable boundary deduplication and run with one old and one new item as a single batch
+    # should be loaded as a single batch with 2 items
     resource_with_metrics.incremental.primary_key = "id"
-    load_id = _run_with_items({"id": 7, "value": "7"}, True)
-    _assert_custom_metrics(load_id, 6, 3, 3, 1, 1)
+    load_id = _run_with_items([{"id": 6, "value": "6.1"}, {"id": 7, "value": "7"}], True)
+    _assert_custom_metrics(load_id, 7, 3, 0, 1, 2)
 
-    # 8. run with None within a batch -> should increment unfiltered_items_count
-    load_id = _run_with_items([None, {"id": 8, "value": "8"}], True)
-    _assert_custom_metrics(load_id, 8, 4, 1, 1, 1)
-
-    # 9. run with None as a single batch -> should not increment unfiltered_items_count
-    load_id = _run_with_items([None, {"id": 9, "value": "9"}], False)
+    # 8. run with one old and one new item each as batch
+    # only the new item should be loaded
+    load_id = _run_with_items([{"id": 7, "value": "7"}, {"id": 8, "value": "8"}], False)
     _assert_custom_metrics(load_id, 9, 5, 1, 1, 1)
+
+    # 9. run with None items and one new item as single batch
+    # None items should increment unfiltered_items_count
+    load_id = _run_with_items([None, None, {"id": 9, "value": "9"}], True)
+    _assert_custom_metrics(load_id, 12, 6, 1, 1, 1)
