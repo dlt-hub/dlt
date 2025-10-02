@@ -10,6 +10,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
 from dlt.common.destination.client import WithStagingDataset
+from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.common.schema.utils import new_table
@@ -1129,3 +1130,29 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
             actual = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
             expected = output_map[destination]["tables"][t]["timestamp_values"]  # type: ignore
             assert actual == expected
+
+
+def test_pipeline_with_destination_name():
+    # test configured destination name (tests/.dlt/config.toml)
+    pipeline = dlt.pipeline(destination="custom_name")
+    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
+    assert pipeline.destination.destination_name == "custom_name"
+
+    @dlt.resource
+    def test_data():
+        yield [{"id": 1, "name": "test"}]
+
+    info = pipeline.run(test_data())
+    assert_load_info(info)
+
+    msg_from_fallback = "configure a valid destination type"
+
+    # test unconfigured destination name
+    with pytest.raises(UnknownDestinationModule) as py_exc:
+        dlt.pipeline(destination="another_custom_name")
+    assert msg_from_fallback in str(py_exc.value)
+
+    # if destination contains dots, no fallbacks must happen
+    with pytest.raises(UnknownDestinationModule) as py_exc:
+        dlt.pipeline(destination="dlt.destinations.unknown")
+    assert msg_from_fallback not in str(py_exc.value)
