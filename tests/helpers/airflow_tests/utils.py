@@ -26,11 +26,13 @@ def initialize_airflow_db():
     Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
     # re-create providers
     Container()[PluggableRunContext].reload_providers()
-    yield
-    # restore providers
-    Container()[PluggableRunContext].providers = providers
-    # Make sure the variable is not set
-    Variable.delete(SECRETS_TOML_KEY)
+    try:
+        yield
+    finally:
+        # restore providers
+        Container()[PluggableRunContext].providers = providers
+        # Make sure the variable is not set
+        Variable.delete(SECRETS_TOML_KEY)
 
 
 def setup_airflow() -> None:

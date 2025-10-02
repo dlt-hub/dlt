@@ -398,6 +398,7 @@ There are two ways to pass the credentials:
    - Add a new variable with the name `dlt_secrets_toml`.
    - Paste the TOML fragment displayed by the `deploy` command.
    - 💡 The content of this variable will be used by the `dlt` Airflow helper instead of the local `secrets.toml` which you are familiar with. If your local secrets file contains anything else you want to access on Airflow, you are good to just copy the local `secrets.toml` content to the `dlt_secrets_toml` variable.
+   - [read more on how to use Airflow Variables to store `dlt` configuration](../../general-usage/credentials/vaults.md#configure-airflow-variables-as-provider)
 
 1. As environment variables.
 

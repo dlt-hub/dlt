@@ -28,6 +28,7 @@ class VaultProviderConfiguration(BaseConfiguration):
 
 @configspec
 class ConfigProvidersConfiguration(BaseConfiguration):
+    # TODO: set to False in 2.0
     enable_airflow_secrets: bool = True
     enable_google_secrets: bool = False
 
