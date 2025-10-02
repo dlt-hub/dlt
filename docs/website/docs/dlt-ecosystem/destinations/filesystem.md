@@ -5,6 +5,12 @@ The filesystem destination stores data in remote file systems and cloud storage 
 Please read the notes on the layout of the data files. Currently, we are receiving feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
 :::
 
+## Destination capabilities
+
+The following table shows the capabilities of the Filesystem destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES filesystem-->
+
 ## Install dlt with filesystem
 
 Install the dlt library with filesystem dependencies:

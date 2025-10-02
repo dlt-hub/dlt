@@ -20,6 +20,12 @@ There are two options to run dlt pipelines and load data:
 If you'd like to load data to Databricks Managed Iceberg tables, use [dltHub Iceberg destination](https://info.dlthub.com/waiting-list)
 :::
 
+## Destination capabilities
+
+The following table shows the capabilities of the Databricks destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES databricks-->
+
 ## Install dlt with Databricks
 
 **To install the dlt library with Databricks dependencies:**

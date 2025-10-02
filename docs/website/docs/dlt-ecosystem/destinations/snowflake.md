@@ -12,6 +12,12 @@ keywords: [Snowflake, destination, data warehouse]
 pip install "dlt[snowflake]"
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Snowflake destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->
+
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to Snowflake by running:**

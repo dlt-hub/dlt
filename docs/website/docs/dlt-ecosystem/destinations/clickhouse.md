@@ -14,6 +14,12 @@ keywords: [ clickhouse, destination, data warehouse ]
 pip install "dlt[clickhouse]"
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Clickhouse destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES clickhouse-->
+
 ## Setup guide
 
 ### 1. Initialize the dlt project
