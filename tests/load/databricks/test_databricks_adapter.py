@@ -581,12 +581,15 @@ def test_databricks_adapter_iceberg_all_data_types(
                 assert "ICEBERG" in str(provider).upper()
 
         # Verify data was loaded successfully
-        with c.execute_query(f"SELECT COUNT(*) FROM {pipeline.dataset_name}.iceberg_all_types") as cur:
+        with c.execute_query(
+            f"SELECT COUNT(*) FROM {pipeline.dataset_name}.iceberg_all_types"
+        ) as cur:
             assert cur.fetchone()[0] == 1
 
         # Verify a few key columns to ensure types were handled correctly
         with c.execute_query(
-            f"SELECT col1, col2, col3, col5, col6, col10 FROM {pipeline.dataset_name}.iceberg_all_types"
+            "SELECT col1, col2, col3, col5, col6, col10 FROM"
+            f" {pipeline.dataset_name}.iceberg_all_types"
         ) as cur:
             row = cur.fetchone()
             assert row[0] == TABLE_ROW_ALL_DATA_TYPES["col1"]  # bigint
