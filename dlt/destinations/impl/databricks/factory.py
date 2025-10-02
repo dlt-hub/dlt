@@ -143,7 +143,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         caps.supported_loader_file_formats = ["jsonl", "parquet", "model"]
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["jsonl", "parquet"]
-        caps.supported_table_formats = ["delta"]
+        caps.supported_table_formats = ["delta", "iceberg"]
         caps.type_mapper = DatabricksTypeMapper
         caps.escape_identifier = escape_databricks_identifier
         # databricks identifiers are case insensitive and stored in lower case
