@@ -522,17 +522,18 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             # kill job if signalled
             signals.raise_if_signalled()
 
-        for table_name, table_updates in schema_update.items():
-            for table_update in table_updates:
-                if is_nested_table(table_update):
-                    parent_name = table_update.get("parent")
-                    last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
-                    parent_columns = schema.get_table_columns(parent_name, include_incomplete=True)
-                    if last_ident_path in parent_columns:
-                        column = parent_columns.get(last_ident_path)
-                        col_x_normalizer = column.setdefault("x-normalizer", {})
-                        if col_x_normalizer.get("seen-null-first"):
-                            schema.get_table(parent_name)["columns"].pop(last_ident_path)
+        for table_name, updates in schema_update.items():
+            last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
+            for update in updates:
+                if not is_nested_table(update):
+                    continue
+
+                parent_name = update.get("parent")
+                parent_columns = self.schema.get_table_columns(parent_name, include_incomplete=True)
+
+                column = parent_columns.get(last_ident_path)
+                if column and utils.has_seen_null_first_hint(column):
+                    parent_columns.pop(last_ident_path)
 
         return schema_update
 
@@ -873,7 +874,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 logger.debug(
                     f"No lines in file {extracted_items_file}, written empty load job file"
                 )
-
         return schema_updates
 
 

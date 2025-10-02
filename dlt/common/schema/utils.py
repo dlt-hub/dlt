@@ -696,6 +696,11 @@ def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
     return tables
 
 
+def has_seen_null_first_hint(column: TColumnSchema) -> bool:
+    """Checks if column has seen seen-null-first hint set to True in the x-normalizer hints."""
+    return bool(column.get("x-normalizer", {}).get("seen-null-first"))
+
+
 def get_processing_hints(
     tables: TSchemaTables,
 ) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, List[str]]]]:
