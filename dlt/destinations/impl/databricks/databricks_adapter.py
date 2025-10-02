@@ -9,8 +9,6 @@ from dlt.destinations.impl.databricks.typing import TDatabricksTableSchemaColumn
 
 
 CLUSTER_HINT: Literal["x-databricks-cluster"] = "x-databricks-cluster"
-PARTITION_HINT: Literal["x-databricks-partition"] = "x-databricks-partition"
-TABLE_FORMAT_HINT: Literal["x-databricks-table-format"] = "x-databricks-table-format"
 TABLE_COMMENT_HINT: Literal["x-databricks-table-comment"] = "x-databricks-table-comment"
 TABLE_TAGS_HINT: Literal["x-databricks-table-tags"] = "x-databricks-table-tags"
 TABLE_PROPERTIES_HINT: Literal["x-databricks-table-properties"] = "x-databricks-table-properties"
@@ -83,34 +81,8 @@ def databricks_adapter(
     if table_format not in ["DELTA", "ICEBERG"]:
         raise ValueError("`table_format` must be either 'DELTA' or 'ICEBERG'.")
 
-    # Store table format as a table hint
-    additional_table_hints[TABLE_FORMAT_HINT] = table_format
-
-    # Validate Iceberg-specific constraints
-    if table_format == "ICEBERG":
-        # Iceberg tables have some limitations in Databricks
-        if table_properties:
-            # Check for Delta-specific properties that are not supported in Iceberg
-            delta_only_props = [
-                "delta.dataSkippingStatsColumns",
-                "delta.autoOptimize.optimizeWrite",
-                "delta.autoOptimize.autoCompact",
-                "delta.logRetentionDuration",
-                "delta.deletedFileRetentionDuration",
-                "delta.enableChangeDataFeed",
-                "delta.columnMapping.mode",
-                "delta.appendOnly",
-            ]
-
-            for prop_key in table_properties.keys():
-                if any(
-                    prop_key.startswith(delta_prop) or prop_key == delta_prop
-                    for delta_prop in delta_only_props
-                ):
-                    raise ValueError(
-                        f"Table property '{prop_key}' is Delta Lake specific and not supported with"
-                        " ICEBERG tables. Remove this property when using table_format='ICEBERG'."
-                    )
+    # Store table format at table level (lowercase to match destination format)
+    additional_table_hints["table_format"] = table_format.lower()
 
     if cluster:
         if cluster == "AUTO":
@@ -138,7 +110,7 @@ def databricks_adapter(
         for column_name in partition:
             if column_name not in additional_column_hints:
                 additional_column_hints[column_name] = {"name": column_name}
-            additional_column_hints[column_name][PARTITION_HINT] = True  # type: ignore[typeddict-unknown-key]
+            additional_column_hints[column_name]["partition"] = True
 
     if column_hints:
         for column_name, hints in column_hints.items():

@@ -7,8 +7,6 @@ from dlt.destinations.adapters import databricks_adapter
 from dlt.destinations import databricks
 from dlt.destinations.impl.databricks.databricks_adapter import (
     CLUSTER_HINT,
-    PARTITION_HINT,
-    TABLE_FORMAT_HINT,
     TABLE_PROPERTIES_HINT,
 )
 from tests.load.utils import (
@@ -534,6 +532,69 @@ def test_databricks_adapter_iceberg_format(
             assert cur.fetchone()[0] == 10
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["databricks"]),
+    ids=lambda x: x.name,
+)
+def test_databricks_adapter_iceberg_all_data_types(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test ICEBERG table format with all supported dlt data types"""
+    from tests.cases import TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES
+
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
+    )
+
+    # Create columns dict from TABLE_UPDATE
+    columns = {col["name"]: col for col in TABLE_UPDATE}
+
+    @dlt.resource(columns=columns, primary_key="col1")
+    def iceberg_all_types() -> Iterator[Dict[str, Any]]:
+        yield TABLE_ROW_ALL_DATA_TYPES
+
+    # Apply ICEBERG format
+    databricks_adapter(iceberg_all_types, table_format="ICEBERG")
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source():
+        return iceberg_all_types
+
+    pipeline.run(demo_source())
+
+    # Verify table format and data
+    with pipeline.sql_client() as c:
+        # Verify it's an ICEBERG table
+        with c.execute_query(f"DESCRIBE DETAIL {pipeline.dataset_name}.iceberg_all_types") as cur:
+            row = cur.fetchone()
+            columns_desc = [desc[0] for desc in cur.description]
+
+            # Check format/provider column indicates ICEBERG
+            if "format" in columns_desc:
+                format_idx = columns_desc.index("format")
+                table_format = row[format_idx]
+                assert "ICEBERG" in str(table_format).upper()
+            elif "provider" in columns_desc:
+                provider_idx = columns_desc.index("provider")
+                provider = row[provider_idx]
+                assert "ICEBERG" in str(provider).upper()
+
+        # Verify data was loaded successfully
+        with c.execute_query(f"SELECT COUNT(*) FROM {pipeline.dataset_name}.iceberg_all_types") as cur:
+            assert cur.fetchone()[0] == 1
+
+        # Verify a few key columns to ensure types were handled correctly
+        with c.execute_query(
+            f"SELECT col1, col2, col3, col5, col6, col10 FROM {pipeline.dataset_name}.iceberg_all_types"
+        ) as cur:
+            row = cur.fetchone()
+            assert row[0] == TABLE_ROW_ALL_DATA_TYPES["col1"]  # bigint
+            assert abs(row[1] - TABLE_ROW_ALL_DATA_TYPES["col2"]) < 0.001  # double
+            assert row[2] == TABLE_ROW_ALL_DATA_TYPES["col3"]  # bool
+            assert row[3] == TABLE_ROW_ALL_DATA_TYPES["col5"]  # text
+
+
 def test_databricks_adapter_invalid_table_format():
     """Test that invalid table formats are rejected"""
 
@@ -545,21 +606,51 @@ def test_databricks_adapter_invalid_table_format():
         databricks_adapter(dummy_resource, table_format="PARQUET")  # type: ignore[arg-type]
 
 
-def test_databricks_adapter_iceberg_with_delta_properties():
-    """Test that Delta-specific properties are rejected for ICEBERG tables"""
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["databricks"]),
+    ids=lambda x: x.name,
+)
+def test_databricks_adapter_iceberg_with_delta_properties(
+    destination_config: DestinationTestConfiguration,
+):
+    """Test that Delta-specific properties are rejected for ICEBERG tables at load time"""
+    from dlt.common.exceptions import TerminalValueError
+    from dlt.pipeline.exceptions import PipelineStepFailed
 
-    def dummy_resource():
-        yield {"event_id": 1}
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks()
+    )
 
-    # Should raise ValueError when using Delta properties with ICEBERG
-    with pytest.raises(
-        ValueError, match="delta.dataSkippingStatsColumns.*not supported with ICEBERG"
-    ):
-        databricks_adapter(
-            dummy_resource,
-            table_format="ICEBERG",
-            table_properties={"delta.dataSkippingStatsColumns": "col1,col2"},
-        )
+    @dlt.resource(
+        columns={
+            "event_id": {"data_type": "bigint", "nullable": False},
+        },
+        primary_key="event_id",
+    )
+    def iceberg_with_delta_props() -> Iterator[Dict[str, Any]]:
+        for i in range(5):
+            yield {"event_id": i}
+
+    # Apply adapter with ICEBERG format and Delta-specific properties
+    databricks_adapter(
+        iceberg_with_delta_props,
+        table_format="ICEBERG",
+        table_properties={"delta.dataSkippingStatsColumns": "event_id"},
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source():
+        return iceberg_with_delta_props
+
+    # Should raise PipelineStepFailed with TerminalValueError when creating the table (at load time)
+    with pytest.raises(PipelineStepFailed) as exc_info:
+        pipeline.run(demo_source())
+
+    # Verify the underlying exception is TerminalValueError with the right message
+    assert isinstance(exc_info.value.__cause__, TerminalValueError)
+    assert "delta.dataSkippingStatsColumns" in str(exc_info.value.__cause__)
+    assert "not supported" in str(exc_info.value.__cause__)
 
 
 def test_databricks_adapter_reserved_table_properties():

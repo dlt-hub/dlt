@@ -29,8 +29,6 @@ from dlt.common.storages.fsspec_filesystem import (
 )
 from dlt.destinations.impl.databricks.databricks_adapter import (
     CLUSTER_HINT,
-    PARTITION_HINT,
-    TABLE_FORMAT_HINT,
     TABLE_PROPERTIES_HINT,
     TABLE_COMMENT_HINT,
     TABLE_TAGS_HINT,
@@ -43,6 +41,7 @@ from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.utils import uniq_id
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_databricks_literal
+from dlt.common.exceptions import TerminalValueError
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
@@ -411,7 +410,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         partition_list = [
             self.sql_client.escape_column_name(c["name"])
             for c in new_columns
-            if c.get(PARTITION_HINT, False)
+            if c.get("partition", False)
         ]
 
         # Determine the CLUSTER BY clause
@@ -444,10 +443,35 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             tblproperties_clause = f"TBLPROPERTIES ({', '.join(props)})"
 
         # Get table format
-        table_format = table.get(TABLE_FORMAT_HINT, "DELTA")
+        table_format = table.get("table_format", "delta")
         using_clause = None
-        if table_format == "ICEBERG":
+        if table_format == "iceberg":
             using_clause = "USING ICEBERG"
+
+            # Validate Iceberg-specific constraints
+            if table_properties and isinstance(table_properties, dict):
+                # Check for Delta-specific properties that are not supported in Iceberg
+                delta_only_props = [
+                    "delta.dataSkippingStatsColumns",
+                    "delta.autoOptimize.optimizeWrite",
+                    "delta.autoOptimize.autoCompact",
+                    "delta.logRetentionDuration",
+                    "delta.deletedFileRetentionDuration",
+                    "delta.enableChangeDataFeed",
+                    "delta.columnMapping.mode",
+                    "delta.appendOnly",
+                ]
+
+                for prop_key in table_properties.keys():
+                    if any(
+                        prop_key.startswith(delta_prop) or prop_key == delta_prop
+                        for delta_prop in delta_only_props
+                    ):
+                        raise TerminalValueError(
+                            f"Table property '{prop_key}' is Delta Lake specific and not supported"
+                            " with ICEBERG tables. Remove this property when using"
+                            " table_format='iceberg'."
+                        )
         # Note: DELTA is the default format, no explicit USING clause needed
 
         # For CREATE TABLE, we need custom generation if we have any custom clauses or non-DELTA format

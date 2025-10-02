@@ -16,9 +16,7 @@ There are two options to run dlt pipelines and load data:
 * Run dlt pipelines in any environment by providing credentials for both Databricks and your cloud storage.
 * Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
 
-:::note
-If you'd like to load data to Databricks Managed Iceberg tables, use [dltHub Iceberg destination](https://info.dlthub.com/waiting-list)
-:::
+Databricks supports both **Delta** (default) and **Apache Iceberg** table formats. See the [table_format](#apache-iceberg-tables) section for details on using Iceberg tables.
 
 ## Install dlt with Databricks
 
@@ -642,6 +640,12 @@ databricks_adapter(
 
 #### Apache Iceberg tables
 
+Databricks supports Apache Iceberg table format, which provides benefits like better schema evolution and time travel capabilities.
+
+**Important notes:**
+- ICEBERG tables support the same data types as Delta tables
+- Delta Lake-specific table properties (e.g., `delta.dataSkippingStatsColumns`, `delta.appendOnly`) cannot be used with ICEBERG tables - validation occurs at load time to prevent incompatible configurations
+
 ```py
 import dlt
 from dlt.destinations.adapters import databricks_adapter
@@ -654,7 +658,6 @@ def customer_data():
 databricks_adapter(
     customer_data,
     table_format="ICEBERG",  # Use Apache Iceberg format
-    # Note: Clustering requires disabling deletion vectors for Iceberg tables
     table_properties={
         # Iceberg-specific properties (note: Delta properties are not supported)
         "write.format.default": "parquet",
