@@ -28,7 +28,7 @@ dlt init foo ducklake
 `dlt init` will create a sample `secrets.toml` for **postgres** catalog and **s3** bucket storage. For local automatic setup comment out catalog and storage entries:
 ```toml
 [destination.ducklake.credentials]
-catalog_name="lake_catalog"  # we recommend explicit catalog name
+ducklake_name="ducklake"  # we recommend explicit catalog name
 ```
 
 - Run a test pipeline that writes to a local DuckLake:
@@ -54,7 +54,7 @@ The console output will point you to where `sqlite` catalog database and data st
 - `lake_catalog.files` folder with `lake_schema` subfolder for the dataset.
 
 ## Configure Ducklake
-Pick your `catalog_name` as described above. This name is the used:
+Pick your `ducklake_name` as described above. This name is the used:
 - as attach name for the ducklake - each ducklake connection starts with **:memory:** connection to which we `ATTACH` the ducklake
 - to set default folder name of the local filesystem storage and database file name for `sqlite` and `duckdb` (if no explicit configuration is provided)
 - as **postgres** schema name where catalog tables will be created (if postgres configured)
@@ -82,7 +82,7 @@ Refer to [duckdb](duckdb.md) configuration for more options.
 [destination.ducklake.credentials]
 catalog="postgres://loader:pass@localhost:5432/dlt_data"
 ```
-`ducklake` will use postgres schema with the name of `catalog_name` config option and create required tables automatically.
+`ducklake` will use postgres schema with the name of `ducklake_name` config option and create required tables automatically.
 
 - 🧪 **mysql**: uses the same code path as for **postgres** but we never tested it
 
@@ -104,7 +104,7 @@ Make sure that you have Motherduck token in your environment. Hopefully situatio
 Example s3 configuration:
 ```toml
 [destination.ducklake.credentials]
-catalog_name="lake_catalog"
+ducklake_name="lakehouse"
 catalog="postgres://loader:pass@localhost:5432/dlt_data"
 
 [destination.ducklake.credentials.storage]
@@ -145,7 +145,7 @@ credentials = DuckLakeCredentials(
     catalog="postgresql://loader:pass@localhost:5432/dlt_data",
     storage="s3://dlt-ci-test-bucket/lake",
 )
-ducklake = dlt.destinations.ducklake(credentials=credentials)
+destination = dlt.destinations.ducklake(credentials=credentials)
 ```
 
 ```py

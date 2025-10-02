@@ -27,7 +27,7 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import NormalizeInfo, StateInjectableContext
 from dlt.common.schema.schema import Schema
-from dlt.common.typing import TSortOrder
+from dlt.common.typing import TSortOrder, TDataItems
 from dlt.common.utils import chunks, digest128, uniq_id
 
 from dlt.extract import DltSource
@@ -4372,3 +4372,111 @@ def test_incremental_and_limit(offset_by_last_value: bool):
     assert resource_called == 30 if offset_by_last_value else 60
     # check that we have items 0-29
     assert p.dataset().items.df().id.tolist() == list(range(30))
+
+
+def test_custom_metrics_in_incremental() -> None:
+    """Ensure that custom metrics from the incremental transform are correctly
+    collected along with the custom metrics from the resource itself"""
+
+    @dlt.resource(
+        table_name="items",
+    )
+    def resource_with_metrics(
+        items: TDataItems,
+        as_batch: bool,
+    ):
+        custom_metrics = dlt.current.resource_metrics()
+        custom_metrics["from_resource"] = "hey"
+        if as_batch:
+            yield items
+        else:
+            yield from items
+
+    p = dlt.pipeline(
+        pipeline_name="p" + uniq_id(),
+        destination="duckdb",
+    )
+
+    def _assert_custom_metrics(
+        load_id: str,
+        unfiltered_items_count: int,
+        unfiltered_batches_count: int,
+        initial_unique_hashes_count: int,
+        final_unique_hashes_count: int,
+        last_normalized_count: int,
+    ) -> None:
+        resource_metrics = p.last_trace.last_extract_info.metrics[load_id][0]["resource_metrics"][
+            "resource_with_metrics"
+        ]
+        assert resource_metrics.custom_metrics["from_resource"] == "hey"
+        assert resource_metrics.custom_metrics["unfiltered_items_count"] == unfiltered_items_count
+        assert (
+            resource_metrics.custom_metrics["unfiltered_batches_count"] == unfiltered_batches_count
+        )
+        # NOTE: initial_unique_hashes_count is always last value in pipeline state,
+        # so it persists across different incremental instances
+        assert (
+            resource_metrics.custom_metrics["initial_unique_hashes_count"]
+            == initial_unique_hashes_count
+        )
+        assert (
+            resource_metrics.custom_metrics["final_unique_hashes_count"]
+            == final_unique_hashes_count
+        )
+        assert p.last_trace.last_normalize_info.row_counts.get("items") == last_normalized_count
+
+    def _run_with_items(items: TDataItems, as_batch: bool) -> str:
+        load_info = p.run(resource_with_metrics(items=items, as_batch=as_batch))
+        return load_info.loads_ids[0]
+
+    # 1. run with a single new item as a single batch
+    resource_with_metrics.apply_hints(
+        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1)
+    )
+    load_id = _run_with_items({"id": 1, "value": "1"}, True)
+    _assert_custom_metrics(load_id, 1, 1, 0, 1, 1)
+
+    # 2. run with two new items as a single batch
+    load_id = _run_with_items([{"id": 2, "value": "2"}, {"id": 3, "value": "3"}], True)
+    _assert_custom_metrics(load_id, 3, 2, 1, 1, 2)
+
+    # 3. run with one old and one new item each as batch
+    load_id = _run_with_items([{"id": 3, "value": "3"}, {"id": 4, "value": "4"}], False)
+    _assert_custom_metrics(load_id, 5, 4, 1, 1, 1)
+
+    # 4. run with duplicate cursor field values, but different hashes, as a single batch
+    load_id = _run_with_items(
+        [{"id": 5, "value": "5.1"}, {"id": 5, "value": "5.2"}, {"id": 5, "value": "5.3"}], True
+    )
+    _assert_custom_metrics(load_id, 8, 5, 1, 3, 3)
+
+    # 5. reset incremental with no boundary deduplication (primary_key=()) and run with the same values
+    # from previous run, should be loaded as a single batch with 3 items
+    resource_with_metrics.apply_hints(
+        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1, primary_key=())
+    )
+    load_id = _run_with_items(
+        [{"id": 5, "value": "5.1"}, {"id": 5, "value": "5.2"}, {"id": 5, "value": "5.3"}], True
+    )
+    _assert_custom_metrics(load_id, 3, 1, 0, 0, 3)
+
+    # 6. run with one old and one new item as a single batch (still no boundary deduplication)
+    # should be loaded as a single batch with 2 items
+    load_id = _run_with_items([{"id": 5, "value": "5.1"}, {"id": 6, "value": "6.1"}], True)
+    _assert_custom_metrics(load_id, 5, 2, 0, 0, 2)
+
+    # 7. enable boundary deduplication and run with one old and one new item as a single batch
+    # should be loaded as a single batch with 2 items
+    resource_with_metrics.incremental.primary_key = "id"
+    load_id = _run_with_items([{"id": 6, "value": "6.1"}, {"id": 7, "value": "7"}], True)
+    _assert_custom_metrics(load_id, 7, 3, 0, 1, 2)
+
+    # 8. run with one old and one new item each as batch
+    # only the new item should be loaded
+    load_id = _run_with_items([{"id": 7, "value": "7"}, {"id": 8, "value": "8"}], False)
+    _assert_custom_metrics(load_id, 9, 5, 1, 1, 1)
+
+    # 9. run with None items and one new item as single batch
+    # None items should increment unfiltered_items_count
+    load_id = _run_with_items([None, None, {"id": 9, "value": "9"}], True)
+    _assert_custom_metrics(load_id, 12, 6, 1, 1, 1)

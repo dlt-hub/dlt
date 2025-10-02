@@ -34,7 +34,7 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 1. Fork the `dlt` repository and clone it to your local machine.
 2. Install `uv` with `make install-uv` (or follow the [official instructions](https://docs.astral.sh/uv/getting-started/installation/)).
 3. Run `make dev` to install all dependencies, including development ones.
-4. Activate your virtual environment with `make shell` and start working, or prepend all commands with `uv run` to run them within the uv environment. `uv run` is encouraged, it automatically keeps your project dependencies up to date.
+4. Activate your virtual environment (run `source .venv/bin/activate` if you're on Linux/macOS) and start working, or prepend all commands with `uv run` to run them within the uv environment. `uv run` is encouraged, it automatically keeps your project dependencies up to date.
 
 ## Submitting Changes
 
