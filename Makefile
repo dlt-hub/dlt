@@ -95,7 +95,7 @@ build-marimo:
 
 lint-marimo:
 	uv run flake8 docs/education/*/*.py --extend-ignore=D,F704 --max-line-length=200
-	uv run mypy docs/education/*/*.py --disable-error-code=no-redef
+	uv run mypy docs/education/*/*.py
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
