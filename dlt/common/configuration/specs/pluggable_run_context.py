@@ -1,13 +1,15 @@
 from types import ModuleType
-from typing import Any, ClassVar, Dict, List, Optional, Protocol, Union
+from typing import Any, ClassVar, Dict, List, Optional, Protocol, Union, runtime_checkable
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
+from dlt.common.typing import Self
 from dlt.common.utils import uniq_id
 
 
+@runtime_checkable
 class SupportsRunContext(Protocol):
     """Describes where `dlt` looks for settings, pipeline working folder. Implementations must be picklable."""
 
@@ -71,6 +73,20 @@ class SupportsRunContext(Protocol):
 
     def plug(self) -> None:
         """Called when context is added to container"""
+
+
+class SupportsProfilesRunContext(SupportsRunContext):
+    """Adds profile support on run context. Note: runtime checkable protocols are slow on isinstance"""
+
+    @property
+    def profile(self) -> str:
+        """Returns current profile name"""
+
+    def available_profiles(self) -> List[str]:
+        """Returns available profiles"""
+
+    def switch_profile(self, new_profile: str) -> Self:
+        """Switches current profile and returns new run context"""
 
 
 class PluggableRunContext(ContainerInjectableContext):
