@@ -1,4 +1,8 @@
-"""Helper functions and utilities for spatial data processing"""
+"""
+Helper functions and utilities for spatial data processing
+
+Created by: Baroudi Malek & Fawzi Hammami
+"""
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 import os

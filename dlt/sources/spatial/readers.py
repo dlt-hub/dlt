@@ -1,4 +1,8 @@
-"""OGR/GDAL readers for vector and raster spatial data"""
+"""
+OGR/GDAL readers for vector and raster spatial data
+
+Created by: Baroudi Malek & Fawzi Hammami
+"""
 
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union, Literal
 import base64

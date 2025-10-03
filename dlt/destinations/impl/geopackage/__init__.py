@@ -1,4 +1,7 @@
-"""GeoPackage destination for spatial data
+"""
+GeoPackage destination for spatial data
+
+Created by: Baroudi Malek & Fawzi Hammami
 
 GeoPackage is an OGC standard SQLite extension for spatial data storage.
 It provides a lightweight, portable format for geospatial data.

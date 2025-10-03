@@ -1,6 +1,8 @@
 """
 Spatial data source for dlt - supports OGR/GDAL formats for comprehensive spatial ETL
 
+Created by: Baroudi Malek & Fawzi Hammami
+
 This module provides spatial data extraction capabilities using OGR/GDAL, supporting:
 - 170+ vector formats (Shapefile, FileGDB, GeoJSON, KML, DWG, DXF, etc.)
 - 200+ raster formats (GeoTIFF, NetCDF, HDF5, ECW, etc.)

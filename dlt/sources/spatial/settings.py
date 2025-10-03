@@ -1,4 +1,8 @@
-"""Configuration settings for spatial data sources"""
+"""
+Configuration settings for spatial data sources
+
+Created by: Baroudi Malek & Fawzi Hammami
+"""
 
 from typing import Literal
 

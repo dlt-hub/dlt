@@ -1,4 +1,8 @@
-"""Spatial transformation functions - comparable to FME Transformers"""
+"""
+Spatial transformation functions for spatial ETL operations
+
+Created by: Baroudi Malek & Fawzi Hammami
+"""
 
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Tuple, Union
 
