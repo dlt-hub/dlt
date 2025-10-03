@@ -314,9 +314,7 @@ def test_incremental_load(
 def test_http_filesystem(
     public_http_server, bucket_url: str, destination_config: DestinationTestConfiguration
 ):
-    public_resource = filesystem(
-        bucket_url=bucket_url, file_glob="parquet/mlb_players.parquet"
-    )
+    public_resource = filesystem(bucket_url=bucket_url, file_glob="parquet/mlb_players.parquet")
     pipeline = destination_config.setup_pipeline("test_http_load", dev_mode=True)
     # just execute iterator
     load_info = pipeline.run(

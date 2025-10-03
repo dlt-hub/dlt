@@ -145,7 +145,6 @@ def TEST_DICT_CONFIG_PROVIDER():
 
 
 class PublicCDNHandler(http.server.SimpleHTTPRequestHandler):
-
     @classmethod
     def factory(cls, *args, directory: Path) -> "PublicCDNHandler":
         return cls(*args, directory=directory)
@@ -231,14 +230,10 @@ def public_http_server():
     httpd = http.server.ThreadingHTTPServer(
         ("localhost", 8080),
         partial(
-            PublicCDNHandler.factory,
-            directory=Path.cwd().joinpath("tests/common/storages/samples")
-        )
+            PublicCDNHandler.factory, directory=Path.cwd().joinpath("tests/common/storages/samples")
+        ),
     )
-    server_thread = threading.Thread(
-        target=httpd.serve_forever,
-        daemon=True
-    )
+    server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
     yield httpd
     httpd.shutdown()
