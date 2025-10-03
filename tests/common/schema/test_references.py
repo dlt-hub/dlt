@@ -16,258 +16,272 @@ from tests.utils import preserve_environ, patch_home_dir, autouse_test_storage
 
 @pytest.fixture
 def schema():
-    return dlt.Schema.from_dict({
-        "version": 2,
-        "version_hash": "rU2+hAL/KeR+Z0cVU/hTLcHJMUBRJgsC1b+3VJC/+ww=",
-        "engine_version": 11,
-        "name": "mock_source",
-        "tables": {
-            "_dlt_version": {
-                "name": "_dlt_version",
-                "columns": {
-                    "version": {"name": "version", "data_type": "bigint", "nullable": False},
-                    "engine_version": {
-                        "name": "engine_version",
-                        "data_type": "bigint",
-                        "nullable": False,
+    return dlt.Schema.from_dict(
+        {
+            "version": 2,
+            "version_hash": "rU2+hAL/KeR+Z0cVU/hTLcHJMUBRJgsC1b+3VJC/+ww=",
+            "engine_version": 11,
+            "name": "mock_source",
+            "tables": {
+                "_dlt_version": {
+                    "name": "_dlt_version",
+                    "columns": {
+                        "version": {"name": "version", "data_type": "bigint", "nullable": False},
+                        "engine_version": {
+                            "name": "engine_version",
+                            "data_type": "bigint",
+                            "nullable": False,
+                        },
+                        "inserted_at": {
+                            "name": "inserted_at",
+                            "data_type": "timestamp",
+                            "nullable": False,
+                        },
+                        "schema_name": {
+                            "name": "schema_name",
+                            "data_type": "text",
+                            "nullable": False,
+                        },
+                        "version_hash": {
+                            "name": "version_hash",
+                            "data_type": "text",
+                            "nullable": False,
+                        },
+                        "schema": {"name": "schema", "data_type": "text", "nullable": False},
                     },
-                    "inserted_at": {
-                        "name": "inserted_at",
-                        "data_type": "timestamp",
-                        "nullable": False,
-                    },
-                    "schema_name": {"name": "schema_name", "data_type": "text", "nullable": False},
-                    "version_hash": {
-                        "name": "version_hash",
-                        "data_type": "text",
-                        "nullable": False,
-                    },
-                    "schema": {"name": "schema", "data_type": "text", "nullable": False},
+                    "write_disposition": "skip",
+                    "resource": "_dlt_version",
+                    "description": "Created by DLT. Tracks schema updates",
                 },
-                "write_disposition": "skip",
-                "resource": "_dlt_version",
-                "description": "Created by DLT. Tracks schema updates",
-            },
-            "_dlt_loads": {
-                "name": "_dlt_loads",
-                "columns": {
-                    "load_id": {
-                        "name": "load_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "precision": 64,
+                "_dlt_loads": {
+                    "name": "_dlt_loads",
+                    "columns": {
+                        "load_id": {
+                            "name": "load_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "precision": 64,
+                        },
+                        "schema_name": {
+                            "name": "schema_name",
+                            "data_type": "text",
+                            "nullable": True,
+                        },
+                        "status": {"name": "status", "data_type": "bigint", "nullable": False},
+                        "inserted_at": {
+                            "name": "inserted_at",
+                            "data_type": "timestamp",
+                            "nullable": False,
+                        },
+                        "schema_version_hash": {
+                            "name": "schema_version_hash",
+                            "data_type": "text",
+                            "nullable": True,
+                        },
                     },
-                    "schema_name": {"name": "schema_name", "data_type": "text", "nullable": True},
-                    "status": {"name": "status", "data_type": "bigint", "nullable": False},
-                    "inserted_at": {
-                        "name": "inserted_at",
-                        "data_type": "timestamp",
-                        "nullable": False,
-                    },
-                    "schema_version_hash": {
-                        "name": "schema_version_hash",
-                        "data_type": "text",
-                        "nullable": True,
-                    },
+                    "write_disposition": "skip",
+                    "resource": "_dlt_loads",
+                    "description": "Created by DLT. Tracks completed loads",
                 },
-                "write_disposition": "skip",
-                "resource": "_dlt_loads",
-                "description": "Created by DLT. Tracks completed loads",
-            },
-            "root_table1": {
-                "columns": {
-                    "id": {"name": "id", "data_type": "bigint", "nullable": True},
-                    "key1": {"name": "key1", "data_type": "double", "nullable": True},
-                    "_dlt_load_id": {
-                        "name": "_dlt_load_id",
-                        "data_type": "text",
-                        "nullable": False,
+                "root_table1": {
+                    "columns": {
+                        "id": {"name": "id", "data_type": "bigint", "nullable": True},
+                        "key1": {"name": "key1", "data_type": "double", "nullable": True},
+                        "_dlt_load_id": {
+                            "name": "_dlt_load_id",
+                            "data_type": "text",
+                            "nullable": False,
+                        },
+                        "_dlt_id": {
+                            "name": "_dlt_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "unique": True,
+                            "row_key": True,
+                        },
                     },
-                    "_dlt_id": {
-                        "name": "_dlt_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "unique": True,
-                        "row_key": True,
-                    },
-                },
-                "write_disposition": "append",
-                "references": [
-                    {
-                        "columns": ["key1"],
-                        "referenced_table": "root_table2",
-                        "referenced_columns": ["key2"],
-                    }
-                ],
-                "name": "root_table1",
-                "resource": "root_table1",
-                "x-normalizer": {"seen-data": True},
-            },
-            "root_table2": {
-                "columns": {
-                    "id": {"name": "id", "data_type": "bigint", "nullable": True},
-                    "key2": {"name": "key2", "data_type": "double", "nullable": True},
-                    "_dlt_load_id": {
-                        "name": "_dlt_load_id",
-                        "data_type": "text",
-                        "nullable": False,
-                    },
-                    "_dlt_id": {
-                        "name": "_dlt_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "unique": True,
-                        "row_key": True,
-                    },
-                },
-                "write_disposition": "append",
-                "name": "root_table2",
-                "resource": "root_table2",
-                "x-normalizer": {"seen-data": True},
-            },
-            "_dlt_pipeline_state": {
-                "columns": {
-                    "version": {"name": "version", "data_type": "bigint", "nullable": False},
-                    "engine_version": {
-                        "name": "engine_version",
-                        "data_type": "bigint",
-                        "nullable": False,
-                    },
-                    "pipeline_name": {
-                        "name": "pipeline_name",
-                        "data_type": "text",
-                        "nullable": False,
-                    },
-                    "state": {"name": "state", "data_type": "text", "nullable": False},
-                    "created_at": {
-                        "name": "created_at",
-                        "data_type": "timestamp",
-                        "nullable": False,
-                    },
-                    "version_hash": {"name": "version_hash", "data_type": "text", "nullable": True},
-                    "_dlt_load_id": {
-                        "name": "_dlt_load_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "precision": 64,
-                    },
-                    "_dlt_id": {
-                        "name": "_dlt_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "unique": True,
-                        "row_key": True,
-                    },
-                },
-                "write_disposition": "append",
-                "file_format": "preferred",
-                "name": "_dlt_pipeline_state",
-                "resource": "_dlt_pipeline_state",
-                "x-normalizer": {"seen-data": True},
-            },
-            "root_table1__child1": {
-                "name": "root_table1__child1",
-                "columns": {
-                    "id": {"name": "id", "data_type": "bigint", "nullable": True},
-                    "depth1": {"name": "depth1", "data_type": "text", "nullable": True},
-                    "_dlt_root_id": {
-                        "name": "_dlt_root_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "root_key": True,
-                    },
-                    "_dlt_parent_id": {
-                        "name": "_dlt_parent_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "parent_key": True,
-                    },
-                    "_dlt_list_idx": {
-                        "name": "_dlt_list_idx",
-                        "data_type": "bigint",
-                        "nullable": False,
-                    },
-                    "_dlt_id": {
-                        "name": "_dlt_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "unique": True,
-                        "row_key": True,
-                    },
-                },
-                "parent": "root_table1",
-                "x-normalizer": {"seen-data": True},
-            },
-            "root_table1__child1__child2": {
-                "name": "root_table1__child1__child2",
-                "columns": {
-                    "id": {"name": "id", "data_type": "bigint", "nullable": True},
-                    "depth1": {"name": "depth1", "data_type": "text", "nullable": True},
-                    "_dlt_root_id": {
-                        "name": "_dlt_root_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "root_key": True,
-                    },
-                    "_dlt_parent_id": {
-                        "name": "_dlt_parent_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "parent_key": True,
-                    },
-                    "_dlt_list_idx": {
-                        "name": "_dlt_list_idx",
-                        "data_type": "bigint",
-                        "nullable": False,
-                    },
-                    "_dlt_id": {
-                        "name": "_dlt_id",
-                        "data_type": "text",
-                        "nullable": False,
-                        "unique": True,
-                        "row_key": True,
-                    },
-                },
-                "parent": "root_table1__child1",
-                "x-normalizer": {"seen-data": True},
-            },
-        },
-        "settings": {
-            "detections": ["iso_timestamp"],
-            "default_hints": {
-                "not_null": [
-                    "_dlt_id",
-                    "_dlt_root_id",
-                    "_dlt_parent_id",
-                    "_dlt_list_idx",
-                    "_dlt_load_id",
-                ],
-                "parent_key": ["_dlt_parent_id"],
-                "root_key": ["_dlt_root_id"],
-                "unique": ["_dlt_id"],
-                "row_key": ["_dlt_id"],
-            },
-        },
-        "normalizers": {
-            "names": "snake_case",
-            "json": {
-                "module": "dlt.common.normalizers.json.relational",
-                "config": {
-                    "root_key_propagation": True,
-                    "propagation": {
-                        "tables": {
-                            "root_table1": {"_dlt_id": "_dlt_root_id"},
-                            "root_table2": {"_dlt_id": "_dlt_root_id"},
+                    "write_disposition": "append",
+                    "references": [
+                        {
+                            "columns": ["key1"],
+                            "referenced_table": "root_table2",
+                            "referenced_columns": ["key2"],
                         }
+                    ],
+                    "name": "root_table1",
+                    "resource": "root_table1",
+                    "x-normalizer": {"seen-data": True},
+                },
+                "root_table2": {
+                    "columns": {
+                        "id": {"name": "id", "data_type": "bigint", "nullable": True},
+                        "key2": {"name": "key2", "data_type": "double", "nullable": True},
+                        "_dlt_load_id": {
+                            "name": "_dlt_load_id",
+                            "data_type": "text",
+                            "nullable": False,
+                        },
+                        "_dlt_id": {
+                            "name": "_dlt_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "unique": True,
+                            "row_key": True,
+                        },
+                    },
+                    "write_disposition": "append",
+                    "name": "root_table2",
+                    "resource": "root_table2",
+                    "x-normalizer": {"seen-data": True},
+                },
+                "_dlt_pipeline_state": {
+                    "columns": {
+                        "version": {"name": "version", "data_type": "bigint", "nullable": False},
+                        "engine_version": {
+                            "name": "engine_version",
+                            "data_type": "bigint",
+                            "nullable": False,
+                        },
+                        "pipeline_name": {
+                            "name": "pipeline_name",
+                            "data_type": "text",
+                            "nullable": False,
+                        },
+                        "state": {"name": "state", "data_type": "text", "nullable": False},
+                        "created_at": {
+                            "name": "created_at",
+                            "data_type": "timestamp",
+                            "nullable": False,
+                        },
+                        "version_hash": {
+                            "name": "version_hash",
+                            "data_type": "text",
+                            "nullable": True,
+                        },
+                        "_dlt_load_id": {
+                            "name": "_dlt_load_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "precision": 64,
+                        },
+                        "_dlt_id": {
+                            "name": "_dlt_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "unique": True,
+                            "row_key": True,
+                        },
+                    },
+                    "write_disposition": "append",
+                    "file_format": "preferred",
+                    "name": "_dlt_pipeline_state",
+                    "resource": "_dlt_pipeline_state",
+                    "x-normalizer": {"seen-data": True},
+                },
+                "root_table1__child1": {
+                    "name": "root_table1__child1",
+                    "columns": {
+                        "id": {"name": "id", "data_type": "bigint", "nullable": True},
+                        "depth1": {"name": "depth1", "data_type": "text", "nullable": True},
+                        "_dlt_root_id": {
+                            "name": "_dlt_root_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "root_key": True,
+                        },
+                        "_dlt_parent_id": {
+                            "name": "_dlt_parent_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "parent_key": True,
+                        },
+                        "_dlt_list_idx": {
+                            "name": "_dlt_list_idx",
+                            "data_type": "bigint",
+                            "nullable": False,
+                        },
+                        "_dlt_id": {
+                            "name": "_dlt_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "unique": True,
+                            "row_key": True,
+                        },
+                    },
+                    "parent": "root_table1",
+                    "x-normalizer": {"seen-data": True},
+                },
+                "root_table1__child1__child2": {
+                    "name": "root_table1__child1__child2",
+                    "columns": {
+                        "id": {"name": "id", "data_type": "bigint", "nullable": True},
+                        "depth1": {"name": "depth1", "data_type": "text", "nullable": True},
+                        "_dlt_root_id": {
+                            "name": "_dlt_root_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "root_key": True,
+                        },
+                        "_dlt_parent_id": {
+                            "name": "_dlt_parent_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "parent_key": True,
+                        },
+                        "_dlt_list_idx": {
+                            "name": "_dlt_list_idx",
+                            "data_type": "bigint",
+                            "nullable": False,
+                        },
+                        "_dlt_id": {
+                            "name": "_dlt_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "unique": True,
+                            "row_key": True,
+                        },
+                    },
+                    "parent": "root_table1__child1",
+                    "x-normalizer": {"seen-data": True},
+                },
+            },
+            "settings": {
+                "detections": ["iso_timestamp"],
+                "default_hints": {
+                    "not_null": [
+                        "_dlt_id",
+                        "_dlt_root_id",
+                        "_dlt_parent_id",
+                        "_dlt_list_idx",
+                        "_dlt_load_id",
+                    ],
+                    "parent_key": ["_dlt_parent_id"],
+                    "root_key": ["_dlt_root_id"],
+                    "unique": ["_dlt_id"],
+                    "row_key": ["_dlt_id"],
+                },
+            },
+            "normalizers": {
+                "names": "snake_case",
+                "json": {
+                    "module": "dlt.common.normalizers.json.relational",
+                    "config": {
+                        "root_key_propagation": True,
+                        "propagation": {
+                            "tables": {
+                                "root_table1": {"_dlt_id": "_dlt_root_id"},
+                                "root_table2": {"_dlt_id": "_dlt_root_id"},
+                            }
+                        },
                     },
                 },
             },
-        },
-        "previous_hashes": [
-            "o4g4bDEBBXdLCtW33Lraslp41bmO/QuutxbykBzymf8=",
-            "lv4OMECSbEgjo5+tfmfTcYX4ZN7fuE1eWOoRpOBVdKM=",
-        ],
-    })
+            "previous_hashes": [
+                "o4g4bDEBBXdLCtW33Lraslp41bmO/QuutxbykBzymf8=",
+                "lv4OMECSbEgjo5+tfmfTcYX4ZN7fuE1eWOoRpOBVdKM=",
+            ],
+        }
+    )
 
 
 EXPECTED_NESTED_REF1 = {
