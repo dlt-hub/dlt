@@ -187,6 +187,27 @@ workspace = [
 dbml = [
     "pydbml"
 ]
+spatial = [
+    "gdal>=3.8.0",
+    "shapely>=2.0.0",
+    "pyproj>=3.6.0",
+    "fiona>=1.9.0",
+    "geopandas>=0.14.0",
+    "rasterio>=1.3.0",
+]
+geopackage = [
+    "gdal>=3.8.0",
+    "shapely>=2.0.0",
+]
+sedona = [
+    "apache-sedona>=1.5.0",
+    "pyspark>=3.4.0",
+    "geopandas>=0.14.0",
+]
+sedona-flink = [
+    "apache-sedona[flink]>=1.5.0",
+    "apache-flink>=1.18.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/dlt-hub"
