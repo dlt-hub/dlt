@@ -159,7 +159,7 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
     fs_kwargs.update(DEFAULT_KWARGS.get(protocol, {}))
 
-    if protocol == "sftp" or protocol == "https":
+    if protocol in ("https", "http", "sftp"):
         fs_kwargs.clear()
 
     if config.kwargs is not None:
