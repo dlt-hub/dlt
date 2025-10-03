@@ -980,10 +980,33 @@ def create_root_child_reference(tables: TSchemaTables, table_name: str) -> TTabl
     root_row_key: str = get_first_column_name_with_prop(root_table, "row_key")
 
     return TTableReference(
+        label="_dlt_root",
+        cardinality="many_to_one",
+        table=table_name,
         columns=[child_root_key],
         referenced_table=root_table["name"],
         referenced_columns=[root_row_key],
     )
+
+
+def get_all_root_child_references_from_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    root_table = tables.get(table_name)
+    if is_nested_table(root_table) is True:
+        raise ValueError(f"Table `{table_name}` is not a root table.")
+
+    children_refs = []
+    # skip the first table in chain, which is the root; i.e., the current one
+    for child_table in get_nested_tables(tables, table_name)[1:]:
+        # try/except because a root table may or may not have child with `root_key` enabled
+        try:
+            child_ref = create_root_child_reference(tables, child_table["name"])
+            children_refs.append(child_ref)
+        except ValueError:
+            pass
+
+    return children_refs
 
 
 def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTableReference:
@@ -996,25 +1019,53 @@ def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTa
 
     parent_table_name = child_table.get("parent")
     if parent_table_name is None:
-        raise ValueError(f"No parent table found for `{table_name=:}`")
+        raise ValueError(f"Table `{table_name}` is a root table and has no parent.")
     parent_table = tables.get(parent_table_name)
 
     child_parent_key: str = get_first_column_name_with_prop(child_table, "parent_key")
     parent_row_key: str = get_first_column_name_with_prop(parent_table, "row_key")
 
     return TTableReference(
+        label="_dlt_parent",
+        cardinality="many_to_one",
+        table=table_name,
         columns=[child_parent_key],
         referenced_table=parent_table_name,
         referenced_columns=[parent_row_key],
     )
 
 
+def get_all_parent_child_references_from_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    root_table = tables.get(table_name)
+    if is_nested_table(root_table) is True:
+        raise ValueError(f"Table `{table_name}` is not a root table.")
+
+    children_refs = []
+    # skip the first table in chain, which is the root; i.e., the current one
+    for child_table in get_nested_tables(tables, table_name)[1:]:
+        # try/except because a root table may or may not have child with `root_key` enabled
+        try:
+            child_ref = create_parent_child_reference(tables, child_table["name"])
+            children_refs.append(child_ref)
+        except ValueError:
+            pass
+
+    return children_refs
+
+
 def create_load_table_reference(table: TTableSchema) -> TTableReference:
-    """Create a Reference between `{table}._dlt_oad_id` and `_dlt_loads.load_id`"""
+    """Create a Reference between `{table}._dlt_load_id` and `_dlt_loads.load_id`"""
     if table["columns"].get(C_DLT_LOAD_ID) is None:
-        raise ValueError(f"Column `{C_DLT_LOAD_ID}` not found for `table_name={table['name']}`")
+        raise ValueError(
+            f"Table `{table['name']}` is not a root table and has no `{C_DLT_LOAD_ID}` column."
+        )
 
     return TTableReference(
+        label="_dlt_load",
+        cardinality="zero_to_many",
+        table=table["name"],
         columns=[C_DLT_LOAD_ID],
         referenced_table=LOADS_TABLE_NAME,
         referenced_columns=[C_DLT_LOADS_TABLE_LOAD_ID],
@@ -1031,6 +1082,9 @@ def create_version_and_loads_hash_reference(tables: TSchemaTables) -> TTableRefe
         raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
 
     return TTableReference(
+        label="_dlt_schema_version",
+        cardinality="one_to_many",
+        table=VERSION_TABLE_NAME,
         columns=["version_hash"],
         referenced_table=LOADS_TABLE_NAME,
         referenced_columns=["schema_version_hash"],
@@ -1046,12 +1100,14 @@ def create_version_and_loads_schema_name_reference(tables: TSchemaTables) -> TTa
     if LOADS_TABLE_NAME not in tables:
         raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
 
-    loads_and_version_hash_schema_name_ref = TTableReference(
+    return TTableReference(
+        label="_dlt_schema_name",
+        cardinality="many_to_many",
+        table=VERSION_TABLE_NAME,
         columns=["schema_name"],
         referenced_table=LOADS_TABLE_NAME,
         referenced_columns=["schema_name"],
     )
-    return loads_and_version_hash_schema_name_ref
 
 
 def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:

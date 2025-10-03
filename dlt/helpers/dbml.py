@@ -200,7 +200,8 @@ def _to_dbml_reference(
 def _from_dbml_reference(reference: Reference) -> TTableReference:
     """Convert a DBML reference to a dlt table reference"""
     return TTableReference(
-        referenced_table=reference.col2[0].table.name,
+        table=reference.table1.name,
+        referenced_table=reference.table2.name,
         columns=[col.name for col in reference.col1],
         referenced_columns=[col.name for col in reference.col2],
     )
