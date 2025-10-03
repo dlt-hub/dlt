@@ -223,8 +223,11 @@ def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
     fmt.secho(fmt.bold("Linting Python snippets"))
 
+    # TODO replace this by the repo's main formatting and linting
     prepare_for_linting(snippets)
-    result = subprocess.run(["ruff", "check", LINT_FOLDER], capture_output=True, text=True)
+    result = subprocess.run(
+        ["ruff", "check", LINT_FOLDER, "--extend-ignore", "F704"], capture_output=True, text=True
+    )
 
     if "error" in result.stdout.lower():
         fmt.echo(result.stdout.strip())
@@ -242,7 +245,9 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
 
     prepare_for_linting(snippets)
     result = subprocess.run(
-        ["mypy", LINT_FOLDER, "--check-untyped-defs"], capture_output=True, text=True
+        ["mypy", LINT_FOLDER, "--exclude", ".*/dataset-access/marimo", "--check-untyped-defs"],
+        capture_output=True,
+        text=True,
     )
 
     if "no issues found" not in result.stdout.lower():

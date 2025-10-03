@@ -9,17 +9,16 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.pipeline.utils import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 
-from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.pipeline.utils import assert_load_info, assert_query_column
 from tests.load.utils import (
-    TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES, table_update_and_row
 
 
 # mark all tests as essential, do not remove
@@ -204,7 +203,7 @@ def test_char_replacement_cs_naming_convention(
     rel_ = pipeline.dataset()["AMLPerFornyelseoe"]
     results = rel_.fetchall()
     assert len(results) == 1
-    assert "AmlSistUtfoertDato" in rel_.columns_schema
+    assert "AmlSistUtfoertDato" in rel_.columns
 
 
 @pytest.mark.parametrize(
@@ -233,10 +232,10 @@ def test_snowflake_use_vectorized_scanner(
     load_job_spy = mocker.spy(snowflake, "gen_copy_sql")
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
-    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    columns_schema, _ = table_update_and_row()
     expected_rows = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
 
-    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    @dlt.resource(table_name="data_types", write_disposition="merge", columns=columns_schema)
     def my_resource():
         nonlocal data_types
         yield [data_types] * 10
@@ -308,11 +307,11 @@ def test_snowflake_use_vectorized_scanner(
         db_row = list(db_rows[0])
         # "snowflake" does not parse JSON from parquet string so double parse
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row,
             expected_row=expected_rows,
-            schema=column_schemas,
+            schema=columns_schema,
             parse_json_strings=True,
-            timestamp_precision=6,
         )
 
 

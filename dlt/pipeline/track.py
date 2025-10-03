@@ -1,6 +1,6 @@
 """Implements SupportsTracking"""
 import contextlib
-from typing import Any, List
+from typing import Any, Union, Dict, Optional
 import humanize
 
 from dlt.common import logger
@@ -78,6 +78,35 @@ def on_start_trace_step(
         span.__enter__()
 
 
+def _build_base_props(
+    pipeline: SupportsPipeline,
+) -> Dict[str, Union[str, None]]:
+    return {
+        "destination_name": pipeline.destination.destination_name if pipeline.destination else None,
+        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
+        "pipeline_name_hash": digest128(pipeline.pipeline_name),
+        "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
+        "default_schema_name_hash": (
+            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
+        ),
+    }
+
+
+def on_first_dataset_access(
+    pipeline: SupportsPipeline,
+    success: bool,
+    schema_name: Optional[str] = None,
+) -> None:
+    """Track the first dataset access telemetry event for the given pipeline instance."""
+    props = {
+        "success": success,
+        **_build_base_props(pipeline=pipeline),
+        # The schema may differ from the default pipeline schema
+        "requested_schema_name_hash": digest128(schema_name) if schema_name else None,
+    }
+    dlthub_telemetry_track("pipeline", "access_dataset", props)
+
+
 def on_end_trace_step(
     trace: PipelineTrace,
     step: PipelineStepTrace,
@@ -95,13 +124,7 @@ def on_end_trace_step(
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": pipeline.destination.destination_name if pipeline.destination else None,
-        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
-        "pipeline_name_hash": digest128(pipeline.pipeline_name),
-        "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
-        "default_schema_name_hash": (
-            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
-        ),
+        **_build_base_props(pipeline=pipeline),
         "transaction_id": trace.transaction_id,
     }
     if step.step == "extract" and step_info:

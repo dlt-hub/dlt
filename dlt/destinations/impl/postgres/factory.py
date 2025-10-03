@@ -92,7 +92,7 @@ class PostgresTypeMapper(TypeMapperImpl):
 
         # append precision if specified and valid
         if precision is not None:
-            if 0 <= precision <= 6:
+            if 0 <= precision <= self.capabilities.timestamp_precision:
                 timestamp += f" ({precision})"
             else:
                 raise TerminalValueError(

@@ -36,6 +36,7 @@ from dlt.common.typing import (
     ConfigValueSentinel,
     TAnyClass,
     Annotated,
+    Self,
     extract_inner_type,
     is_annotated,
     is_any_type,
@@ -300,6 +301,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
         default=None, init=False, repr=False, compare=False
     )
     """Holds the exception that prevented the full resolution"""
+    __resolved_fields_set__: List[str] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    """Fields set to non-defaults during resolve, including explicit values"""
     __section__: ClassVar[str] = None
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
     __config_gen_annotations__: ClassVar[List[str]] = []
@@ -332,8 +337,6 @@ class BaseConfiguration(MutableMapping[str, Any]):
             self.update(init_value)
         elif init_value is not None:
             self.parse_native_representation(init_value)
-        else:
-            return
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
@@ -376,6 +379,21 @@ class BaseConfiguration(MutableMapping[str, Any]):
             for f in cls._get_resolvable_dataclass_fields()
         }
 
+    @classmethod
+    def is_field_resolved(cls, value: Any, hint: AnyType) -> bool:
+        """Checks if config field with `value` and type `hint` is resolved
+
+        Optional fields are always resolved, required fields must hold value
+        and if they are embedded configuration, they must be resolved.
+        """
+        if not is_optional_type(hint) and (
+            value is None
+            or ((not value.__is_resolved__) if isinstance(value, BaseConfiguration) else False)
+        ):
+            return False
+        else:
+            return True
+
     def is_resolved(self) -> bool:
         return self.__is_resolved__
 
@@ -387,16 +405,28 @@ class BaseConfiguration(MutableMapping[str, Any]):
         return any(
             field
             for field, hint in self.get_resolvable_fields().items()
-            if getattr(self, field) is None and not is_optional_type(hint)
+            if not self.is_field_resolved(getattr(self, field), hint)
         )
 
-    def resolve(self) -> None:
+    def resolve(self) -> Self:
         self.call_method_in_mro("on_resolved")
         self.__is_resolved__ = True
+        return self
 
     def copy(self: _B) -> _B:
-        """Returns a deep copy of the configuration instance"""
-        return copy.deepcopy(self)
+        """Returns recursive copy of the configuration instance. Only embedded configurations
+        are copied recursively. In all other cases references are copied.
+        """
+        new_obj = object.__new__(self.__class__)
+
+        for f in dataclasses.fields(self):
+            if not hasattr(self, f.name):
+                continue
+            v = getattr(self, f.name)
+            nv = v.copy() if isinstance(v, BaseConfiguration) else v
+            object.__setattr__(new_obj, f.name, nv)
+
+        return new_obj
 
     def as_dict_nondefault(self) -> Dict[str, Any]:
         """Gets configuration as dictionary containing only values that are non-default"""
@@ -540,6 +570,9 @@ class ContainerInjectableContext(BaseConfiguration):
 
     def before_remove(self) -> None:
         """Called each time before context is removed from container"""
+
+    # context is always resolved
+    __is_resolved__ = True
 
 
 _F_ContainerInjectableContext = ContainerInjectableContext

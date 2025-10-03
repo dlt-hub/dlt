@@ -145,10 +145,10 @@ This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project di
 
 ## 6. Explore the data
 
-dlt comes with a built-in browser application that allows you to interact with the loaded data. To enable it, run the following command:
+dlt comes with a built-in browser dashboard that allows you to interact with the loaded data. To enable it, run the following command:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
 Next, run the following command to launch the data browser app:
@@ -158,8 +158,6 @@ dlt pipeline sql_to_duckdb_pipeline show
 ```
 
 You can explore the loaded data, run queries, and see some pipeline execution details.
-
-![streamlit-screenshot](https://storage.googleapis.com/dlt-blog-images/docs-sql-database-tutorial-streamlit-screenshot.png)
 
 ## 7. Append, replace, or merge loaded data
 

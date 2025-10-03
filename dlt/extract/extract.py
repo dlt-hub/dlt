@@ -34,15 +34,22 @@ from dlt.common.storages.load_package import (
     TLoadPackageState,
     commit_load_package_state,
 )
-from dlt.common.utils import get_callable_name, get_full_obj_class_name, group_dict_of_lists
+from dlt.common.utils import (
+    get_callable_name,
+    get_full_obj_class_name,
+    group_dict_of_lists,
+    update_dict_nested,
+)
 
 from dlt.extract.decorators import (
     _DltSingleSource,
     SourceInjectableContext,
     SourceSchemaInjectableContext,
 )
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
+from dlt.extract.exceptions import UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
+from dlt.extract.items_transform import ItemTransform
+from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference
@@ -178,7 +185,7 @@ def data_to_sources(
     # apply hints and settings
     for source in sources:
         apply_settings(source)
-        for resource in source.selected_resources.values():
+        for resource in source.resources.extracted:
             apply_hint_args(resource)
 
     return sources
@@ -249,9 +256,20 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 job_metrics.items(), lambda pair: pair[0].table_name
             )
         }
+
         # aggregate by resource name
+        def _get_all_resource_custom_metrics(resource_name: str) -> Dict[str, Any]:
+            all_custom_metrics = source.resources[resource_name].custom_metrics
+            for step in source.resources[resource_name]._pipe.steps:
+                if isinstance(step, ItemTransform):
+                    all_custom_metrics = update_dict_nested(all_custom_metrics, step.custom_metrics)
+            return all_custom_metrics
+
         resource_metrics = {
-            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            resource_name: DataWriterAndCustomMetrics(
+                *sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS),
+                custom_metrics=_get_all_resource_custom_metrics(resource_name),
+            )
             for resource_name, metrics in itertools.groupby(
                 table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
             )
@@ -383,7 +401,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             left_gens -= delta
                             collector.update("Resources", delta)
                         signals.raise_if_signalled()
-                        resource = source.resources[pipe_item.pipe.name]
+                        resource = source.resources.with_pipe(pipe_item.pipe)
                         item_format = get_data_item_format(pipe_item.item)
                         extractors[item_format].write_items(
                             resource, pipe_item.item, pipe_item.meta
@@ -448,10 +466,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     load_package.state.update(load_package_state_update)
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
-                for resource in source.resources.extracted.values():
-                    with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                        if resource.write_disposition == "replace":
-                            reset_resource_state(resource.name)
+                for resource in source.resources.extracted:
+                    if resource.write_disposition == "replace":
+                        reset_resource_state(resource.name)
 
                 self._extract_single_source(
                     load_id,

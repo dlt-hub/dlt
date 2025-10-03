@@ -8,16 +8,16 @@ from typing import (
     ClassVar,
     Generic,
     Iterator,
+    Mapping,
+    MutableMapping,
     Optional,
     Union,
+    Dict,
+    cast,
 )
-from concurrent.futures import Future
 
-from dlt.common.typing import (
-    TAny,
-    TDataItem,
-    TDataItems,
-)
+from dlt.common.data_writers.writers import count_rows_in_items
+from dlt.common.typing import TAny, TDataItem, TDataItems, TypeVar
 
 from dlt.extract.utils import (
     wrap_iterator,
@@ -31,7 +31,21 @@ ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
 ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
 
 
-class ItemTransform(ABC, Generic[TAny]):
+TCustomMetrics = TypeVar(
+    "TCustomMetrics", covariant=True, bound=Mapping[str, Any], default=Dict[str, Any]
+)
+
+
+class BaseItemTransform(Generic[TCustomMetrics]):
+    def __init__(self) -> None:
+        self._custom_metrics: TCustomMetrics = cast(TCustomMetrics, {})
+
+    @property
+    def custom_metrics(self) -> TCustomMetrics:
+        return self._custom_metrics
+
+
+class ItemTransform(BaseItemTransform[TCustomMetrics], ABC, Generic[TAny, TCustomMetrics]):
     _f_meta: ItemTransformFunctionWithMeta[TAny] = None
     _f: ItemTransformFunctionNoMeta[TAny] = None
 
@@ -39,6 +53,7 @@ class ItemTransform(ABC, Generic[TAny]):
     """Tell how strongly an item sticks to start (-1) or end (+1) of pipe."""
 
     def __init__(self, transform_f: ItemTransformFunc[TAny]) -> None:
+        super().__init__()
         # inspect the signature
         sig = inspect.signature(transform_f)
         # TODO: use TypeGuard here to get rid of type ignore
@@ -47,7 +62,9 @@ class ItemTransform(ABC, Generic[TAny]):
         else:  # TODO: do better check
             self._f_meta = transform_f  # type: ignore
 
-    def bind(self: "ItemTransform[TAny]", pipe: SupportsPipe) -> "ItemTransform[TAny]":
+    def bind(
+        self: "ItemTransform[TAny, TCustomMetrics]", pipe: SupportsPipe
+    ) -> "ItemTransform[TAny, TCustomMetrics]":
         return self
 
     @abstractmethod
@@ -138,7 +155,7 @@ class ValidateItem(ItemTransform[TDataItem]):
 
     table_name: str
 
-    def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem]:
+    def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem, Dict[str, Any]]:
         self.table_name = pipe.name
         return self
 
@@ -146,9 +163,13 @@ class ValidateItem(ItemTransform[TDataItem]):
 class LimitItem(ItemTransform[TDataItem]):
     placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
 
-    def __init__(self, max_items: Optional[int], max_time: Optional[float]) -> None:
+    def __init__(
+        self, max_items: Optional[int], max_time: Optional[float], count_rows: bool
+    ) -> None:
+        BaseItemTransform.__init__(self)
         self.max_items = max_items if max_items is not None else -1
         self.max_time = max_time
+        self.count_rows = count_rows
 
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         # we also wrap iterators to make them stoppable
@@ -162,12 +183,31 @@ class LimitItem(ItemTransform[TDataItem]):
 
         return self
 
+    def limit(self, chunk_size: int) -> Optional[int]:
+        """Calculate the maximum number of rows to which result is limited. Limit works in chunks
+        that controlled by the data source and this must be provided in `chunk_size`.
+        `chunk_size` will be ignore if counting rows (`count_rows` is `True`). Mind that
+        this count method will not split batches so you may get more items (up to the full last batch)
+        than `limit` method indicates.
+        """
+        if self.max_items in (None, -1):
+            return None
+        return self.max_items * (1 if self.count_rows else chunk_size)
+
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        self.count += 1
+        # do not count None
+        if item is None:
+            return None
+
+        if self.count_rows:
+            self.count += count_rows_in_items(item)
+        else:
+            # NOTE: we count empty batches/pages in this mode
+            self.count += 1
 
         # detect when the limit is reached, max time or yield count
         if (
-            (self.count == self.max_items)
+            (self.count >= self.max_items and self.max_items >= 0)
             or (self.max_time and time.time() - self.start_time > self.max_time)
             or self.max_items == 0
         ):

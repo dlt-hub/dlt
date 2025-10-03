@@ -104,16 +104,19 @@ class SqlLoadJob(RunnableLoadJob):
     @contextlib.contextmanager
     def maybe_transaction(self, sql: str) -> Iterator[None]:
         """Begins a transaction if sql client supports it, otherwise works in auto commit."""
+        is_ddl_statement = self._string_contains_ddl_statements(sql)
         if (
             self._job_client.capabilities.supports_ddl_transactions
-            or not self._string_contains_ddl_queries(sql)
+            and is_ddl_statement
+            or self._job_client.capabilities.supports_transactions
+            and not is_ddl_statement
         ) and not self._has_out_of_transaction_commands(sql):
             with self._sql_client.begin_transaction():
                 yield
         else:
             yield
 
-    def _string_contains_ddl_queries(self, sql: str) -> bool:
+    def _string_contains_ddl_statements(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:
             if re.search(cmd, sql, re.IGNORECASE):
                 return True

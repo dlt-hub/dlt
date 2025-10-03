@@ -1,9 +1,7 @@
 # flake8: noqa
 import dlt
-import pandas as pd
 import pytest
 
-from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
@@ -192,10 +190,10 @@ def aggregate_snippet(default_dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START aggregate
 
     # Get max 'id'
-    max_id = customers_relation.select("id").max().scalar()
+    max_id = customers_relation.select("id").max().fetchscalar()
 
     # Get min 'id'
-    min_id = customers_relation.select("id").min().scalar()
+    min_id = customers_relation.select("id").min().fetchscalar()
 
     # @@@DLT_SNIPPET_END aggregate
 

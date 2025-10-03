@@ -186,7 +186,7 @@ pipeline.run(
 ```
 In the example below, we represent JSON data as tables up to nesting level 1. Above this nesting level, we let BigQuery create nested fields.
 
-:::caution
+:::warning
 If you yield data as Python objects (dicts) and load this data as Parquet, the nested fields will be converted into strings. This is one of the consequences of
 `dlt` not being able to infer nested fields.
 :::
@@ -203,7 +203,7 @@ When staging is enabled:
 * [JSONL](../file-formats/jsonl.md) is used by default.
 * [Parquet](../file-formats/parquet.md) is supported.
 
-:::caution
+:::warning
 **BigQuery cannot load JSON columns from Parquet files**. `dlt` will fail such jobs permanently. Instead:
 * Switch to JSONL to load and parse JSON properly.
 * Use schema [autodetect and nested fields](#use-bigquery-schema-autodetect-for-nested-fields)
@@ -226,7 +226,7 @@ BigQuery supports the following [column hints](../../general-usage/schema#tables
 
 * `cluster` - creates cluster column(s). Many columns per table are supported and only when a new table is created.
 
-:::caution
+:::warning
 **Deprecation Notice:**
 Per-column `cluster` hints are deprecated and will be removed in a future release.  
 **To migrate, use the `cluster` argument of the `bigquery_adapter` instead.**  
@@ -351,7 +351,7 @@ Some things to note with the adapter's behavior:
 - You can cluster on as many columns as you would like.
 - Sequential adapter calls on the same resource accumulate parameters, akin to an OR operation, for a unified execution.
 
-:::caution
+:::warning
 At the time of writing, table level options aren't supported for `ALTER` operations.
 
 Note that `bigquery_adapter` updates the resource *in place*, but returns the resource for convenience, i.e., both the following are valid:

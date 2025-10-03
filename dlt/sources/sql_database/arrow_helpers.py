@@ -1,7 +1,6 @@
 from typing import Any, Sequence
 
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 

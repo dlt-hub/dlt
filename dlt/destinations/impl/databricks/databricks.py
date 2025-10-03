@@ -1,6 +1,7 @@
 import os
 from typing import Dict, Optional, Sequence, List, cast, Union
 from urllib.parse import urlparse
+from pathlib import Path
 
 from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
@@ -49,12 +50,6 @@ from dlt.destinations.impl.databricks.typing import TDatabricksColumnHint
 from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
-
-
-SUPPORTED_HINTS: Dict[TDatabricksColumnHint, str] = {
-    "primary_key": "PRIMARY KEY",
-    "foreign_key": "FOREIGN KEY",
-}
 
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -142,7 +137,10 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         volume_path = f"/Volumes/{volume_catalog}/{volume_database}/{volume_name}/{uniq_id()}"
         volume_file_path = f"{volume_path}/{volume_file_name}"
 
-        self._sql_client.execute_sql(f"PUT '{local_file_path}' INTO '{volume_file_path}' OVERWRITE")
+        posix_path = Path(
+            local_file_path
+        ).as_posix()  # backslash in Windows local path causes issues with PUT command
+        self._sql_client.execute_sql(f"PUT '{posix_path}' INTO '{volume_file_path}' OVERWRITE")
 
         from_clause = f"FROM '{volume_path}'"
 
@@ -304,9 +302,12 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         config: DatabricksClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
         sql_client = DatabricksSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )
@@ -314,9 +315,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment, unused-ignore]
         self.type_mapper = self.capabilities.get_type_mapper()
-        self.active_hints = (
-            cast(Dict[TColumnHint, str], SUPPORTED_HINTS) if self.config.create_indexes else {}
-        )
+        # PK and FK are created in SQL fragments, not inline
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)

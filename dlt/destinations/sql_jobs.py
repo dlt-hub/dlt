@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TypedDict
@@ -499,16 +499,34 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         Raises `MergeDispositionException` if no such column exists.
         """
-        return cls._get_prop_col_or_raise(
-            table,
-            "root_key",
-            MergeDispositionException(
-                dataset_name,
-                staging_dataset_name,
-                [t["name"] for t in table_chain],
-                f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
-            ),
-        )
+        try:
+            return cls._get_prop_col_or_raise(
+                table,
+                "root_key",
+                MergeDispositionException(
+                    dataset_name,
+                    staging_dataset_name,
+                    [t["name"] for t in table_chain],
+                    f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
+                ),
+            )
+        except MergeDispositionException as merge_ex:
+            # fallback to _dlt_parent_id is available if this is second nesting level
+            if table["parent"] == table_chain[0]["name"]:
+                return cls._get_prop_col_or_raise(
+                    table,
+                    "parent_key",
+                    MergeDispositionException(
+                        merge_ex.dataset_name,
+                        merge_ex.staging_dataset_name,
+                        merge_ex.tables,
+                        merge_ex.reason
+                        + "No `parent_key` column (e.g. `_dlt_parent_id`) in table"
+                        f" `{table['name']}`.",
+                    ),
+                )
+            else:
+                raise
 
     @classmethod
     def _get_prop_col_or_raise(
@@ -827,7 +845,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
 
-        boundary_ts = ensure_pendulum_datetime(
+        boundary_ts = ensure_pendulum_datetime_utc(
             root_table.get(  # type: ignore[arg-type]
                 "x-boundary-timestamp",
                 current_load_package()["state"]["created_at"],

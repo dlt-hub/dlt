@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional
 
 from dlt.common import json
 from dlt.common.typing import copy_sig_any
@@ -10,8 +10,10 @@ from .helpers import fetch_arrow, fetch_json
 __source_name__ = "filesystem"
 
 
+# NOTE inconsistent kwarg convention across readers `chunk_size` vs. `chunksize`
+# snakecased `chunk_size` is the more appropriate Python convention
 def _read_csv(
-    items: Iterator[FileItemDict], chunksize: int = 10000, **pandas_kwargs: Any
+    items: Iterable[FileItemDict], chunksize: int = 10000, **pandas_kwargs: Any
 ) -> Iterator[TDataItems]:
     """Reads csv file with Pandas chunk by chunk.
 
@@ -34,7 +36,9 @@ def _read_csv(
                 yield df.to_dict(orient="records")
 
 
-def _read_jsonl(items: Iterator[FileItemDict], chunksize: int = 1000) -> Iterator[TDataItems]:
+# NOTE inconsistent kwarg convention across readers `chunk_size` vs. `chunksize`
+# snakecased `chunk_size` is the more appropriate Python convention
+def _read_jsonl(items: Iterable[FileItemDict], chunksize: int = 1000) -> Iterator[TDataItems]:
     """Reads jsonl file content and extract the data.
 
     Args:
@@ -55,9 +59,12 @@ def _read_jsonl(items: Iterator[FileItemDict], chunksize: int = 1000) -> Iterato
             yield lines_chunk
 
 
+# NOTE inconsistent kwarg convention across readers `chunk_size` vs. `chunksize`
+# snakecased `chunk_size` is the more appropriate Python convention
 def _read_parquet(
-    items: Iterator[FileItemDict],
+    items: Iterable[FileItemDict],
     chunksize: int = 1000,
+    use_pyarrow: bool = False,
 ) -> Iterator[TDataItems]:
     """Reads parquet file content and extract the data.
 
@@ -72,12 +79,14 @@ def _read_parquet(
     for file_obj in items:
         with file_obj.open() as f:
             parquet_file = pq.ParquetFile(f)
-            for rows in parquet_file.iter_batches(batch_size=chunksize):
-                yield rows.to_pylist()
+            for batch in parquet_file.iter_batches(batch_size=chunksize):
+                yield batch if use_pyarrow else batch.to_pylist()
 
 
+# NOTE inconsistent kwarg convention across readers `chunk_size` vs. `chunksize`
+# snakecased `chunk_size` is the more appropriate Python convention
 def _read_csv_duckdb(
-    items: Iterator[FileItemDict],
+    items: Iterable[FileItemDict],
     chunk_size: Optional[int] = 5000,
     use_pyarrow: bool = False,
     **duckdb_kwargs: Any,
@@ -87,7 +96,7 @@ def _read_csv_duckdb(
     Uses DuckDB engine to import and cast CSV data.
 
     Args:
-        items (Iterator[FileItemDict]): CSV files to read.
+        items (Iterable[FileItemDict]): CSV files to read.
         chunk_size (Optional[int]):
             The number of rows to read at once. Defaults to 5000.
         use_pyarrow (bool):

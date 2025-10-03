@@ -114,6 +114,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
             elif dialect.name == "trino":
                 caps.sqlglot_dialect = "trino"
                 caps.timestamp_precision = 3
+                caps.max_timestamp_precision = 3
                 caps.type_mapper = TrinoVariantTypeMapper
 
             elif backend_name in [

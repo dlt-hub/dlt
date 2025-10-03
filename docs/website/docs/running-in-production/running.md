@@ -258,7 +258,7 @@ print(load_info.has_failed_jobs)
 load_info.raise_on_failed_jobs()
 ```
 
-:::caution
+:::warning
 Note that certain write dispositions will irreversibly modify your data:
 1. `replace` write disposition with the default `truncate-and-insert` [strategy](../general-usage/full-loading.md) will truncate tables before loading.
 2. `merge` write disposition will merge staging dataset tables into the destination dataset. This will happen only when all data for this table (and nested tables) got loaded.

@@ -131,7 +131,7 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
         assert table["columns"]["pk"]["primary_key"] is True
         assert table["columns"]["id"]["data_type"] == "bigint"
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         table = resource.compute_table_schema()
         # also there we see the hints
         assert table["columns"]["pk"]["primary_key"] is True
@@ -212,7 +212,7 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
             create_table_variant=True,
         )
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         assert "table_a" in resource._hints_variants
         # get table
         table = resource.compute_table_schema(meta=TableNameMeta("table_a"))
@@ -259,7 +259,7 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
         yield [{"id": id_, "pk": "A"} for id_ in range(1, 10)]
 
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         table = resource.compute_table_schema()
         # also there we see the hints
         assert table["columns"]["id"]["primary_key"] is True
@@ -272,7 +272,7 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
         )
 
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         assert resource.incremental.cursor_path == "created_at"  # type: ignore[attr-defined]
         assert resource.incremental.primary_key == "id"
         # we are able to add the incremental to the pipe. but it won't
@@ -582,7 +582,7 @@ def test_materialize_table_schema_with_pipe_items():
 
     class LazyValidator(ValidateItem):
         def __init__(self):
-            pass
+            super().__init__(lambda x: x)
 
         def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
             return item
@@ -609,3 +609,121 @@ def test_materialize_table_schema_with_pipe_items():
         if job.job_file_info.table_name == "empty_list":
             found_empty_list = True
     assert found_empty_list
+
+
+@pytest.mark.parametrize(
+    "with_custom_metrics", [True, False], ids=["with_custom_metrics", "without_custom_metrics"]
+)
+def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
+    """Ensure that custom metrics from resources are collected and transform steps are available in extract info"""
+
+    if with_custom_metrics:
+        expected_custom_metrics = {
+            "resource_with_metrics": {
+                "custom_count": 42,
+                "random_constant": 1.5,
+                "random_nested": {"value": 100, "unit": "items"},
+                "items_count": 90,
+            },
+            "resource_with_other_metrics": {
+                "custom_count": 3,
+                "random_constant": 251.3,
+                "random_nested": {"value": 4, "unit": None},
+            },
+        }
+    else:
+        expected_custom_metrics = {"resource_with_metrics": {}, "resource_with_other_metrics": {}}
+
+    @dlt.resource
+    def resource_with_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        for metric, value in expected_custom_metrics["resource_with_metrics"].items():
+            custom_metrics[metric] = value
+        yield [{"id": 1}, {"id": 2}]
+
+    resource_with_metrics.add_limit(10)
+    resource_with_metrics.add_map(lambda x: x)
+    resource_with_metrics.add_yield_map(lambda x: (yield from x))
+
+    @dlt.resource
+    def resource_with_other_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        for metric, value in expected_custom_metrics["resource_with_other_metrics"].items():
+            custom_metrics[metric] = value
+        yield [{"id": 1}, {"id": 2}]
+
+    source = DltSource(
+        dlt.Schema("metrics"), "module", [resource_with_metrics(), resource_with_other_metrics()]
+    )
+    load_id = extract_step.extract(source, 20, 1)
+
+    assert (
+        expected_custom_metrics["resource_with_metrics"]
+        == source.resources["resource_with_metrics"].custom_metrics
+    )
+    assert (
+        expected_custom_metrics["resource_with_other_metrics"]
+        == source.resources["resource_with_other_metrics"].custom_metrics
+    )
+
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+
+    all_resource_metrics = step_info.metrics[load_id][0]["resource_metrics"]
+    assert "resource_with_metrics" in all_resource_metrics
+    assert "resource_with_other_metrics" in all_resource_metrics
+
+    assert (
+        expected_custom_metrics["resource_with_metrics"]
+        == all_resource_metrics["resource_with_metrics"].custom_metrics
+    )
+    assert (
+        expected_custom_metrics["resource_with_other_metrics"]
+        == all_resource_metrics["resource_with_other_metrics"].custom_metrics
+    )
+
+
+@pytest.mark.parametrize(
+    "with_custom_metrics", [True, False], ids=["with_custom_metrics", "without_custom_metrics"]
+)
+def test_resource_step_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
+    """Ensure that custom metrics from both resources and their transform steps are collected and merged"""
+
+    class SimpleStep(ValidateItem):
+        def __init__(self):
+            super().__init__(lambda x: x)
+
+        def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+            if with_custom_metrics:
+                self.custom_metrics["from_step"] = "hi"
+                self.custom_metrics["overrided"] = 2
+            return item
+
+    @dlt.resource
+    def resource_with_step_metrics():
+        if with_custom_metrics:
+            custom_metrics = dlt.current.resource_metrics()
+            custom_metrics["from_resource"] = "hey"
+            # Overlapping metrics will be overrided by those in steps
+            custom_metrics["overrided"] = 1
+        yield {"id": 1}
+
+    resource = resource_with_step_metrics()
+    resource._pipe._steps.append(SimpleStep())
+
+    source = DltSource(dlt.Schema("step_metrics"), "module", [resource])
+    load_id = extract_step.extract(source, 20, 1)
+
+    step_info = extract_step.get_step_info(MockPipeline("test", first_run=False))  # type: ignore[abstract]
+    resource_metrics = step_info.metrics[load_id][0]["resource_metrics"][
+        "resource_with_step_metrics"
+    ]
+
+    if with_custom_metrics:
+        expected_metrics = {
+            "from_resource": "hey",
+            "from_step": "hi",
+            "overrided": 2,
+        }
+        assert resource_metrics.custom_metrics == expected_metrics
+    else:
+        assert resource_metrics.custom_metrics == {}

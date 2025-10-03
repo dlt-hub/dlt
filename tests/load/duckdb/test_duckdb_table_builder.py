@@ -88,7 +88,7 @@ def test_alter_table(client: DuckDbClient) -> None:
     canonical_name = client.sql_client.make_qualified_table_name("event_test_table")
     # must have several ALTER TABLE statements
     sql = ";\n".join(sqls)
-    assert sql.count(f"ALTER TABLE {canonical_name}\nADD COLUMN") == 28
+    assert sql.count(f"ALTER TABLE {canonical_name}\nADD COLUMN") == 29
     assert "event_test_table" in sql
     assert '"col1" BIGINT  NOT NULL' in sql
     assert '"col2" DOUBLE  NOT NULL' in sql

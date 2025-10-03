@@ -17,10 +17,10 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
+from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn
-from dlt.common.time import ensure_pendulum_datetime, to_py_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
 
 from tests.utils import TEST_STORAGE_ROOT
 from tests.load.utils import (
@@ -75,6 +75,11 @@ def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> Non
     client.update_stored_schema()
     load_id = "182879721.182912"
     client.complete_load(load_id)
+
+    # client should reopen the connection to set search paths. dataset was created
+    client.sql_client.close_connection()
+    client.sql_client.open_connection()
+
     curr: DBApiCursor
     # get data from unqualified name
     with client.sql_client.execute_query(
@@ -150,6 +155,7 @@ def test_has_dataset(naming: str, client: SqlJobClientBase) -> None:
 def test_create_drop_dataset(naming: str, client: SqlJobClientBase) -> None:
     # client.sql_client.create_dataset()
     # Dataset is already create in fixture, so next time it fails
+    assert client.is_storage_initialized()
     with pytest.raises(DatabaseException):
         client.sql_client.create_dataset()
     assert client.is_storage_initialized() is True
@@ -215,12 +221,12 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
     assert len(rows) == 1
     # print(rows)
     assert rows[0][0] == "event"
-    assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
     assert rows[0][0] == "event"
     # print(rows[0][1])
     # print(type(rows[0][1]))
     # ensure datetime obj to make sure it is supported by dbapi
-    inserted_at = to_py_datetime(ensure_pendulum_datetime(rows[0][1]))
+    inserted_at = to_py_datetime(ensure_pendulum_datetime_utc(rows[0][1]))
     if client.config.destination_name == "sqlalchemy_sqlite":
         # timezone aware datetime is not supported by sqlite
         inserted_at = inserted_at.replace(tzinfo=None)
@@ -287,7 +293,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
         rows = curr.fetchall()
         assert len(rows) == 1
         assert rows[0][0] == "event"
-        assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
+        assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
         rows[0][1],
@@ -318,7 +324,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     if client.config.destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
-    elif client.config.destination_type == "mssql":
+    elif client.config.destination_type in ("mssql", "ducklake"):
         chunk_size = 700
         total_records = 1000
     else:
@@ -356,7 +362,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         except StopIteration:
             df_2 = None
             # NOTE: snowflake chunks are unpredictable in size, so allow stop after two iterations
-            if client.config.destination_type != "snowflake":
+            if client.config.destination_type not in ("snowflake", "ducklake"):
                 raise
         try:
             df_3 = next(iterator)
@@ -367,7 +373,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
             if df is not None:
                 df.columns = [dfcol.lower() for dfcol in df.columns]
 
-    if client.config.destination_type != "snowflake":
+    if client.config.destination_type not in ("snowflake", "ducklake"):
         assert list(df_1["col"]) == list(range(0, chunk_size))
         assert list(df_2["col"]) == list(range(chunk_size, total_records))
     else:
@@ -720,6 +726,30 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
 
     client.complete_load("LMN")
     assert_load_id(client.sql_client, "LMN")
+
+
+def test_raise_database_error_no_circular_dependency():
+    """Test that raise_database_error decorator doesn't create circular __cause__ dependencies"""
+
+    class MockSqlClient:
+        @staticmethod
+        def _make_database_exception(ex):
+            # simulate problematic destinations that return original exception
+            return ex
+
+        @raise_database_error
+        def execute_query(self):
+            raise ValueError("Database connection failed because it failed.")
+
+    client = MockSqlClient()
+
+    with pytest.raises(Exception) as exc_info:
+        client.execute_query()
+
+    exception = exc_info.value
+
+    # exception should not cause itself
+    assert exception is not exception.__cause__
 
 
 def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None:

@@ -1,5 +1,6 @@
 import asyncio
 import pathlib
+import pickle
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
@@ -37,7 +38,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
-from dlt.common.schema.utils import new_column, new_table
+from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
@@ -1387,7 +1388,7 @@ def test_resource_name_in_schema() -> None:
         return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
 
     source = some_source()
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination=DUMMY_COMPLETE)
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination=DUMMY_COMPLETE)
     p.run(source)
 
     schema = p.default_schema
@@ -3687,9 +3688,7 @@ def test_nested_hints_write_disposition_nested_merge() -> None:
     # nested_data__list not copied to main dataset
     assert p.dataset().row_counts().fetchall() == [("nested_data", 1), ("nested_data__list", 0)]
     # will be loading to staging and always overwritten but not merged
-    staging_dataset = dlt.destinations.dataset.dataset(
-        p.destination, "local_staging", p.default_schema
-    )
+    staging_dataset = dlt.dataset(p.destination, "local_staging", p.default_schema)
     assert staging_dataset.row_counts(table_names=["nested_data__list"]).fetchall() == [
         ("nested_data__list", 3)
     ]
@@ -3870,6 +3869,54 @@ def test_nested_hints_primary_key() -> None:
     assert p.dataset().row_counts().fetchall() == row_count
 
 
+def test_merge_without_root_key() -> None:
+    @dlt.source(root_key=False)
+    def double_nested():
+        @dlt.resource(
+            primary_key="id",
+            write_disposition="merge",
+        )
+        def customers():
+            """Load customer data from a simple python list."""
+            yield [
+                {
+                    "id": 1,
+                    "name": "simon",
+                    "city": "berlin",
+                    "purchases": [{"id": 1, "name": "apple", "price": Decimal("1.50")}],
+                },
+                {
+                    "id": 2,
+                    "name": "violet",
+                    "city": "london",
+                    "purchases": [{"id": 1, "name": "banana", "price": Decimal("1.70")}],
+                },
+                {
+                    "id": 3,
+                    "name": "tammo",
+                    "city": "new york",
+                    "purchases": [{"id": 1, "name": "pear", "price": Decimal("2.50")}],
+                },
+            ]
+
+        return customers
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_primary_key", destination="duckdb", dataset_name="local"
+    )
+    s_ = double_nested()
+    # load twice. merge should work as usual
+    p.run(s_)
+    p.run(s_)
+    # no root key
+    assert (
+        get_first_column_name_with_prop(p.default_schema.tables["customers__purchases"], "root_key")
+        is None
+    )
+    # no data duplication (merge worked)
+    assert_table_counts(p, {"customers__purchases": 3, "customers": 3})
+
+
 def test_pipeline_repr() -> None:
     sentinel = object()
     p = dlt.pipeline(pipeline_name="repr_pipeline", destination="duckdb")
@@ -3893,6 +3940,17 @@ def test_pipeline_repr() -> None:
     assert getattr(p, "is_active", sentinel) is not sentinel
     assert getattr(p, "pipelines_dir", sentinel) is not sentinel
     assert getattr(p, "working_dir", sentinel) is not sentinel
+
+
+def test_repr_after_loading_trace(tmp_path):
+    pipeline_name = "foo"
+    trace_path = tmp_path / pipeline_name / "trace.pickle"
+    pipeline = dlt.pipeline(pipeline_name, destination="duckdb", pipelines_dir=tmp_path)
+    pipeline.run([{"foo": "bar"}], table_name="temp")
+    trace = pickle.load(trace_path.open("rb"))
+
+    # ensure calling `__repr__()` shouldn't cause any error
+    trace.__repr__()
 
 
 def test_pipeline_with_null_executors(monkeypatch) -> None:

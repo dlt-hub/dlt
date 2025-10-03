@@ -90,24 +90,21 @@ print(table.df())
 print(table.limit(10).arrow())
 ```
 
-### Explore data in Streamlit
+### Explore data in the dashboard
 
-To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with Streamlit](../reference/command-line-interface#dlt-pipeline-show):
+To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with the marimo dashboard app](../reference/command-line-interface#dlt-pipeline-show):
 
 ```sh
 dlt pipeline quick_start show
 ```
 
-**quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet, do:
+**quick_start** is the name of the pipeline from the script above. If you do not have marimo installed yet, do:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
-Now you should see the **users** table:
-
-![Streamlit Explore data](/img/streamlit-new.png)
-Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
+Now you should see the **users** table in the dataset explorer data section of the dashboard app.
 
 :::tip
 `dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
@@ -141,7 +138,7 @@ Save `github_issues.py` and run the following command:
 python github_issues.py
 ```
 
-Once the data has been loaded, you can inspect the created dataset using the Streamlit app:
+Once the data has been loaded, you can inspect the created dataset using the dashboard app:
 
 ```sh
 dlt pipeline github_issues show

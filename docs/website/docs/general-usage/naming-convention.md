@@ -57,7 +57,7 @@ Identifiers are translated from source to destination form in the **normalize** 
 * Schemas preserve the naming convention when saved. Your running pipelines will maintain existing naming conventions if not requested otherwise.
 * `dlt` applies the final naming convention in the `normalize` step. Jobs (files) in the load package now have destination identifiers. The pipeline schema is duplicated, locked, and saved in the load package and will be used by the destination.
 
-:::caution
+:::warning
 If you change the naming convention and `dlt` detects a change in the destination identifiers for tables/collections/files that already exist and store data, the normalize process will fail. This prevents an unwanted schema migration. New columns and tables will be created for identifiers that changed.
 :::
 
@@ -88,7 +88,7 @@ Combined identifier is also a valid single identifier. Starting from
 `column__value` will be still `column__value`.
 :::
 
-:::caution
+:::warning
 Previously double underscores were contracted into single underscore. That
 prevented using data loaded by `dlt` as a data source without identifier modifications. `dlt` maintains backward compatibility for version >1.4.0 as follows:
 
@@ -172,7 +172,7 @@ The default value for the `enable_dataset_name_normalization` configuration opti
 The same setting would be applied to [staging dataset](../dlt-ecosystem/staging#staging-dataset). Thus, if you set `enable_dataset_name_normalization` to `false`, the staging dataset name would also **not** be normalized.
 :::
 
-:::caution
+:::warning
 Depending on the destination, certain names may not be allowed. To ensure your dataset can be successfully created, use the default normalization option.
 :::
 

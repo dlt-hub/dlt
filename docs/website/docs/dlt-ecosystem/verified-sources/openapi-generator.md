@@ -60,9 +60,9 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
     dlt pipeline pokemon_pipeline info
     ```
 
-8. You can now also install Streamlit to see a preview of the data; you should have loaded 40 Pokemons and their details.
+8. You can now also install marimo to see a preview of the data in the pipeline dashboard; you should have loaded 40 Pokemons and their details.
     ```sh
-    pip install pandas streamlit
+    pip install pandas marimo
     dlt pipeline pokemon_pipeline show
     ```
 

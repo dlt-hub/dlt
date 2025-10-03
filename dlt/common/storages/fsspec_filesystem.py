@@ -19,6 +19,7 @@ from typing import (
     Sequence,
 )
 from urllib.parse import urlparse
+from typing_extensions import NotRequired
 
 from fsspec import AbstractFileSystem, register_implementation, get_filesystem_class
 from fsspec.core import url_to_fs
@@ -38,37 +39,37 @@ from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     make_fsspec_url,
 )
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import without_none
 
 
-class FileItem(TypedDict, total=False):
+class FileItem(TypedDict):
     """A DataItem representing a file"""
 
     file_url: str
     file_name: str
     relative_path: str
     mime_type: str
-    encoding: Optional[str]
+    encoding: NotRequired[str]
     modification_date: pendulum.DateTime
     size_in_bytes: int
-    file_content: Optional[bytes]
+    file_content: NotRequired[bytes]
 
 
 # Map of protocol to mtime resolver
 # we only need to support a small finite set of protocols
 MTIME_DISPATCH = {
-    "s3": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "adl": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "az": lambda f: ensure_pendulum_datetime(f["last_modified"]),
-    "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
+    "s3": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
+    "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
+    "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
+    "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
     "https": lambda f: pendulum.parse(f["Last-Modified"], exact=True, strict=False),
     "http": lambda f: pendulum.parse(f["Last-Modified"], exact=True, strict=False),
-    "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
-    "memory": lambda f: ensure_pendulum_datetime(f["created"]),
-    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
-    "sftp": lambda f: ensure_pendulum_datetime(f["mtime"]),
+    "file": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
+    "memory": lambda f: ensure_pendulum_datetime_utc(f["created"]),
+    "gdrive": lambda f: ensure_pendulum_datetime_utc(f["modifiedTime"]),
+    "sftp": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -270,7 +271,7 @@ class FileItemDict(DictStrAny):
             IOBase: The fsspec file.
         """
         if compression == "auto":
-            compression_arg = "gzip" if self["encoding"] == "gzip" else None
+            compression_arg = "gzip" if self.get("encoding") == "gzip" else None
         elif compression == "enable":
             compression_arg = "gzip"
         elif compression == "disable":
@@ -299,6 +300,8 @@ class FileItemDict(DictStrAny):
                 bytes_io,
                 **text_kwargs,
             )
+        # `FileItemDict` kwarg `fsspec` is `Optional`. If `fsspec=None` this code branch
+        # will fail.
         else:
             if "file" in self.fsspec.protocol:
                 # use native local file path to open file:// uris
@@ -383,12 +386,14 @@ def glob_files(
             file_url = make_fsspec_url(scheme, file, bucket_url)
 
         mime_type, encoding = guess_mime_type(rel_path)
-        yield FileItem(
+        file_item = FileItem(
             file_name=file_name,
             relative_path=rel_path,
             file_url=file_url,
             mime_type=mime_type,
-            encoding=encoding,
             modification_date=MTIME_DISPATCH[scheme](md),
             size_in_bytes=int(md["size"]),
         )
+        if encoding is not None:
+            file_item["encoding"] = encoding
+        yield file_item

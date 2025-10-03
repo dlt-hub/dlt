@@ -240,6 +240,7 @@ The `client` configuration is used to connect to the API's endpoints. It include
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
 - `session` (requests.Session, optional): A custom session object. When provided, this session will be used for all HTTP requests instead of the default session. Can be used, for example, with [requests-oauthlib](https://github.com/requests/requests-oauthlib) for OAuth authentication.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
+- `session` (optional): Custom `requests` session to setup custom [timeouts and retry strategies.](advanced.md#setup-timeouts-and-retry-strategies)
 
 #### `resource_defaults` (optional)
 
@@ -363,6 +364,7 @@ used as-is and `base_url` will be ignored.
 - `headers`: Additional headers specific to this endpoint. See the [headers configuration](./advanced#headers-configuration) section for more details.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also may be used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
+- `data`: The data payload to be sent with the request body. Can be a dictionary (form-encoded) or string. Mutually exclusive with `json` parameter. Use this for APIs that expect form-encoded data or raw payloads instead of JSON.
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
 - `response_actions`: A list of actions that define how to process the response data. See the [response actions](./advanced#response-actions) section for more details.
@@ -484,7 +486,7 @@ To change this behavior for a specific endpoint, explicitly set the `paginator` 
 {
     "name": "user_details",
     "endpoint": {
-        "path": "user/{id}/comments",
+        "path": "user/{resources.users.id}/comments",
         "paginator": {"type": "json_link", "next_url_path": "next"}
     }
 }
@@ -1093,7 +1095,7 @@ When the API endpoint supports incremental loading, you can configure dlt to loa
 2. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration) (DEPRECATED)
 3. Using the `incremental` field in the [endpoint configuration](#endpoint-configuration) with the `start_param` field (DEPRECATED)
 
-:::caution
+:::warning
 The last two methods are deprecated and will be removed in a future dlt version.
 :::
 
@@ -1205,7 +1207,7 @@ You can also use different placeholder variants depending on your needs:
 
 ### Legacy method: Incremental loading in `params` (DEPRECATED)
 
-:::caution
+:::warning
 DEPRECATED: This method is deprecated and will be removed in a future version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 
@@ -1249,7 +1251,7 @@ The fields are:
 
 ### Incremental loading using the `incremental` field (DEPRECATED)
 
-:::caution
+:::warning
 DEPRECATED: This method is deprecated and will be removed in a future dlt version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 

@@ -2,11 +2,10 @@ import pytest
 import sqlglot
 
 from dlt import Schema
-from dlt.common.schema.typing import TColumnSchema
-from dlt.destinations.dataset import lineage
+from dlt.dataset import lineage
+from dlt.dataset.exceptions import LineageFailedException
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from dlt.destinations.dataset.exceptions import LineageFailedException
 
 
 # TODO: add all data types for one table

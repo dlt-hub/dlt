@@ -5,9 +5,11 @@ from datetime import datetime  # noqa: I251
 
 import dlt
 from dlt.common import json
+from dlt.common.destination.configuration import ParquetFormatConfiguration
+from dlt.common.libs.pyarrow import columns_to_arrow
 from dlt.common.libs.pydantic import DltConfig
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
-from dlt.common.time import ensure_pendulum_datetime, pendulum
+from dlt.common.time import ensure_pendulum_datetime_utc, pendulum
 
 from dlt.destinations import duckdb
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -16,6 +18,7 @@ from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMEST
 from tests.load.duckdb.test_duckdb_table_builder import add_timezone_false_on_precision
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import airtable_emojis, assert_table_counts, load_table_counts
+from tests.utils import data_to_item_format
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -76,23 +79,25 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
 )
 def test_duck_precision_types(destination_config: DestinationTestConfiguration) -> None:
     import pyarrow as pa
+    import pandas as pd
 
-    # store timestamps without timezone adjustments
-    os.environ["DATA_WRITER__TIMESTAMP_TIMEZONE"] = ""
+    now_s = ensure_pendulum_datetime_utc("2022-05-23T13:26:46+01:00")
+    now_ms = ensure_pendulum_datetime_utc("2022-05-23T13:26:46.167+01:00")
+    now_us = ensure_pendulum_datetime_utc("2022-05-23T13:26:46.167231+01:00")
 
-    now_s = ensure_pendulum_datetime("2022-05-23T13:26:46+01:00")
-    now_ms = ensure_pendulum_datetime("2022-05-23T13:26:46.167+01:00")
-    now_us = ensure_pendulum_datetime("2022-05-23T13:26:46.167231+01:00")
-    now_ns = ensure_pendulum_datetime("2022-05-23T13:26:46.167231+01:00")  # time.time_ns()
+    # create pandas DataFrame with nanosecond precision timestamp
+    df_ns = pd.DataFrame({"col4_ts": ["2022-05-23T13:26:46.167231345+01:00"]})
+    df_ns["col4_ts"] = pd.to_datetime(df_ns["col4_ts"])
 
-    # TODO: we can't really handle integers > 64 bit (so nanoseconds and HUGEINT)
-    pipeline = destination_config.setup_pipeline("test_duck_all_precision_types")
+    # enable nanoseconds in parquet writer
+    dest_ = duckdb(parquet_format=ParquetFormatConfiguration(version="2.6"))
+    pipeline = destination_config.setup_pipeline("test_duck_all_precision_types", destination=dest_)
     row = [
         {
             "col1_ts": now_s,
             "col2_ts": now_ms,
             "col3_ts": now_us,
-            "col4_ts": now_ns,
+            "col4_ts": None,
             "col1_int": -128,
             "col2_int": 16383,
             "col3_int": 2**32 // 2 - 1,
@@ -100,37 +105,71 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
             "col5_int": 2**64 // 2 - 1,
         }
     ]
+
+    with pipeline._maybe_destination_capabilities() as caps:
+        # create pyarrow schema
+        columns_schema = add_timezone_false_on_precision(
+            TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS
+        )
+        arrow_schema = columns_to_arrow({c["name"]: c for c in columns_schema}, caps)
+
+    def _verify_schema(arrow_schema_: pa.Schema, bit128type: pa.DataType) -> None:
+        # also assert the intermediate arrow_schema produced from columns
+        expected_names = [
+            "col1_ts",
+            "col2_ts",
+            "col3_ts",
+            "col4_ts",
+            "col1_int",
+            "col2_int",
+            "col3_int",
+            "col4_int",
+            "col5_int",
+        ]
+        expected_types = [
+            pa.timestamp("s"),
+            pa.timestamp("ms"),
+            pa.timestamp("us"),
+            pa.timestamp("ns"),
+            pa.int8(),
+            pa.int16(),
+            pa.int32(),
+            pa.int64(),
+            bit128type,
+        ]
+        for idx, (exp_name, exp_type) in enumerate(zip(expected_names, expected_types)):
+            field = arrow_schema_.field(idx)
+            assert field.name == exp_name
+            assert field.type == exp_type
+
+    # we can't really handle integers > 64 bit
+    _verify_schema(arrow_schema, pa.int64())
+    # create PyArrow table and update col4_ts with nanosecond precision from pandas DataFrame
+    table = pa.Table.from_pylist(row, arrow_schema)
+    table = table.set_column(3, "col4_ts", pa.array(df_ns["col4_ts"]))
+    # add pandas column
+    row[0]["col4_ts"] = df_ns["col4_ts"]
+
     pipeline.run(
-        row,
+        table,
         table_name="row",
         **destination_config.run_kwargs,
-        columns=add_timezone_false_on_precision(
-            TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS
-        ),
+        columns=columns_schema,
     )
 
     with pipeline.sql_client() as client:
         table = client.native_connection.sql("SELECT * FROM row").arrow()
 
     # only us has TZ aware timestamp in duckdb, also we have UTC here
-    assert table.schema.field(0).type == pa.timestamp("s")
-    assert table.schema.field(1).type == pa.timestamp("ms")
-    assert table.schema.field(2).type == pa.timestamp("us")
-    assert table.schema.field(3).type == pa.timestamp("ns")
-
-    assert table.schema.field(4).type == pa.int8()
-    assert table.schema.field(5).type == pa.int16()
-    assert table.schema.field(6).type == pa.int32()
-    assert table.schema.field(7).type == pa.int64()
-    assert table.schema.field(8).type == pa.decimal128(38, 0)
+    _verify_schema(table.schema, pa.decimal128(38, 0))
 
     table_row = table.to_pylist()[0]
-    table_row["col1_ts"] = ensure_pendulum_datetime(table_row["col1_ts"])
-    table_row["col2_ts"] = ensure_pendulum_datetime(table_row["col2_ts"])
-    table_row["col3_ts"] = ensure_pendulum_datetime(table_row["col3_ts"])
-    table_row["col4_ts"] = ensure_pendulum_datetime(table_row["col4_ts"])
-    table_row.pop("_dlt_id")
-    table_row.pop("_dlt_load_id")
+    table_row["col1_ts"] = ensure_pendulum_datetime_utc(table_row["col1_ts"])
+    table_row["col2_ts"] = ensure_pendulum_datetime_utc(table_row["col2_ts"])
+    table_row["col3_ts"] = ensure_pendulum_datetime_utc(table_row["col3_ts"])
+    table_row["col4_ts"] = ensure_pendulum_datetime_utc(table_row["col4_ts"])
+    table_row.pop("col4_ts")
+    row[0].pop("col4_ts")
     assert table_row == row[0]
 
 
@@ -298,5 +337,5 @@ def test_duckdb_credentials_separation(
     print(p1_dataset.p1_data.fetchall())
     print(p2_dataset.p2_data.fetchall())
 
-    assert "p1" in p1_dataset.sql_client.credentials._conn_str()  # type: ignore[attr-defined]
-    assert "p2" in p2_dataset.sql_client.credentials._conn_str()  # type: ignore[attr-defined]
+    assert "p1" in p1_dataset.sql_client.credentials._conn_str()
+    assert "p2" in p2_dataset.sql_client.credentials._conn_str()

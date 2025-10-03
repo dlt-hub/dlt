@@ -10,9 +10,30 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
+## Timezone-aware and Non-aware Data Types
+
+### I see a UTC datetime column in my destination, but my data source has a naive datetime column
+Use `full` or `full_with_precision` reflection level to get an explicit `timezone` hint in reflected table schemas. Without that
+hint, `dlt` will coerce all timestamps into timezone-aware UTC ones.
+
+### I have an incremental cursor on a datetime column and I see query errors
+Queries used to query data in the `sql_database` are created from an `Incremental` instance attached to the table resource. [Initial end and last values
+must match timezone-awareness of the cursor column](setup.md) because they will be used as parameters in the `WHERE` clause.
+
+In rare cases where the last value is already stored in the pipeline state and has incorrect timezone-awareness, you may not be able to recover your pipeline automatically. You can
+modify the local pipeline state (after syncing with destination) to add/remove timezone information.
+
 ## Troubleshooting connection
 
-#### Connecting to MySQL with SSL 
+### Pipeline state grows extremely large or I get deduplication state warnings when using incremental
+If you set incremental column on low resolution column (ie. of type **date**) then `dlt` will [deduplicate](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges) such data by default. For low resolution column you may have many rows associated with a single
+cursor value and since hashes of such rows are stored in state - you will get large pipeline state. You can avoid that in many ways:
+1. [set the comparison to exclusive](advanced.md#inclusive-and-exclusive-filtering) but make sure that rows are not added with the last cursor column value
+between run (ie. if you have column on a **day** column and between runs, rows are added to that day - with open range those rows will be skipped)
+2. use high resolution cursor columns (ie. **datetime** type) so not many rows are associated with single value.
+3. disable deduplication [explicitly](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges)
+
+### Connecting to MySQL with SSL 
 Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
 
 1. To enforce SSL on the client without a client certificate, you may pass the following DSN:
@@ -33,7 +54,7 @@ Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a
    sources.sql_database.credentials="mysql+pymysql://root:<pass>@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
    ```
 
-#### SQL Server connection options
+### SQL Server connection options
 
 **To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
 

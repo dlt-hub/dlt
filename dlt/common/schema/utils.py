@@ -7,7 +7,7 @@ from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_types import TDataType
@@ -589,6 +589,8 @@ def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartial
     * nothing gets deleted
     """
 
+    # TODO: add prop merging strategy to ColumnPropInfo: incremental is a single prop and replaces old one
+    #   so this exception is no longer needed
     incremental_a_col = get_first_column_name_with_prop(
         table, "incremental", include_incomplete=True
     )
@@ -781,7 +783,7 @@ def get_active_record_timestamp(table: TTableSchema) -> Optional[pendulum.DateTi
     # method assumes a column with "x-active-record-timestamp" property exists
     cname = get_first_column_name_with_prop(table, "x-active-record-timestamp")
     hint_val = table["columns"][cname]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
-    return None if hint_val is None else ensure_pendulum_datetime(hint_val)
+    return None if hint_val is None else ensure_pendulum_datetime_utc(hint_val)
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
@@ -898,19 +900,44 @@ def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     return table
 
 
-def get_nested_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
+def get_nested_tables(
+    tables: TSchemaTables,
+    table_name: str,
+    max_nesting: Optional[int] = None,
+    include_self: Optional[bool] = True,
+) -> List[TTableSchema]:
     """Get nested tables for table name and return a list of tables ordered by ancestry so the nested tables are always after their parents
 
     Note that this function follows only NESTED TABLE reference typically expressed on _dlt_parent_id (PARENT_KEY) to _dlt_id (ROW_KEY).
+
+    Args:
+        tables (TSchemaTables): A mapping of table names to their table schema definitions. This is used to look up the root table
+            and to recursively find its nested child tables by following their "parent" references.
+        table_name (str): The name of the root table from which to collect nested tables.
+        max_nesting (Optional[int]): If specified, limits the depth of nesting. 0 = only the root table, 1 = root + direct children, etc.
+        include_self (Optional[bool]): If False, the root table itself is excluded from the returned list.
+
+    Returns:
+        List[TTableSchema]: A list of nested tables.
     """
+    if table_name not in tables:
+        return []
+
     chain: List[TTableSchema] = []
 
-    def _child(t: TTableSchema) -> None:
+    def _child(t: TTableSchema, current_level: int = 0) -> None:
         name = t["name"]
-        chain.append(t)
+
+        if include_self or current_level > 0:
+            chain.append(t)
+
+        # Stop recursion if we've reached max nesting level
+        if max_nesting is not None and current_level >= max_nesting:
+            return
+
         for candidate in tables.values():
             if is_nested_table(candidate) and candidate.get("parent") == name:
-                _child(candidate)
+                _child(candidate, current_level + 1)
 
     _child(tables[table_name])
     return chain

@@ -43,13 +43,23 @@ class TReflectedHints(TypedDict, total=False):
     primary_key: Optional[List[str]]
 
 
-def default_table_adapter(table: Table, included_columns: Optional[List[str]]) -> None:
+def default_table_adapter(
+    table: Table,
+    included_columns: Optional[List[str]],
+    excluded_columns: Optional[List[str]] = None,
+) -> None:
     """Default table adapter being always called before custom one"""
     if included_columns is not None:
         # Delete columns not included in the load
         for col in list(table._columns):  # type: ignore[attr-defined]
             if col.name not in included_columns:
                 table._columns.remove(col)  # type: ignore[attr-defined]
+
+    if excluded_columns is not None:
+        for col in list(table._columns):  # type: ignore[attr-defined]
+            if col.name in excluded_columns:
+                table._columns.remove(col)  # type: ignore[attr-defined]
+
     for col in table._columns:  # type: ignore[attr-defined]
         sql_t = col.type
         if hasattr(sqltypes, "Uuid") and isinstance(sql_t, sqltypes.Uuid):
@@ -133,8 +143,8 @@ def sqla_col_to_column_schema(
             col["precision"] = sql_t.length
     elif isinstance(sql_t, sqltypes.DateTime):
         col["data_type"] = "timestamp"
-        if add_precision:
-            col["timezone"] = sql_t.timezone
+        # special handling for MSSQL
+        col["timezone"] = sql_t.timezone or sql_t.__visit_name__ in ("DATETIMEOFFSET")
     elif isinstance(sql_t, sqltypes.Date):
         col["data_type"] = "date"
     elif isinstance(sql_t, sqltypes.Time):

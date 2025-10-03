@@ -30,6 +30,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
 )
+from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     HasFollowupJobs,
@@ -72,6 +73,7 @@ from tests.cases import (
     TABLE_UPDATE,
     TABLE_ROW_ALL_DATA_TYPES,
     assert_all_data_types_row,
+    table_update_and_row,
 )
 
 # Bucket urls.
@@ -334,10 +336,12 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy")
+            if destination
+            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
+            DestinationTestConfiguration(destination_type="ducklake", supports_dbt=False),
             DestinationTestConfiguration(
                 destination_type="motherduck", file_format="insert_values"
             ),
@@ -761,7 +765,7 @@ def destinations_configs(
 
 
 @pytest.fixture(autouse=True)
-def drop_pipeline(request, preserve_environ) -> Iterator[None]:
+def drop_pipeline(request, preserve_environ, patch_home_dir) -> Iterator[None]:
     # NOTE: keep `preserve_environ` to make sure fixtures are executed in order``
     # enable activation history (for the main thread) to be able to drop pipelines active during test
     Container()[PipelineContext].enable_activation_history = True
@@ -786,22 +790,24 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
     """Drops all the datasets for a given pipeline"""
 
     def _drop_dataset(schema_name: str) -> None:
-        with p.destination_client(schema_name) as client:
-            # print("DROP FROM", client.config, client.config.dataset_name)
-            try:
-                client.drop_storage()
-            except DestinationUndefinedEntity:
-                pass
-            except Exception as exc:
-                print(exc)
-            if isinstance(client, WithStagingDataset):
-                with client.with_staging_dataset():
-                    try:
-                        client.drop_storage()
-                    except DestinationUndefinedEntity:
-                        pass
-                    except Exception as exc:
-                        print(exc)
+        try:
+            with p.destination_client(schema_name) as client:
+                try:
+                    client.drop_storage()
+                except DestinationUndefinedEntity:
+                    pass
+                except Exception as exc:
+                    print("drop dataset", exc)
+                if isinstance(client, WithStagingDataset):
+                    with client.with_staging_dataset():
+                        try:
+                            client.drop_storage()
+                        except DestinationUndefinedEntity:
+                            pass
+                        except Exception as exc:
+                            print("drop staging dataset", exc)
+        except Exception as exc:
+            print("connect to dataset", exc)
 
     # take all schemas and if destination was set
     if p.destination:
@@ -1172,3 +1178,63 @@ def set_always_refresh_views(config: BaseConfiguration) -> None:
     # set filesystem views to autorefresh
     if isinstance(config, FilesystemDestinationClientConfiguration):
         config["always_refresh_views"] = True
+
+
+def table_update_and_row_for_destination(destination_config: DestinationTestConfiguration):
+    # Redshift parquet -> exclude col7_precision
+    # redshift and athena, parquet and jsonl, exclude time types
+    exclude_types: List[TDataType] = []
+    exclude_columns: List[str] = []
+
+    if destination_config.destination_type in (
+        "redshift",
+        "athena",
+        "databricks",
+        "clickhouse",
+    ) and destination_config.file_format in ("parquet", "jsonl"):
+        # Redshift copy doesn't support TIME column
+        exclude_types.append("time")
+
+    if (
+        destination_config.destination_type == "synapse"
+        and destination_config.file_format == "parquet"
+    ):
+        # TIME columns are not supported for staged parquet loads into Synapse
+        exclude_types.append("time")
+
+    if destination_config.destination_type in (
+        "redshift",
+        "dremio",
+    ) and destination_config.file_format in (
+        "parquet",
+        "jsonl",
+    ):
+        # Redshift can't load fixed width binary columns from parquet
+        exclude_columns.append("col7_precision")
+
+    if (
+        destination_config.destination_type == "databricks"
+        and destination_config.file_format == "jsonl"
+    ):
+        exclude_types.extend(["decimal", "binary", "wei", "json", "date"])
+        exclude_columns.append("col1_precision")
+        exclude_columns.append("col12")
+
+    column_schemas, data_types = table_update_and_row(
+        exclude_types=exclude_types, exclude_columns=exclude_columns
+    )
+
+    # bigquery and clickhouse cannot load into JSON fields from parquet
+    if destination_config.file_format == "parquet":
+        if destination_config.destination_type in ["bigquery"]:
+            # change datatype to text and then allow for it in the assert (parse_json_strings)
+            column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
+    # redshift cannot load from json into VARBYTE
+    if destination_config.file_format == "jsonl":
+        if destination_config.destination_type == "redshift":
+            # change the datatype to text which will result in inserting base64 (allow_base64_binary)
+            binary_cols = ["col7", "col7_null"]
+            for col in binary_cols:
+                column_schemas[col]["data_type"] = "text"
+
+    return column_schemas, data_types

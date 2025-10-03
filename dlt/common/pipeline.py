@@ -17,6 +17,8 @@ from typing import (
     TypeVar,
     Mapping,
     Literal,
+    Union,
+    Mapping,
 )
 from typing_extensions import NotRequired
 
@@ -43,6 +45,7 @@ from dlt.common.metrics import (
     LoadMetrics,
     NormalizeMetrics,
     StepMetrics,
+    DataWriterAndCustomMetrics,
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
@@ -52,7 +55,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.time import ensure_pendulum_datetime, precise_time
+from dlt.common.time import ensure_pendulum_datetime_utc, precise_time
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
@@ -108,6 +111,11 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         except ValueError:
             return None
 
+    @property
+    def is_empty(self) -> bool:
+        """Returns True if step didn't process any load packages."""
+        return bool(self.loads_ids) is False
+
     def asdict(self) -> DictStrAny:
         # to be mixed with NamedTuple
         step_info: DictStrAny = self._asdict()  # type: ignore
@@ -153,7 +161,9 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
 
     @staticmethod
     def writer_metrics_asdict(
-        job_metrics: Dict[str, DataWriterMetrics], key_name: str = "job_id", extend: StrAny = None
+        job_metrics: Mapping[str, Union[DataWriterMetrics, DataWriterAndCustomMetrics]],
+        key_name: str = "job_id",
+        extend: StrAny = None,
     ) -> List[DictStrAny]:
         entities = []
         for entity_id, metrics in job_metrics.items():
@@ -413,8 +423,8 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
-        metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
-        metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
+        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
         self._load_id_metrics[load_id].append(metrics)
         self._current_load_id = None
         self._current_load_started = None

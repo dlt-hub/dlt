@@ -217,10 +217,10 @@ class OpenTableCatalogNotSupported(DestinationTerminalException):
 
 
 class SqlClientNotAvailable(DestinationTerminalException):
-    def __init__(self, pipeline_name: str, destination_name: str) -> None:
+    def __init__(self, entity_type: str, entity_name: str, destination_name: str) -> None:
         super().__init__(
-            f"SQL Client not available for destination `{destination_name}` in pipeline"
-            f" `{pipeline_name}`",
+            f"SQL Client not available for {entity_type} `{entity_name}` in destination"
+            f" `{destination_name}`",
         )
 
 

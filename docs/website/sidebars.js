@@ -27,7 +27,7 @@ function *walkSync(dir) {
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
-  tutorialSidebar: [
+  docsSidebar: [
     {
       type: 'category',
       label: 'Getting started',
@@ -42,6 +42,18 @@ const sidebars = {
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/playground',
+        {
+          type: 'category',
+          label: 'Education',
+          link: {
+            type: 'doc',
+            id: 'tutorial/education',
+          },
+          items: [
+            'tutorial/fundamentals-course',
+            'tutorial/advanced-course',
+          ]
+        },
       ]
     },
     {
@@ -55,6 +67,8 @@ const sidebars = {
       },
       items: [
         'release-notes/1.12.1',
+        'release-notes/1.13-1.14',
+        'release-notes/1.15'
       ]
     },
     {
@@ -81,96 +95,6 @@ const sidebars = {
           ]
         },
         'general-usage/glossary'
-      ]
-    },
-    {
-      type: 'category',
-      label: 'dlt+',
-      link: {
-        type: 'doc',
-        id: 'plus/intro',
-      },
-      items: [
-        {
-          type: 'category',
-          label: 'Getting started',
-          items: [
-            'plus/getting-started/installation',
-            'plus/getting-started/tutorial',
-            'plus/getting-started/advanced_tutorial',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Core concepts',
-          items: [
-            'plus/core-concepts/project',
-            'plus/core-concepts/cache',
-            'plus/core-concepts/datasets',
-            'plus/core-concepts/profiles',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Sources & Destinations',
-          items: [
-            'plus/ecosystem/ms-sql',
-            'plus/ecosystem/iceberg',
-            'plus/ecosystem/delta',
-            'plus/ecosystem/snowflake_plus',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Features',
-          items: [
-            'plus/features/data-access',
-            {
-              type: 'category',
-              label: 'Project',
-              link: {
-                type: 'doc',
-                id: 'plus/features/project/index',
-              },
-              items: [
-                'plus/features/project/overview',
-                'plus/features/project/source-configuration',
-                'plus/features/project/python-api',
-              ]
-            },
-            {
-              type: 'category',
-              label: 'Local transformations',
-              link: {
-                type: 'doc',
-                id: 'plus/features/transformations/index',
-              },
-              items: [
-                'plus/features/transformations/setup',
-                'plus/features/transformations/dbt-transformations',
-                'plus/features/transformations/python-transformations',
-              ]
-            },
-            'plus/features/ai',
-            {
-              type: 'category',
-              label: 'Data quality & tests',
-              items: [
-                'plus/features/quality/tests',
-                'plus/features/quality/data-quality',
-              ]
-            },
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Going to production',
-          items: [
-            'plus/production/runners',
-            'plus/production/observability',
-          ]
-        },
-        'plus/reference',
       ]
     },
     {
@@ -298,6 +222,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/dremio',
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
+        'dlt-ecosystem/destinations/ducklake',
         'walkthroughs/create-new-destination'
       ]
     },
@@ -323,7 +248,6 @@ const sidebars = {
             slug: 'dlt-ecosystem/llm-tooling',
           },
           items: [
-            "dlt-ecosystem/llm-tooling/mcp-server",
             "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
         },
@@ -356,6 +280,7 @@ const sidebars = {
           ]
         },
         'walkthroughs/adjust-a-schema',
+        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Access loaded data',
@@ -364,12 +289,13 @@ const sidebars = {
             id: 'general-usage/dataset-access/index',
           },
           items: [
-            'general-usage/dataset-access/streamlit',
             'general-usage/dataset-access/marimo',
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
+            'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
+            'general-usage/dataset-access/streamlit',
           ]
         },
         {
@@ -545,11 +471,108 @@ const sidebars = {
       ]
     }
     */
-  ]
+  ],
+  hubSidebar: [
+    {
+      type: 'category',
+      label: 'dltHub Features',
+      link: {
+        type: 'doc',
+        id: 'hub/intro',
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'Getting started',
+          items: [
+            'hub/getting-started/installation',
+            'hub/getting-started/tutorial',
+            'hub/getting-started/advanced_tutorial',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Core concepts',
+          items: [
+            'hub/core-concepts/project',
+            'hub/core-concepts/cache',
+            'hub/core-concepts/datasets',
+            'hub/core-concepts/profiles',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Sources & Destinations',
+          items: [
+            'hub/ecosystem/ms-sql',
+            'hub/ecosystem/iceberg',
+            'hub/ecosystem/delta',
+            'hub/ecosystem/snowflake_plus',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Features',
+          items: [
+            {
+              type: 'category',
+              label: 'Transformations',
+              link: {
+                type: 'doc',
+                id: 'hub/features/transformations/index',
+              },
+              items: [
+                'hub/features/transformations/index',
+              ]
+            },
+            'hub/features/data-access',
+            {
+              type: 'category',
+              label: 'Project',
+              link: {
+                type: 'doc',
+                id: 'hub/features/project/index',
+              },
+              items: [
+                'hub/features/project/overview',
+                'hub/features/project/source-configuration',
+                'hub/features/project/python-api',
+              ]
+            },
+            {
+              type: 'category',
+              label: 'dbt generator',
+              link: {
+                type: 'doc',
+                id: 'hub/features/transformations/index',
+              },
+              items: [
+                'hub/features/transformations/setup',
+                'hub/features/transformations/dbt-transformations',
+              ]
+            },
+            'hub/features/ai',
+            "hub/features/mcp-server",
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Going to production',
+          items: [
+            'hub/production/pipeline-runner',
+            'hub/production/observability',
+            'hub/production/prefect-integration',
+          ]
+        },
+        'hub/reference',
+        'hub/EULA'
+      ]
+    },
+  ],
 };
 
 // insert examples
-for (const item of sidebars.tutorialSidebar) {
+for (const item of sidebars.docsSidebar) {
   if (item.label === 'Code examples') {
     for (let examplePath of walkSync("./docs_processed/examples")) {
       examplePath = examplePath.replace("docs_processed/", "");
@@ -563,7 +586,7 @@ for (const item of sidebars.tutorialSidebar) {
 
 // inject api reference if it exists
 if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
-  for (const item of sidebars.tutorialSidebar) {
+  for (const item of sidebars.docsSidebar) {
     if (item.label === 'Reference') {
       item.items.splice(0,0,require("./docs_processed/api_reference/sidebar.json"));
     }

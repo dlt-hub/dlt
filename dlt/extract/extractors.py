@@ -5,7 +5,10 @@ from typing import Set, Dict, Any, Optional, List, Union
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
 from dlt.common.configuration.specs import BaseConfiguration, configspec
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import (
+    DestinationCapabilitiesContext,
+    adjust_schema_to_capabilities,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -440,7 +443,6 @@ class ArrowExtractor(Extractor):
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TPartialTableSchema]:
-        # arrow_table: TTableSchema = None
         arrow_tables: Dict[str, TTableSchema] = {}
 
         if isinstance(items, list):
@@ -461,8 +463,11 @@ class ArrowExtractor(Extractor):
                 else:
                     arrow_table = copy(computed_table)
                 try:
-                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(
-                        item.schema, self._caps
+                    # generate dlt schema from arrow schema and adjust to capabilities
+                    # drop timezones and honor only explicit settings like the regular normalizer
+                    arrow_table["columns"] = adjust_schema_to_capabilities(
+                        pyarrow.py_arrow_to_table_schema_columns(item.schema),
+                        self._caps,
                     )
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))

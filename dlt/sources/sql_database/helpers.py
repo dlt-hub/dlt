@@ -15,19 +15,21 @@ from typing import (
 import operator
 
 import dlt
+from dlt.common import logger
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     ConnectionStringCredentials,
     configspec,
 )
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import DltException, MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
 from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
 from dlt.common.jsonpath import extract_simple_field_name
-
 from dlt.common.utils import is_typeerror_due_to_wrong_call
+
 from dlt.extract import Incremental
+from dlt.extract.items_transform import LimitItem
 
 from .arrow_helpers import row_tuples_to_arrow
 from .schema_types import (
@@ -67,6 +69,7 @@ class TableLoader:
         chunk_size: int = 1000,
         incremental: Optional[Incremental[Any]] = None,
         query_adapter_callback: Optional[TQueryAdapter] = None,
+        limit: Optional[LimitItem] = None,
     ) -> None:
         self.engine = engine
         self.backend = backend
@@ -75,6 +78,7 @@ class TableLoader:
         self.chunk_size = chunk_size
         self.query_adapter_callback = query_adapter_callback
         self.incremental = incremental
+        self.limit = limit
         if incremental:
             column_name = extract_simple_field_name(incremental.cursor_path)
 
@@ -109,6 +113,14 @@ class TableLoader:
     def _make_query(self) -> SelectAny:
         table = self.table
         query = table.select()
+
+        # use limit step to limit the query
+        if self.limit:
+            # limit works with chunks (by default)
+            limit = self.limit.limit(self.chunk_size)
+            if limit is not None:
+                query = query.limit(limit)
+
         if not self.incremental:
             return query  # type: ignore[no-any-return]
         last_value_func = self.incremental.last_value_func
@@ -181,28 +193,31 @@ class TableLoader:
     def _load_rows(self, query: SelectClause, backend_kwargs: Dict[str, Any]) -> TDataItem:
         with self.engine.connect() as conn:
             result = conn.execution_options(yield_per=self.chunk_size).execute(query)
-            # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect
-            # that normalizes columns
-            # columns = [c[0] for c in result.cursor.description]
-            columns = list(result.keys())
-            for partition in result.partitions(size=self.chunk_size):
-                if self.backend == "sqlalchemy":
-                    yield [dict(row._mapping) for row in partition]
-                elif self.backend == "pandas":
-                    from dlt.common.libs.pandas_sql import _wrap_result
+            try:
+                # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect
+                # that normalizes columns
+                # columns = [c[0] for c in result.cursor.description]
+                columns = list(result.keys())
+                for partition in result.partitions(size=self.chunk_size):
+                    if self.backend == "sqlalchemy":
+                        yield [dict(row._mapping) for row in partition]
+                    elif self.backend == "pandas":
+                        from dlt.common.libs.pandas_sql import _wrap_result
 
-                    df = _wrap_result(
-                        partition,
-                        columns,
-                        **{"dtype_backend": "pyarrow", **backend_kwargs},
-                    )
-                    yield df
-                elif self.backend == "pyarrow":
-                    yield row_tuples_to_arrow(
-                        partition,
-                        columns=_add_missing_columns(self.columns, columns),
-                        tz=backend_kwargs.get("tz", "UTC"),
-                    )
+                        df = _wrap_result(
+                            partition,
+                            columns,
+                            **{"dtype_backend": "pyarrow", **backend_kwargs},
+                        )
+                        yield df
+                    elif self.backend == "pyarrow":
+                        yield row_tuples_to_arrow(
+                            partition,
+                            columns=_add_missing_columns(self.columns, columns),
+                            tz=backend_kwargs.get("tz", "UTC"),
+                        )
+            finally:
+                result.close()
 
     def _load_rows_connectorx(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
@@ -232,6 +247,7 @@ class TableLoader:
                 " on ConnectorX. If you are on SQLAlchemy 1.4.x the causing exception is due to"
                 f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
+        logger.info(f"Executing query on ConnectorX: {query_str}")
         df = cx.read_sql(conn, query_str, **backend_kwargs)
         yield self._maybe_fix_0000_timezone(df)
 
@@ -260,6 +276,7 @@ def table_rows(
     backend_kwargs: Dict[str, Any],
     type_adapter_callback: Optional[TTypeAdapter],
     included_columns: Optional[List[str]],
+    excluded_columns: Optional[List[str]],
     query_adapter_callback: Optional[TQueryAdapter],
     resolve_foreign_keys: bool,
 ) -> Iterator[TDataItem]:
@@ -271,7 +288,9 @@ def table_rows(
             extend_existing=True,
             resolve_fks=resolve_foreign_keys,
         )
-        table = _execute_table_adapter(table, table_adapter_callback, included_columns)
+        table = _execute_table_adapter(
+            table, table_adapter_callback, included_columns, excluded_columns
+        )
         hints = table_to_resource_hints(
             table,
             reflection_level,
@@ -303,6 +322,12 @@ def table_rows(
             resolve_foreign_keys=resolve_foreign_keys,
         )
 
+    limit = None
+    try:
+        limit = dlt.current.resource().limit
+    except DltException:
+        pass
+
     loader = TableLoader(
         engine,
         backend,
@@ -310,6 +335,7 @@ def table_rows(
         hints["columns"],
         incremental=incremental,
         chunk_size=chunk_size,
+        limit=limit,
         query_adapter_callback=query_adapter_callback,
     )
     try:
@@ -377,10 +403,13 @@ def _add_missing_columns(
 
 
 def _execute_table_adapter(
-    table: Table, adapter: Optional[TTableAdapter], included_columns: Optional[List[str]]
+    table: Table,
+    adapter: Optional[TTableAdapter],
+    included_columns: Optional[List[str]],
+    excluded_columns: Optional[List[str]],
 ) -> Table:
     """Executes default table adapter on `table` and then `adapter` if defined"""
-    default_table_adapter(table, included_columns)
+    default_table_adapter(table, included_columns, excluded_columns)
     if adapter:
         # backward compat: old adapters do not return a value
         maybe_query = adapter(table)
@@ -421,6 +450,7 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     defer_table_reflect: Optional[bool] = False
     reflection_level: Optional[ReflectionLevel] = "full"
     included_columns: Optional[List[str]] = None
+    excluded_columns: Optional[List[str]] = None
     write_disposition: Optional[TWriteDispositionDict] = None
     primary_key: Optional[TColumnNames] = None
     merge_key: Optional[TColumnNames] = None

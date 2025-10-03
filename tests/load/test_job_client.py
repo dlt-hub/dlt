@@ -36,14 +36,14 @@ from dlt.common.destination.client import (
     DestinationClientConfiguration,
     WithStateSync,
 )
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 
+from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.utils import TEST_STORAGE_ROOT
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
-    TABLE_UPDATE_COLUMNS_SCHEMA,
     expect_load_file,
     load_table,
     set_always_refresh_views,
@@ -232,7 +232,7 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
     assert load_rows[0][2] == 0
     import datetime  # noqa: I251
 
-    assert isinstance(ensure_pendulum_datetime(load_rows[0][3]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime_utc(load_rows[0][3]), datetime.datetime)
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)
@@ -259,15 +259,16 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
 def test_schema_update_create_table(client: SqlJobClientBase) -> None:
     # infer typical rasa event schema
     schema = client.schema
+    item_normalizer = JsonLItemsNormalizer(None, None, schema, "load_id", None)
     table_name = "event_test_table" + uniq_id()
     # this will be sort
-    timestamp = schema._infer_column("timestamp", 182879721.182912)
+    timestamp = item_normalizer._infer_column("timestamp", 182879721.182912)
     assert timestamp["sort"] is True
     # this will be destkey
-    sender_id = schema._infer_column("sender_id", "982398490809324")
+    sender_id = item_normalizer._infer_column("sender_id", "982398490809324")
     assert sender_id["cluster"] is True
     # this will be not null
-    record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
+    record_hash = item_normalizer._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     assert record_hash["unique"] is True
     schema.update_table(new_table(table_name, columns=[timestamp, sender_id, record_hash]))
     schema._bump_version()
@@ -298,12 +299,13 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase, dataset_n
 
     # infer typical rasa event schema
     schema = client.schema
+    item_normalizer = JsonLItemsNormalizer(None, None, schema, "load_id", None)
     # this will be partition
-    timestamp = schema._infer_column("timestamp", 182879721.182912)
+    timestamp = item_normalizer._infer_column("timestamp", 182879721.182912)
     # this will be cluster
-    sender_id = schema._infer_column("sender_id", "982398490809324")
+    sender_id = item_normalizer._infer_column("sender_id", "982398490809324")
     # this will be not null
-    record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
+    record_hash = item_normalizer._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     schema.update_table(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
     schema._bump_version()
     schema_update = client.update_stored_schema()
@@ -325,7 +327,8 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
     # force to update schema in chunks by setting the max query size to 10 bytes/chars
     with patch.object(client.capabilities, "max_query_length", new=10):
         schema = client.schema
-        col1 = schema._infer_column("col1", "string")
+        item_normalizer = JsonLItemsNormalizer(None, None, schema, "load_id", None)
+        col1 = item_normalizer._infer_column("col1", "string")
         table_name = "event_test_table" + uniq_id()
         schema.update_table(new_table(table_name, columns=[col1]))
         schema._bump_version()
@@ -334,7 +337,7 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         assert len(schema_update[table_name]["columns"]) == 1
         assert schema_update[table_name]["columns"]["col1"]["data_type"] == "text"
         # with single alter table
-        col2 = schema._infer_column("col2", 1)
+        col2 = item_normalizer._infer_column("col2", 1)
         schema.update_table(new_table(table_name, columns=[col2]))
         schema._bump_version()
         schema_update = client.update_stored_schema()
@@ -343,8 +346,8 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         assert schema_update[table_name]["columns"]["col2"]["data_type"] == "bigint"
 
         # with 2 alter tables
-        col3 = schema._infer_column("col3", 1.2)
-        col4 = schema._infer_column("col4", 182879721.182912)
+        col3 = item_normalizer._infer_column("col3", 1.2)
+        col4 = item_normalizer._infer_column("col4", 182879721.182912)
         col4["data_type"] = "timestamp"
         schema.update_table(new_table(table_name, columns=[col3, col4]))
         schema._bump_version()
@@ -435,8 +438,8 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
 )
 def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     schema = client.schema
-    columns = deepcopy(TABLE_UPDATE)
-    columns_schema = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    columns_schema, _ = table_update_and_row()
+    columns = list(columns_schema.values())
     table_name = "event_test_table" + uniq_id()
     schema.update_table(new_table(table_name, columns=columns))
     schema._bump_version()
@@ -686,16 +689,27 @@ def test_load_with_all_types(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
     )
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
+    print("DB ROW", db_row)
     assert len(db_row) == len(data_row)
     # assert_all_data_types_row has many hardcoded columns so for now skip that part
     if naming == "snake_case":
         # content must equal
         assert_all_data_types_row(
+            client.capabilities,
             db_row,
             data_row,
             schema=partial["columns"],
             allow_base64_binary=client.config.destination_type in ["clickhouse", "filesystem"],
         )
+    # get table def from storage
+    _, cols = client.get_storage_table(table_name)
+    cols = normalize_storage_table_cols(table_name, cols, client.schema)
+    if naming == "snake_case":
+        # make sure all datetime formats are set
+        assert cols["col4"]["data_type"] == "timestamp"
+        if "col4_precision" in cols:
+            assert cols["col4_precision"]["data_type"] == "timestamp"
+        assert cols["col12"]["data_type"] == "timestamp"
 
 
 @pytest.mark.parametrize(
@@ -1177,11 +1191,14 @@ def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> N
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, Any]], str]:
     client.update_stored_schema()
+    item_normalizer = JsonLItemsNormalizer(None, None, client.schema, "load_id", None)
     rows = load_json_case(case)
     # normalize rows
     normalize_rows(rows, client.schema.naming)
     # use first row to infer table
-    table: TTableSchemaColumns = {k: client.schema._infer_column(k, v) for k, v in rows[0].items()}
+    table: TTableSchemaColumns = {
+        k: item_normalizer._infer_column(k, v) for k, v in rows[0].items()
+    }
     table_name = f"event_{case}_{uniq_id()}"
     partial = client.schema.update_table(new_table(table_name, columns=list(table.values())))
     client.schema._bump_version()

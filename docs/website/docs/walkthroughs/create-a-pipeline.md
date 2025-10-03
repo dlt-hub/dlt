@@ -148,14 +148,14 @@ It also prints the `load_info` object.
 Let's explore the loaded data with the [command](../reference/command-line-interface#dlt-pipeline-show) `dlt pipeline <pipeline_name> show`.
 
 :::info
-Make sure you have `streamlit` installed: `pip install streamlit`
+You will need to install `pip dlt[workspace]`
 :::
 
 ```sh
 dlt pipeline github_api_pipeline show
 ```
 
-This will open a Streamlit app that gives you an overview of the data loaded.
+This will open the pipeline dashboard app that gives you an overview of the data loaded.
 
 ## 5. Next steps
 

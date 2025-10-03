@@ -80,7 +80,7 @@ def rest_api_source(
     name: str = None,
     section: str = None,
     max_table_nesting: int = None,
-    root_key: bool = False,
+    root_key: bool = None,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
     parallelized: bool = False,
@@ -243,6 +243,7 @@ def create_resources(
         endpoint_config = cast(Endpoint, endpoint_resource["endpoint"])
         request_params = endpoint_config.get("params", {})
         request_json = endpoint_config.get("json")
+        request_data = endpoint_config.get("data")
         request_headers = endpoint_config.get("headers")
         paginator = create_paginator(endpoint_config.get("paginator"))
         processing_steps = endpoint_resource.pop("processing_steps", [])
@@ -295,6 +296,7 @@ def create_resources(
                 headers=request_headers,
                 params=request_params,
                 json=request_json,
+                data=request_data,
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,
@@ -322,6 +324,7 @@ def create_resources(
                 headers=request_headers,
                 params=base_params,
                 json=request_json,
+                data=request_data,
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,

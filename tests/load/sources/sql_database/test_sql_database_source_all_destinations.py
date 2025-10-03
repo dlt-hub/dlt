@@ -26,7 +26,7 @@ try:
         convert_time_to_us,
         default_test_callback,
     )
-    from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+    from tests.load.sources.sql_database.postgres_source import PostgresSourceDB
     from dlt.common.libs.sql_alchemy import IS_SQL_ALCHEMY_20
 except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
@@ -34,12 +34,14 @@ except MissingDependencyException:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True),
+    destinations_configs(
+        default_sql_configs=True, local_filesystem_configs=True, table_format_local_configs=True
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_schema_loads_all_tables(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
 ) -> None:
@@ -47,9 +49,12 @@ def test_load_sql_schema_loads_all_tables(
         "test_load_sql_schema_loads_all_tables", dev_mode=True
     )
 
+    os.environ["SOURCES__SQL_DATABASE__HAS_PRECISION__EXCLUDED_COLUMNS"] = '["time_col"]'
+    os.environ["SOURCES__SQL_DATABASE__HAS_PRECISION_NULLABLE__EXCLUDED_COLUMNS"] = '["time_col"]'
+
     source = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         backend=backend,
         reflection_level="minimal",
         type_adapter_callback=default_test_callback(destination_config.destination_type, backend),
@@ -74,7 +79,7 @@ def test_load_sql_schema_loads_all_tables(
     print(humanize.precisedelta(pipeline.last_trace.finished_at - pipeline.last_trace.started_at))
     assert_load_info(load_info)
 
-    assert_row_counts(pipeline, sql_source_db)
+    assert_row_counts(pipeline, postgres_db)
 
 
 @pytest.mark.parametrize(
@@ -84,7 +89,7 @@ def test_load_sql_schema_loads_all_tables(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_schema_loads_all_tables_parallel(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
 ) -> None:
@@ -92,8 +97,8 @@ def test_load_sql_schema_loads_all_tables_parallel(
         "test_load_sql_schema_loads_all_tables_parallel", dev_mode=True
     )
     source = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         backend=backend,
         reflection_level="minimal",
         type_adapter_callback=default_test_callback(destination_config.destination_type, backend),
@@ -116,7 +121,7 @@ def test_load_sql_schema_loads_all_tables_parallel(
     print(humanize.precisedelta(pipeline.last_trace.finished_at - pipeline.last_trace.started_at))
     assert_load_info(load_info)
 
-    assert_row_counts(pipeline, sql_source_db)
+    assert_row_counts(pipeline, postgres_db)
 
 
 @pytest.mark.parametrize(
@@ -126,7 +131,7 @@ def test_load_sql_schema_loads_all_tables_parallel(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_table_names(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
 ) -> None:
@@ -134,8 +139,8 @@ def test_load_sql_table_names(
     tables = ["chat_channel", "chat_message"]
     load_info = pipeline.run(
         sql_database(
-            credentials=sql_source_db.credentials,
-            schema=sql_source_db.schema,
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
             table_names=tables,
             reflection_level="minimal",
             backend=backend,
@@ -143,7 +148,7 @@ def test_load_sql_table_names(
     )
     assert_load_info(load_info)
 
-    assert_row_counts(pipeline, sql_source_db, tables)
+    assert_row_counts(pipeline, postgres_db, tables)
 
 
 @pytest.mark.parametrize(
@@ -153,7 +158,7 @@ def test_load_sql_table_names(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_table_incremental(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
 ) -> None:
@@ -170,8 +175,8 @@ def test_load_sql_table_incremental(
 
     def make_source():
         return sql_database(
-            credentials=sql_source_db.credentials,
-            schema=sql_source_db.schema,
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
             table_names=tables,
             reflection_level="minimal",
             backend=backend,
@@ -179,11 +184,11 @@ def test_load_sql_table_incremental(
 
     load_info = pipeline.run(make_source())
     assert_load_info(load_info)
-    sql_source_db.fake_messages(n=100)
+    postgres_db.fake_messages(n=100)
     load_info = pipeline.run(make_source())
     assert_load_info(load_info)
 
-    assert_row_counts(pipeline, sql_source_db, tables)
+    assert_row_counts(pipeline, postgres_db, tables)
 
 
 @pytest.mark.skip(reason="Skipping this test temporarily")
@@ -222,11 +227,12 @@ def test_load_mysql_data_load(
         backend=backend,
         reflection_level="minimal",
         backend_kwargs=backend_kwargs,
+        chunk_size=100,
         # table_adapter_callback=_double_as_decimal_adapter,
     )
 
     pipeline = destination_config.setup_pipeline("test_load_mysql_data_load", dev_mode=True)
-    load_info = pipeline.run(family_table, write_disposition="merge")
+    load_info = pipeline.run(family_table.add_limit(1), write_disposition="merge")
     assert_load_info(load_info)
     counts_1 = load_table_counts(pipeline, "family")
 
@@ -238,13 +244,14 @@ def test_load_mysql_data_load(
         reflection_level="minimal",
         # we also try to remove dialect automatically
         backend_kwargs={},
+        chunk_size=100,
         # table_adapter_callback=_double_as_decimal_adapter,
     )
-    load_info = pipeline.run(family_table, write_disposition="merge")
+    load_info = pipeline.run(family_table.add_limit(1), write_disposition="merge")
     assert_load_info(load_info)
     counts_2 = load_table_counts(pipeline, "family")
     # no duplicates
-    assert counts_1 == counts_2
+    assert counts_1 == counts_2 == {"family": 100}
 
 
 @pytest.mark.parametrize(
@@ -254,7 +261,7 @@ def test_load_mysql_data_load(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_table_resource_loads_data(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
 ) -> None:
@@ -262,8 +269,8 @@ def test_load_sql_table_resource_loads_data(
     def sql_table_source() -> List[DltResource]:
         return [
             sql_table(
-                credentials=sql_source_db.credentials,
-                schema=sql_source_db.schema,
+                credentials=postgres_db.credentials,
+                schema=postgres_db.schema,
                 table="chat_message",
                 reflection_level="minimal",
                 backend=backend,
@@ -276,7 +283,7 @@ def test_load_sql_table_resource_loads_data(
     load_info = pipeline.run(sql_table_source())
     assert_load_info(load_info)
 
-    assert_row_counts(pipeline, sql_source_db, ["chat_message"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message"])
 
 
 @pytest.mark.parametrize(
@@ -286,7 +293,7 @@ def test_load_sql_table_resource_loads_data(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_load_sql_table_resource_incremental(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
 ) -> None:
@@ -297,8 +304,8 @@ def test_load_sql_table_resource_incremental(
     def sql_table_source() -> List[DltResource]:
         return [
             sql_table(
-                credentials=sql_source_db.credentials,
-                schema=sql_source_db.schema,
+                credentials=postgres_db.credentials,
+                schema=postgres_db.schema,
                 table="chat_message",
                 incremental=dlt.sources.incremental("updated_at"),
                 reflection_level="minimal",
@@ -311,11 +318,11 @@ def test_load_sql_table_resource_incremental(
     )
     load_info = pipeline.run(sql_table_source())
     assert_load_info(load_info)
-    sql_source_db.fake_messages(n=100)
+    postgres_db.fake_messages(n=100)
     load_info = pipeline.run(sql_table_source())
     assert_load_info(load_info)
 
-    assert_row_counts(pipeline, sql_source_db, ["chat_message"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message"])
 
 
 @pytest.mark.parametrize(
@@ -325,7 +332,7 @@ def test_load_sql_table_resource_incremental(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_load_sql_table_resource_incremental_initial_value(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
 ) -> None:
@@ -336,12 +343,12 @@ def test_load_sql_table_resource_incremental_initial_value(
     def sql_table_source() -> List[DltResource]:
         return [
             sql_table(
-                credentials=sql_source_db.credentials,
-                schema=sql_source_db.schema,
+                credentials=postgres_db.credentials,
+                schema=postgres_db.schema,
                 table="chat_message",
                 incremental=dlt.sources.incremental(
                     "updated_at",
-                    sql_source_db.table_infos["chat_message"]["created_at"].start_value,
+                    postgres_db.table_infos["chat_message"]["created_at"].start_value,
                 ),
                 reflection_level="minimal",
                 backend=backend,
@@ -353,4 +360,4 @@ def test_load_sql_table_resource_incremental_initial_value(
     )
     load_info = pipeline.run(sql_table_source())
     assert_load_info(load_info)
-    assert_row_counts(pipeline, sql_source_db, ["chat_message"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message"])

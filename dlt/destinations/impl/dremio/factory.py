@@ -68,6 +68,7 @@ class DremioTypeMapper(TypeMapperImpl):
                     "Dremio cannot load fixed width `binary` columns from parquet files. Switch to"
                     " other file format or use binary columns without precision.",
                     "binary",
+                    column["data_type"],
                 )
 
     def from_destination_type(
@@ -108,10 +109,12 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.supports_clone_table = False
         caps.supports_multiple_statements = False
         caps.timestamp_precision = 3
+        caps.max_timestamp_precision = 3
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "presto"
+        caps.supports_tz_aware_datetime = False
 
         return caps
 

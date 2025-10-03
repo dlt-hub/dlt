@@ -1,5 +1,5 @@
 from typing import Any, TYPE_CHECKING, Tuple, List
-import semver
+from packaging.version import Version
 import duckdb
 
 from dlt.common import logger
@@ -66,11 +66,14 @@ class FilesystemSqlClient(WithTableScanners):
         scope: str,
         credentials: FileSystemCredentials,
         secret_name: str = None,
+        persist_secrets: bool = False,
     ) -> bool:
         protocol = self.remote_client.config.protocol
         if protocol == "file":
             return True
-        if not super().create_secret(scope, credentials, secret_name=secret_name):
+        if not super().create_secret(
+            scope, credentials, secret_name=secret_name, persist_secrets=persist_secrets
+        ):
             # native google storage implementation is not supported..
             if protocol in ["gs", "gcs"]:
                 logger.warn(
@@ -91,8 +94,9 @@ class FilesystemSqlClient(WithTableScanners):
         return True
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        first_connection = self.credentials.never_borrowed
-        super().open_connection()
+        with self.credentials.conn_pool._conn_lock:
+            first_connection = self.credentials.conn_pool.never_borrowed
+            super().open_connection()
 
         if first_connection:
             # TODO: we need to frontload the httpfs extension for abfss for some reason
@@ -101,7 +105,9 @@ class FilesystemSqlClient(WithTableScanners):
 
             # create single authentication for the whole client
             self.create_secret(
-                self.remote_client.config.bucket_url, self.remote_client.config.credentials
+                self.remote_client.config.bucket_url,
+                self.remote_client.config.credentials,
+                persist_secrets=self.persist_secrets,
             )
         return self._conn
 
@@ -159,7 +165,7 @@ class FilesystemSqlClient(WithTableScanners):
             else:
                 compression = ""
 
-            if semver.Version.parse(duckdb.__version__) > semver.Version.parse("1.3.0"):
+            if Version(duckdb.__version__) > Version("1.3.0"):
                 scanner_options = "union_by_name=true"
             else:
                 scanner_options = "skip_schema_inference=false"
