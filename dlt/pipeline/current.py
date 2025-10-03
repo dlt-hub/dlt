@@ -5,6 +5,7 @@ from dlt.common.storages.load_package import (
     destination_state,
 )
 from dlt.common.runtime.run_context import active as _run_context
+from dlt._workspace._run_context import active as _workspace
 
 from dlt.extract.decorators import (
     get_resource,
@@ -36,6 +37,7 @@ resource = get_resource
 pipe = _get_current_pipe
 resource_name = _get_current_pipe_name
 run_context = _run_context
+workspace = _workspace
 resource_metrics = get_resource_metrics
 
 __all__ = [
