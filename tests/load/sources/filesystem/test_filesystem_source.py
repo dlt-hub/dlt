@@ -296,15 +296,17 @@ def test_incremental_load(
     destinations_configs(default_sql_configs=True),
     ids=lambda x: x.name,
 )
-def test_http_filesystem(bucket_url: str, destination_config: DestinationTestConfiguration):
-    http_parquet_file = filesystem(
-        bucket_url=bucket_url, file_glob="yellow_tripdata_2025-01.parquet"
+def test_http_filesystem(
+    public_http_server, bucket_url: str, destination_config: DestinationTestConfiguration
+):
+    public_resource = filesystem(
+        bucket_url=bucket_url, file_glob="parquet/mlb_players.parquet"
     )
     pipeline = destination_config.setup_pipeline("test_http_load", dev_mode=True)
     # just execute iterator
     load_info = pipeline.run(
         [
-            http_parquet_file.with_name("http_parquet_example"),
+            public_resource.with_name("http_parquet_example"),
         ]
     )
     assert_load_info(load_info)

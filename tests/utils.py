@@ -1,9 +1,14 @@
 import contextlib
+from http import HTTPStatus
+import http.server
 import multiprocessing
 import os
 import platform
+import threading
 import sys
+from functools import partial
 from os import environ
+from pathlib import Path
 from typing import Any, Iterable, Iterator, Literal, Optional, Union, get_args, List
 from unittest.mock import patch
 
@@ -138,6 +143,20 @@ def TEST_DICT_CONFIG_PROVIDER():
         return provider
 
 
+class PublicCDNHandler(http.server.SimpleHTTPRequestHandler):
+
+    @classmethod
+    def factory(cls, *args, directory: Path) -> "PublicCDNHandler":
+        return cls(*args, directory=directory)
+
+    def __init__(self, *args, directory: Optional[Path] = None):
+        super().__init__(*args, directory=directory)
+
+    def list_directory(self, path: str):
+        self.send_error(HTTPStatus.FORBIDDEN, "Directory listing is forbidden")
+        return None
+
+
 class MockHttpResponse(Response):
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code
@@ -200,6 +219,29 @@ def preserve_module_environ() -> Iterator[None]:
 @pytest.fixture(autouse=True, scope="module")
 def patch_module_home_dir(autouse_module_test_storage) -> Iterator[None]:
     yield from _patch_home_dir()
+
+
+@pytest.fixture(autouse=True)
+def public_http_server():
+    """
+    A simple HTTP server serving files from the current directory.
+    Used to simulate public CDN. It allows only file access, directory listing is forbidden.
+    """
+    httpd = http.server.ThreadingHTTPServer(
+        ("localhost", 8080),
+        partial(
+            PublicCDNHandler.factory,
+            directory=Path.cwd().joinpath("tests/common/storages/samples")
+        )
+    )
+    server_thread = threading.Thread(
+        target=httpd.serve_forever,
+        daemon=True
+    )
+    server_thread.start()
+    yield httpd
+    httpd.shutdown()
+    server_thread.join()
 
 
 def _patch_home_dir() -> Iterator[None]:
