@@ -42,7 +42,11 @@ def pipeline_command(
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
-        dirs = storage.list_folder_dirs(".", to_root=False)
+        dirs = []
+        try:
+            dirs = storage.list_folder_dirs(".", to_root=False)
+        except FileNotFoundError:
+            pass
         if len(dirs) > 0:
             fmt.echo("%s pipelines found in %s" % (len(dirs), fmt.bold(pipelines_dir)))
         else:
@@ -53,10 +57,6 @@ def pipeline_command(
 
     # we may open the dashboard for a pipeline without checking if it exists
     if operation == "show" and not command_kwargs.get("streamlit"):
-        # TODO: why this is imported here
-        from dlt.common.utils import custom_environ
-        from dlt.common.known_env import DLT_DATA_DIR
-
         from dlt.helpers.dashboard.runner import run_dashboard
 
         run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
@@ -326,7 +326,7 @@ def pipeline_command(
             if verbosity == 0:
                 fmt.echo("Add -v option to see schema update. Note that it could be large.")
             else:
-                tables = remove_defaults({"tables": package_info.schema_update})  # type: ignore
+                tables = remove_defaults({"tables": package_info.schema_update})
                 fmt.echo(fmt.bold("Schema update:"))
                 fmt.echo(
                     yaml.dump(

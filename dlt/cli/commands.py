@@ -1,10 +1,9 @@
 from typing import Type
-
 import argparse
-import dlt.cli.echo as fmt
-
 
 from dlt.common.configuration import plugins
+
+import dlt.cli.echo as fmt
 from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
@@ -41,11 +40,6 @@ try:
     deploy_command_available = True
 except ImportError:
     deploy_command_available = False
-
-
-@plugins.hookspec()
-def plug_cli() -> SupportsCliCommand:
-    """Spec for plugin hook that returns current run context."""
 
 
 class InitCommand(SupportsCliCommand):

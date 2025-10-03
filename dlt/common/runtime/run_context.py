@@ -6,7 +6,6 @@ from typing import Any, ClassVar, Dict, List, Optional
 from urllib.parse import urlencode
 
 from dlt.common import known_env
-from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
     EnvironProvider,
@@ -26,27 +25,16 @@ DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
 class RunContext(SupportsRunContext):
     """A default run context used by dlt"""
 
-    CONTEXT_NAME: ClassVar[str] = "dlt"
-
     def __init__(self, run_dir: Optional[str]):
         self._init_run_dir = run_dir or "."
 
     @property
     def global_dir(self) -> str:
-        return self.data_dir
+        return global_dir()
 
     @property
     def uri(self) -> str:
-        from dlt.common.storages.configuration import FilesystemConfiguration
-
-        uri_no_qs = FilesystemConfiguration.make_file_url(self.run_dir)
-        # add query string from self.runtime_kwargs
-        runtime_kwargs = self.runtime_kwargs
-        if runtime_kwargs:
-            query_string = urlencode(runtime_kwargs)
-            if query_string:
-                return f"{uri_no_qs}?{query_string}"
-        return uri_no_qs
+        return context_uri(self.name, self.run_dir, self.runtime_kwargs)
 
     @property
     def run_dir(self) -> str:
@@ -67,7 +55,7 @@ class RunContext(SupportsRunContext):
 
     @property
     def data_dir(self) -> str:
-        return global_dir()
+        return os.environ.get(known_env.DLT_DATA_DIR, global_dir())
 
     def initial_providers(self) -> List[ConfigProvider]:
         providers = [
@@ -106,7 +94,7 @@ class RunContext(SupportsRunContext):
 
     @property
     def name(self) -> str:
-        return self.__class__.CONTEXT_NAME
+        return "dlt"
 
     @staticmethod
     def import_run_dir_module(run_dir: str) -> ModuleType:
@@ -127,39 +115,13 @@ class RunContext(SupportsRunContext):
             )
 
 
-@plugins.hookspec(firstresult=True)
-def plug_run_context(
-    run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
-) -> Optional[SupportsRunContext]:
-    """Spec for plugin hook that returns current run context.
-
-    Args:
-        run_dir (str): An initial run directory of the context
-        runtime_kwargs: Any additional arguments passed to the context via PluggableRunContext.reload
-
-    Returns:
-        SupportsRunContext: A run context implementing SupportsRunContext protocol
-    """
-
-
-@plugins.hookimpl(specname="plug_run_context")
-def plug_run_context_impl(
-    run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
-) -> Optional[SupportsRunContext]:
-    return RunContext(run_dir)
-
-
 def global_dir() -> str:
     """Gets default directory where pipelines' data (working directories) will be stored
-    1. if DLT_DATA_DIR is set in env then it is used
-    2. if XDG_DATA_HOME is set in env then it is used
-    3. in user home directory: ~/.dlt/
-    4. if current user is root: in /var/dlt/
-    5. if current user does not have a home directory: in /tmp/dlt/
+    1. if XDG_DATA_HOME is set in env then it is used
+    2. in user home directory: ~/.dlt/
+    3. if current user is root: in /var/dlt/
+    4. if current user does not have a home directory: in /tmp/dlt/
     """
-    if known_env.DLT_DATA_DIR in os.environ:
-        return os.environ[known_env.DLT_DATA_DIR]
-
     # geteuid not available on Windows
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         # we are root so use standard /var
@@ -211,6 +173,19 @@ def get_plugin_modules() -> List[str]:
     run_module_name = ctx_module.__name__ if ctx_module else ""
 
     return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules] + ["dlt"]
+
+
+def context_uri(name: str, run_dir: str, runtime_kwargs: Optional[Dict[str, Any]]) -> str:
+    from dlt.common.storages.configuration import FilesystemConfiguration
+
+    uri_no_qs = FilesystemConfiguration.make_file_url(run_dir)
+    # add query string from self.runtime_kwargs
+    if runtime_kwargs:
+        # skip kwargs starting with _
+        query_string = urlencode({k: v for k, v in runtime_kwargs.items() if not k.startswith("_")})
+        if query_string:
+            return f"{uri_no_qs}?{query_string}"
+    return uri_no_qs
 
 
 def active() -> SupportsRunContext:
