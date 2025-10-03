@@ -1,6 +1,6 @@
-# Spatial ETL with dlt - Open Source Alternative to FME
+# Spatial ETL with dlt
 
-This directory contains examples demonstrating dlt's comprehensive spatial ETL capabilities using OGR/GDAL. These examples show how to use dlt as a powerful, open-source alternative to proprietary tools like FME Software.
+This directory contains examples demonstrating dlt's comprehensive spatial ETL capabilities using OGR/GDAL, created by **Baroudi Malek** and **Fawzi Hammami**.
 
 ## Overview
 
@@ -51,7 +51,7 @@ roads_transformed = (
 pipeline.run(roads_transformed, table_name='roads_buffered')
 ```
 
-**Comparable to FME**: Reader (ESRI Geodatabase) → Reprojector → Bufferer → Writer (PostGIS)
+**Similar to commercial ETL**: Reader (ESRI Geodatabase) → Reprojector → Bufferer → Writer (PostGIS)
 
 ### 2. CAD to GeoPackage (`cad_to_geopackage.py`)
 
@@ -71,7 +71,7 @@ transformed = (
 pipeline.run(transformed, table_name='cad_features')
 ```
 
-**Comparable to FME**: Reader (Autodesk AutoCAD DWG/DXF) → Reprojector → AttributeRenamer → Writer (GeoPackage)
+**Similar to commercial ETL**: Reader (Autodesk AutoCAD DWG/DXF) → Reprojector → AttributeRenamer → Writer (GeoPackage)
 
 ### 3. Raster Processing (`raster_processing.py`)
 
@@ -90,7 +90,7 @@ elevation_data = read_raster(
 pipeline.run(elevation_data, table_name='elevation_tiles')
 ```
 
-**Comparable to FME**: Reader (GeoTIFF) → RasterResampler → RasterReprojector → Writer (PostgreSQL)
+**Similar to commercial ETL**: Reader (GeoTIFF) → RasterResampler → RasterReprojector → Writer (PostgreSQL)
 
 ## Supported Spatial Formats
 
@@ -111,9 +111,9 @@ pipeline.run(elevation_data, table_name='elevation_tiles')
 
 ## Spatial Transformers
 
-dlt provides FME-style transformers for spatial operations:
+dlt provides spatial transformation operations:
 
-| dlt Transformer | FME Equivalent | Description |
+| dlt Transformer | Commercial ETL Equivalent | Description |
 |----------------|----------------|-------------|
 | `reproject` | Reprojector | Change coordinate systems |
 | `buffer_geometry` | Bufferer | Create buffer zones |
@@ -135,7 +135,7 @@ Spatial data can be loaded to:
 - **Snowflake, BigQuery, Redshift** (geometry as text/binary)
 - And 20+ other destinations
 
-## Key Advantages Over FME
+## Key Advantages
 
 1. **Open Source**: Apache 2.0 license, free to use
 2. **Python Native**: Full programmability and extensibility
@@ -143,8 +143,12 @@ Spatial data can be loaded to:
 4. **Scalable**: Built-in parallelization and streaming
 5. **Version Control**: Pipelines as code
 6. **Modern Stack**: Works with dbt, Airflow, Dagster
-7. **No License Costs**: FME Desktop costs $5,000+/year
+7. **No License Costs**: Free alternative to expensive commercial tools
 8. **Community Driven**: Active development and support
+
+## Authors
+
+This spatial ETL module was created by **Baroudi Malek** and **Fawzi Hammami**.
 
 ## Advanced Usage
 

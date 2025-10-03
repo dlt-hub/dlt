@@ -6,13 +6,14 @@ This document proposes releasing the new **Spatial ETL** capabilities as an **ex
 
 **Branch:** `exp/spatial-etl-ogr-gdal`  
 **Proposed Version:** `1.18.0a1` (alpha release from devel)  
-**Target Audience:** Early adopters, GIS professionals, spatial data engineers
+**Target Audience:** Early adopters, GIS professionals, spatial data engineers  
+**Created by:** Baroudi Malek & Fawzi Hammami
 
 ---
 
 ## Executive Summary
 
-This feature transforms dlt into a comprehensive **open-source spatial ETL tool**, comparable to FME Software, by adding:
+This feature transforms dlt into a comprehensive **open-source spatial ETL tool** by adding:
 
 - **170+ vector format support** via OGR (ESRI, CAD, GeoJSON, PostGIS, etc.)
 - **200+ raster format support** via GDAL (GeoTIFF, NetCDF, HDF5, etc.)
@@ -320,21 +321,21 @@ pipeline.run(roads_transformed, table_name='roads_buffered')
 
 ---
 
-## Comparison to FME Software
+## Comparison to Commercial Spatial ETL Tools
 
-| Feature | FME Desktop | dlt Spatial (Alpha) | Notes |
-|---------|-------------|---------------------|-------|
+| Feature | Commercial ETL Tools | dlt Spatial (Alpha) | Notes |
+|---------|---------------------|---------------------|-------|
 | **Vector Formats** | 200+ | 170+ (via OGR) | Core formats covered |
 | **Raster Formats** | 100+ | 200+ (via GDAL) | GDAL has broader support |
 | **Transformers** | 500+ | 8 (essential ones) | Will expand based on demand |
 | **Coordinate Systems** | Full support | Full support (via PyProj) | Industry standard |
 | **Cost** | $5,000+/year | Free (open source) | Apache 2.0 license |
-| **Programmability** | Limited Python | Native Python | Full programming capability |
+| **Programmability** | Limited | Native Python | Full programming capability |
 | **Cloud Native** | Partial | Full (S3, GCS, Azure) | Built-in cloud storage |
-| **Version Control** | XML files | Python code | Git-friendly |
-| **Learning Curve** | Steep (GUI) | Moderate (code) | Pythonic API |
+| **Version Control** | GUI/XML files | Python code | Git-friendly |
+| **Learning Curve** | GUI-based | Code-based | Pythonic API |
 
-**Verdict:** dlt spatial is a viable open-source alternative for 80% of FME use cases.
+**Verdict:** dlt spatial is a viable open-source alternative for modern spatial ETL workflows.
 
 ---
 
@@ -386,7 +387,7 @@ The spatial ETL feature represents a significant enhancement to dlt, positioning
 
 ---
 
-**Prepared by:** Claude (AI Assistant)  
+**Created by:** Baroudi Malek & Fawzi Hammami  
 **Date:** 2025-10-03  
 **For:** dlt-hub/dlt contribution  
 **Branch:** exp/spatial-etl-ogr-gdal
