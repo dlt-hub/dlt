@@ -3,8 +3,8 @@ import shutil
 
 import dlt
 from dlt.common.configuration.specs.pluggable_run_context import (
-    SupportsRunContext,
-    SupportsProfilesRunContext,
+    RunContextBase,
+    ProfilesRunContext,
 )
 from dlt.common.storages.file_storage import FileStorage
 
@@ -14,14 +14,14 @@ from dlt.cli import echo as fmt
 def display_run_context_info() -> None:
     run_context = dlt.current.run_context()
     # NOTE: runtime check on protocol is slow
-    if isinstance(run_context, SupportsProfilesRunContext):
+    if isinstance(run_context, ProfilesRunContext):
         fmt.echo(
             "(workspace: %s, profile: %s)"
             % (fmt.bold(run_context.name), fmt.bold(run_context.profile))
         )
 
 
-def remove_local_data(run_context: SupportsRunContext, skip_data_dir: bool) -> None:
+def remove_local_data(run_context: RunContextBase, skip_data_dir: bool) -> None:
     # delete all files in locally loaded data
     if local_dir := run_context.local_dir:
         # show relative path to the user

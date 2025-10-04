@@ -8,7 +8,7 @@ from dlt.common.configuration.providers.toml import (
 
 class ProfilePathMixin:
     def __init__(self, *args: Any, profile: str, **kwargs: Any) -> None:
-        """add profile-aware path resolution."""
+        """A mixin that adds profile-aware path resolution by overriding `_resolve_toml_paths`"""
         self._profile = profile
         super().__init__(*args, **kwargs)
 

@@ -5,7 +5,7 @@ from dlt.common.storages.load_package import (
     destination_state,
 )
 from dlt.common.runtime.run_context import active as _run_context
-from dlt._workspace._run_context import active as _workspace
+from dlt._workspace._workspace_context import active as _workspace
 
 from dlt.extract.decorators import (
     get_resource,

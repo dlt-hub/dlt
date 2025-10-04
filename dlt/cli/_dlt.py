@@ -17,7 +17,7 @@ from dlt.cli.command_wrappers import (
 from dlt.cli import debug
 from dlt.cli.echo import maybe_no_stdin
 
-from dlt._workspace._cli.utils import display_run_context_info
+from dlt._workspace.cli.utils import display_run_context_info
 
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"

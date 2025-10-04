@@ -1,15 +1,13 @@
 import os
-import tempfile
 from types import ModuleType
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from dlt.common import known_env
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.pluggable_run_context import (
-    SupportsProfilesRunContext,
-    SupportsRunContext,
+    ProfilesRunContext,
     PluggableRunContext,
 )
 from dlt.common.runtime.run_context import (
@@ -17,19 +15,22 @@ from dlt.common.runtime.run_context import (
     RunContext,
     context_uri,
     global_dir,
-    is_folder_writable,
 )
-from dlt.common.typing import Self
+from dlt.common.typing import Self, copy_sig_ret
 
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
-from dlt._workspace._providers import ProfileConfigTomlProvider, ProfileSecretsTomlProvider
+from dlt._workspace.providers import ProfileConfigTomlProvider, ProfileSecretsTomlProvider
+from dlt._workspace.run_context import (
+    DEFAULT_LOCAL_FOLDER,
+    DEFAULT_WORKSPACE_WORKING_FOLDER,
+    default_working_dir,
+    switch_context as _switch_context,
+    switch_profile as _switch_profile,
+)
 
-DEFAULT_WORKSPACE_WORKING_FOLDER = "_data"
-DEFAULT_LOCAL_FOLDER = "_local"
 
-
-class WorkspaceRunContext(SupportsProfilesRunContext):
+class WorkspaceRunContext(ProfilesRunContext):
     """A run context with workspace."""
 
     def __init__(self, name: str, run_dir: str, profile: str):
@@ -127,25 +128,12 @@ class WorkspaceRunContext(SupportsProfilesRunContext):
                 profiles.append(pinned_profile)
         return profiles
 
-    def switch_profile(self, new_profile: str) -> Self:
-        return switch_context(self.run_dir, new_profile, required=True)  # type: ignore[return-value]
+    def switch_profile(self, new_profile: str) -> "WorkspaceRunContext":
+        return switch_context(self.run_dir, new_profile, required=True)
 
 
-def default_working_dir(run_dir: str, name: str, profile: str, default_folder: str) -> str:
-    """Computes default data dir which is relative to `run_dir` and separated by `profile_name`
-    If `project_dir` is not writable, we fall back to temp dir.
-    """
-    data_dir = os.path.join(run_dir, default_folder)
-    if not is_folder_writable(run_dir):
-        # fallback to temp dir which should be writable, project name is used to separate projects
-        data_dir = os.path.join(tempfile.gettempdir(), "dlt", default_folder, name)
-    return os.path.join(data_dir, profile)
-
-
-def default_workspace_name(run_dir: str) -> str:
-    run_dir = os.path.abspath(run_dir)
-    name = os.path.basename(run_dir.rstrip(os.path.sep)) or "_dlt"
-    return name
+switch_context = copy_sig_ret(_switch_context, WorkspaceRunContext)(_switch_context)
+switch_profile = copy_sig_ret(_switch_profile, WorkspaceRunContext)(_switch_profile)
 
 
 def is_workspace_dir(run_dir: str) -> bool:
@@ -164,29 +152,8 @@ def is_workspace_active() -> bool:
         return True
 
 
-def switch_profile(profile: str) -> SupportsProfilesRunContext:
-    """Changes active profile and reloads context"""
-
-    return switch_context(active().run_dir, profile=profile)
-
-
-def switch_context(
-    run_dir: Optional[str], profile: str = None, required: bool = True, validate: bool = False
-) -> SupportsProfilesRunContext:
-    """Switches run context to project at `run_dir` with profile name `profile`.
-    Calls `reload` on `PluggableRunContext` to re-trigger plugin hook (`plug_run_context` spec).
-    """
-    container = Container()
-    # reload run context via plugins
-    container[PluggableRunContext].reload(
-        run_dir, dict(profile=profile, _required=required, _validate=validate)
-    )
-    # return new run context
-    return container[PluggableRunContext].context  # type: ignore[return-value]
-
-
 def active() -> WorkspaceRunContext:
-    """Returns currently active run context"""
+    """Returns currently active Workspace"""
     ctx = Container()[PluggableRunContext].context
     if not isinstance(ctx, WorkspaceRunContext):
         raise WorkspaceRunContextNotAvailable(ctx.run_dir)

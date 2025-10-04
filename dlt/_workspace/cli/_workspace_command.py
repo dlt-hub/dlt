@@ -1,14 +1,16 @@
 import argparse
 
-from dlt._workspace._cli.utils import remove_local_data
-from dlt._workspace._run_context import WorkspaceRunContext, active
-from dlt._workspace.profile import read_profile_pin
-from dlt.cli import SupportsCliCommand, echo as fmt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
-    SupportsRunContext,
+    RunContextBase,
 )
+
+from dlt.cli import SupportsCliCommand, echo as fmt
+
+from dlt._workspace._workspace_context import WorkspaceRunContext, active
+from dlt._workspace.cli.utils import remove_local_data
+from dlt._workspace.profile import read_profile_pin
 
 
 class WorkspaceCommand(SupportsCliCommand):
@@ -80,5 +82,5 @@ def print_workspace_info(run_context: WorkspaceRunContext) -> None:
             fmt.echo("    provider is empty")
 
 
-def clean_workspace(run_context: SupportsRunContext, args: argparse.Namespace) -> None:
+def clean_workspace(run_context: RunContextBase, args: argparse.Namespace) -> None:
     remove_local_data(run_context, args.skip_data_dir)

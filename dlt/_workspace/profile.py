@@ -1,6 +1,6 @@
 import os
 
-from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
+from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 
 DEFAULT_PROFILE = "dev"
 PIN_FILE_NAME = "profile-name"
@@ -16,11 +16,11 @@ BUILT_IN_PROFILES = {
 }
 
 
-def get_profile_pin_file(context: SupportsRunContext) -> str:
+def get_profile_pin_file(context: RunContextBase) -> str:
     return context.get_setting(PIN_FILE_NAME)
 
 
-def read_profile_pin(context: SupportsRunContext) -> str:
+def read_profile_pin(context: RunContextBase) -> str:
     # load profile name from .profile-name
     profile_pin = get_profile_pin_file(context)
     if os.path.isfile(profile_pin):
@@ -29,7 +29,7 @@ def read_profile_pin(context: SupportsRunContext) -> str:
     return None
 
 
-def save_profile_pin(context: SupportsRunContext, profile: str) -> None:
+def save_profile_pin(context: RunContextBase, profile: str) -> None:
     # load profile name from .profile-name
     profile_pin = get_profile_pin_file(context)
     with open(profile_pin, "wt", encoding="utf-8") as pin:

@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from dlt._workspace._run_context import WorkspaceRunContext, active
+from dlt._workspace._workspace_context import WorkspaceRunContext, active
 from dlt._workspace.profile import (
     BUILT_IN_PROFILES,
     get_profile_pin_file,
