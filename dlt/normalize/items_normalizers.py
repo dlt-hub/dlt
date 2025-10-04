@@ -28,6 +28,7 @@ from dlt.common.schema.typing import (
     TSchemaContractDict,
 )
 from dlt.common.schema.utils import (
+    is_nested_table,
     dlt_id_column,
     dlt_load_id_column,
     has_table_seen_data,
@@ -518,6 +519,20 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             except StopIteration:
                 pass
             signals.raise_if_signalled()
+
+        for table_name, updates in schema_update.items():
+            last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
+            for update in updates:
+                if not is_nested_table(update):
+                    continue
+
+                parent_name = update.get("parent")
+                parent_columns = self.schema.get_table_columns(parent_name, include_incomplete=True)
+
+                column = parent_columns.get(last_ident_path)
+                if column and utils.has_seen_null_first_hint(column):
+                    parent_columns.pop(last_ident_path)
+
         return schema_update
 
     def _coerce_row(
@@ -829,7 +844,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 logger.debug(
                     f"No lines in file {extracted_items_file}, written empty load job file"
                 )
-
         return schema_updates
 
 
