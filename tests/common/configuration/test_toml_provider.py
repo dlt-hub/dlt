@@ -2,16 +2,18 @@ import os
 import sys
 import pytest
 import yaml
+import dataclasses
 from typing import Any, Dict, Type
 import datetime  # noqa: I251
 from unittest.mock import Mock
 
+import tomlkit
 import dlt
 from dlt.common import pendulum, json
 from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.configuration.exceptions import LookupTrace, ValueNotSecretException
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
@@ -95,7 +97,28 @@ def test_config_provider_order(toml_providers: ConfigProvidersContainer, environ
     def single_val(port=None):
         return port
 
-    # secrets have api.port=1023 and this will be used
+    config_toml_provider = toml_providers.providers[2]
+    assert isinstance(config_toml_provider, ConfigTomlProvider)
+    config_toml = config_toml_provider.to_toml()
+    config_raw = tomlkit.loads(config_toml)
+
+    secrets_toml_provider = toml_providers.providers[1]
+    assert isinstance(secrets_toml_provider, SecretsTomlProvider)
+    secrets_toml = secrets_toml_provider.to_toml()
+    secrets_raw = tomlkit.loads(secrets_toml)
+
+    # TODO config.toml has `api.port=1024` and secrets.toml has `api.port=1023`
+    # it's impossible to access the config value and it leaks the secret value
+    # Likely scenario:
+    # 1. someone adds a new config point
+    # 2. it collides with an existing secret (no one will review all secrets on every config edit)
+    # 3. secret is leaked
+    assert config_raw["api"]["port"] == 1024  # type: ignore[index]
+    assert dlt.config.get("api.port") == 1023  # this gets the secrets value
+    assert single_val(dlt.config.value) == 1023  # this gets the secrets value
+
+    assert secrets_raw["api"]["port"] == 1023  # type: ignore[index]
+    assert dlt.secrets.get("api.port") == 1023
     assert single_val(dlt.secrets.value) == 1023
 
     # env will make it string, also section is optional
@@ -395,26 +418,43 @@ def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
         assert provider._config_doc["new_pipeline"]["runner_config"] == expected_pool
 
 
-def test_set_spec_value(toml_providers: ConfigProvidersContainer) -> None:
-    provider: BaseDocProvider
-    for provider in toml_providers.providers:  # type: ignore[assignment]
-        if not provider.is_writable:
-            continue
-        provider._config_doc = {}
-        # dict creates only shallow dict so embedded credentials will fail
-        creds = WithCredentialsConfiguration()
-        credentials = SecretCredentials(secret_value=TSecretValue("***** ***"))
-        creds.credentials = credentials
+def test_set_spec_value_on_secret_provider(toml_providers: ConfigProvidersContainer) -> None:
+    """Secrets can be set on SecretProvider"""
+    creds = WithCredentialsConfiguration()
+    key = "written_creds"
+    secret_value: TSecretValue = "***** ***"  # type annotation seems to do nothing
+    # using the type `SecretCredentials` should trigger `ValueNotSecretException`
+    credentials = SecretCredentials(secret_value=secret_value)
+    creds.credentials = credentials
 
-        # use dataclass to dict to recursively convert base config to dict
-        import dataclasses
+    provider: SecretsTomlProvider = toml_providers.providers[2]  # type: ignore[assignment]
+    provider._config_doc = {}
+    provider.set_value(key, dataclasses.asdict(creds), None)
+    resolved_config = resolve.resolve_configuration(WithCredentialsConfiguration(), sections=(key,))
 
-        provider.set_value("written_creds", dataclasses.asdict(creds), None)
-        # resolve config
-        resolved_config = resolve.resolve_configuration(
-            WithCredentialsConfiguration(), sections=("written_creds",)
-        )
-        assert resolved_config.credentials.secret_value == "***** ***"
+    # TODO this should return an anonymized string if hinted with `TSecretValue`
+    # this currently leaks the content of `tests/common/cases/configuration/.dlt/secrets.toml`
+    assert resolved_config.credentials.secret_value == "2137"
+    assert resolved_config.credentials.secret_value != secret_value
+
+
+def test_set_spec_value_on_config_provider(toml_providers: ConfigProvidersContainer) -> None:
+    """Secrets can't be set on ConfigProvider"""
+    creds = WithCredentialsConfiguration()
+    key = "written_creds"
+    secret_value: TSecretValue = "***** ***"  # type annotation seems to do nothing
+    # using the type `SecretCredentials` should trigger `ValueNotSecretException`
+    credentials = SecretCredentials(secret_value=secret_value)
+    creds.credentials = credentials
+
+    provider: ConfigTomlProvider = toml_providers.providers[1]  # type: ignore[assignment]
+    provider._config_doc = {}
+    provider.set_value(key, dataclasses.asdict(creds), None)
+
+    # TODO this should raise that `dlt.config.get()` doesn't allow access to secrets
+    # with pytest.raises(ValueNotSecretException):
+    resolved_config = resolve.resolve_configuration(WithCredentialsConfiguration(), sections=(key,))
+    assert resolved_config.credentials.secret_value == secret_value
 
 
 def test_set_fragment(toml_providers: ConfigProvidersContainer) -> None:
