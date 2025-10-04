@@ -64,7 +64,7 @@ lint:
 
 format:
 	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
-	uv run black docs/education --ipynb --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black docs/education/*/*.ipynb
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
@@ -96,8 +96,32 @@ lint-notebooks:
 	uv run nbqa flake8 docs/education --extend-ignore=D,F704 --max-line-length=200
 	uv run nbqa mypy docs/education \
 	--ignore-missing-imports \
-	--disable-error-code=no-redef \
 	--disable-error-code=top-level-await
+
+build-marimo:
+	# Convert all ipynb files to marimo .py files
+	for file in docs/education/*/*.ipynb; do \
+		uv run marimo convert "$$file" > "$${file%.ipynb}.py"; \
+	done
+
+	# Remove trailing spaces (including inside triple-quoted strings created by marimo convert).
+	# Black does not strip whitespace inside string literals.
+	for file in docs/education/*/*.py; do \
+		perl -p -i -e 's/[ \t]+$$//' "$$file"; \
+	done
+
+	# Expand literal tabs to 4 spaces everywhere (including inside triple-quoted strings created by marimo convert).
+	# Black doesn't convert tabs inside string literals.
+	for file in docs/education/*/*.py; do \
+		perl -p -i -e 's/\t/    /g' "$$file"; \
+	done
+
+	# Format the generated Python files
+	uv run black docs/education/*/*.py
+
+lint-marimo:
+	uv run flake8 docs/education/*/*.py --extend-ignore=D,F704 --max-line-length=200
+	uv run mypy docs/education/*/*.py
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
