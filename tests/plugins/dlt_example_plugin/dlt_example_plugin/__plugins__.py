@@ -3,7 +3,7 @@ import argparse
 from typing import Any, ClassVar, Dict, Optional, Type
 
 from dlt.common.configuration import plugins
-from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
+from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.cli import SupportsCliCommand
 from dlt.common.runtime.run_context import RunContext, DOT_DLT
 
@@ -12,8 +12,6 @@ from dlt.cli.exceptions import CliCommandException
 
 
 class RunContextTest(RunContext):
-    CONTEXT_NAME: ClassVar[str] = "dlt-test"
-
     @property
     def run_dir(self) -> str:
         # use the location of __init__ as run dir so we are running inside the Python module
@@ -36,11 +34,16 @@ class RunContextTest(RunContext):
     def runtime_kwargs(self) -> Dict[str, Any]:
         return {"profile": "dev"}
 
+    @property
+    def name(self) -> str:
+        return "dlt-test"
 
-@plugins.hookimpl(specname="plug_run_context")
+
+@plugins.hookimpl(specname="plug_run_context", tryfirst=True)
 def plug_run_context_impl(
     run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
-) -> Optional[SupportsRunContext]:
+) -> Optional[RunContextBase]:
+    print("PLUG TEST")
     # test fallback to OSS
     if (runtime_kwargs or {}).get("passthrough"):
         return None
@@ -90,6 +93,7 @@ def plug_cli_example() -> Type[SupportsCliCommand]:
     return ExampleCommand
 
 
-@plugins.hookimpl(specname="plug_cli")
+@plugins.hookimpl(specname="plug_cli", tryfirst=True)
 def plug_cli_init_new() -> Type[SupportsCliCommand]:
+    # should be executed before dlt command got plugged in (tryfirst) to override it
     return InitCommand

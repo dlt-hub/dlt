@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from dlt._workspace._providers import ProfileSecretsTomlProvider
+from dlt._workspace.providers import ProfileSecretsTomlProvider
 
 TESTS_CASES_DIR = os.path.join("tests", "workspace/cases")
 
