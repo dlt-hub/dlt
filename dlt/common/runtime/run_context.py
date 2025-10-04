@@ -14,7 +14,7 @@ from dlt.common.configuration.providers import (
 )
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.pluggable_run_context import (
-    SupportsRunContext,
+    RunContextBase,
     PluggableRunContext,
 )
 
@@ -22,7 +22,7 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
 
 
-class RunContext(SupportsRunContext):
+class RunContext(RunContextBase):
     """A default run context used by dlt"""
 
     def __init__(self, run_dir: Optional[str]):
@@ -172,7 +172,7 @@ def get_plugin_modules() -> List[str]:
     ctx_module = active().module
     run_module_name = ctx_module.__name__ if ctx_module else ""
 
-    return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules] + ["dlt"]
+    return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules]
 
 
 def context_uri(name: str, run_dir: str, runtime_kwargs: Optional[Dict[str, Any]]) -> str:
@@ -188,6 +188,6 @@ def context_uri(name: str, run_dir: str, runtime_kwargs: Optional[Dict[str, Any]
     return uri_no_qs
 
 
-def active() -> SupportsRunContext:
+def active() -> RunContextBase:
     """Returns currently active run context"""
     return Container()[PluggableRunContext].context

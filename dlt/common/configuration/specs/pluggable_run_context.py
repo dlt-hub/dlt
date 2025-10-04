@@ -1,5 +1,6 @@
 from types import ModuleType
-from typing import Any, ClassVar, Dict, List, Optional, Protocol, Union, runtime_checkable
+from typing import Any, ClassVar, Dict, List, Optional, Union
+from abc import ABC, abstractmethod
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
@@ -9,82 +10,100 @@ from dlt.common.typing import Self
 from dlt.common.utils import uniq_id
 
 
-@runtime_checkable
-class SupportsRunContext(Protocol):
+class RunContextBase(ABC):
     """Describes where `dlt` looks for settings, pipeline working folder. Implementations must be picklable."""
 
+    @abstractmethod
     def __init__(self, run_dir: Optional[str], *args: Any, **kwargs: Any):
         """An explicit run_dir, if None, run_dir should be auto-detected by particular implementation"""
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """Name of the run context. Entities like sources and destinations added to registries when this context
         is active, will be scoped to it. Typically corresponds to Python package name ie. `dlt`.
         """
 
     @property
+    @abstractmethod
     def uri(self) -> str:
         """Uniquely identifies the context. By default it is a combination of `run_dir` and `runtime_kwargs`
         to create file:// uri
         """
 
     @property
+    @abstractmethod
     def global_dir(self) -> str:
         """Directory in which global settings are stored ie ~/.dlt/"""
 
     @property
+    @abstractmethod
     def run_dir(self) -> str:
         """Defines the context working directory, defaults to cwd()"""
 
     @property
+    @abstractmethod
     def local_dir(self) -> str:
         """Defines data dir where local relative dirs and files are created, defaults to run_dir"""
 
     @property
+    @abstractmethod
     def settings_dir(self) -> str:
         """Defines where the current settings (secrets and configs) are located"""
 
     @property
+    @abstractmethod
     def data_dir(self) -> str:
         """Defines where the pipelines working folders are stored."""
 
     @property
+    @abstractmethod
     def module(self) -> Optional[ModuleType]:
         """if run_dir is a top level importable python module, returns it, otherwise return None"""
 
     @property
+    @abstractmethod
     def runtime_kwargs(self) -> Dict[str, Any]:
         """Additional kwargs used to initialize this instance of run context, used for reloading"""
 
+    @abstractmethod
     def initial_providers(self) -> List[ConfigProvider]:
         """Returns initial providers for this context"""
 
+    @abstractmethod
     def get_data_entity(self, entity: str) -> str:
         """Gets path in data_dir where `entity` (ie. `pipelines`, `repos`) are stored"""
 
+    @abstractmethod
     def get_run_entity(self, entity: str) -> str:
         """Gets path in run_dir where `entity` (ie. `sources`, `destinations` etc.) are stored"""
 
+    @abstractmethod
     def get_setting(self, setting_path: str) -> str:
         """Gets path in settings_dir where setting (ie. `secrets.toml`) are stored"""
 
+    @abstractmethod
     def unplug(self) -> None:
         """Called when context removed from container"""
 
+    @abstractmethod
     def plug(self) -> None:
         """Called when context is added to container"""
 
 
-class SupportsProfilesRunContext(SupportsRunContext):
+class ProfilesRunContext(RunContextBase):
     """Adds profile support on run context. Note: runtime checkable protocols are slow on isinstance"""
 
     @property
+    @abstractmethod
     def profile(self) -> str:
         """Returns current profile name"""
 
+    @abstractmethod
     def available_profiles(self) -> List[str]:
         """Returns available profiles"""
 
+    @abstractmethod
     def switch_profile(self, new_profile: str) -> Self:
         """Switches current profile and returns new run context"""
 
@@ -94,14 +113,14 @@ class PluggableRunContext(ContainerInjectableContext):
 
     global_affinity: ClassVar[bool] = True
 
-    context: SupportsRunContext = None
+    context: RunContextBase = None
     providers: ConfigProvidersContainer
     runtime_config: RuntimeConfiguration
 
     _context_stack: List[Any] = []
 
     def __init__(
-        self, init_context: SupportsRunContext = None, runtime_config: RuntimeConfiguration = None
+        self, init_context: RunContextBase = None, runtime_config: RuntimeConfiguration = None
     ) -> None:
         super().__init__()
 
@@ -115,7 +134,7 @@ class PluggableRunContext(ContainerInjectableContext):
 
     def reload(
         self,
-        run_dir_or_context: Optional[Union[str, SupportsRunContext]] = None,
+        run_dir_or_context: Optional[Union[str, RunContextBase]] = None,
         runtime_kwargs: Dict[str, Any] = None,
     ) -> None:
         """Reloads the context, using existing settings if not overwritten with method args"""

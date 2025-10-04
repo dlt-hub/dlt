@@ -5,7 +5,7 @@ import argparse
 import importlib.metadata
 
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
-from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
+from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.known_env import DLT_DISABLE_PLUGINS
 
 hookspec = pluggy.HookspecMarker("dlt")
@@ -82,7 +82,7 @@ def load_setuptools_entrypoints(m: pluggy.PluginManager) -> List[str]:
 @hookspec(firstresult=True)
 def plug_run_context(
     run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
-) -> Optional[SupportsRunContext]:
+) -> Optional[RunContextBase]:
     """Spec for plugin hook that returns current run context.
 
     Args:
