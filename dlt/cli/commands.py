@@ -25,6 +25,7 @@ from dlt.cli.command_wrappers import (
     DLT_TELEMETRY_DOCS_URL,
     DLT_DEPLOY_DOCS_URL,
 )
+from dlt._workspace.cli.utils import add_mcp_arg_parser
 
 from dlt.cli.deploy_command import (
     DeploymentMethods,
@@ -418,6 +419,13 @@ list of all tables and columns created at the destination during the loading of 
             metavar="load-id",
             nargs="?",
             help="Load id of completed or normalized package. Defaults to the most recent package.",
+        )
+
+        DEFAULT_PIPELINE_MCP_PORT = 43656
+        add_mcp_arg_parser(
+            pipeline_subparsers,
+            "Launch MCP server attached to this pipeline in SSE transport mode",
+            DEFAULT_PIPELINE_MCP_PORT,
         )
 
     def execute(self, args: argparse.Namespace) -> None:

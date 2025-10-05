@@ -1,15 +1,16 @@
 import argparse
 
+from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
     RunContextBase,
 )
 
-from dlt.cli import SupportsCliCommand, echo as fmt
+from dlt.cli import SupportsCliCommand, echo as fmt, utils
 
 from dlt._workspace._workspace_context import WorkspaceRunContext, active
-from dlt._workspace.cli.utils import remove_local_data
+from dlt._workspace.cli.utils import add_mcp_arg_parser, delete_local_data
 from dlt._workspace.profile import read_profile_pin
 
 
@@ -17,7 +18,7 @@ class WorkspaceCommand(SupportsCliCommand):
     command = "workspace"
     help_string = "Manage current Workspace"
     description = """
-Contains commands to show info and to cleanup the Workspace
+Commands to get info, cleanup local files and launch Workspace MCP
 """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
@@ -48,6 +49,14 @@ Contains commands to show info and to cleanup the Workspace
             help="Displays workspace info.",
         )
 
+        DEFAULT_DLT_MCP_PORT = 43654
+        add_mcp_arg_parser(
+            subparsers,
+            "Launch dlt MCP server in current Python environment and Workspace in SSE transport"
+            " mode",
+            DEFAULT_DLT_MCP_PORT,
+        )
+
     def execute(self, args: argparse.Namespace) -> None:
         workspace_context = active()
 
@@ -55,6 +64,8 @@ Contains commands to show info and to cleanup the Workspace
             print_workspace_info(workspace_context)
         elif args.workspace_command == "clean":
             clean_workspace(workspace_context, args)
+        elif args.workspace_command == "mcp":
+            start_mcp(workspace_context, port=args.port, stdio=args.stdio)
         else:
             self.parser.print_usage()
 
@@ -83,4 +94,16 @@ def print_workspace_info(run_context: WorkspaceRunContext) -> None:
 
 
 def clean_workspace(run_context: RunContextBase, args: argparse.Namespace) -> None:
-    remove_local_data(run_context, args.skip_data_dir)
+    delete_local_data(run_context, args.skip_data_dir)
+
+
+@utils.track_command("mcp_run", track_before=True)
+def start_mcp(run_context: WorkspaceRunContext, port: int, stdio: bool) -> None:
+    from dlt._workspace.mcp import WorkspaceMCP
+
+    transport = "stdio" if stdio else "sse"
+    if transport:
+        # write to stderr. stdin is the comm channel
+        fmt.echo("Starting dlt MCP server", err=True)
+    mcp_server = WorkspaceMCP(f"dlt: {run_context.name}@{run_context.profile}", port=port)
+    mcp_server.run(transport)

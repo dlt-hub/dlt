@@ -1,6 +1,6 @@
 import os
 import yaml
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Sequence, Tuple
 import dlt
 from dlt.cli.exceptions import CliCommandInnerException
 
@@ -124,6 +124,19 @@ def pipeline_command(
                 )
             fmt.echo()
         return extracted_packages, norm_packages
+
+    # launch mcp server before outputting to stdout
+    if operation == "mcp":
+        from dlt._workspace.mcp import PipelineMCP
+
+        transport = "stdio" if command_kwargs["stdio"] else "sse"
+        if transport:
+            # write to stderr. stdin is the comm channel
+            fmt.echo("Starting dlt MCP server", err=True)
+        mcp = PipelineMCP(p, command_kwargs["port"])
+        mcp.run(transport=transport)
+
+        return
 
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
@@ -426,8 +439,6 @@ def pipeline_command(
                 drop.info["state_paths"],
             )
         )
-        # for k, v in drop.info.items():
-        #     fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
         for warning in drop.info["warnings"]:
             fmt.warning(warning)
         if fmt.confirm("Do you want to apply these changes?", default=False):
