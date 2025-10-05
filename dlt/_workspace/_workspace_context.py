@@ -12,20 +12,19 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 )
 from dlt.common.runtime.run_context import (
     DOT_DLT,
-    RunContext,
+    switch_context as _switch_context,
     context_uri,
     global_dir,
 )
-from dlt.common.typing import Self, copy_sig_ret
+from dlt.common.typing import copy_sig_ret
 
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
-from dlt._workspace.profile import BUILT_IN_PROFILES, read_profile_pin
+from dlt._workspace.profile import BUILT_IN_PROFILES, DEFAULT_PROFILE, read_profile_pin
 from dlt._workspace.providers import ProfileConfigTomlProvider, ProfileSecretsTomlProvider
 from dlt._workspace.run_context import (
     DEFAULT_LOCAL_FOLDER,
     DEFAULT_WORKSPACE_WORKING_FOLDER,
     default_working_dir,
-    switch_context as _switch_context,
     switch_profile as _switch_profile,
 )
 
@@ -89,7 +88,7 @@ class WorkspaceRunContext(ProfilesRunContext):
     @property
     def module(self) -> Optional[ModuleType]:
         try:
-            return RunContext.import_run_dir_module(self.run_dir)
+            return self.import_run_dir_module(self.run_dir)
         except (ImportError, TypeError):
             return None
 
@@ -120,6 +119,10 @@ class WorkspaceRunContext(ProfilesRunContext):
     @property
     def profile(self) -> str:
         return self._profile
+
+    @property
+    def default_profile(self) -> str:
+        return DEFAULT_PROFILE
 
     def available_profiles(self) -> List[str]:
         profiles = list(BUILT_IN_PROFILES.keys())

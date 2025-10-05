@@ -14,6 +14,8 @@ BUILT_IN_PROFILES = {
         " access rights"
     ),
 }
+LOCAL_PROFILES = ["dev", "tests"]
+"""Profiles used in local workspace"""
 
 
 def get_profile_pin_file(context: RunContextBase) -> str:
