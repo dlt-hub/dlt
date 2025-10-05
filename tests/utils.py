@@ -246,6 +246,18 @@ def _preserve_environ() -> Iterator[None]:
                 del environ[key_]
 
 
+@pytest.fixture(autouse=True)
+def preserve_run_context() -> Iterator[None]:
+    """Restores initial run context when test completes"""
+    ctx_plug = Container()[PluggableRunContext]
+    cookie = ctx_plug.push_context()
+    try:
+        yield
+    finally:
+        assert ctx_plug is Container()[PluggableRunContext], "PluggableRunContext was replaced"
+        ctx_plug.pop_context(cookie)
+
+
 class MockableRunContext(RunContext):
     @property
     def name(self) -> str:
@@ -315,7 +327,7 @@ def unload_modules() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def wipe_pipeline(preserve_environ) -> Iterator[None]:
+def deactivate_pipeline(preserve_environ) -> Iterator[None]:
     """Wipes pipeline local state and deactivates it"""
     container = Container()
     if container[PipelineContext].is_active():

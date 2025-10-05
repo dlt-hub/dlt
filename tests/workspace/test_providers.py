@@ -3,7 +3,7 @@ from pathlib import Path
 
 from dlt._workspace.providers import ProfileSecretsTomlProvider
 
-TESTS_CASES_DIR = os.path.join("tests", "workspace/cases")
+TESTS_CASES_DIR = os.path.join("tests", "workspace/cases/provider")
 
 
 def test_secrets_toml() -> None:
