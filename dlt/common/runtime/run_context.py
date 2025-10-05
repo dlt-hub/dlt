@@ -1,8 +1,9 @@
+from contextlib import contextmanager
 import os
 import tempfile
 import warnings
 from types import ModuleType
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, Iterator, List, Optional
 from urllib.parse import urlencode
 
 from dlt.common import known_env
@@ -96,23 +97,54 @@ class RunContext(RunContextBase):
     def name(self) -> str:
         return "dlt"
 
-    @staticmethod
-    def import_run_dir_module(run_dir: str) -> ModuleType:
-        """Returns a top Python module of the project (if importable)"""
-        import importlib
 
-        # trailing separator will be removed by abspath
-        run_dir = os.path.abspath(run_dir)
-        base_dir = os.path.basename(run_dir)
-        if not base_dir:
-            raise ImportError(f"`{run_dir=:}` looks like filesystem root")
-        m_ = importlib.import_module(base_dir)
-        if m_.__file__ and m_.__file__.startswith(run_dir):
-            return m_
-        else:
-            raise ImportError(
-                f"`{run_dir=:}` doesn't belong to module `{m_.__file__}` which seems unrelated."
-            )
+def switch_context(
+    run_dir: Optional[str], profile: str = None, required: bool = True, validate: bool = False
+) -> RunContextBase:
+    """Switch the run context to a project at `run_dir` with an optional profile.
+
+    Calls `reload` on `PluggableRunContext` to re-trigger the plugin hook
+    (`plug_run_context` spec), which will query all active context plugins.
+
+    The `required` argument is passed to each context plugin via the
+    `_required` key of `runtime_kwargs` and should cause an exception if a
+    given plugin cannot instantiate its context at `run_dir`.
+
+    The `validate` argument is passed to each context plugin via the
+    `_validate` key of `runtime_kwargs` and should cause a strict validation
+    of any config files and manifests associated with the run context.
+
+    Args:
+        run_dir: Filesystem path of the project directory to activate. If None,
+            plugins may resolve the directory themselves.
+        profile: Profile name to activate for the run context.
+        required: If True, plugins should raise if a context cannot be created
+            for the provided `run_dir`.
+        validate: If True, plugins should perform strict validation of config
+            files and manifests associated with the run context.
+
+    Returns:
+        SupportsProfilesRunContext: The new run context.
+    """
+    container = Container()
+    # reload run context via plugins
+    container[PluggableRunContext].reload(
+        run_dir, dict(profile=profile, _required=required, _validate=validate)
+    )
+    # return new run context
+    return container[PluggableRunContext].context
+
+
+@contextmanager
+def switched_run_context(new_context: RunContext) -> Iterator[RunContext]:
+    """Context manager that switches run context to `new_context` into pluggable run context."""
+    container = Container()
+    cookie = container[PluggableRunContext].push_context()
+    try:
+        container[PluggableRunContext].reload(new_context)
+        yield new_context
+    finally:
+        container[PluggableRunContext].pop_context(cookie)
 
 
 def global_dir() -> str:

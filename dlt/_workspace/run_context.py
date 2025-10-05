@@ -1,15 +1,10 @@
 import os
 import tempfile
-from typing import Optional
 
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import (
     ProfilesRunContext,
-    PluggableRunContext,
 )
-from dlt.common.runtime.run_context import (
-    is_folder_writable,
-)
+from dlt.common.runtime.run_context import is_folder_writable, switch_context
 
 DEFAULT_WORKSPACE_WORKING_FOLDER = "_data"
 DEFAULT_LOCAL_FOLDER = "_local"
@@ -47,41 +42,4 @@ def switch_profile(profile: str) -> ProfilesRunContext:
     """
     from dlt.common.runtime.run_context import active
 
-    return switch_context(active().run_dir, profile=profile, required=True)
-
-
-def switch_context(
-    run_dir: Optional[str], profile: str = None, required: bool = True, validate: bool = False
-) -> ProfilesRunContext:
-    """Switch the run context to a project at `run_dir` with an optional profile.
-
-    Calls `reload` on `PluggableRunContext` to re-trigger the plugin hook
-    (`plug_run_context` spec), which will query all active context plugins.
-
-    The `required` argument is passed to each context plugin via the
-    `_required` key of `runtime_kwargs` and should cause an exception if a
-    given plugin cannot instantiate its context at `run_dir`.
-
-    The `validate` argument is passed to each context plugin via the
-    `_validate` key of `runtime_kwargs` and should cause a strict validation
-    of any config files and manifests associated with the run context.
-
-    Args:
-        run_dir: Filesystem path of the project directory to activate. If None,
-            plugins may resolve the directory themselves.
-        profile: Profile name to activate for the run context.
-        required: If True, plugins should raise if a context cannot be created
-            for the provided `run_dir`.
-        validate: If True, plugins should perform strict validation of config
-            files and manifests associated with the run context.
-
-    Returns:
-        SupportsProfilesRunContext: The new run context.
-    """
-    container = Container()
-    # reload run context via plugins
-    container[PluggableRunContext].reload(
-        run_dir, dict(profile=profile, _required=required, _validate=validate)
-    )
-    # return new run context
-    return container[PluggableRunContext].context  # type: ignore[return-value]
+    return switch_context(active().run_dir, profile=profile, required=True)  # type: ignore[return-value]

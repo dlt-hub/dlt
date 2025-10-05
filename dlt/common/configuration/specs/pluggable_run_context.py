@@ -1,3 +1,4 @@
+import os
 from types import ModuleType
 from typing import Any, ClassVar, Dict, List, Optional, Union
 from abc import ABC, abstractmethod
@@ -90,6 +91,24 @@ class RunContextBase(ABC):
     def plug(self) -> None:
         """Called when context is added to container"""
 
+    @staticmethod
+    def import_run_dir_module(run_dir: str) -> ModuleType:
+        """Returns a top Python module of the workspace (if importable)"""
+        import importlib
+
+        # trailing separator will be removed by abspath
+        run_dir = os.path.abspath(run_dir)
+        base_dir = os.path.basename(run_dir)
+        if not base_dir:
+            raise ImportError(f"`{run_dir=:}` looks like filesystem root")
+        m_ = importlib.import_module(base_dir)
+        if m_.__file__ and m_.__file__.startswith(run_dir):
+            return m_
+        else:
+            raise ImportError(
+                f"`{run_dir=:}` doesn't belong to module `{m_.__file__}` which seems unrelated."
+            )
+
 
 class ProfilesRunContext(RunContextBase):
     """Adds profile support on run context. Note: runtime checkable protocols are slow on isinstance"""
@@ -98,6 +117,11 @@ class ProfilesRunContext(RunContextBase):
     @abstractmethod
     def profile(self) -> str:
         """Returns current profile name"""
+
+    @property
+    @abstractmethod
+    def default_profile(self) -> str:
+        """Returns default profile name"""
 
     @abstractmethod
     def available_profiles(self) -> List[str]:
