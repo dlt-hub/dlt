@@ -4,19 +4,19 @@ import ibis.expr.types as ir
 import pandas as pd
 
 import dlt
-from dlt.common.libs.ibis import DltBackend
+from dlt.common.libs.ibis import _DltBackend
 
 from tests.load.test_read_interfaces import populated_pipeline, configs
 from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
 
 
-duckdb_conf = [c for c in configs if c.destination_type=="duckdb" and c.file_format is None]
+duckdb_conf = [c for c in configs if c.destination_type == "duckdb" and c.file_format is None]
 
 
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_instantiate_backend():
-    DltBackend()
+    _DltBackend()
 
 
 # TODO test for all destinations
@@ -29,12 +29,8 @@ def test_instantiate_backend():
     ids=lambda x: x.name,
 )
 def test_connect_to_backend(populated_pipeline: dlt.Pipeline):
-    backend1 = DltBackend.from_dataset(populated_pipeline.dataset())
-    backend2 = DltBackend.from_pipeline(populated_pipeline)
-
-    assert isinstance(backend1, DltBackend)
-    assert isinstance(backend2, DltBackend)
-    assert backend1 is not backend2
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
+    assert isinstance(backend, _DltBackend)
 
 
 @pytest.mark.no_load
@@ -46,15 +42,15 @@ def test_connect_to_backend(populated_pipeline: dlt.Pipeline):
     ids=lambda x: x.name,
 )
 def test_list_tables(populated_pipeline: dlt.Pipeline):
-    backend = DltBackend.from_pipeline(populated_pipeline)
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_table_names = [
-        '_dlt_version', 
-        '_dlt_loads',
-        'items',
-        'double_items',
+        "_dlt_version",
+        "_dlt_loads",
+        "items",
+        "double_items",
         "orderable_in_chain",
-        '_dlt_pipeline_state',
-        'items__children'
+        "_dlt_pipeline_state",
+        "items__children",
     ]
 
     assert backend.list_tables() == expected_table_names
@@ -69,7 +65,7 @@ def test_list_tables(populated_pipeline: dlt.Pipeline):
     ids=lambda x: x.name,
 )
 def test_get_schema(populated_pipeline: dlt.Pipeline):
-    backend = DltBackend.from_pipeline(populated_pipeline)
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_schema = ibis.Schema(
         {
             "id": ibis.dtype("int64", nullable=True),
@@ -94,7 +90,7 @@ def test_get_schema(populated_pipeline: dlt.Pipeline):
     ids=lambda x: x.name,
 )
 def test_get_bound_table(populated_pipeline: dlt.Pipeline):
-    backend = DltBackend.from_pipeline(populated_pipeline)
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_schema = ibis.Schema(
         {
             "id": ibis.dtype("int64", nullable=True),
@@ -120,7 +116,7 @@ def test_get_bound_table(populated_pipeline: dlt.Pipeline):
     ids=lambda x: x.name,
 )
 def test_execute_expression(populated_pipeline: dlt.Pipeline):
-    backend = DltBackend.from_pipeline(populated_pipeline)
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_schema = ibis.Schema(
         {
             "_dlt_id": ibis.dtype("string", nullable=False),
