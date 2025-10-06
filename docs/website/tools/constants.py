@@ -37,4 +37,3 @@ CAPABILITIES_MARKER = f"{DLT_MARKER}_DESTINATION_CAPABILITIES"
 HTTP_LINK = "](https://dlthub.com/docs"
 ABS_LINK = "](/"
 ABS_IMG_LINK = "](/img"
-
