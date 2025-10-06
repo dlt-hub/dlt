@@ -5,7 +5,7 @@ Utility functions for documentation preprocessing.
 import os
 from typing import List, Optional, Iterator
 
-from docs.website.tools.constants import DLT_MARKER, CAPABILITIES_MARKER
+from constants import DLT_MARKER, CAPABILITIES_MARKER
 
 
 def walk_sync(directory: str) -> Iterator[str]:
@@ -53,3 +53,16 @@ def extract_marker_content(tag: str, line: str) -> Optional[str]:
 def remove_remaining_markers(lines: List[str]) -> List[str]:
     """Remove all lines that contain a DLT_MARKER except for CAPABILITIES_MARKER."""
     return [line for line in lines if DLT_MARKER not in line or CAPABILITIES_MARKER in line]
+
+
+def trim_array(lines: List[str]) -> List[str]:
+    """Trim empty lines from start and end of list."""
+    if not lines:
+        return lines
+
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+
+    return lines
