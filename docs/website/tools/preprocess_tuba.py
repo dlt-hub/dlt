@@ -8,6 +8,7 @@ from typing import List, Tuple, Dict, Optional
 import requests
 
 from constants import NUM_TUBA_LINKS, TUBA_MARKER
+from utils import extract_marker_content
 
 
 def fetch_tuba_config() -> List[Dict]:
@@ -24,21 +25,15 @@ def fetch_tuba_config() -> List[Dict]:
         return []
 
 
-def extract_marker_content(tag: str, line: str) -> Optional[str]:
-    """Extract the snippet or tuba tag name from a line."""
-    if not line or not tag in line:
-        return None
-    line = line.replace("-->", "").replace("<!--", "")
-    words = line.split(" ")
-    try:
-        tag_index = words.index(tag)
-        return words[tag_index + 1].strip()
-    except (ValueError, IndexError):
-        print(f"Error: Could not extract tuba tag from line: {line}")
-        return None
-
-
 def format_tuba_links_section(links: List[Dict]) -> List[str]:
+    """Format tuba links into markdown lines.
+
+    Args:
+        links: List of link dictionaries with 'title' and 'public_url' keys
+
+    Returns:
+        List of formatted markdown lines
+    """
     result = []
     result.append("## Additional Setup guides")
 
@@ -58,20 +53,20 @@ def insert_tuba_links(tuba_config: List[Dict], lines: List[str]) -> Tuple[int, L
     tuba_count = 0
 
     for line in lines:
-        if not TUBA_MARKER in line:
+        if TUBA_MARKER not in line:
             result.append(line)
             continue
 
         tuba_tag = extract_marker_content(TUBA_MARKER, line)
         links = [link for link in tuba_config if tuba_tag in link.get("tags", [])]
 
-        if not len(links):
+        if not links:
             tuba_count += 1
             result.append(line)
             continue
 
-        tuba_count += 1
         result.extend(format_tuba_links_section(links))
-        result.append(line)
+        tuba_count += 1
+        result.append(line)  # Add the original line back
 
     return tuba_count, result
