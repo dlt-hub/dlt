@@ -13,11 +13,12 @@ This script processes markdown files by:
 
 import os
 import sys
-import time
 import shutil
 import subprocess
 from typing import List, Tuple
 import argparse
+from pathlib import Path
+import asyncio
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -38,20 +39,26 @@ from constants import (
 )
 from preprocess_tuba import insert_tuba_links, fetch_tuba_config
 from preprocess_snippets import insert_snippets
-from process_examples import sync_examples, build_example_doc
+from preprocess_examples import sync_examples, build_example_doc
 from utils import walk_sync, remove_remaining_markers
 
 
 class SimpleEventHandler(FileSystemEventHandler):
     """Simple event handler for file watching."""
+    
+    def __init__(self, loop):
+        self.loop = loop
+        super().__init__()
 
     def on_modified(self, event):
         if not event.is_directory:
-            handle_change(event.src_path)
+            # Schedule the async function in the event loop from another thread
+            asyncio.run_coroutine_threadsafe(handle_change(event.src_path), self.loop)
 
     def on_created(self, event):
         if not event.is_directory:
-            handle_change(event.src_path)
+            # Schedule the async function in the event loop from another thread
+            asyncio.run_coroutine_threadsafe(handle_change(event.src_path), self.loop)
 
 
 def process_doc_file(file_name: str) -> Tuple[int, int, bool]:
@@ -69,7 +76,8 @@ def process_doc_file(file_name: str) -> Tuple[int, int, bool]:
 
     try:
         with open(file_name, "r", encoding="utf-8") as f:
-            lines = f.read().splitlines()
+            content = f.read()
+            lines = content.split("\n")
     except FileNotFoundError:
         return 0, 0, False
 
@@ -133,7 +141,7 @@ def check_docs():
 
         try:
             with open(file_name, "r", encoding="utf-8") as f:
-                lines = f.read().splitlines()
+                lines = f.read().split("\n")
         except Exception:
             continue
 
@@ -172,19 +180,32 @@ def execute_destination_capabilities():
 def should_process(file_path: str) -> bool:
     """Determine if a file should be processed."""
     ext = os.path.splitext(file_path)[1]
+    normalized_path = file_path.replace(os.sep, '/')
+    print(normalized_path)
+    
+    is_docs = '/docs/' in normalized_path
+    is_examples = '/../examples/' in normalized_path
+    
+    if is_docs or is_examples:
+        return ext in WATCH_EXTENSIONS
+    
+    return False
 
-    if file_path.startswith(MD_SOURCE_DIR):
-        return ext in WATCH_EXTENSIONS
-    elif file_path.startswith(EXAMPLES_SOURCE_DIR):
-        return ext in WATCH_EXTENSIONS
-    else:
-        return False
+
+def process_example_change(file_path: str):
+    """Process an example file change."""
+    example_name = os.path.splitext(os.path.basename(file_path))[0]
+    print(example_name)
+    if build_example_doc(example_name):
+        target_file_name = f"{EXAMPLES_DESTINATION_DIR}/{example_name}.md"
+        process_doc_file(target_file_name)
+        print(f"{file_path} processed.")
 
 
 @debounce(
     wait=DEBOUNCE_INTERVAL_MS, options=DebounceOptions(trailing=True, leading=False, time_window=3)
 )
-def handle_change(file_path: str):
+async def handle_change(file_path: str):
     """Handle a file change event."""
     print(f"{file_path} modified.", file=sys.stderr)
 
@@ -193,17 +214,15 @@ def handle_change(file_path: str):
         return
 
     try:
-        if file_path.startswith(MD_SOURCE_DIR):
+        if file_path.contains(EXAMPLES_SOURCE_DIR):
+            print("Processing example change------")
+            process_example_change(file_path)
+        elif file_path.contains(MD_SOURCE_DIR):
+            print("Processing doc change------")
             process_doc_file(file_path)
             print(f"{file_path} processed.")
-        elif file_path.startswith(EXAMPLES_SOURCE_DIR):
-            example_name = os.path.splitext(os.path.basename(file_path))[0]
-            print(example_name)
-            if build_example_doc(example_name):
-                target_file_name = f"{EXAMPLES_DESTINATION_DIR}/{example_name}.md"
-                process_doc_file(target_file_name)
-                print(f"{file_path} processed.")
         elif file_path.endswith("snippets.toml"):
+            print("Processing snippets change------")
             preprocess_docs()
             print(f"{file_path} processed.")
 
@@ -215,24 +234,35 @@ def handle_change(file_path: str):
 
 def process_docs():
     """Main processing function."""
-    if os.path.exists(MD_TARGET_DIR):
-        shutil.rmtree(MD_TARGET_DIR)
+    # Create lock file to signal processing has started
+    lock_file = Path(".preprocessing_lock")
+    lock_file.touch()
+    
+    try:
+        if os.path.exists(MD_TARGET_DIR):
+            shutil.rmtree(MD_TARGET_DIR)
 
-    sync_examples()
-    preprocess_docs()
-    execute_destination_capabilities()
-    check_docs()
+        sync_examples()
+        preprocess_docs()
+        execute_destination_capabilities()
+        check_docs()
+    finally:
+        # Remove lock file when done (success or failure)
+        if lock_file.exists():
+            lock_file.unlink()
 
 
-def watch():
+async def watch():
     """Start watching for file changes."""
     print("Watching for file changes...")
 
-    event_handler = SimpleEventHandler()
+    # Get the current event loop to pass to the event handler
+    loop = asyncio.get_running_loop()
+    event_handler = SimpleEventHandler(loop)
     observer = Observer()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    watch_dirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR, script_dir]
+    watch_dirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR]
     for watch_dir in watch_dirs:
         if os.path.exists(watch_dir):
             observer.schedule(event_handler, watch_dir, recursive=True)
@@ -242,7 +272,7 @@ def watch():
 
     try:
         while True:
-            time.sleep(1)
+            await asyncio.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
         print("\nStopped watching.")
@@ -250,8 +280,11 @@ def watch():
     observer.join()
 
 
+process_docs()
+
 def main():
     """Main entry point."""
+
     parser = argparse.ArgumentParser(description="Preprocess dlt documentation files")
     parser.add_argument(
         "--watch", action="store_true", help="Watch for file changes and reprocess automatically"
@@ -263,10 +296,8 @@ def main():
     website_dir = os.path.dirname(script_dir)
     os.chdir(website_dir)
 
-    process_docs()
-
     if args.watch:
-        watch()
+        asyncio.run(watch())
 
 
 if __name__ == "__main__":

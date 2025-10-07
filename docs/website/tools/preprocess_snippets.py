@@ -36,7 +36,7 @@ def get_snippet_from_file(snippets_file_name: str, snippet_name: str) -> Optiona
     """Get a snippet from a file."""
     try:
         with open(snippets_file_name, "r", encoding="utf-8") as f:
-            lines = f.read().splitlines()
+            lines = f.read().split("\n")
     except FileNotFoundError:
         return None
 
@@ -52,7 +52,7 @@ def get_snippet_from_file(snippets_file_name: str, snippet_name: str) -> Optiona
     # Dedent the snippet
     result_str = "\n".join(result)
     result_str = dedent(result_str)
-    result = result_str.splitlines()
+    result = result_str.split("\n")
 
     return result
 
