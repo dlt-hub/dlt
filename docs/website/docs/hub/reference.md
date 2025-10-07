@@ -1989,7 +1989,7 @@ dlt telemetry [-h]
 
 **Description**
 
-The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
+The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 

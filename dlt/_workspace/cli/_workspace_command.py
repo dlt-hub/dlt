@@ -52,6 +52,8 @@ Commands to get info, cleanup local files and launch Workspace MCP
         DEFAULT_DLT_MCP_PORT = 43654
         add_mcp_arg_parser(
             subparsers,
+            "This MCP allows to attach to any pipeline that was previously ran in this workspace"
+            " and then facilitates schema and data exploration in the pipeline's dataset.",
             "Launch dlt MCP server in current Python environment and Workspace in SSE transport"
             " mode",
             DEFAULT_DLT_MCP_PORT,

@@ -424,6 +424,8 @@ list of all tables and columns created at the destination during the loading of 
         DEFAULT_PIPELINE_MCP_PORT = 43656
         add_mcp_arg_parser(
             pipeline_subparsers,
+            "This MCP facilitates schema and data exploration for the dataset created with this"
+            " pipeline",
             "Launch MCP server attached to this pipeline in SSE transport mode",
             DEFAULT_PIPELINE_MCP_PORT,
         )
@@ -508,7 +510,7 @@ class TelemetryCommand(SupportsCliCommand):
     help_string = "Shows telemetry status"
     docs_url = DLT_TELEMETRY_DOCS_URL
     description = """
-The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
+The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
     """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:

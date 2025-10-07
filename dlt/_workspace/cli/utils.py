@@ -29,9 +29,12 @@ def display_run_context_info() -> None:
             )
 
 
-def add_mcp_arg_parser(subparsers: Any, help_str: str, default_sse_port: int) -> None:
+def add_mcp_arg_parser(
+    subparsers: Any, description: str, help_str: str, default_sse_port: int
+) -> None:
     command_parser = subparsers.add_parser(
         "mcp",
+        description=description,
         help=help_str,
     )
     command_parser.add_argument("--stdio", action="store_true", help="Use stdio transport mode")
