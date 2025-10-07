@@ -1,0 +1,163 @@
+"""
+Destination capabilities processing for documentation.
+"""
+
+import os
+import re
+from typing import Any, List, Optional, Tuple
+
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.reference import Destination
+
+from constants import (
+    CAPABILITIES_MARKER,
+    DESTINATION_CAPABILITIES_TARGET_DIR,
+    DESTINATION_CAPABILITIES_SOURCE_DIR,
+    DESTINATION_NAME_PATTERN,
+    CAPABILITIES_TABLE_HEADER,
+    SELECTED_CAPABILITIES_ATTRIBUTES,
+    CAPABILITIES_DOC_LINK_PATTERNS,
+    CAPABILITIES_DATA_TYPES_DOC_LINK,
+)
+
+
+# Cache for destination capabilities to avoid repeated lookups
+_capabilities_cache = {}
+# Cache for impl destinations list
+_impl_destinations_cache = None
+
+
+def get_impl_destination_names() -> set[str]:
+    """Get a set of supported destination names from /dlt/destinations/impl (cached)."""
+    global _impl_destinations_cache
+
+    if _impl_destinations_cache is not None:
+        return _impl_destinations_cache
+
+    try:
+        _impl_destinations_cache = {
+            d
+            for d in os.listdir(DESTINATION_CAPABILITIES_SOURCE_DIR)
+            if os.path.isdir(os.path.join(DESTINATION_CAPABILITIES_SOURCE_DIR, d))
+        }
+        return _impl_destinations_cache
+    except OSError as e:
+        print(f"Error: Could not read source directory {DESTINATION_CAPABILITIES_SOURCE_DIR}: {e}")
+        return set()
+
+
+def get_raw_capabilities(destination_name: str) -> Optional[DestinationCapabilitiesContext]:
+    """Get destination capabilities (cached after first call)."""
+    if destination_name in _capabilities_cache:
+        return _capabilities_cache[destination_name]
+
+    try:
+        dest = Destination.from_reference(destination_name)
+        caps = dest._raw_capabilities()
+        if not isinstance(caps, DestinationCapabilitiesContext):
+            print(f"Error: Invalid capabilities type for {destination_name}: {type(caps)}")
+            return None
+        _capabilities_cache[destination_name] = caps
+        return caps
+    except Exception as e:
+        print(f"Error: Could not get capabilities for {destination_name}: {e}")
+        return None
+
+
+def _format_value(value: Any) -> str:
+    """Format value based on its type."""
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    elif hasattr(value, "__name__") and isinstance(value.__name__, str):
+        return value.__name__
+    return str(value)
+
+
+def _generate_doc_link(attr_name: str) -> str:
+    """Generate documentation link based on attribute name pattern."""
+    for pattern, link in CAPABILITIES_DOC_LINK_PATTERNS:
+        if attr_name.endswith(pattern):
+            section_name = link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").title()
+            return f"[{section_name}]({link})"
+    return CAPABILITIES_DATA_TYPES_DOC_LINK
+
+
+def _is_relevant_capability(attr_name: str, value: Any) -> bool:
+    """Check if capability should be included in table."""
+    if value is None or attr_name not in SELECTED_CAPABILITIES_ATTRIBUTES:
+        return False
+
+    value_str = str(value)
+    return not (value_str.startswith("<") and value_str.endswith(">"))
+
+
+def _format_capability_row(attr_name: str, value: Any) -> Optional[str]:
+    """Format a single capability attribute into a table row."""
+    feature_name = attr_name.replace("_", " ").title()
+    if not feature_name.strip():
+        return None
+
+    formatted_value = _format_value(value)
+    if not formatted_value.strip():
+        return None
+
+    doc_link = _generate_doc_link(attr_name)
+    return f"| {feature_name} | {formatted_value} | {doc_link} |\n"
+
+
+def generate_capabilities_table(destination_name: str) -> List[str]:
+    """Generate a markdown table for destination capabilities."""
+    caps = get_raw_capabilities(destination_name)
+
+    if caps is None:
+        return []
+
+    table_lines = [CAPABILITIES_TABLE_HEADER, "|---------|-------|------|\n"]
+
+    attrs = {k: v for k, v in vars(caps).items() if _is_relevant_capability(k, v)}
+
+    for attr_name, value in attrs.items():
+        row = _format_capability_row(attr_name, value)
+        if row:
+            table_lines.append(row)
+
+    table_lines.append(
+        f"\n*This table shows the supported features of the {destination_name.title()} destination"
+        " in dlt.*\n\n"
+    )
+
+    return table_lines
+
+
+def insert_destination_capabilities(lines: List[str]) -> Tuple[int, List[str]]:
+    """
+    Insert destination capabilities tables into the markdown file.
+
+    Args:
+        lines: List of lines from the markdown file
+
+    Returns:
+        Tuple of (count of markers processed, modified lines)
+    """
+    impl_destinations = get_impl_destination_names()
+    result = []
+    marker_count = 0
+
+    for line in lines:
+        if CAPABILITIES_MARKER not in line:
+            result.append(line)
+            continue
+
+        match = re.search(rf"{re.escape(CAPABILITIES_MARKER)}\s+{DESTINATION_NAME_PATTERN}", line)
+        if not match or match.group(1) not in impl_destinations:
+            result.append(line)
+            continue
+
+        destination_name = match.group(1)
+        table_lines = generate_capabilities_table(destination_name)
+
+        # Convert list of lines (with \n) to list without \n for consistency
+        result.extend([line.rstrip("\n") for line in table_lines])
+        marker_count += 1
+
+    return marker_count, result
