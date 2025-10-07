@@ -11,15 +11,26 @@ from constants import NUM_TUBA_LINKS, TUBA_MARKER
 from utils import extract_marker_content
 
 
+# Cache for tuba config to avoid repeated network requests
+_tuba_config_cache: Optional[List[Dict]] = None
+
+
 def fetch_tuba_config() -> List[Dict]:
-    """Fetch tuba config from remote URL."""
+    """Fetch tuba config from remote URL (cached after first call)."""
+    global _tuba_config_cache
+    
+    # Return cached config if available
+    if _tuba_config_cache is not None:
+        return _tuba_config_cache
+    
     try:
         response = requests.get(
             "https://dlthub.com/docs/pipelines/links.json",
             headers={"Accept": "application/vnd.citationstyles.csl+json"},
         )
         response.raise_for_status()
-        return response.json()
+        _tuba_config_cache = response.json()
+        return _tuba_config_cache
     except Exception as e:
         print(f"Error: Could not fetch tuba config: {e}")
         return []
