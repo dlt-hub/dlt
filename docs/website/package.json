@@ -5,7 +5,7 @@
     "scripts": {
         "docusaurus": "docusaurus",
         "install-python-deps": "uv pip install -r requirements.txt",
-        "start": "npm run install-python-deps && npm run preprocess-docs && npm run gen-api-ref && concurrently --kill-others \"PYTHONPATH=. uv run python tools/preprocess_docs.py --watch\" \"docusaurus start\"",
+        "start": "npm run install-python-deps && npm run preprocess-docs && npm run gen-api-ref && concurrently --kill-others \"PYTHONPATH=. uv pip install -r requirements.txt && uv run python tools/preprocess_docs.py --watch\" \"docusaurus start\"",
         "build": "npm run install-python-deps && npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && docusaurus build",
         "build:netlify": "npm run install-python-deps && npm run update-versions && npm run preprocess-docs && npm run gen-api-ref-netlify && docusaurus build --out-dir build/docs",
         "swizzle": "docusaurus swizzle",
