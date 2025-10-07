@@ -15,7 +15,7 @@ from dlt._workspace._workspace_context import (
 __all__ = ["plug_workspace_context_impl"]
 
 
-@_plugins.hookimpl(specname="plug_run_context")
+@_plugins.hookimpl(specname="plug_run_context", trylast=False)
 def plug_workspace_context_impl(
     run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
 ) -> Optional[RunContextBase]:
