@@ -89,7 +89,7 @@ def insert_snippets(file_name: str, lines: List[str]) -> Tuple[int, List[str]]:
 
     for line in lines:
         snippet_name = extract_marker_content(SNIPPET_MARKER, line)
-        if not SNIPPET_MARKER in line or not snippet_name:
+        if SNIPPET_MARKER not in line or not snippet_name:
             result.append(line)
             continue
 

@@ -3,7 +3,7 @@ Tuba links processing for documentation.
 """
 
 import random
-from typing import List, Tuple, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -12,10 +12,10 @@ from utils import extract_marker_content
 
 
 # Cache for tuba config to avoid repeated network requests
-_tuba_config_cache: Optional[List[Dict]] = None
+_tuba_config_cache: Optional[List[Dict[str, Any]]] = None
 
 
-def fetch_tuba_config() -> List[Dict]:
+def fetch_tuba_config() -> List[Dict[str, Any]]:
     """Fetch tuba config from remote URL (cached after first call)."""
     global _tuba_config_cache
 
@@ -36,7 +36,7 @@ def fetch_tuba_config() -> List[Dict]:
         return []
 
 
-def format_tuba_links_section(links: List[Dict]) -> List[str]:
+def format_tuba_links_section(links: List[Dict[str, Any]]) -> List[str]:
     """Format tuba links into markdown lines."""
     result = []
     result.append("## Additional Setup guides")
@@ -51,7 +51,7 @@ def format_tuba_links_section(links: List[Dict]) -> List[str]:
     return result
 
 
-def insert_tuba_links(tuba_config: List[Dict], lines: List[str]) -> Tuple[int, List[str]]:
+def insert_tuba_links(tuba_config: List[Dict[str, Any]], lines: List[str]) -> Tuple[int, List[str]]:
     """Insert tuba links into the markdown file."""
     result = []
     tuba_count = 0
