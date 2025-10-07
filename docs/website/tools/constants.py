@@ -25,6 +25,31 @@ EXAMPLES_DESTINATION_DIR = f"./{MD_TARGET_DIR}examples/"
 EXAMPLES_SOURCE_DIR = "../examples/"
 EXAMPLES_EXCLUSIONS = [".", "_", "archive", "local_cache"]
 
+# Destination capabilities settings
+DESTINATION_CAPABILITIES_TARGET_DIR = "./docs_processed/dlt-ecosystem/destinations"
+DESTINATION_CAPABILITIES_SOURCE_DIR = "../../dlt/destinations/impl"
+DESTINATION_NAME_PATTERN = r"([a-z0-9_-]+?)(?:--|$)"
+CAPABILITIES_TABLE_HEADER = "| Feature | Value | More |\n"
+
+SELECTED_CAPABILITIES_ATTRIBUTES = {
+    "preferred_loader_file_format",
+    "supported_loader_file_formats",
+    "preferred_staging_file_format",
+    "supported_staging_file_formats",
+    "has_case_sensitive_identifiers",
+    "supported_merge_strategies",
+    "supported_replace_strategies",
+    "supports_tz_aware_datetime",
+    "supports_naive_datetime",
+}
+
+CAPABILITIES_DOC_LINK_PATTERNS = [
+    ("_formats", "../file-formats/"),
+    ("_strategies", "../../general-usage/merge-loading#merge-strategies"),
+]
+
+CAPABILITIES_DATA_TYPES_DOC_LINK = "[Data Types](../../general-usage/schema#data-types)"
+
 # Markers
 DLT_MARKER = "@@@DLT"
 TUBA_MARKER = f"{DLT_MARKER}_TUBA"

@@ -14,7 +14,6 @@ This script processes markdown files by:
 import os
 import sys
 import shutil
-import subprocess
 from typing import List, Tuple
 import argparse
 import asyncio
@@ -39,6 +38,7 @@ from constants import (
 from preprocess_tuba import insert_tuba_links, fetch_tuba_config
 from preprocess_snippets import insert_snippets
 from preprocess_examples import sync_examples, build_example_doc
+from preprocess_destination_capabilities import insert_destination_capabilities
 from utils import walk_sync, remove_remaining_markers
 
 
@@ -60,11 +60,11 @@ class SimpleEventHandler(FileSystemEventHandler):
             asyncio.run_coroutine_threadsafe(handle_change(event.src_path), self.loop)
 
 
-def process_doc_file(file_name: str) -> Tuple[int, int, bool]:
+def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     """Process a single documentation file."""
     ext = os.path.splitext(file_name)[1]
     if ext not in MOVE_FILES_EXTENSION:
-        return 0, 0, False
+        return 0, 0, 0, False
 
     # Convert absolute path to relative if needed
     if os.path.isabs(file_name):
@@ -75,23 +75,24 @@ def process_doc_file(file_name: str) -> Tuple[int, int, bool]:
 
     if ext not in DOCS_EXTENSIONS:
         shutil.copyfile(file_name, target_file_name)
-        return 0, 0, True
+        return 0, 0, 0, True
 
     try:
         with open(file_name, "r", encoding="utf-8") as f:
             content = f.read()
             lines = content.split("\n")
     except FileNotFoundError:
-        return 0, 0, False
+        return 0, 0, 0, False
 
     snippet_count, lines = insert_snippets(file_name, lines)
     tuba_count, lines = insert_tuba_links(fetch_tuba_config(), lines)
+    capabilities_count, lines = insert_destination_capabilities(lines)
     lines = remove_remaining_markers(lines)
 
     with open(target_file_name, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
-    return snippet_count, tuba_count, True
+    return snippet_count, tuba_count, capabilities_count, True
 
 
 def preprocess_docs():
@@ -100,18 +101,21 @@ def preprocess_docs():
     processed_files = 0
     inserted_snippets = 0
     processed_tuba_blocks = 0
+    processed_capabilities_blocks = 0
 
     for file_name in walk_sync(MD_SOURCE_DIR):
-        snippet_count, tuba_count, processed = process_doc_file(file_name)
+        snippet_count, tuba_count, capabilities_count, processed = process_doc_file(file_name)
         if not processed:
             continue
         processed_files += 1
         inserted_snippets += snippet_count
         processed_tuba_blocks += tuba_count
+        processed_capabilities_blocks += capabilities_count
 
     print(f"Processed {processed_files} files.")
     print(f"Inserted {inserted_snippets} snippets.")
     print(f"Processed {processed_tuba_blocks} tuba blocks.")
+    print(f"Processed {processed_capabilities_blocks} capabilities blocks.")
 
 
 def check_file_links(file_name: str, lines: List[str]) -> bool:
@@ -156,30 +160,6 @@ def check_docs():
     print("Found no errors in md files")
 
 
-def execute_destination_capabilities():
-    """Execute Python script for destination capabilities."""
-    print("Inserting destination capabilities...")
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    python_script = os.path.join(script_dir, "insert_destination_capabilities.py")
-    command = ["uv", "run", "python", python_script]
-
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-
-        if result.stdout and result.stdout.strip():
-            print(f"Python script output: {result.stdout.strip()}")
-
-        print("Destination capabilities inserted successfully.")
-    except subprocess.CalledProcessError as e:
-        print(f"Error executing destination capabilities script: {e}")
-        if e.stdout:
-            print(f"Python script stdout: {e.stdout}")
-        if e.stderr:
-            print(f"Python script stderr: {e.stderr}")
-        raise
-
-
 def process_example_change(file_path: str):
     """Process an example file change."""
     example_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -202,7 +182,6 @@ async def handle_change_impl(file_path: str):
     else:
         return
 
-    execute_destination_capabilities()
     check_docs()
 
 
@@ -222,7 +201,6 @@ def process_docs():
 
     sync_examples()
     preprocess_docs()
-    execute_destination_capabilities()
     check_docs()
 
 
@@ -253,12 +231,8 @@ async def watch():
     observer.join()
 
 
-process_docs()
-
-
 def main():
     """Main entry point."""
-
     parser = argparse.ArgumentParser(description="Preprocess dlt documentation files")
     parser.add_argument(
         "--watch", action="store_true", help="Watch for file changes and reprocess automatically"
@@ -269,6 +243,8 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     website_dir = os.path.dirname(script_dir)
     os.chdir(website_dir)
+
+    process_docs()
 
     if args.watch:
         asyncio.run(watch())
