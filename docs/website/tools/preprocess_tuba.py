@@ -18,11 +18,11 @@ _tuba_config_cache: Optional[List[Dict]] = None
 def fetch_tuba_config() -> List[Dict]:
     """Fetch tuba config from remote URL (cached after first call)."""
     global _tuba_config_cache
-    
+
     # Return cached config if available
     if _tuba_config_cache is not None:
         return _tuba_config_cache
-    
+
     try:
         response = requests.get(
             "https://dlthub.com/docs/pipelines/links.json",
