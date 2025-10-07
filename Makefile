@@ -65,7 +65,7 @@ lint-core:
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 
 format:
-	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
 	uv run black docs/education/*/*.ipynb
 
 lint-security:
