@@ -133,12 +133,6 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
 def insert_destination_capabilities(lines: List[str]) -> Tuple[int, List[str]]:
     """
     Insert destination capabilities tables into the markdown file.
-
-    Args:
-        lines: List of lines from the markdown file
-
-    Returns:
-        Tuple of (count of markers processed, modified lines)
     """
     impl_destinations = get_impl_destination_names()
     result = []

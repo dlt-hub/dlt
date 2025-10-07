@@ -37,14 +37,7 @@ def fetch_tuba_config() -> List[Dict]:
 
 
 def format_tuba_links_section(links: List[Dict]) -> List[str]:
-    """Format tuba links into markdown lines.
-
-    Args:
-        links: List of link dictionaries with 'title' and 'public_url' keys
-
-    Returns:
-        List of formatted markdown lines
-    """
+    """Format tuba links into markdown lines."""
     result = []
     result.append("## Additional Setup guides")
 
