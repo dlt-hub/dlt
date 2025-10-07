@@ -89,7 +89,7 @@ def execute_sql_query(pipeline_name: str, sql_select_query: str) -> str:
     dataset = pipeline.dataset()
     result = dataset(sql_select_query).arrow()
 
-    return helpers.format_df(result)
+    return helpers.format_csv(result)
 
 
 __tools__ = (

@@ -62,32 +62,32 @@ def test_mcp_pipeline_tools(pokemon_pipeline_context: RunContextBase) -> None:
         "normalized_name": '"pokemon"',
     }
 
-    df = pipeline_tools.table_head("pokemon")
-    assert df.shape == (10, 4)
-    assert df.columns.tolist() == ["name", "url", "_dlt_load_id", "_dlt_id"]
+    head = pipeline_tools.table_head("pokemon").splitlines()
+    assert len(head) == 11
+    assert head[0].split("|") == ['"name"', '"url"', '"_dlt_load_id"', '"_dlt_id"']
 
     # Check first row with regex patterns for dynamic values
-    first_row = df.iloc[0].tolist()
-    assert first_row[0] == "bulbasaur"
-    assert first_row[1] == "https://pokeapi.co/api/v2/pokemon/1/"
-    assert_valid_load_id(first_row[2])
-    assert_valid_dlt_id(first_row[3])
+    first_row = head[1].split("|")
+    assert first_row[0] == '"bulbasaur"'
+    assert first_row[1] == '"https://pokeapi.co/api/v2/pokemon/1/"'
+    assert_valid_load_id(first_row[2].strip('"'))
+    assert_valid_dlt_id(first_row[3].strip('"'))
 
     # Check last row with the same patterns
-    last_row = df.iloc[9].tolist()
-    assert last_row[0] == "caterpie"
-    assert last_row[1] == "https://pokeapi.co/api/v2/pokemon/10/"
-    assert_valid_load_id(last_row[2])
-    assert_valid_dlt_id(last_row[3])
+    last_row = head[10].split("|")
+    assert last_row[0] == '"caterpie"'
+    assert last_row[1] == '"https://pokeapi.co/api/v2/pokemon/10/"'
+    assert_valid_load_id(last_row[2].strip('"'))
+    assert_valid_dlt_id(last_row[3].strip('"'))
 
     output = pipeline_tools.query_sql("SELECT * FROM pokemon limit 5")
     expected_pattern = (
         r"Result with 5 row\(s\).*"  # Match header and everything after
-        r"bulbasaur\|.*\n"  # Just check first pokemon name
-        r"ivysaur\|.*\n"  # Basic structure check with pokemon names
-        r"venusaur\|.*\n"
-        r"charmander\|.*\n"
-        r"charmeleon\|.*"
+        r'"bulbasaur"\|.*\n'  # Just check first pokemon name
+        r'"ivysaur"\|.*\n'  # Basic structure check with pokemon names
+        r'"venusaur"\|.*\n'
+        r'"charmander"\|.*\n'
+        r'"charmeleon"\|.*'
     )
 
     assert re.match(expected_pattern, output, re.DOTALL) is not None

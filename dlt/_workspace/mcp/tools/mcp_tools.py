@@ -10,7 +10,7 @@ from mcp.server.fastmcp.resources import FunctionResource
 
 from dlt import Pipeline
 from dlt import Dataset
-from dlt._workspace.mcp.tools.helpers import format_df
+from dlt._workspace.mcp.tools.helpers import format_csv
 from dlt.common.schema.utils import is_valid_schema_name
 
 
@@ -128,7 +128,7 @@ class BaseMCPTools(ABC):
         if save_bookmark:
             return self._cache_arrow(table, query, save_bookmark, input_bookmark)
         else:
-            return format_df(table, info)
+            return format_csv(table, info)
 
     # def _return_df(self, table: pa.Table, info: str = "") -> str:
     #     # just copy metadata
@@ -175,7 +175,7 @@ class BaseMCPTools(ABC):
     def _return_from_cache(self, cache_url: str) -> str:
         if not (cache_entry := self.result_cache.get(cache_url)):
             raise ValueError(f"{cache_url} bookmark not found")
-        return format_df(cache_entry.result)
+        return format_csv(cache_entry.result)
 
     def read_result_from_bookmark(self, bookmark: str) -> str:
         return self._return_from_cache(bookmark)
@@ -246,8 +246,8 @@ class PipelineMCPTools(BaseMCPTools):
             }
         }
 
-    def table_head(self, table_name: str) -> Any:
-        return self.pipeline.dataset()[table_name].head(10).df()
+    def table_head(self, table_name: str) -> str:
+        return format_csv(self.pipeline.dataset()[table_name].head(10).arrow())
 
     def table_schema(self, table: str) -> Dict[str, Any]:
         return self._make_table_schema(self.pipeline.dataset(), table)
