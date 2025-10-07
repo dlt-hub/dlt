@@ -26,27 +26,12 @@ try:
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
     import pyarrow as pa
-    import pyiceberg.io.pyarrow as _pio
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyiceberg helpers",
         [f"{version.DLT_PKG_NAME}[pyiceberg]"],
         "Install `pyiceberg` so dlt can create Iceberg tables in the `filesystem` destination.",
     )
-
-
-# TODO: remove with pyiceberg's release after 0.9.1
-_orig_get_kwargs = _pio._get_parquet_writer_kwargs
-
-
-def _patched_get_parquet_writer_kwargs(table_properties):  # type: ignore[no-untyped-def]
-    """Return the original kwargs **plus** store_decimal_as_integer=True."""
-    kwargs = _orig_get_kwargs(table_properties)
-    kwargs.setdefault("store_decimal_as_integer", True)
-    return kwargs
-
-
-_pio._get_parquet_writer_kwargs = _patched_get_parquet_writer_kwargs
 
 
 def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
