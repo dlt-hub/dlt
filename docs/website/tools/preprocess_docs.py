@@ -17,7 +17,6 @@ import shutil
 import subprocess
 from typing import List, Tuple
 import argparse
-from pathlib import Path
 import asyncio
 
 from watchdog.observers import Observer
@@ -234,22 +233,13 @@ async def handle_change(file_path: str):
 
 def process_docs():
     """Main processing function."""
-    # Create lock file to signal processing has started
-    lock_file = Path(".preprocessing_lock")
-    lock_file.touch()
-    
-    try:
-        if os.path.exists(MD_TARGET_DIR):
-            shutil.rmtree(MD_TARGET_DIR)
+    if os.path.exists(MD_TARGET_DIR):
+        shutil.rmtree(MD_TARGET_DIR)
 
-        sync_examples()
-        preprocess_docs()
-        execute_destination_capabilities()
-        check_docs()
-    finally:
-        # Remove lock file when done (success or failure)
-        if lock_file.exists():
-            lock_file.unlink()
+    sync_examples()
+    preprocess_docs()
+    execute_destination_capabilities()
+    check_docs()
 
 
 async def watch():
