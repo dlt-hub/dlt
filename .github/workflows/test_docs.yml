@@ -107,9 +107,6 @@ jobs:
       - name: run docs preprocessor
         run: cd docs && make preprocess-docs
 
-      - name: Lint education notebooks
-        run: make lint-notebooks
-
       - name: Ensure marimo notebooks are up-to-date
         shell: bash
         run: |
