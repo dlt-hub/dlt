@@ -4,7 +4,11 @@ Configuration settings for Apache Sedona integration
 Created by: Baroudi Malek & Fawzi Hammami
 """
 
+import os
 from typing import Dict, Any
+
+GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')
+GEOS_LIBRARY_PATH = os.getenv('GEOS_LIBRARY_PATH', '/opt/homebrew/lib/libgeos_c.dylib')
 
 DEFAULT_BATCH_SIZE = 10000
 

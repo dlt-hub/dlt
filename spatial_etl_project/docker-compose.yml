@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: spatial_etl_postgis
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./data/output:/output
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spatial_network
+
+  sedona-spark:
+    image: apache/sedona:1.6.0
+    container_name: spatial_etl_sedona
+    environment:
+      - SPARK_MASTER_HOST=sedona-spark
+      - SPARK_MODE=master
+    ports:
+      - "8085:8080"  # Spark Master UI (mapped to 8085 to avoid conflicts)
+      - "7077:7077"  # Spark Master
+      - "4040:4040"  # Spark Application UI
+    volumes:
+      - ./examples:/workspace/examples
+      - ./data:/workspace/data
+      - sedona_data:/workspace/output
+    working_dir: /workspace
+    command: >
+      bash -c "
+      /opt/spark/bin/spark-submit
+      --master local[*]
+      --packages org.apache.sedona:sedona-spark-shaded-3.5_2.12:1.6.0
+      --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
+      --conf spark.kryo.registrator=org.apache.sedona.core.serde.SedonaKryoRegistrator
+      /workspace/examples/04_sedona_distributed.py || tail -f /dev/null
+      "
+    networks:
+      - spatial_network
+
+volumes:
+  postgis_data:
+    driver: local
+  sedona_data:
+    driver: local
+
+networks:
+  spatial_network:
+    driver: bridge

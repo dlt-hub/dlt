@@ -1,0 +1,71 @@
+{
+  "type": "FeatureCollection",
+  "name": "US Major Cities",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "San Francisco",
+        "state": "California",
+        "population": 873965,
+        "founded": 1776
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.419, 37.775]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Los Angeles",
+        "state": "California",
+        "population": 3979576,
+        "founded": 1781
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-118.244, 34.052]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Chicago",
+        "state": "Illinois",
+        "population": 2695598,
+        "founded": 1837
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-87.630, 41.878]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "New York",
+        "state": "New York",
+        "population": 8336817,
+        "founded": 1624
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-74.006, 40.713]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Seattle",
+        "state": "Washington",
+        "population": 753675,
+        "founded": 1851
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.332, 47.606]
+      }
+    }
+  ]
+}

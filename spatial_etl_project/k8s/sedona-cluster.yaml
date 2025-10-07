@@ -1,0 +1,268 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spatial-etl
+
+---
+# ConfigMap for Spark configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-config
+  namespace: spatial-etl
+data:
+  SPARK_MODE: "cluster"
+  SPARK_MASTER_PORT: "7077"
+  SPARK_MASTER_WEBUI_PORT: "8085"
+
+---
+# Spark Master Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master
+  namespace: spatial-etl
+spec:
+  type: LoadBalancer
+  ports:
+    - name: spark-master
+      port: 7077
+      targetPort: 7077
+    - name: webui
+      port: 8085
+      targetPort: 8085
+  selector:
+    app: spark-master
+
+---
+# Spark Master Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master
+  namespace: spatial-etl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-master
+  template:
+    metadata:
+      labels:
+        app: spark-master
+    spec:
+      containers:
+      - name: spark-master
+        image: spatial-etl-sedona:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/opt/spark/bin/spark-class"]
+        args:
+          - "org.apache.spark.deploy.master.Master"
+          - "-h"
+          - "spark-master"
+          - "-p"
+          - "7077"
+          - "--webui-port"
+          - "8085"
+        ports:
+        - containerPort: 7077
+          name: spark-master
+        - containerPort: 8085
+          name: webui
+        envFrom:
+        - configMapRef:
+            name: spark-config
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+
+---
+# Spark Worker Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-worker
+  namespace: spatial-etl
+spec:
+  clusterIP: None
+  ports:
+    - name: webui
+      port: 8086
+      targetPort: 8086
+  selector:
+    app: spark-worker
+
+---
+# Spark Worker StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spark-worker
+  namespace: spatial-etl
+spec:
+  serviceName: spark-worker
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spark-worker
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+    spec:
+      containers:
+      - name: spark-worker
+        image: spatial-etl-sedona:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/opt/spark/bin/spark-class"]
+        args:
+          - "org.apache.spark.deploy.worker.Worker"
+          - "spark://spark-master:7077"
+          - "--webui-port"
+          - "8086"
+        ports:
+        - containerPort: 8086
+          name: webui
+        env:
+        - name: SPARK_WORKER_CORES
+          value: "2"
+        - name: SPARK_WORKER_MEMORY
+          value: "2g"
+        envFrom:
+        - configMapRef:
+            name: spark-config
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "2000m"
+          limits:
+            memory: "4Gi"
+            cpu: "4000m"
+
+---
+# PostGIS Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgis
+  namespace: spatial-etl
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgis
+
+---
+# PostGIS Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgis
+  namespace: spatial-etl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgis
+  template:
+    metadata:
+      labels:
+        app: postgis
+    spec:
+      containers:
+      - name: postgis
+        image: postgis/postgis:16-3.4-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: POSTGRES_DB
+          value: "spatial_db"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: postgis-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgis-storage
+        persistentVolumeClaim:
+          claimName: postgis-pvc
+
+---
+# PostGIS PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgis-pvc
+  namespace: spatial-etl
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Sedona Application Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sedona-app
+  namespace: spatial-etl
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: sedona-app
+        image: spatial-etl-sedona:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/opt/spark/bin/spark-submit"]
+        args:
+          - "--master"
+          - "spark://spark-master:7077"
+          - "--packages"
+          - "org.apache.sedona:sedona-spark-shaded-3.4_2.12:1.5.1,org.datasyslab:geotools-wrapper:1.5.1-28.2"
+          - "--conf"
+          - "spark.serializer=org.apache.spark.serializer.KryoSerializer"
+          - "--conf"
+          - "spark.kryo.registrator=org.apache.sedona.core.serde.SedonaKryoRegistrator"
+          - "--conf"
+          - "spark.sql.extensions=org.apache.sedona.sql.SedonaSqlExtensions"
+          - "/workspace/examples/04_sedona_cluster.py"
+        env:
+        - name: SPARK_MASTER_URL
+          value: "spark://spark-master:7077"
+        - name: POSTGRES_HOST
+          value: "postgis"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: POSTGRES_DB
+          value: "spatial_db"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"

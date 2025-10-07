@@ -1,0 +1,42 @@
+# Dockerfile for Apache Sedona with compatible versions
+FROM eclipse-temurin:11-jre-focal
+
+# Set environment variables
+ENV SPARK_VERSION=3.4.1
+ENV HADOOP_VERSION=3
+ENV SEDONA_VERSION=1.5.1
+ENV SPARK_HOME=/opt/spark
+ENV PYTHONUNBUFFERED=1
+ENV PATH=$SPARK_HOME/bin:$PATH
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.9 \
+    python3-pip \
+    wget \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install Spark
+RUN wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
+    && tar -xzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
+    && mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} ${SPARK_HOME} \
+    && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+
+# Install Python dependencies (minimal set for Sedona)
+RUN pip3 install --no-cache-dir \
+    pyspark==${SPARK_VERSION} \
+    apache-sedona==${SEDONA_VERSION} \
+    shapely \
+    attrs \
+    ipython
+
+# Create workspace
+WORKDIR /workspace
+
+# Copy application code
+COPY examples/04_sedona_docker.py /workspace/
+COPY data /workspace/data/
+
+# Default command
+CMD ["/bin/bash"]

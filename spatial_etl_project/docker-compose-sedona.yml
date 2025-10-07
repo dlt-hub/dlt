@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with PostGIS
+  postgis:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: sedona_postgis
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: spatial_db
+    ports:
+      - "5434:5432"  # Use 5434 to avoid conflicts
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spatial_network
+
+  # Spark Master with Sedona
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.sedona
+    container_name: spark_master
+    hostname: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8085
+    ports:
+      - "7077:7077"   # Spark Master
+      - "8085:8085"   # Spark Master Web UI
+    volumes:
+      - ./examples:/workspace/examples
+      - ./data:/workspace/data
+      - spark_logs:/workspace/logs
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      -h spark-master
+      -p 7077
+      --webui-port 8085
+    networks:
+      - spatial_network
+
+  # Spark Worker
+  spark-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.sedona
+    container_name: spark_worker
+    hostname: spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_WEBUI_PORT=8086
+    ports:
+      - "8086:8086"   # Worker Web UI
+    volumes:
+      - ./examples:/workspace/examples
+      - ./data:/workspace/data
+      - spark_logs:/workspace/logs
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
+      --webui-port 8086
+    networks:
+      - spatial_network
+
+  # Sedona Application Runner
+  sedona-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.sedona
+    container_name: sedona_app
+    depends_on:
+      - spark-master
+      - spark-worker
+      - postgis
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - POSTGRES_HOST=postgis
+      - POSTGRES_PORT=5432  # Internal port (container to container)
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=spatial_db
+    volumes:
+      - ./examples:/workspace/examples
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+    working_dir: /workspace
+    command: >
+      bash -c "sleep 10 && /opt/spark/bin/spark-submit
+      --master spark://spark-master:7077
+      --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
+      --conf spark.kryo.registrator=org.apache.sedona.core.serde.SedonaKryoRegistrator
+      examples/04_sedona_cluster.py"
+    networks:
+      - spatial_network
+
+volumes:
+  postgis_data:
+    driver: local
+  spark_logs:
+    driver: local
+
+networks:
+  spatial_network:
+    driver: bridge
