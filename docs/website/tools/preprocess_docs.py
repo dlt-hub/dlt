@@ -44,7 +44,7 @@ from utils import walk_sync, remove_remaining_markers
 
 class SimpleEventHandler(FileSystemEventHandler):
     """Simple event handler for file watching."""
-    
+
     def __init__(self, loop):
         self.loop = loop
         super().__init__()
@@ -65,6 +65,10 @@ def process_doc_file(file_name: str) -> Tuple[int, int, bool]:
     ext = os.path.splitext(file_name)[1]
     if ext not in MOVE_FILES_EXTENSION:
         return 0, 0, False
+
+    # Convert absolute path to relative if needed
+    if os.path.isabs(file_name):
+        file_name = os.path.relpath(file_name)
 
     target_file_name = file_name.replace(MD_SOURCE_DIR, MD_TARGET_DIR)
     os.makedirs(os.path.dirname(target_file_name), exist_ok=True)
@@ -176,59 +180,39 @@ def execute_destination_capabilities():
         raise
 
 
-def should_process(file_path: str) -> bool:
-    """Determine if a file should be processed."""
-    ext = os.path.splitext(file_path)[1]
-    normalized_path = file_path.replace(os.sep, '/')
-    print(normalized_path)
-    
-    is_docs = '/docs/' in normalized_path
-    is_examples = '/../examples/' in normalized_path
-    
-    if is_docs or is_examples:
-        return ext in WATCH_EXTENSIONS
-    
-    return False
-
-
 def process_example_change(file_path: str):
     """Process an example file change."""
     example_name = os.path.splitext(os.path.basename(file_path))[0]
-    print(example_name)
     if build_example_doc(example_name):
         target_file_name = f"{EXAMPLES_DESTINATION_DIR}/{example_name}.md"
         process_doc_file(target_file_name)
-        print(f"{file_path} processed.")
+
+
+async def handle_change_impl(file_path: str):
+    """Handle a file change event (implementation)."""
+    ext = os.path.splitext(file_path)[1]
+
+    # Check extension first, then determine path type
+    if file_path.endswith("snippets.toml"):
+        preprocess_docs()
+    elif "examples" in file_path and ext in WATCH_EXTENSIONS:
+        process_example_change(file_path)
+    elif "docs" in file_path and ext in WATCH_EXTENSIONS:
+        process_doc_file(file_path)
+    else:
+        return
+
+    execute_destination_capabilities()
+    check_docs()
 
 
 @debounce(
     wait=DEBOUNCE_INTERVAL_MS, options=DebounceOptions(trailing=True, leading=False, time_window=3)
 )
 async def handle_change(file_path: str):
-    """Handle a file change event."""
+    """Handle a file change event (debounced wrapper)."""
     print(f"{file_path} modified.", file=sys.stderr)
-
-    if not should_process(file_path):
-        print(f"Skipping {file_path}.", file=sys.stderr)
-        return
-
-    try:
-        if file_path.contains(EXAMPLES_SOURCE_DIR):
-            print("Processing example change------")
-            process_example_change(file_path)
-        elif file_path.contains(MD_SOURCE_DIR):
-            print("Processing doc change------")
-            process_doc_file(file_path)
-            print(f"{file_path} processed.")
-        elif file_path.endswith("snippets.toml"):
-            print("Processing snippets change------")
-            preprocess_docs()
-            print(f"{file_path} processed.")
-
-        execute_destination_capabilities()
-        check_docs()
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
+    await handle_change_impl(file_path)
 
 
 def process_docs():
@@ -251,7 +235,6 @@ async def watch():
     event_handler = SimpleEventHandler(loop)
     observer = Observer()
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     watch_dirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR]
     for watch_dir in watch_dirs:
         if os.path.exists(watch_dir):
@@ -271,6 +254,7 @@ async def watch():
 
 
 process_docs()
+
 
 def main():
     """Main entry point."""
