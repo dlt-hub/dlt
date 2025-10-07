@@ -11,30 +11,31 @@ class DestinationException(DltException):
 
 class UnknownDestinationModule(ReferenceImportError, DestinationException, KeyError):
     def __init__(
-        self, ref: str, qualified_refs: Sequence[str], traces: Sequence[ImportTrace]
+        self,
+        ref: str,
+        qualified_refs: Sequence[str],
+        traces: Sequence[ImportTrace],
+        from_name: bool = False,
     ) -> None:
         self.ref = ref
         self.qualified_refs = qualified_refs
+        self.from_name = from_name
         super().__init__(traces=traces)
 
     def __str__(self) -> str:
         if "." in self.ref:
-            msg = f"Destination module `{self.ref}` is not registered. "
+            msg = f"Destination module `{self.ref}` is not registered."
         else:
             msg = (
-                f"Destination `{self.ref}` is not one of the standard dlt destinations. If it's a "
-                f"""custom destination name, you need to set 'dlt.pipeline(destination="{self.ref}")' """
-                "and configure a valid destination type either as an environment variable:\n\n"
-                f"DESTINATION__{self.ref.upper()}__DESTINATION_TYPE=duckdb\n\n"
-                f"or in .dlt/secrets.toml:\n\n[destination.{self.ref}]\ndestination_type ="
-                ' "duckdb"\n\n'
+                f"Destination{' type' if self.from_name else ''} `{self.ref}` is not one of the"
+                f" standard dlt destination{' types' if self.from_name else 's'}."
             )
 
         if len(self.qualified_refs) == 1 and self.qualified_refs[0] == self.ref:
             pass
         else:
             msg += (
-                "Following fully qualified refs were tried in the registry:\n\t%s\n"
+                " Following fully qualified refs were tried in the registry:\n\t%s\n"
                 % "\n\t".join(self.qualified_refs)
             )
         if self.traces:

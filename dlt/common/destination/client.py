@@ -144,7 +144,7 @@ class StateInfo:
 
 @configspec
 class DestinationTypeConfiguration(BaseConfiguration):
-    destination_type: Optional[str] = None
+    destination_type: str = None
 
 
 @configspec

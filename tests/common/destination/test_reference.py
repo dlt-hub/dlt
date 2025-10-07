@@ -319,10 +319,11 @@ def test_import_destination_type_config(
     destination_name: str = "my_destination",
 ) -> None:
     environment[f"DESTINATION__{destination_name.upper()}__DESTINATION_TYPE"] = destination_type
-    msg_from_fallback = "configure a valid destination type"
+    msg_from_fallback = "configure a valid dlt destination type"
     if destination_type == "wrong_type":
         with pytest.raises(UnknownDestinationModule) as py_exc:
             Destination.from_reference(ref=destination_name)
+        test = py_exc.value
         assert msg_from_fallback in str(py_exc.value)
 
         # if destination_name is provided, ref should be a valid destination type

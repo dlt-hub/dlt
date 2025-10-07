@@ -3,7 +3,6 @@ import pytest
 
 import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
 from dlt.common.storages import FilesystemConfiguration
