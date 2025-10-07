@@ -11,7 +11,6 @@ from dlt.common.destination.reference import Destination
 
 from constants import (
     CAPABILITIES_MARKER,
-    DESTINATION_CAPABILITIES_TARGET_DIR,
     DESTINATION_CAPABILITIES_SOURCE_DIR,
     DESTINATION_NAME_PATTERN,
     CAPABILITIES_TABLE_HEADER,
@@ -22,9 +21,9 @@ from constants import (
 
 
 # Cache for destination capabilities to avoid repeated lookups
-_capabilities_cache = {}
+_capabilities_cache: dict[str, Optional[DestinationCapabilitiesContext]] = {}
 # Cache for impl destinations list
-_impl_destinations_cache = None
+_impl_destinations_cache: Optional[set[str]] = None
 
 
 def get_impl_destination_names() -> set[str]:
@@ -102,7 +101,7 @@ def _format_capability_row(attr_name: str, value: Any) -> Optional[str]:
         return None
 
     doc_link = _generate_doc_link(attr_name)
-    return f"| {feature_name} | {formatted_value} | {doc_link} |\n"
+    return f"| {feature_name} | {formatted_value} | {doc_link} |"
 
 
 def generate_capabilities_table(destination_name: str) -> List[str]:
@@ -112,7 +111,7 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
     if caps is None:
         return []
 
-    table_lines = [CAPABILITIES_TABLE_HEADER, "|---------|-------|------|\n"]
+    table_lines = [CAPABILITIES_TABLE_HEADER.rstrip("\n"), "|---------|-------|------|"]
 
     attrs = {k: v for k, v in vars(caps).items() if _is_relevant_capability(k, v)}
 
@@ -121,10 +120,12 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
         if row:
             table_lines.append(row)
 
+    table_lines.append("")
     table_lines.append(
-        f"\n*This table shows the supported features of the {destination_name.title()} destination"
-        " in dlt.*\n\n"
+        f"*This table shows the supported features of the {destination_name.title()} destination in"
+        " dlt.*"
     )
+    table_lines.append("")
 
     return table_lines
 
@@ -155,9 +156,7 @@ def insert_destination_capabilities(lines: List[str]) -> Tuple[int, List[str]]:
 
         destination_name = match.group(1)
         table_lines = generate_capabilities_table(destination_name)
-
-        # Convert list of lines (with \n) to list without \n for consistency
-        result.extend([line.rstrip("\n") for line in table_lines])
+        result.extend(table_lines)
         marker_count += 1
 
     return marker_count, result
