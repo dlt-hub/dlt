@@ -611,10 +611,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if initial_hash_count <= Incremental.duplicate_cursor_warning_threshold < final_hash_count:
             logger.warning(
                 f"Large number of records ({final_hash_count}) sharing the same value of cursor"
-                f" field '{self.cursor_path}' on resource {self.resource_name}. This can happen if"
-                " the cursor field has a low resolution (e.g., only stores dates without times),"
-                " causing many records to share the same cursor value. Consider using a cursor"
-                " column with higher resolution to reduce the deduplication state size."
+                f" field '{self.cursor_path}' on resource '{self.resource_name}'. This can happen"
+                " if the cursor field has a low resolution (e.g., only stores dates without"
+                " times), causing many records to share the same cursor value. Consider using a"
+                " cursor column with higher resolution to reduce the deduplication state size."
             )
 
 
