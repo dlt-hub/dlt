@@ -4,7 +4,7 @@ Destination capabilities processing for documentation.
 
 import os
 import re
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, cast
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.reference import Destination
@@ -78,7 +78,7 @@ def _generate_doc_link(attr_name: str) -> str:
         if attr_name.endswith(pattern):
             section_name = link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").title()
             return f"[{section_name}]({link})"
-    return CAPABILITIES_DATA_TYPES_DOC_LINK
+    return cast(str, CAPABILITIES_DATA_TYPES_DOC_LINK)
 
 
 def _is_relevant_capability(attr_name: str, value: Any) -> bool:
