@@ -5,7 +5,7 @@
 /build
 
 # preprocessed docs
-docs_processed
+/docs_processed
 
 # Generated files
 .docusaurus

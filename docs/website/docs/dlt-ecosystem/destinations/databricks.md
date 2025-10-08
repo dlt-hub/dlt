@@ -16,7 +16,9 @@ There are two options to run dlt pipelines and load data:
 * Run dlt pipelines in any environment by providing credentials for both Databricks and your cloud storage.
 * Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
 
-Databricks supports both **Delta** (default) and **Apache Iceberg** table formats. See the [table_format](#apache-iceberg-tables) section for details on using Iceberg tables.
+:::note
+If you'd like to load data to Databricks Managed Iceberg tables, use [dltHub Iceberg destination](https://info.dlthub.com/waiting-list)
+:::
 
 ## Destination capabilities
 
@@ -526,18 +528,11 @@ The adapter updates the DltResource with metadata about the destination column a
 
 ### Supported hints
 
-**Table-level hints:**
-- `cluster`: Column name(s) to cluster the table by, or `"AUTO"` for automatic clustering
-- `partition`: Column name(s) to partition the table by (Note: Cannot be used together with `cluster`)
-- `table_format`: Table format - `"DELTA"` (default) or `"ICEBERG"` for Apache Iceberg tables
-- `table_comment`: Adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax)
-- `table_tags`: Adds tags to the table. Supports a list of strings and/or key-value pairs
-- `table_properties`: Dictionary of table properties for Delta Lake optimization (TBLPROPERTIES)
-
-**Column-level hints:**
-- `column_hints`: Dictionary of column-specific hints
-  - `column_comment`: Adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax)
-  - `column_tags`: Adds tags to the column. Supports a list of strings and/or key-value pairs
+- `table_comment`: adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
+- `table_tags`: adds tags to the table. Supports a list of strings and/or key-value pairs.
+- `column_hints`
+  - `column_comment`: adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
+  - `column_tags`: adds tags to the column. Supports a list of strings and/or key-value pairs.
 
 ### Use an adapter to apply hints to a resource
 
@@ -575,159 +570,6 @@ databricks_adapter(
             "column_tags": ["pii", {"cost_center": "12345"}]
         },
     },
-)
-```
-
-### Advanced examples
-
-#### Clustering and partitioning
-
-```py
-import dlt
-from dlt.destinations.adapters import databricks_adapter
-
-@dlt.resource
-def sales_data():
-    yield from [
-        {"sale_date": "2024-01-01", "region": "US", "product_id": 1, "amount": 100.50},
-        {"sale_date": "2024-01-02", "region": "EU", "product_id": 2, "amount": 200.75},
-        # More data...
-    ]
-
-# Use AUTO clustering for automatic optimization
-databricks_adapter(
-    sales_data,
-    cluster="AUTO",  # Let Databricks automatically choose optimal clustering
-    table_comment="Sales data with automatic clustering"
-)
-
-# Or specify manual clustering and partitioning
-@dlt.resource
-def partitioned_sales():
-    yield from sales_data()
-
-databricks_adapter(
-    partitioned_sales,
-    partition=["year", "month"],  # Partition by year and month columns
-    # Note: Cannot use cluster with partition in Databricks
-    table_comment="Partitioned sales data"
-)
-```
-
-#### Table properties for Delta Lake optimization
-
-```py
-import dlt
-from dlt.destinations.adapters import databricks_adapter
-
-@dlt.resource
-def high_volume_events():
-    yield from generate_events()  # Your event generator
-
-databricks_adapter(
-    high_volume_events,
-    table_properties={
-        # Delta Lake optimization properties
-        "delta.appendOnly": True,  # Table is append-only
-        "delta.logRetentionDuration": "30 days",  # Keep logs for 30 days
-        "delta.dataSkippingStatsColumns": "event_date,user_id,event_type",  # Columns for data skipping
-        "delta.autoOptimize.optimizeWrite": True,  # Enable optimize write
-        "delta.autoOptimize.autoCompact": True,  # Enable auto compaction
-
-        # Custom properties for metadata
-        "custom.team": "data-engineering",
-        "custom.sla": "tier-1",
-        "custom.refresh_frequency": "hourly"
-    },
-    cluster="event_date",
-    table_comment="High-volume event stream with Delta optimizations"
-)
-```
-
-#### Apache Iceberg tables
-
-Databricks supports Apache Iceberg table format, which provides benefits like better schema evolution and time travel capabilities.
-
-**Important notes:**
-- ICEBERG tables support the same data types as Delta tables
-- Delta Lake-specific table properties (e.g., `delta.dataSkippingStatsColumns`, `delta.appendOnly`) cannot be used with ICEBERG tables - validation occurs at load time to prevent incompatible configurations
-
-```py
-import dlt
-from dlt.destinations.adapters import databricks_adapter
-
-@dlt.resource
-def customer_data():
-    yield from load_customers()  # Your customer data source
-
-# Create an Iceberg table for better schema evolution
-databricks_adapter(
-    customer_data,
-    table_format="ICEBERG",  # Use Apache Iceberg format
-    table_properties={
-        # Iceberg-specific properties (note: Delta properties are not supported)
-        "write.format.default": "parquet",
-        "write.parquet.compression-codec": "snappy"
-    },
-    table_comment="Customer data in Iceberg format for schema evolution"
-)
-```
-
-#### Complete example with all features
-
-```py
-import dlt
-from dlt.destinations.adapters import databricks_adapter
-
-@dlt.resource(
-    columns=[
-        {"name": "transaction_date", "data_type": "date"},
-        {"name": "customer_id", "data_type": "bigint"},
-        {"name": "amount", "data_type": "decimal"},
-        {"name": "region", "data_type": "text"},
-        {"name": "year", "data_type": "bigint"},
-        {"name": "month", "data_type": "bigint"}
-    ]
-)
-def transactions():
-    yield from load_transactions()
-
-# Apply comprehensive Databricks optimizations
-databricks_adapter(
-    transactions,
-
-    # Partitioning for efficient data organization
-    partition=["year", "month"],
-
-    # Note: Cannot use both partition and cluster together in Databricks
-    # cluster=["region", "customer_id"],  # Would need separate table without partitioning
-
-    # Table format (DELTA is default)
-    table_format="DELTA",
-
-    # Table properties for performance tuning
-    table_properties={
-        "delta.appendOnly": False,
-        "delta.dataSkippingStatsColumns": "transaction_date,amount,customer_id",
-        "delta.autoOptimize.optimizeWrite": True,
-        "delta.targetFileSize": "128mb",
-        "custom.owner": "finance-team"
-    },
-
-    # Table documentation
-    table_comment="Financial transactions with optimized storage",
-    table_tags=["financial", {"compliance": "sox"}],
-
-    # Column documentation
-    column_hints={
-        "customer_id": {
-            "column_comment": "Unique customer identifier",
-            "column_tags": ["pii"]
-        },
-        "amount": {
-            "column_comment": "Transaction amount in USD"
-        }
-    }
 )
 ```
 
