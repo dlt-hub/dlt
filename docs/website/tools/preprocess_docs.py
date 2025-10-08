@@ -35,10 +35,6 @@ from constants import (
     ABS_LINK,
     ABS_IMG_LINK,
 )
-from preprocess_tuba import insert_tuba_links, fetch_tuba_config
-from preprocess_snippets import insert_snippets
-from preprocess_examples import sync_examples, build_example_doc
-from preprocess_destination_capabilities import insert_destination_capabilities
 from utils import walk_sync, remove_remaining_markers
 
 
@@ -84,6 +80,11 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     except FileNotFoundError:
         return 0, 0, 0, False
 
+    # Lazy imports - only import when actually processing
+    from preprocess_snippets import insert_snippets
+    from preprocess_tuba import insert_tuba_links, fetch_tuba_config
+    from preprocess_destination_capabilities import insert_destination_capabilities
+    
     snippet_count, lines = insert_snippets(file_name, lines)
     tuba_count, lines = insert_tuba_links(fetch_tuba_config(), lines)
     capabilities_count, lines = insert_destination_capabilities(lines)
@@ -162,6 +163,9 @@ def check_docs():
 
 def process_example_change(file_path: str):
     """Process an example file change."""
+    # Lazy import
+    from preprocess_examples import build_example_doc
+    
     example_name = os.path.splitext(os.path.basename(file_path))[0]
     if build_example_doc(example_name):
         target_file_name = f"{EXAMPLES_DESTINATION_DIR}/{example_name}.md"
@@ -186,7 +190,7 @@ async def handle_change_impl(file_path: str):
 
 
 @debounce(
-    wait=DEBOUNCE_INTERVAL_MS, options=DebounceOptions(trailing=True, leading=False, time_window=3)
+    wait=DEBOUNCE_INTERVAL_MS, options=DebounceOptions(trailing=True, leading=False, time_window=DEBOUNCE_INTERVAL_MS)
 )
 async def handle_change(file_path: str):
     """Handle a file change event (debounced wrapper)."""
@@ -199,6 +203,9 @@ def process_docs():
     if os.path.exists(MD_TARGET_DIR):
         shutil.rmtree(MD_TARGET_DIR)
 
+    # Lazy import
+    from preprocess_examples import sync_examples
+    
     sync_examples()
     preprocess_docs()
     check_docs()
