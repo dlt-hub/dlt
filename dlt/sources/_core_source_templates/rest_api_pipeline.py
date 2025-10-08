@@ -131,7 +131,8 @@ def load_pokemon() -> None:
                 "berry",
                 "location",
             ],
-        }
+        },
+        name="pokemon",
     )
 
     def check_network_and_authentication() -> None:

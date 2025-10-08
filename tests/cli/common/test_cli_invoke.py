@@ -18,6 +18,14 @@ from tests.utils import TEST_STORAGE_ROOT
 BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 
 
+@pytest.fixture(autouse=True)
+def disable_debug() -> None:
+    # reset debug flag so other tests may pass
+    from dlt.cli import debug
+
+    debug.disable_debug()
+
+
 def test_invoke_basic(script_runner: ScriptRunner) -> None:
     result = script_runner.run(["dlt", "--version"])
     assert result.returncode == 0
@@ -41,7 +49,9 @@ def test_invoke_basic(script_runner: ScriptRunner) -> None:
 def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
     result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
     # directory does not exist (we point to TEST_STORAGE)
-    assert result.returncode == -1
+    assert result.returncode == 0
+    assert "No pipelines found in" in result.stdout
+    assert TEST_STORAGE_ROOT in result.stdout
 
     # create empty
     os.makedirs(get_dlt_pipelines_dir())
@@ -81,19 +91,13 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
         ["dlt", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
     )
     assert result.returncode == -1
-    try:
-        # use debug flag to raise an exception
-        result = script_runner.run(
-            ["dlt", "--debug", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
-        )
-        # exception terminates command
-        assert result.returncode == 1
-        assert "LoadPackageNotFound" in result.stderr
-    finally:
-        # reset debug flag so other tests may pass
-        from dlt.cli import debug
-
-        debug.disable_debug()
+    # use debug flag to raise an exception
+    result = script_runner.run(
+        ["dlt", "--debug", "pipeline", "dummy_pipeline", "load-package", "NON EXISTENT"]
+    )
+    # exception terminates command
+    assert result.returncode == 1
+    assert "LoadPackageNotFound" in result.stderr
 
 
 def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:

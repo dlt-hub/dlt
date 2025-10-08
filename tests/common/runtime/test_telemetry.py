@@ -28,7 +28,7 @@ from tests.utils import (
     disable_temporary_telemetry,
     init_test_logging,
     start_test_telemetry,
-    wipe_pipeline,
+    deactivate_pipeline,
 )
 
 

@@ -1,10 +1,9 @@
 from typing import Type
-
 import argparse
-import dlt.cli.echo as fmt
-
 
 from dlt.common.configuration import plugins
+
+import dlt.cli.echo as fmt
 from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
@@ -26,6 +25,7 @@ from dlt.cli.command_wrappers import (
     DLT_TELEMETRY_DOCS_URL,
     DLT_DEPLOY_DOCS_URL,
 )
+from dlt._workspace.cli.utils import add_mcp_arg_parser
 
 from dlt.cli.deploy_command import (
     DeploymentMethods,
@@ -41,11 +41,6 @@ try:
     deploy_command_available = True
 except ImportError:
     deploy_command_available = False
-
-
-@plugins.hookspec()
-def plug_cli() -> SupportsCliCommand:
-    """Spec for plugin hook that returns current run context."""
 
 
 class InitCommand(SupportsCliCommand):
@@ -426,6 +421,15 @@ list of all tables and columns created at the destination during the loading of 
             help="Load id of completed or normalized package. Defaults to the most recent package.",
         )
 
+        DEFAULT_PIPELINE_MCP_PORT = 43656
+        add_mcp_arg_parser(
+            pipeline_subparsers,
+            "This MCP facilitates schema and data exploration for the dataset created with this"
+            " pipeline",
+            "Launch MCP server attached to this pipeline in SSE transport mode",
+            DEFAULT_PIPELINE_MCP_PORT,
+        )
+
     def execute(self, args: argparse.Namespace) -> None:
         if args.list_pipelines:
             pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
@@ -506,7 +510,7 @@ class TelemetryCommand(SupportsCliCommand):
     help_string = "Shows telemetry status"
     docs_url = DLT_TELEMETRY_DOCS_URL
     description = """
-The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
+The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
     """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:

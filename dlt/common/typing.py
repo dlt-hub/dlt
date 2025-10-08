@@ -489,6 +489,19 @@ def copy_sig(
     return decorator
 
 
+def copy_sig_ret(
+    wrapper: Callable[TInputArgs, Any],
+    ret: Type[TReturnVal],
+) -> Callable[[Callable[TInputArgs, Any]], Callable[TInputArgs, TReturnVal]]:
+    """Copies docstring and signature from wrapper to func and replaces return type with `ret`"""
+
+    def decorator(func: Callable[TInputArgs, Any]) -> Callable[TInputArgs, TReturnVal]:
+        func.__doc__ = wrapper.__doc__
+        return func
+
+    return decorator
+
+
 def copy_sig_any(
     wrapper: Callable[Concatenate[TDataItem, TInputArgs], Any],
 ) -> Callable[

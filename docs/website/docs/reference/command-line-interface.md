@@ -69,7 +69,7 @@ dlt telemetry [-h]
 
 **Description**
 
-The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
+The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 
@@ -119,7 +119,7 @@ Operations on pipelines that were ran locally.
 ```sh
 dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR] [--verbose]
     [pipeline_name]
-    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
+    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package,mcp}
     ...
 ```
 
@@ -152,6 +152,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`schema`](#dlt-pipeline-schema) - Displays default schema
 * [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
 * [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
+* [`mcp`](#dlt-pipeline-mcp) - Launch mcp server attached to this pipeline in sse transport mode
 
 </details>
 
@@ -487,6 +488,32 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline mcp`
+
+Launch MCP server attached to this pipeline in SSE transport mode.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--port PORT]
+```
+
+**Description**
+
+This MCP facilitates schema and data exploration for the dataset created with this pipeline.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--stdio` - Use stdio transport mode
+* `--port PORT` - Sse port to use (default: 43656)
 
 </details>
 
