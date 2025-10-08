@@ -68,8 +68,14 @@ More in Motherduck [documentation](https://motherduck.com/docs/key-tasks/authent
 python3 chess_pipeline.py
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Motherduck destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
+
 ### DuckLake setup
-DuckLake can be used to manage and persist your MotherDuck databases on external object storage like S3. This is especially useful if you want more control over where your data is stored or if you’re integrating with your own cloud infrastructure. 
+DuckLake can be used to manage and persist your MotherDuck databases on external object storage like S3. This is especially useful if you want more control over where your data is stored or if you’re integrating with your own cloud infrastructure.
 The steps below show how to set up a DuckLake-managed database backed by S3.
 
 **1. Create the S3-Backed DuckLake Database**
