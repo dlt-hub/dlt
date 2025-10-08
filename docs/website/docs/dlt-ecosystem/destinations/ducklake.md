@@ -34,7 +34,7 @@ dlt init foo ducklake
 `dlt init` will create a sample `secrets.toml` for **postgres** catalog and **s3** bucket storage. For local automatic setup comment out catalog and storage entries:
 ```toml
 [destination.ducklake.credentials]
-ducklake_name="ducklake"  # we recommend explicit catalog name
+catalog_name="lake_catalog"  # we recommend explicit catalog name
 ```
 
 - Run a test pipeline that writes to a local DuckLake:
@@ -110,7 +110,7 @@ Make sure that you have Motherduck token in your environment. Hopefully situatio
 Example s3 configuration:
 ```toml
 [destination.ducklake.credentials]
-ducklake_name="lakehouse"
+catalog_name="lake_catalog"
 catalog="postgres://loader:pass@localhost:5432/dlt_data"
 
 [destination.ducklake.credentials.storage]
@@ -151,7 +151,7 @@ credentials = DuckLakeCredentials(
     catalog="postgresql://loader:pass@localhost:5432/dlt_data",
     storage="s3://dlt-ci-test-bucket/lake",
 )
-destination = dlt.destinations.ducklake(credentials=credentials)
+ducklake = dlt.destinations.ducklake(credentials=credentials)
 ```
 
 ```py
