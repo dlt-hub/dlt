@@ -71,12 +71,6 @@ aws_secret_access_key="please set me up!" # same as credentials for filesystem
 region_name="please set me up!" # set your AWS region, for example "eu-central-1" for Frankfurt
 ```
 
-## Destination capabilities
-
-The following table shows the capabilities of the Athena destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES athena-->
-
 If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** and **[destination.athena.credentials]** sections above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
