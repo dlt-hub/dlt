@@ -816,14 +816,14 @@ def test_source_reference() -> None:
     assert ref_ex.value.qualified_refs == [
         "$ref",
         "dlt.sources.$ref.$ref",
-        "tests.extract.cases.sources.$ref.$ref",
         "dlt.sources.$ref.$ref",
+        "tests.extract.cases.sources.$ref.$ref",
     ]
     # tried to auto import the following refs
     assert [t.ref for t in ref_ex.value.traces] == [
         "dlt.sources.$ref.$ref",
-        "tests.extract.cases.sources.$ref.$ref",
         "dlt.sources.$ref.$ref",
+        "tests.extract.cases.sources.$ref.$ref",
     ]
     with pytest.raises(UnknownSourceReference):
         SourceReference.find("$ref")

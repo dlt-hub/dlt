@@ -10,7 +10,7 @@ requires-python = ">=3.9.1"
 dev = []
 
 [project.entry-points."dlt"]
-dlt-example-plugin = "dlt_example_plugin.plugin"
+dlt-example-plugin = "dlt_example_plugin.__plugins__"
 
 [tool.uv]
 # No additional uv-specific configuration needed
