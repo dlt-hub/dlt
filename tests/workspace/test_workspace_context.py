@@ -75,6 +75,8 @@ def test_dev_env_overwrite() -> None:
 
 
 def test_workspace_pipeline() -> None:
+    pytest.importorskip("duckdb", minversion="1.3.2")
+
     run_dir = os.path.join(WORKSPACE_CASES_DIR, "pipelines")
     with isolated_workspace(run_dir, "pipelines", profile="tests") as ctx:
         # `ducklake_pipeline` configured in config.toml
