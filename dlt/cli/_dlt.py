@@ -17,6 +17,7 @@ from dlt.cli.command_wrappers import (
 from dlt.cli import debug
 from dlt.cli.echo import maybe_no_stdin
 
+from dlt._workspace.cli.utils import display_run_context_info
 
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
@@ -192,6 +193,7 @@ def main() -> int:
         try:
             # switch to non-interactive if tty not connected
             with maybe_no_stdin():
+                display_run_context_info()
                 cmd.execute(args)
         except Exception as ex:
             docs_url = cmd.docs_url if hasattr(cmd, "docs_url") else DEFAULT_DOCS_URL
