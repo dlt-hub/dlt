@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import os
 import tempfile
 import warnings
@@ -204,7 +204,11 @@ def get_plugin_modules() -> List[str]:
     ctx_module = active().module
     run_module_name = ctx_module.__name__ if ctx_module else ""
 
-    return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules]
+    plugin_modules = Container()[PluginContext].plugin_modules.copy()
+    with suppress(ValueError):
+        plugin_modules.remove(run_module_name)
+    plugin_modules.insert(0, run_module_name)
+    return plugin_modules
 
 
 def context_uri(name: str, run_dir: str, runtime_kwargs: Optional[Dict[str, Any]]) -> str:
