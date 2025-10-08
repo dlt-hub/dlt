@@ -8,7 +8,10 @@ from dlt.common.configuration.specs.connection_string_credentials import Connect
 from dlt.common.destination import Destination, DestinationReference
 from dlt.common.destination.client import DestinationClientDwhConfiguration, WithStagingDataset
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.exceptions import UnknownDestinationModule
+from dlt.common.destination.exceptions import (
+    UnknownDestinationModule,
+    DestinationTypeResolutionException,
+)
 from dlt.common.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
@@ -316,39 +319,66 @@ def test_import_destination_config() -> None:
 def test_import_destination_type_config(
     environment: Dict[str, str],
     destination_type: str,
-    destination_name: str = "my_destination",
 ) -> None:
-    environment[f"DESTINATION__{destination_name.upper()}__DESTINATION_TYPE"] = destination_type
-    msg_from_fallback = "configure a valid dlt destination type"
+    """Test destination resolution behavior with both valid and invalid destination types.
+
+    This test covers the resolution strategy where dlt first tries to resolve
+    a destination as a named destination with configured type, and if that fails,
+    falls back to resolving it as a direct destination type reference.
+    """
+    environment["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = destination_type
+
     if destination_type == "wrong_type":
-        with pytest.raises(UnknownDestinationModule) as py_exc:
-            Destination.from_reference(ref=destination_name)
-        test = py_exc.value
-        assert msg_from_fallback in str(py_exc.value)
-
-        # if destination_name is provided, ref should be a valid destination type
-        with pytest.raises(UnknownDestinationModule) as py_exc:
-            Destination.from_reference(
-                ref=f"dlt.destinations.{destination_type}", destination_name=destination_name
-            )
-        assert msg_from_fallback not in str(py_exc.value)
-
-        # if ref contains dots, it's a module path and should be valid
-        # names with dots will not resolve correctly from configs anyway
-        with pytest.raises(UnknownDestinationModule):
+        # Case 1: Fully qualified ref with dots
+        # Skips named destination resolution and only attempts direct type resolution
+        with pytest.raises(UnknownDestinationModule) as module_ex:
             Destination.from_reference(ref=f"dlt.destinations.{destination_type}")
-        assert msg_from_fallback not in str(py_exc.value)
+        assert "`dlt.destinations.wrong_type` is not registered." in str(module_ex.value)
+
+        # Case 2: Explicit destination_name provided
+        # Same as Case 1
+        with pytest.raises(UnknownDestinationModule) as module_ex:
+            Destination.from_reference(ref=destination_type, destination_name="my_destination")
+        assert "`wrong_type` is not one of the standard dlt destinations." in str(module_ex.value)
+
+        # Case 3: Named destination with invalid configured type
+        # First tries named destination "my_destination" with configured type "wrong_type"
+        # Then tries "my_destination" as destination type
+        with pytest.raises(DestinationTypeResolutionException) as resolution_exc:
+            Destination.from_reference(ref="my_destination")
+        assert resolution_exc.value.named_dest_error
+        assert "`wrong_type` is not one of the standard dlt destination types." in str(
+            resolution_exc.value
+        )
+        assert "`my_destination` is not one of the standard dlt destinations." in str(
+            resolution_exc.value
+        )
+
+        # Case 4: Named destination with missing type configuration
+        # First tries named destination "my_destination" but no type configured (config error)
+        # Then tries "my_destination" as direct destination type
+        environment.clear()
+        with pytest.raises(DestinationTypeResolutionException) as resolution_exc:
+            Destination.from_reference(ref="my_destination")
+        assert resolution_exc.value.named_dest_error
+        assert (
+            "Missing 1 field(s) in configuration `DestinationTypeConfiguration`: `destination_type`"
+            in str(resolution_exc.value)
+        )
+        assert "`my_destination` is not one of the standard dlt destinations." in str(
+            resolution_exc.value
+        )
 
     else:
-        dest = Destination.from_reference(ref=destination_name)
+        dest = Destination.from_reference(ref="my_destination")
         assert dest.destination_type == "dlt.destinations.duckdb"
-        assert dest.destination_name == destination_name
+        assert dest.destination_name == "my_destination"
 
         dest = Destination.from_reference(
-            ref=f"dlt.destinations.{destination_type}", destination_name=destination_name
+            ref=f"dlt.destinations.{destination_type}", destination_name="my_destination"
         )
         assert dest.destination_type == "dlt.destinations.duckdb"
-        assert dest.destination_name == destination_name
+        assert dest.destination_name == "my_destination"
 
         dest = Destination.from_reference(ref=f"dlt.destinations.{destination_type}")
         assert dest.destination_type == "dlt.destinations.duckdb"

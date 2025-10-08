@@ -1,4 +1,4 @@
-from typing import Any, Iterable, List, Sequence
+from typing import Any, Iterable, List, Sequence, Optional
 
 from dlt.common.exceptions import DltException, TerminalException, TransientException
 from dlt.common.reflection.exceptions import ReferenceImportError
@@ -41,6 +41,31 @@ class UnknownDestinationModule(ReferenceImportError, DestinationException, KeyEr
         if self.traces:
             msg += super().__str__()
         return msg
+
+
+class DestinationTypeResolutionException(DestinationException):
+    def __init__(
+        self,
+        ref: str,
+        type_resolution_error: Exception,
+        named_dest_error: Optional[Exception],
+    ) -> None:
+        self.ref = ref
+        self.named_dest_error = named_dest_error
+        self.type_resolution_error = type_resolution_error
+
+        msg = f"Failed to resolve destination '{ref}'"
+
+        if named_dest_error:
+            msg += (
+                ". First tried to resolve as a named destination with destination type, "
+                f"but failed: {named_dest_error}. "
+                f"Then tried to resolve as destination type, but failed: {type_resolution_error}"
+            )
+        else:
+            msg += f" as destination type: {type_resolution_error}"
+
+        super().__init__(msg)
 
 
 class InvalidDestinationReference(DestinationException):

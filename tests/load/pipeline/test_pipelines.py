@@ -10,7 +10,10 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
 from dlt.common.destination.client import WithStagingDataset
-from dlt.common.destination.exceptions import UnknownDestinationModule
+from dlt.common.destination.exceptions import (
+    UnknownDestinationModule,
+    DestinationTypeResolutionException,
+)
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.common.schema.utils import new_table
@@ -1145,14 +1148,15 @@ def test_pipeline_with_destination_name():
     info = pipeline.run(test_data())
     assert_load_info(info)
 
-    msg_from_fallback = "configure a valid destination type"
-
     # test unconfigured destination name
-    with pytest.raises(UnknownDestinationModule) as py_exc:
+    with pytest.raises(DestinationTypeResolutionException) as py_exc:
         dlt.pipeline(destination="another_custom_name")
-    assert msg_from_fallback in str(py_exc.value)
+    assert py_exc.value.named_dest_error
+    assert (
+        "Missing 1 field(s) in configuration `DestinationTypeConfiguration`: `destination_type`"
+        in str(py_exc.value)
+    )
 
     # if destination contains dots, no fallbacks must happen
-    with pytest.raises(UnknownDestinationModule) as py_exc:
+    with pytest.raises(UnknownDestinationModule):
         dlt.pipeline(destination="dlt.destinations.unknown")
-    assert msg_from_fallback not in str(py_exc.value)

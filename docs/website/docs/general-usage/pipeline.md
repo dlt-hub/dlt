@@ -31,7 +31,7 @@ You instantiate a pipeline by calling the `dlt.pipeline` function with the follo
   events and to restore its state and data schemas on subsequent runs. If not provided, `dlt` will
   create a pipeline name from the file name of the currently executing Python module.
 - `destination`: a name of the [destination](../dlt-ecosystem/destinations) to which dlt
-  will load the data. It may also be provided to the `run` method of the `pipeline`.
+  will load the data. It may also be provided to the `run` method of the `pipeline` and can be declared in [various ways](destination.md). 
 - `dataset_name`: a name of the dataset to which the data will be loaded. A dataset is a logical
   group of tables, i.e., `schema` in relational databases or a folder grouping many files. It may also be
   provided later to the `run` or `load` methods of the pipeline. If not provided, then
@@ -66,31 +66,6 @@ pipeline = dlt.pipeline(destination='bigquery', dataset_name='sql_database_data'
 info = pipeline.run(generate_rows(10))
 
 print(info)
-```
-## Named destination configuration
-You can use a custom destination name in your pipeline and configure the actual destination type through configuration files or environment variables. This approach allows you to switch between different destinations (e.g., from development to production) without changing your pipeline code.
-
-Example:
-```py
-import dlt
-
-pipeline = dlt.pipeline(destination="custom_pipeline", dataset_name="sql_database_data")
-```
-
-Then configure the actual destination type in your `.dlt/secrets.toml`:
-
-```toml
-[destination.custom_pipeline]
-# for development
-destination_type = "duckdb" 
-
-# for production
-# destination_type = "bigquery"
-
-# [destination.custom_pipeline.credentials]
-# project_id = "project_id" # please set me up!
-# private_key = "private_key" # please set me up!
-# client_email = "client_email" # please set me up!
 ```
 
 ## Pipeline working directory

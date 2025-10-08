@@ -22,7 +22,7 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.configuration import resolve_configuration, known_sections
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
-    DestinationException,
+    DestinationTypeResolutionException,
     InvalidDestinationReference,
     UnknownDestinationModule,
 )
@@ -285,27 +285,24 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 )
             except Exception as e:
                 named_dest_error = e
-                logger.debug(
-                    f"Tried to resolve destination '{ref}' as a named destination with destination"
-                    f" type, but got the following error: {e}"
-                    "Will try to resolve destination as destination type."
-                )
 
         # Fallback to shorthand type reference
         try:
             dest_ref = DestinationReference.from_reference(
                 ref, credentials, destination_name, environment, **kwargs
             )
-            logger.info(f"Resolved destination '{ref}' as destination of type '{ref}'.")
             return dest_ref
         except Exception as e:
-            if named_dest_error:
-                logger.error(
-                    "First tried to resolve destination as a named destination with destination"
-                    f" type, but failed: {named_dest_error}Then tried to resolve destination as"
-                    f" destination type, but failed: {e}"
+            if named_dest_error is None:
+                # Only direct type resolution was attempted, raise original error
+                raise e
+            else:
+                # Both resolution methods failed, use comprehensive exception
+                raise DestinationTypeResolutionException(
+                    ref=ref,
+                    type_resolution_error=e,
+                    named_dest_error=named_dest_error,
                 )
-            raise
 
 
 class DestinationReference:
