@@ -9,6 +9,7 @@ keywords: [ lancedb, vector database, destination, dlt ]
 [LanceDB](https://lancedb.com/) is an open-source, high-performance vector database. It allows you to store data objects and perform similarity searches over them.
 This destination helps you load data into LanceDB from [dlt resources](../../general-usage/resource.md).
 
+
 ## Destination capabilities
 
 The following table shows the capabilities of the Lancedb destination:

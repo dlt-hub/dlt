@@ -16,7 +16,7 @@ pip install "dlt[clickhouse]"
 
 ## Destination capabilities
 
-The following table shows the capabilities of the Clickhouse destination:
+The following table shows the capabilities of the ClickHouse destination:
 
 <!--@@@DLT_DESTINATION_CAPABILITIES clickhouse-->
 
