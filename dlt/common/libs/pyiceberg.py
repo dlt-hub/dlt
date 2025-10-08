@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, List, Optional
 
 from fsspec import AbstractFileSystem
+from packaging.version import Version
 
 from dlt import version
 from dlt.common import logger
@@ -22,6 +23,7 @@ from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 
 try:
+    import pyiceberg
     from pyiceberg.table import Table as IcebergTable
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
@@ -32,6 +34,21 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[pyiceberg]"],
         "Install `pyiceberg` so dlt can create Iceberg tables in the `filesystem` destination.",
     )
+
+pyiceberg_semver = Version(pyiceberg.__version__)
+
+if pyiceberg_semver < Version("0.10.0"):
+    import pyiceberg.io.pyarrow as _pio
+
+    _orig_get_kwargs = _pio._get_parquet_writer_kwargs
+
+    def _patched_get_parquet_writer_kwargs(table_properties):  # type: ignore[no-untyped-def]
+        """Return the original kwargs **plus** store_decimal_as_integer=True."""
+        kwargs = _orig_get_kwargs(table_properties)
+        kwargs.setdefault("store_decimal_as_integer", True)
+        return kwargs
+
+    _pio._get_parquet_writer_kwargs = _patched_get_parquet_writer_kwargs
 
 
 def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
