@@ -6,6 +6,7 @@ keywords: [Snowflake, destination, data warehouse]
 
 # Snowflake
 
+
 ## Install `dlt` with Snowflake
 **To install the `dlt` library with Snowflake dependencies, run:**
 ```sh

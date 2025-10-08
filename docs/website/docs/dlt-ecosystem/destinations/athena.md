@@ -8,6 +8,12 @@ keywords: [aws, athena, glue catalog]
 
 The Athena destination stores data as Parquet files in S3 buckets and creates [external tables in AWS Athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with Athena SQL commands, which will scan the entire folder of Parquet files and return the results. This destination works very similarly to other SQL-based destinations, with the exception that the merge write disposition is not supported at this time. The `dlt` metadata will be stored in the same bucket as the Parquet files, but as iceberg tables. Athena also supports writing individual data tables as Iceberg tables, so they may be manipulated later. A common use case would be to strip GDPR data from them.
 
+## Destination capabilities
+
+The following table shows the capabilities of the Athena destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES athena-->
+
 ## Install dlt with Athena
 **To install the dlt library with Athena dependencies:**
 ```sh
@@ -65,6 +71,12 @@ aws_secret_access_key="please set me up!" # same as credentials for filesystem
 region_name="please set me up!" # set your AWS region, for example "eu-central-1" for Frankfurt
 ```
 
+## Destination capabilities
+
+The following table shows the capabilities of the Athena destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES athena-->
+
 If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** and **[destination.athena.credentials]** sections above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
@@ -73,11 +85,6 @@ profile_name="dlt-ci-user"
 [destination.athena.credentials]
 profile_name="dlt-ci-user"
 ```
-## Destination capabilities
-
-The following table shows the capabilities of the Athena destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES athena-->
 
 ## Additional destination configuration
 

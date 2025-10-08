@@ -21,6 +21,13 @@ workers=3
 or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../reference/performance.md)
 :::
 
+
+## Destination capabilities
+
+The following table shows the capabilities of the Motherduck destination:
+
+<!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
+
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to MotherDuck by running**
@@ -67,12 +74,6 @@ More in Motherduck [documentation](https://motherduck.com/docs/key-tasks/authent
 ```sh
 python3 chess_pipeline.py
 ```
-
-## Destination capabilities
-
-The following table shows the capabilities of the Motherduck destination:
-
-<!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
 
 ### DuckLake setup
 DuckLake can be used to manage and persist your MotherDuck databases on external object storage like S3. This is especially useful if you want more control over where your data is stored or if you’re integrating with your own cloud infrastructure.

@@ -21,7 +21,7 @@ pip install dlt
 
 ## Destination capabilities
 
-The following table shows the capabilities of the Custom destination:
+The following table shows the capabilities of the Destination destination:
 
 <!--@@@DLT_DESTINATION_CAPABILITIES destination-->
 
