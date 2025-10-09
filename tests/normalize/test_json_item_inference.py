@@ -638,7 +638,9 @@ def test_coerce_null_value_in_nested_table(
         )
         return schema_update
 
-    # use very long column names
+    # Create column names that exceed max identifier length
+    # to ensure that shortened names of nested tables are internally still correctly
+    # tracked back to column names in the respective parent tables
     col_name_a = "a" * (item_normalizer.naming.max_length + 1)
     norm_col_name_a = item_normalizer.naming.normalize_path(col_name_a)
     nested_tbl_name = item_normalizer.naming.shorten_fragments("nested", f"{norm_col_name_a}")
@@ -691,45 +693,6 @@ def test_coerce_null_value_in_nested_table(
         ]
     )
     assert not schema_update
-
-
-# def test_coerce_new_null_value(item_normalizer: JsonLItemsNormalizer) -> None:
-#     row = {"timestamp": None}
-#     new_row, new_table = item_normalizer._coerce_row("event_user", None, row)
-#     # No new rows, but new column in schema
-#     assert "timestamp" not in new_row
-#     assert "data_type" not in new_table["columns"]["timestamp"]
-#     assert new_table["columns"]["timestamp"]["nullable"] is True
-#     assert new_table["columns"]["timestamp"]["x-normalizer"]["seen-null-first"] is True
-
-
-# def test_coerce_new_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) -> None:
-#     row = {"_dlt_id": None}
-#     with pytest.raises(CannotCoerceNullException) as exc_info:
-#         item_normalizer._coerce_row("event_user", None, row)
-#     # Make sure it was raised by _infer_column
-#     assert exc_info.traceback[-1].name == "_infer_column"
-
-
-# def test_coerce_null_value_over_existing(item_normalizer: JsonLItemsNormalizer) -> None:
-#     row = {"timestamp": 82178.1298812}
-#     new_row, new_table = item_normalizer._coerce_row("event_user", None, row)
-#     item_normalizer.schema.update_table(new_table)
-#     row = {"timestamp": None}
-#     new_row, _ = item_normalizer._coerce_row("event_user", None, row)
-#     assert "timestamp" not in new_row
-
-
-# def test_coerce_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) -> None:
-#     row = {"timestamp": 82178.1298812}
-#     _, new_table = item_normalizer._coerce_row("event_user", None, row)
-#     item_normalizer.schema.update_table(new_table)
-#     item_normalizer.schema.get_table_columns("event_user", include_incomplete=True)["timestamp"][
-#         "nullable"
-#     ] = False
-#     row = {"timestamp": None}
-#     with pytest.raises(CannotCoerceNullException):
-#         item_normalizer._coerce_row("event_user", None, row)
 
 
 def test_infer_with_autodetection(item_normalizer: JsonLItemsNormalizer) -> None:

@@ -250,6 +250,9 @@ def test_import_schema_preserves_max_nesting(table_nesting: int) -> None:
 
 
 def test_empty_column_later_becoming_child_table_removed() -> None:
+    """
+    Test that columns with `seen-null-first` hints are properly removed when they become nested tables.
+    """
     name = "schema_test" + uniq_id()
     p = dlt.pipeline(
         pipeline_name=name,
@@ -257,6 +260,9 @@ def test_empty_column_later_becoming_child_table_removed() -> None:
         export_schema_path=EXPORT_SCHEMA_PATH,
     )
 
+    # Create column names that exceed max identifier length
+    # to ensure that shortened names of nested tables are internally still correctly
+    # tracked back to column names in the respective parent tables
     col_name_a = "a" * (p.destination.capabilities().max_identifier_length + 1)
     col_name_b = "b" * (p.destination.capabilities().max_identifier_length + 1)
 
@@ -271,8 +277,10 @@ def test_empty_column_later_becoming_child_table_removed() -> None:
             children_list[0][col_name_b] = None
         yield nested_example_data
 
+    # 1. Column 'b' is null, should get 'seen-null-first' hint
     p.run(nested_data(with_grandchild=False))
 
+    # Calculate expected table and column names
     norm_col_name_a = p.default_schema.naming.shorten_fragments(col_name_a)
     nested_tbl_name = p.default_schema.naming.shorten_fragments("my_table", f"{norm_col_name_a}")
 
@@ -281,6 +289,7 @@ def test_empty_column_later_becoming_child_table_removed() -> None:
         "my_table", f"{norm_col_name_a}", f"{norm_col_name_b}"
     )
 
+    # Column 'b' should exist with 'seen-null-first' hint in the table nested_tbl_name
     export_schema = _get_export_schema(name)
     assert set(export_schema.tables[nested_tbl_name]["columns"].keys()) == {
         "_dlt_list_idx",
@@ -296,8 +305,11 @@ def test_empty_column_later_becoming_child_table_removed() -> None:
         .get("seen-null-first", False)
     )
 
+    # 2. Column 'b' gets complex data, should create new nested table
     p.run(nested_data(with_grandchild=True))
 
+    # Column 'b' should be removed from the parent table nested_tbl_name
+    # because it now has its own nested table nested_nested_tbl_name
     export_schema = _get_export_schema(name)
     assert set(export_schema.tables[nested_tbl_name]["columns"].keys()) == {
         "_dlt_list_idx",
