@@ -17,7 +17,7 @@
         "gen-api-ref": "PYTHONPATH=. uv run pydoc-markdown && uv run python clean_pydoc_sidebar.py",
         "gen-api-ref:cloudflare": "PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py",
         "preprocess-docs": "PYTHONPATH=. uv run python tools/preprocess_docs.py",
-        "preprocess-docs:cloudflare": "PYTHONPATH=. python ./tools/preprocess_docs.py",
+        "preprocess-docs:cloudflare": "PYTHONPATH=. pip install -r requirements.txt && python ./tools/preprocess_docs.py",
         "render-cli-docs": "PYTHONPATH=. uv run dlt render-docs > docs/reference/command-line-interface-generated.md",
         "build:cloudflare": "npm run update-versions && npm run preprocess-docs:cloudflare && npm run gen-api-ref:cloudflare && docusaurus build --out-dir build/docs",
         "serve:cloudflare": "wrangler dev --port 3001 --local",
