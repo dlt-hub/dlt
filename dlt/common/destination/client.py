@@ -143,11 +143,6 @@ class StateInfo:
 
 
 @configspec
-class DestinationTypeConfiguration(BaseConfiguration):
-    destination_type: str = None
-
-
-@configspec
 class DestinationClientConfiguration(BaseConfiguration):
     destination_type: Annotated[str, NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False

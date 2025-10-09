@@ -10,10 +10,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
 from dlt.common.destination.client import WithStagingDataset
-from dlt.common.destination.exceptions import (
-    UnknownDestinationModule,
-    DestinationTypeResolutionException,
-)
+from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.common.schema.utils import new_table
@@ -1149,14 +1146,14 @@ def test_pipeline_with_destination_name():
     assert_load_info(info)
 
     # test unconfigured destination name
-    with pytest.raises(DestinationTypeResolutionException) as py_exc:
+    with pytest.raises(UnknownDestinationModule) as py_exc:
         dlt.pipeline(destination="another_custom_name")
-    assert py_exc.value.named_dest_error
-    assert (
-        "Missing 1 field(s) in configuration `DestinationTypeConfiguration`: `destination_type`"
-        in str(py_exc.value)
-    )
+    assert py_exc.value.named_dest_attempted is True
+    assert not py_exc.value.destination_type
+    assert "no destination type was configured" in str(py_exc.value)
 
     # if destination contains dots, no fallbacks must happen
-    with pytest.raises(UnknownDestinationModule):
+    with pytest.raises(UnknownDestinationModule) as py_exc:
         dlt.pipeline(destination="dlt.destinations.unknown")
+    assert not py_exc.value.named_dest_attempted
+    assert not py_exc.value.destination_type

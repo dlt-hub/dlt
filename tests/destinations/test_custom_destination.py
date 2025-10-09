@@ -11,17 +11,14 @@ from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination import Destination, DestinationReference
-from dlt.common.destination.exceptions import (
-    DestinationTransientException,
-    DestinationTypeResolutionException,
-)
+from dlt.common.destination.exceptions import DestinationTransientException
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
-from dlt.destinations.impl.destination.factory import destination
+from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable, destination
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import table_update_and_row
@@ -293,7 +290,7 @@ def test_instantiation() -> None:
         p.run([1, 2, 3], table_name="items")
 
     # pass invalid string reference will fail on instantiation
-    with pytest.raises(DestinationTypeResolutionException):
+    with pytest.raises(UnknownCustomDestinationCallable):
         p = dlt.pipeline(
             "sink_test",
             destination=Destination.from_reference(

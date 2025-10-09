@@ -1,4 +1,5 @@
-from typing import Any, Iterable, List, Sequence, Optional
+from typing import Any, Iterable, List, Sequence
+import textwrap
 
 from dlt.common.exceptions import DltException, TerminalException, TransientException
 from dlt.common.reflection.exceptions import ReferenceImportError
@@ -15,20 +16,53 @@ class UnknownDestinationModule(ReferenceImportError, DestinationException, KeyEr
         ref: str,
         qualified_refs: Sequence[str],
         traces: Sequence[ImportTrace],
-        from_name: bool = False,
+        destination_type: str = None,
+        named_dest_attempted: bool = False,
     ) -> None:
         self.ref = ref
         self.qualified_refs = qualified_refs
-        self.from_name = from_name
+        self.destination_type = destination_type
+        self.named_dest_attempted = named_dest_attempted
         super().__init__(traces=traces)
 
     def __str__(self) -> str:
+        msg = ""
         if "." in self.ref:
-            msg = f"Destination module `{self.ref}` is not registered."
+            msg += f"Destination module `{self.ref}` is not registered."
         else:
-            msg = (
-                f"Destination{' type' if self.from_name else ''} `{self.ref}` is not one of the"
-                f" standard dlt destination{' types' if self.from_name else 's'}."
+            if self.named_dest_attempted:
+                msg += (
+                    f"Destination '{self.ref}' was first attempted to be resolved as a named"
+                    " destination with a configured type. "
+                )
+                if self.destination_type:
+                    msg += (
+                        f"However, the configured destination type '{self.destination_type}' is not"
+                        " valid. Set a valid destination type. "
+                    )
+                else:
+                    msg += (
+                        "However, no destination type was configured. "
+                        "If your destination is a named destination, "
+                        "set a valid destination type either as an environment variable:\n\n"
+                    )
+                    msg += textwrap.indent(
+                        f"DESTINATION__{self.ref.upper()}__DESTINATION_TYPE=duckdb\n", "  "
+                    )
+                    msg += "\nor in your configuration files:\n\n"
+                    msg += textwrap.indent(
+                        f'[destination.{self.ref}]\ndestination_type="duckdb"\n\n', "  "
+                    )
+
+                msg += (
+                    f"Since no{' valid' if self.destination_type else ''} destination type was"
+                    f" found, dlt also tried to resolve '{self.ref}' as a standard destination."
+                    " However, "
+                )
+
+            msg += (
+                f"{'d' if self.named_dest_attempted else 'D'}estination `{self.ref}` is not one of"
+                " the standard dlt destinations."
             )
 
         if len(self.qualified_refs) == 1 and self.qualified_refs[0] == self.ref:
@@ -41,31 +75,6 @@ class UnknownDestinationModule(ReferenceImportError, DestinationException, KeyEr
         if self.traces:
             msg += super().__str__()
         return msg
-
-
-class DestinationTypeResolutionException(DestinationException):
-    def __init__(
-        self,
-        ref: str,
-        type_resolution_error: Exception,
-        named_dest_error: Optional[Exception],
-    ) -> None:
-        self.ref = ref
-        self.named_dest_error = named_dest_error
-        self.type_resolution_error = type_resolution_error
-
-        msg = f"Failed to resolve destination '{ref}'"
-
-        if named_dest_error:
-            msg += (
-                ". First tried to resolve as a named destination with destination type, "
-                f"but failed: {named_dest_error}. "
-                f"Then tried to resolve as destination type, but failed: {type_resolution_error}"
-            )
-        else:
-            msg += f" as destination type: {type_resolution_error}"
-
-        super().__init__(msg)
 
 
 class InvalidDestinationReference(DestinationException):

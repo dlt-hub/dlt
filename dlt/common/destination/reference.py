@@ -16,21 +16,17 @@ from typing import (
 from typing_extensions import TypeAlias
 import inspect
 
+import dlt
 from dlt.common import logger
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.configuration import resolve_configuration, known_sections
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
-    DestinationTypeResolutionException,
     InvalidDestinationReference,
     UnknownDestinationModule,
 )
-from dlt.common.destination.client import (
-    DestinationClientConfiguration,
-    JobClientBase,
-    DestinationTypeConfiguration,
-)
+from dlt.common.destination.client import DestinationClientConfiguration, JobClientBase
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
@@ -272,37 +268,40 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 )
             return ref
 
-        # If destination_name is not provided and ref does not contain dots
-        # try to resolve named destination with destination type
-        named_dest_error = None
-        if not destination_name and "." not in ref:
+        # If destination name is provided or ref is a module ref
+        # don't attempt to resolve as named destination
+        if destination_name or "." in ref:
+            return DestinationReference.from_reference(
+                ref, credentials, destination_name, environment, **kwargs
+            )
+
+        # First, try to resolve as a named destination with configured type
+        destination_type: str = dlt.config.get(f"destination.{ref}.destination_type")
+        if destination_type:
             try:
                 return DestinationReference.from_name(
-                    credentials=credentials,
+                    destination_type=destination_type,
                     destination_name=ref,
+                    credentials=credentials,
                     environment=environment,
                     **kwargs,
                 )
-            except Exception as e:
-                named_dest_error = e
+            except Exception:
+                pass
 
-        # Fallback to shorthand type reference
+        # Then, try to resolve as a shorthand destination ref
         try:
-            dest_ref = DestinationReference.from_reference(
+            return DestinationReference.from_reference(
                 ref, credentials, destination_name, environment, **kwargs
             )
-            return dest_ref
-        except Exception as e:
-            if named_dest_error is None:
-                # Only direct type resolution was attempted, raise original error
-                raise e
-            else:
-                # Both resolution methods failed, use comprehensive exception
-                raise DestinationTypeResolutionException(
-                    ref=ref,
-                    type_resolution_error=e,
-                    named_dest_error=named_dest_error,
-                )
+        except UnknownDestinationModule as e:
+            raise UnknownDestinationModule(
+                ref=e.ref,
+                qualified_refs=e.qualified_refs,
+                traces=e.traces,
+                destination_type=destination_type,
+                named_dest_attempted=True,
+            ) from e.__cause__
 
 
 class DestinationReference:
@@ -415,31 +414,23 @@ class DestinationReference:
     @classmethod
     def from_name(
         cls,
+        destination_type: str,
         destination_name: str,
         credentials: Optional[Any] = None,
         environment: Optional[str] = None,
         **kwargs: Any,
     ) -> Optional[AnyDestination]:
-        resolved_config = resolve_configuration(
-            DestinationTypeConfiguration(),
-            sections=(known_sections.DESTINATION, destination_name),
+        """Instantiate destination from a destination type and name.
+        This method creates a named destination by using the destination type
+        as a factory and instantiating it with the provided destination name.
+        """
+        return DestinationReference.from_reference(
+            ref=destination_type,
+            credentials=credentials,
+            destination_name=destination_name,
+            environment=environment,
+            **kwargs,
         )
-        destination_type = resolved_config.destination_type
-        try:
-            return DestinationReference.from_reference(
-                ref=destination_type,
-                credentials=credentials,
-                destination_name=destination_name,
-                environment=environment,
-                **kwargs,
-            )
-        except UnknownDestinationModule as e:
-            raise UnknownDestinationModule(
-                ref=e.ref,
-                qualified_refs=e.qualified_refs,
-                traces=e.traces,
-                from_name=True,
-            )
 
     @staticmethod
     def normalize_type(destination_type: str) -> str:
