@@ -22,7 +22,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from debouncer import DebounceOptions, debounce
 
-from constants import (
+from tools.constants import (
     MD_SOURCE_DIR,
     MD_TARGET_DIR,
     MOVE_FILES_EXTENSION,
@@ -35,7 +35,7 @@ from constants import (
     ABS_LINK,
     ABS_IMG_LINK,
 )
-from utils import walk_sync, remove_remaining_markers
+from tools.utils import walk_sync, remove_remaining_markers
 
 
 class SimpleEventHandler(FileSystemEventHandler):
@@ -81,9 +81,9 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
         return 0, 0, 0, False
 
     # Lazy imports - only import when actually processing
-    from .preprocess_snippets import insert_snippets
-    from .preprocess_tuba import insert_tuba_links, fetch_tuba_config
-    from .preprocess_destination_capabilities import insert_destination_capabilities
+    from tools.preprocess_snippets import insert_snippets
+    from tools.preprocess_tuba import insert_tuba_links, fetch_tuba_config
+    from tools.preprocess_destination_capabilities import insert_destination_capabilities
 
     snippet_count, lines = insert_snippets(file_name, lines)
     tuba_count, lines = insert_tuba_links(fetch_tuba_config(), lines)
@@ -164,7 +164,7 @@ def check_docs():
 def process_example_change(file_path: str):
     """Process an example file change."""
     # Lazy import
-    from .preprocess_examples import build_example_doc
+    from preprocess_examples import build_example_doc
 
     example_name = os.path.splitext(os.path.basename(file_path))[0]
     if build_example_doc(example_name):
@@ -207,7 +207,7 @@ def process_docs():
         shutil.rmtree(MD_TARGET_DIR)
 
     # Lazy import
-    from .preprocess_examples import sync_examples
+    from tools.preprocess_examples import sync_examples
 
     sync_examples()
     preprocess_docs()
