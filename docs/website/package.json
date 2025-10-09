@@ -4,7 +4,7 @@
     "private": true,
     "scripts": {
         "preprocess-docs": "PYTHONPATH=. uv run python tools/preprocess_docs.py",
-        "preprocess-docs:cloudflare": "PYTHONPATH=. uv run python tools/preprocess_docs.py",
+        "preprocess-docs:cloudflare": "PYTHONPATH=. python tools/preprocess_docs.py",
         "docusaurus": "docusaurus",
         "start": "npm run gen-api-ref && concurrently --kill-others \"PYTHONPATH=. uv run python tools/preprocess_docs.py --watch\" \"sleep 3 && docusaurus start\"",
         "build": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && docusaurus build",
