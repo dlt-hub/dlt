@@ -18,7 +18,7 @@
         "preprocess-docs": "PYTHONPATH=. uv run python tools/preprocess_docs.py",
         "preprocess-docs:cloudflare": "PYTHONPATH=. python tools/preprocess_docs.py",
         "render-cli-docs": "PYTHONPATH=. uv run dlt render-docs > docs/reference/command-line-interface-generated.md",
-        "build:cloudflare": "npm run update-versions && npm run gen-api-ref:cloudflare &&  npm run preprocess-docs:cloudflare && docusaurus build --out-dir build/docs",
+        "build:cloudflare": "npm run update-versions && npm run gen-api-ref:cloudflare &&  npm run preprocess-docs:cloudflare && sleep 3 &&docusaurus build --out-dir build/docs",
         "serve:cloudflare": "wrangler dev --port 3001 --local",
         "preview:cloudflare": "npm run build:cloudflare && npm run serve:cloudflare",
         "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy"
