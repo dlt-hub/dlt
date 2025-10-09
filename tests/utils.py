@@ -40,7 +40,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import DictStrAny, StrAny, TDataItem
+from dlt.common.typing import DictStrAny, PathLike, StrAny, TDataItem
 from dlt.common.utils import custom_environ, set_working_dir, uniq_id
 
 TEST_STORAGE_ROOT = "_storage"
@@ -150,9 +150,9 @@ class PublicCDNHandler(http.server.SimpleHTTPRequestHandler):
         return cls(*args, directory=directory)
 
     def __init__(self, *args, directory: Optional[Path] = None):
-        super().__init__(*args, directory=directory)
+        super().__init__(*args, directory=str(directory) if directory else None)
 
-    def list_directory(self, path: str):
+    def list_directory(self, path: Union[str, PathLike]) -> None:
         self.send_error(HTTPStatus.FORBIDDEN, "Directory listing is forbidden")
         return None
 
