@@ -637,7 +637,9 @@ def test_coerce_null_value_in_nested_table(
         )
         return schema_update
 
-    # use very long column names
+    # Create column names that exceed max identifier length
+    # to ensure that shortened names of nested tables are internally still correctly
+    # tracked back to column names in the respective parent tables
     col_name_a = "a" * (item_normalizer.naming.max_length + 1)
     norm_col_name_a = item_normalizer.naming.normalize_path(col_name_a)
     nested_tbl_name = item_normalizer.naming.shorten_fragments("nested", f"{norm_col_name_a}")

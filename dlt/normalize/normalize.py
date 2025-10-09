@@ -13,7 +13,7 @@ from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
-from dlt.common.schema.utils import merge_schema_updates, has_seen_null_first_hint
+from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages import (
     NormalizeStorage,
     SchemaStorage,
@@ -169,14 +169,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 f"Table {table_name} has seen data for the first time with load id {load_id}"
             )
             x_normalizer["seen-data"] = True
-
-        # Handle column-level x-normalizer
-        # drop seen-null-first flag if data type was set
-        for column in table_schema.get("columns", {}).values():
-            if has_seen_null_first_hint(column) and "data_type" in column:
-                column["x-normalizer"].pop("seen-null-first")
-                if not column["x-normalizer"]:
-                    column.pop("x-normalizer")
 
     def spool_files(
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]

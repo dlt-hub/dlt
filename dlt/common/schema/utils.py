@@ -696,9 +696,21 @@ def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
     return tables
 
 
-def has_seen_null_first_hint(column: TColumnSchema) -> bool:
-    """Checks if column has seen seen-null-first hint set to True in the x-normalizer hints."""
-    return bool(column.get("x-normalizer", {}).get("seen-null-first"))
+def has_seen_null_first_hint(column_schema: TColumnSchema) -> bool:
+    """Checks if `column_schema` has seen seen-null-first hint set to True in the x-normalizer hints."""
+    return bool(column_schema.get("x-normalizer", {}).get("seen-null-first"))
+
+
+def remove_seen_null_first_hint(column_schema: TColumnSchema) -> TColumnSchema:
+    """Removes seen-null-first hint from the x-normalizer hints in `column_schema` in place,
+    if the x-normalizer section becomes empty after removing the hint, it is also removed, returns the modified input
+    """
+    x_normalizer = column_schema.setdefault("x-normalizer", {})
+    if x_normalizer.get("seen-null-first"):
+        x_normalizer.pop("seen-null-first", None)
+    if not x_normalizer:
+        column_schema.pop("x-normalizer", None)
+    return column_schema
 
 
 def get_processing_hints(
