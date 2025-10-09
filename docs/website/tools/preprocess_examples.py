@@ -5,7 +5,7 @@ Example processing for documentation.
 import os
 import sys
 
-from constants import EXAMPLES_DESTINATION_DIR, EXAMPLES_SOURCE_DIR, EXAMPLES_EXCLUSIONS
+from .constants import EXAMPLES_DESTINATION_DIR, EXAMPLES_SOURCE_DIR, EXAMPLES_EXCLUSIONS
 from utils import list_dirs_sync, trim_array
 
 

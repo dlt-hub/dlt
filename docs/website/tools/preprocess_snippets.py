@@ -6,7 +6,12 @@ import os
 from textwrap import dedent
 from typing import List, Tuple, Optional, Dict
 
-from constants import SNIPPETS_FILE_SUFFIX, SNIPPET_MARKER, SNIPPET_START_MARKER, SNIPPET_END_MARKER
+from .constants import (
+    SNIPPETS_FILE_SUFFIX,
+    SNIPPET_MARKER,
+    SNIPPET_START_MARKER,
+    SNIPPET_END_MARKER,
+)
 from utils import extract_marker_content
 
 

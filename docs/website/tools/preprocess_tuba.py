@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from constants import NUM_TUBA_LINKS, TUBA_MARKER
-from utils import extract_marker_content
+from .constants import NUM_TUBA_LINKS, TUBA_MARKER
+from .utils import extract_marker_content
 
 
 # Cache for tuba config to avoid repeated network requests
