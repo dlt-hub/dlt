@@ -3,8 +3,6 @@
     "version": "0.0.0",
     "private": true,
     "scripts": {
-        "preprocess-docs": "PYTHONPATH=. uv run python tools/preprocess_docs.py",
-        "preprocess-docs:cloudflare": "PYTHONPATH=. python tools/preprocess_docs.py",
         "docusaurus": "docusaurus",
         "start": "npm run gen-api-ref && concurrently --kill-others \"PYTHONPATH=. uv run python tools/preprocess_docs.py --watch\" \"sleep 3 && docusaurus start\"",
         "build": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && docusaurus build",
@@ -18,6 +16,8 @@
         "update-versions": "node tools/update_versions.js",
         "gen-api-ref": "PYTHONPATH=. uv run pydoc-markdown && uv run python clean_pydoc_sidebar.py",
         "gen-api-ref:cloudflare": "PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py",
+        "preprocess-docs": "PYTHONPATH=. uv run python tools/preprocess_docs.py",
+        "preprocess-docs:cloudflare": "PYTHONPATH=. python ./tools/preprocess_docs.py",
         "render-cli-docs": "PYTHONPATH=. uv run dlt render-docs > docs/reference/command-line-interface-generated.md",
         "build:cloudflare": "npm run update-versions && npm run preprocess-docs:cloudflare && npm run gen-api-ref:cloudflare && docusaurus build --out-dir build/docs",
         "serve:cloudflare": "wrangler dev --port 3001 --local",
