@@ -30,6 +30,30 @@ def destination_instantiation_snippet() -> None:
 
     assert pipeline.destination.destination_name == "filesystem"
 
+    # @@@DLT_SNIPPET_START custom_destination_name
+    import os
+    import dlt
+
+    os.environ["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = "filesystem"
+
+    pipeline = dlt.pipeline("pipeline", destination="my_destination")
+    # @@@DLT_SNIPPET_END custom_destination_name
+
+    assert pipeline.destination.destination_type == "dlt.destinations.filesystem"
+    assert pipeline.destination.destination_name == "my_destination"
+
+    # @@@DLT_SNIPPET_START avoid_example
+    import os
+    import dlt
+
+    os.environ["DESTINATION__FILESYSTEM__DESTINATION_TYPE"] = "bigquery"
+
+    pipeline = dlt.pipeline("pipeline", destination="filesystem")
+    # @@@DLT_SNIPPET_END avoid_example
+
+    assert pipeline.destination.destination_type == "dlt.destinations.bigquery"
+    assert pipeline.destination.destination_name == "filesystem"
+
     # @@@DLT_SNIPPET_START instance
     import dlt
 

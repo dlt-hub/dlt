@@ -18,6 +18,21 @@ We recommend that you declare the destination type when creating a pipeline inst
 
 Above, we want to use the **filesystem** built-in destination. You can use shorthand types only for built-ins.
 
+* Use a **custom destination name** with a configured type
+<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::custom_destination_name-->
+
+Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable.
+
+:::note
+When resolving non-module destination references (e.g., `"filesystem"` or `"my_destination"`, not `"dlt.destinations.filesystem"`), dlt first attempts to resolve the reference as a named destination with a valid destination type configured, then falls back to shorthand type resolution.
+
+This means that, in the previous example, if the destination type was not properly configured or was not a valid destination type, dlt would have attempted to resolve `"my_destination"` as a shorthand for a built-in type and would have eventually failed.
+
+As another example, the following:
+<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::avoid_example-->
+will be resolved as a BigQuery destination that is named `"filesystem"`!
+:::
+
 * Use full **destination factory type**
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class_type-->
 
@@ -30,31 +45,33 @@ Above, we import the destination factory for **filesystem** and pass it to the p
 
 All examples above will create the same destination class with default parameters and pull required config and secret values from [configuration](credentials/index.md) - they are equivalent.
 
-
-### Pass explicit parameters and a name to a destination
+### Pass explicit parameters and a name to a destination factory
 You can instantiate the **destination factory** yourself to configure it explicitly. When doing this, you work with destinations the same way you work with [sources](source.md)
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::instance-->
 
 Above, we import and instantiate the `filesystem` destination factory. We pass the explicit URL of the bucket and name the destination `production_az_bucket`.
 
-If a destination is not named, its shorthand type (the Python factory name) serves as a destination name. Name your destination explicitly if you need several separate configurations of destinations of the same type (i.e., you wish to maintain credentials for development, staging, and production storage buckets in the same config file). The destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces, so use them also when you need more descriptive names (other than, for example, `filesystem`).
+If a destination is not named, its shorthand type (the Python factory name) serves as the destination name. Name your destination explicitly if you need several separate configurations for destinations of the same type (i.e., when you wish to maintain credentials for development, staging, and production storage buckets in the same config file). The destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces, so use explicit names when you need more descriptive identifiers (rather than generic names like `filesystem`).
 
 
 ## Configure a destination
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
 
-We recommend using the [default config section layout](credentials/advanced#organize-configuration-and-secrets-with-sections) as below:
+Use the [default config section layout](credentials/advanced#organize-configuration-and-secrets-with-sections) as shown below:
 <!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::default_layout-->
 
-or via environment variables:
+Alternatively, you can use environment variables:
 ```sh
 DESTINATION__FILESYSTEM__BUCKET_URL=az://dlt-azure-bucket
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME=dltdata
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="storage key"
 ```
 
-For named destinations, you use their names in the config section
+When using named destination factories, use the destination name in the config section:
 <!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::name_layout-->
+
+For custom destination names passed to your pipeline (e.g., `destination="my_destination"`), dlt resolves the destination type from configuration. Add `destination_type` to specify which destination type to use:
+<!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::custom_name_layout-->
 
 
 Note that when you use the [`dlt init` command](../walkthroughs/add-a-verified-source.md) to create or add a data source, `dlt` creates a sample configuration for the selected destination.
