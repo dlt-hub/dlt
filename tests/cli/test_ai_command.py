@@ -2,9 +2,8 @@ import pytest
 from pathlib import Path
 
 from dlt.common.utils import set_working_dir
-from dlt.cli import ai_command
+from dlt.cli import ai_command, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.ai_command import TSupportedIde
-from dlt.cli.plugins import DEFAULT_VERIFIED_SOURCES_REPO
 from tests.utils import TEST_STORAGE_ROOT
 
 

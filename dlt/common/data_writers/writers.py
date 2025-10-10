@@ -14,6 +14,7 @@ from typing import (
     Type,
     NamedTuple,
     TypeVar,
+    cast,
 )
 
 from dlt.common.json import json
@@ -569,24 +570,21 @@ class ArrowToCsvWriter(DataWriter):
         for item in items:
             if isinstance(item, (pyarrow.Table, pyarrow.RecordBatch)):
                 if not self.writer:
-                    if self.quoting == "quote_needed":
-                        quoting = "needed"
-                    elif self.quoting == "quote_all":
-                        quoting = "all_valid"
-                    elif self.quoting == "quote_none":
-                        quoting = "none"
-                    else:
-                        raise ValueError(self.quoting)
                     try:
                         self.writer = pyarrow.csv.CSVWriter(
                             self._f,
                             item.schema,
                             write_options=pyarrow.csv.WriteOptions(
-                                include_header=self.include_header,
+                                # set include_header to False to handle header separately until
+                                # https://github.com/apache/arrow/issues/47575 is released
+                                # see _make_csv_header() for details
+                                include_header=False,
                                 delimiter=self._delimiter_b,
-                                quoting_style=quoting,
+                                quoting_style=self._get_arrow_quoting_style(),
                             ),
                         )
+                        if self.include_header:
+                            self._f.write(self._make_csv_header())
                         self._first_schema = item.schema
                     except pyarrow.ArrowInvalid as inv_ex:
                         if "Unsupported Type" in str(inv_ex):
@@ -636,16 +634,10 @@ class ArrowToCsvWriter(DataWriter):
             self.items_count += item.num_rows
 
     def write_footer(self) -> None:
+        default_arrow_line_terminator = b"\n"
         if self.writer is None and self.include_header:
-            # write empty file
-            self._f.write(
-                self._delimiter_b.join(
-                    [
-                        b'"' + col["name"].encode("utf-8") + b'"'
-                        for col in self._columns_schema.values()
-                    ]
-                )
-            )
+            # empty file: emit only the header line (no data rows)
+            self._f.write(self._make_csv_header().rstrip(default_arrow_line_terminator))
 
     def close(self) -> None:
         if self.writer:
@@ -664,6 +656,44 @@ class ArrowToCsvWriter(DataWriter):
             requires_destination_capabilities=False,
             supports_compression=True,
         )
+
+    def _get_arrow_quoting_style(self) -> str:
+        if self.quoting == "quote_needed":
+            return "needed"
+        elif self.quoting == "quote_all":
+            return "all_valid"
+        elif self.quoting == "quote_none":
+            return "none"
+        else:
+            raise ValueError(self.quoting)
+
+    def _make_csv_header(self) -> bytes:
+        # In pyarrow 21.0.0, the CSVWriter does not support specifying the header quote style.
+        # This is a workaround to create a header which respects the quote style.
+        # See https://github.com/apache/arrow/issues/47575 for details.
+        # This needs to be removed once https://github.com/apache/arrow/issues/47575 is released.
+        from dlt.common.libs.pyarrow import pyarrow
+        import pyarrow.csv
+
+        names = [col["name"] for col in self._columns_schema.values()]
+        arrays = [pyarrow.array([n]) for n in names]
+        schema = pyarrow.schema([pyarrow.field(n, pyarrow.string()) for n in names])
+        table = pyarrow.Table.from_arrays(arrays, schema=schema)
+
+        # Write into an in-memory Arrow sink so schema doesn't affect the real writer
+        sink = pyarrow.BufferOutputStream()
+        header_writer = pyarrow.csv.CSVWriter(
+            sink,
+            schema,
+            write_options=pyarrow.csv.WriteOptions(
+                include_header=False,
+                delimiter=self._delimiter_b,
+                quoting_style=self._get_arrow_quoting_style(),
+            ),
+        )
+        header_writer.write(table)
+        header_writer.close()
+        return cast(bytes, sink.getvalue().to_pybytes())
 
 
 class ArrowToObjectAdapter:

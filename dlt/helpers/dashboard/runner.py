@@ -20,7 +20,7 @@ def _detect_dashboard_command() -> str:
 # keep this, will raise if user tries to run dashboard without dependencies
 try:
     import marimo
-    import pandas
+    import pyarrow
     import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
