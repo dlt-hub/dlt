@@ -71,6 +71,15 @@ Required permissions:
 ### Activate Google Secret Provider
 To activate the Google Secrets Provider, you need to configure it. The simplest way is to add the configuration to your `secrets.toml` file or add it to environment variables. You can omit the credentials section if your environment already has default Google credentials with the necessary permissions.
 
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+]}>
+  <TabItem value="toml">
+
 ```toml
 [providers]
 enable_google_secrets = true  # google secrets provider is disabled by default
@@ -85,15 +94,58 @@ project_id = "<project_id>"
 private_key = "-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
 client_email = "....gserviceaccount.com"
 ```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+PROVIDERS__ENABLE_GOOGLE_SECRETS="true"
+
+PROVIDERS__GOOGLE_SECRETS__ONLY_SECRETS="false"
+PROVIDERS__GOOGLE_SECRETS__ONLY_TOML_FRAGMENTS="false"
+PROVIDERS__GOOGLE_SECRETS__LIST_SECRETS="true"
+
+PROVIDERS__GOOGLE_SECRETS__CREDENTIALS__PROJECT_ID="<project_id>"
+PROVIDERS__GOOGLE_SECRETS__CREDENTIALS__PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
+PROVIDERS__GOOGLE_SECRETS__CREDENTIALS__CLIENT_EMAIL="....gserviceaccount.com"
+```
+  </TabItem>
+</Tabs>
+
 
 Alternative vault configuration when listing secrets is not available:
 
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+]}>
+  <TabItem value="toml">
+
 ```toml
+[providers]
+enable_google_secrets = true  # google secrets provider is disabled by default
+
 [providers.google_secrets]
-only_secrets = true
-only_toml_fragments = true
-list_secrets = false
+only_secrets = false
+only_toml_fragments = false
+list_secrets = true  # we recommend pre-listing secrets to minimize calls to google backend
 ```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+PROVIDERS__ENABLE_GOOGLE_SECRETS="true"
+
+PROVIDERS__GOOGLE_SECRETS__ONLY_SECRETS="false"
+PROVIDERS__GOOGLE_SECRETS__ONLY_TOML_FRAGMENTS="false"
+PROVIDERS__GOOGLE_SECRETS__LIST_SECRETS="true"
+```
+  </TabItem>
+</Tabs>
+
+
 
 ### Naming convention for Google Secrets
 You can now add secrets to Google Secrets directly. To optimize performance, use TOML fragments to reduce backend calls. Please, read carefully the description of naming convention for Google Secrets used by dlt:
