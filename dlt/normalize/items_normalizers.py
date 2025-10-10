@@ -41,6 +41,8 @@ from dlt.common.schema.utils import (
     has_seen_null_first_hint,
     remove_seen_null_first_hint,
     has_default_column_prop_value,
+    get_nested_tables,
+    merge_schema_updates,
 )
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
 from dlt.common.time import normalize_timezone
@@ -477,6 +479,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                                 else parent_table or table_name
                             ),  # parent_table, if present, exists in the schema
                         )
+
                         partial_table, filters = schema.apply_schema_contract(
                             schema_contract, partial_table, data_item=row
                         )
@@ -534,7 +537,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
     def _clean_seen_null_first_hint(self, schema_update: TSchemaUpdate) -> None:
         """
-        Performs schema cleanup related to `seen-null-first` hints.
+        Performs schema and schema update cleanup related to `seen-null-first` hints.
 
         1. Removes `seen-null-first` hints from columns that now have resolved data types.
         2. Removes entire columns with `seen-null-first` hints from parent tables
@@ -549,27 +552,39 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         Args:
             schema_update (TSchemaUpdate): Dictionary mapping table names to their table updates.
         """
-        for table_name, table_updates in schema_update.items():
-            # Remove hints from columns that now have concrete data types
+        schema_update_copy = schema_update.copy()
+        for table_name, table_updates in schema_update_copy.items():
             col_schemas = self.schema.get_table_columns(table_name, include_incomplete=True)
-            for col_schema in col_schemas.values():
-                if has_seen_null_first_hint(col_schema) and "data_type" in col_schema:
-                    remove_seen_null_first_hint(col_schema)
 
             last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
 
-            for table_update in table_updates:
+            for i, table_update in enumerate(table_updates):
+                col_updates = table_update["columns"]
+
+                for updated_col_name in list(col_updates.keys()):
+                    col_schema = col_schemas.get(updated_col_name)
+                    if col_schema and has_seen_null_first_hint(col_schema):
+                        # Remove hint from column that now has concrete data type
+                        if "data_type" in col_schema:
+                            remove_seen_null_first_hint(col_schema)
+                            schema_update[table_name][i]["columns"].pop(updated_col_name)
+                        # Remove the entire column with hint from table if it was created as a compound column in the same table
+                        # TODO: use ident paths, as simple normalization may not be sufficient with long names
+
                 # Remove the entire column with hint from parent table if it was created as a nested table
                 if is_nested_table(table_update):
                     parent_name = table_update.get("parent")
                     parent_col_schemas = self.schema.get_table_columns(
                         parent_name, include_incomplete=True
                     )
+                    parent_col_schema = parent_col_schemas.get(last_ident_path)
 
-                    if (
-                        col_schema := parent_col_schemas.get(last_ident_path)
-                    ) and has_seen_null_first_hint(col_schema):
+                    if parent_col_schema and has_seen_null_first_hint(parent_col_schema):
                         parent_col_schemas.pop(last_ident_path)
+                        parent_updates = schema_update.get(parent_name, [])
+                        for j, parent_update in enumerate(parent_updates):
+                            if last_ident_path in parent_update["columns"]:
+                                schema_update[parent_name][j]["columns"].pop(last_ident_path)
 
     def _coerce_row(
         self, table_name: str, parent_table: str, row: StrAny
@@ -676,11 +691,18 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     ) -> Optional[TColumnSchema]:
         """Raises when column is explicitly not nullable or creates unbounded column"""
         existing_column = table_columns.get(col_name)
-        # If it exists as a direct child table, don't infer
+        # If it exists as a direct child table or a compound column, don't infer
         if not existing_column:
             # Use cached table existence check to avoid expensive repeated lookups
             full_ident_path = self._full_ident_path_tracker.get(table_name)
             if full_ident_path and self._check_table_exists(full_ident_path, col_name):
+                return None
+            # TODO: use column ident paths, since actual compound col names
+            # may be shortened due to long original col names
+            if any(
+                col.startswith(col_name + self.schema.naming.PATH_SEPARATOR)
+                for col in table_columns
+            ):
                 return None
         if existing_column and is_complete_column(existing_column):
             if not is_nullable_column(existing_column):
