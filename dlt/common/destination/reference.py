@@ -279,8 +279,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         destination_type: str = dlt.config.get(f"destination.{ref}.destination_type")
         if destination_type:
             try:
-                return DestinationReference.from_name(
-                    destination_type=destination_type,
+                return DestinationReference.from_reference(
+                    ref=destination_type,
                     destination_name=ref,
                     credentials=credentials,
                     environment=environment,
@@ -295,13 +295,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 ref, credentials, destination_name, environment, **kwargs
             )
         except UnknownDestinationModule as e:
-            raise UnknownDestinationModule(
-                ref=e.ref,
-                qualified_refs=e.qualified_refs,
-                traces=e.traces,
-                destination_type=destination_type,
-                named_dest_attempted=True,
-            ) from e.__cause__
+            e.destination_type = destination_type
+            e.named_dest_attempted = True
+            raise e
 
 
 class DestinationReference:
@@ -410,27 +406,6 @@ class DestinationReference:
         if environment:
             kwargs["environment"] = environment
         return factory(**kwargs)
-
-    @classmethod
-    def from_name(
-        cls,
-        destination_type: str,
-        destination_name: str,
-        credentials: Optional[Any] = None,
-        environment: Optional[str] = None,
-        **kwargs: Any,
-    ) -> Optional[AnyDestination]:
-        """Instantiate destination from a destination type and name.
-        This method creates a named destination by using the destination type
-        as a factory and instantiating it with the provided destination name.
-        """
-        return DestinationReference.from_reference(
-            ref=destination_type,
-            credentials=credentials,
-            destination_name=destination_name,
-            environment=environment,
-            **kwargs,
-        )
 
     @staticmethod
     def normalize_type(destination_type: str) -> str:
