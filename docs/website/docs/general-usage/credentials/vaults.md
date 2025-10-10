@@ -1,5 +1,5 @@
 ---
-title: Vault Providers
+title: Vault providers
 description: Learn how to configure Google Secrets and Airflow providers
 ---
 
@@ -14,6 +14,8 @@ Supported providers include:
 
 * [Google Cloud Secret Manager](#configure-google-secret-provider)
 * [Airflow Variables](#configure-airflow-variables-as-provider)
+
+For other vault integrations like AWS Secrets Manager or Azure Key Vault we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
 
 ## Lookup and merge strategy
 On first access to any configuration value, the vault provider tries to populate its in-memory TOML document by fetching and merging known fragments, in the following order:
@@ -64,10 +66,10 @@ If you enable `list_secrets` while also enabling `only_secrets` and/or `only_tom
 Required permissions:
 
 * `roles/secretmanager.secretAccessor` to read particular secrets (required)
-* `roles/secretmanager.secretViewer` to list available secrets (required when list_secrets=true)
+* `roles/secretmanager.secretViewer` to list available secrets (required when `list_secrets=true`)
 
 ### Activate Google Secret Provider
-To activate Google Secrets Provider, you must configure it first. Easiest way is to include such configuration in `secrets.toml`. You can skip the credentials sections if default google credentials with required permissions are available in your environment.
+To activate the Google Secrets Provider, you need to configure it. The simplest way is to add the configuration to your `secrets.toml` file or add it to environment variables. You can omit the credentials section if your environment already has default Google credentials with the necessary permissions.
 
 ```toml
 [providers]
@@ -93,8 +95,19 @@ only_toml_fragments = true
 list_secrets = false
 ```
 
-### Add secrets in Secrets Manager
-Now you can add secrets to Google Secrets. Use TOML fragments to minimize backend calls. A few example of secrets.
+### Naming convention for Google Secrets
+You can now add secrets to Google Secrets directly. To optimize performance, use TOML fragments to reduce backend calls. Please, read carefully the description of naming convention for Google Secrets used by dlt:
+
+Secret names are normalized to contain letters, digits, hyphens (-), and underscores (_).
+
+* Punctuation (except `-` and `_`) and whitespace are removed.
+* Sections are joined with hyphens, for example:
+   * `destination.bigquery.credentials.project_id` → `destination-bigquery-credentials-project_id`
+   * `sources.pipedrive.pipedrive_api_key` → `sources-pipedrive-pipedrive_api_key`
+   * `destination.bigquery` → `destination-bigquery`
+   * `my_pipeline.dlt_secrets_toml` → `my_pipeline-dlt_secrets_toml`
+   
+ Below you will find a few examples.
 
 **secret name: `destination`**
 
@@ -103,7 +116,7 @@ Now you can add secrets to Google Secrets. Use TOML fragments to minimize backen
 postgres.credentials = "postgresql://loader:***@host:5432/postgres"
 ```
 
-**secret name: destination-bigquery-credentials**
+**secret name: `destination-bigquery-credentials`**
 
 ```toml
 [destination.bigquery.credentials]
@@ -113,7 +126,7 @@ client_email = "....gserviceaccount.com"
 ```
 
 
-**secret name: destination-filesystem**
+**secret name: `destination-filesystem`**
 
 (whole `filesystem` destination configuration)
 ```toml
@@ -126,7 +139,7 @@ aws_access_key_id = "..."
 aws_secret_access_key = "..."
 ```
 
-**secret name: sources-mongodb**
+**secret name: `sources-mongodb`**
 
 ```toml
 [sources.mongodb]
@@ -143,7 +156,7 @@ For example, the following keys would be fetched similarly to environment variab
 * `destination-bigquery-credentials-client_email`
 * `destination-bigquery-location`
 
-:::caution
+Moved this from caution to the main content
 **Naming convention for Google Secrets**
 
 Secret names are normalized to contain letters, digits, hyphens (-), and underscores (_).
@@ -156,7 +169,7 @@ Secret names are normalized to contain letters, digits, hyphens (-), and undersc
    * `my_pipeline.dlt_secrets_toml` → `my_pipeline-dlt_secrets_toml`
 :::
 
-### Notes on `list_secrets`:
+### Notes on `list_secrets`
 
 When `list_secrets=true`, the provider will pre-list all secret names to skip lookups for non-existent keys.
 If the service account lacks `roles/secretmanager.secretViewer`, listing will fail and the provider will raise a configuration error.
@@ -165,8 +178,8 @@ If the service account lacks `roles/secretmanager.secretViewer`, listing will fa
 ## Configure Airflow Variables as provider
 You can use Airflow Variables to store secrets and TOML fragments.
 
-### Activate and Configure Airflow Provider
-This provider auto-activates when Airflow is installed and typically does not require any configuration to use. You are free to enable listing of variables (reduces number of calls to the backend - important for Airflow 3.0):
+### Activate and configure Airflow Provider
+The Airflow provider is automatically activated when Airflow is installed and usually requires no additional setup. However, you can optionally enable variable listing to reduce the number of backend calls. `list_secrets=true` is a useful optimization, especially for Airflow 3.0.
 
 ```toml
 [providers.airflow_secrets]
@@ -174,7 +187,7 @@ list_secrets = true
 ```
 
 :::tip
-You can also disable Airflow provider ie. with environment variable:
+You can also disable the Airflow provider, for example, by setting the following environment variable:
 `PROVIDERS__ENABLE_AIRFLOW_SECRETS=False`
 :::
 
@@ -185,9 +198,15 @@ Now you can create Airflow Variables whose values are either:
 * entire TOML fragments (recommended), such as **destination**, **sources.**, or a pipeline-scoped `dlt_secrets_toml`
 * single values (optional)
 
+Provider behavior is the same as with other vaults:
+
+* it probes `dlt_secrets_toml` first, then known sections (sources and destination), both globally and pipeline-scoped
+* if `only_toml_fragments=true`, it will not attempt single-value lookups
+* it caches lookups for the lifetime of the process
+
 Examples of values stored in Airflow Variables with following names:
 
-**my_pipeline.dlt_secrets_toml**
+**variable name: `my_pipeline.dlt_secrets_toml`**
 
 (entire secrets TOML scoped for a pipeline):
 ```toml
@@ -203,13 +222,13 @@ client_email = "....gserviceaccount.com"
 pipedrive_api_key = "..."
 ```
 
-**destination**:
+**variable name: `destination`**
 ```toml
 [destination]
 postgres.credentials = "postgresql://loader:***@host:5432/postgres"
 ```
 
-**sources.mongodb**:
+**variable name: `sources.mongodb`**
 ```toml
 [sources.mongodb]
 connection_url = "mongodb+srv://user:***@host/db?authSource=admin&tls=true"
