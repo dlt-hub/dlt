@@ -6,14 +6,14 @@ def test_imports() -> None:
 
 
 def test_project_context() -> None:
-    context = dlt.hub.current.project.context()
+    context = dlt.hub.current.project.context()  # type: ignore[attr-defined,unused-ignore]
     assert context.name == "hub"
-    assert dlt.hub.current.project.catalog() is not None
-    assert dlt.hub.current.project.config().name == "hub"
+    assert dlt.hub.current.project.catalog() is not None  # type: ignore[attr-defined,unused-ignore]
+    assert dlt.hub.current.project.config().name == "hub"  # type: ignore[attr-defined,unused-ignore]
 
 
 def test_switch_profile() -> None:
-    from dlt.hub.current import project
+    from dlt.hub.current import project  # type: ignore[attr-defined,unused-ignore]
 
     ctx = project.context()
     try:

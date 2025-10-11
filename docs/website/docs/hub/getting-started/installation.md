@@ -162,4 +162,4 @@ You can verify that the license was installed correctly and is valid by running:
 $ dlt license show
 ```
 
-Our license terms can be found [here](EULA).
+Our license terms can be found [here](../EULA.md).
