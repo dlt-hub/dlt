@@ -38,4 +38,4 @@ class TExecutionContext(TypedDict, total=False):
     library: TVersion
     os: TVersion
     run_context: str
-    plus: TVersion
+    dlthub: TVersion

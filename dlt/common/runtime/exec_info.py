@@ -217,9 +217,9 @@ def is_gcp_cloud_function() -> bool:
 
 
 def get_plus_version() -> TVersion:
-    "Gets dlt+ library version"
+    "Gets dlthub library version"
     try:
-        from dlt_plus.version import __version__, PKG_NAME
+        from dlthub.version import __version__, PKG_NAME
 
         return TVersion(name=PKG_NAME, version=__version__)
     except Exception:
@@ -253,6 +253,6 @@ def get_execution_context() -> TExecutionContext:
         run_context=run_context_name(),
     )
     if plus_version := get_plus_version():
-        context["plus"] = plus_version
+        context["dlthub"] = plus_version
 
     return context
