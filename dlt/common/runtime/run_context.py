@@ -3,7 +3,7 @@ import os
 import tempfile
 import warnings
 from types import ModuleType
-from typing import Any, ClassVar, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urlencode
 
 from dlt.common import known_env
@@ -99,7 +99,7 @@ class RunContext(RunContextBase):
 
 
 def switch_context(
-    run_dir: Optional[str], profile: str = None, required: bool = True, validate: bool = False
+    run_dir: Optional[str], profile: str = None, required: str = None, validate: bool = False
 ) -> RunContextBase:
     """Switch the run context to a project at `run_dir` with an optional profile.
 
@@ -115,12 +115,13 @@ def switch_context(
     of any config files and manifests associated with the run context.
 
     Args:
-        run_dir: Filesystem path of the project directory to activate. If None,
+        run_dir (str): Filesystem path of the project directory to activate. If None,
             plugins may resolve the directory themselves.
-        profile: Profile name to activate for the run context.
-        required: If True, plugins should raise if a context cannot be created
-            for the provided `run_dir`.
-        validate: If True, plugins should perform strict validation of config
+        profile (str): Profile name to activate for the run context.
+        required (str, optional): A class name of the context be instantiated at `run_dir` ie. setting
+            it to `WorkspaceRunContext` will cause the workspace context plugin to raise if workspace is
+            not found at `run_dir`.
+        validate (str, optional): If True, plugins should perform strict validation of config
             files and manifests associated with the run context.
 
     Returns:

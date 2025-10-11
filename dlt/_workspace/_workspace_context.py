@@ -132,7 +132,7 @@ class WorkspaceRunContext(ProfilesRunContext):
         return profiles
 
     def switch_profile(self, new_profile: str) -> "WorkspaceRunContext":
-        return switch_context(self.run_dir, new_profile, required=True)
+        return switch_context(self.run_dir, new_profile, required="WorkspaceRunContext")
 
 
 switch_context = copy_sig_ret(_switch_context, WorkspaceRunContext)(_switch_context)
