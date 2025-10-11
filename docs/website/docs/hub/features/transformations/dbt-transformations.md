@@ -34,7 +34,7 @@ To add relationship hints, use the relationship adapter:
 
 ```py
 import dlt
-from dlt_plus.dbt_generator.utils import table_reference_adapter
+from dlthub.dbt_generator.utils import table_reference_adapter
 
 
 # Example countries table

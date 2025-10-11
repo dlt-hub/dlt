@@ -31,10 +31,10 @@ This destination is available starting from dlt+ version 0.9.0. It fully support
 
 ## Installation
 
-Install the `dlt-plus` package with the `snowflake` extra:
+Install the `dlthub` package with the `snowflake` extra:
 
 ```sh
-pip install "dlt-plus[snowflake]"
+pip install "dlthub[snowflake]"
 ```
 
 Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use the `snowflake` destination.
