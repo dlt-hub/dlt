@@ -15,7 +15,7 @@ def example_source(api_url=dlt.config.value, api_key=dlt.secrets.value, last_id=
 if __name__ == "__main__":
     p = dlt.pipeline(
         pipeline_name="debug_pipeline",
-        destination="postgres",
+        destination="duckdb",
         dataset_name="debug_pipeline_data",
         dev_mode=False,
     )

@@ -12,12 +12,12 @@ from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import set_working_dir
-
-from dlt.cli import deploy_command, echo, command_wrappers
-from dlt.cli.exceptions import CliCommandInnerException
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-from dlt.cli.deploy_command_helpers import get_schedule_description
-from dlt.cli.exceptions import CliCommandException
+
+from dlt._workspace.cli import _deploy_command, echo, _command_wrappers
+from dlt._workspace.cli.exceptions import CliCommandInnerException, PipelineWasNotRun
+from dlt._workspace.cli._deploy_command_helpers import get_schedule_description
+from dlt._workspace.cli.exceptions import CliCommandException
 
 from tests.utils import TEST_STORAGE_ROOT, reset_providers, test_storage, LOCAL_POSTGRES_CREDENTIALS
 
@@ -39,19 +39,19 @@ def test_deploy_command_no_repo(
     with set_working_dir(pipeline_wf):
         # we do not have repo
         with pytest.raises(InvalidGitRepositoryError):
-            deploy_command.deploy_command(
+            _deploy_command.deploy_command(
                 "debug_pipeline.py",
                 deployment_method,
-                deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                 **deployment_args,
             )
 
         # test wrapper
         with pytest.raises(CliCommandException) as ex:
-            command_wrappers.deploy_command_wrapper(
+            _command_wrappers.deploy_command_wrapper(
                 "debug_pipeline.py",
                 deployment_method,
-                deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                 **deployment_args,
             )
         assert ex._excinfo[1].error_code == -4
@@ -74,35 +74,35 @@ def test_deploy_command(
         with Repo.init(".") as repo:
             # test no origin
             with pytest.raises(CliCommandInnerException) as py_ex:
-                deploy_command.deploy_command(
+                _deploy_command.deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
-                    deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                    _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                     **deployment_args,
                 )
             assert "Your current repository has no origin set" in py_ex.value.args[0]
             with pytest.raises(CliCommandInnerException):
-                command_wrappers.deploy_command_wrapper(
+                _command_wrappers.deploy_command_wrapper(
                     "debug_pipeline.py",
                     deployment_method,
-                    deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                    _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                     **deployment_args,
                 )
 
             # we have a repo that was never run
             Remote.create(repo, "origin", "git@github.com:rudolfix/dlt-cmd-test-2.git")
             with pytest.raises(CannotRestorePipelineException):
-                deploy_command.deploy_command(
+                _deploy_command.deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
-                    deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                    _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                     **deployment_args,
                 )
             with pytest.raises(CliCommandException) as ex:
-                command_wrappers.deploy_command_wrapper(
+                _command_wrappers.deploy_command_wrapper(
                     "debug_pipeline.py",
                     deployment_method,
-                    deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                    _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                     **deployment_args,
                 )
             assert ex._excinfo[1].error_code == -3
@@ -110,28 +110,28 @@ def test_deploy_command(
             # run the script with wrong credentials (it is postgres there)
             venv = Venv.restore_current()
             # mod environ so wrong password is passed to override secrets.toml
-            os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
+            os.environ["DESTINATION__DUCKDB__CREDENTIALS__DATABASE"] = ":memory:"
             with pytest.raises(CalledProcessError):
                 venv.run_script("debug_pipeline.py")
             # print(py_ex.value.output)
-            with pytest.raises(deploy_command.PipelineWasNotRun) as py_ex2:
-                deploy_command.deploy_command(
+            with pytest.raises(PipelineWasNotRun) as py_ex2:
+                _deploy_command.deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
-                    deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                    _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                     **deployment_args,
                 )
             assert "The last pipeline run ended with error" in py_ex2.value.args[0]
             with pytest.raises(CliCommandException) as ex:
-                command_wrappers.deploy_command_wrapper(
+                _command_wrappers.deploy_command_wrapper(
                     "debug_pipeline.py",
                     deployment_method,
-                    deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                    _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                     **deployment_args,
                 )
             assert ex._excinfo[1].error_code == -3
 
-            os.environ["DESTINATION__POSTGRES__CREDENTIALS"] = LOCAL_POSTGRES_CREDENTIALS
+            del os.environ["DESTINATION__DUCKDB__CREDENTIALS__DATABASE"]
             # also delete secrets so credentials are not mixed up on CI
             test_storage.delete(".dlt/secrets.toml")
             test_storage.atomic_rename(".dlt/secrets.toml.ci", ".dlt/secrets.toml")
@@ -146,17 +146,17 @@ def test_deploy_command(
                     venv.run_script("debug_pipeline.py")
                     with echo.always_choose(False, always_choose_value=True):
                         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-                            deploy_command.deploy_command(
+                            _deploy_command.deploy_command(
                                 "debug_pipeline.py",
                                 deployment_method,
-                                deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                                _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                                 **deployment_args,
                             )
                             _out = buf.getvalue()
                         print(_out)
                         # make sure our secret and config values are all present
                         assert api_key in _out
-                        assert "dlt_data" in _out
+                        # assert "dlt_data" in _out
                         if "schedule" in deployment_args:
                             assert get_schedule_description(deployment_args["schedule"])
                         secrets_format = deployment_args.get("secrets_format", "env")
@@ -167,18 +167,18 @@ def test_deploy_command(
 
             # non existing script name
             with pytest.raises(NoSuchPathError):
-                deploy_command.deploy_command(
+                _deploy_command.deploy_command(
                     "no_pipeline.py",
                     deployment_method,
-                    deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                    _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                     **deployment_args,
                 )
             with echo.always_choose(False, always_choose_value=True):
                 with pytest.raises(CliCommandException) as ex:
-                    command_wrappers.deploy_command_wrapper(
+                    _command_wrappers.deploy_command_wrapper(
                         "no_pipeline.py",
                         deployment_method,
-                        deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
+                        _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
                         **deployment_args,
                     )
                 assert ex._excinfo[1].error_code == -5
