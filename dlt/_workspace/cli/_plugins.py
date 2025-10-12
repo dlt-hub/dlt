@@ -20,56 +20,56 @@ __all__ = [
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_init() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import InitCommand
+    from dlt._workspace.cli.commands import InitCommand
 
     return InitCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_pipeline() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import PipelineCommand
+    from dlt._workspace.cli.commands import PipelineCommand
 
     return PipelineCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_schema() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import SchemaCommand
+    from dlt._workspace.cli.commands import SchemaCommand
 
     return SchemaCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_dashboard() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import DashboardCommand
+    from dlt._workspace.cli.commands import DashboardCommand
 
     return DashboardCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_telemetry() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import TelemetryCommand
+    from dlt._workspace.cli.commands import TelemetryCommand
 
     return TelemetryCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_deploy() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import DeployCommand
+    from dlt._workspace.cli.commands import DeployCommand
 
     return DeployCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_docs() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import CliDocsCommand
+    from dlt._workspace.cli.commands import CliDocsCommand
 
     return CliDocsCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_ai() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import AiCommand
+    from dlt._workspace.cli.commands import AiCommand
 
     return AiCommand
 

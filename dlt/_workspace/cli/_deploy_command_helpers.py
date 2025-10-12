@@ -41,9 +41,9 @@ from dlt.pipeline.trace import PipelineTrace
 from dlt.reflection import names as n
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
-from dlt.cli import utils
-from dlt.cli import echo as fmt
-from dlt.cli.exceptions import CliCommandInnerException
+from dlt._workspace.cli import utils
+from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli.exceptions import CliCommandInnerException, PipelineWasNotRun
 
 GITHUB_URL = "https://github.com/"
 
@@ -447,8 +447,3 @@ def ask_files_overwrite(files: Sequence[str]) -> None:
         fmt.echo("Following files will be overwritten: %s" % fmt.bold(str(existing)))
         if not fmt.confirm("Do you want to continue?", default=False):
             raise CliCommandInnerException("init", "Aborted")
-
-
-class PipelineWasNotRun(CliCommandInnerException):
-    def __init__(self, msg: str) -> None:
-        super().__init__("deploy", msg, None)

@@ -8,8 +8,8 @@ from dlt.common.reflection.utils import creates_func_def_name_node
 from dlt.common.typing import is_optional_type
 
 from dlt.sources import SourceReference
-from dlt.cli.config_toml_writer import WritableConfigValue
-from dlt.cli.exceptions import CliCommandInnerException
+from dlt._workspace.cli.config_toml_writer import WritableConfigValue
+from dlt._workspace.cli.exceptions import CliCommandInnerException
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 

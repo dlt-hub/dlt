@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from typing import List, Tuple, get_args, Literal, Union, cast
 
-from dlt.cli import echo as fmt
+from dlt._workspace.cli import echo as fmt
 from dlt.common import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context

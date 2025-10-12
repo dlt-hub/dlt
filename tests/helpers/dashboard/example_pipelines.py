@@ -6,7 +6,7 @@
 
 import dlt
 import pytest
-from dlt.sources._single_file_templates.fruitshop_pipeline import (
+from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 from dlt.common.destination.exceptions import (

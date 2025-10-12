@@ -4,9 +4,9 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import ConfigTomlProvider
 from dlt.common.configuration.specs import RuntimeConfiguration
 
-from dlt.cli import echo as fmt
-from dlt.cli.utils import get_telemetry_status
-from dlt.cli.config_toml_writer import WritableConfigValue, write_values
+from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli.utils import get_telemetry_status
+from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.specs import PluggableRunContext
 from dlt.common.runtime.anon_tracker import get_anonymous_id
 

@@ -15,7 +15,7 @@ from tests.utils import (
     deactivate_pipeline,
 )
 
-from dlt.sources._single_file_templates.fruitshop_pipeline import (
+from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 

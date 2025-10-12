@@ -4,7 +4,7 @@ loaders:
     packages: ["dlt"]
 processors:
   - type: filter
-    expression: not name.startswith("dlt.cli") and not name.startswith("dlt.normalize") and not name.startswith("dlt.load") and not name.startswith("dlt.reflection") and default()
+    expression: not name.startswith("dlt._workspace.cli") and not name.startswith("dlt.normalize") and not name.startswith("dlt.load") and not name.startswith("dlt.reflection") and default()
   - type: pydoc_markdown_dlt.DltProcessor
 renderer:
   type: docusaurus

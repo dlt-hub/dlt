@@ -6,17 +6,15 @@ from rich.markdown import Markdown
 
 from dlt.version import __version__
 from dlt.common.runners import Venv
-from dlt.cli import SupportsCliCommand
+from dlt._workspace.cli import SupportsCliCommand
 
-import dlt.cli.echo as fmt
-from dlt.cli.exceptions import CliCommandException
-
-from dlt.cli.command_wrappers import (
+import dlt._workspace.cli.echo as fmt
+from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli._command_wrappers import (
     telemetry_change_status_command_wrapper,
 )
-from dlt.cli import debug
-from dlt.cli.echo import maybe_no_stdin
-
+from dlt._workspace.cli import _debug
+from dlt._workspace.cli.echo import maybe_no_stdin
 from dlt._workspace.cli.utils import display_run_context_info
 
 ACTION_EXECUTED = False
@@ -99,7 +97,7 @@ class DebugAction(argparse.Action):
         option_string: str = None,
     ) -> None:
         # will show stack traces (and maybe more debug things)
-        debug.enable_debug()
+        _debug.enable_debug()
 
 
 def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliCommand]]:
@@ -211,7 +209,7 @@ def main() -> int:
                 click.secho(str(ex), err=True, fg="red")
 
             fmt.note("Please refer to our docs at '%s' for further assistance." % docs_url)
-            if debug.is_debug_enabled() and raiseable_exception:
+            if _debug.is_debug_enabled() and raiseable_exception:
                 raise raiseable_exception
 
             return error_code

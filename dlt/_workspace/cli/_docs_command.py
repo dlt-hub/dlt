@@ -5,7 +5,7 @@ import textwrap
 import os
 import re
 
-import dlt.cli.echo as fmt
+import dlt._workspace.cli.echo as fmt
 
 HEADER = """---
 title: Command Line Interface

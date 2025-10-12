@@ -10,9 +10,9 @@ from dlt.common.known_env import DLT_DATA_DIR
 from dlt.common.runners.venv import Venv
 from dlt.common.utils import custom_environ, set_working_dir
 from dlt.common.pipeline import get_dlt_pipelines_dir
-from dlt.cli import echo as fmt
 
-# from tests.cli.utils import echo_default_choice, repo_dir, cloned_init_repo
+from dlt._workspace.cli import echo as fmt
+
 from tests.utils import TEST_STORAGE_ROOT
 
 BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
@@ -21,9 +21,9 @@ BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 @pytest.fixture(autouse=True)
 def disable_debug() -> None:
     # reset debug flag so other tests may pass
-    from dlt.cli import debug
+    from dlt._workspace.cli import _debug
 
-    debug.disable_debug()
+    _debug.disable_debug()
 
 
 def test_invoke_basic(script_runner: ScriptRunner) -> None:
@@ -145,9 +145,17 @@ def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
 
 def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
     # NOTE: you can mock only once per test with ScriptRunner !!
-    with patch("dlt.cli.deploy_command.deploy_command") as _deploy_command:
+    with patch("dlt._workspace.cli._deploy_command.deploy_command") as _deploy_command:
         script_runner.run(
-            ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
+            [
+                "dlt",
+                "--debug",
+                "deploy",
+                "debug_pipeline.py",
+                "github-action",
+                "--schedule",
+                "@daily",
+            ]
         )
         assert _deploy_command.called
         assert _deploy_command.call_args[1] == {

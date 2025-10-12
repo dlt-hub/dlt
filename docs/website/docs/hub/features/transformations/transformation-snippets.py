@@ -14,7 +14,7 @@ def fruitshop_pipeline() -> dlt.Pipeline:
     # @@@DLT_SNIPPET_START quick_start_example
 
     from dlt.destinations import duckdb
-    from dlt.sources._single_file_templates.fruitshop_pipeline import (
+    from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
         fruitshop as fruitshop_source,
     )
 

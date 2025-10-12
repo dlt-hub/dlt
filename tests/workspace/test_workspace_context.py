@@ -12,7 +12,7 @@ from dlt._workspace.run_context import (
     DEFAULT_WORKSPACE_WORKING_FOLDER,
     switch_profile,
 )
-from dlt.cli.echo import maybe_no_stdin
+from dlt._workspace.cli.echo import maybe_no_stdin
 from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
 

@@ -1,17 +1,34 @@
+import ast
 import os
 import shutil
-from typing import Any
+from typing import Any, Callable
 
 import dlt
-from dlt._workspace.profile import LOCAL_PROFILES
-from dlt.cli.exceptions import CliCommandException
+from dlt.common.typing import TFun
+from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
     ProfilesRunContext,
 )
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.reflection.utils import set_ast_parents
+from dlt.common.runtime import run_context
+from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt.cli import echo as fmt
+from dlt._workspace.profile import LOCAL_PROFILES
+from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
+from dlt._workspace.cli import echo as fmt
+
+from dlt.reflection.script_visitor import PipelineScriptVisitor
+
+REQUIREMENTS_TXT = "requirements.txt"
+PYPROJECT_TOML = "pyproject.toml"
+GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
+AIRFLOW_DAGS_FOLDER = os.path.join("dags")
+AIRFLOW_BUILD_FOLDER = os.path.join("build")
+LOCAL_COMMAND_REPO_FOLDER = "repos"
+MODULE_INIT = "__init__.py"
 
 
 def display_run_context_info() -> None:
@@ -119,3 +136,52 @@ def delete_local_data(
             "Will delete pipeline working folders & other entities data %s",
             recreate_dirs,
         )
+
+
+def parse_init_script(
+    command: str, script_source: str, init_script_name: str
+) -> PipelineScriptVisitor:
+    # parse the script first
+    tree = ast.parse(source=script_source)
+    set_ast_parents(tree)
+    visitor = PipelineScriptVisitor(script_source)
+    visitor.visit_passes(tree)
+    if len(visitor.mod_aliases) == 0:
+        raise CliCommandInnerException(
+            command,
+            f"The pipeline script {init_script_name} does not import dlt and does not seem to run"
+            " any pipelines",
+        )
+
+    return visitor
+
+
+def ensure_git_command(command: str) -> None:
+    try:
+        import git
+    except ImportError as imp_ex:
+        if "Bad git executable" not in str(imp_ex):
+            raise
+        raise CliCommandInnerException(
+            command,
+            "'git' command is not available. Install and setup git with the following the guide %s"
+            % "https://docs.github.com/en/get-started/quickstart/set-up-git",
+            imp_ex,
+        ) from imp_ex
+
+
+def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFun], TFun]:
+    return with_telemetry("command", command, track_before, *args)
+
+
+def get_telemetry_status() -> bool:
+    c = resolve_configuration(RuntimeConfiguration())
+    return c.dlthub_telemetry
+
+
+def make_dlt_settings_path(path: str = None) -> str:
+    """Returns path to file in dlt settings folder. Returns settings folder if path not specified."""
+    ctx = run_context.active()
+    if not path:
+        return ctx.settings_dir
+    return ctx.get_setting(path)

@@ -5,7 +5,7 @@ import yaml
 import posixpath
 from pathlib import Path
 from typing import Dict, NamedTuple, Sequence, Tuple, List, Literal
-from dlt.cli.exceptions import VerifiedSourceRepoError
+from dlt._workspace.cli.exceptions import VerifiedSourceRepoError
 
 from dlt.common import git
 from dlt.common.storages import FileStorage
@@ -13,14 +13,15 @@ from dlt.common.typing import TypedDict
 
 from dlt.common.reflection.utils import get_module_docstring
 
-from dlt.cli import utils
-from dlt.cli.requirements import SourceRequirements
+from dlt._workspace.cli import utils
+from dlt._workspace.cli.requirements import SourceRequirements
 
 TSourceType = Literal["core", "verified", "template", "vibe"]
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
 
 SOURCES_MODULE_NAME = "sources"
+TEMPLATES_MODULE_NAME = "_templates"
 CORE_SOURCE_TEMPLATE_MODULE_NAME = "_core_source_templates"
 SINGLE_FILE_TEMPLATE_MODULE_NAME = "_single_file_templates"
 
@@ -256,7 +257,11 @@ def _get_source_files(sources_storage: FileStorage, source_name: str) -> List[st
 def get_core_source_configuration(
     sources_storage: FileStorage, source_name: str, eject_source: bool
 ) -> SourceConfiguration:
-    src_pipeline_file = CORE_SOURCE_TEMPLATE_MODULE_NAME + "/" + source_name + PIPELINE_FILE_SUFFIX
+    src_pipeline_file_root = Path(os.path.dirname(os.path.realpath(__file__))).parent
+
+    src_pipeline_file = src_pipeline_file_root.joinpath(
+        TEMPLATES_MODULE_NAME, CORE_SOURCE_TEMPLATE_MODULE_NAME, source_name + PIPELINE_FILE_SUFFIX
+    )
     dest_pipeline_file = source_name + PIPELINE_FILE_SUFFIX
     files: List[str] = _get_source_files(sources_storage, source_name) if eject_source else []
 
@@ -264,7 +269,7 @@ def get_core_source_configuration(
         "core",
         "dlt.sources." + source_name,
         sources_storage,
-        src_pipeline_file,
+        str(src_pipeline_file),
         dest_pipeline_file,
         files,
         SourceRequirements([]),
@@ -306,6 +311,25 @@ def get_verified_source_configuration(
         _get_docstring_for_module(sources_storage, source_name),
         False,
     )
+
+
+def get_core_sources_storage() -> FileStorage:
+    """Get FileStorage for core sources"""
+    local_path = (
+        Path(os.path.dirname(os.path.realpath(__file__))).parent.parent / SOURCES_MODULE_NAME
+    )
+    return FileStorage(str(local_path))
+
+
+def get_single_file_templates_storage() -> FileStorage:
+    """Get FileStorage for single file templates"""
+    # look up init storage in core
+    init_path = (
+        Path(os.path.dirname(os.path.realpath(__file__))).parent
+        / TEMPLATES_MODULE_NAME
+        / SINGLE_FILE_TEMPLATE_MODULE_NAME
+    )
+    return FileStorage(str(init_path))
 
 
 def gen_index_diff(

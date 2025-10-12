@@ -8,7 +8,7 @@ import dlt
 import pandas as pd
 import streamlit as st
 
-from dlt.cli import echo as fmt
+from dlt._workspace.cli import echo as fmt
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 
 HERE = Path(__file__).absolute().parent

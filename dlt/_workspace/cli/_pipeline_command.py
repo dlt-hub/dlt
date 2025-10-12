@@ -2,7 +2,7 @@ import os
 import yaml
 from typing import Any, Sequence, Tuple
 import dlt
-from dlt.cli.exceptions import CliCommandInnerException
+from dlt._workspace.cli.exceptions import CliCommandInnerException
 
 from dlt.common.json import json
 from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
@@ -22,7 +22,7 @@ from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
-from dlt.cli import echo as fmt
+from dlt._workspace.cli import echo as fmt
 
 
 DLT_PIPELINE_COMMAND_DOCS_URL = (

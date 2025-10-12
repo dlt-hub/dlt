@@ -9,8 +9,8 @@ from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.runtime.run_context import switch_context
 from dlt.common.utils import set_working_dir
 
-from dlt.sources._core_source_templates.rest_api_pipeline import load_pokemon
-from dlt.sources._single_file_templates.fruitshop_pipeline import load_shop
+from dlt._workspace._templates._core_source_templates.rest_api_pipeline import load_pokemon
+from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import load_shop
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
 from tests.utils import TEST_STORAGE_ROOT

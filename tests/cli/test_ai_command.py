@@ -2,8 +2,10 @@ import pytest
 from pathlib import Path
 
 from dlt.common.utils import set_working_dir
-from dlt.cli import ai_command, DEFAULT_VERIFIED_SOURCES_REPO
-from dlt.cli.ai_command import TSupportedIde
+
+from dlt._workspace.cli import _ai_command, DEFAULT_VERIFIED_SOURCES_REPO
+from dlt._workspace.cli._ai_command import TSupportedIde
+
 from tests.utils import TEST_STORAGE_ROOT
 
 
@@ -25,7 +27,7 @@ def test_ai_setup_command(
     ide: TSupportedIde, expected_relative_path: str, is_single_file: bool
 ) -> None:
     with set_working_dir(TEST_STORAGE_ROOT):
-        ai_command.ai_setup_command(ide=ide, location=DEFAULT_VERIFIED_SOURCES_REPO)
+        _ai_command.ai_setup_command(ide=ide, location=DEFAULT_VERIFIED_SOURCES_REPO)
 
     base_path = Path(TEST_STORAGE_ROOT).resolve()
     expected_location = base_path / expected_relative_path

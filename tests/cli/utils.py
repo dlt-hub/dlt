@@ -10,7 +10,7 @@ from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.sources import SourceReference
 
-from dlt.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO, DEFAULT_VIBE_SOURCES_REPO
+from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO, DEFAULT_VIBE_SOURCES_REPO
 
 from tests.utils import TEST_STORAGE_ROOT
 
@@ -38,7 +38,7 @@ def cloned_init_repo() -> FileStorage:
 
 
 @pytest.fixture(scope="module")
-def clonet_init_vibe_repo() -> FileStorage:
+def cloned_init_vibe_repo() -> FileStorage:
     return git.get_fresh_repo_files(
         DEFAULT_VIBE_SOURCES_REPO, get_dlt_repos_dir(), branch=INIT_VIBE_REPO_BRANCH
     )
@@ -50,8 +50,8 @@ def repo_dir(cloned_init_repo: FileStorage) -> str:
 
 
 @pytest.fixture
-def vibe_repo_dir(clonet_init_vibe_repo: FileStorage) -> str:
-    return get_repo_dir(clonet_init_vibe_repo, f"vibe_sources_repo_{uniq_id()}")
+def vibe_repo_dir(cloned_init_vibe_repo: FileStorage) -> str:
+    return get_repo_dir(cloned_init_vibe_repo, f"vibe_sources_repo_{uniq_id()}")
 
 
 @pytest.fixture

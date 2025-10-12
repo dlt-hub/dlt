@@ -8,34 +8,29 @@ from dlt.common.json import json
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
 
-import dlt.cli.echo as fmt
-from dlt.cli import utils
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-from dlt.cli.exceptions import CliCommandException
 
-from dlt.cli.init_command import (
+import dlt._workspace.cli.echo as fmt
+from dlt._workspace.cli import utils
+from dlt._workspace.cli.exceptions import CliCommandException, PipelineWasNotRun
+
+from dlt._workspace.cli._init_command import (
     init_command,
     list_sources_command,
     list_destinations_command,
-    DLT_INIT_DOCS_URL,
 )
-from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
-from dlt.cli.telemetry_command import (
-    DLT_TELEMETRY_DOCS_URL,
+from dlt._workspace.cli._pipeline_command import pipeline_command
+from dlt._workspace.cli._telemetry_command import (
     change_telemetry_status_command,
     telemetry_status_command,
+    DLT_TELEMETRY_DOCS_URL,
 )
-from dlt.cli.ai_command import ai_setup_command, TSupportedIde
+from dlt._workspace.cli._ai_command import ai_setup_command, TSupportedIde
 
 try:
-    from dlt.cli import deploy_command
-    from dlt.cli.deploy_command import (
-        PipelineWasNotRun,
-    )
+    from dlt._workspace.cli._deploy_command import deploy_command, DLT_DEPLOY_DOCS_URL
 except ModuleNotFoundError:
     pass
-
-DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 
 
 @utils.track_command("init", False, "source_name", "destination_type")
@@ -96,7 +91,7 @@ def deploy_command_wrapper(
     from git import InvalidGitRepositoryError, NoSuchPathError
 
     try:
-        deploy_command.deploy_command(
+        deploy_command(
             pipeline_script_path=pipeline_script_path,
             deployment_method=deployment_method,
             repo_location=repo_location,

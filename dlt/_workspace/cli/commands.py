@@ -3,10 +3,10 @@ import argparse
 
 from dlt.common.configuration import plugins
 
-import dlt.cli.echo as fmt
-from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
-from dlt.cli.exceptions import CliCommandException
-from dlt.cli.command_wrappers import (
+import dlt._workspace.cli.echo as fmt
+from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
+from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli._command_wrappers import (
     init_command_wrapper,
     list_sources_command_wrapper,
     list_destinations_command_wrapper,
@@ -17,20 +17,17 @@ from dlt.cli.command_wrappers import (
     ai_setup_command_wrapper,
     dashboard_command_wrapper,
 )
-from dlt.cli.ai_command import SUPPORTED_IDES
-from dlt.cli.docs_command import render_argparse_markdown
-from dlt.cli.command_wrappers import (
-    DLT_PIPELINE_COMMAND_DOCS_URL,
-    DLT_INIT_DOCS_URL,
-    DLT_TELEMETRY_DOCS_URL,
-    DLT_DEPLOY_DOCS_URL,
-)
+from dlt._workspace.cli._ai_command import SUPPORTED_IDES
+from dlt._workspace.cli._docs_command import render_argparse_markdown
+from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
+from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
+from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
 from dlt._workspace.cli.utils import add_mcp_arg_parser
-
-from dlt.cli.deploy_command import (
+from dlt._workspace.cli._deploy_command import (
     DeploymentMethods,
     COMMAND_DEPLOY_REPO_LOCATION,
     SecretFormats,
+    DLT_DEPLOY_DOCS_URL,
 )
 from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
 
@@ -669,7 +666,7 @@ If you are reading this on the docs website, you are looking at the rendered ver
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        from dlt.cli._dlt import _create_parser
+        from dlt._workspace.cli._dlt import _create_parser
 
         parser, _ = _create_parser()
 

@@ -13,8 +13,11 @@ from dlt.common.storages import FileStorage
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import set_working_dir
 
-from dlt.cli.utils import track_command
-from dlt.cli.telemetry_command import telemetry_status_command, change_telemetry_status_command
+from dlt._workspace.cli.utils import track_command
+from dlt._workspace.cli._telemetry_command import (
+    telemetry_status_command,
+    change_telemetry_status_command,
+)
 
 from tests.utils import patch_random_home_dir, start_test_telemetry, test_storage
 
@@ -139,14 +142,14 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli import (
+    from dlt._workspace.cli import (
         DEFAULT_VERIFIED_SOURCES_REPO,
     )
-    from dlt.cli.deploy_command import (
+    from dlt._workspace.cli._deploy_command import (
         DeploymentMethods,
         COMMAND_DEPLOY_REPO_LOCATION,
     )
-    from dlt.cli.command_wrappers import (
+    from dlt._workspace.cli._command_wrappers import (
         init_command_wrapper,
         deploy_command_wrapper,
         list_sources_command_wrapper,

@@ -3,7 +3,12 @@ from typing import ClassVar, List, Optional, Final
 import pytest
 import tomlkit
 
-from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_values, TYPE_EXAMPLES
+from dlt._workspace.cli.config_toml_writer import (
+    write_value,
+    WritableConfigValue,
+    write_values,
+    TYPE_EXAMPLES,
+)
 from dlt.common.configuration.specs import configspec
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 

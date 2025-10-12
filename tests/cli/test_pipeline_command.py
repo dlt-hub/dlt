@@ -10,9 +10,9 @@ from dlt.common.utils import set_working_dir
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.cli.exceptions import CliCommandInnerException
+from dlt._workspace.cli.exceptions import CliCommandInnerException
 
-from dlt.cli import echo, init_command, pipeline_command
+from dlt._workspace.cli import echo, _init_command, _pipeline_command
 
 from tests.cli.utils import (
     echo_default_choice,
@@ -25,7 +25,7 @@ from tests.cli.utils import (
 
 
 def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "duckdb", repo_dir)
+    _init_command.init_command("chess", "duckdb", repo_dir)
 
     try:
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -48,14 +48,14 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
 
     # we are in the project working dir (thanks to project_files fixture)
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("list", "-", None, 0)
+        _pipeline_command.pipeline_command("list", "-", None, 0)
         _out = buf.getvalue()
         # do we have chess pipeline in the list
         assert "chess_pipeline" in _out.splitlines()
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("info", "chess_pipeline", None, 0)
+        _pipeline_command.pipeline_command("info", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # do we have duckdb destination
         assert "destination_name: None" in _out
@@ -63,49 +63,49 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)
+        _pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)
         _out = buf.getvalue()
         # were the sources state displayed
         assert '"chess": {' in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
+        _pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # basic trace
         assert "Pipeline chess_pipeline load step completed in" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("trace", "chess_pipeline", None, 1)
+        _pipeline_command.pipeline_command("trace", "chess_pipeline", None, 1)
         _out = buf.getvalue()
         # extended trace
         assert "span id:" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("trace", "chess_pipeline", None, 2)
+        _pipeline_command.pipeline_command("trace", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # trace with job info
         assert "Jobs details:" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("trace", "chess_pipeline", None, 2)
+        _pipeline_command.pipeline_command("trace", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # trace with job info
         assert "Jobs details:" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("load-package", "chess_pipeline", None, 2)
+        _pipeline_command.pipeline_command("load-package", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # has package info
         assert "The package with load" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("failed-jobs", "chess_pipeline", None, 2)
+        _pipeline_command.pipeline_command("failed-jobs", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # no failed jobs
         assert "No failed jobs found" in _out
@@ -114,13 +114,13 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         # execute sync
         with echo.always_choose(False, True):
-            pipeline_command.pipeline_command("sync", "chess_pipeline", None, 0)
+            _pipeline_command.pipeline_command("sync", "chess_pipeline", None, 0)
         _out = buf.getvalue()
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         # after sync there's no trace
-        pipeline_command.pipeline_command("info", "chess_pipeline", None, 0)
+        _pipeline_command.pipeline_command("info", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # sync was executed
         assert "Pipeline does not have last run trace." in _out
@@ -128,7 +128,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         with echo.always_choose(False, True):
-            pipeline_command.pipeline_command(
+            _pipeline_command.pipeline_command(
                 "drop", "chess_pipeline", None, 0, resources=["players_games"]
             )
 
@@ -148,7 +148,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         # Test sync destination and drop when local state is missing
         pipeline._pipeline_storage.delete_folder("", recursively=True)
         with echo.always_choose(False, True):
-            pipeline_command.pipeline_command(
+            _pipeline_command.pipeline_command(
                 "drop",
                 "chess_pipeline",
                 None,
@@ -168,7 +168,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
 
 
 def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "dummy", repo_dir)
+    _init_command.init_command("chess", "dummy", repo_dir)
 
     try:
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -192,20 +192,20 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
     logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.ERROR)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
+        _pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # trace has LoadInfo with failed job
         assert "1 FAILED job(s)" in _out
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("failed-jobs", "chess_pipeline", None, 0)
+        _pipeline_command.pipeline_command("failed-jobs", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # actual failed job data
         assert "JOB file type: jsonl" in _out
 
 
 def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "dummy", repo_dir)
+    _init_command.init_command("chess", "dummy", repo_dir)
     os.environ["EXCEPTION_PROB"] = "1.0"
 
     try:
@@ -232,7 +232,7 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     )
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)
+        _pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)
         _out = buf.getvalue()
         # one package is partially loaded
         assert "This package is partially loaded" in _out
@@ -240,20 +240,20 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         with echo.always_choose(False, True):
-            pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+            _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
             _out = buf.getvalue()
             assert "Pending packages deleted" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+        _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
         _out = buf.getvalue()
         assert "No pending packages found" in _out
     print(_out)
 
 
 def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
-    init_command.init_command("chess", "duckdb", repo_dir)
+    _init_command.init_command("chess", "duckdb", repo_dir)
 
     os.environ.pop(
         "DESTINATION__DUCKDB__CREDENTIALS", None
@@ -272,7 +272,7 @@ def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
         # when testing local_dir is not run_dir! it is pointing to tests/_storage
         pipeline_dir = pipeline.last_run_context.get("run_dir")
         with set_working_dir(pipeline_dir):
-            pipeline_command.pipeline_command(
+            _pipeline_command.pipeline_command(
                 "drop", "chess_pipeline", None, 0, resources=["players_games"]
             )
         _out = buf.getvalue()
@@ -284,7 +284,7 @@ def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         os.makedirs("wrong_dir", exist_ok=True)
         with set_working_dir("wrong_dir"):
-            pipeline_command.pipeline_command(
+            _pipeline_command.pipeline_command(
                 "drop", "chess_pipeline", None, 0, resources=["players_games"]
             )
         _out = buf.getvalue()

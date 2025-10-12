@@ -27,12 +27,9 @@ from dlt.sources import SourceReference
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import import_pipeline_script
 
-from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection, utils
-
-# keep it for backward compat
-from dlt.cli import DEFAULT_VERIFIED_SOURCES_REPO
-from dlt.cli.config_toml_writer import WritableConfigValue, write_values
-from dlt.cli.pipeline_files import (
+from dlt._workspace.cli import echo as fmt, _pipeline_files as files_ops, source_detection, utils
+from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
+from dlt._workspace.cli._pipeline_files import (
     TEMPLATE_FILES,
     SOURCES_MODULE_NAME,
     SINGLE_FILE_TEMPLATE_MODULE_NAME,
@@ -40,8 +37,8 @@ from dlt.cli.pipeline_files import (
     TVerifiedSourceFileEntry,
     TVerifiedSourceFileIndex,
 )
-from dlt.cli.exceptions import CliCommandInnerException
-from dlt.cli.ai_command import SUPPORTED_IDES, TSupportedIde
+from dlt._workspace.cli.exceptions import CliCommandInnerException
+from dlt._workspace.cli._ai_command import SUPPORTED_IDES, TSupportedIde
 
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
@@ -118,8 +115,8 @@ def init_command(
         sources_dir,
     )
     if is_dlthub_source and copied_files is not None and selected_ide:
-        from dlt.cli import DEFAULT_VIBE_SOURCES_REPO, DEFAULT_VERIFIED_SOURCES_REPO
-        from dlt.cli.ai_command import ai_setup_command, vibe_source_setup
+        from dlt._workspace.cli import DEFAULT_VIBE_SOURCES_REPO, DEFAULT_VERIFIED_SOURCES_REPO
+        from dlt._workspace.cli._ai_command import ai_setup_command, vibe_source_setup
 
         fmt.echo()
         fmt.echo()
@@ -187,8 +184,8 @@ def init_pipeline_at_destination(
         destination_spec = destination_reference.spec
 
     # lookup core storages
-    core_sources_storage = _get_core_sources_storage()
-    templates_storage = _get_templates_storage()
+    core_sources_storage = files_ops.get_core_sources_storage()
+    templates_storage = files_ops.get_single_file_templates_storage()
 
     # discover type of source
     source_type: files_ops.TSourceType = "template"
@@ -348,12 +345,20 @@ def init_pipeline_at_destination(
         source_configuration.src_pipeline_script,
     )
 
-    # inspect the script
-    import_pipeline_script(
-        source_configuration.storage.storage_path,
-        source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
-        ignore_missing_imports=True,
-    )
+    # inspect the script to populate source references
+    if source_configuration.source_type != "core":
+        import_pipeline_script(
+            source_configuration.storage.storage_path,
+            source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
+            ignore_missing_imports=True,
+        )
+    else:
+        # core sources are imported directly from the pipeline script which is in the _workspace module
+        import_pipeline_script(
+            os.path.dirname(source_configuration.src_pipeline_script),
+            os.path.basename(source_configuration.src_pipeline_script),
+            ignore_missing_imports=True,
+        )
 
     # detect all the required secrets and configs that should go into tomls files
     if source_configuration.source_type == "template":
@@ -588,23 +593,6 @@ def _get_source_display_name(source_name: str) -> Tuple[bool, str, str]:
     return is_vibe_source, display_source_name, source_name
 
 
-def _get_core_sources_storage() -> FileStorage:
-    """Get FileStorage for core sources"""
-    local_path = Path(os.path.dirname(os.path.realpath(__file__))).parent / SOURCES_MODULE_NAME
-    return FileStorage(str(local_path))
-
-
-def _get_templates_storage() -> FileStorage:
-    """Get FileStorage for single file templates"""
-    # look up init storage in core
-    init_path = (
-        Path(os.path.dirname(os.path.realpath(__file__))).parent
-        / SOURCES_MODULE_NAME
-        / SINGLE_FILE_TEMPLATE_MODULE_NAME
-    )
-    return FileStorage(str(init_path))
-
-
 def _clone_and_get_verified_sources_storage(repo_location: str, branch: str = None) -> FileStorage:
     """Clone and get FileStorage for verified sources templates"""
 
@@ -772,7 +760,7 @@ def _get_dependency_system(dest_storage: FileStorage) -> str:
 
 
 def _list_template_sources() -> Dict[str, SourceConfiguration]:
-    template_storage = _get_templates_storage()
+    template_storage = files_ops.get_single_file_templates_storage()
     sources: Dict[str, SourceConfiguration] = {}
     for source_name in files_ops.get_sources_names(template_storage, source_type="template"):
         sources[source_name] = files_ops.get_template_configuration(
@@ -782,7 +770,7 @@ def _list_template_sources() -> Dict[str, SourceConfiguration]:
 
 
 def _list_core_sources() -> Dict[str, SourceConfiguration]:
-    core_sources_storage = _get_core_sources_storage()
+    core_sources_storage = files_ops.get_core_sources_storage()
 
     sources: Dict[str, SourceConfiguration] = {}
     for source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):

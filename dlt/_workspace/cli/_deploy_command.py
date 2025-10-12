@@ -4,14 +4,15 @@ import yaml
 from enum import Enum
 from importlib.metadata import version as pkg_version
 
+from dlt.version import DLT_PKG_NAME
 from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY
 from dlt.common.configuration.utils import serialize_value
+from dlt.common.destination.reference import Destination
 from dlt.common.git import is_dirty
 
-from dlt.cli import utils
-from dlt.cli import echo as fmt
-from dlt.cli.deploy_command_helpers import (
-    PipelineWasNotRun,
+from dlt._workspace.cli import utils
+from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli._deploy_command_helpers import (
     BaseDeployment,
     ask_files_overwrite,
     generate_pip_freeze,
@@ -20,10 +21,6 @@ from dlt.cli.deploy_command_helpers import (
     wrap_template_str,
     get_schedule_description,
 )
-
-from dlt.version import DLT_PKG_NAME
-
-from dlt.common.destination.reference import Destination
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 DLT_AIRFLOW_GCP_DOCS_URL = (
@@ -34,6 +31,7 @@ AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"
 AIRFLOW_CLOUDBUILD_YAML = "cloudbuild.yaml"
 COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/dlt-%s-template.git"
 COMMAND_DEPLOY_REPO_LOCATION = COMMAND_REPO_LOCATION % "deploy"
+DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 
 
 class DeploymentMethods(Enum):

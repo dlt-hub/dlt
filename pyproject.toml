@@ -193,7 +193,7 @@ Homepage = "https://github.com/dlt-hub"
 Repository = "https://github.com/dlt-hub/dlt"
 
 [project.scripts]
-dlt = "dlt.cli._dlt:_main"
+dlt = "dlt._workspace.cli._dlt:_main"
 
 [dependency-groups]
 # NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group

@@ -78,7 +78,7 @@ from dlt.common.configuration.utils import (
     add_config_to_env,
 )
 from dlt.common.pipeline import TRefreshMode, PipelineContext
-from dlt.cli.config_toml_writer import TYPE_EXAMPLES
+from dlt._workspace.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from tests.utils import preserve_environ, TEST_STORAGE_ROOT

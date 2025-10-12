@@ -7,7 +7,7 @@ from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 
 from dlt._workspace.cli.utils import delete_local_data
-from dlt.cli.exceptions import CliCommandException
+from dlt._workspace.cli.exceptions import CliCommandException
 from dlt.common.runtime.run_context import RunContext
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 

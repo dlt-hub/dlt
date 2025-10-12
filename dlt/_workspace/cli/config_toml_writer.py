@@ -2,7 +2,6 @@ from typing import Any, NamedTuple, Tuple, Iterable, Mapping
 import tomlkit
 from tomlkit.items import Table as TOMLTable
 from tomlkit.container import Container as TOMLContainer
-from collections.abc import Sequence as C_Sequence
 
 from dlt.common.configuration.specs.base_configuration import is_hint_not_resolvable
 from dlt.common.configuration.const import TYPE_EXAMPLES
