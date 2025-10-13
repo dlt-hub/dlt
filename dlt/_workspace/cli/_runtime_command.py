@@ -46,7 +46,7 @@ class RuntimeCommand(SupportsCliCommand):
         if args.profile_command == "login":
             self.login(auth_service)
         elif args.profile_command == "logout":
-            ...  # self.logout(workspace_context)
+            self.logout(auth_service)
         else:
             self.parser.print_usage()
 
@@ -81,3 +81,6 @@ class RuntimeCommand(SupportsCliCommand):
                     print(f"Logged in as {auth_info.email}")
                     break
     
+    def logout(self, auth_service: AuthService) -> None:
+        auth_service.delete_token()
+        print("Logged out")
