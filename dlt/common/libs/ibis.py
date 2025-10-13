@@ -121,8 +121,9 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
             if isinstance(query, sg.Expression):
                 query = query.sql(dialect=self.compiler.dialect)
             else:
-                query = sg.transpile(query, write=self.compiler.dialect)
+                query = sg.transpile(query, write=self.compiler.dialect)[0]
 
+        assert isinstance(query, str)
         with self._dataset.sql_client as client:
             result = client.execute_sql(query)
 
