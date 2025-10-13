@@ -610,6 +610,18 @@ def test_coerce_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) 
         item_normalizer._coerce_row("event_user", None, row)
 
 
+def _normalize_items_chunk(
+    root_table_name: str, items: TDataItems, item_normalizer: JsonLItemsNormalizer
+) -> TSchemaUpdate:
+    schema_update = item_normalizer._normalize_chunk(
+        root_table_name=root_table_name,
+        items=items,
+        may_have_pua=False,
+        skip_write=True,
+    )
+    return schema_update
+
+
 @pytest.mark.parametrize(
     "nested_item",
     [
@@ -625,71 +637,67 @@ def test_coerce_null_value_over_not_null(item_normalizer: JsonLItemsNormalizer) 
 def test_coerce_null_value_in_nested_table(
     item_normalizer: JsonLItemsNormalizer, nested_item: TDataItems
 ) -> None:
-    """Ensure that a column previously created as a child table
-    does not attempt new column updates in a subsequent run when it has no values."""
-
-    def _normalize_items_chunk(items: TDataItems) -> TSchemaUpdate:
-        schema_update = item_normalizer._normalize_chunk(
-            root_table_name="nested",
-            items=items,
-            may_have_pua=False,
-            skip_write=True,
-        )
-        return schema_update
+    """Ensure that a column previously created as a nested table
+    does not attempt new column updates in the parent table in a subsequent run when it has no values.
+    """
 
     # Create column names that exceed max identifier length
     # to ensure that shortened names of nested tables are internally still correctly
     # tracked back to column names in the respective parent tables
-    col_name_a = "a" * (item_normalizer.naming.max_length + 1)
-    norm_col_name_a = item_normalizer.naming.normalize_path(col_name_a)
-    nested_tbl_name = item_normalizer.naming.shorten_fragments("nested", f"{norm_col_name_a}")
-
-    col_name_b = "b" * (item_normalizer.naming.max_length + 1)
-    norm_col_name_b = item_normalizer.naming.normalize_path(col_name_b)
-    nested_nested_tbl_name = item_normalizer.naming.shorten_fragments(
-        "nested", f"{norm_col_name_a}", f"{norm_col_name_b}"
+    col_a, col_b = (ch * (item_normalizer.naming.max_length + 1) for ch in "ab")
+    norm_col_a, norm_col_b = (item_normalizer.naming.normalize_path(col) for col in (col_a, col_b))
+    nested_tbl = item_normalizer.naming.shorten_fragments("nested", f"{norm_col_a}")
+    nested_nested_tbl = item_normalizer.naming.shorten_fragments(
+        "nested", f"{norm_col_a}", f"{norm_col_b}"
     )
 
-    # create parent and child tables
+    # create parent and nested tables
     schema_update = _normalize_items_chunk(
+        "nested",
         [
             {
                 "timestamp": 82178.1298812,
-                col_name_a: [
+                col_a: [
                     {
                         "timestamp": 82178.1298812,
-                        col_name_b: nested_item,
+                        col_b: nested_item,
                     }
                 ],
             },
-        ]
+        ],
+        item_normalizer,
     )
     assert "nested" in schema_update
-    assert nested_tbl_name in schema_update
-    assert nested_nested_tbl_name in schema_update
+    assert nested_tbl in schema_update
+    assert nested_nested_tbl in schema_update
 
-    # verify that empty child table columns don't create schema updates
+    # verify that columns that have been created as nested tables, don't create
+    # schema updates with seen-null-first hint in parent table
     schema_update = _normalize_items_chunk(
+        "nested",
         [
             {
                 "timestamp": 82178.1298812,
-                col_name_a: [
+                col_a: [
                     {
                         "timestamp": 82178.1298812,
-                        col_name_b: None,
+                        col_b: None,
                     }
                 ],
             },
-        ]
+        ],
+        item_normalizer,
     )
     assert not schema_update
     schema_update = _normalize_items_chunk(
+        "nested",
         [
             {
                 "timestamp": 82178.1298812,
-                col_name_a: None,
+                col_a: None,
             },
-        ]
+        ],
+        item_normalizer,
     )
     assert not schema_update
 

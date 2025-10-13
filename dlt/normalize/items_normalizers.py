@@ -31,19 +31,10 @@ from dlt.common.schema.utils import (
     dlt_load_id_column,
     has_table_seen_data,
     normalize_table_identifiers,
-    new_table,
     is_nested_table,
-    autodetect_sc_type,
-    merge_column,
-    is_complete_column,
-    is_nullable_column,
-    hint_to_column_prop,
     has_seen_null_first_hint,
-    remove_seen_null_first_hint,
-    has_default_column_prop_value,
-    get_nested_tables,
-    merge_schema_updates,
 )
+from dlt.common.schema import utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
 from dlt.common.time import normalize_timezone
 from dlt.common.utils import read_dialect_and_sql
@@ -539,16 +530,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
     def _clean_seen_null_first_hint(self, schema_update: TSchemaUpdate) -> None:
         """
-        Performs schema and schema update cleanup related to `seen-null-first` hints.
-
-        1. Removes `seen-null-first` hints from columns that now have resolved data types.
-        2. Removes entire columns with `seen-null-first` hints from parent tables
+        Performs schema and schema update cleanup related to `seen-null-first` hints by
+        removing entire columns with `seen-null-first` hints from parent tables
         when those columns have been converted to nested tables.
 
         NOTE: The `seen-null-first` hint is used during schema inference to track columns
-        that were first encountered with null values. Once a column gets a proper
-        data type (from subsequent non-null values), the hint is no longer needed.
-        In cases where subsequent non-null values create a nested table, the entire
+        that were first encountered with null values. In cases where subsequent
+        non-null values create a nested table, the entire
         column with the `seen-null-first` hint in parent table becomes obsolete.
 
         Args:
@@ -592,7 +580,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         table = self.schema._schema_tables.get(table_name)
         if not table:
             # print("NEW TABLE", table_name)
-            table = new_table(table_name, parent_table)
+            table = utils.new_table(table_name, parent_table)
         table_columns = table["columns"]
 
         new_row: DictStrAny = {}
@@ -644,10 +632,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             # already processed
             if hint == "not_null":
                 continue
-            column_prop = hint_to_column_prop(hint)
+            column_prop = utils.hint_to_column_prop(hint)
             hint_value = self.schema._infer_hint(hint, k)
             # set only non-default values
-            if not has_default_column_prop_value(column_prop, hint_value):
+            if not utils.has_default_column_prop_value(column_prop, hint_value):
                 column_schema[column_prop] = hint_value
 
         if is_variant:
@@ -739,7 +727,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         new_column: TColumnSchema = None
         existing_column = table_columns.get(col_name)
         # if column exist but is incomplete then keep it as new column
-        if existing_column and not is_complete_column(existing_column):
+        if existing_column and not utils.is_complete_column(existing_column):
             new_column = existing_column
             existing_column = None
 
@@ -805,7 +793,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             # if there's incomplete new_column then merge it with inferred column
             if new_column:
                 # use all values present in incomplete column to override inferred column - also the defaults
-                new_column = merge_column(inferred_column, new_column)
+                new_column = utils.merge_column(inferred_column, new_column)
             else:
                 new_column = inferred_column
 
@@ -819,7 +807,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     def _infer_column_type(self, v: Any, col_name: str, skip_preferred: bool = False) -> TDataType:
         tv = type(v)
         # try to autodetect data type
-        mapped_type = autodetect_sc_type(self.schema._type_detections, tv, v)
+        mapped_type = utils.autodetect_sc_type(self.schema._type_detections, tv, v)
         # if not try standard type mapping
         if mapped_type is None:
             mapped_type = py_type_to_sc_type(tv)
