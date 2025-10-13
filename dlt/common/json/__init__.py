@@ -4,7 +4,6 @@ import dataclasses
 from datetime import date, datetime, time  # noqa: I251
 from typing import Any, Callable, List, Protocol, IO, Union, Dict
 from uuid import UUID
-from hexbytes import HexBytes
 from enum import Enum
 
 try:
@@ -18,7 +17,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_values_in_place
-
+from dlt.common.libs.hexbytes import HexBytes
 
 TPuaDecoders = List[Callable[[Any], Any]]
 
