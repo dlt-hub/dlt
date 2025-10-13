@@ -16,3 +16,7 @@ class WorkspaceRunContextNotAvailable(WorkspaceException, RuntimeException):
             " folder."
         )
         super().__init__(run_dir, msg)
+
+
+class RuntimeNotAuthenticated(RuntimeException):
+    pass
