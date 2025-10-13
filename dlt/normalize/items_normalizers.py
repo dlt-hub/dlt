@@ -677,14 +677,14 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     ) -> Optional[TColumnSchema]:
         """Raises when column is explicitly not nullable or creates unbounded column"""
         existing_column = table_columns.get(col_name)
-        # If it exists as a direct child table or a compound column, don't infer
+        # If it exists as a direct child table or compound column(s) in the schema, don't infer
         if not existing_column:
             # Use cached table existence check to avoid expensive repeated lookups
             full_ident_path = self._full_ident_path_tracker.get(table_name)
             if full_ident_path and self._check_table_exists(full_ident_path, col_name):
                 return None
-            # TODO: use column ident paths, since actual compound col names
-            # may be shortened due to long original col names
+            # TODO: use column ident paths (also in Normalize.clean_x_normalizer),
+            # path separator is not reliable with shortened names
             if any(
                 col.startswith(col_name + self.schema.naming.PATH_SEPARATOR)
                 for col in table_columns

@@ -163,7 +163,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         )
         return result
 
-    def clean_x_normalizer(self, load_id: str, table_name: str, table_schema: TTableSchema) -> None:
+    def clean_x_normalizer(
+        self, load_id: str, table_name: str, table_schema: TTableSchema, path_separator: str
+    ) -> None:
         x_normalizer = table_schema.setdefault("x-normalizer", {})
         # drop evolve once for all tables that seen data
         x_normalizer.pop("evolve-columns-once", None)
@@ -174,11 +176,22 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             )
             x_normalizer["seen-data"] = True
 
-        # Handle column-level x-normalizer
-        # drop seen-null-first flag if data type was set
-        for col_schema in table_schema.get("columns", {}).values():
-            if col_schema and has_seen_null_first_hint(col_schema) and "data_type" in col_schema:
-                remove_seen_null_first_hint(col_schema)
+        # Handle column-level seen-null-first hint in x-normalizer hints
+        col_schemas = table_schema.get("columns", {})
+        for col_name, col_schema in list(col_schemas.items()):
+            if has_seen_null_first_hint(col_schema):
+                if "data_type" in col_schema:
+                    # 1. Remove seen-null-first hint if data type is set
+                    remove_seen_null_first_hint(col_schema)
+                else:
+                    # 2. Remove entire column if it was created as compound column(s)
+                    # TODO: use column ident paths (also in JsonLItemsNormalizer._coerce_null_value),
+                    # path separator is not reliable with shortened names
+                    if any(
+                        col.startswith(col_name + path_separator)
+                        for col in list(col_schemas.keys())
+                    ):
+                        table_schema["columns"].pop(col_name)
 
     def spool_files(
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
@@ -197,7 +210,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         for table_name in table_metrics:
             table = schema.tables[table_name]
             verify_normalized_table(schema, table, self.config.destination_capabilities)
-            self.clean_x_normalizer(load_id, table_name, table)
+            self.clean_x_normalizer(load_id, table_name, table, schema.naming.PATH_SEPARATOR)
         # schema is updated, save it to schema volume
         if schema.is_modified:
             logger.info(
