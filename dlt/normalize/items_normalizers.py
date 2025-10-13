@@ -556,23 +556,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         """
         schema_update_copy = schema_update.copy()
         for table_name, table_updates in schema_update_copy.items():
-            col_schemas = self.schema.get_table_columns(table_name, include_incomplete=True)
-
             last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
 
-            for i, table_update in enumerate(table_updates):
-                col_updates = table_update["columns"]
-
-                for updated_col_name in list(col_updates.keys()):
-                    col_schema = col_schemas.get(updated_col_name)
-                    if col_schema and has_seen_null_first_hint(col_schema):
-                        # Remove hint from column that now has concrete data type
-                        if "data_type" in col_schema:
-                            remove_seen_null_first_hint(col_schema)
-                            schema_update[table_name][i]["columns"].pop(updated_col_name)
-                        # Remove the entire column with hint from table if it was created as a compound column in the same table
-                        # TODO: use ident paths, as simple normalization may not be sufficient with long names
-
+            for table_update in table_updates:
                 # Remove the entire column with hint from parent table if it was created as a nested table
                 if is_nested_table(table_update):
                     parent_name = table_update.get("parent")
