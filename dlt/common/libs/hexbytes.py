@@ -24,7 +24,7 @@ class HexBytes(bytes):
     """
 
     def __new__(cls: Type[bytes], val: BytesLike) -> "HexBytes":
-        bytesval = HexBytes.to_bytes(val)
+        bytesval = HexBytes._to_bytes(val)
         return cast(HexBytes, super().__new__(cls, bytesval))  # type: ignore  # https://github.com/python/typeshed/issues/2630  # noqa: E501
 
     def hex(  # noqa: A003
@@ -61,7 +61,7 @@ class HexBytes(bytes):
         return f"HexBytes({self.hex()!r})"
 
     @staticmethod
-    def to_bytes(val: Union[bool, bytearray, bytes, int, str, memoryview]) -> bytes:
+    def _to_bytes(val: Union[bool, bytearray, bytes, int, str, memoryview]) -> bytes:
         """
         Equivalent to: `eth_utils.hexstr_if_str(eth_utils.to_bytes, val)` .
 
@@ -71,7 +71,7 @@ class HexBytes(bytes):
         if isinstance(val, bytes):
             return val
         elif isinstance(val, str):
-            return HexBytes.hexstr_to_bytes(val)
+            return HexBytes._hexstr_to_bytes(val)
         elif isinstance(val, bytearray):
             return bytes(val)
         elif isinstance(val, bool):
@@ -80,14 +80,12 @@ class HexBytes(bytes):
             if val < 0:
                 raise ValueError(f"Cannot convert negative integer {val} to bytes")
             else:
-                return HexBytes.to_bytes(hex(val))
+                return HexBytes._to_bytes(hex(val))
         elif isinstance(val, memoryview):
             return bytes(val)
-        else:
-            raise TypeError(f"Cannot convert {val!r} of type {type(val)} to bytes")
 
     @staticmethod
-    def hexstr_to_bytes(hexstr: str) -> bytes:
+    def _hexstr_to_bytes(hexstr: str) -> bytes:
         if hexstr.startswith(("0x", "0X")):
             non_prefixed_hex = hexstr[2:]
         else:
