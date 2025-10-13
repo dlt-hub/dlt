@@ -84,7 +84,7 @@ def test_hexbytes_errors():
         HexBytes("not a hex string")  # Invalid hex string
 
     with pytest.raises(TypeError):
-        HexBytes(3.14)  # Floats not supported
+        HexBytes([])  # Lists not supported - or any non-BytesLike type
 
 
 def test_hexbytes_comparison():
