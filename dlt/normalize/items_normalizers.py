@@ -531,7 +531,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 pass
             signals.raise_if_signalled()
 
-        self._clean_seen_null_first_hint(schema_update)
+        # self._clean_seen_null_first_hint(schema_update)
 
         return schema_update
 
