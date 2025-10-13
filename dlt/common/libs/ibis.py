@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, Iterator, Union
 from typing_extensions import override
 
 import dlt
@@ -36,7 +36,7 @@ except ImportError:
 # TODO complete implementation and register to singledispatch `sch.infer.register`
 class DltType(TypeMapper):
     @classmethod
-    def from_ibis(cls):
+    def from_ibis(cls) -> TDataType:
         raise NotImplementedError
 
     @classmethod
@@ -66,7 +66,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     other methods that return data in memory.
     """
 
-    name = "dlt"
+    name: str = "dlt"
     supports_temporary_tables = False
     supports_python_udfs = False
 
@@ -80,21 +80,21 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
         # sync with destination should be made through the dataset.
         new_backend = cls()
         new_backend._dataset = dataset
-        new_backend.compiler = _get_ibis_to_sqlglot_compiler(new_backend._dataset._destination)
+        new_backend.compiler = _get_ibis_to_sqlglot_compiler(new_backend._dataset._destination)  # type: ignore[arg-type]
         return new_backend
 
     def to_native_ibis(self, *, read_only: bool = False) -> BaseBackend:
         return get_native_ibis_backend(self._dataset, read_only=read_only)
 
     @property
-    @override
+    # @override
     def version(self) -> str:
         import importlib.metadata
 
         return importlib.metadata.version("dlt")
 
     # NOTE can change signature
-    @override
+    # @override
     def do_connect(
         self,
         destination: TDestinationReferenceArg,
@@ -107,18 +107,21 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
             dataset_name=dataset_name,
             schema=schema,
         )
-        self.compiler = _get_ibis_to_sqlglot_compiler(self._dataset._destination)
+        self.compiler = _get_ibis_to_sqlglot_compiler(self._dataset._destination)  # type: ignore[arg-type]
 
     @contextlib.contextmanager
-    @override
-    def _safe_raw_sql(self, *args, **kwargs):
+    # @override
+    def _safe_raw_sql(self, *args: Any, **kwargs: Any) -> Iterator[Any]:
         yield self.raw_sql(*args, **kwargs)
 
-    @override
+    # @override
     def raw_sql(self, query: Union[str, sg.Expression], **kwargs: Any) -> Any:
         """Execute SQL string or SQLGlot expression using the dlt destination SQL client"""
         with contextlib.suppress(AttributeError):
-            query = query.sql(dialect=self.name)
+            if isinstance(query, sg.Expression):
+                query = query.sql(dialect=self.compiler.dialect)
+            else:
+                query = sg.transpile(query, write=self.compiler.dialect)
 
         with self._dataset.sql_client as client:
             result = client.execute_sql(query)
@@ -131,28 +134,28 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
         return self._dataset.dataset_name
 
     # required for marimo DataSources UI to work
-    @override
-    def list_tables(self, *args, **kwargs) -> list[str]:
+    # @override
+    def list_tables(
+        self, *, like: str | None = None, database: tuple[str, str] | str | None = None
+    ) -> list[str]:
         """Return the list of table names"""
         return list(self._dataset.schema.tables.keys())
 
     # required for marimo DataSources UI to work
-    @override
-    def get_schema(self, table_name: str, *args, **kwargs) -> sch.Schema:
+    # @override
+    def get_schema(self, table_name: str, *args: Any, **kwargs: Any) -> sch.Schema:
         """Get the Ibis table schema"""
         return _to_ibis_schema(self._dataset.table(table_name).schema)
 
     # required for marimo DataSources UI to work
-    @override
-    def _get_schema_using_query(self, query: str):
+    # @override
+    def _get_schema_using_query(self, query: str) -> sch.Schema:
         """Required to subclass SQLBackend"""
         return _to_ibis_schema(self._dataset(query).schema)
 
     # required for marimo DataSources UI to work
-    @override
-    def table(
-        self, name: str, /, *, database: Union[tuple[str, str], str, None] = None
-    ) -> ir.Table:
+    # @override
+    def table(self, name: str, /, *, database: tuple[str, str] | str | None = None) -> ir.Table:
         """Construct a table expression"""
         # TODO maybe there's a more straighforward way to retrieve catalog and db
         sql_client = self._dataset.sql_client
@@ -169,7 +172,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
 
     # TODO use the new dlt `model` format with INSERT statement
     # for non-SQL (e.g., filesystem) use JobClient
-    @override
+    # @override
     def create_table(
         self,
         name: str,
@@ -183,13 +186,13 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     ) -> ir.Table:
         raise NotImplementedError
 
-    @override
+    # @override
     def _register_in_memory_table(self, op: ops.InMemoryTable) -> None:
         """Required to subclass SQLBackend"""
         raise NotImplementedError
 
-    @override
-    def _register_udfs(self, *args, **kwargs) -> None:
+    # @override
+    def _register_udfs(self, expr: ir.Expr) -> None:
         """Override SQLBackend method to avoid round-trip to Ibis SQL compiler"""
 
 

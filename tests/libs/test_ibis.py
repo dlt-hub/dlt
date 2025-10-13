@@ -73,7 +73,7 @@ def test_get_schema(populated_pipeline: dlt.Pipeline):
             "other_decimal": ibis.dtype("decimal", nullable=True),
             "_dlt_load_id": ibis.dtype("string", nullable=False),
             "_dlt_id": ibis.dtype("string", nullable=False),
-        }  # type: ignore
+        }
     )
 
     ibis_schema = backend.get_schema("items")
