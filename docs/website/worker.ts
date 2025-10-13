@@ -63,6 +63,12 @@ const REDIRECTS = [
         from: "/docs/visualizations",
         to: "/docs/general-usage/dataset-access/"
     },
+
+    // dlt+ redirect
+    {
+        from: "/docs/plus/",
+        to: "/docs/hub/"
+    },
 ]
 
 const ROUTE_404 = "/docs/404";
@@ -78,13 +84,13 @@ const handler = {
                 url.pathname = redirect.to;
                 return Response.redirect(url.toString(), redirect.code || 301);
             }
-        }   
+        }
 
         let res = await env.ASSETS.fetch(request);
         if (res.status === 404) {
             url.pathname = ROUTE_404;
             return Response.redirect(url.toString(), 301);
-        }    
+        }
         return res; // unchanged response (transparent externally)
     }
   };
