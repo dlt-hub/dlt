@@ -6,20 +6,20 @@ keywords: [observability, monitoring, alerting, callbacks]
 
 # Custom callbacks
 
-dlt+ includes a `PlusLogCollector` interface that can be used to implement custom callbacks.
+dltHub includes a `PlusLogCollector` interface that can be used to implement custom callbacks.
 It is an extension of the dlt [LogCollector](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/common/runtime/collector.py#L77) which accumulates pipeline and system stats and outputs to a python logger or the console. 
 
 You have several options to implement your own logic:
 - Five different methods related to the different stages of the pipeline, all having the pipeline and the trace as parameters, allowing you, for example, to implement
 `after_extract` or `before_load`
-- Three additional callbacks, `on_before`, `on_after` and `on_retry`, which are available if you are running your pipelines with the [dlt+ runner](../production/pipeline-runner.md)
+- Three additional callbacks, `on_before`, `on_after` and `on_retry`, which are available if you are running your pipelines with the [dltHub runner](../production/pipeline-runner.md)
 - the `on_log` method, which is called at a customizable interval and has context about the progress of the currently active stage and the system resources
 
 For an extended description, we recommend you look at the actual implementation of the `PlusLogCollector` interface.
 Here is a simple example of how to inherit from the `PlusLogCollector` and use the [slack-hook](../../running-in-production/running#using-slack-to-send-messages) to send a message when a schema change is detected.
 
 ```py
-from dlt_plus._runner.plus_log_collector import PlusLogCollector
+from dlthub._runner.plus_log_collector import PlusLogCollector
 from dlt.sources.sql_database import sql_database
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.pipeline import SupportsPipeline
@@ -64,7 +64,7 @@ print(load_info)
 
 ## Planned features
 
-There are several other features under development in dlt+ to enhance your observability workflows. These include:
+There are several other features under development in dltHub to enhance your observability workflows. These include:
 * A UI to explore and debug your pipeline runs
 * An AI agent to investigate your traces and logs
 

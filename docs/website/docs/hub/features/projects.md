@@ -3,20 +3,20 @@
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
-[dlt+ Project](../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other.
+[dltHub Project](../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dltHub Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other.
 
-With dlt+ Project, you can efficiently manage your data workflows by:
+With dltHub Project, you can efficiently manage your data workflows by:
 
 1. [Using a declarative `dlt.yml` file](#the-dlt-manifest-file-dltyml) to define sources, destinations, pipelines, and transformations.
 2. Configuring [different profiles](../core-concepts/profiles.md) for various use cases and environments.
-3. Ensuring data quality by defining tests with [dlt+ tests utils](./quality/tests.md).
+3. Ensuring data quality by defining tests with [dltHub tests utils](./quality/tests.md).
 4. Packaging your project as a Python package and distributing it via PyPI or a git repository [Coming Soon!]
 
 This structured approach allows teams to work efficiently while maintaining flexibility and control over their data workflows.
 
 ## Project structure
 
-A dlt+ Project has the following general structure:
+A dltHub Project has the following general structure:
 ```text
 ├── .dlt/                 # folder containing dlt configurations and profile settings
 │   ├── config.toml
@@ -32,7 +32,7 @@ A dlt+ Project has the following general structure:
 
 ## The dlt manifest file (dlt.yml)
 
-The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It marks the root of your project and contains the main configurations. Here you can declare all of your data platform entities in a YAML format. It contains the following sections:
+The main component of a dltHub Project is the dlt manifest file (`dlt.yml`). It marks the root of your project and contains the main configurations. Here you can declare all of your data platform entities in a YAML format. It contains the following sections:
 
 ### Sources
 
@@ -50,7 +50,7 @@ sources:
     client:
       base_url: https://pokeapi.co/api/v2/
       paginator: auto
-      
+
     resources:
       - name: pokemon
         primary_key: name
@@ -65,7 +65,7 @@ sources:
               type: incremental
               cursor_path: name
         write_disposition: append
-     
+
 
 ```
 
@@ -88,7 +88,7 @@ always use a full path to a function name in a Python module, but we also suppor
 * `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS dlt and `rest_api` is a name of a function in that module.
 * `github.source` will be expanded to `sources.github.sources` in the current project.
 
-If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
+If the **type** cannot be resolved, dltHub will provide you with a detailed list of all candidate types that were looked up
 so you can make required corrections.
 :::
 
@@ -118,7 +118,7 @@ You can declare all arguments of `dlt.pipeline` in this section. For a full list
 
 ### Datasets
 
-The datasets section defines datasets that live on a destination (defined in the destinations section). Any datasets declared in the [pipeline section](#pipelines) are automatically created if not declared here. Read more about datasets in dlt+ [here](../core-concepts/datasets.md).
+The datasets section defines datasets that live on a destination (defined in the destinations section). Any datasets declared in the [pipeline section](#pipelines) are automatically created if not declared here. Read more about datasets in dltHub [here](../core-concepts/datasets.md).
 
 ```yaml
 datasets:
@@ -147,7 +147,7 @@ caches:
           events_aggregated: events_aggregated
 ```
 :::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list)
 :::
 
 ### Transformations 🧪
@@ -161,12 +161,12 @@ transformations:
     cache: github_events_cache
 ```
 :::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list)
 :::
 
 ### Profiles
 
-You can use the profiles section to define different environments (example: dev, staging, prod, tests). One package may have multiple profiles which can be specified using dlt+ cli commands. The default profile name is `dev`. It's created automatically alongside the `tests` profile.
+You can use the profiles section to define different environments (example: dev, staging, prod, tests). One package may have multiple profiles which can be specified using dltHub cli commands. The default profile name is `dev`. It's created automatically alongside the `tests` profile.
 
 ```yaml
 profiles:
@@ -211,7 +211,7 @@ You can override default project settings using the `project` section:
 * `data_dir` and `local_dir` - [files created by pipelines and destinations](#local-and-temporary-files-data_dir), separated by the current profile name.
 * `name` - the name of the project.
 * `default_profile` - the name of the default profile, which can be configured in the project section as seen above.
-* `allow_undefined_entities` - by default, dlt+ will create entities like destinations, sources, and datasets ad hoc. This flag disables such behavior.
+* `allow_undefined_entities` - by default, dltHub will create entities like destinations, sources, and datasets ad hoc. This flag disables such behavior.
 
 In the example below:
 ```yaml
@@ -233,7 +233,7 @@ As you may guess from the example above, you can use Python-style formatters to 
 * Any of the project settings can be substituted as well.
 
 ### Implicit entities
-By default, dlt+ will automatically create entities such as datasets or destinations when they are requested by the user or the executed code.
+By default, dltHub will automatically create entities such as datasets or destinations when they are requested by the user or the executed code.
 For example, a minimal `dlt.yml` configuration might look like this:
 ```yaml
 sources:
@@ -254,7 +254,7 @@ Running the following command executes the pipeline:
 ```sh
 dlt pipeline my_pipeline run
 ```
-In this case, the `my_pipeline_dataset` dataset is not declared explicitly, so dlt+ creates it automatically. The `duckdb` destination and the `arrow` source are explicitly defined, so they do not need to be created implicitly. However, if any entity (such as a source or destination) is referenced only in the pipeline and not defined under the corresponding section, dlt+ will create it implicitly.
+In this case, the `my_pipeline_dataset` dataset is not declared explicitly, so dltHub creates it automatically. The `duckdb` destination and the `arrow` source are explicitly defined, so they do not need to be created implicitly. However, if any entity (such as a source or destination) is referenced only in the pipeline and not defined under the corresponding section, dltHub will create it implicitly.
 
 Implicit creation of entities can be controlled using the `allow_undefined_entities` setting in the project configuration:
 
@@ -262,7 +262,7 @@ Implicit creation of entities can be controlled using the `allow_undefined_entit
 project:
   allow_undefined_entities: false
 ```
-If `allow_undefined_entities` is set to `false`, dlt+ will no longer create missing entities automatically.
+If `allow_undefined_entities` is set to `false`, dltHub will no longer create missing entities automatically.
 Datasets and destinations must be declared explicitly in the `dlt.yml` file:
 ```yaml
 datasets:
@@ -274,7 +274,7 @@ datasets:
 ### Managing datasets and destinations
 
 When datasets are explicitly declared in the `dlt.yml` file, the `destination` field must list all destinations where the dataset is allowed to be materialized. This applies even if `allow_undefined_entities` is set to `true`.
-Each pipeline that references a dataset must use a destination that is included in the dataset’s `destination` list. If the pipeline specifies a destination not listed, dlt+ will raise a configuration error.
+Each pipeline that references a dataset must use a destination that is included in the dataset’s `destination` list. If the pipeline specifies a destination not listed, dltHub will raise a configuration error.
 
 ```yaml
 datasets:
@@ -304,7 +304,7 @@ or any of the settings we mention in the [performance](../../reference/performan
 
 ## Local and temporary files (`data_dir`)
 
-The dlt+ project has a dedicated location (`data_dir`), where all working files are stored. By default, it is the `_data` folder in the root of the project.
+The dltHub project has a dedicated location (`data_dir`), where all working files are stored. By default, it is the `_data` folder in the root of the project.
 Working files for each profile are stored separately. For example, files for the `dev` profile are stored in `_data/dev`.
 
 Working files include:
@@ -329,14 +329,14 @@ The `iceberg` destination will create an iceberg lake in the `_data/dev/local/la
 You can clean up your working files with the `dlt project --profile name clean` command.
 :::
 
-## Python API to interact with dlt-plus project
+## Python API to interact with dltHub project
 
-You can access any dlt+ project entity or function via the Python interface.
-The current module provides access to various parts of your active dlt+ project.
+You can access any dltHub project entity or function via the Python interface.
+The current module provides access to various parts of your active dltHub project.
 
 Import statement:
 ```py
-from dlt_plus import current
+from dlthub import current
 ```
 
 Available methods:
@@ -346,7 +346,7 @@ Available methods:
 - `current.runner()` - Allows you to run pipelines programmatically
 
 :::info
-If you packaged your dlt+ Project into a pip-installable package, you can access all methods above directly from the package. For example:
+If you packaged your dltHub Project into a pip-installable package, you can access all methods above directly from the package. For example:
 ```py
 import my_dlt_package
 
@@ -359,7 +359,7 @@ my_dlt_package.catalog()
 
 Here are a few examples of what you can access from the project object:
 ```py
-from dlt_plus import current
+from dlthub import current
 
 # show the currently active profile
 print(current.project().current_profile)
@@ -375,10 +375,10 @@ print(current.project().datasets)
 Accessing entities in code works the same way as when referencing them in the `dlt.yml` file.
 If allowed, implicit entities will be created and returned automatically. If not, an error will be raised.
 ```py
-import dlt_plus
-from dlt_plus import current
+import dlthub
+from dlthub import current
 
-entities = dlt_plus.current.entities()
+entities = dlthub.current.entities()
 pipeline = entities.get_pipeline("my_pipeline")
 destination = entities.get_destination("duckdb")
 transformation = entities.get_transformation("stressed_transformation")
@@ -388,12 +388,12 @@ Here, we access the entities manager, which allows you to create sources, destin
 
 ### Running pipelines
 
-`dlt+` includes a project runner which will instantiate pipelines from the `dlt.yml` file
+`dlthub` includes a project runner which will instantiate pipelines from the `dlt.yml` file
 and run them with the [pipeline runner](../production/pipeline-runner.md), which is exactly the same as using the [pipeline run](../reference#dlt-pipeline-run) command of the CLI.
 You can also use it directly in your code through the project context:
 
 ```py
-from dlt_plus import current
+from dlthub import current
 
 # get the runner
 runner = current.runner()
@@ -406,7 +406,7 @@ runner.run_pipeline("my_pipeline")
 The catalog allows you to access all explicitly defined datasets:
 
 ```py
-from dlt_plus import current
+from dlthub import current
 
 # Get a dataset instance pointing to the default destination (first in dataset destinations list) and access data inside of it
 # Note: The dataset must already exist physically for this to work
@@ -422,9 +422,9 @@ It covers how to browse, filter tables, and retrieve data in various formats.
 
 ### Writing data back to the catalog
 
-You can also write data to datasets in the dlt+ catalog. Each dataset has a `.save()` method that lets you write data back to it.
+You can also write data to datasets in the dltHub catalog. Each dataset has a `.save()` method that lets you write data back to it.
 In the future, you'll be able to control which datasets are writable using contracts.
-Under the hood, `dlt+` runs an ad-hoc pipeline to handle the write operation.
+Under the hood, `dlthub` runs an ad-hoc pipeline to handle the write operation.
 
 :::warning
 Writing data to the catalog is an **experimental feature**.
@@ -433,7 +433,7 @@ Use it with caution until it's fully stable.
 
 ```py
 import pandas as pd
-from dlt_plus import current
+from dlthub import current
 
 # Get a dataset from the catalog (it must already exist and be defined in dlt.yml)
 dataset = current.catalog().dataset("my_pipeline_dataset")
@@ -444,7 +444,7 @@ dataset.save(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]}
 You can also read from an existing table and write the data to a new table, either in the same or another dataset:
 
 ```py
-from dlt_plus import current
+from dlthub import current
 
 # Get dataset from the catalog
 dataset = current.catalog().dataset("my_pipeline_dataset")
@@ -468,8 +468,8 @@ You can switch to a different profile using the `switch_profile` function.
 Here’s an example:
 
 ```py
-from dlt_plus import current
-from dlt_plus.project.run_context import switch_profile
+from dlthub import current
+from dlthub.project.run_context import switch_profile
 
 if __name__ == "__main__":
     # Shows the current active profile

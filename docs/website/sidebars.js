@@ -476,58 +476,106 @@ const sidebars = {
   hubSidebar: [
     {
       type: 'category',
-      label: 'dltHub Features',
+      label: 'Getting started',
+      items: [
+        'hub/intro',
+        'hub/getting-started/installation',
+        'dlt-ecosystem/llm-tooling/llm-native-workflow',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Workspace',
       link: {
         type: 'doc',
-        id: 'hub/intro',
+        id: 'hub/workspace/index',
       },
+      items: [
+        'hub/workspace/index',
+        {
+          type: 'category',
+          label: 'Create pipeline',
+          items: [
+          'hub/workspace/init-and-verified-sources',
+          'hub/ecosystem/ms-sql',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Ensure data quality',
+          items: [
+            'general-usage/dashboard',
+            'hub/features/mcp-server',
+            'hub/features/quality/data-quality',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Create reports and transformations',
+          items: [
+            'general-usage/dataset-access/marimo',
+            'general-usage/dataset-access/dataset',
+            'hub/features/transformations/index',
+            'hub/features/transformations/dbt-transformations',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Deploy workspace',
+          items: [
+            'hub/core-concepts/profiles',
+          {
+            type: 'category',
+            label: 'Deploy a pipeline',
+            link: {
+              type: 'generated-index',
+              title: 'Deploy a pipeline',
+              description: 'Deploy dlt pipelines with different methods',
+              slug: 'hub/walkthroughs/deploy-a-pipeline',
+            },
+            items: [
+              'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+              'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
+              'reference/explainers/airflow-gcp-cloud-composer',
+              'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+              'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run',
+              'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
+              'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
+              'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
+              'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
+              'walkthroughs/deploy-a-pipeline/deploy-with-modal',
+              'walkthroughs/deploy-a-pipeline/deploy-with-orchestra',
+            ]
+          },
+          'hub/production/pipeline-runner',
+          ]
+        },
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Runtime',
       items: [
         {
           type: 'category',
-          label: 'Getting started',
+          label: 'Maintain data workflows',
           items: [
-            'hub/getting-started/installation',
-            'hub/getting-started/tutorial',
-            'hub/getting-started/advanced_tutorial',
+            'hub/production/observability',
+            'hub/production/prefect-integration',
           ]
         },
-        {
-          type: 'category',
-          label: 'Core concepts',
-          items: [
-            'hub/core-concepts/project',
-            'hub/core-concepts/cache',
-            'hub/core-concepts/datasets',
-            'hub/core-concepts/profiles',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Sources & Destinations',
-          items: [
-            'hub/ecosystem/ms-sql',
-            'hub/ecosystem/iceberg',
-            'hub/ecosystem/delta',
-            'hub/ecosystem/snowflake_plus',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Features',
-          items: [
-            {
-              type: 'category',
-              label: 'Transformations',
-              link: {
-                type: 'doc',
-                id: 'hub/features/transformations/index',
-              },
-              items: [
-                'hub/features/transformations/index',
-              ]
-            },
-            'hub/features/data-access',
-            {
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Storage',
+      items: [
+        'hub/ecosystem/delta',
+        'hub/ecosystem/iceberg',
+        'hub/ecosystem/snowflake_plus',
+      ]
+    },
+    {
               type: 'category',
               label: 'Project',
               link: {
@@ -540,36 +588,9 @@ const sidebars = {
                 'hub/features/project/python-api',
               ]
             },
-            {
-              type: 'category',
-              label: 'dbt generator',
-              link: {
-                type: 'doc',
-                id: 'hub/features/transformations/index',
-              },
-              items: [
-                'hub/features/transformations/setup',
-                'hub/features/transformations/dbt-transformations',
-              ]
-            },
-            'hub/features/ai',
-            "hub/features/mcp-server",
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Going to production',
-          items: [
-            'hub/production/pipeline-runner',
-            'hub/production/observability',
-            'hub/production/prefect-integration',
-          ]
-        },
-        'hub/reference',
-        'hub/EULA'
-      ]
-    },
-  ],
+    'hub/reference',
+    'hub/EULA',
+    ],
 };
 
 // insert examples

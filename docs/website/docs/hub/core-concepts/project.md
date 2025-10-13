@@ -1,6 +1,6 @@
 # Project
 
-A dlt+ Project offers developers a declarative approach for defining data workflow components: sources, destinations, pipelines, transformations, parameters, etc. It follows an opinionated structure centered around a Python manifest file `dlt.yml`, where all dlt entities are defined and configured in an organized way. The manifest file acts like a single source of truth for data pipelines, keeping all teams aligned.
+A dltHub Project offers developers a declarative approach for defining data workflow components: sources, destinations, pipelines, transformations, parameters, etc. It follows an opinionated structure centered around a Python manifest file `dlt.yml`, where all dlt entities are defined and configured in an organized way. The manifest file acts like a single source of truth for data pipelines, keeping all teams aligned.
 
 The project layout has the following components:
 
@@ -9,7 +9,7 @@ The project layout has the following components:
 3. Python modules with source code and tests. We propose a strict layout of the modules (i.e., source code is in the `sources/` folder, etc.)
 4. `_data` folder (excluded from `.git`) where pipeline working directories and local destination files (i.e., filesystem, duckdb databases) are kept.
 
-A general dlt+ project has the following structure:
+A general dltHub project has the following structure:
 
 ```text
 .
@@ -24,8 +24,8 @@ A general dlt+ project has the following structure:
 └── dlt.yml               # the main project manifest
 ```
 
-Read more about dlt+ Project in the [project feature description](../features/projects.md)
+Read more about dltHub Project in the [project feature description](../features/projects.md)
 
 :::note
-To get started with a dlt+ Project and learn how to manage it using cli commands, check out our [tutorial](../getting-started/tutorial.md).
+To get started with a dltHub Project and learn how to manage it using cli commands, check out our [tutorial](../getting-started/tutorial.md).
 :::
