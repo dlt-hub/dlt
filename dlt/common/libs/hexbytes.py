@@ -27,17 +27,15 @@ class HexBytes(bytes):
         bytesval = HexBytes.to_bytes(val)
         return cast(HexBytes, super().__new__(cls, bytesval))  # type: ignore  # https://github.com/python/typeshed/issues/2630  # noqa: E501
 
-    def hex(
+    def hex(  # noqa: A003
         self, sep: Union[str, bytes] = None, bytes_per_sep: "SupportsIndex" = 1
-    ) -> str:  # noqa: A003
+    ) -> str:
         """
         Output hex-encoded bytes, with an "0x" prefix.
 
         Everything following the "0x" is output exactly like :meth:`bytes.hex`.
         """
-        # Get raw hex without any prefix
         raw_hex = super().hex()
-        # Only add 0x if it's not already there
         if raw_hex.startswith("0x"):
             return raw_hex
         return "0x" + raw_hex
@@ -79,8 +77,6 @@ class HexBytes(bytes):
         elif isinstance(val, bool):
             return b"\x01" if val else b"\x00"
         elif isinstance(val, int):
-            # Note that this int check must come after the bool check, because
-            #   isinstance(True, int) is True
             if val < 0:
                 raise ValueError(f"Cannot convert negative integer {val} to bytes")
             else:
@@ -97,7 +93,6 @@ class HexBytes(bytes):
         else:
             non_prefixed_hex = hexstr
 
-        # if the hex string is odd-length, then left-pad it to an even length
         if len(hexstr) % 2:
             padded_hex = "0" + non_prefixed_hex
         else:
