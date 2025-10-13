@@ -34,7 +34,7 @@ dlt init foo ducklake
 `dlt init` will create a sample `secrets.toml` for **postgres** catalog and **s3** bucket storage. For local automatic setup comment out catalog and storage entries:
 ```toml
 [destination.ducklake.credentials]
-ducklake_name="ducklake"  # we recommend explicit catalog name
+ducklake_name="ducklake"  # we recommend explicit ducklake name
 ```
 
 - Run a test pipeline that writes to a local DuckLake:
