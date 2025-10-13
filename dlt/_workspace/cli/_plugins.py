@@ -13,6 +13,7 @@ __all__ = [
     "plug_cli_deploy",
     "plug_cli_docs",
     "plug_cli_ai",
+    "plug_cli_runtime",
     "plug_cli_profile",
     "plug_cli_workspace",
 ]
@@ -72,6 +73,16 @@ def plug_cli_ai() -> Type[plugins.SupportsCliCommand]:
     from dlt.cli.commands import AiCommand
 
     return AiCommand
+
+
+@plugins.hookimpl(specname="plug_cli")
+def plug_cli_runtime() -> Type[plugins.SupportsCliCommand]:
+    if is_workspace_active():
+        from dlt._workspace.cli._runtime_command import RuntimeCommand
+
+        return RuntimeCommand
+    else:
+        return None
 
 
 @plugins.hookimpl(specname="plug_cli")
