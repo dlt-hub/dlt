@@ -27,7 +27,9 @@ class HexBytes(bytes):
         bytesval = HexBytes.to_bytes(val)
         return cast(HexBytes, super().__new__(cls, bytesval))  # type: ignore  # https://github.com/python/typeshed/issues/2630  # noqa: E501
 
-    def hex(self, sep: Union[str, bytes] = None, bytes_per_sep: "SupportsIndex" = 1) -> str:
+    def hex(
+        self, sep: Union[str, bytes] = None, bytes_per_sep: "SupportsIndex" = 1
+    ) -> str:  # noqa: A003
         """
         Output hex-encoded bytes, with an "0x" prefix.
 
