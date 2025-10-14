@@ -612,6 +612,7 @@ class Schema:
         """References between tables"""
         all_references: list[TStandaloneTableReference] = []
         for table_name, table in self.tables.items():
+            # TODO more specific error handling than ValueError
             try:
                 parent_ref = utils.create_parent_child_reference(self.tables, table_name)
                 all_references.append(cast(TStandaloneTableReference, parent_ref))
@@ -625,7 +626,9 @@ class Schema:
                 pass
 
             try:
-                load_table_ref = utils.create_root_child_reference(self.tables, table_name)
+                load_table_ref = utils.create_load_table_reference(
+                    self.tables[table_name], naming=self.naming
+                )
                 all_references.append(cast(TStandaloneTableReference, load_table_ref))
             except ValueError:
                 pass

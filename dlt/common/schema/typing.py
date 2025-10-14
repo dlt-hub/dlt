@@ -51,6 +51,12 @@ C_DLT_LOAD_ID = "_dlt_load_id"
 # TODO add schema migration to use `_dlt_load_id` in `_dlt_loads` table
 C_DLT_LOADS_TABLE_LOAD_ID = "load_id"
 """load id column in the table {LOADS_TABLE_NAME}. Meant to be joined with {C_DLT_LOAD_ID} of data tables"""
+C_CHILD_PARENT_REF_LABEL = "_dlt_parent"
+"""Label of the implicit `TTableReference` between a child table and its parent table"""
+C_DESCENDANT_ROOT_REF_LABEL = "_dlt_root"
+"""Label of the implicit `TTableReference` between a descendant table and its root table"""
+C_ROOT_LOAD_REF_LABEL = "_dlt_load"
+"""Label of the implicit `TTableReference` between a root table and the _dlt_loads table"""
 
 TColumnProp = Literal[
     "name",

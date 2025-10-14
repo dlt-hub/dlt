@@ -15,7 +15,7 @@ from tests.utils import preserve_environ, patch_home_dir, autouse_test_storage
 
 
 @pytest.fixture
-def schema():
+def schema() -> dlt.Schema:
     return dlt.Schema.from_dict(
         {
             "version": 2,
@@ -110,7 +110,6 @@ def schema():
                     ],
                     "name": "root_table1",
                     "resource": "root_table1",
-                    "x-normalizer": {"seen-data": True},
                 },
                 "root_table2": {
                     "columns": {
@@ -132,7 +131,6 @@ def schema():
                     "write_disposition": "append",
                     "name": "root_table2",
                     "resource": "root_table2",
-                    "x-normalizer": {"seen-data": True},
                 },
                 "_dlt_pipeline_state": {
                     "columns": {
@@ -176,7 +174,6 @@ def schema():
                     "file_format": "preferred",
                     "name": "_dlt_pipeline_state",
                     "resource": "_dlt_pipeline_state",
-                    "x-normalizer": {"seen-data": True},
                 },
                 "root_table1__child1": {
                     "name": "root_table1__child1",
@@ -209,7 +206,6 @@ def schema():
                         },
                     },
                     "parent": "root_table1",
-                    "x-normalizer": {"seen-data": True},
                 },
                 "root_table1__child1__child2": {
                     "name": "root_table1__child1__child2",
@@ -242,7 +238,6 @@ def schema():
                         },
                     },
                     "parent": "root_table1__child1",
-                    "x-normalizer": {"seen-data": True},
                 },
             },
             "settings": {
@@ -321,7 +316,7 @@ EXPECTED_CHILD2_TO_CHILD1_REF = {
 
 EXPECTED_ROOT1_TO_LOAD_REF = {
     "label": "_dlt_load",
-    "cardinality": "zero_to_many",
+    "cardinality": "many_to_one",
     "table": "root_table1",
     "columns": ["_dlt_load_id"],
     "referenced_table": "_dlt_loads",
@@ -329,7 +324,7 @@ EXPECTED_ROOT1_TO_LOAD_REF = {
 }
 EXPECTED_ROOT2_TO_LOAD_REF = {
     "label": "_dlt_load",
-    "cardinality": "zero_to_many",
+    "cardinality": "many_to_one",
     "table": "root_table2",
     "columns": ["_dlt_load_id"],
     "referenced_table": "_dlt_loads",
@@ -435,3 +430,98 @@ def test_create_load_reference_from_root(schema: dlt.Schema) -> None:
     assert root1_to_load_ref == EXPECTED_ROOT1_TO_LOAD_REF
     assert root2_to_load_ref == EXPECTED_ROOT2_TO_LOAD_REF
     assert all(ref.get("label") == "_dlt_load" for ref in [root1_to_load_ref, root2_to_load_ref])
+
+
+@pytest.mark.parametrize(
+    "name_normalizer_ref",
+    (
+        "tests.common.cases.normalizers.title_case",
+        "tests.common.cases.normalizers.sql_upper",
+        "tests.common.cases.normalizers.snake_no_x",
+    ),
+)
+def test_references_parameterized_by_naming(schema: dlt.Schema, name_normalizer_ref: str) -> None:
+    schema._normalizers_config["names"] = name_normalizer_ref
+    schema.update_normalizers()
+
+    expected_references = [
+        {
+            "label": "_dlt_load",
+            "cardinality": "many_to_one",
+            "table": schema.naming.normalize_identifier("_dlt_pipeline_state"),
+            "columns": [schema.naming.normalize_identifier("_dlt_load_id")],
+            "referenced_table": schema.naming.normalize_identifier("_dlt_loads"),
+            "referenced_columns": [schema.naming.normalize_identifier("load_id")],
+        },
+        {
+            "label": "_dlt_load",
+            "cardinality": "many_to_one",
+            "table": schema.naming.normalize_identifier("root_table1"),
+            "columns": [schema.naming.normalize_identifier("_dlt_load_id")],
+            "referenced_table": schema.naming.normalize_identifier("_dlt_loads"),
+            "referenced_columns": [schema.naming.normalize_identifier("load_id")],
+        },
+        {
+            "columns": [schema.naming.normalize_identifier("key1")],
+            "referenced_table": schema.naming.normalize_identifier("root_table2"),
+            "referenced_columns": [schema.naming.normalize_identifier("key2")],
+            "table": schema.naming.normalize_identifier("root_table1"),
+        },
+        {
+            "label": "_dlt_load",
+            "cardinality": "many_to_one",
+            "table": schema.naming.normalize_identifier("root_table2"),
+            "columns": [schema.naming.normalize_identifier("_dlt_load_id")],
+            "referenced_table": schema.naming.normalize_identifier("_dlt_loads"),
+            "referenced_columns": [schema.naming.normalize_identifier("load_id")],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": schema.naming.normalize_tables_path("root_table1__child1"),
+            "columns": [schema.naming.normalize_identifier("_dlt_parent_id")],
+            "referenced_table": schema.naming.normalize_identifier("root_table1"),
+            "referenced_columns": [schema.naming.normalize_identifier("_dlt_id")],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": schema.naming.normalize_tables_path("root_table1__child1"),
+            "columns": [schema.naming.normalize_identifier("_dlt_root_id")],
+            "referenced_table": schema.naming.normalize_identifier("root_table1"),
+            "referenced_columns": [schema.naming.normalize_identifier("_dlt_id")],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": schema.naming.normalize_tables_path("root_table1__child1__child2"),
+            "columns": [schema.naming.normalize_identifier("_dlt_parent_id")],
+            "referenced_table": schema.naming.normalize_tables_path("root_table1__child1"),
+            "referenced_columns": [schema.naming.normalize_identifier("_dlt_id")],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": schema.naming.normalize_tables_path("root_table1__child1__child2"),
+            "columns": [schema.naming.normalize_identifier("_dlt_root_id")],
+            "referenced_table": schema.naming.normalize_identifier("root_table1"),
+            "referenced_columns": [schema.naming.normalize_identifier("_dlt_id")],
+        },
+    ]
+
+    assert isinstance(schema.references, list)
+    assert len(schema.references) == 8
+    assert isinstance(schema.references[0], dict)
+    # check that keys are from TStandaloneTableReference
+    # can't do `isinstance(..., TStandaloneTableReference)` on a `TypedDict`
+    assert set(schema.references[0]) == set(
+        [
+            "label",
+            "table",
+            "columns",
+            "referenced_table",
+            "referenced_columns",
+            "cardinality",
+        ]
+    )
+    assert schema.references == expected_references

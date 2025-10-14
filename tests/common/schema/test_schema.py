@@ -20,6 +20,9 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
+    C_CHILD_PARENT_REF_LABEL,
+    C_DESCENDANT_ROOT_REF_LABEL,
+    C_ROOT_LOAD_REF_LABEL,
     LOADS_TABLE_NAME,
     VERSION_TABLE_NAME,
     TColumnName,
@@ -801,9 +804,83 @@ def test_schema_tables_property() -> None:
 
 def test_schema_references_property() -> None:
     schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
+    expected_references = [
+        {
+            "label": "_dlt_load",
+            "cardinality": "many_to_one",
+            "table": "blocks",
+            "columns": ["_dlt_load_id"],
+            "referenced_table": "_dlt_loads",
+            "referenced_columns": ["load_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__logs__topics",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions__logs",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__logs__topics",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions__logs",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list__storage_keys",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions__access_list",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list__storage_keys",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__uncles",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__uncles",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks",
+            "referenced_columns": ["_dlt_id"],
+        },
+    ]
 
     assert isinstance(schema.references, list)
-    assert len(schema.references) == 12
+    assert len(schema.references) == 9
     assert isinstance(schema.references[0], dict)
     # check that keys are from TStandaloneTableReference
     # can't do `isinstance(..., TStandaloneTableReference)` on a `TypedDict`
@@ -817,6 +894,11 @@ def test_schema_references_property() -> None:
             "cardinality",
         ]
     )
+    # `.references` should return parent-child, root-child, and load-root references
+    assert set(ref["label"] for ref in schema.references) == set(
+        [C_CHILD_PARENT_REF_LABEL, C_DESCENDANT_ROOT_REF_LABEL, C_ROOT_LOAD_REF_LABEL]
+    )
+    assert schema.references == expected_references
 
 
 def test_schema_repr() -> None:
