@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any, Iterator, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
 from typing_extensions import override
 
 import dlt
-from dlt.helpers.ibis import create_ibis_backend, _get_ibis_to_sqlglot_compiler
+from dlt.helpers.ibis import DATA_TYPE_MAP, create_ibis_backend, _get_ibis_to_sqlglot_compiler
 from dlt.common.schema import Schema as DltSchema
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.schema.typing import TDataType, TTableSchema
@@ -41,9 +41,9 @@ class DltType(TypeMapper):
         raise NotImplementedError
 
     @classmethod
-    def to_ibis(cls, typ: TDataType, nullable: bool | None = None) -> dt.DataType:
+    def to_ibis(cls, typ: TDataType, nullable: Optional[bool] = None) -> dt.DataType:
         nullable = True if nullable is None else bool(nullable)
-        return ibis.dtype(dlt.helpers.ibis.DATA_TYPE_MAP[typ], nullable=nullable)
+        return ibis.dtype(DATA_TYPE_MAP[typ], nullable=nullable)
 
 
 def _transpile(query: sge.ExpOrStr, *, target_dialect: type[sg.Dialect]) -> str:
@@ -126,7 +126,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     # derived from Ibis Snowflake implementation
     @contextlib.contextmanager
     # @override
-    def _safe_raw_sql(self, query: str | sg.Expression, **kwargs: Any) -> Any:
+    def _safe_raw_sql(self, query: sge.ExpOrStr, **kwargs: Any) -> Any:
         with contextlib.suppress(AttributeError):
             query = _transpile(query, target_dialect=self.compiler.dialect)
 
@@ -154,7 +154,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     # required for marimo DataSources UI to work
     # @override
     def list_tables(
-        self, *, like: str | None = None, database: tuple[str, str] | str | None = None
+        self, *, like: Optional[str] = None, database: Union[tuple[str, str], str, None] = None
     ) -> list[str]:
         """Return the list of table names"""
         return list(self._dataset.schema.tables.keys())
@@ -173,7 +173,9 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
 
     # required for marimo DataSources UI to work
     # @override
-    def table(self, name: str, /, *, database: tuple[str, str] | str | None = None) -> ir.Table:
+    def table(
+        self, name: str, /, *, database: Union[tuple[str, str], str, None] = None
+    ) -> ir.Table:
         """Construct a table expression"""
         # TODO maybe there's a more straighforward way to retrieve catalog and db
         sql_client = self._dataset.sql_client
@@ -195,10 +197,10 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
         self,
         name: str,
         /,
-        obj: pd.DataFrame | pa.Table | ir.Table | None = None,
+        obj: Union[pd.DataFrame, pa.Table, ir.Table, None] = None,
         *,
-        schema: sch.Schema | None = None,
-        database: str | None = None,
+        schema: Optional[sch.Schema] = None,
+        database: Optional[str] = None,
         temp: bool = False,
         overwrite: bool = False,
     ) -> ir.Table:
