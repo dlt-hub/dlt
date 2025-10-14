@@ -29,6 +29,7 @@ def purchases(dataset: dlt.Dataset) -> dlt.Relation:
 
 
 def test_sql_relation_to_ibis(dataset: dlt.Dataset) -> None:
+    """Call `.to_ibis()` on a `dlt.Relation` defined by an SQL query"""
     purchases = dataset.query("SELECT * FROM purchases")
     assert isinstance(purchases, dlt.Relation)
 
@@ -39,6 +40,7 @@ def test_sql_relation_to_ibis(dataset: dlt.Dataset) -> None:
 
 
 def test_base_relation_to_ibis(purchases: dlt.Relation) -> None:
+    """Call `.to_ibis()` on a `dlt.Relation` defined by an existing table name"""
     table = purchases.to_ibis()
     assert isinstance(table, ir.Table)
     # executes without error
@@ -46,6 +48,7 @@ def test_base_relation_to_ibis(purchases: dlt.Relation) -> None:
 
 
 def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
+    """Call `.to_ibis()` on a `dlt.Relation` that was transformed by methods"""
     table = purchases.where("id", "gt", 2).select("name").to_ibis()
     assert isinstance(table, ir.Table)
     # executes without error
