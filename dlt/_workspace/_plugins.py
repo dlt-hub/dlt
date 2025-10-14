@@ -29,7 +29,7 @@ def plug_workspace_context_impl(
             profile = runtime_kwargs.get("profile")
         profile = profile or read_profile_pin(RunContext(run_dir)) or DEFAULT_PROFILE
         return WorkspaceRunContext(default_name(run_dir), run_dir, profile)
-    elif runtime_kwargs and runtime_kwargs.get("_required"):
+    elif runtime_kwargs and runtime_kwargs.get("_required") == "WorkspaceRunContext":
         raise WorkspaceRunContextNotAvailable(run_dir)
 
     return None

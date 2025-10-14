@@ -11,7 +11,7 @@ dltHub is a commercial extension to the open-source data load tool (dlt). It aug
 iceberg with full catalog support and provides a yaml interface to define data platforms. dltHub features include:
 
 - [@dlt.hub.transformation](features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
-- [Project](features/projects.md): a declarative YAML interface that allows any team member to easily define sources, destinations, and pipelines.
+- [Project](features/project): a declarative YAML interface that allows any team member to easily define sources, destinations, and pipelines.
 - [dbt transformations](features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
 - [Iceberg support](ecosystem/iceberg.md)
 - [Secure data access and sharing](features/data-access.md)

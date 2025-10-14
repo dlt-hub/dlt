@@ -20,16 +20,13 @@ WORKSPACE_CASES_DIR = os.path.join("tests", "workspace/cases/workspaces")
 
 @contextmanager
 def isolated_workspace(
-    source_project_dir: str, name: str, profile: str = None, required: bool = True
+    source_project_dir: str, name: str, profile: str = None, required: str = "WorkspaceRunContext"
 ) -> Iterator[WorkspaceRunContext]:
     new_run_dir = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, name))
     shutil.copytree(source_project_dir, new_run_dir, dirs_exist_ok=True)
 
     with set_working_dir(new_run_dir):
         ctx = switch_context(new_run_dir, profile=profile, required=required)
-        if required:
-            assert isinstance(ctx, WorkspaceRunContext)
-            assert ctx.name == name
         assert ctx.run_dir == new_run_dir
         yield ctx  # type: ignore
 

@@ -716,7 +716,7 @@ The `iceberg_adapter` function allows you to configure partitioning for your Ice
 
 ```py
 import dlt
-from dlthub.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def my_data():
@@ -752,7 +752,7 @@ Extract time components from date/datetime columns:
 
 ```py
 import dlt
-from dlthub.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def events():
@@ -791,7 +791,7 @@ Combine multiple partition strategies:
 
 ```py
 import dlt
-from dlthub.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def sales_data():
@@ -830,7 +830,7 @@ Specify custom names for partition fields to make them more descriptive:
 
 ```py
 import dlt
-from dlthub.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def user_activity():

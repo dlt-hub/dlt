@@ -84,8 +84,8 @@ description = "Description"
 requires-python = ">=3.9,<3.13"
 
 dependencies = [
-    "dlt>=1.7.0",
-    "dlthub==0.7.0"
+    "dlt>=1.18.0",
+    "dlthub"
 ]
 
 [project.entry-points.dlt_package]

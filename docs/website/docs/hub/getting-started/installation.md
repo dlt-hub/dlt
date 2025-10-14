@@ -127,7 +127,11 @@ C:\> .\venv\Scripts\activate
 
 ```sh
 # install the newest dlt version or upgrade the existing version to the newest one
+<<<<<<< HEAD
 uv pip install -U "dlt[workspace]"
+=======
+uv pip install -U dlthub
+>>>>>>> devel
 ```
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
@@ -149,7 +153,7 @@ export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
 license="eyJhbGciOiJSUz...vKSjbEc==="
 ```
 
-3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/projects.md) referencing a user-defined environment variable:
+3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/project) referencing a user-defined environment variable:
 
 ```yaml
 runtime:
@@ -162,4 +166,4 @@ You can verify that the license was installed correctly and is valid by running:
 $ dlt license show
 ```
 
-Our license terms can be found [here](../EULA).
+Our license terms can be found [here](../EULA.md).

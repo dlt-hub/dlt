@@ -486,17 +486,17 @@ const sidebars = {
     {
       type: 'category',
       label: 'Workspace',
-      link: {
-        type: 'doc',
-        id: 'hub/workspace/index',
-      },
+      // link: {
+      //   type: 'doc',
+      //   id: 'hub/workspace/index',
+      // },
       items: [
-        'hub/workspace/index',
+        // 'hub/workspace/index',
         {
           type: 'category',
           label: 'Create pipeline',
           items: [
-          'hub/workspace/init-and-verified-sources',
+          // 'hub/workspace/init-and-verified-sources',
           'hub/ecosystem/ms-sql',
           ]
         },
