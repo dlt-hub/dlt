@@ -33,11 +33,11 @@ class SimpleEventHandler(FileSystemEventHandler):
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
-            handle_change(event.src_path)
+            handle_change(str(event.src_path))
 
     def on_created(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
-            handle_change(event.src_path)
+            handle_change(str(event.src_path))
 
 
 def process_change_events() -> None:
