@@ -13,15 +13,11 @@ from tests.utils import preserve_module_environ, autouse_module_test_storage, pa
 duckdb_conf = [c for c in configs if c.destination_type == "duckdb" and c.file_format is None]
 
 
-@pytest.mark.no_load
-@pytest.mark.essential
 def test_instantiate_backend():
     _DltBackend()
 
 
 # TODO test for all destinations
-@pytest.mark.no_load
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
     duckdb_conf,
@@ -33,8 +29,6 @@ def test_connect_to_backend(populated_pipeline: dlt.Pipeline):
     assert isinstance(backend, _DltBackend)
 
 
-@pytest.mark.no_load
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
     duckdb_conf,
@@ -55,9 +49,6 @@ def test_list_tables(populated_pipeline: dlt.Pipeline):
 
     assert backend.list_tables() == expected_table_names
 
-
-@pytest.mark.no_load
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
     duckdb_conf,
@@ -81,8 +72,6 @@ def test_get_schema(populated_pipeline: dlt.Pipeline):
     assert expected_schema.equals(ibis_schema)
 
 
-@pytest.mark.no_load
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
     duckdb_conf,
@@ -107,8 +96,6 @@ def test_get_bound_table(populated_pipeline: dlt.Pipeline):
     assert table.schema().equals(expected_schema)
 
 
-@pytest.mark.no_load
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
     duckdb_conf,
@@ -133,8 +120,6 @@ def test_execute_expression(populated_pipeline: dlt.Pipeline):
     assert set(table2.columns) == set(expected_schema.names)
 
 
-@pytest.mark.no_load
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
     duckdb_conf,
