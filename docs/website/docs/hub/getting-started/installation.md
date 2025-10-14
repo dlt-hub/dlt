@@ -11,10 +11,10 @@ dlt+ currently supports Python versions 3.9-3.12.
 
 ## Quickstart
 
-To install the `dlt-plus` package, run:
+To install the `dlthub` package, run:
 
 ```sh
-pip install dlt-plus
+pip install dlthub
 ```
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
@@ -127,7 +127,7 @@ You can now install dlt+ in your virtual environment by running:
 
 ```sh
 # install the newest dlt version or upgrade the existing version to the newest one
-uv pip install -U dlt-plus
+uv pip install -U dlthub
 ```
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
@@ -149,7 +149,7 @@ export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
 license="eyJhbGciOiJSUz...vKSjbEc==="
 ```
 
-3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/projects.md) referencing a user-defined environment variable:
+3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/project) referencing a user-defined environment variable:
 
 ```yaml
 runtime:
@@ -162,4 +162,4 @@ You can verify that the license was installed correctly and is valid by running:
 $ dlt license show
 ```
 
-Our license terms can be found [here](https://dlthub.com/legal/dlt-plus-eula).
+Our license terms can be found [here](../EULA.md).

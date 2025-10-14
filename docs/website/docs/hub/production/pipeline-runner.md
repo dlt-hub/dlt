@@ -10,7 +10,7 @@ dlt+ provides a production-ready runner for your pipelines. It offers robust err
 ## Usage
 
 The runner will be used automatically if you do `dlt pipeline run` inside a project, or you can use
-`dlt_plus.runner()` directly in your code where you define your pipeline and data.
+`dlt.hub.runner()` directly in your code where you define your pipeline and data.
 
 <Tabs
   groupId="config-type"
@@ -32,7 +32,6 @@ dlt pipeline my_pipeline run
 
 ```py
 import dlt
-import dlt_plus
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 
@@ -40,7 +39,7 @@ pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 def my_resource():
     return [1, 2, 3]
 
-load_info = dlt_plus.runner(pipeline).run(my_resource())
+load_info = dlt.hub.runner(pipeline).run(my_resource())
 print(load_info)
 ```
 
@@ -51,7 +50,7 @@ print(load_info)
 ## Configuration
 
 The runner is configured through the `run_config` section of a pipeline in your `dlt.yml` file
-or by passing arguments to the `dlt_plus.runner()` function in your code.
+or by passing arguments to the `dlt.hub.runner()` function in your code.
 Configuration via environment variables or `config.toml` is still under development.
 
 ### Complete configuration example
@@ -88,7 +87,7 @@ pipelines:
 <TabItem value="python">
 
 ```py
-import dlt_plus
+import dlt
 from tenacity import Retrying, stop_after_attempt, wait_exponential
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -97,7 +96,7 @@ pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 def my_resource():
     return [1, 2, 3]
 
-load_info = dlt_plus.runner(
+load_info = dlt.hub.runner(
     pipeline,
     store_trace_info=True,
     run_from_clean_folder=True,
@@ -168,7 +167,6 @@ pipelines:
 <TabItem value="python">
 ```py
 import dlt
-import dlt_plus
 from tenacity import Retrying, stop_after_attempt
 
 @dlt.resource(table_name="numbers")
@@ -186,7 +184,7 @@ trace_pipeline = dlt.pipeline(
     dataset_name="my_pipeline_trace_dataset",
 )
 
-load_info = dlt_plus.runner(pipeline, store_trace_info=trace_pipeline).run(my_resource())
+load_info = dlt.hub.runner(pipeline, store_trace_info=trace_pipeline).run(my_resource())
 print(load_info)
 ```
 </TabItem>
@@ -280,7 +278,6 @@ pipelines:
 
 ```py
 import dlt
-import dlt_plus
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -289,7 +286,7 @@ pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 def my_resource():
     return [1, 2, 3]
 
-load_info = dlt_plus.runner(
+load_info = dlt.hub.runner(
   pipeline,
   retry_policy=Retrying(stop=stop_after_attempt(5), wait=wait_fixed(2), reraise=True),
   retry_pipeline_steps=["normalize", "load"]

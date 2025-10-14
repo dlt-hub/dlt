@@ -23,7 +23,7 @@ The Iceberg destination in dlt allows you to load data into Iceberg tables using
 Make sure you have installed the necessary dependencies:
 ```sh
 pip install dlt[filesystem,pyiceberg]>=1.9.1
-pip install dlt-plus>=0.9.1
+pip install dlthub>=0.9.1
 ```
 
 ## Configuration
@@ -172,7 +172,7 @@ destinations:
       # bucket for s3 tables - must match Lakekeeper warehouse if defined
       bucket_url: "s3://warehouse/"
     capabilities:
-      table_root_layout: "lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}"
+      table_root_layout: "lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}"
 ```
 </TabItem>
 
@@ -195,7 +195,7 @@ oauth2-server-uri="https://keycloak.path.to.host/realms/master/protocol/openid-c
 bucket_url="s3://warehouse/"
 
 [destination.iceberg.capabilities]
-table_location_layout="lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}"
+table_location_layout="lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}"
 ```
 </TabItem>
 
@@ -209,7 +209,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=warehouse
 export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__SCOPE=lakekeeper
 export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__OAUTH2-SERVER-URI=https://keycloak.path.to.host/realms/master/protocol/openid-connect/token
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
-export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}
+export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}
 ```
 </TabItem>
 
@@ -716,7 +716,7 @@ The `iceberg_adapter` function allows you to configure partitioning for your Ice
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def my_data():
@@ -752,7 +752,7 @@ Extract time components from date/datetime columns:
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def events():
@@ -791,7 +791,7 @@ Combine multiple partition strategies:
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def sales_data():
@@ -830,7 +830,7 @@ Specify custom names for partition fields to make them more descriptive:
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def user_activity():

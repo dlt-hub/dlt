@@ -10,9 +10,9 @@ import Admonition from "@theme/Admonition";
 <Admonition type="note" title={<span style={{ textTransform: "lowercase" }}>dltHub</span>}>
     <p>
     Transformations are part of **dltHub**. This module is currently available in 🧪 preview to selected users and projects.
-    Contact us to get your [trial license](https://dlthub.com/legal/dlt-plus-eula)
+    Contact us to get your [trial license](../../EULA.md)
     <br/>
-    <em>[Copyright © 2025 dltHub Inc. All rights reserved.](https://dlthub.com/legal/dlt-plus-eula)</em>
+    <em>[Copyright © 2025 dltHub Inc. All rights reserved.](../../EULA.md)</em>
     </p>
 </Admonition>
 

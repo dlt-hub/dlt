@@ -11,7 +11,7 @@ dlt+ is an commercial extension to the open-source data load tool (dlt). It augm
 iceberg with full catalog support and provides a yaml interface to define data platforms. dlt+ features include:
 
 - [@dlt.hub.transformation](features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
-- [Project](features/projects.md): a declarative YAML interface that allows any team member to easily define sources, destinations, and pipelines.
+- [Project](features/project): a declarative YAML interface that allows any team member to easily define sources, destinations, and pipelines.
 - [dbt transformations](features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
 - [Iceberg support](ecosystem/iceberg.md)
 - [Secure data access and sharing](features/data-access.md)
@@ -20,7 +20,7 @@ iceberg with full catalog support and provides a yaml interface to define data p
 To get started with dlt+, install the library using pip (Python 3.9-3.12):
 
 ```sh
-pip install dlt-plus
+pip install dlthub
 ```
 
 You can try out any features by self-issuing a trial license. You can use such license for evaluation, development and testing.

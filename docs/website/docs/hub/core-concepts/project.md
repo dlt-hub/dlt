@@ -24,7 +24,7 @@ A general dlt+ project has the following structure:
 └── dlt.yml               # the main project manifest
 ```
 
-Read more about dlt+ Project in the [project feature description](../features/projects.md)
+Read more about dlt+ Project in the [project feature description](../features/project)
 
 :::note
 To get started with a dlt+ Project and learn how to manage it using cli commands, check out our [tutorial](../getting-started/tutorial.md).

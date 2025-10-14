@@ -7,8 +7,13 @@ from dlt._workspace._workspace_context import WorkspaceRunContext, switch_contex
 from dlt._workspace.cli.utils import delete_local_data
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin
-from dlt._workspace.run_context import DEFAULT_LOCAL_FOLDER, DEFAULT_WORKSPACE_WORKING_FOLDER
+from dlt._workspace.run_context import (
+    DEFAULT_LOCAL_FOLDER,
+    DEFAULT_WORKSPACE_WORKING_FOLDER,
+    switch_profile,
+)
 from dlt.cli.echo import maybe_no_stdin
+from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
 
 from tests.pipeline.utils import assert_table_counts
@@ -18,12 +23,20 @@ from tests.workspace.utils import isolated_workspace, WORKSPACE_CASES_DIR
 def test_legacy_workspace() -> None:
     # do not create workspace context without feature flag
     with isolated_workspace(
-        os.path.join(WORKSPACE_CASES_DIR, "legacy"), "legacy", required=False
+        os.path.join(WORKSPACE_CASES_DIR, "legacy"), "legacy", required=None
     ) as ctx:
         assert isinstance(ctx, RunContext)
         # fail when getting active workspace
         with pytest.raises(WorkspaceRunContextNotAvailable):
             dlt.current.workspace()
+
+
+def test_require_workspace_context() -> None:
+    with pytest.raises(RunContextNotAvailable):
+        with isolated_workspace(
+            os.path.join(WORKSPACE_CASES_DIR, "legacy"), "legacy", required="WorkspaceRunContext"
+        ):
+            pass
 
 
 def test_workspace_settings() -> None:
@@ -54,6 +67,12 @@ def test_workspace_profile() -> None:
         assert ctx.profile == "dev"
         assert_run_context(ctx, "default", "dev")
         assert_dev_config()
+
+
+def test_profile_switch_no_workspace():
+    with isolated_workspace(os.path.join(WORKSPACE_CASES_DIR, "legacy"), "legacy", required=None):
+        with pytest.raises(RunContextNotAvailable):
+            switch_profile("dev")
 
 
 def test_pinned_profile() -> None:
@@ -95,11 +114,13 @@ def test_workspace_pipeline() -> None:
         assert os.path.isdir(os.path.join(ctx.get_data_entity("pipelines"), "ducklake_pipeline"))
 
         # test wipe function
-        # with maybe_no_stdin():
-        #     remove_local_data(ctx, skip_data_dir=False)
-        # load_info = pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
-        # print(load_info)
-        # assert_table_counts(pipeline, {"table_foo": 2})
+        with maybe_no_stdin():
+            delete_local_data(ctx, skip_data_dir=False)
+        # must recreate pipeline
+        pipeline = pipeline.drop()
+        load_info = pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
+        print(load_info)
+        assert_table_counts(pipeline, {"table_foo": 2})
 
         # switch to prod
         ctx = ctx.switch_profile("prod")
