@@ -302,7 +302,7 @@ The statement (Author, 0 to many, Book) doesn't imply (Book, many to 0, Author).
 """
 
 
-class TTableReference(TypedDict, total=False):
+class _TTableReferenceBase(TypedDict, total=False):
     """Describes a reference to another table's columns.
     `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
     """
@@ -316,54 +316,35 @@ class TTableReference(TypedDict, total=False):
     cardinality: Optional[TReferenceCardinality]
     """Cardinality of the relationship between `table.column` (left) and `referenced_table.referenced_column` (right)."""
 
+    columns: Sequence[str]
+    """Name of the column(s) from `table`"""
+
+    referenced_table: str
+    """Name of the referenced table"""
+
+    referenced_columns: Sequence[str]
+    """Name of the columns(s) from `referenced_table`"""
+
+
+class TTableReferenceInline(_TTableReferenceBase, TypedDict, total=False):
     table: Optional[str]
     """Name of the table.
     When `TTableReference` is defined on a `TTableSchema` (i.e., "inline reference"), the `table`
     value is determined by `TTableSchema["name"]`
     """
 
-    columns: Sequence[str]
-    """Name of the column(s) from `table`"""
 
-    referenced_table: str
-    """Name of the referenced table"""
-
-    referenced_columns: Sequence[str]
-    """Name of the columns(s) from `referenced_table`"""
-
-
-TInlineTableReference = TTableReference
+# Keep for backwards compatibility
+TTableReference = TTableReferenceInline
 
 
 # Compared to `TTableReference` or `TInlineTableReference`, `table` is required
-class TStandaloneTableReference(TypedDict, total=False):
-    """Describes a reference to another table's columns.
-    `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
-    """
-
-    label: Optional[str]
-    """Text providing semantic information about the reference.
-
-    For example, the label "liked" describe the relationship between `user` and `post` (user.id, "liked", post.id)
-    """
-
-    cardinality: Optional[TReferenceCardinality]
-    """Cardinality of the relationship between `table.column` (left) and `referenced_table.referenced_column` (right)."""
-
+class TTableReferenceStandalone(_TTableReferenceBase, TypedDict, total=False):
     table: str
     """Name of the table.
     When `TTableReference` is defined on a `TTableSchema` (i.e., "inline reference"), the `table`
     value is determined by `TTableSchema["name"]`
     """
-
-    columns: Sequence[str]
-    """Name of the column(s) from `table`"""
-
-    referenced_table: str
-    """Name of the referenced table"""
-
-    referenced_columns: Sequence[str]
-    """Name of the columns(s) from `referenced_table`"""
 
 
 TTableReferenceParam = Sequence[TTableReference]

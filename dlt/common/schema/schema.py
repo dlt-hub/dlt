@@ -37,7 +37,7 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
     TSchemaSettings,
     TSimpleRegex,
-    TStandaloneTableReference,
+    TTableReferenceStandalone,
     TStoredSchema,
     TSchemaTables,
     TTableReference,
@@ -608,20 +608,20 @@ class Schema:
         return self._schema_tables
 
     @property
-    def references(self) -> list[TStandaloneTableReference]:
+    def references(self) -> list[TTableReferenceStandalone]:
         """References between tables"""
-        all_references: list[TStandaloneTableReference] = []
+        all_references: list[TTableReferenceStandalone] = []
         for table_name, table in self.tables.items():
             # TODO more specific error handling than ValueError
             try:
                 parent_ref = utils.create_parent_child_reference(self.tables, table_name)
-                all_references.append(cast(TStandaloneTableReference, parent_ref))
+                all_references.append(cast(TTableReferenceStandalone, parent_ref))
             except ValueError:
                 pass
 
             try:
                 root_ref = utils.create_root_child_reference(self.tables, table_name)
-                all_references.append(cast(TStandaloneTableReference, root_ref))
+                all_references.append(cast(TTableReferenceStandalone, root_ref))
             except ValueError:
                 pass
 
@@ -629,7 +629,7 @@ class Schema:
                 load_table_ref = utils.create_load_table_reference(
                     self.tables[table_name], naming=self.naming
                 )
-                all_references.append(cast(TStandaloneTableReference, load_table_ref))
+                all_references.append(cast(TTableReferenceStandalone, load_table_ref))
             except ValueError:
                 pass
 
@@ -642,7 +642,7 @@ class Schema:
                 if top_level_ref.get("table") is None:
                     top_level_ref["table"] = table_name
 
-                all_references.append(cast(TStandaloneTableReference, top_level_ref))
+                all_references.append(cast(TTableReferenceStandalone, top_level_ref))
 
         return all_references
 
