@@ -49,6 +49,7 @@ def test_list_tables(populated_pipeline: dlt.Pipeline):
 
     assert backend.list_tables() == expected_table_names
 
+
 @pytest.mark.parametrize(
     "populated_pipeline",
     duckdb_conf,

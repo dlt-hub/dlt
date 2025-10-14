@@ -9,7 +9,7 @@ from dlt.helpers.ibis import create_ibis_backend, _get_ibis_to_sqlglot_compiler
 from dlt.common.schema import Schema as DltSchema
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.schema.typing import TDataType, TTableSchema
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -52,8 +52,10 @@ def _transpile(query: sge.ExpOrStr, *, target_dialect: type[sg.Dialect]) -> str:
     elif isinstance(query, str):
         query = sg.transpile(query, write=target_dialect)[0]
     else:
-        raise TypeErrorWithKnownTypes(key="query", value_received=query, valid_types=["str", "sqlglot.Expression"])
-    
+        raise TypeErrorWithKnownTypes(
+            key="query", value_received=query, valid_types=["str", "sqlglot.Expression"]
+        )
+
     return query
 
 
@@ -120,7 +122,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
             schema=schema,
         )
         self.compiler = _get_ibis_to_sqlglot_compiler(self._dataset._destination)  # type: ignore[arg-type]
-    
+
     # derived from Ibis Snowflake implementation
     @contextlib.contextmanager
     # @override
