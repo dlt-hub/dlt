@@ -69,13 +69,13 @@ def handle_change(file_path: str) -> None:
 def _handle_change(file_path: str) -> None:
     """Process a single file change."""
     try:
-        from preprocess_docs import (
+        from .preprocess_docs import (
             preprocess_docs,
             check_docs,
             process_doc_file,
             process_example_change,
         )
-        from constants import WATCH_EXTENSIONS
+        from .constants import WATCH_EXTENSIONS
 
         ext = os.path.splitext(file_path)[1]
         if file_path.endswith("snippets.toml"):
@@ -101,7 +101,7 @@ def watch() -> None:
     event_handler = SimpleEventHandler()
     observer = Observer()
 
-    from constants import EXAMPLES_SOURCE_DIR, MD_SOURCE_DIR
+    from .constants import EXAMPLES_SOURCE_DIR, MD_SOURCE_DIR
 
     watch_dirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR]
     for watch_dir in watch_dirs:
