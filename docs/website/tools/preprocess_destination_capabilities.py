@@ -80,7 +80,7 @@ def _generate_doc_link(attr_name: str) -> str:
                 link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").capitalize()
             )
             return f"[{section_name}]({link})"
-    return  CAPABILITIES_DATA_TYPES_DOC_LINK
+    return CAPABILITIES_DATA_TYPES_DOC_LINK
 
 
 def _is_relevant_capability(attr_name: str, value: Any) -> bool:
