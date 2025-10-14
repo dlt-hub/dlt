@@ -113,7 +113,7 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
 
     def __str__(self) -> str:
         msg = (
-            f"Missing {len(self.fields)} field(s) in configuration`{self.spec_name}`:"
+            f"Missing {len(self.fields)} field(s) in configuration `{self.spec_name}`:"
             f" {', '.join(f'`{f}`' for f in self.fields)}\n"
         )
         msg += self._build_config_error_message(

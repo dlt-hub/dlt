@@ -274,6 +274,7 @@ const sidebars = {
           items: [
             'general-usage/credentials/setup',
             'general-usage/credentials/advanced',
+            'general-usage/credentials/vaults',
             'general-usage/credentials/complex_types',
             // Unsure item
             'walkthroughs/add_credentials'

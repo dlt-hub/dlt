@@ -65,7 +65,7 @@ def test_run_context() -> None:
 
     # check plugin modules
     # NOTE: first `dlt` - is the root module of current context, second is always present
-    assert get_plugin_modules() == ["dlt", "dlt"]
+    assert get_plugin_modules() == ["dlt"]
 
 
 def test_context_without_module() -> None:
