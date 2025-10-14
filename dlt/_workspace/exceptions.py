@@ -20,3 +20,20 @@ class WorkspaceRunContextNotAvailable(WorkspaceException, RuntimeException):
 
 class RuntimeNotAuthenticated(RuntimeException):
     pass
+
+
+class RuntimeOperationNotAuthorised(WorkspaceException, RuntimeException):
+    pass
+
+
+class WorkspaceIdMismatch(RuntimeOperationNotAuthorised):
+    def __init__(self, local_workspace_id: str, remote_workspace_id: str):
+        self.local_workspace_id = local_workspace_id
+        self.remote_workspace_id = remote_workspace_id
+        super().__init__(local_workspace_id, remote_workspace_id)
+
+
+class LocalWorkspaceIdNotSet(RuntimeOperationNotAuthorised):
+    def __init__(self, remote_workspace_id: str):
+        self.remote_workspace_id = remote_workspace_id
+        super().__init__(remote_workspace_id)

@@ -1,10 +1,13 @@
-from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete
+from typing import Optional
 from pydantic import BaseModel, ValidationError
 import jwt
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.exceptions import RuntimeNotAuthenticated
-from dlt.common.configuration.providers.toml import SECRETS_TOML, SecretsTomlProvider
+from dlt._workspace.exceptions import RuntimeNotAuthenticated, RuntimeOperationNotAuthorised, WorkspaceIdMismatch, LocalWorkspaceIdNotSet, WorkspaceRunContextNotAvailable
+from dlt._workspace.providers import ProfileConfigTomlProvider
+from dlt._workspace.runtime_clients import API_BASE_URL
+from dlt._workspace.runtime_clients.api.models.me_response import MeResponse
+from dlt.common.configuration.providers.toml import SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
 
 
 import os
@@ -12,9 +15,12 @@ from tomlkit.toml_file import TOMLFile
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.exceptions import RuntimeNotAuthenticated
+from dlt._workspace.runtime_clients.api.api.me import me
+from dlt._workspace.runtime_clients.api.client import Client as ApiClient
 
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.providers.toml import SecretsTomlProvider
+from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 
 
@@ -22,17 +28,57 @@ from dlt.common.configuration.specs.runtime_configuration import RuntimeConfigur
 class AuthInfo(BaseModel):
     user_id: str
     email: str
+    jwt_token: str
 
 
 class AuthService:
-    workspace_run_context: WorkspaceRunContext
-    auth_info: AuthInfo | None = None
+    """
+    Implements login, logout and auth check internals
+    
+    Authentication is performed based on the JWT token stored in the global secrets. On top of that,
+    authorization uses organisation and workspace id stored in the local config. For that, depending on the usage,
+    either workspace run context or base run context is required.
+    """
+    auth_info: Optional[AuthInfo] = None
 
-    def __init__(self, workspace_run_context: WorkspaceRunContext):
-        self.workspace_run_context = workspace_run_context
+    _run_context: RunContextBase
+    _local_workspace_id: Optional[str] = None
+    _remote_workspace_id: Optional[str] = None
+
+    def __init__(self, run_context: RunContextBase):
+        self._run_context = run_context
+
+    @property
+    def workspace_run_context(self) -> WorkspaceRunContext:
+        if isinstance(self._run_context, WorkspaceRunContext):
+            return self._run_context
+        else:
+            raise WorkspaceRunContextNotAvailable(self._run_context.run_dir)
+    
+    @property
+    def run_context(self) -> RunContextBase:
+        return self._run_context
+    
+    @property
+    def workspace_id(self) -> str:
+        if not self._remote_workspace_id or self._remote_workspace_id != self._local_workspace_id:
+            raise RuntimeOperationNotAuthorised()
+        return self._remote_workspace_id
 
     def authenticate(self) -> AuthInfo:
-        secrets = SecretsTomlProvider(settings_dir=self.workspace_run_context.global_dir)
+        self._read_token()
+        return self.auth_info
+    
+    def login(self, token: str) -> AuthInfo:
+        self._save_token(token)
+        return self.auth_info
+
+    def logout(self) -> None:
+        self._delete_token()
+        self._remote_workspace_id = None
+    
+    def _read_token(self) -> AuthInfo:
+        secrets = SecretsTomlProvider(settings_dir=self.run_context.global_dir)
         token, _ = secrets.get_value("dlthub_runtime_auth_token", str, None, RuntimeConfiguration.__section__)
         if not token:
             print("No token found")
@@ -40,22 +86,22 @@ class AuthService:
         self.auth_info = self._validate_and_decode_jwt(token)
         return self.auth_info
 
-    def save_token(self, token_response: github_oauth_complete.LoginResponse) -> AuthInfo:
-        self.auth_info = self._validate_and_decode_jwt(token_response.jwt)
+    def _save_token(self, token: str) -> AuthInfo:
+        self.auth_info = self._validate_and_decode_jwt(token)
         value = [
-            WritableConfigValue("dlthub_runtime_auth_token", str, token_response.jwt, (RuntimeConfiguration.__section__,))
+            WritableConfigValue("dlthub_runtime_auth_token", str, token, (RuntimeConfiguration.__section__,))
         ]
-        # write global config
-        global_path = self.workspace_run_context.global_dir
+        # write global secrets
+        global_path = self.run_context.global_dir
         os.makedirs(global_path, exist_ok=True)
         secrets = SecretsTomlProvider(settings_dir=global_path)
         write_values(secrets._config_toml, value, overwrite_existing=True)
         secrets.write_toml()
         return self.auth_info
 
-    def delete_token(self) -> None:
-        # delete from global config directly, because in other cases config deletion is not supported
-        secrets_path = os.path.join(self.workspace_run_context.global_dir, SECRETS_TOML)
+    def _delete_token(self) -> None:
+        # delete from global secrets directly, because in other cases config deletion is not supported
+        secrets_path = os.path.join(self.run_context.global_dir, SECRETS_TOML)
         if not os.path.isfile(secrets_path):
             return
         toml = TOMLFile(secrets_path)
@@ -75,9 +121,34 @@ class AuthService:
             raise RuntimeNotAuthenticated()
 
         try:
-            auth_info = AuthInfo(**payload)
+            auth_info = AuthInfo(jwt_token=token.decode("utf-8"), **payload)
         except ValidationError as e:
             print("Failed to validate JWT payload: ", e)
             raise RuntimeNotAuthenticated()
 
         return auth_info
+
+    def authorise(self) -> str:
+        # Currently, ensuring workspace id is the same as default workspace id of the user
+        if not self._remote_workspace_id:
+            client = ApiClient(base_url=API_BASE_URL, verify_ssl=False, headers={"Authorization": f"Bearer {self.auth_info.jwt_token}"})
+            me_response = me.sync(client=client)
+            
+            if isinstance(me_response, MeResponse):
+                self._remote_workspace_id = str(me_response.default_workspace.id)
+            else:
+                raise RuntimeError("Failed to get me response")  # TODO: handle possible errors
+        
+        local_toml_config = ConfigTomlProvider(self.workspace_run_context.settings_dir)
+        self._local_workspace_id, _ = local_toml_config.get_value("workspace_id", str, None, RuntimeConfiguration.__section__)
+
+        if not self._local_workspace_id:
+            raise LocalWorkspaceIdNotSet(self._remote_workspace_id)
+        elif self._local_workspace_id != self._remote_workspace_id:
+            raise WorkspaceIdMismatch(self._local_workspace_id, self._remote_workspace_id)
+
+    def overwrite_local_workspace_id(self) -> None:
+        local_toml_config = ConfigTomlProvider(self.workspace_run_context.settings_dir)
+        local_toml_config.set_value("workspace_id", str(self._remote_workspace_id), None, RuntimeConfiguration.__section__)
+        local_toml_config.write_toml()
+        self._local_workspace_id = self._remote_workspace_id

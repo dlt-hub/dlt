@@ -1,17 +1,17 @@
 
 import argparse
 import time
+from typing import Optional
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.auth import AuthService
-from dlt._workspace.exceptions import RuntimeNotAuthenticated
+from dlt._workspace.exceptions import RuntimeNotAuthenticated, WorkspaceIdMismatch, LocalWorkspaceIdNotSet
+from dlt._workspace.runtime_clients import AUTH_BASE_URL
 from dlt.cli import SupportsCliCommand, echo as fmt
 
-from dlt._workspace.runtime_clients.auth import Client
+from dlt._workspace.runtime_clients.auth import Client as AuthClient
 from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete, github_oauth_start
 
-
-AUTH_BASE_URL = "http://127.0.0.1:30001"
 
 
 class RuntimeCommand(SupportsCliCommand):
@@ -40,47 +40,78 @@ class RuntimeCommand(SupportsCliCommand):
 
 
     def execute(self, args: argparse.Namespace) -> None:
-        workspace_run_context = active()
-        auth_service = AuthService(workspace_run_context)
-
         if args.profile_command == "login":
-            self.login(auth_service)
+            login()
         elif args.profile_command == "logout":
-            self.logout(auth_service)
+            logout()
         else:
             self.parser.print_usage()
 
-    def login(self, auth_service: AuthService) -> None:
-        try:
-            auth_info = auth_service.authenticate()
-            print(f"Already logged in as {auth_info.email}")
-        except RuntimeNotAuthenticated:
-            print("Logging in with Github OAuth")
-            client = Client(base_url=AUTH_BASE_URL, verify_ssl=False)
 
-            # start device flow
-            login_request = github_oauth_start.sync(client=client)
+def login() -> None:
+    auth_service = AuthService(run_context=active())
+    try:
+        auth_info = auth_service.authenticate()
+        fmt.echo("Already logged in as %s" % fmt.bold(auth_info.email))
+        authorise(auth_service=auth_service)
+    except RuntimeNotAuthenticated:
+        fmt.echo("Logging in with Github OAuth")
+        client = AuthClient(base_url=AUTH_BASE_URL, verify_ssl=False)
 
-            print(
-                f"Please go to {login_request.verification_uri} and enter the code {login_request.user_code}"
+        # start device flow
+        login_request = github_oauth_start.sync(client=client)
+
+        fmt.echo(
+            "Please go to %s and enter the code %s" % (
+                fmt.bold(login_request.verification_uri), 
+                fmt.bold(login_request.user_code)
             )
-            print("Waiting for response from github...")
+        )
+        fmt.echo("Waiting for response from github...")
 
-            while True:
-                time.sleep(login_request.interval)
-                token_response = github_oauth_complete.sync(
-                    client=client,
-                    body=github_oauth_complete.GithubDeviceFlowLoginRequest(
-                        device_code=login_request.device_code
-                    ),
-                )
-                # TODO: handle possible errors
-                if isinstance(token_response, github_oauth_complete.LoginResponse):
-                    auth_info = auth_service.save_token(token_response)
+        while True:
+            time.sleep(login_request.interval)
+            token_response = github_oauth_complete.sync(
+                client=client,
+                body=github_oauth_complete.GithubDeviceFlowLoginRequest(
+                    device_code=login_request.device_code
+                ),
+            )
+            # TODO: handle possible errors
+            if isinstance(token_response, github_oauth_complete.LoginResponse):
+                auth_info = auth_service.login(token_response.jwt)
+                fmt.echo("Logged in as %s" % fmt.bold(auth_info.email))
+                authorise(auth_service=auth_service)
+                break
 
-                    print(f"Logged in as {auth_info.email}")
-                    break
-    
-    def logout(self, auth_service: AuthService) -> None:
-        auth_service.delete_token()
-        print("Logged out")
+
+def logout() -> None:
+    auth_service = AuthService(run_context=active())
+    auth_service.logout()
+    fmt.echo("Logged out")
+
+
+def authorise(auth_service: Optional[AuthService] = None) -> None:
+    if auth_service is None:
+        auth_service = AuthService(run_context=active())
+        auth_service.authenticate()   
+
+    try:
+        auth_service.authorise()
+    except LocalWorkspaceIdNotSet:
+        fmt.echo(f"No workspace id found in local config, using default remote workspace")
+        auth_service.overwrite_local_workspace_id()
+    except WorkspaceIdMismatch as e:
+        fmt.warning("Workspace id in local config (%s) is not the same as remote workspace id (%s)" % (e.local_workspace_id, e.remote_workspace_id))
+        should_overwrite = fmt.prompt(
+            "Do you want to overwrite the local workspace id with the remote one?",
+            choices=['yes', 'no'],
+            default="yes",
+        )
+        if should_overwrite == "yes":
+            auth_service.overwrite_local_workspace_id()
+            fmt.echo("Local workspace id overwritten with remote workspace id")
+        else:
+            fmt.warning("Unable to synchronise remote and local workspaces")
+            exit()
+    fmt.echo("Authorised to workspace %s" % fmt.bold(auth_service.workspace_id))
