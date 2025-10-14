@@ -758,7 +758,7 @@ pip install dlt
 4. Click Confirm to apply the change. The cluster will restart automatically.
 
 :::warning
-The location of `DeltaLiveTablesHook.py` might change when a new Databricks runtime version is released. Al
+The location of `DeltaLiveTablesHook.py` might change when a new Databricks runtime version is released.
 
 The following locations have been confirmed for the two latest LTS runtime versions:
 - 16.4 LTS: /databricks/python_shell/lib/dbruntime/dlt/hook.py
