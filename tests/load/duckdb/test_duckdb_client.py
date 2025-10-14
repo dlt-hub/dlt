@@ -307,7 +307,12 @@ def test_credentials_wrong_config() -> None:
 
 
 @pytest.mark.no_load
-def test_duckdb_in_memory_mode_via_factory():
+@pytest.mark.parametrize(
+    "use_dest_decorator",
+    [True, False],
+    ids=["using_dest_decorator", "without_using_dest_decorator"],
+)
+def test_duckdb_in_memory_mode_via_factory(use_dest_decorator: bool):
     import duckdb
 
     # Check if passing external duckdb connection works fine
@@ -334,9 +339,12 @@ def test_duckdb_in_memory_mode_via_factory():
     assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
 
     with pytest.raises(PipelineStepFailed) as exc:
+        # NOTE: using dlt.destination as factory initializer and Destination.from_reference
+        # should behave the same
+        dest_ref_func = dlt.destination if use_dest_decorator else Destination.from_reference
         p = dlt.pipeline(
             pipeline_name="booboo",
-            destination=Destination.from_reference("duckdb", credentials=":memory:"),
+            destination=dest_ref_func("duckdb", credentials=":memory:"),
         )
         p.run([1, 2, 3], table_name="numbers")
 

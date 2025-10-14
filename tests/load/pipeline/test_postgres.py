@@ -59,19 +59,29 @@ def test_postgres_encoded_binary(
 # do not remove - it allows us to filter tests by destination
 @pytest.mark.no_load
 @pytest.mark.parametrize(
+    "use_dest_decorator",
+    [True, False],
+    ids=["using_dest_decorator", "without_using_dest_decorator"],
+)
+@pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
     ids=lambda x: x.name,
 )
 def test_pipeline_explicit_destination_credentials(
+    use_dest_decorator: bool,
     destination_config: DestinationTestConfiguration,
 ) -> None:
     from dlt.destinations import postgres
     from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 
+    # NOTE: using dlt.destination as factory initializer and Destination.from_reference
+    # should behave the same
+    dest_ref_func = dlt.destination if use_dest_decorator else Destination.from_reference
+
     # explicit credentials resolved
     p = dlt.pipeline(
-        destination=Destination.from_reference(
+        destination=dest_ref_func(
             "postgres",
             destination_name="mydest",
             credentials="postgresql://loader:loader@localhost:7777/dlt_data",
@@ -84,7 +94,7 @@ def test_pipeline_explicit_destination_credentials(
     # explicit credentials resolved ignoring the config providers
     os.environ["DESTINATION__MYDEST__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(
-        destination=Destination.from_reference(
+        destination=dest_ref_func(
             "postgres",
             destination_name="mydest",
             credentials="postgresql://loader:loader@localhost:5432/dlt_data",
@@ -97,7 +107,7 @@ def test_pipeline_explicit_destination_credentials(
     os.environ["DESTINATION__MYDEST__CREDENTIALS__USERNAME"] = "UN"
     os.environ["DESTINATION__MYDEST__CREDENTIALS__PASSWORD"] = "PW"
     p = dlt.pipeline(
-        destination=Destination.from_reference(
+        destination=dest_ref_func(
             "postgres",
             destination_name="mydest",
             credentials="postgresql://localhost:5432/dlt_data",

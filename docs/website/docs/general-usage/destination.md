@@ -6,7 +6,7 @@ keywords: [destination, load data, configure destination, name destination]
 
 # Destination
 
-[Destination](glossary.md#destination) is a location in which `dlt` creates and maintains the current version of the schema and loads your data. Destinations come in various forms: databases, datalakes, vector stores, or files. `dlt` deals with this variety via modules which you declare when creating a pipeline.
+[Destination](glossary.md#destination) is a location in which `dlt` creates and maintains the current version of the schema and loads your data. Destinations come in various forms: databases, datalakes, vector stores, or files. `dlt` deals with this variety via destination type modules which you declare when creating a pipeline.
 
 We maintain a set of [built-in destinations](../dlt-ecosystem/destinations/) that you can use right away.
 
@@ -116,6 +116,7 @@ To configure multiple destinations within a pipeline, you need to provide the cr
 
 ```toml
 [destination.destination_one]
+destination_type = "bigquery"
 location = "US"
 [destination.destination_one.credentials]
 project_id = "please set me up!"
@@ -126,15 +127,11 @@ client_email = "please set me up!"
 You can then use this destination in your pipeline as follows:
 ```py
 import dlt
-from dlt.common.destination import Destination
 
 # Configure the pipeline to use the "destination_one" BigQuery destination
 pipeline = dlt.pipeline(
     pipeline_name='pipeline',
-    destination=Destination.from_reference(
-        "bigquery",
-        destination_name="destination_one"
-    ),
+    destination=dlt.destination("destination_one"),
     dataset_name='dataset_name'
 )
 ```

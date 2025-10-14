@@ -16,7 +16,6 @@ from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
-from dlt.common.destination import Destination
 from dlt.common.destination.client import StateInfo
 from dlt.common.validation import validate_dict
 
@@ -103,8 +102,8 @@ def test_state_repr() -> None:
 def test_restore_state_props() -> None:
     p = dlt.pipeline(
         pipeline_name="restore_state_props",
-        destination=Destination.from_reference("redshift", destination_name="redshift_name"),
-        staging=Destination.from_reference("filesystem", destination_name="filesystem_name"),
+        destination=dlt.destination("redshift_name", destination_type="redshift"),
+        staging=dlt.destination("filesystem_name", destination_type="filesystem"),
         dataset_name="the_dataset",
     )
     print(get_dlt_pipelines_dir())
