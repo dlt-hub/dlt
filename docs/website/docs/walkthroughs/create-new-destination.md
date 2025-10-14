@@ -183,7 +183,7 @@ We can quickly repurpose existing GitHub source and `secrets.toml` already prese
 ```py
 import dlt
 
-from github import github_repo_events
+from github import github_repo_events # type: ignore[attr-defined]
 from presto import presto  # importing destination factory
 
 def load_airflow_events() -> None:
