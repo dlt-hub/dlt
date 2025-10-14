@@ -66,9 +66,10 @@ const REDIRECTS = [
 
     // dlt+ redirect
     {
-        from: "/docs/plus/",
-        to: "/docs/hub/"
+        from: "/docs/hub",
+        to: "/docs/hub/intro"
     },
+
 ]
 
 const ROUTE_404 = "/docs/404";
@@ -78,11 +79,17 @@ const handler = {
 
         const url = new URL(request.url);
 
+        // forward plus requests to hub
+        if (url.pathname.includes("/plus")) {
+            url.pathname = url.pathname.replace("/plus", "/hub");
+            return Response.redirect(url.toString(), 301);
+        }
+
         // handle redirects
         for (const redirect of REDIRECTS) {
             if (url.pathname === redirect.from) {
                 url.pathname = redirect.to;
-                return Response.redirect(url.toString(), redirect.code || 301);
+                return Response.redirect(url.toString(), 301);
             }
         }
 
