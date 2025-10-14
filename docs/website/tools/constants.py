@@ -11,9 +11,6 @@ MOVE_FILES_EXTENSION = [".md", ".mdx", ".py", ".png", ".jpg", ".jpeg"]
 DOCS_EXTENSIONS = [".md", ".mdx"]
 WATCH_EXTENSIONS = [".md", ".py", ".toml"]
 
-# Timing
-DEBOUNCE_INTERVAL_MS = 100
-
 # Snippets
 SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
@@ -48,7 +45,7 @@ CAPABILITIES_DOC_LINK_PATTERNS = [
     ("_strategies", "../../general-usage/merge-loading#merge-strategies"),
 ]
 
-CAPABILITIES_DATA_TYPES_DOC_LINK = "[Data Types](../../general-usage/schema#data-types)"
+CAPABILITIES_DATA_TYPES_DOC_LINK = "[Data types](../../general-usage/schema#data-types)"
 
 # Markers
 DLT_MARKER = "@@@DLT"

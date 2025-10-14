@@ -5,7 +5,7 @@ Utility functions for documentation preprocessing.
 import os
 from typing import List, Optional, Iterator
 
-from constants import DLT_MARKER
+from tools.constants import DLT_MARKER
 
 
 def walk_sync(directory: str) -> Iterator[str]:

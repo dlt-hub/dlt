@@ -5,55 +5,28 @@ Documentation preprocessor for dlt docs.
 This script processes markdown files by:
 - Inserting code snippets from Python files
 - Inserting tuba links from remote config
-- Syncing examples from ../examples/ directory
+- Syncing examples from .examples/ directory
 - Checking for absolute/http links in docs
 - Executing destination capabilities script
 - Optionally watching for file changes
 """
 
 import os
-import sys
 import shutil
 from typing import List, Tuple
 import argparse
-import asyncio
-
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
-from debouncer import DebounceOptions, debounce
 
 from tools.constants import (
     MD_SOURCE_DIR,
     MD_TARGET_DIR,
     MOVE_FILES_EXTENSION,
     DOCS_EXTENSIONS,
-    WATCH_EXTENSIONS,
-    DEBOUNCE_INTERVAL_MS,
     EXAMPLES_DESTINATION_DIR,
-    EXAMPLES_SOURCE_DIR,
     HTTP_LINK,
     ABS_LINK,
     ABS_IMG_LINK,
 )
 from tools.utils import walk_sync, remove_remaining_markers
-
-
-class SimpleEventHandler(FileSystemEventHandler):
-    """Simple event handler for file watching."""
-
-    def __init__(self, loop):
-        self.loop = loop
-        super().__init__()
-
-    def on_modified(self, event):
-        if not event.is_directory:
-            # Schedule the async function in the event loop from another thread
-            asyncio.run_coroutine_threadsafe(handle_change(event.src_path), self.loop)
-
-    def on_created(self, event):
-        if not event.is_directory:
-            # Schedule the async function in the event loop from another thread
-            asyncio.run_coroutine_threadsafe(handle_change(event.src_path), self.loop)
 
 
 def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
@@ -62,7 +35,6 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     if ext not in MOVE_FILES_EXTENSION:
         return 0, 0, 0, False
 
-    # Convert absolute path to relative if needed
     if os.path.isabs(file_name):
         file_name = os.path.relpath(file_name)
 
@@ -80,7 +52,6 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     except FileNotFoundError:
         return 0, 0, 0, False
 
-    # Lazy imports - only import when actually processing
     from tools.preprocess_snippets import insert_snippets
     from tools.preprocess_tuba import insert_tuba_links, fetch_tuba_config
     from tools.preprocess_destination_capabilities import insert_destination_capabilities
@@ -96,7 +67,7 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     return snippet_count, tuba_count, capabilities_count, True
 
 
-def preprocess_docs():
+def preprocess_docs() -> Tuple[int, int, int, int]:
     """Preprocess all docs in the docs folder."""
     print("Processing docs...")
     processed_files = 0
@@ -118,6 +89,8 @@ def preprocess_docs():
     print(f"Processed {processed_tuba_blocks} tuba blocks.")
     print(f"Processed {processed_capabilities_blocks} capabilities blocks.")
 
+    return processed_files, inserted_snippets, processed_tuba_blocks, processed_capabilities_blocks
+
 
 def check_file_links(file_name: str, lines: List[str]) -> bool:
     """Check a single file for problematic links."""
@@ -138,7 +111,7 @@ def check_file_links(file_name: str, lines: List[str]) -> bool:
     return found_error
 
 
-def check_docs():
+def check_docs() -> None:
     """Inspect all md files and run some checks."""
     found_error = False
 
@@ -161,10 +134,10 @@ def check_docs():
     print("Found no errors in md files")
 
 
-def process_example_change(file_path: str):
+def process_example_change(file_path: str) -> None:
     """Process an example file change."""
     # Lazy import
-    from preprocess_examples import build_example_doc
+    from tools.preprocess_examples import build_example_doc
 
     example_name = os.path.splitext(os.path.basename(file_path))[0]
     if build_example_doc(example_name):
@@ -172,41 +145,11 @@ def process_example_change(file_path: str):
         process_doc_file(target_file_name)
 
 
-async def handle_change_impl(file_path: str):
-    """Handle a file change event (implementation)."""
-    ext = os.path.splitext(file_path)[1]
-
-    # Check extension first, then determine path type
-    if file_path.endswith("snippets.toml"):
-        # Snippets affect all files, so reprocess and check everything
-        preprocess_docs()
-        check_docs()
-    elif "examples" in file_path and ext in WATCH_EXTENSIONS:
-        process_example_change(file_path)
-        # Skip check_docs() - only changed one example file
-    elif "docs" in file_path and ext in WATCH_EXTENSIONS:
-        process_doc_file(file_path)
-        # Skip check_docs() - only changed one doc file
-    else:
-        return
-
-
-@debounce(
-    wait=DEBOUNCE_INTERVAL_MS,
-    options=DebounceOptions(trailing=True, leading=False, time_window=DEBOUNCE_INTERVAL_MS),
-)
-async def handle_change(file_path: str):
-    """Handle a file change event (debounced wrapper)."""
-    print(f"{file_path} modified.", file=sys.stderr)
-    await handle_change_impl(file_path)
-
-
-def process_docs():
+def process_docs() -> None:
     """Main processing function."""
     if os.path.exists(MD_TARGET_DIR):
         shutil.rmtree(MD_TARGET_DIR)
 
-    # Lazy import
     from tools.preprocess_examples import sync_examples
 
     sync_examples()
@@ -214,50 +157,27 @@ def process_docs():
     check_docs()
 
 
-async def watch():
-    """Start watching for file changes."""
-    print("Watching for file changes...")
-
-    # Get the current event loop to pass to the event handler
-    loop = asyncio.get_running_loop()
-    event_handler = SimpleEventHandler(loop)
-    observer = Observer()
-
-    watch_dirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR]
-    for watch_dir in watch_dirs:
-        if os.path.exists(watch_dir):
-            observer.schedule(event_handler, watch_dir, recursive=True)
-            print(f"Watching directory: {watch_dir}")
-
-    observer.start()
-
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
-        print("\nStopped watching.")
-
-    observer.join()
-
-
-def main():
+def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Preprocess dlt documentation files")
     parser.add_argument(
         "--watch", action="store_true", help="Watch for file changes and reprocess automatically"
     )
-
+    print("Parsing args")
     args = parser.parse_args()
-
+    print("Args parsed")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     website_dir = os.path.dirname(script_dir)
+    print("Changing directory to", website_dir)
     os.chdir(website_dir)
 
     process_docs()
 
+    from tools.preprocess_change import watch
+
     if args.watch:
-        asyncio.run(watch())
+        print("Watching for file changes...")
+        watch()
 
 
 if __name__ == "__main__":

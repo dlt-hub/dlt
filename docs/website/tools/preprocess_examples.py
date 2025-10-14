@@ -87,7 +87,7 @@ def build_example_doc(example_name: str) -> bool:
     return True
 
 
-def sync_examples():
+def sync_examples() -> None:
     """Sync examples into docs."""
     count = 0
     for example_dir in list_dirs_sync(EXAMPLES_SOURCE_DIR):

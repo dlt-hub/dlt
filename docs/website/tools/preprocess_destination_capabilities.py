@@ -76,7 +76,9 @@ def _generate_doc_link(attr_name: str) -> str:
     """Generate documentation link based on attribute name pattern."""
     for pattern, link in CAPABILITIES_DOC_LINK_PATTERNS:
         if attr_name.endswith(pattern):
-            section_name = link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").title()
+            section_name = (
+                link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").capitalize()
+            )
             return f"[{section_name}]({link})"
     return cast(str, CAPABILITIES_DATA_TYPES_DOC_LINK)
 
@@ -92,7 +94,7 @@ def _is_relevant_capability(attr_name: str, value: Any) -> bool:
 
 def _format_capability_row(attr_name: str, value: Any) -> Optional[str]:
     """Format a single capability attribute into a table row."""
-    feature_name = attr_name.replace("_", " ").title()
+    feature_name = attr_name.replace("_", " ").capitalize()
     if not feature_name.strip():
         return None
 
