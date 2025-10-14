@@ -1132,9 +1132,16 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
             assert actual == expected
 
 
-def test_pipeline_with_destination_name():
+@pytest.mark.parametrize(
+    "use_dest_decorator",
+    [True, False],
+    ids=["using_dest_decorator", "without_using_dest_decorator"],
+)
+def test_pipeline_with_destination_name(use_dest_decorator: bool):
     # test configured destination name (tests/.dlt/config.toml)
-    pipeline = dlt.pipeline(destination="custom_name")
+    dest = dlt.destination("custom_name") if use_dest_decorator else "custom_name"
+
+    pipeline = dlt.pipeline(destination=dest)
     assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
     assert pipeline.destination.destination_name == "custom_name"
 
@@ -1147,13 +1154,21 @@ def test_pipeline_with_destination_name():
 
     # test unconfigured destination name
     with pytest.raises(UnknownDestinationModule) as py_exc:
-        dlt.pipeline(destination="another_custom_name")
+        (
+            dlt.destination("another_custom_name")
+            if use_dest_decorator
+            else dlt.pipeline(destination="another_custom_name")
+        )
     assert py_exc.value.named_dest_attempted is True
     assert not py_exc.value.destination_type
     assert "no destination type was configured" in str(py_exc.value)
 
     # if destination contains dots, no fallbacks must happen
     with pytest.raises(UnknownDestinationModule) as py_exc:
-        dlt.pipeline(destination="dlt.destinations.unknown")
+        (
+            dlt.destination("dlt.destinations.unknown")
+            if use_dest_decorator
+            else dlt.pipeline(destination="dlt.destinations.unknown")
+        )
     assert not py_exc.value.named_dest_attempted
     assert not py_exc.value.destination_type

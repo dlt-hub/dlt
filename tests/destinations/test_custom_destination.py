@@ -25,6 +25,8 @@ from tests.cases import table_update_and_row
 from tests.load.utils import (
     assert_all_data_types_row,
 )
+from tests.utils import preserve_environ
+
 
 SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
 
@@ -158,7 +160,12 @@ def test_capabilities() -> None:
     assert dict(caps) == dict(client_caps)
 
 
-def test_instantiation() -> None:
+@pytest.mark.parametrize(
+    "use_dest_decorator",
+    [True, False],
+    ids=["using_dest_decorator", "without_using_dest_decorator"],
+)
+def test_instantiation(use_dest_decorator: bool) -> None:
     # also tests DESTINATIONS registry
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
@@ -180,11 +187,15 @@ def test_instantiation() -> None:
         DestinationReference.find("local_sink_func")
     assert "dlt.destinations.local_sink_func" not in DestinationReference.DESTINATIONS
 
+    # NOTE: using dlt.destination as factory initializer and Destination.from_reference
+    # should behave the same
+    dest_ref_func = dlt.destination if use_dest_decorator else Destination.from_reference
+
     # test passing via from_reference
     calls = []
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference("destination", destination_callable=local_sink_func),
+        destination=dest_ref_func("destination", destination_callable=local_sink_func),
         dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -200,9 +211,7 @@ def test_instantiation() -> None:
 
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference(
-            "destination", destination_callable=local_sink_func_no_params
-        ),
+        destination=dest_ref_func("destination", destination_callable=local_sink_func_no_params),
         dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -211,10 +220,11 @@ def test_instantiation() -> None:
     global global_calls
     global_calls = []
     # this is technically possible but should not be used
-    dest_ref = Destination.from_reference(
+    dest_ref = dest_ref_func(
         "destination",
         destination_callable="tests.destinations.test_custom_destination.global_sink_func",
     )
+
     assert dest_ref.destination_name == "global_sink_func"
     # type comes from the "destination" wrapper destination
     assert dest_ref.destination_type == "dlt.destinations.destination"
@@ -244,10 +254,11 @@ def test_instantiation() -> None:
     assert len(global_calls) == 2
 
     # we can import type (it is not a ref)
-    dest_ref = Destination.from_reference(
+    dest_ref = dest_ref_func(
         "tests.destinations.test_custom_destination.GlobalSinkFuncDestination",
         destination_name="alt_name",
     )
+
     assert dest_ref.destination_name == "alt_name"
     assert (
         dest_ref.destination_type
@@ -263,9 +274,7 @@ def test_instantiation() -> None:
     assert len(global_calls) == 3
 
     # now import by ref
-    dest_ref = Destination.from_reference(
-        "tests.destinations.test_custom_destination.global_sink_func"
-    )
+    dest_ref = dest_ref_func("tests.destinations.test_custom_destination.global_sink_func")
     assert dest_ref.destination_name == "global_sink_func"
     assert (
         dest_ref.destination_type
@@ -283,7 +292,7 @@ def test_instantiation() -> None:
     # pass None as callable arg will fail on load
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference("destination", destination_callable=None),
+        destination=dest_ref_func("destination", destination_callable=None),
         dev_mode=True,
     )
     with pytest.raises(ConfigurationValueError):
@@ -293,9 +302,7 @@ def test_instantiation() -> None:
     with pytest.raises(UnknownCustomDestinationCallable):
         p = dlt.pipeline(
             "sink_test",
-            destination=Destination.from_reference(
-                "destination", destination_callable="does.not.exist"
-            ),
+            destination=dest_ref_func("destination", destination_callable="does.not.exist"),
             dev_mode=True,
         )
 
