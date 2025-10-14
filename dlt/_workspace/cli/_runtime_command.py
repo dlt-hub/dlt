@@ -7,8 +7,8 @@ from dlt._workspace.auth import AuthService
 from dlt._workspace.exceptions import RuntimeNotAuthenticated
 from dlt.cli import SupportsCliCommand, echo as fmt
 
-from auth_client import Client
-from auth_client.api.default import github_oauth_complete, github_oauth_start
+from dlt._workspace.runtime_clients.auth import Client
+from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete, github_oauth_start
 
 
 AUTH_BASE_URL = "http://127.0.0.1:30001"

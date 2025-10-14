@@ -1,0 +1,132 @@
+components:
+  schemas:
+    GithubDeviceFlowLoginRequest:
+      properties:
+        device_code:
+          type: string
+      required:
+      - device_code
+      title: GithubDeviceFlowLoginRequest
+      type: object
+    GithubDeviceFlowStartResponse:
+      properties:
+        device_code:
+          type: string
+        interval:
+          type: integer
+        user_code:
+          type: string
+        verification_uri:
+          type: string
+      required:
+      - device_code
+      - interval
+      - user_code
+      - verification_uri
+      title: GithubDeviceFlowStartResponse
+      type: object
+    LoginResponse:
+      properties:
+        email:
+          type: string
+        id:
+          format: uuid
+          type: string
+        jwt:
+          type: string
+      required:
+      - email
+      - id
+      - jwt
+      title: LoginResponse
+      type: object
+    PingResponse:
+      properties:
+        message:
+          type: string
+        service:
+          type: string
+      required:
+      - message
+      - service
+      title: PingResponse
+      type: object
+info:
+  description: Internal API for our auth service
+  title: Auth
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /github/device-flow/code:
+    post:
+      deprecated: false
+      operationId: github_oauth_start
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GithubDeviceFlowStartResponse'
+          description: Document created, URL follows
+          headers: {}
+      summary: GithubOauthStart
+      tags:
+      - github
+  /github/device-flow/token:
+    post:
+      deprecated: false
+      operationId: github_oauth_complete
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GithubDeviceFlowLoginRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+      summary: GithubOauthComplete
+      tags:
+      - github
+  /ping:
+    get:
+      deprecated: false
+      operationId: ping
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PingResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+      summary: Ping
+servers:
+- url: /

@@ -185,3 +185,14 @@ start-dlt-dashboard-e2e:
 # creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
 	uv run python tests/helpers/dashboard/example_pipelines.py
+
+## Generates python clients for runtime api and auth services
+# Before running, adjust the URL or run `make up` in runtime first
+generate-python-clients: 
+	curl http://localhost:30000/schema/openapi.yaml -o dlt/_workspace/runtime_clients/api/openapi.yaml
+	python tools/clean_openapi_spec.py dlt/_workspace/runtime_clients/api/openapi.yaml
+	uvx openapi-python-client generate  --meta none --path dlt/_workspace/runtime_clients/api/openapi.yaml --output-path dlt/_workspace/runtime_clients/api --overwrite
+
+	curl http://localhost:30001/schema/openapi.yaml -o dlt/_workspace/runtime_clients/auth/openapi.yaml
+	python tools/clean_openapi_spec.py dlt/_workspace/runtime_clients/auth/openapi.yaml
+	uvx openapi-python-client generate  --meta none --path dlt/_workspace/runtime_clients/auth/openapi.yaml --output-path dlt/_workspace/runtime_clients/auth --overwrite

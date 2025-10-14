@@ -1,4 +1,4 @@
-from auth_client.api.default import github_oauth_complete
+from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete
 from pydantic import BaseModel, ValidationError
 import jwt
 

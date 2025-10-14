@@ -1,0 +1,3821 @@
+components:
+  schemas:
+    ConfigurationResponse:
+      properties:
+        config:
+          description: The configuration of the profile
+          type: string
+        created_by:
+          description: The ID of the identity who created the configuration
+          format: uuid
+          type: string
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        profile_id:
+          description: The ID of the profile the configuration belongs to
+          format: uuid
+          type: string
+        secrets:
+          description: The secrets of the profile
+          type: string
+        version:
+          description: The version of the configuration
+          type: integer
+      required:
+      - config
+      - created_by
+      - date_added
+      - date_updated
+      - id
+      - profile_id
+      - secrets
+      - version
+      title: ConfigurationResponse
+      type: object
+    CreateConfigurationRequest:
+      properties:
+        config:
+          description: The configuration of the profile
+          type: string
+        secrets:
+          description: The secrets of the profile
+          type: string
+      required:
+      - config
+      - secrets
+      title: CreateConfigurationRequest
+      type: object
+    CreateProfileRequest:
+      properties:
+        description:
+          description: The description of the profile
+          oneOf:
+          - type: string
+          - type: 'null'
+        name:
+          description: The name of the profile
+          type: string
+      required:
+      - name
+      title: CreateProfileRequest
+      type: object
+    CreateRunRequest:
+      properties:
+        profile_id_or_name:
+          description: The ID or name of the profile to use for the run, will default
+            to the default profile of the script
+          oneOf:
+          - type: string
+          - type: 'null'
+        script_id_or_name:
+          description: The ID or name of the script to run
+          type: string
+      required:
+      - script_id_or_name
+      title: CreateRunRequest
+      type: object
+    CreateScriptRequest:
+      properties:
+        active:
+          default: true
+          description: Whether the script is active
+          type: boolean
+        description:
+          description: The description of the script
+          type: string
+        name:
+          description: The name of the script
+          type: string
+      required:
+      - description
+      - name
+      title: CreateScriptRequest
+      type: object
+    CreateScriptVersionRequest:
+      properties:
+        entry_point:
+          description: The entry point of the script. Will usually be the path to
+            a python file in the uploaded tarball
+          type: string
+        profile_id_or_name:
+          default: default
+          description: The ID or name of the profile to use for the script version
+          type: string
+        schedule:
+          description: The schedule of the script. Use 'cron' format for cron jobs
+          oneOf:
+          - type: string
+          - type: 'null'
+        script_type:
+          $ref: '#/components/schemas/ScriptType'
+      required:
+      - entry_point
+      - script_type
+      title: CreateScriptVersionRequest
+      type: object
+    DeploymentResponse:
+      properties:
+        content_hash:
+          description: The hash of the file of the uploaded tarball
+          type: string
+        created_by:
+          description: The ID of the identity who created the deployment
+          format: uuid
+          type: string
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        file_count:
+          description: The number of files in the uploaded tarball
+          type: integer
+        file_names:
+          description: The names of the files in the uploaded tarball
+          type: string
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        size:
+          description: The size of the uploaded tarball in bytes
+          type: integer
+        version:
+          description: The version of the deployment. Will increment for each new
+            version of the deployment
+          type: integer
+        workspace_id:
+          description: The ID of the workspace the deployment belongs to
+          format: uuid
+          type: string
+      required:
+      - content_hash
+      - created_by
+      - date_added
+      - date_updated
+      - file_count
+      - file_names
+      - id
+      - size
+      - version
+      - workspace_id
+      title: DeploymentResponse
+      type: object
+    MeResponse:
+      properties:
+        default_organization:
+          $ref: '#/components/schemas/OrganizationResponse'
+        default_workspace:
+          $ref: '#/components/schemas/WorkspaceResponse'
+        email:
+          description: The email of the current user
+          type: string
+        identity_id:
+          description: The ID of the current identity of the default organization
+            for this user.
+          format: uuid
+          type: string
+        user_id:
+          description: The ID of the current user
+          format: uuid
+          type: string
+      required:
+      - default_organization
+      - default_workspace
+      - email
+      - identity_id
+      - user_id
+      title: MeResponse
+      type: object
+    OrganizationResponse:
+      description: The default organization of the current user
+      properties:
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        description:
+          description: The description of the organization
+          oneOf:
+          - type: string
+          - type: 'null'
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        name:
+          description: The name of the organization
+          type: string
+      required:
+      - date_added
+      - date_updated
+      - id
+      - name
+      title: OrganizationResponse
+      type: object
+    PingResponse:
+      properties:
+        message:
+          type: string
+        service:
+          type: string
+      required:
+      - message
+      - service
+      title: PingResponse
+      type: object
+    ProfileResponse:
+      properties:
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        description:
+          description: The description of the profile
+          oneOf:
+          - type: string
+          - type: 'null'
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        name:
+          description: The name of the profile
+          type: string
+        workspace_id:
+          description: The ID of the workspace the profile belongs to
+          format: uuid
+          type: string
+      required:
+      - date_added
+      - date_updated
+      - id
+      - name
+      - workspace_id
+      title: ProfileResponse
+      type: object
+    RunResponse:
+      properties:
+        config_id:
+          description: The ID of the configuration that will be used when running
+            the script
+          format: uuid
+          type: string
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        deployment_id:
+          description: The ID of the deployment that will be used when running the
+            script
+          format: uuid
+          type: string
+        end_time:
+          description: The time the run ended
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        execution_time:
+          description: The time the run took in seconds
+          oneOf:
+          - type: integer
+          - type: 'null'
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        logs:
+          description: A link to the logs of the run
+          oneOf:
+          - type: string
+          - type: 'null'
+        number:
+          description: The number of the run. Will increment for each new run of the
+            script
+          type: integer
+        script_version_id:
+          description: The ID of the script version that will be used when running
+            the script
+          format: uuid
+          type: string
+        start_time:
+          description: The time the run started
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        trigger:
+          $ref: '#/components/schemas/RunTriggerType'
+        triggered_by:
+          description: The ID of the identity who triggered the run if triggered manually
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+      required:
+      - config_id
+      - date_added
+      - date_updated
+      - deployment_id
+      - id
+      - number
+      - script_version_id
+      - status
+      - trigger
+      title: RunResponse
+      type: object
+    RunStatus:
+      enum:
+      - pending
+      - running
+      - completed
+      - failed
+      title: RunStatus
+      type: string
+    RunTriggerType:
+      enum:
+      - schedule
+      - manual
+      title: RunTriggerType
+      type: string
+    ScriptResponse:
+      properties:
+        active:
+          default: true
+          description: Whether the script is active
+          type: boolean
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        description:
+          description: The description of the script
+          type: string
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        name:
+          description: The name of the script
+          type: string
+        workspace_id:
+          description: The ID of the workspace the script belongs to
+          format: uuid
+          type: string
+      required:
+      - date_added
+      - date_updated
+      - description
+      - id
+      - name
+      - workspace_id
+      title: ScriptResponse
+      type: object
+    ScriptType:
+      enum:
+      - batch
+      - interactive
+      title: ScriptType
+      type: string
+    ScriptVersionResponse:
+      properties:
+        created_by:
+          description: The ID of the identity who created the script version
+          format: uuid
+          type: string
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        entry_point:
+          description: The entry point of the script. Will usually be the path to
+            a python file in the uploaded tarball
+          type: string
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        profile_id:
+          description: The ID of the profile that will be used when running the script
+          format: uuid
+          type: string
+        schedule:
+          description: The schedule of the script. Use 'cron' format for cron jobs
+          oneOf:
+          - type: string
+          - type: 'null'
+        script_id:
+          description: The ID of the script the script version belongs to
+          format: uuid
+          type: string
+        script_type:
+          $ref: '#/components/schemas/ScriptType'
+        version:
+          description: The version of the script version. Will increment for each
+            new version of the script
+          type: integer
+      required:
+      - created_by
+      - date_added
+      - date_updated
+      - entry_point
+      - id
+      - profile_id
+      - script_id
+      - script_type
+      - version
+      title: ScriptVersionResponse
+      type: object
+    WorkspaceResponse:
+      description: The default workspace of the current user
+      properties:
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        description:
+          description: The description of the workspace
+          oneOf:
+          - type: string
+          - type: 'null'
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        name:
+          description: The name of the workspace
+          type: string
+      required:
+      - date_added
+      - date_updated
+      - id
+      - name
+      title: WorkspaceResponse
+      type: object
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+info:
+  description: dltHub runtime public API
+  title: api
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /v1/me:
+    get:
+      deprecated: false
+      description: '
+
+        Get the current users info including default organization and workspace, creates
+        default organization and workspace if needed.
+
+
+        Requires Authorization Header
+
+        '
+      operationId: me
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: Me
+      tags:
+      - me
+  /v1/organizations/{organization_id}:
+    get:
+      deprecated: false
+      description: '
+
+        Gets information about an organization.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: get_organization
+      parameters:
+      - deprecated: false
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetOrganization
+      tags:
+      - organizations
+  /v1/ping:
+    get:
+      deprecated: false
+      description: '
+
+        Pings the server to check if it is alive. Returns a pong response.
+
+
+        This endpoint is public and does not require authentication.
+
+        '
+      operationId: ping
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PingResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+      summary: Ping
+  /v1/workspaces/{workspace_id}:
+    get:
+      deprecated: false
+      description: '
+
+        Gets information about a workspace.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: get_workspace
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetWorkspace
+      tags:
+      - workspaces
+  /v1/workspaces/{workspace_id}/deployments:
+    get:
+      deprecated: false
+      description: '
+
+        Gets all history of deployments for a workspace. Returns a paginated list
+        of deployments ordered by version number descending.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: list_deployments
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/DeploymentResponse'
+                    type: array
+                  limit:
+                    description: Maximal number of items to send.
+                    type: integer
+                  offset:
+                    description: Offset from the beginning of the query.
+                    type: integer
+                  total:
+                    description: Total number of items.
+                    type: integer
+                type: object
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: ListDeployments
+      tags:
+      - deployments
+    post:
+      deprecated: false
+      description: "\nCreates a new deployment for a workspace. This deployment will\
+        \ become the new active deployment. \nRequires upload of a tarball of files.\
+        \ Max tarball size is 1MB.\n\nRequires WRITE permission on the organization\
+        \ level.\n"
+      operationId: create_deployment
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  contentMediaType: application/octet-stream
+                  format: binary
+                  type: string
+              type: object
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: CreateDeployment
+      tags:
+      - deployments
+  /v1/workspaces/{workspace_id}/deployments/latest:
+    get:
+      deprecated: false
+      description: "\nGets the latest and therefore active deployment for a workspace.\
+        \ \n\nRequires READ permission. On the organization level.\n"
+      operationId: get_latest_deployment
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetLatestDeployment
+      tags:
+      - deployments
+  /v1/workspaces/{workspace_id}/deployments/{deployment_id_or_version}:
+    get:
+      deprecated: false
+      description: "\nGets a deployment for a workspace, either by ID or by version\
+        \ number. \n\nRequires READ permission. On the organization level.\n"
+      operationId: get_deployment
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: deployment_id_or_version
+        required: true
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetDeployment
+      tags:
+      - deployments
+  /v1/workspaces/{workspace_id}/profiles:
+    get:
+      deprecated: false
+      description: '
+
+        Gets all profiles for a workspace. Returns a paginated list of profiles ordered
+        by name ascending.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: list_profiles
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/ProfileResponse'
+                    type: array
+                  limit:
+                    description: Maximal number of items to send.
+                    type: integer
+                  offset:
+                    description: Offset from the beginning of the query.
+                    type: integer
+                  total:
+                    description: Total number of items.
+                    type: integer
+                type: object
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: ListProfiles
+      tags:
+      - profiles
+    post:
+      deprecated: false
+      description: "\nCreates a new profile for a workspace. A profile name in a workspace\
+        \ must be unique. A profile has a versioned configuration, the \nhighest version\
+        \ is the active configuration. When running a script, the profile can be specified\
+        \ to use a specific configuration.\n\nRequires WRITE permission on the organization\
+        \ level.\n"
+      operationId: create_profile
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProfileRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: CreateProfile
+      tags:
+      - profiles
+  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}:
+    get:
+      deprecated: false
+      description: '
+
+        Gets a profile for a workspace, either by ID or by profile name.
+
+
+        Requires READ permission. On the organization level.
+
+        '
+      operationId: get_profile
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: profile_id_or_name
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetProfile
+      tags:
+      - profiles
+  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations:
+    get:
+      deprecated: false
+      description: '
+
+        Gets the configuration history for a profile. Returns a paginated list of
+        configurations ordered by version descending, latest first.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: list_configurations
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: profile_id_or_name
+        required: true
+        schema:
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/ConfigurationResponse'
+                    type: array
+                  limit:
+                    description: Maximal number of items to send.
+                    type: integer
+                  offset:
+                    description: Offset from the beginning of the query.
+                    type: integer
+                  total:
+                    description: Total number of items.
+                    type: integer
+                type: object
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: ListConfigurations
+      tags:
+      - profiles
+    post:
+      deprecated: false
+      description: "\nCreates a new configuration for a profile. A configuration has\
+        \ a version number, a config and a secrets. The \nconfig and secrets attributes\
+        \ are optional but should be a valid config and secrets if provided.\n\nPLEASE\
+        \ NOTE: Secrets are not yet encrypted at rest on this endpoint. Avoid sending\
+        \ production secrets!\n\nRequires WRITE permission on the organization level.\n"
+      operationId: create_configuration
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: profile_id_or_name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConfigurationRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: CreateConfiguration
+      tags:
+      - profiles
+  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations/latest:
+    get:
+      deprecated: false
+      description: '
+
+        Gets the latest and therefore active configuration for a profile. If non exists,
+        a default configuration is created and returned.
+
+
+        Requires READ permission. On the organization level.
+
+        '
+      operationId: get_latest_configuration
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: profile_id_or_name
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetLatestConfiguration
+      tags:
+      - profiles
+  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations/{configuration_id_or_version}:
+    get:
+      deprecated: false
+      description: '
+
+        Gets a configuration for a profile, either by ID or by version number.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: get_configuration
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: configuration_id_or_version
+        required: true
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: integer
+      - deprecated: false
+        in: path
+        name: profile_id_or_name
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetConfiguration
+      tags:
+      - profiles
+  /v1/workspaces/{workspace_id}/runs:
+    get:
+      deprecated: false
+      description: '
+
+        Gets all runs for a workspace. Returns a paginated list of runs ordered by
+        date_added descending. Can be filtered by script ID and status.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: list_runs
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: script_id
+        required: false
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: status
+        required: false
+        schema:
+          oneOf:
+          - $ref: '#/components/schemas/RunStatus'
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/RunResponse'
+                    type: array
+                  limit:
+                    description: Maximal number of items to send.
+                    type: integer
+                  offset:
+                    description: Offset from the beginning of the query.
+                    type: integer
+                  total:
+                    description: Total number of items.
+                    type: integer
+                type: object
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: ListRuns
+      tags:
+      - runs
+  /v1/workspaces/{workspace_id}/runs/latest:
+    get:
+      deprecated: false
+      description: '
+
+        Gets latest run for a workspace by ID. Can be filtered by script ID and status.
+
+
+        Requires READ permission. On the organization level.
+
+        '
+      operationId: get_latest_run
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: script_id
+        required: false
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetLatestRun
+      tags:
+      - runs
+  /v1/workspaces/{workspace_id}/runs/runs:
+    post:
+      deprecated: false
+      description: '
+
+        Triggers a new run for a script in a workspace. The latest script version
+        will be used. The profile associated with the script version will be used,
+        of which
+
+        the latest configuration will be used. You may specify a specific profile
+        to use.
+
+
+        Requires WRITE permission on the organization level.
+
+        '
+      operationId: create_run
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: CreateRun
+      tags:
+      - runs
+  /v1/workspaces/{workspace_id}/runs/{run_id}:
+    get:
+      deprecated: false
+      description: '
+
+        Gets a run for a workspace by ID. Can be filtered by script ID and status.
+
+
+        Requires READ permission. On the organization level.
+
+        '
+      operationId: get_run
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: script_id
+        required: false
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetRun
+      tags:
+      - runs
+  /v1/workspaces/{workspace_id}/scripts:
+    get:
+      deprecated: false
+      description: '
+
+        Gets all scripts for a workspace. Returns a paginated list of scripts ordered
+        by name ascending.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: list_scripts
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/ScriptResponse'
+                    type: array
+                  limit:
+                    description: Maximal number of items to send.
+                    type: integer
+                  offset:
+                    description: Offset from the beginning of the query.
+                    type: integer
+                  total:
+                    description: Total number of items.
+                    type: integer
+                type: object
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: ListScripts
+      tags:
+      - scripts
+    post:
+      deprecated: false
+      description: "\nCreates a new script for a workspace. A script name in a workspace\
+        \ must be unique. A script has versions the \nhighest version is the active\
+        \ version. Scripts define entry points of a workspace, or more precisely,\
+        \ entry points for the \ncurrently active deployment. Scripts can also be\
+        \ deactivated, so that they are not run on schedule or accessible via public\n\
+        endpoints in the cases where they are notebooks.\n\nRequires WRITE permission\
+        \ on the organization level.\n"
+      operationId: create_script
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScriptRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: CreateScript
+      tags:
+      - scripts
+  /v1/workspaces/{workspace_id}/scripts/{script_id_or_name}:
+    get:
+      deprecated: false
+      description: '
+
+        Gets a script for a workspace, either by ID or by script name.
+
+
+        Requires READ permission. On the organization level.
+
+        '
+      operationId: get_script
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: script_id_or_name
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetScript
+      tags:
+      - scripts
+  /v1/workspaces/{workspace_id}/scripts/{script_id_or_name}/versions:
+    get:
+      deprecated: false
+      description: '
+
+        Gets the script version history for a script. Returns a paginated list of
+        script versions ordered by version descending, latest first.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: list_script_versions
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: script_id_or_name
+        required: true
+        schema:
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/ScriptVersionResponse'
+                    type: array
+                  limit:
+                    description: Maximal number of items to send.
+                    type: integer
+                  offset:
+                    description: Offset from the beginning of the query.
+                    type: integer
+                  total:
+                    description: Total number of items.
+                    type: integer
+                type: object
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: ListScriptVersions
+      tags:
+      - scripts
+    post:
+      deprecated: false
+      description: "\nCreates a new script version for a script. A script version\
+        \ has a version number, an entry point, a script type and a schedule. \nThe\
+        \ profile attribute is optional but should be a valid profile name or ID if\
+        \ provided, if not provided, the default profile will be attached.\nThe profile\
+        \ governs which configuration will be used if the script is executed.\nThe\
+        \ schedule attribute is optional but should be a valid cron expression if\
+        \ provided.\n\nRequires WRITE permission on the organization level.\n"
+      operationId: create_script_version
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: script_id_or_name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScriptVersionRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptVersionResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: CreateScriptVersion
+      tags:
+      - scripts
+  /v1/workspaces/{workspace_id}/scripts/{script_id_or_name}/versions/latest:
+    get:
+      deprecated: false
+      description: "\nGets the latest and therefore active script version for a script.\
+        \ \n\nRequires READ permission. On the organization level.\n"
+      operationId: get_latest_script_version
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: script_id_or_name
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptVersionResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetLatestScriptVersion
+      tags:
+      - scripts
+  /v1/workspaces/{workspace_id}/scripts/{script_id_or_name}/versions/{script_version_id_or_version}:
+    get:
+      deprecated: false
+      description: '
+
+        Gets a script version for a script, either by ID or by version number.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: get_script_version
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: script_version_id_or_version
+        required: true
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: integer
+      - deprecated: false
+        in: path
+        name: script_id_or_name
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptVersionResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetScriptVersion
+      tags:
+      - scripts
+servers:
+- url: /
