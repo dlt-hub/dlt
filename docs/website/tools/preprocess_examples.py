@@ -5,8 +5,8 @@ Example processing for documentation.
 import os
 import sys
 
-from tools.constants import EXAMPLES_DESTINATION_DIR, EXAMPLES_SOURCE_DIR, EXAMPLES_EXCLUSIONS
-from tools.utils import list_dirs_sync, trim_array
+from constants import EXAMPLES_DESTINATION_DIR, EXAMPLES_SOURCE_DIR, EXAMPLES_EXCLUSIONS
+from utils import list_dirs_sync, trim_array
 
 
 def build_example_doc(example_name: str) -> bool:
