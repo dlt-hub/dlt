@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Tuple, cast
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.reference import Destination
 
-from .constants import (
+from tools.constants import (
     CAPABILITIES_MARKER,
     DESTINATION_CAPABILITIES_SOURCE_DIR,
     DESTINATION_NAME_PATTERN,
@@ -80,7 +80,7 @@ def _generate_doc_link(attr_name: str) -> str:
                 link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").capitalize()
             )
             return f"[{section_name}]({link})"
-    return cast(str, CAPABILITIES_DATA_TYPES_DOC_LINK)
+    return  CAPABILITIES_DATA_TYPES_DOC_LINK
 
 
 def _is_relevant_capability(attr_name: str, value: Any) -> bool:

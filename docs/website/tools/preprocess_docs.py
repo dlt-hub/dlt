@@ -5,7 +5,7 @@ Documentation preprocessor for dlt docs.
 This script processes markdown files by:
 - Inserting code snippets from Python files
 - Inserting tuba links from remote config
-- Syncing examples from .examples/ directory
+- Syncing examples from tools.examples/ directory
 - Checking for absolute/http links in docs
 - Executing destination capabilities script
 - Optionally watching for file changes
@@ -16,7 +16,7 @@ import shutil
 from typing import List, Tuple
 import argparse
 
-from .constants import (
+from tools.constants import (
     MD_SOURCE_DIR,
     MD_TARGET_DIR,
     MOVE_FILES_EXTENSION,
@@ -26,7 +26,7 @@ from .constants import (
     ABS_LINK,
     ABS_IMG_LINK,
 )
-from .utils import walk_sync, remove_remaining_markers
+from tools.utils import walk_sync, remove_remaining_markers
 
 
 def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
@@ -52,9 +52,9 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     except FileNotFoundError:
         return 0, 0, 0, False
 
-    from .preprocess_snippets import insert_snippets
-    from .preprocess_tuba import insert_tuba_links, fetch_tuba_config
-    from .preprocess_destination_capabilities import insert_destination_capabilities
+    from tools.preprocess_snippets import insert_snippets
+    from tools.preprocess_tuba import insert_tuba_links, fetch_tuba_config
+    from tools.preprocess_destination_capabilities import insert_destination_capabilities
 
     snippet_count, lines = insert_snippets(file_name, lines)
     tuba_count, lines = insert_tuba_links(fetch_tuba_config(), lines)
@@ -137,7 +137,7 @@ def check_docs() -> None:
 def process_example_change(file_path: str) -> None:
     """Process an example file change."""
     # Lazy import
-    from .preprocess_examples import build_example_doc
+    from tools.preprocess_examples import build_example_doc
 
     example_name = os.path.splitext(os.path.basename(file_path))[0]
     if build_example_doc(example_name):
@@ -150,7 +150,7 @@ def process_docs() -> None:
     if os.path.exists(MD_TARGET_DIR):
         shutil.rmtree(MD_TARGET_DIR)
 
-    from .preprocess_examples import sync_examples
+    from tools.preprocess_examples import sync_examples
 
     sync_examples()
     preprocess_docs()
@@ -173,7 +173,7 @@ def main() -> None:
 
     process_docs()
 
-    from .preprocess_change import watch
+    from tools.preprocess_change import watch
 
     if args.watch:
         print("Watching for file changes...")
