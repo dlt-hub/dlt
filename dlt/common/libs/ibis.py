@@ -27,6 +27,7 @@ try:
     from ibis.backends import _get_backend_names, NoUrl, NoExampleLoader
     from ibis.backends.sql import SQLBackend
     from ibis.formats import TypeMapper
+    from sqlglot import expressions as sge
 except ImportError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
@@ -43,6 +44,17 @@ class DltType(TypeMapper):
     def to_ibis(cls, typ: TDataType, nullable: bool | None = None) -> dt.DataType:
         nullable = True if nullable is None else bool(nullable)
         return ibis.dtype(dlt.helpers.ibis.DATA_TYPE_MAP[typ], nullable=nullable)
+
+
+def _transpile(query: sge.ExpOrStr, *, target_dialect: type[sg.Dialect]) -> str:
+    if isinstance(query, sg.Expression):
+        query = query.sql(dialect=target_dialect)
+    elif isinstance(query, str):
+        query = sg.transpile(query, write=target_dialect)[0]
+    else:
+        raise TypeErrorWithKnownTypes(key="query", value_received=query, valid_types=["str", "sqlglot.Expression"])
+    
+    return query
 
 
 # TODO support `database` kwarg (equiv. `dataset_name`) to enable DltBackend to access multiple database
@@ -108,20 +120,23 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
             schema=schema,
         )
         self.compiler = _get_ibis_to_sqlglot_compiler(self._dataset._destination)  # type: ignore[arg-type]
-
+    
+    # derived from Ibis Snowflake implementation
     @contextlib.contextmanager
     # @override
-    def _safe_raw_sql(self, *args: Any, **kwargs: Any) -> Iterator[Any]:
-        yield self.raw_sql(*args, **kwargs)
+    def _safe_raw_sql(self, query: str | sg.Expression, **kwargs: Any) -> Any:
+        with contextlib.suppress(AttributeError):
+            query = _transpile(query, target_dialect=self.compiler.dialect)
 
+        with contextlib.closing(self.raw_sql(query, **kwargs)) as cur:
+            yield cur
+
+    # derived from Ibis Snowflake implementation
     # @override
     def raw_sql(self, query: Union[str, sg.Expression], **kwargs: Any) -> Any:
         """Execute SQL string or SQLGlot expression using the dlt destination SQL client"""
         with contextlib.suppress(AttributeError):
-            if isinstance(query, sg.Expression):
-                query = query.sql(dialect=self.compiler.dialect)
-            else:
-                query = sg.transpile(query, write=self.compiler.dialect)[0]
+            query = _transpile(query, target_dialect=self.compiler.dialect)
 
         assert isinstance(query, str)
         with self._dataset.sql_client as client:
