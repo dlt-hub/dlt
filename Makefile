@@ -56,7 +56,7 @@ lint:
 	uv pip install docstring_parser_fork --reinstall
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
-	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
+	uv run flake8 --extend-ignore=D --max-line-length=200 dlt --exclude dlt/_workspace/runtime_clients
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	$(MAKE) lint-security

@@ -1,17 +1,19 @@
-
 import argparse
 import time
 from typing import Optional
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.auth import AuthService
-from dlt._workspace.exceptions import RuntimeNotAuthenticated, WorkspaceIdMismatch, LocalWorkspaceIdNotSet
+from dlt._workspace.exceptions import (
+    RuntimeNotAuthenticated,
+    WorkspaceIdMismatch,
+    LocalWorkspaceIdNotSet,
+)
 from dlt._workspace.runtime_clients import AUTH_BASE_URL
 from dlt.cli import SupportsCliCommand, echo as fmt
 
 from dlt._workspace.runtime_clients.auth import Client as AuthClient
 from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete, github_oauth_start
-
 
 
 class RuntimeCommand(SupportsCliCommand):
@@ -38,7 +40,6 @@ class RuntimeCommand(SupportsCliCommand):
             description="Logout from the Runtime",
         )
 
-
     def execute(self, args: argparse.Namespace) -> None:
         if args.profile_command == "login":
             login()
@@ -60,14 +61,11 @@ def login() -> None:
 
         # start device flow
         login_request = github_oauth_start.sync(client=client)
-
         fmt.echo(
-            "Please go to %s and enter the code %s" % (
-                fmt.bold(login_request.verification_uri), 
-                fmt.bold(login_request.user_code)
-            )
+            "Please go to %s and enter the code %s"
+            % (fmt.bold(login_request.verification_uri), fmt.bold(login_request.user_code))
         )
-        fmt.echo("Waiting for response from github...")
+        fmt.echo("Waiting for response from Github...")
 
         while True:
             time.sleep(login_request.interval)
@@ -77,12 +75,13 @@ def login() -> None:
                     device_code=login_request.device_code
                 ),
             )
-            # TODO: handle possible errors
             if isinstance(token_response, github_oauth_complete.LoginResponse):
                 auth_info = auth_service.login(token_response.jwt)
                 fmt.echo("Logged in as %s" % fmt.bold(auth_info.email))
                 authorise(auth_service=auth_service)
                 break
+            elif isinstance(token_response, github_oauth_complete.GithubOauthCompleteResponse400):
+                raise RuntimeError("Failed to complete authentication with Github")
 
 
 def logout() -> None:
@@ -94,24 +93,26 @@ def logout() -> None:
 def authorise(auth_service: Optional[AuthService] = None) -> None:
     if auth_service is None:
         auth_service = AuthService(run_context=active())
-        auth_service.authenticate()   
+        auth_service.authenticate()
 
     try:
         auth_service.authorise()
     except LocalWorkspaceIdNotSet:
-        fmt.echo(f"No workspace id found in local config, using default remote workspace")
+        fmt.echo("No workspace id found in local config, using default remote workspace")
         auth_service.overwrite_local_workspace_id()
     except WorkspaceIdMismatch as e:
-        fmt.warning("Workspace id in local config (%s) is not the same as remote workspace id (%s)" % (e.local_workspace_id, e.remote_workspace_id))
+        fmt.warning(
+            "Workspace id in local config (%s) is not the same as remote workspace id (%s)"
+            % (e.local_workspace_id, e.remote_workspace_id)
+        )
         should_overwrite = fmt.prompt(
             "Do you want to overwrite the local workspace id with the remote one?",
-            choices=['yes', 'no'],
+            choices=["yes", "no"],
             default="yes",
         )
         if should_overwrite == "yes":
             auth_service.overwrite_local_workspace_id()
             fmt.echo("Local workspace id overwritten with remote workspace id")
         else:
-            fmt.warning("Unable to synchronise remote and local workspaces")
-            exit()
+            raise RuntimeError("Unable to synchronise remote and local workspaces")
     fmt.echo("Authorised to workspace %s" % fmt.bold(auth_service.workspace_id))

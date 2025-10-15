@@ -20,9 +20,12 @@ def _get_kwargs(
 ) -> dict[str, Any]:
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations/latest".format(
-            workspace_id=workspace_id,
-            profile_id_or_name=profile_id_or_name,
+        "url": (
+            "/v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations/latest"
+            .format(
+                workspace_id=workspace_id,
+                profile_id_or_name=profile_id_or_name,
+            )
         ),
     }
 
