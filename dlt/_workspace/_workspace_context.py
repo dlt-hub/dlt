@@ -70,7 +70,7 @@ class WorkspaceRunContext(ProfilesRunContext):
     def settings_dir(self) -> str:
         """Returns a path to dlt settings directory. If not overridden it resides in current working directory
 
-        The name of the setting folder is '.dlt'. The path is current working directory '.' but may be overridden by DLT_PROJECT_DIR env variable.
+        The name of the settings folder is '.dlt'. The path is current working directory '.' but may be overridden by DLT_PROJECT_DIR env variable.
         """
         return os.path.join(self.run_dir, DOT_DLT)
 

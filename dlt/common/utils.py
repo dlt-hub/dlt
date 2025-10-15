@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Any, Literal
+import re
+from typing import TYPE_CHECKING, Any, BinaryIO, Literal
 import os
 from pathlib import Path
 import sys
@@ -116,6 +117,14 @@ def digest128b(v: bytes, len_: int = 15) -> str:
 
 def digest256(v: str) -> str:
     digest = hashlib.sha3_256(v.encode("utf-8")).digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+def digest256_file_stream(stream: BinaryIO) -> str:
+    """Returns a base64 encoded sha3_256 hash of a binary stream"""
+    stream.seek(0)
+    content = stream.read()
+    digest = hashlib.sha3_256(content).digest()
     return base64.b64encode(digest).decode("ascii")
 
 
