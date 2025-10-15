@@ -18,13 +18,25 @@ MOCK_BASE_URL = "https://api.example.com"
 DEFAULT_PAGE_SIZE = 5
 DEFAULT_TOTAL_PAGES = 5
 DEFAULT_LIMIT = 10
+DEFAULT_REACTIONS_COUNT = 5
 
 
 router = APIRouter(MOCK_BASE_URL)
 
 
-def generate_posts(count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES):
-    return [{"id": i, "title": f"Post {i}"} for i in range(count)]
+def generate_posts(
+    count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES, count_reactions=DEFAULT_REACTIONS_COUNT
+):
+    return [
+        {
+            "id": i,
+            "title": f"Post {i}",
+            "reactions": [
+                {"id": j, "title": f"Reaction {j} for post {i}"} for j in range(count_reactions)
+            ],
+        }
+        for i in range(count)
+    ]
 
 
 def generate_comments(post_id, count=50):
