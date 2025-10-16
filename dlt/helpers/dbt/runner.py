@@ -14,7 +14,6 @@ from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.logger import is_json_logging
 from dlt.common.storages import FileStorage
-from dlt.common.git import git_custom_key_command, ensure_remote_head, force_clone_repo
 from dlt.common.utils import with_custom_environ
 
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
@@ -97,6 +96,7 @@ class DBTPackageRunner:
 
     def ensure_newest_package(self) -> None:
         """Clones or brings the dbt package at `package_location` up to date."""
+        from dlt.common.git import git_custom_key_command, ensure_remote_head, force_clone_repo
         from git import GitError
 
         with git_custom_key_command(self.config.package_repository_ssh_key) as ssh_command:
