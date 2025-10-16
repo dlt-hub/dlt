@@ -220,8 +220,6 @@ def destination(
     instantiates a destination from the provided destination name and type by retrieving the corresponding
     destination factory and initializing it with the given credentials and keyword arguments.
     """
-    if func_or_name is None and "func" in kwargs:
-        func_or_name = kwargs.pop("func")
 
     def decorator(
         destination_callable: Callable[
@@ -279,27 +277,29 @@ def destination(
     if func_or_name is None:
         # we're called with parens.
         return decorator
-    elif isinstance(func_or_name, str):
-        # Factory mode: create destination instance
-        destination_type = kwargs.pop("destination_type", None)
-        if destination_type:
-            return Destination.from_reference(
-                ref=destination_type,
-                destination_name=func_or_name,
-                **kwargs,
-            )
-        elif kwargs.get("destination_callable"):
-            destination_name = None if func_or_name == "destination" else func_or_name
-            return Destination.from_reference(
-                ref="destination",
-                destination_name=destination_name,
-                **kwargs,
-            )
-        else:
-            return Destination.from_reference(
-                ref=func_or_name,
-                **kwargs,
-            )
+    elif not isinstance(func_or_name, str):
+        # we're called as @dlt.destination without parens.
+        return decorator(func_or_name)
 
-    # we're called as @dlt.destination without parens.
-    return decorator(func_or_name)
+    # Factory mode: create destination instance from given string
+    destination_type = kwargs.pop("destination_type", None)
+    if destination_type:
+        destination = Destination.from_reference(
+            ref=destination_type,
+            destination_name=func_or_name,
+            **kwargs,
+        )
+    elif kwargs.get("destination_callable"):
+        destination_name = None if func_or_name == "destination" else func_or_name
+        destination = Destination.from_reference(
+            ref="destination",
+            destination_name=destination_name,
+            **kwargs,
+        )
+    else:
+        destination = Destination.from_reference(
+            ref=func_or_name,
+            **kwargs,
+        )
+
+    return destination
