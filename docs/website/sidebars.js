@@ -70,7 +70,7 @@ const sidebars = {
         'release-notes/1.13-1.14',
         'release-notes/1.15',
         'release-notes/1.16',
-        'release-notes/1.17-1.17.1'
+        'release-notes/1.17'
       ]
     },
     {
