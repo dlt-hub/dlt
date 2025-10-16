@@ -4,7 +4,7 @@ import sys
 
 from dlt.common.reflection.ref import object_from_ref, callable_typechecker
 from dlt.extract.reference import SourceFactory, SourceReference
-from tests.utils import unload_modules
+from tests.utils import auto_unload_modules
 
 
 @pytest.fixture(autouse=True)

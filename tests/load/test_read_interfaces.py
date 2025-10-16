@@ -25,7 +25,11 @@ from tests.load.utils import (
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
+from tests.utils import (
+    preserve_module_environ,
+    auto_module_test_storage,
+    auto_module_test_run_context,
+)
 from tests.load.utils import drop_pipeline_data
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
@@ -129,7 +133,7 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
 
 @pytest.fixture(scope="module")
 def populated_pipeline(
-    request, autouse_module_test_storage, preserve_module_environ, patch_module_home_dir
+    request, auto_module_test_storage, preserve_module_environ, auto_module_test_run_context
 ) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 

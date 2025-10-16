@@ -1,7 +1,7 @@
 import os
 
 from tests.utils import (
-    patch_home_dir,
+    auto_test_run_context,
     autouse_test_storage,
     preserve_environ,
     deactivate_pipeline,
