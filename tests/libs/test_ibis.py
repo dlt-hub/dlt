@@ -5,6 +5,7 @@ import pandas as pd
 
 import dlt
 from dlt.common.libs.ibis import _DltBackend
+from dlt.common.libs.pyarrow import pyarrow as pa
 
 from tests.load.test_read_interfaces import populated_pipeline, configs
 from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
@@ -137,3 +138,37 @@ def test_user_workflow(populated_pipeline: dlt.Pipeline):
 
     assert isinstance(result, pd.DataFrame)
     assert set(result.columns) == set(expected_columns)
+
+
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    duckdb_conf,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_table_to_pandas(populated_pipeline: dlt.Pipeline):
+    expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+
+    dataset = populated_pipeline.dataset()
+    con = dataset.ibis()
+    result = con.table("items").to_pandas()
+
+    assert isinstance(result, pd.DataFrame)
+    assert set(result.columns) == set(expected_columns)
+
+
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    duckdb_conf,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_table_to_pyarrow(populated_pipeline: dlt.Pipeline):
+    expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+
+    dataset = populated_pipeline.dataset()
+    con = dataset.ibis()
+    result = con.table("items").to_pyarrow()
+
+    assert isinstance(result, pa.Table)
+    assert set(result.column_names) == set(expected_columns)

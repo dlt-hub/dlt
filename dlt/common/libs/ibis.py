@@ -137,8 +137,12 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
             query = _transpile(query, target_dialect=self.compiler.dialect)
 
         assert isinstance(query, str)
+        # TODO return a cursor instead of rows; this will allow to load pyarrow data
+        # more efficiently
         with self._dataset.sql_client as client:
-            return client.execute_query(query)
+            result = client.execute_sql(query)
+
+        return result
 
     # required for marimo DataSources UI to work
     @property
