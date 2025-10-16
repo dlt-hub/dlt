@@ -154,7 +154,12 @@ def get_fresh_repo_files(
 def get_repo(path: str) -> Repo:
     from git import Repo
 
-    repo = Repo(path, search_parent_directories=True)
+    # if GIT_CEILING_DIRECTORIES is set then do not look up for repositories in parent dirs
+    search_parent_directories: bool = True
+    if os.getenv("GIT_CEILING_DIRECTORIES"):
+        search_parent_directories = False
+
+    repo = Repo(path, search_parent_directories=search_parent_directories)
     return repo
 
 
