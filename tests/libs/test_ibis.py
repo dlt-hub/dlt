@@ -1,12 +1,10 @@
-import sys
-
 import pytest
 
-pytestmark = pytest.mark.skipif(
-    sys.version_info < (3, 10),
-    reason=f"Skipping tests for Python `{sys.version_info}`. Ibis only supports Python >= 3.10.",
-)
-
+# this try/except should trigger for python <3.10 because ibis is not supported
+try:
+    import ibis
+except ImportError:
+    pytest.skip(allow_module_level=True)
 
 import ibis
 import ibis.expr.types as ir
