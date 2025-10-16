@@ -1,5 +1,6 @@
+import sys
+
 import pytest
-from ibis import ir
 
 import dlt
 
@@ -28,8 +29,14 @@ def purchases(dataset: dlt.Dataset) -> dlt.Relation:
     return purchases
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason=f"Skipping tests for Python `{sys.version_info}`. Ibis only supports Python >= 3.10.",
+)
 def test_sql_relation_to_ibis(dataset: dlt.Dataset) -> None:
     """Call `.to_ibis()` on a `dlt.Relation` defined by an SQL query"""
+    from ibis import ir
+
     purchases = dataset.query("SELECT * FROM purchases")
     assert isinstance(purchases, dlt.Relation)
 
@@ -39,16 +46,28 @@ def test_sql_relation_to_ibis(dataset: dlt.Dataset) -> None:
     table.execute()
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason=f"Skipping tests for Python `{sys.version_info}`. Ibis only supports Python >= 3.10.",
+)
 def test_base_relation_to_ibis(purchases: dlt.Relation) -> None:
     """Call `.to_ibis()` on a `dlt.Relation` defined by an existing table name"""
+    from ibis import ir
+
     table = purchases.to_ibis()
     assert isinstance(table, ir.Table)
     # executes without error
     table.execute()
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason=f"Skipping tests for Python `{sys.version_info}`. Ibis only supports Python >= 3.10.",
+)
 def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
     """Call `.to_ibis()` on a `dlt.Relation` that was transformed by methods"""
+    from ibis import ir
+
     table = purchases.where("id", "gt", 2).select("name").to_ibis()
     assert isinstance(table, ir.Table)
     # executes without error
