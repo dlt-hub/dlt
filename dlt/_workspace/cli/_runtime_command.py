@@ -3,35 +3,34 @@ import time
 from typing import Optional
 
 from dlt._workspace._workspace_context import active
-from dlt._workspace.auth import AuthService
 from dlt._workspace.exceptions import (
+    LocalWorkspaceIdNotSet,
     RuntimeNotAuthenticated,
     WorkspaceIdMismatch,
-    LocalWorkspaceIdNotSet,
 )
-from dlt._workspace.runtime_clients import AUTH_BASE_URL
-from dlt.cli import SupportsCliCommand, echo as fmt
-
-from dlt._workspace.runtime_clients.auth import Client as AuthClient
+from dlt._workspace.runtime import RuntimeAuthService, get_auth_client
 from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete, github_oauth_start
+from dlt.cli import SupportsCliCommand, echo as fmt
 
 
 class RuntimeCommand(SupportsCliCommand):
     command = "runtime"
-    help_string = "Connect to Runtime and manage your remote Workspaces"
-    description = """"""
+    help_string = "Connect to dltHub Runtime and run your code remotely"
+    description = """
+    Allows to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
+    """
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
 
         subparsers = parser.add_subparsers(
-            title="Available subcommands", dest="profile_command", required=False
+            title="Available subcommands", dest="runtime_command", required=False
         )
 
         subparsers.add_parser(
             "login",
-            help="Login to the Runtime usin Github OAuth",
-            description="Login to the Runtime usin Github OAuth",
+            help="Login to the Runtime using Github OAuth",
+            description="Login to the Runtime using Github OAuth",
         )
 
         subparsers.add_parser(
@@ -41,23 +40,23 @@ class RuntimeCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        if args.profile_command == "login":
+        if args.runtime_command == "login":
             login()
-        elif args.profile_command == "logout":
+        elif args.runtime_command == "logout":
             logout()
         else:
             self.parser.print_usage()
 
 
 def login() -> None:
-    auth_service = AuthService(run_context=active())
+    auth_service = RuntimeAuthService(run_context=active())
     try:
         auth_info = auth_service.authenticate()
         fmt.echo("Already logged in as %s" % fmt.bold(auth_info.email))
-        authorise(auth_service=auth_service)
+        authorize(auth_service=auth_service)
     except RuntimeNotAuthenticated:
         fmt.echo("Logging in with Github OAuth")
-        client = AuthClient(base_url=AUTH_BASE_URL, verify_ssl=False)
+        client = get_auth_client()
 
         # start device flow
         login_request = github_oauth_start.sync(client=client)
@@ -78,41 +77,47 @@ def login() -> None:
             if isinstance(token_response, github_oauth_complete.LoginResponse):
                 auth_info = auth_service.login(token_response.jwt)
                 fmt.echo("Logged in as %s" % fmt.bold(auth_info.email))
-                authorise(auth_service=auth_service)
+                authorize(auth_service=auth_service)
                 break
             elif isinstance(token_response, github_oauth_complete.GithubOauthCompleteResponse400):
                 raise RuntimeError("Failed to complete authentication with Github")
 
 
 def logout() -> None:
-    auth_service = AuthService(run_context=active())
+    auth_service = RuntimeAuthService(run_context=active())
     auth_service.logout()
     fmt.echo("Logged out")
 
 
-def authorise(auth_service: Optional[AuthService] = None) -> None:
+def authorize(auth_service: Optional[RuntimeAuthService] = None) -> None:
     if auth_service is None:
-        auth_service = AuthService(run_context=active())
+        auth_service = RuntimeAuthService(run_context=active())
         auth_service.authenticate()
 
     try:
-        auth_service.authorise()
+        auth_service.authorize()
     except LocalWorkspaceIdNotSet:
-        fmt.echo("No workspace id found in local config, using default remote workspace")
-        auth_service.overwrite_local_workspace_id()
+        should_overwrite = fmt.confirm(
+            "No workspace id found in local config. Do you want to connect local workspace to the remote one?",
+            default=True,
+        )
+        if should_overwrite:
+            auth_service.overwrite_local_workspace_id()
+            fmt.echo("Using remote workspace id")
+        else:
+            raise RuntimeError("Local workspace is not connected to the remote one")
     except WorkspaceIdMismatch as e:
         fmt.warning(
             "Workspace id in local config (%s) is not the same as remote workspace id (%s)"
             % (e.local_workspace_id, e.remote_workspace_id)
         )
-        should_overwrite = fmt.prompt(
+        should_overwrite = fmt.confirm(
             "Do you want to overwrite the local workspace id with the remote one?",
-            choices=["yes", "no"],
-            default="yes",
+            default=True,
         )
-        if should_overwrite == "yes":
+        if should_overwrite:
             auth_service.overwrite_local_workspace_id()
             fmt.echo("Local workspace id overwritten with remote workspace id")
         else:
             raise RuntimeError("Unable to synchronise remote and local workspaces")
-    fmt.echo("Authorised to workspace %s" % fmt.bold(auth_service.workspace_id))
+    fmt.echo("Authorized to workspace %s" % fmt.bold(auth_service.workspace_id))
