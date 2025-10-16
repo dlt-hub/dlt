@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 from typing_extensions import override
 
 import dlt
@@ -138,9 +138,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
 
         assert isinstance(query, str)
         with self._dataset.sql_client as client:
-            result = client.execute_sql(query)
-        
-        return result
+            return client.execute_query(query)
 
     # required for marimo DataSources UI to work
     @property
