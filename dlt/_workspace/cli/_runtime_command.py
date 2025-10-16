@@ -98,7 +98,8 @@ def authorize(auth_service: Optional[RuntimeAuthService] = None) -> None:
         auth_service.authorize()
     except LocalWorkspaceIdNotSet:
         should_overwrite = fmt.confirm(
-            "No workspace id found in local config. Do you want to connect local workspace to the remote one?",
+            "No workspace id found in local config. Do you want to connect local workspace to the"
+            " remote one?",
             default=True,
         )
         if should_overwrite:

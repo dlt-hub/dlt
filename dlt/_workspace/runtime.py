@@ -172,9 +172,10 @@ class RuntimeAuthService:
         return auth_info
 
 
-def get_auth_client() -> ApiClient:
+def get_auth_client() -> AuthClient:
     config = resolve_configuration(RuntimeConfiguration())
     return AuthClient(base_url=config.auth_base_url, verify_ssl=False)
+
 
 def get_api_client(auth_service: Optional["RuntimeAuthService"] = None) -> ApiClient:
     config = resolve_configuration(RuntimeConfiguration())
