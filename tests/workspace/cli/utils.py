@@ -3,7 +3,7 @@ import pytest
 import shutil
 from typing import Iterator
 
-from dlt.common import git
+from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import uniq_id

@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 import dlt.destinations
-from dlt.common import git
+from dlt.common.libs import git
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import (
     SECRETS_TOML,

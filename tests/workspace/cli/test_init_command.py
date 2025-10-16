@@ -17,7 +17,7 @@ import cryptography.hazmat.bindings._rust
 
 
 import dlt
-from dlt.common import git
+from dlt.common.libs import git
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage

@@ -8,7 +8,7 @@ from dlt.version import DLT_PKG_NAME
 from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.destination.reference import Destination
-from dlt.common.git import is_dirty
+from dlt.common.libs.git import is_dirty
 
 from dlt._workspace.cli import utils
 from dlt._workspace.cli import echo as fmt

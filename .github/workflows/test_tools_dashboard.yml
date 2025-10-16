@@ -102,7 +102,7 @@ jobs:
       # Run pipeline dashboard unit tests
       - name: Run pipeline dashboard unit tests
         run: |
-          pytest tests/_workspace/helpers/dashboard
+          pytest tests/workspace/helpers/dashboard
 
       # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       # Mac is also disabled for the time being

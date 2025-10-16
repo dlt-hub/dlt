@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, NamedTuple, Sequence, Tuple, List, Literal
 from dlt._workspace.cli.exceptions import VerifiedSourceRepoError
 
-from dlt.common import git
+from dlt.common.libs import git
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TypedDict
 

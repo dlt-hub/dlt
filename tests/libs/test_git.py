@@ -3,7 +3,7 @@ from git import GitCommandError, RepositoryDirtyError, GitError
 import pytest
 
 from dlt.common.storages import FileStorage
-from dlt.common.git import (
+from dlt.common.libs.git import (
     clone_repo,
     ensure_remote_head,
     git_custom_key_command,

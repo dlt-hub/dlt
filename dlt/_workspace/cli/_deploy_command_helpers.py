@@ -21,14 +21,14 @@ except ImportError:
 
 import dlt
 
-from dlt.common import git
+from dlt.common.libs import git
 from dlt.common.configuration.exceptions import LookupTrace, ConfigFieldMissingException
 from dlt.common.configuration.providers import (
     CONFIG_TOML,
     EnvironProvider,
     StringTomlProvider,
 )
-from dlt.common.git import get_origin, get_repo, Repo
+from dlt.common.libs.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.runtime_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal

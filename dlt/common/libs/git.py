@@ -4,6 +4,7 @@ import giturlparse
 from typing import Iterator, Optional, TYPE_CHECKING
 from contextlib import contextmanager
 
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 from dlt.common.typing import Any
@@ -14,6 +15,17 @@ if TYPE_CHECKING:
     from git import Repo
 else:
     Repo = Any
+
+
+def _import_git() -> None:
+    try:
+        import git
+    except ModuleNotFoundError:
+        raise MissingDependencyException(
+            "git repository helpers",
+            ["gitpython>=3.1.29"],
+            "Install PythonGit to work with git repositories.",
+        )
 
 
 @contextmanager
@@ -50,13 +62,6 @@ def is_dirty(repo: Repo) -> bool:
     return len(status.strip()) > 0
 
 
-# def is_dirty(repo: Repo) -> bool:
-#     # get branch status
-#     status: str = repo.git.status("--short", "--branch")
-#     # we expect first status line ## main...origin/main
-#     return len(status.splitlines()) > 1
-
-
 def get_default_branch(repo: Repo) -> str:
     origin = repo.remotes.origin
     # Get the remote's HEAD reference (default branch)
@@ -88,6 +93,8 @@ def clone_repo(
     branch: Optional[str] = None,
     with_git_command: Optional[str] = None,
 ) -> Repo:
+    _import_git()
+
     from git import Repo
 
     repo = Repo.clone_from(repository_url, clone_path, env=dict(GIT_SSH_COMMAND=with_git_command))
@@ -152,6 +159,8 @@ def get_fresh_repo_files(
 
 
 def get_repo(path: str) -> Repo:
+    _import_git()
+
     from git import Repo
 
     # if GIT_CEILING_DIRECTORIES is set then do not look up for repositories in parent dirs

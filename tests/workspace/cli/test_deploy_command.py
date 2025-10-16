@@ -2,7 +2,6 @@ import os
 import io
 import contextlib
 import shutil
-import tempfile
 from subprocess import CalledProcessError
 from git import InvalidGitRepositoryError, NoSuchPathError
 import pytest
@@ -38,11 +37,6 @@ def test_deploy_command_no_repo(deployment_method: str, deployment_args: StrAny)
     shutil.copytree(
         os.path.join(WORKSPACE_CLI_CASES_DIR, "deploy_pipeline"), ".", dirs_exist_ok=True
     )
-    # os.makedirs(".git")
-    # pipeline_wf = tempfile.mkdtemp()
-    # shutil.copytree("tests/workspace/cli/cases/deploy_pipeline", pipeline_wf, dirs_exist_ok=True)
-
-    # with set_working_dir(pipeline_wf):
     # we do not have repo
     with pytest.raises(InvalidGitRepositoryError):
         _deploy_command.deploy_command(
