@@ -123,7 +123,7 @@ test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data ACTIVE_DESTINATIONS='["postgres"]' ALL_FILESYSTEM_DRIVERS='["memory"]'  uv run pytest tests/load
 
 test-common:
-	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common tests/load/test_dummy_client.py tests/libs tests/destinations
+	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
 
 reset-test-storage:
 	-rm -r _storage

@@ -33,13 +33,11 @@ jobs:
             post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
           # TODO: also test ducklake in remote mode with a buckets and remote postgres
-          - name: postgres, duckdb, ducklake, and dummy with cli commands
+          - name: postgres, duckdb, ducklake, and dummy
             destinations: "[\"postgres\", \"duckdb\", \"ducklake\", \"dummy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb --extra cli --extra filesystem"
             needs_postgres: true
-            additional_tests: "pytest tests/cli"
-
 
           # Clickhouse OSS (TODO: test with minio s3)
           - name: clickhouse
