@@ -56,12 +56,11 @@ def test_postgres_encoded_binary(
     assert data["table"][0]["hash"].tobytes() == blob
 
 
-# do not remove - it allows us to filter tests by destination
 @pytest.mark.no_load
 @pytest.mark.parametrize(
-    "use_dest_decorator",
+    "use_factory_method",
     [True, False],
-    ids=["using_dest_decorator", "without_using_dest_decorator"],
+    ids=["use_factory_method", "use_from_reference"],
 )
 @pytest.mark.parametrize(
     "destination_config",
@@ -69,15 +68,23 @@ def test_postgres_encoded_binary(
     ids=lambda x: x.name,
 )
 def test_pipeline_explicit_destination_credentials(
-    use_dest_decorator: bool,
+    use_factory_method: bool,
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    """
+    Tests that explicit destination credentials.
+
+    Args:
+        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
+            `Destination.from_reference()` internally). If False, calls
+            `Destination.from_reference()` directly. Both should behave identically.
+        destination_config (DestinationTestConfiguration): Test configuration for the destination.
+            This allows filtering tests by destination type. Do not remove.
+    """
     from dlt.destinations import postgres
     from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 
-    # NOTE: using dlt.destination as factory initializer and Destination.from_reference
-    # should behave the same
-    dest_ref_func = dlt.destination if use_dest_decorator else Destination.from_reference
+    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
 
     # explicit credentials resolved
     p = dlt.pipeline(

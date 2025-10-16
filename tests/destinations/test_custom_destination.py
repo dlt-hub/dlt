@@ -161,11 +161,21 @@ def test_capabilities() -> None:
 
 
 @pytest.mark.parametrize(
-    "use_dest_decorator",
+    "use_factory_method",
     [True, False],
-    ids=["using_dest_decorator", "without_using_dest_decorator"],
+    ids=["use_factory_method", "use_from_reference"],
 )
-def test_instantiation(use_dest_decorator: bool) -> None:
+def test_instantiation(use_factory_method: bool) -> None:
+    """
+    Test custom destination instantiation.
+
+    Args:
+        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
+            `Destination.from_reference()` internally). If False, calls
+            `Destination.from_reference()` directly. Both should behave identically.
+    """
+    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
+
     # also tests DESTINATIONS registry
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
@@ -186,10 +196,6 @@ def test_instantiation(use_dest_decorator: bool) -> None:
     with pytest.raises(KeyError):
         DestinationReference.find("local_sink_func")
     assert "dlt.destinations.local_sink_func" not in DestinationReference.DESTINATIONS
-
-    # NOTE: using dlt.destination as factory initializer and Destination.from_reference
-    # should behave the same
-    dest_ref_func = dlt.destination if use_dest_decorator else Destination.from_reference
 
     # test passing via from_reference
     calls = []

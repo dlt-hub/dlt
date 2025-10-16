@@ -1133,15 +1133,26 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
 
 
 @pytest.mark.parametrize(
-    "use_dest_decorator",
+    "use_factory_method",
     [True, False],
-    ids=["using_dest_decorator", "without_using_dest_decorator"],
+    ids=["use_factory_method", "use_from_reference"],
 )
-def test_pipeline_with_destination_name(use_dest_decorator: bool):
-    # test configured destination name (tests/.dlt/config.toml)
-    dest = dlt.destination("custom_name") if use_dest_decorator else "custom_name"
+def test_pipeline_with_destination_name(use_factory_method: bool):
+    """
+    Test configured destination name (tests/.dlt/config.toml).
 
-    pipeline = dlt.pipeline(destination=dest)
+    Args:
+        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
+            `Destination.from_reference()` internally). If False, calls
+            `Destination.from_reference()` directly. Both should behave identically.
+    """
+    # dlt.destination(name) if the factory method is enabled,
+    # or just using the plain name otherwise
+    dest_ref_func: Any = (
+        (lambda name: dlt.destination(name)) if use_factory_method else (lambda name: name)
+    )
+
+    pipeline = dlt.pipeline(destination=dest_ref_func("custom_name"))
     assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
     assert pipeline.destination.destination_name == "custom_name"
 
@@ -1154,21 +1165,13 @@ def test_pipeline_with_destination_name(use_dest_decorator: bool):
 
     # test unconfigured destination name
     with pytest.raises(UnknownDestinationModule) as py_exc:
-        (
-            dlt.destination("another_custom_name")
-            if use_dest_decorator
-            else dlt.pipeline(destination="another_custom_name")
-        )
+        dlt.pipeline(destination=dest_ref_func("another_custom_name"))
     assert py_exc.value.named_dest_attempted is True
     assert not py_exc.value.destination_type
     assert "no destination type was configured" in str(py_exc.value)
 
     # if destination contains dots, no fallbacks must happen
     with pytest.raises(UnknownDestinationModule) as py_exc:
-        (
-            dlt.destination("dlt.destinations.unknown")
-            if use_dest_decorator
-            else dlt.pipeline(destination="dlt.destinations.unknown")
-        )
+        dlt.pipeline(destination=dest_ref_func("dlt.destinations.unknown"))
     assert not py_exc.value.named_dest_attempted
     assert not py_exc.value.destination_type

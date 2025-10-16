@@ -308,11 +308,21 @@ def test_credentials_wrong_config() -> None:
 
 @pytest.mark.no_load
 @pytest.mark.parametrize(
-    "use_dest_decorator",
+    "use_factory_method",
     [True, False],
-    ids=["using_dest_decorator", "without_using_dest_decorator"],
+    ids=["use_factory_method", "use_from_reference"],
 )
-def test_duckdb_in_memory_mode_via_factory(use_dest_decorator: bool):
+def test_duckdb_in_memory_mode_via_factory(use_factory_method: bool):
+    """
+    Tests duckdb in-memory mode validation (rejecting :memory: credentials).
+
+    Args:
+        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
+            `Destination.from_reference()` internally). If False, calls
+            `Destination.from_reference()` directly. Both should behave identically.
+    """
+    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
+
     import duckdb
 
     # Check if passing external duckdb connection works fine
@@ -339,9 +349,6 @@ def test_duckdb_in_memory_mode_via_factory(use_dest_decorator: bool):
     assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
 
     with pytest.raises(PipelineStepFailed) as exc:
-        # NOTE: using dlt.destination as factory initializer and Destination.from_reference
-        # should behave the same
-        dest_ref_func = dlt.destination if use_dest_decorator else Destination.from_reference
         p = dlt.pipeline(
             pipeline_name="booboo",
             destination=dest_ref_func("duckdb", credentials=":memory:"),
@@ -546,14 +553,14 @@ def test_keeps_initial_db_path() -> None:
     os.environ["CREDENTIALS"] = db_path
 
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=dlt.destinations.duckdb())
-    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir)
+    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir).lower()
     with p.sql_client() as conn:
         # still cwd
         assert conn.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
 
     # attach the pipeline
     p = dlt.attach(pipeline_name="quack_pipeline")
-    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir)
+    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir).lower()
     with p.sql_client() as conn:
         # still cwd
         assert conn.credentials._conn_str().lower() == os.path.abspath(db_path).lower()

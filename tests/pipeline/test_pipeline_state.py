@@ -16,6 +16,7 @@ from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
+from dlt.common.destination import Destination
 from dlt.common.destination.client import StateInfo
 from dlt.common.validation import validate_dict
 
@@ -99,11 +100,25 @@ def test_state_repr() -> None:
     ]
 
 
-def test_restore_state_props() -> None:
+@pytest.mark.parametrize(
+    "use_factory_method",
+    [True, False],
+    ids=["use_factory_method", "use_from_reference"],
+)
+def test_restore_state_props(use_factory_method: bool) -> None:
+    """Test pipeline state persistence and restoration.
+
+    Args:
+        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
+            `Destination.from_reference()` internally). If False, calls
+            `Destination.from_reference()` directly. Both should behave identically.
+    """
+    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
+
     p = dlt.pipeline(
         pipeline_name="restore_state_props",
-        destination=dlt.destination("redshift_name", destination_type="redshift"),
-        staging=dlt.destination("filesystem_name", destination_type="filesystem"),
+        destination=dest_ref_func("redshift", destination_name="redshift_name"),
+        staging=dest_ref_func("filesystem", destination_name="filesystem_name"),
         dataset_name="the_dataset",
     )
     print(get_dlt_pipelines_dir())
