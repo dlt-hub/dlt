@@ -9,8 +9,8 @@ import pytest
 
 import dlt
 from dlt.common import pendulum
-from dlt.helpers.dashboard.config import DashboardConfiguration
-from dlt.helpers.dashboard.utils import (
+from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.utils import (
     PICKLE_TRACE_FILE,
     get_query_result_cached,
     resolve_dashboard_config,

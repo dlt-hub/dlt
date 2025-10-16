@@ -25,12 +25,11 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import map_nested_keys_in_place
 
-from dlt.helpers.dashboard import ui_elements as ui
-from dlt.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard import ui_elements as ui
+from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException

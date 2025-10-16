@@ -15,13 +15,11 @@ from tests.utils import (
     deactivate_pipeline,
 )
 
+from dlt import Schema
+from dlt._workspace.helpers.dashboard import strings as app_strings
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
-
-from dlt import Schema
-
-from dlt.helpers.dashboard import strings as app_strings
 
 # NOTE: The line below is needed for playwright to work on windows
 if sys.platform.startswith("win"):

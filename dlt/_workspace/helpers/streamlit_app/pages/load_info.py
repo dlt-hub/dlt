@@ -3,10 +3,10 @@ import streamlit as st
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.destination.client import WithStateSync
-from dlt.helpers.streamlit_app.blocks.load_info import last_load_info
-from dlt.helpers.streamlit_app.blocks.menu import menu
-from dlt.helpers.streamlit_app.widgets import stat
-from dlt.helpers.streamlit_app.utils import (
+from dlt._workspace.helpers.streamlit_app.blocks.load_info import last_load_info
+from dlt._workspace.helpers.streamlit_app.blocks.menu import menu
+from dlt._workspace.helpers.streamlit_app.widgets import stat
+from dlt._workspace.helpers.streamlit_app.utils import (
     query_data,
     query_data_live,
     render_with_pipeline,

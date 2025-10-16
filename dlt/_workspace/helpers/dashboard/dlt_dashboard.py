@@ -15,8 +15,8 @@ with app.setup:
 
     import dlt
     import pyarrow
-    from dlt.helpers.dashboard import strings, utils, ui_elements as ui
-    from dlt.helpers.dashboard.config import DashboardConfiguration
+    from dlt._workspace.helpers.dashboard import strings, utils, ui_elements as ui
+    from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 
 
 @app.cell(hide_code=True)

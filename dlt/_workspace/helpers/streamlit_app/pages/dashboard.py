@@ -1,11 +1,11 @@
 import dlt
 import streamlit as st
 
-from dlt.helpers.streamlit_app.blocks.query import maybe_run_query
-from dlt.helpers.streamlit_app.blocks.table_hints import list_table_hints
-from dlt.helpers.streamlit_app.blocks.menu import menu
-from dlt.helpers.streamlit_app.utils import render_with_pipeline
-from dlt.helpers.streamlit_app.widgets import schema_picker
+from dlt._workspace.helpers.streamlit_app.blocks.query import maybe_run_query
+from dlt._workspace.helpers.streamlit_app.blocks.table_hints import list_table_hints
+from dlt._workspace.helpers.streamlit_app.blocks.menu import menu
+from dlt._workspace.helpers.streamlit_app.utils import render_with_pipeline
+from dlt._workspace.helpers.streamlit_app.widgets import schema_picker
 from dlt.pipeline import Pipeline
 
 

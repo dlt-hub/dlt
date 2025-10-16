@@ -5,8 +5,8 @@ import streamlit as st
 
 from dlt.common.schema.typing import TTableSchema, TColumnSchema
 from dlt.common.utils import flatten_list_or_items
-from dlt.helpers.streamlit_app.blocks.resource_state import resource_state_info
-from dlt.helpers.streamlit_app.blocks.show_data import show_data_button
+from dlt._workspace.helpers.streamlit_app.blocks.resource_state import resource_state_info
+from dlt._workspace.helpers.streamlit_app.blocks.show_data import show_data_button
 
 
 def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None:

@@ -2,7 +2,7 @@ import streamlit as st
 
 from typing_extensions import Callable, Literal
 
-from dlt.helpers.streamlit_app.theme import dark_theme, light_theme
+from dlt._workspace.helpers.streamlit_app.theme import dark_theme, light_theme
 
 ColorMode = Literal["light", "dark"]
 

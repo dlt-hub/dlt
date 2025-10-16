@@ -1,7 +1,7 @@
 import dlt
 import streamlit as st
 
-from dlt.helpers.streamlit_app.utils import query_data
+from dlt._workspace.helpers.streamlit_app.utils import query_data
 
 
 def show_data_button(pipeline: dlt.Pipeline, table_name: str) -> None:

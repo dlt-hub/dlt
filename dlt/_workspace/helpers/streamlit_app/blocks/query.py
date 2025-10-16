@@ -3,7 +3,7 @@ import dlt
 import streamlit as st
 
 from dlt.common.exceptions import MissingDependencyException
-from dlt.helpers.streamlit_app.utils import query_data
+from dlt._workspace.helpers.streamlit_app.utils import query_data
 
 
 def maybe_run_query(

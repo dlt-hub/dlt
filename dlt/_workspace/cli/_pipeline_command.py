@@ -57,7 +57,7 @@ def pipeline_command(
 
     # we may open the dashboard for a pipeline without checking if it exists
     if operation == "show" and not command_kwargs.get("streamlit"):
-        from dlt.helpers.dashboard.runner import run_dashboard
+        from dlt._workspace.helpers.dashboard.runner import run_dashboard
 
         run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
         # return so streamlit does not run
@@ -147,7 +147,13 @@ def pipeline_command(
             streamlit_cmd = [
                 "streamlit",
                 "run",
-                os.path.join(os.path.dirname(dlt.__file__), "helpers", "streamlit_app", "index.py"),
+                os.path.join(
+                    os.path.dirname(dlt.__file__),
+                    "_workspace",
+                    "helpers",
+                    "streamlit_app",
+                    "index.py",
+                ),
                 "--client.showSidebarNavigation",
                 "false",
             ]

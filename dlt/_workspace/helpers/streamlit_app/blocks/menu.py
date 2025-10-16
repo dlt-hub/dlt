@@ -1,9 +1,9 @@
 import dlt
 import streamlit as st
 
-from dlt.helpers.streamlit_app.utils import HERE
-from dlt.helpers.streamlit_app.widgets import mode_selector
-from dlt.helpers.streamlit_app.widgets import pipeline_summary
+from dlt._workspace.helpers.streamlit_app.utils import HERE
+from dlt._workspace.helpers.streamlit_app.widgets import mode_selector
+from dlt._workspace.helpers.streamlit_app.widgets import pipeline_summary
 
 
 def menu(pipeline: dlt.Pipeline) -> None:
