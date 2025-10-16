@@ -142,7 +142,7 @@ def create_extract_exception_pipeline(pipelines_dir: str = None):
     return pipeline
 
 
-def create_never_ran_pipline(pipelines_dir: str = None):
+def create_never_ran_pipeline(pipelines_dir: str = None):
     """Create a test pipeline with duckdb destination which never was run"""
     import duckdb
 
@@ -192,6 +192,6 @@ if __name__ == "__main__":
     create_success_pipeline_duckdb()
     create_success_pipeline_filesystem()
     create_extract_exception_pipeline()
-    create_never_ran_pipline()
+    create_never_ran_pipeline()
     create_load_exception_pipeline()
     create_no_destination_pipeline()

@@ -18,9 +18,11 @@ from streamlit.testing.v1 import AppTest  # type: ignore[import-not-found, unuse
 from dlt._workspace.helpers.streamlit_app.utils import render_with_pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
-here = Path(__file__).parent
-dlt_root = here.parent.parent.parent.absolute()
-streamlit_app_path = dlt_root / "dlt/_workspace/helpers/streamlit_app"
+# here = Path(__file__).parent
+# dlt_root = here.parent.parent.parent.absolute()
+streamlit_app_path = Path(
+    os.path.join(os.path.dirname(dlt.__file__), "_workspace/helpers/streamlit_app")
+)
 
 
 @dlt.source

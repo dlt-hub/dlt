@@ -1,11 +1,11 @@
 import pytest
 import tempfile
 
-from tests.helpers.dashboard.example_pipelines import (
+from tests.workspace.helpers.dashboard.example_pipelines import (
     create_success_pipeline_duckdb,
     create_success_pipeline_filesystem,
     create_extract_exception_pipeline,
-    create_never_ran_pipline,
+    create_never_ran_pipeline,
     create_load_exception_pipeline,
     create_no_destination_pipeline,
 )
@@ -46,7 +46,7 @@ def extract_exception_pipeline():
 @pytest.fixture(scope="session")
 def never_ran_pipline():
     with tempfile.TemporaryDirectory() as temp_dir:
-        yield create_never_ran_pipline(temp_dir)
+        yield create_never_ran_pipeline(temp_dir)
 
 
 @pytest.fixture(scope="session")

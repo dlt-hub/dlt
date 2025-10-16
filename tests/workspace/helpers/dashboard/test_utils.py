@@ -43,7 +43,7 @@ from dlt._workspace.helpers.dashboard.utils import (
     get_example_query_for_dataset,
 )
 
-from tests.helpers.dashboard.example_pipelines import (
+from tests.workspace.helpers.dashboard.example_pipelines import (
     SUCCESS_PIPELINE_DUCKDB,
     SUCCESS_PIPELINE_FILESYSTEM,
     EXTRACT_EXCEPTION_PIPELINE,
@@ -51,7 +51,7 @@ from tests.helpers.dashboard.example_pipelines import (
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
 )
-from tests.helpers.dashboard.example_pipelines import (
+from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     PIPELINES_WITH_EXCEPTIONS,
     PIPELINES_WITH_LOAD,
