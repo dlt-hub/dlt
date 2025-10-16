@@ -41,11 +41,41 @@ def isolated_workspace(
 
 
 def restore_clean_workspace(name: str) -> str:
+    """Create a fresh copy of a workspace for a test run.
+
+    If the current working directory is inside the target workspace directory, temporarily
+    change the working directory outside of it before deletion to avoid Windows errors.
+
+    Args:
+        name: Name of the workspace case to restore.
+
+    Returns:
+        Absolute path to the restored workspace directory.
+    """
     source_workspace_dir = os.path.join(WORKSPACE_CASES_DIR, name)
     new_run_dir = os.path.join(TEST_STORAGE_ROOT, name)
-    if os.path.isdir(new_run_dir):
-        shutil.rmtree(new_run_dir, onerror=FileStorage.rmtree_del_ro)
-    shutil.copytree(source_workspace_dir, new_run_dir, dirs_exist_ok=True)
+
+    # ensure parent exists before copying
+    os.makedirs(TEST_STORAGE_ROOT, exist_ok=True)
+
+    # if cwd is within the target directory, move out temporarily to allow deletion
+    cwd = os.path.abspath(os.getcwd())
+    target = os.path.abspath(new_run_dir)
+    try:
+        is_within_target = os.path.commonpath([cwd, target]) == target
+    except ValueError:
+        # paths on different drives on windows
+        is_within_target = False
+
+    # use a single code path, switching cwd only when needed
+    from contextlib import nullcontext
+
+    cm = set_working_dir(TEST_STORAGE_ROOT) if is_within_target else nullcontext()
+    with cm:
+        if os.path.isdir(new_run_dir):
+            shutil.rmtree(new_run_dir, onerror=FileStorage.rmtree_del_ro)
+        shutil.copytree(source_workspace_dir, new_run_dir, dirs_exist_ok=True)
+
     return new_run_dir
 
 

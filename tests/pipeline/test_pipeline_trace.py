@@ -14,6 +14,7 @@ import dlt
 from dlt.common import json
 from dlt.common.configuration.specs import CredentialsConfiguration, RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
+from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
@@ -36,11 +37,13 @@ from dlt.extract.pipe import Pipe
 from dlt.extract.items_transform import ItemTransform
 
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT, start_test_telemetry, temporary_telemetry
+from tests.utils import TEST_STORAGE_ROOT
 
 
 def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
     dlt.secrets["load.delete_completed_jobs"] = True
+    # delete all traces collected before test run
+    get_resolved_traces().clear()
 
     @dlt.source
     def inject_tomls(
@@ -392,6 +395,9 @@ def test_trace_schema() -> None:
 
 def test_save_load_trace() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
+    # delete all traces collected before test run
+    get_resolved_traces().clear()
+
     info = dlt.pipeline().run([1, 2, 3], table_name="data", destination="dummy")
     pipeline = dlt.pipeline()
     # will get trace from working dir

@@ -2,10 +2,10 @@ import os
 import sys
 import pytest
 import shutil
+from pathlib import Path
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
-import dlt
 from dlt.common.runners.venv import Venv
 from dlt.common.utils import custom_environ
 
@@ -49,7 +49,8 @@ def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
     assert result.returncode == 0
     assert "No pipelines found in" in result.stdout
     # this is current workspace data dir
-    assert "_storage/empty/.dlt/_data/dev" in result.stdout
+    expected_path = os.path.join("_storage", "empty", ".dlt", "_data", "dev")
+    assert expected_path in result.stdout
 
     result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
     assert result.returncode == 0

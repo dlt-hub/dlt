@@ -1,4 +1,4 @@
-import os
+import sys
 from typing import Iterator
 import pytest
 
@@ -9,6 +9,14 @@ from tests.utils import (
 )
 
 from tests.workspace.utils import isolated_workspace
+
+
+@pytest.fixture(autouse=True)
+def auto_unload_core_sources(auto_unload_modules) -> None:
+    """Unload core sources so all init tests will pass"""
+    sys.modules.pop("dlt.sources.rest_api", None)
+    sys.modules.pop("dlt.sources.sql_database", None)
+    sys.modules.pop("dlt.sources.filesystem", None)
 
 
 @pytest.fixture(autouse=True)

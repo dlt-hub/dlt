@@ -88,6 +88,7 @@ def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
         ensure_remote_head(repo_path, with_git_command=git_command)
 
 
+@pytest.mark.skip("disabled due to something locking in github")
 @skipifwindows
 def test_repo_status_update(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")

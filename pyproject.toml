@@ -115,7 +115,7 @@ motherduck = [
     "pyarrow>=16.0.0",
 ]
 cli = [
-    "pipdeptree>=2.9.0,<2.10",
+    "pipdeptree>=2.9.3,<2.10",
     "cron-descriptor>=1.2.32",
     "pip>=23.0.0",
 ]
