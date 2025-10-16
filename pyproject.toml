@@ -330,12 +330,10 @@ flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", br
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]
+# hatchling follows .gitignore and will include all files in gitindex under `dlt`
 include = [
     "LICENSE.txt",
     "README.md",
-    "dlt/sources/pipeline_templates/.gitignore",
-    "dlt/sources/pipeline_templates/.dlt/config.toml",
-    "dlt/helpers/dashboard/dlt_dashboard_styles.css"
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -343,8 +341,6 @@ packages = ["dlt"]
 include = [
     "LICENSE.txt",
     "README.md",
-    "dlt/sources/pipeline_templates/.gitignore",
-    "dlt/sources/pipeline_templates/.dlt/config.toml",
 ]
 
 [build-system]
