@@ -127,11 +127,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     @contextlib.contextmanager
     # @override
     def _safe_raw_sql(self, query: sge.ExpOrStr, **kwargs: Any) -> Any:
-        with contextlib.suppress(AttributeError):
-            query = _transpile(query, target_dialect=self.compiler.dialect)
-
-        with contextlib.closing(self.raw_sql(query, **kwargs)) as cur:
-            yield cur
+        yield self.raw_sql(query, **kwargs)
 
     # derived from Ibis Snowflake implementation
     # @override
@@ -143,7 +139,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
         assert isinstance(query, str)
         with self._dataset.sql_client as client:
             result = client.execute_sql(query)
-
+        
         return result
 
     # required for marimo DataSources UI to work
