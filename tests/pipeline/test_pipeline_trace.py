@@ -37,7 +37,7 @@ from dlt.extract.pipe import Pipe
 from dlt.extract.items_transform import ItemTransform
 
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, temporary_telemetry
 
 
 def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
