@@ -41,6 +41,7 @@ class WorkspaceRunContext(ProfilesRunContext):
         )
         # TODO: if local_dir == run_dir and profile "dev" profile prefixing for local_dir for OSS compat
         self._local_dir = default_working_dir(self.run_dir, name, profile, DEFAULT_LOCAL_FOLDER)
+        self._global_dir = global_dir()
 
     @property
     def name(self) -> str:
@@ -50,7 +51,7 @@ class WorkspaceRunContext(ProfilesRunContext):
     @property
     def global_dir(self) -> str:
         """Directory in which global settings are stored ie ~/.dlt/"""
-        return global_dir()
+        return self._global_dir
 
     @property
     def uri(self) -> str:

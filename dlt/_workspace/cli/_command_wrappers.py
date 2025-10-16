@@ -28,7 +28,7 @@ from dlt._workspace.cli._telemetry_command import (
 from dlt._workspace.cli._ai_command import ai_setup_command, TSupportedIde
 
 try:
-    from dlt._workspace.cli._deploy_command import deploy_command, DLT_DEPLOY_DOCS_URL
+    from dlt._workspace.cli import _deploy_command
 except ModuleNotFoundError:
     pass
 
@@ -91,7 +91,7 @@ def deploy_command_wrapper(
     from git import InvalidGitRepositoryError, NoSuchPathError
 
     try:
-        deploy_command(
+        _deploy_command.deploy_command(
             pipeline_script_path=pipeline_script_path,
             deployment_method=deployment_method,
             repo_location=repo_location,
@@ -119,7 +119,10 @@ def deploy_command_wrapper(
                 "https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github"
             )
         )
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        fmt.note(
+            "Please refer to %s for further assistance"
+            % fmt.bold(_deploy_command.DLT_DEPLOY_DOCS_URL)
+        )
         raise CliCommandException(error_code=-4)
     except NoSuchPathError as path_ex:
         click.secho("The pipeline script does not exist\n%s" % str(path_ex), err=True, fg="red")
