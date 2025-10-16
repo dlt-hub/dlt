@@ -277,7 +277,7 @@ def test_rest_api_source_yield_map(mock_api_server) -> None:
         "resources": [
             {
                 "name": "posts",
-                "endpoint": "posts",
+                "endpoint": "posts_with_reactions",
                 "processing_steps": [
                     {"yield_map": flatten_reactions},
                 ],
@@ -304,7 +304,7 @@ def test_rest_api_source_filter_then_yield_map(mock_api_server) -> None:
         "resources": [
             {
                 "name": "posts",
-                "endpoint": "posts",
+                "endpoint": "posts_with_reactions",
                 "processing_steps": [
                     {"filter": lambda x: x["id"] != 1},
                     {"yield_map": flatten_reactions},
@@ -327,7 +327,7 @@ def test_rest_api_source_yield_map_then_filter_reactions(mock_api_server) -> Non
         "resources": [
             {
                 "name": "posts",
-                "endpoint": "posts",
+                "endpoint": "posts_with_reactions",
                 "processing_steps": [
                     {"yield_map": flatten_reactions},
                     {"filter": lambda x: x["reaction"]["id"] != 0},
@@ -376,7 +376,7 @@ def test_rest_api_source_yield_map_child(mock_api_server, comments_endpoint) -> 
         "resources": [
             {
                 "name": "posts",
-                "endpoint": "posts",
+                "endpoint": "posts_with_reactions",
                 "processing_steps": [
                     {"filter": lambda x: x["id"] in (1, 2)},
                 ],

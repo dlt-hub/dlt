@@ -24,7 +24,11 @@ DEFAULT_REACTIONS_COUNT = 5
 router = APIRouter(MOCK_BASE_URL)
 
 
-def generate_posts(
+def generate_posts(count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES):
+    return [{"id": i, "title": f"Post {i}"} for i in range(count)]
+
+
+def generate_posts_with_reactions(
     count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES, count_reactions=DEFAULT_REACTIONS_COUNT
 ):
     return [
@@ -400,6 +404,10 @@ def mock_api_server():
         @router.post(r"/posts_form_data_incremental$")
         def posts(request, context):
             return paginate_by_page_number(request, generate_posts())
+
+        @router.get(r"/posts_with_reactions(\?.*)?$")
+        def posts_with_reactions(request, context):
+            return paginate_by_page_number(request, generate_posts_with_reactions())
 
         router.register_routes(m)
 
