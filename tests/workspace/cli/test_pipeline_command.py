@@ -6,25 +6,19 @@ import logging
 from subprocess import CalledProcessError
 
 import dlt
-from dlt.common.utils import set_working_dir
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt._workspace.cli.exceptions import CliCommandInnerException
 
 from dlt._workspace.cli import echo, _init_command, _pipeline_command
 
-from tests.cli.utils import (
-    echo_default_choice,
+from tests.workspace.cli.utils import (
+    auto_echo_default_choice,
     repo_dir,
-    project_files,
     cloned_init_repo,
-    get_repo_dir,
-    get_project_files,
 )
 
 
-def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) -> None:
+def test_pipeline_command_operations(repo_dir: str) -> None:
     _init_command.init_command("chess", "duckdb", repo_dir)
 
     try:
@@ -167,7 +161,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         assert "players_profiles" not in pipeline.default_schema.tables
 
 
-def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage) -> None:
+def test_pipeline_command_failed_jobs(repo_dir: str) -> None:
     _init_command.init_command("chess", "dummy", repo_dir)
 
     try:
@@ -204,7 +198,7 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
         assert "JOB file type: jsonl" in _out
 
 
-def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileStorage) -> None:
+def test_pipeline_command_drop_partial_loads(repo_dir: str) -> None:
     _init_command.init_command("chess", "dummy", repo_dir)
     os.environ["EXCEPTION_PROB"] = "1.0"
 
@@ -252,7 +246,11 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     print(_out)
 
 
-def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
+def test_drop_from_wrong_dir(repo_dir: str) -> None:
+    # import contextlib
+
+    # with contextlib.contextmanager(create_test_run_context)():
+
     _init_command.init_command("chess", "duckdb", repo_dir)
 
     os.environ.pop(
@@ -268,24 +266,24 @@ def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
 
     # Running from the correct location should not raise warning
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline = dlt.attach(pipeline_name="chess_pipeline")
-        # when testing local_dir is not run_dir! it is pointing to tests/_storage
-        pipeline_dir = pipeline.last_run_context.get("run_dir")
-        with set_working_dir(pipeline_dir):
-            _pipeline_command.pipeline_command(
-                "drop", "chess_pipeline", None, 0, resources=["players_games"]
-            )
+        _pipeline_command.pipeline_command(
+            "drop", "chess_pipeline", None, 0, resources=["players_games"]
+        )
         _out = buf.getvalue()
         assert (
             "WARNING: You should run this from the same directory as the pipeline script"
             not in _out
         )
 
+    # load pipeline and last run dir to trigger the warning
+    pipeline = dlt.attach("chess_pipeline")
+    last_run_context = pipeline.get_local_state_val("last_run_context")
+    last_run_context["run_dir"] = "wrong_dir"
+    pipeline.set_local_state_val("last_run_context", last_run_context)
+
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        os.makedirs("wrong_dir", exist_ok=True)
-        with set_working_dir("wrong_dir"):
-            _pipeline_command.pipeline_command(
-                "drop", "chess_pipeline", None, 0, resources=["players_games"]
-            )
+        _pipeline_command.pipeline_command(
+            "drop", "chess_pipeline", None, 0, resources=["players_games"]
+        )
         _out = buf.getvalue()
         assert "WARNING: You should run this from the same directory as the pipeline script" in _out

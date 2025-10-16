@@ -16,3 +16,4 @@ if __name__ == "__main__":
     p = dlt.pipeline(pipeline_name="dummy_pipeline", destination="dummy")
     load_info = p.run(example_source(last_id=819273998))
     print(load_info)
+    print(p.last_run_context)

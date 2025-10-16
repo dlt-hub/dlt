@@ -6,14 +6,11 @@ from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
 import dlt
-from dlt.common.known_env import DLT_DATA_DIR
 from dlt.common.runners.venv import Venv
-from dlt.common.utils import custom_environ, set_working_dir
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.utils import custom_environ
 
 from dlt._workspace.cli import echo as fmt
-
-from tests.utils import TEST_STORAGE_ROOT
+from tests.workspace.cli.utils import WORKSPACE_CLI_CASES_DIR
 
 BASE_COMMANDS = ["init", "deploy", "pipeline", "telemetry", "schema"]
 
@@ -51,10 +48,9 @@ def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
     # directory does not exist (we point to TEST_STORAGE)
     assert result.returncode == 0
     assert "No pipelines found in" in result.stdout
-    assert TEST_STORAGE_ROOT in result.stdout
+    # this is current workspace data dir
+    assert "_storage/empty/.dlt/_data/dev" in result.stdout
 
-    # create empty
-    os.makedirs(get_dlt_pipelines_dir())
     result = script_runner.run(["dlt", "pipeline", "--list-pipelines"])
     assert result.returncode == 0
     assert "No pipelines found in" in result.stdout
@@ -66,18 +62,14 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     assert result.returncode == -2
     assert "the pipeline was not found in" in result.stderr
 
-    # copy dummy pipeline
-    p = dlt.pipeline(pipeline_name="dummy_pipeline")
-    p._wipe_working_folder()
+    shutil.copytree(
+        os.path.join(WORKSPACE_CLI_CASES_DIR, "deploy_pipeline"), ".", dirs_exist_ok=True
+    )
 
-    shutil.copytree("tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    with custom_environ({"COMPLETED_PROB": "1.0"}):
+        venv = Venv.restore_current()
+        print(venv.run_script("dummy_pipeline.py"))
 
-    with set_working_dir(TEST_STORAGE_ROOT):
-        with custom_environ(
-            {"COMPLETED_PROB": "1.0", DLT_DATA_DIR: dlt.current.run_context().data_dir}
-        ):
-            venv = Venv.restore_current()
-            venv.run_script("dummy_pipeline.py")
     # we check output test_pipeline_command else
     result = script_runner.run(["dlt", "pipeline", "dummy_pipeline", "info"])
     assert result.returncode == 0
@@ -101,15 +93,12 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
 
 
 def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
-    with set_working_dir(TEST_STORAGE_ROOT):
-        # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
-            result = script_runner.run(["dlt", "init", "chess", "dummy"])
-            assert "Verified source chess was added to your project!" in result.stdout
-            assert result.returncode == 0
-            result = script_runner.run(["dlt", "init", "debug_pipeline", "dummy"])
-            assert "Your new pipeline debug_pipeline is ready to be customized!" in result.stdout
-            assert result.returncode == 0
+    result = script_runner.run(["dlt", "init", "chess", "dummy"])
+    assert "Verified source chess was added to your project!" in result.stdout
+    assert result.returncode == 0
+    result = script_runner.run(["dlt", "init", "debug_pipeline", "dummy"])
+    assert "Your new pipeline debug_pipeline is ready to be customized!" in result.stdout
+    assert result.returncode == 0
 
 
 def test_invoke_list_sources(script_runner: ScriptRunner) -> None:
@@ -121,26 +110,23 @@ def test_invoke_list_sources(script_runner: ScriptRunner) -> None:
 
 
 def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
-    with set_working_dir(TEST_STORAGE_ROOT):
-        # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
-            result = script_runner.run(
-                ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
-            )
-            assert result.returncode == -5
-            assert "The pipeline script does not exist" in result.stderr
-            result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "airflow-composer"])
-            assert result.returncode == -5
-            assert "The pipeline script does not exist" in result.stderr
-            # now init
-            result = script_runner.run(["dlt", "init", "chess", "dummy"])
-            assert result.returncode == 0
-            result = script_runner.run(
-                ["dlt", "deploy", "chess_pipeline.py", "github-action", "--schedule", "@daily"]
-            )
-            assert "NOTE: You must run the pipeline locally" in result.stdout
-            result = script_runner.run(["dlt", "deploy", "chess_pipeline.py", "airflow-composer"])
-            assert "NOTE: You must run the pipeline locally" in result.stdout
+    result = script_runner.run(
+        ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
+    )
+    assert result.returncode == -5
+    assert "The pipeline script does not exist" in result.stderr
+    result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "airflow-composer"])
+    assert result.returncode == -5
+    assert "The pipeline script does not exist" in result.stderr
+    # now init
+    result = script_runner.run(["dlt", "init", "chess", "dummy"])
+    assert result.returncode == 0
+    result = script_runner.run(
+        ["dlt", "deploy", "chess_pipeline.py", "github-action", "--schedule", "@daily"]
+    )
+    assert "NOTE: You must run the pipeline locally" in result.stdout
+    result = script_runner.run(["dlt", "deploy", "chess_pipeline.py", "airflow-composer"])
+    assert "NOTE: You must run the pipeline locally" in result.stdout
 
 
 def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:

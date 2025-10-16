@@ -28,7 +28,7 @@ def test_pipeline_mcp_command(
     assert result.stdout == ""
 
 
-def test_generic_mcp_server_pipeline(
+def test_workspace_mcp_command(
     fruitshop_pipeline_context: RunContext, script_runner: ScriptRunner, mocker: MockerFixture
 ) -> None:
     # patch mcp server

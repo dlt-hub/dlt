@@ -3,7 +3,6 @@ from copy import deepcopy
 import hashlib
 import os
 import contextlib
-import shutil
 from subprocess import CalledProcessError
 from typing import List, Tuple, Optional
 from hexbytes import HexBytes
@@ -18,13 +17,11 @@ import cryptography.hazmat.bindings._rust
 
 
 import dlt
-
 from dlt.common import git
-from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import set_working_dir, uniq_id
+from dlt.common.utils import uniq_id
 
 
 from dlt._workspace.cli import (
@@ -50,18 +47,19 @@ from dlt.reflection import names as n
 from dlt._workspace.cli.config_toml_writer import TYPE_EXAMPLES
 from dlt._workspace.cli._pipeline_files import TSourceType
 
-from tests.cli.utils import (
-    echo_default_choice,
+from tests.workspace.cli.utils import (
+    auto_echo_default_choice,
     repo_dir,
     vibe_repo_dir,
-    project_files,
+    workspace_files,
     cloned_init_repo,
     cloned_init_vibe_repo,
     get_repo_dir,
-    get_project_files,
+    get_workspace_files,
 )
 from tests.common.utils import modify_and_commit_file
-from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage, TEST_STORAGE_ROOT
+from tests.utils import IMPLEMENTED_DESTINATIONS
+from tests.workspace.utils import restore_clean_workspace
 
 # we hardcode the core sources here so we can check that the init script picks
 # up the right source
@@ -98,16 +96,18 @@ def get_source_candidates(repo_dir: str, source_type: TSourceType = "verified") 
     return files_ops.get_sources_names(sources_storage, source_type=source_type)
 
 
-def test_init_command_pipeline_template(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_command_pipeline_template(repo_dir: str, workspace_files: FileStorage) -> None:
     _init_command.init_command("debug", "bigquery", repo_dir)
-    visitor = assert_init_files(project_files, "debug_pipeline", "bigquery")
+    visitor = assert_init_files(workspace_files, "debug_pipeline", "bigquery")
     # single resource
     assert len(visitor.known_resource_calls) == 1
 
 
-def test_init_command_pipeline_default_template(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_command_pipeline_default_template(
+    repo_dir: str, workspace_files: FileStorage
+) -> None:
     _init_command.init_command("some_random_name", "redshift", repo_dir)
-    visitor = assert_init_files(project_files, "some_random_name_pipeline", "redshift")
+    visitor = assert_init_files(workspace_files, "some_random_name_pipeline", "redshift")
     # multiple resources
     assert len(visitor.known_resource_calls) == 1
 
@@ -133,7 +133,7 @@ def test_default_source_file_selection() -> None:
     assert tconf.src_pipeline_script == "vibe_rest_api_pipeline.py"
 
 
-def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_command_new_pipeline_same_name(repo_dir: str, workspace_files: FileStorage) -> None:
     _init_command.init_command("debug_pipeline", "bigquery", repo_dir)
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         _init_command.init_command("debug_pipeline", "bigquery", repo_dir)
@@ -141,10 +141,10 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileS
     assert "already exists, exiting" in _out
 
 
-def test_init_command_chess_verified_source(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_command_chess_verified_source(repo_dir: str, workspace_files: FileStorage) -> None:
     _init_command.init_command("chess", "duckdb", repo_dir)
-    assert_source_files(project_files, "chess", "duckdb", has_source_section=True)
-    assert_requirements_txt(project_files, "duckdb")
+    assert_source_files(workspace_files, "chess", "duckdb", has_source_section=True)
+    assert_requirements_txt(workspace_files, "duckdb")
     # check files hashes
     local_index = files_ops.load_verified_sources_local_index("chess")
     # chess has one file
@@ -216,11 +216,11 @@ def test_init_list_destinations() -> None:
     [name for name in CORE_SOURCES_CONFIG if CORE_SOURCES_CONFIG[name]["requires_extra"]],
 )
 def test_init_command_core_source_requirements_with_extras(
-    source_name: str, repo_dir: str, project_files: FileStorage
+    source_name: str, repo_dir: str, workspace_files: FileStorage
 ) -> None:
     _init_command.init_command(source_name, "duckdb", repo_dir)
     source_requirements = SourceRequirements.from_string(
-        project_files.load(cli_utils.REQUIREMENTS_TXT)
+        workspace_files.load(cli_utils.REQUIREMENTS_TXT)
     )
     canonical_name = source_name.replace("_", "-")
     assert canonical_name in source_requirements.dlt_requirement.extras
@@ -231,18 +231,18 @@ def test_init_command_core_source_requirements_with_extras(
     [name for name in CORE_SOURCES_CONFIG if not CORE_SOURCES_CONFIG[name]["requires_extra"]],
 )
 def test_init_command_core_source_requirements_without_extras(
-    source_name: str, repo_dir: str, project_files: FileStorage
+    source_name: str, repo_dir: str, workspace_files: FileStorage
 ) -> None:
     _init_command.init_command(source_name, "duckdb", repo_dir)
     source_requirements = SourceRequirements.from_string(
-        project_files.load(cli_utils.REQUIREMENTS_TXT)
+        workspace_files.load(cli_utils.REQUIREMENTS_TXT)
     )
     assert source_requirements.dlt_requirement.extras == {
         "duckdb"
     }, "Only duckdb should be in extras"
 
 
-def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_list_sources_update_warning(repo_dir: str, workspace_files: FileStorage) -> None:
     """Sources listed include a warning if a different dlt version is required"""
     with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.0.1"):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
@@ -261,7 +261,7 @@ def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStor
     assert "0.0.1" not in parsed_requirement.specifier
 
 
-def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_all_sources_together(repo_dir: str, workspace_files: FileStorage) -> None:
     source_candidates = [*get_source_candidates(repo_dir), *CORE_SOURCES, *TEMPLATES]
 
     # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
@@ -269,10 +269,10 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
         # all must install correctly
         _init_command.init_command(source_name, "bigquery", repo_dir)
         # verify files
-        _, secrets = assert_source_files(project_files, source_name, "bigquery")
+        _, secrets = assert_source_files(workspace_files, source_name, "bigquery")
 
     # requirements.txt is created from the first source and not overwritten afterwards
-    assert_index_version_constraint(project_files, list(source_candidates)[0])
+    assert_index_version_constraint(workspace_files, list(source_candidates)[0])
     # secrets should contain sections for all sources
     for source_name in source_candidates:
         assert secrets.get_value(source_name, type, None, "sources") is not None
@@ -290,15 +290,15 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
         set(get_source_candidates(repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
     )
     for candidate in source_candidates:
-        clean_test_storage()
+        # this is not really changing chdir - we are setting the same folder on a new inode
+        os.chdir(restore_clean_workspace("empty"))
         repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
-        files = get_project_files(clear_all_sources=False)
-        with set_working_dir(files.storage_path):
-            _init_command.init_command(candidate, "bigquery", repo_dir)
-            assert_source_files(files, candidate, "bigquery")
-            assert_requirements_txt(files, "bigquery")
-            if candidate not in CORE_SOURCES + TEMPLATES:
-                assert_index_version_constraint(files, candidate)
+        files = get_workspace_files(clear_all_sources=False)
+        _init_command.init_command(candidate, "bigquery", repo_dir)
+        assert_source_files(files, candidate, "bigquery")
+        assert_requirements_txt(files, "bigquery")
+        if candidate not in CORE_SOURCES + TEMPLATES:
+            assert_index_version_constraint(files, candidate)
 
 
 def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
@@ -306,17 +306,19 @@ def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
     # ensure we test both sources form verified sources and core sources
     source_candidates = set(CORE_SOURCES)
     for candidate in source_candidates:
-        clean_test_storage()
+        # this is not really changing chdir - we are setting the same folder on a new inode
+        os.chdir(restore_clean_workspace("empty"))
         repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
-        files = get_project_files(clear_all_sources=False)
-        with set_working_dir(files.storage_path):
-            _init_command.init_command(candidate, "bigquery", repo_dir, eject_source=True)
-            assert_requirements_txt(files, "bigquery")
-            # check if files copied
-            assert files.has_folder(candidate)
+        files = get_workspace_files(clear_all_sources=False)
+        _init_command.init_command(candidate, "bigquery", repo_dir, eject_source=True)
+        assert_requirements_txt(files, "bigquery")
+        # check if files copied
+        assert files.has_folder(candidate)
 
 
-def test_init_writes_example_config_placeholders(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_writes_example_config_placeholders(
+    repo_dir: str, workspace_files: FileStorage
+) -> None:
     _init_command.init_command("filesystem", "bigquery", repo_dir)
     # check that written secret of type string was replaced with correct placeholder value
     secrets = SecretsTomlProvider(settings_dir=dlt.current.run_context().settings_dir)
@@ -328,14 +330,14 @@ def test_init_writes_example_config_placeholders(repo_dir: str, project_files: F
 
 @pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
 def test_init_all_destinations(
-    destination_name: str, project_files: FileStorage, repo_dir: str
+    destination_name: str, workspace_files: FileStorage, repo_dir: str
 ) -> None:
     source_name = "generic"
     _init_command.init_command(source_name, destination_name, repo_dir)
-    assert_init_files(project_files, source_name + "_pipeline", destination_name)
+    assert_init_files(workspace_files, source_name + "_pipeline", destination_name)
 
 
-def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
+def test_custom_destination_note(repo_dir: str, workspace_files: FileStorage):
     source_name = "generic"
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         _init_command.init_command(source_name, "destination", repo_dir)
@@ -343,7 +345,7 @@ def test_custom_destination_note(repo_dir: str, project_files: FileStorage):
     assert "to add a destination function that will consume your data" in _out
 
 
-def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_code_update_index_diff(repo_dir: str, workspace_files: FileStorage) -> None:
     sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
     new_content = '"""New docstrings"""'
     new_content_hash = hashlib.sha3_256(bytes(new_content, encoding="ascii")).hexdigest()
@@ -383,7 +385,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
 
     # get conflicts
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(
-        local_index, new, modified, deleted, project_files
+        local_index, new, modified, deleted, workspace_files
     )
     assert conflict_modified == []
     assert conflict_deleted == []
@@ -397,9 +399,9 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
 
     # generate local conflicts
     local_content = '"""Local changes"""'
-    project_files.save(new_file_path, local_content)
-    project_files.save(mod_file_path, local_content)
-    project_files.save(del_file_path, local_content)
+    workspace_files.save(new_file_path, local_content)
+    workspace_files.save(mod_file_path, local_content)
+    workspace_files.save(del_file_path, local_content)
     # add one more modified REMOTE file without conflict to test Merge option
     mod_file_path_2 = os.path.join("pipedrive", "new_munger_X.py")
     sources_storage.save(mod_file_path_2, local_content)
@@ -411,7 +413,7 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     assert mod_file_path_2 in new
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(
-        local_index, new, modified, deleted, project_files
+        local_index, new, modified, deleted, workspace_files
     )
     assert set(conflict_modified) == set([mod_file_path, new_file_path])
     assert set(conflict_deleted) == set([del_file_path])
@@ -446,32 +448,32 @@ def test_init_code_update_index_diff(repo_dir: str, project_files: FileStorage) 
     # get rid of all the conflicts by making the local changes identical to the remote changes so they can be fast forwarded
     sources_storage.save(new_file_path, local_content)
     sources_storage.save(mod_file_path, local_content)
-    project_files.delete(del_file_path)
+    workspace_files.delete(del_file_path)
     source_files = files_ops.get_verified_source_configuration(sources_storage, "pipedrive")
     remote_index = files_ops.get_remote_source_index(
         sources_storage.storage_path, source_files.files, ">=0.3.5"
     )
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(
-        local_index, new, modified, deleted, project_files
+        local_index, new, modified, deleted, workspace_files
     )
     assert conflict_modified == []
     assert conflict_deleted == []
 
     # generate a conflict by deleting file locally that is modified on remote
-    project_files.delete(mod_file_path)
+    workspace_files.delete(mod_file_path)
     source_files = files_ops.get_verified_source_configuration(sources_storage, "pipedrive")
     remote_index = files_ops.get_remote_source_index(
         sources_storage.storage_path, source_files.files, ">=0.3.5"
     )
     new, modified, deleted = files_ops.gen_index_diff(local_index, remote_index)
     conflict_modified, conflict_deleted = files_ops.find_conflict_files(
-        local_index, new, modified, deleted, project_files
+        local_index, new, modified, deleted, workspace_files
     )
     assert conflict_modified == [mod_file_path]
 
 
-def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_code_update_no_conflict(repo_dir: str, workspace_files: FileStorage) -> None:
     _init_command.init_command("pipedrive", "duckdb", repo_dir)
     with git.get_repo(repo_dir) as repo:
         assert git.is_clean_and_synced(repo) is True
@@ -485,12 +487,12 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     new_content = '"""New docstrings"""'
     mod_local_path = os.path.join("pipedrive", "__init__.py")
     mod_remote_path = os.path.join(SOURCES_MODULE_NAME, mod_local_path)
-    assert project_files.has_file(mod_local_path)
+    assert workspace_files.has_file(mod_local_path)
     _, commit = modify_and_commit_file(repo_dir, mod_remote_path, content=new_content)
     # update without conflict
     _init_command.init_command("pipedrive", "duckdb", repo_dir)
     # was file copied
-    assert project_files.load(mod_local_path) == new_content
+    assert workspace_files.load(mod_local_path) == new_content
     with git.get_repo(repo_dir) as repo:
         assert git.is_clean_and_synced(repo) is False
         assert git.is_dirty(repo) is False
@@ -524,7 +526,7 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     repo_storage.delete(mod_remote_path)
     _init_command.init_command("pipedrive", "duckdb", repo_dir)
     # file should be deleted
-    assert not project_files.has_file(mod_local_path)
+    assert not workspace_files.has_file(mod_local_path)
 
     # new file
     new_local_path = os.path.join("pipedrive", "__init__X.py")
@@ -532,23 +534,23 @@ def test_init_code_update_no_conflict(repo_dir: str, project_files: FileStorage)
     repo_storage.save(new_remote_path, new_content)
     _init_command.init_command("pipedrive", "duckdb", repo_dir)
     # was file copied
-    assert project_files.load(new_local_path) == new_content
+    assert workspace_files.load(new_local_path) == new_content
 
     # deleting the source folder will fully reload
-    project_files.delete_folder("pipedrive", recursively=True)
+    workspace_files.delete_folder("pipedrive", recursively=True)
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         _init_command.init_command("pipedrive", "duckdb", repo_dir)
         _out = buf.getvalue()
     # source was added anew
     assert "was added to your project!" in _out
-    assert project_files.has_folder("pipedrive")
+    assert workspace_files.has_folder("pipedrive")
     # files are there
-    assert project_files.load(new_local_path) == new_content
+    assert workspace_files.load(new_local_path) == new_content
 
 
 @pytest.mark.parametrize("resolution", ["s", "a", "m"])
 def test_init_code_update_conflict(
-    repo_dir: str, project_files: FileStorage, resolution: str
+    repo_dir: str, workspace_files: FileStorage, resolution: str
 ) -> None:
     _init_command.init_command("pipedrive", "duckdb", repo_dir)
     repo_storage = FileStorage(repo_dir)
@@ -560,7 +562,7 @@ def test_init_code_update_conflict(
     repo_storage.save(mod_remote_path, "'''VERSION 1'''")
     repo_storage.save(mod_remote_path_2, "'''VERSION 3'''")
     # change local
-    project_files.save(mod_local_path, "'''VERSION 2'''")
+    workspace_files.save(mod_local_path, "'''VERSION 2'''")
 
     with echo.always_choose(False, resolution):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
@@ -570,23 +572,23 @@ def test_init_code_update_conflict(
     if resolution == "s":
         assert "Skipping all incoming changes" in _out
         # local not touched
-        assert project_files.load(mod_local_path) == "'''VERSION 2'''"
-        assert not project_files.has_file(mod_local_path_2)
+        assert workspace_files.load(mod_local_path) == "'''VERSION 2'''"
+        assert not workspace_files.has_file(mod_local_path_2)
     elif resolution == "a":
         assert "Applying all incoming changes" in _out
-        assert project_files.load(mod_local_path) == "'''VERSION 1'''"
-        assert project_files.load(mod_local_path_2) == "'''VERSION 3'''"
+        assert workspace_files.load(mod_local_path) == "'''VERSION 1'''"
+        assert workspace_files.load(mod_local_path_2) == "'''VERSION 3'''"
     elif resolution == "m":
         assert "Merging the incoming changes" in _out
         # local changes not touched
-        assert project_files.load(mod_local_path) == "'''VERSION 2'''"
+        assert workspace_files.load(mod_local_path) == "'''VERSION 2'''"
         # remote changes without conflicts applied
-        assert project_files.load(mod_local_path_2) == "'''VERSION 3'''"
+        assert workspace_files.load(mod_local_path_2) == "'''VERSION 3'''"
 
 
-def test_init_pyproject_toml(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_pyproject_toml(repo_dir: str, workspace_files: FileStorage) -> None:
     # add pyproject.toml to trigger dependency system
-    project_files.save(cli_utils.PYPROJECT_TOML, "# toml")
+    workspace_files.save(cli_utils.PYPROJECT_TOML, "# toml")
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         _init_command.init_command("google_sheets", "bigquery", repo_dir)
         _out = buf.getvalue()
@@ -595,9 +597,9 @@ def test_init_pyproject_toml(repo_dir: str, project_files: FileStorage) -> None:
     assert "poetry add dlt -E bigquery" in _out
 
 
-def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> None:
+def test_init_requirements_text(repo_dir: str, workspace_files: FileStorage) -> None:
     # add pyproject.toml to trigger dependency system
-    project_files.save(cli_utils.REQUIREMENTS_TXT, "# requirements")
+    workspace_files.save(cli_utils.REQUIREMENTS_TXT, "# requirements")
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         _init_command.init_command("google_sheets", "bigquery", repo_dir)
         _out = buf.getvalue()
@@ -607,7 +609,7 @@ def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> No
 
 
 # def test_pipeline_template_sources_in_single_file(
-#     repo_dir: str, project_files: FileStorage
+#     repo_dir: str, workspace_files: FileStorage
 # ) -> None:
 #     _init_command.init_command("debug", "bigquery", repo_dir)
 #     # SourceReference.SOURCES now contains the sources from pipeline.py which simulates loading from two places
@@ -618,7 +620,7 @@ def test_init_requirements_text(repo_dir: str, project_files: FileStorage) -> No
 #     )
 
 
-def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStorage) -> None:
+def test_incompatible_dlt_version_warning(repo_dir: str, workspace_files: FileStorage) -> None:
     with mock.patch.object(SourceRequirements, "current_dlt_version", return_value="0.1.1"):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             _init_command.init_command("facebook_ads", "bigquery", repo_dir)
@@ -636,7 +638,7 @@ def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStor
     SUPPORTED_IDES,
 )
 def test_init_vibe_source_editor_choice_ux(
-    ide_choice: str, vibe_repo_dir: str, project_files: FileStorage
+    ide_choice: str, vibe_repo_dir: str, workspace_files: FileStorage
 ) -> None:
     # Second yes/no prompt also receives the ide_choice, but it doesn't matter
     with echo.always_choose(False, ide_choice):
@@ -649,7 +651,7 @@ def test_init_vibe_source_editor_choice_ux(
     assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
 
 
-def test_init_all_vibe_sources_together(vibe_repo_dir: str, project_files: FileStorage) -> None:
+def test_init_all_vibe_sources_together(vibe_repo_dir: str, workspace_files: FileStorage) -> None:
     # we test 20 hardcoded sources, use this to get all sources instead
     # vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
     random_vibez = [
@@ -679,7 +681,7 @@ def test_init_all_vibe_sources_together(vibe_repo_dir: str, project_files: FileS
         _init_command.init_command(f"dlthub:{source_name}", "bigquery", vibe_repo_dir)
         # all must install correctly
         _, secrets = assert_source_files(
-            project_files, source_name, "bigquery", has_source_section=True, is_vibe_source=True
+            workspace_files, source_name, "bigquery", has_source_section=True, is_vibe_source=True
         )
 
     for source_name in random_vibez:
@@ -691,53 +693,53 @@ def test_init_all_vibe_sources_together(vibe_repo_dir: str, project_files: FileS
 
 
 def assert_init_files(
-    project_files: FileStorage,
+    workspace_files: FileStorage,
     pipeline_name: str,
     destination_name: str,
     dependency_destination: Optional[str] = None,
 ) -> PipelineScriptVisitor:
-    visitor, _ = assert_common_files(project_files, pipeline_name + ".py", destination_name)
-    assert not project_files.has_folder(pipeline_name)
-    assert_requirements_txt(project_files, dependency_destination or destination_name)
+    visitor, _ = assert_common_files(workspace_files, pipeline_name + ".py", destination_name)
+    assert not workspace_files.has_folder(pipeline_name)
+    assert_requirements_txt(workspace_files, dependency_destination or destination_name)
     return visitor
 
 
-def assert_requirements_txt(project_files: FileStorage, destination_name: str) -> None:
+def assert_requirements_txt(workspace_files: FileStorage, destination_name: str) -> None:
     # check requirements
-    assert project_files.has_file(cli_utils.REQUIREMENTS_TXT)
-    assert "dlt" in project_files.load(cli_utils.REQUIREMENTS_TXT)
+    assert workspace_files.has_file(cli_utils.REQUIREMENTS_TXT)
+    assert "dlt" in workspace_files.load(cli_utils.REQUIREMENTS_TXT)
     # dlt dependency specifies destination_name as extra
     source_requirements = SourceRequirements.from_string(
-        project_files.load(cli_utils.REQUIREMENTS_TXT)
+        workspace_files.load(cli_utils.REQUIREMENTS_TXT)
     )
     assert destination_name in source_requirements.dlt_requirement.extras
     # Check that at least some version range is specified
     assert len(source_requirements.dlt_requirement.specifier) >= 1
 
 
-def assert_index_version_constraint(project_files: FileStorage, source_name: str) -> None:
+def assert_index_version_constraint(workspace_files: FileStorage, source_name: str) -> None:
     # check dlt version constraint in .sources index for given source matches the one in requirements.txt
     local_index = files_ops.load_verified_sources_local_index(source_name)
     index_constraint = local_index["dlt_version_constraint"]
     assert (
         index_constraint
         == SourceRequirements.from_string(
-            project_files.load(cli_utils.REQUIREMENTS_TXT)
+            workspace_files.load(cli_utils.REQUIREMENTS_TXT)
         ).dlt_version_constraint()
     )
 
 
 def assert_source_files(
-    project_files: FileStorage,
+    workspace_files: FileStorage,
     source_name: str,
     destination_name: str,
     has_source_section: bool = True,
     is_vibe_source: bool = False,
 ) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     visitor, secrets = assert_common_files(
-        project_files, source_name + "_pipeline.py", destination_name
+        workspace_files, source_name + "_pipeline.py", destination_name
     )
-    assert project_files.has_folder(source_name) == (
+    assert workspace_files.has_folder(source_name) == (
         source_name not in [*CORE_SOURCES, *TEMPLATES] and not is_vibe_source
     )
     source_secrets = secrets.get_value(source_name, type, None, source_name)
@@ -759,25 +761,25 @@ def assert_source_files(
             assert len(HexBytes(file_entry["sha3_256"])) == 32
     else:
         # Ensure the yaml file is there for vibe sources
-        assert project_files.has_file(f"{source_name}-docs.yaml")
+        assert workspace_files.has_file(f"{source_name}-docs.yaml")
         # Ensure rules are there (cursor by default)
-        assert project_files.has_folder(".cursor")
+        assert workspace_files.has_folder(".cursor")
 
     return visitor, secrets
 
 
 def assert_common_files(
-    project_files: FileStorage, pipeline_script: str, destination_name: str
+    workspace_files: FileStorage, pipeline_script: str, destination_name: str
 ) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     # cwd must be project files - otherwise assert won't work
-    assert os.getcwd() == project_files.storage_path
-    assert project_files.has_file(utils.make_dlt_settings_path(SECRETS_TOML))
-    assert project_files.has_file(utils.make_dlt_settings_path(CONFIG_TOML))
-    assert project_files.has_file(".gitignore")
-    assert project_files.has_file(pipeline_script)
+    assert os.getcwd() == workspace_files.storage_path
+    assert workspace_files.has_file(utils.make_dlt_settings_path(SECRETS_TOML))
+    assert workspace_files.has_file(utils.make_dlt_settings_path(CONFIG_TOML))
+    assert workspace_files.has_file(".gitignore")
+    assert workspace_files.has_file(pipeline_script)
     # inspect script
     visitor = cli_utils.parse_init_script(
-        "test", project_files.load(pipeline_script), pipeline_script
+        "test", workspace_files.load(pipeline_script), pipeline_script
     )
     # check destinations
     for args in visitor.known_calls[n.PIPELINE]:
