@@ -139,13 +139,16 @@ def test_user_workflow(populated_pipeline: dlt.Pipeline):
     expected_columns = ["_dlt_id", "id"]
 
     dataset = populated_pipeline.dataset()
-    # use context manager to close conn to data source
-    with dataset.ibis() as con:
+    # close conn to data source to release duckdb database file
+    con = dataset.ibis()
+    try:
         table = con.table("items")
         result = table.select("_dlt_id", "id").execute()
 
         assert isinstance(result, pd.DataFrame)
         assert set(result.columns) == set(expected_columns)
+    finally:
+        con.disconnect()
 
 
 @pytest.mark.parametrize(
@@ -158,11 +161,14 @@ def test_table_to_pandas(populated_pipeline: dlt.Pipeline):
     expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
     dataset = populated_pipeline.dataset()
-    with dataset.ibis() as con:
+    con = dataset.ibis()
+    try:
         result = con.table("items").to_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert set(result.columns) == set(expected_columns)
+    finally:
+        con.disconnect()
 
 
 @pytest.mark.parametrize(
@@ -175,8 +181,11 @@ def test_table_to_pyarrow(populated_pipeline: dlt.Pipeline):
     expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
     dataset = populated_pipeline.dataset()
-    with dataset.ibis() as con:
+    con = dataset.ibis()
+    try:
         result = con.table("items").to_pyarrow()
 
         assert isinstance(result, pa.Table)
         assert set(result.column_names) == set(expected_columns)
+    finally:
+        con.disconnect()
