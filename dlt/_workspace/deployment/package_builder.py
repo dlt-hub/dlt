@@ -5,9 +5,9 @@ import tarfile
 import yaml
 
 from dlt.common.time import precise_time
-from dlt.common.utils import digest256_file_stream, digest256_tar_stream
+from dlt.common.utils import digest256_tar_stream
 
-from dlt._workspace.deployment.file_selector import FileSelector
+from dlt._workspace.deployment.file_selector import WorkspaceFileSelector
 from dlt._workspace.deployment.manifest import (
     TDeploymentFileItem,
     TDeploymentManifest,
@@ -28,13 +28,15 @@ class DeploymentPackageBuilder:
     def __init__(self, context: WorkspaceRunContext):
         self.run_context: WorkspaceRunContext = context
 
-    def build_package_to_stream(self, file_selector: FileSelector, output_stream: BinaryIO) -> str:
-        """Build deployment package to stream and return content hash"""
+    def write_package_to_stream(
+        self, file_selector: WorkspaceFileSelector, output_stream: BinaryIO
+    ) -> str:
+        """Write deployment package to output stream, return content hash"""
         manifest_files: List[TDeploymentFileItem] = []
 
         # Add files to the archive
         with tarfile.open(fileobj=output_stream, mode="w|gz") as tar:
-            for file_path in file_selector.__iter__():
+            for file_path in file_selector:
                 full_path = self.run_context.run_dir / file_path
                 tar.add(
                     full_path,
@@ -61,12 +63,12 @@ class DeploymentPackageBuilder:
 
         return digest256_tar_stream(output_stream)
 
-    def build_package(self, file_selector: FileSelector) -> Tuple[Path, str]:
-        """Build deployment package and returns (package_path, content_hash)"""
+    def build_package(self, file_selector: WorkspaceFileSelector) -> Tuple[Path, str]:
+        """Create deployment package file, return (path, content_hash)"""
         package_name = DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT.format(timestamp=str(precise_time()))
         package_path = Path(self.run_context.get_data_entity(package_name))
 
         with open(package_path, "w+b") as f:
-            content_hash = self.build_package_to_stream(file_selector, f)
+            content_hash = self.write_package_to_stream(file_selector, f)
 
         return package_path, content_hash

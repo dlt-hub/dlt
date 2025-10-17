@@ -1,15 +1,9 @@
-from typing import Iterator, Protocol, Optional, List
+from typing import Iterator, Optional, List
 from pathlib import Path
 from pathspec import PathSpec
 from pathspec.util import iter_tree_files
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
-
-
-class FileSelector(Protocol):
-    """Protocol for iterating over files eligible for deployment"""
-
-    def __iter__(self) -> Iterator[Path]: ...
 
 
 class WorkspaceFileSelector:
@@ -25,8 +19,8 @@ class WorkspaceFileSelector:
         additional_excludes: Optional[List[str]] = None,
         ignore_file: str = ".gitignore",
     ) -> None:
-        self.root_path: Path = Path(context.run_dir)
-        self.settings_dir: Path = Path(context.settings_dir)
+        self.root_path: Path = Path(context.run_dir).resolve()
+        self.settings_dir: Path = Path(context.settings_dir).resolve()
         self.ignore_file: str = ignore_file
         self.spec: PathSpec = self._build_pathspec(additional_excludes or [])
 

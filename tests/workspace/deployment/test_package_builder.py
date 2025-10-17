@@ -15,16 +15,16 @@ from dlt._workspace.deployment.manifest import DEPLOYMENT_ENGINE_VERSION
 from tests.workspace.utils import isolated_workspace, WORKSPACE_CASES_DIR
 
 
-def test_build_package_to_stream() -> None:
+def test_write_package_to_stream() -> None:
     """Test building deployment package to a stream and verify structure."""
 
     run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "test_package_builder") as ctx:
+    with isolated_workspace(run_dir, "test_write_package_to_stream") as ctx:
         builder = DeploymentPackageBuilder(ctx)
-        selector = WorkspaceFileSelector(ctx)
+        selector = WorkspaceFileSelector(ctx, ignore_file=".ignorefile")
 
         stream = BytesIO()
-        content_hash = builder.build_package_to_stream(selector, stream)
+        content_hash = builder.write_package_to_stream(selector, stream)
 
         assert content_hash
         assert len(content_hash) == 44  # sha3_256 base64 string
@@ -33,7 +33,6 @@ def test_build_package_to_stream() -> None:
             "additional_exclude/empty_file.py",
             "ducklake_pipeline.py",
             ".ignorefile",
-            "empty_file.py",
         ]
 
         # Verify tar.gz structure
@@ -77,6 +76,7 @@ def test_build_package() -> None:
 
         time.sleep(0.2)
 
-        _, content_hash_2 = builder.build_package(selector)
+        package_path_2, content_hash_2 = builder.build_package(selector)
 
+        assert package_path != package_path_2
         assert content_hash == content_hash_2
