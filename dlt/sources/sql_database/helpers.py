@@ -222,6 +222,7 @@ class TableLoader:
     def _load_rows_connectorx(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
     ) -> Iterator[TDataItem]:
+        import pyarrow as pa
         try:
             import connectorx as cx
         except ImportError:
@@ -229,8 +230,9 @@ class TableLoader:
 
         # default settings
         backend_kwargs = {
-            "return_type": "arrow",
+            "return_type": "arrow_stream",
             "protocol": "binary",
+            "batch_size": self.chunk_size,
             **backend_kwargs,
         }
         conn = backend_kwargs.pop(
@@ -248,8 +250,10 @@ class TableLoader:
                 f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
         logger.info(f"Executing query on ConnectorX: {query_str}")
-        df = cx.read_sql(conn, query_str, **backend_kwargs)
-        yield self._maybe_fix_0000_timezone(df)
+        record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
+        for record_batch in record_reader:
+            table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
+            yield self._maybe_fix_0000_timezone(table)
 
     def _maybe_fix_0000_timezone(self, df: Any) -> Any:
         """Optionally convert +00:00 timezone to UTC"""
