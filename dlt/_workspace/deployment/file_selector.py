@@ -13,23 +13,31 @@ class FileSelector(Protocol):
 
 
 class WorkspaceFileSelector:
-    """File selector that respects .gitignore and excludes workspace internals"""
+    """Iterates files in workspace respecting ignore patterns and excluding workspace internals.
+
+    Uses gitignore-style patterns from a configurable ignore file (default .gitignore). Additional
+    patterns can be provided as relative paths from workspace root. Settings directory is always excluded.
+    """
 
     def __init__(
-        self, context: WorkspaceRunContext, additional_excludes: Optional[List[str]] = None
+        self,
+        context: WorkspaceRunContext,
+        additional_excludes: Optional[List[str]] = None,
+        ignore_file: str = ".gitignore",
     ) -> None:
         self.root_path: Path = Path(context.run_dir)
         self.settings_dir: Path = Path(context.settings_dir)
+        self.ignore_file: str = ignore_file
         self.spec: PathSpec = self._build_pathspec(additional_excludes or [])
 
     def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
-        """Build PathSpec from .gitignore + defaults + additional excludes"""
+        """Build PathSpec from ignore file + defaults + additional excludes"""
         patterns: List[str] = [f"{self.settings_dir.relative_to(self.root_path)}/"]
 
-        # Load .gitignore if exists
-        gitignore_path = self.root_path / ".gitignore"
-        if gitignore_path.exists():
-            with gitignore_path.open("r", encoding="utf-8") as f:
+        # Load ignore file if exists
+        ignore_path = self.root_path / self.ignore_file
+        if ignore_path.exists():
+            with ignore_path.open("r", encoding="utf-8") as f:
                 patterns.extend(f.read().splitlines())
 
         # Add caller-provided excludes
