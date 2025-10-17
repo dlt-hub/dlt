@@ -223,6 +223,7 @@ class TableLoader:
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
     ) -> Iterator[TDataItem]:
         import pyarrow as pa
+
         try:
             import connectorx as cx
         except ImportError:
