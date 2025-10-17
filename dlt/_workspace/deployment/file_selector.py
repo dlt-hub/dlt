@@ -3,29 +3,28 @@ from pathlib import Path
 from pathspec import PathSpec
 from pathspec.util import iter_tree_files
 
-from dlt.common.runtime.run_context import DOT_DLT
+from dlt._workspace._workspace_context import WorkspaceRunContext
 
 
 class FileSelector(Protocol):
     """Protocol for iterating over files eligible for deployment"""
 
-    def iter_files(self) -> Iterator[Path]:
-        """Yield relative paths of files eligible for deployment"""
-        ...
+    def __iter__(self) -> Iterator[Path]: ...
 
 
-class GitignoreFileSelector:
+class WorkspaceFileSelector:
     """File selector that respects .gitignore and excludes workspace internals"""
 
     def __init__(
-        self, workspace_path: str, additional_excludes: Optional[List[str]] = None
+        self, context: WorkspaceRunContext, additional_excludes: Optional[List[str]] = None
     ) -> None:
-        self.root_path: Path = Path(workspace_path)
+        self.root_path: Path = Path(context.run_dir)
+        self.settings_dir: Path = Path(context.settings_dir)
         self.spec: PathSpec = self._build_pathspec(additional_excludes or [])
 
     def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
         """Build PathSpec from .gitignore + defaults + additional excludes"""
-        patterns: List[str] = [f"{DOT_DLT}/"]
+        patterns: List[str] = [f"{self.settings_dir.relative_to(self.root_path)}/"]
 
         # Load .gitignore if exists
         gitignore_path = self.root_path / ".gitignore"
@@ -38,7 +37,7 @@ class GitignoreFileSelector:
 
         return PathSpec.from_lines("gitwildmatch", patterns)
 
-    def iter_files(self) -> Iterator[Path]:
+    def __iter__(self) -> Iterator[Path]:
         """Yield paths of files eligible for deployment"""
         for file_path in iter_tree_files(self.root_path):
             if not self.spec.match_file(file_path):

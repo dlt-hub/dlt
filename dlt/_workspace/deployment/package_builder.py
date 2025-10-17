@@ -14,6 +14,9 @@ from dlt._workspace.deployment.manifest import (
     DEPLOYMENT_ENGINE_VERSION,
 )
 
+from dlt._workspace._workspace_context import WorkspaceRunContext
+
+
 DEFAULT_DEPLOYMENT_FILES_FOLDER = "files"
 DEFAULT_MANIFEST_FILE_NAME = "manifest.yaml"
 DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT = "deployment-{timestamp}.tar.gz"
@@ -22,8 +25,8 @@ DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT = "deployment-{timestamp}.tar.gz"
 class DeploymentPackageBuilder:
     """Builds gzipped deployment package from file selectors"""
 
-    def __init__(self, workspace_root: Path):
-        self.workspace_root = Path(workspace_root)
+    def __init__(self, context: WorkspaceRunContext):
+        self.run_context: WorkspaceRunContext = context
 
     def build_package_to_stream(self, file_selector: FileSelector, output_stream: BinaryIO) -> str:
         """Build deployment package to stream and return content hash"""
@@ -31,8 +34,8 @@ class DeploymentPackageBuilder:
 
         # Add files to the archive
         with tarfile.open(fileobj=output_stream, mode="w|gz") as tar:
-            for file_path in file_selector.iter_files():
-                full_path = self.workspace_root / file_path
+            for file_path in file_selector.__iter__():
+                full_path = self.run_context.run_dir / file_path
                 tar.add(
                     full_path,
                     arcname=f"{DEFAULT_DEPLOYMENT_FILES_FOLDER}/{file_path}",
@@ -61,7 +64,8 @@ class DeploymentPackageBuilder:
 
     def build_package(self, file_selector: FileSelector) -> Tuple[Path, str]:
         """Build deployment package and returns (package_path, content_hash)"""
-        package_path = Path(DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT.format(timestamp=str(precise_time())))
+        package_name = DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT.format(timestamp=str(precise_time()))
+        package_path = Path(self.run_context.get_data_entity(package_name))
 
         with open(package_path, "wb") as f:
             content_hash = self.build_package_to_stream(file_selector, f)

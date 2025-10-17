@@ -120,11 +120,13 @@ def digest256(v: str) -> str:
     return base64.b64encode(digest).decode("ascii")
 
 
-def digest256_file_stream(stream: BinaryIO) -> str:
+def digest256_file_stream(stream: BinaryIO, chunk_size: int = 4096) -> str:
     """Returns a base64 encoded sha3_256 hash of a binary stream"""
     stream.seek(0)
-    content = stream.read()
-    digest = hashlib.sha3_256(content).digest()
+    hash_obj = hashlib.sha3_256()
+    while chunk := stream.read(chunk_size):
+        hash_obj.update(chunk)
+    digest = hash_obj.digest()
     return base64.b64encode(digest).decode("ascii")
 
 
