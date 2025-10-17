@@ -25,7 +25,7 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
         expected_files = expected_files[1:]
 
     run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "default") as ctx:
+    with isolated_workspace(run_dir, "test_file_selector") as ctx:
         selector = WorkspaceFileSelector(
             ctx, additional_excludes=additional_excludes, ignore_file=".ignorefile"
         )

@@ -67,7 +67,7 @@ class DeploymentPackageBuilder:
         package_name = DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT.format(timestamp=str(precise_time()))
         package_path = Path(self.run_context.get_data_entity(package_name))
 
-        with open(package_path, "wb") as f:
+        with open(package_path, "w+b") as f:
             content_hash = self.build_package_to_stream(file_selector, f)
 
         return package_path, content_hash
