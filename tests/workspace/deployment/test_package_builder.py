@@ -2,6 +2,7 @@ import os
 import tarfile
 import yaml
 from io import BytesIO
+from pathlib import Path
 import time
 
 from dlt._workspace.deployment.package_builder import (
@@ -71,7 +72,7 @@ def test_build_package() -> None:
         selector = WorkspaceFileSelector(ctx)
 
         package_path, content_hash = builder.build_package(selector)
-        assert str(package_path).startswith(f"{ctx.data_dir}/deployment-")
+        assert str(package_path).startswith(f"{ctx.data_dir}{os.sep}deployment-")
         assert len(content_hash) == 44  # sha3_256 base64 string
 
         time.sleep(0.2)

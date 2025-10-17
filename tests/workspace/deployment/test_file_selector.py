@@ -28,5 +28,5 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
         selector = WorkspaceFileSelector(
             ctx, additional_excludes=additional_excludes, ignore_file=".ignorefile"
         )
-        files = set([str(f) for f in selector])
+        files = set([f.as_posix() for f in selector])
         assert files == expected_files

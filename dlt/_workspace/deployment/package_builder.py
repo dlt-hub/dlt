@@ -38,14 +38,16 @@ class DeploymentPackageBuilder:
         with tarfile.open(fileobj=output_stream, mode="w|gz") as tar:
             for file_path in file_selector:
                 full_path = self.run_context.run_dir / file_path
+                # Use POSIX paths for tar archives (cross-platform compatibility)
+                posix_path = file_path.as_posix()
                 tar.add(
                     full_path,
-                    arcname=f"{DEFAULT_DEPLOYMENT_FILES_FOLDER}/{file_path}",
+                    arcname=f"{DEFAULT_DEPLOYMENT_FILES_FOLDER}/{posix_path}",
                     recursive=False,
                 )
                 manifest_files.append(
                     {
-                        "relative_path": str(file_path),
+                        "relative_path": posix_path,
                         "size_in_bytes": full_path.stat().st_size,
                     }
                 )
