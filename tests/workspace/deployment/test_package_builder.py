@@ -1,9 +1,8 @@
 import os
 import tarfile
-import tempfile
 import yaml
 from io import BytesIO
-from pathlib import Path
+import time
 
 from dlt._workspace.deployment.package_builder import (
     DeploymentPackageBuilder,
@@ -17,7 +16,7 @@ from tests.workspace.utils import isolated_workspace, WORKSPACE_CASES_DIR
 
 
 def test_build_package_to_stream() -> None:
-    """Test building package to a stream"""
+    """Test building deployment package to a stream and verify structure."""
 
     run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
     with isolated_workspace(run_dir, "test_package_builder") as ctx:
@@ -65,7 +64,7 @@ def test_build_package_to_stream() -> None:
 
 
 def test_build_package() -> None:
-    """Test building package"""
+    """Test that deployment packages are content-addressable with reproducible hashes."""
 
     run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
     with isolated_workspace(run_dir, "test_package_builder") as ctx:
@@ -75,3 +74,9 @@ def test_build_package() -> None:
         package_path, content_hash = builder.build_package(selector)
         assert str(package_path).startswith(f"{ctx.data_dir}/deployment-")
         assert len(content_hash) == 44  # sha3_256 base64 string
+
+        time.sleep(0.2)
+
+        _, content_hash_2 = builder.build_package(selector)
+
+        assert content_hash == content_hash_2

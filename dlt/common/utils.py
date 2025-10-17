@@ -12,6 +12,7 @@ from os import environ
 from types import ModuleType
 import traceback
 import zlib
+import tarfile
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
 
@@ -126,6 +127,31 @@ def digest256_file_stream(stream: BinaryIO, chunk_size: int = 4096) -> str:
     hash_obj = hashlib.sha3_256()
     while chunk := stream.read(chunk_size):
         hash_obj.update(chunk)
+    digest = hash_obj.digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+def digest256_tar_stream(stream: BinaryIO, chunk_size: int = 8192) -> str:
+    """Returns a base64 encoded sha3_256 hash of tar archive contents (ignoring metadata)
+
+    Hashes only filenames and file contents, ignoring timestamps and other metadata.
+    This ensures identical file contents produce identical hashes regardless of when
+    the tar was created.
+    """
+    stream.seek(0)
+    hash_obj = hashlib.sha3_256()
+
+    with tarfile.open(fileobj=stream, mode="r:*") as tar:
+        members = sorted(tar.getmembers(), key=lambda m: m.name)
+
+        for member in members:
+            hash_obj.update(member.name.encode())
+            if member.isfile():
+                f = tar.extractfile(member)
+                if f:
+                    while chunk := f.read(chunk_size):
+                        hash_obj.update(chunk)
+
     digest = hash_obj.digest()
     return base64.b64encode(digest).decode("ascii")
 

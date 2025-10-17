@@ -5,7 +5,7 @@ import tarfile
 import yaml
 
 from dlt.common.time import precise_time
-from dlt.common.utils import digest256_file_stream
+from dlt.common.utils import digest256_file_stream, digest256_tar_stream
 
 from dlt._workspace.deployment.file_selector import FileSelector
 from dlt._workspace.deployment.manifest import (
@@ -47,7 +47,6 @@ class DeploymentPackageBuilder:
                         "size_in_bytes": full_path.stat().st_size,
                     }
                 )
-
             # Create and add manifest with file metadata at the end
             manifest: TDeploymentManifest = {
                 "engine_version": DEPLOYMENT_ENGINE_VERSION,
@@ -60,7 +59,7 @@ class DeploymentPackageBuilder:
             manifest_info.size = len(manifest_yaml)
             tar.addfile(manifest_info, BytesIO(manifest_yaml))
 
-        return digest256_file_stream(output_stream)
+        return digest256_tar_stream(output_stream)
 
     def build_package(self, file_selector: FileSelector) -> Tuple[Path, str]:
         """Build deployment package and returns (package_path, content_hash)"""

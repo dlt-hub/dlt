@@ -12,7 +12,7 @@ from tests.workspace.utils import isolated_workspace, WORKSPACE_CASES_DIR
     ids=["with_additional_exclude", "without_additional_exclude"],
 )
 def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None:
-    """Test that .gitignore patterns are respected with and without additional excludes"""
+    """Test that .gitignore patterns are respected with and without additional excludes."""
 
     additional_excludes = ["additional_exclude/"] if with_additional_exclude else None
     expected_files = [
