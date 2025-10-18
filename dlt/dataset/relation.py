@@ -26,6 +26,7 @@ from dlt.common.destination.dataset import SupportsDataAccess
 
 
 if TYPE_CHECKING:
+    from ibis import ir
     from dlt.helpers.ibis import Expr as IbisExpr
 
 
@@ -272,6 +273,24 @@ class Relation(WithSqlClient):
         This is the target dialect when transpiling SQL queries.
         """
         return self._dataset.destination_dialect
+
+    def to_ibis(self) -> ir.Table:
+        """Create an `ibis.Table` expression from the current relation.
+
+        If the `dlt.Relation` was initialized with a `table_name`, it will return an
+        `ibis.Table` directly. If the `dlt.Relation` was transformed via `.where()`, `.select()`,
+        etc., it will apply the operations in a single step as an opaque SQLQuery Ibis operation.
+        """
+        from dlt.common.libs.ibis import _DltBackend
+
+        backend = _DltBackend.from_dataset(self._dataset)
+
+        if self._table_name:
+            ibis_table = backend.table(self._table_name)
+        else:
+            ibis_table = backend.sql(self.to_sql())
+
+        return ibis_table
 
     def limit(self, limit: int) -> Self:
         """Create a `Relation` using a `LIMIT` clause."""

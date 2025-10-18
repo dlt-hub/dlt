@@ -48,8 +48,10 @@ dev: has-uv
 
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
-	
-lint:
+
+lint: lint-core lint-security lint-docstrings
+
+lint-core:
 	uv run mypy --config-file mypy.ini dlt tests
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
@@ -59,8 +61,6 @@ lint:
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
-	$(MAKE) lint-security
-	$(MAKE) lint-docstrings
 
 format:
 	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
