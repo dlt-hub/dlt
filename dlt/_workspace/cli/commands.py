@@ -809,11 +809,24 @@ Commands to get info, cleanup local files and launch Workspace MCP
             DEFAULT_DLT_MCP_PORT,
         )
 
+        show_parser = subparsers.add_parser(
+            "show",
+            help="Shows Workspace Dashboard for the pipelines and data in this workspace.",
+        )
+
+        show_parser.add_argument(
+            "--edit",
+            action="store_true",
+            help="Eject Dashboard and start editable version",
+            default=None,
+        )
+
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._workspace_command import (
             print_workspace_info,
             clean_workspace,
+            show_workspace,
             start_mcp,
         )
 
@@ -823,6 +836,8 @@ Commands to get info, cleanup local files and launch Workspace MCP
             print_workspace_info(workspace_context)
         elif args.workspace_command == "clean":
             clean_workspace(workspace_context, args)
+        elif args.workspace_command == "show":
+            show_workspace(workspace_context, args.edit)
         elif args.workspace_command == "mcp":
             start_mcp(workspace_context, port=args.port, stdio=args.stdio)
         else:
