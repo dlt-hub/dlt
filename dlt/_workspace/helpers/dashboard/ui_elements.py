@@ -26,13 +26,15 @@ def build_error_callout(message: str, code: str = None, traceback_string: str = 
 
     stack_items = [mo.md(message)]
     if code:
-        stack_items.append(mo.ui.code_editor(code, language="sh"))
+        stack_items.append(
+            mo.ui.code_editor(code, language="python", disabled=True, show_copy_button=True)
+        )
     if traceback_string:
         stack_items.append(
             mo.accordion(
                 {
                     "Show stacktrace for more information or debugging": mo.ui.code_editor(
-                        traceback_string, language="sh"
+                        traceback_string, language="python", disabled=True, show_copy_button=True
                     )
                 }
             )
