@@ -1,0 +1,7 @@
+[workspace.settings]
+name="name_override"
+data_dir="_data"  # in run_dir with profile
+local_dir="_files"
+
+[workspace.runtime]
+pipeline_name="component"

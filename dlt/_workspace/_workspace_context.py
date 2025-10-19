@@ -6,10 +6,13 @@ from dlt.common import known_env
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.pluggable_run_context import (
     ProfilesRunContext,
     PluggableRunContext,
 )
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.runtime.init import initialize_runtime
 from dlt.common.runtime.run_context import (
     DOT_DLT,
     switch_context as _switch_context,
@@ -18,6 +21,7 @@ from dlt.common.runtime.run_context import (
 )
 from dlt.common.typing import copy_sig_ret
 
+from dlt._workspace.configuration import WorkspaceConfiguration, WorkspaceRuntimeConfiguration
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.profile import BUILT_IN_PROFILES, DEFAULT_PROFILE, read_profile_pin
 from dlt._workspace.providers import ProfileConfigTomlProvider, ProfileSecretsTomlProvider
@@ -36,12 +40,10 @@ class WorkspaceRunContext(ProfilesRunContext):
         self._init_run_dir = run_dir
         self._name = name
         self._profile = profile
-        self._data_dir = default_working_dir(
-            self.settings_dir, name, profile, DEFAULT_WORKSPACE_WORKING_FOLDER
-        )
-        # TODO: if local_dir == run_dir and profile "dev" profile prefixing for local_dir for OSS compat
-        self._local_dir = default_working_dir(self.run_dir, name, profile, DEFAULT_LOCAL_FOLDER)
+        self._data_dir: str = None
+        self._local_dir: str = None
         self._global_dir = global_dir()
+        self._config: WorkspaceConfiguration = None
 
     @property
     def name(self) -> str:
@@ -64,6 +66,7 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     @property
     def local_dir(self) -> str:
+        assert self._local_dir, "local_dir used before workspace configuration got resolved"
         return os.environ.get(known_env.DLT_LOCAL_DIR, self._local_dir)
 
     @property
@@ -76,6 +79,7 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     @property
     def data_dir(self) -> str:
+        assert self._data_dir, "data_dir used before workspace configuration got resolved"
         return os.environ.get(known_env.DLT_DATA_DIR, self._data_dir)
 
     def initial_providers(self) -> List[ConfigProvider]:
@@ -85,6 +89,45 @@ class WorkspaceRunContext(ProfilesRunContext):
             ProfileConfigTomlProvider(self.settings_dir, self.profile, self.global_dir),
         ]
         return providers
+
+    def initialize_runtime(self, runtime_config: RuntimeConfiguration = None) -> None:
+        if runtime_config is not None:
+            assert isinstance(runtime_config, WorkspaceRuntimeConfiguration)
+            self.config.runtime = runtime_config
+
+        # this also resolves workspace config if necessary
+        initialize_runtime(self.name, self.config.runtime)
+
+    @property
+    def runtime_config(self) -> WorkspaceRuntimeConfiguration:
+        return self._config.runtime
+
+    @property
+    def config(self) -> WorkspaceConfiguration:
+        if self._config is None:
+            from dlt.common.configuration.resolve import resolve_configuration
+
+            self._config = resolve_configuration(
+                WorkspaceConfiguration(), sections=(known_sections.WORKSPACE,)
+            )
+            # overwrite name
+            if self._config.settings.name:
+                self._name = self._config.settings.name
+
+            self._data_dir = default_working_dir(
+                self.settings_dir,
+                self.name,
+                self.profile,
+                self._config.settings.data_dir or DEFAULT_WORKSPACE_WORKING_FOLDER,
+            )
+            # TODO: if local_dir == run_dir and profile "dev" profile prefixing for local_dir for OSS compat
+            self._local_dir = default_working_dir(
+                self.run_dir,
+                self.name,
+                self.profile,
+                self._config.settings.local_dir or DEFAULT_LOCAL_FOLDER,
+            )
+        return self._config
 
     @property
     def module(self) -> Optional[ModuleType]:
