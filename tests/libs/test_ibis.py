@@ -15,7 +15,11 @@ from dlt.common.libs.ibis import _DltBackend
 from dlt.common.libs.pyarrow import pyarrow as pa
 
 from tests.load.test_read_interfaces import populated_pipeline, configs
-from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
+from tests.utils import (
+    preserve_module_environ,
+    auto_module_test_storage,
+    auto_module_test_run_context,
+)
 
 
 duckdb_conf = [c for c in configs if c.destination_type == "duckdb" and c.file_format is None]
