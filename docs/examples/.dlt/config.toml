@@ -1,0 +1,3 @@
+[runtime]
+dlthub_telemetry=false
+dlthub_telemetry_endpoint="https://telemetry-tracker.services4758.workers.dev"

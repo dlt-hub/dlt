@@ -117,10 +117,20 @@ def test_default_pipeline() -> None:
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
-def test_pipeline_configuration_gen_name() -> None:
+def test_pipeline_runtime_configuration() -> None:
     c = resolve.resolve_configuration(PipelineConfiguration())
     assert c.pipeline_name.startswith("dlt_")
     assert c.runtime.slack_incoming_hook is None
+
+    # check pipeline runtime config
+    os.environ["RUNTIME__SLACK_INCOMING_HOOK"] = "https://hooks.slack.com/services/..."
+    c = resolve.resolve_configuration(PipelineConfiguration())
+    assert c.runtime.slack_incoming_hook == os.environ["RUNTIME__SLACK_INCOMING_HOOK"]
+
+    os.environ["TEST_P__RUNTIME__SLACK_INCOMING_HOOK"] = "#test-p-slack"
+    p = dlt.pipeline("test_p")
+    assert p.config.runtime.slack_incoming_hook == "#test-p-slack"
+    assert p.config.runtime is p.runtime_config
 
 
 def test_default_pipeline_dataset_layout(environment) -> None:

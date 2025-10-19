@@ -112,7 +112,7 @@ from dlt.destinations.dataset import get_destination_clients
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
-from dlt.pipeline.configuration import PipelineConfiguration
+from dlt.pipeline.configuration import PipelineConfiguration, PipelineRuntimeConfiguration
 from dlt.pipeline.progress import _Collector, _NULL_COLLECTOR
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
@@ -940,6 +940,10 @@ class Pipeline(SupportsPipeline):
         if self._last_trace:
             return self._last_trace
         return load_trace(self.working_dir)
+
+    @property
+    def runtime_config(self) -> PipelineRuntimeConfiguration:
+        return self.config.runtime
 
     def __repr__(self) -> str:
         kwargs = {
