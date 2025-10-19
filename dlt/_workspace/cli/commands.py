@@ -1,35 +1,29 @@
-from typing import Type
 import argparse
+import os
+from typing import Optional
 
-from dlt.common.configuration import plugins
+import yaml
 
-import dlt._workspace.cli.echo as fmt
+from dlt.common import json
+from dlt.common.schema.schema import Schema
+from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
+from dlt.common.typing import DictStrAny
+
+from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli._command_wrappers import (
-    init_command_wrapper,
-    list_sources_command_wrapper,
-    list_destinations_command_wrapper,
-    pipeline_command_wrapper,
-    schema_command_wrapper,
-    telemetry_status_command_wrapper,
-    deploy_command_wrapper,
-    ai_setup_command_wrapper,
-    dashboard_command_wrapper,
-)
+from dlt._workspace.cli.utils import add_mcp_arg_parser
 from dlt._workspace.cli._ai_command import SUPPORTED_IDES
-from dlt._workspace.cli._docs_command import render_argparse_markdown
 from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
 from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
-from dlt._workspace.cli.utils import add_mcp_arg_parser
+
 from dlt._workspace.cli._deploy_command import (
     DeploymentMethods,
     COMMAND_DEPLOY_REPO_LOCATION,
     SecretFormats,
     DLT_DEPLOY_DOCS_URL,
 )
-from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
 
 try:
     import pipdeptree
@@ -118,6 +112,12 @@ version if run again with an existing `source` name. You will be warned if files
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace.cli._init_command import (
+            list_destinations_command_wrapper,
+            list_sources_command_wrapper,
+            init_command_wrapper,
+        )
+
         if args.list_sources:
             list_sources_command_wrapper(args.location, args.branch)
         elif args.list_destinations:
@@ -428,6 +428,8 @@ list of all tables and columns created at the destination during the loading of 
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace.cli._pipeline_command import pipeline_command_wrapper
+
         if args.list_pipelines:
             pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
         else:
@@ -470,6 +472,27 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        @utils.track_command("schema", False, "format_")
+        def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) -> None:
+            with open(file_path, "rb") as f:
+                if os.path.splitext(file_path)[1][1:] == "json":
+                    schema_dict: DictStrAny = json.load(f)
+                else:
+                    schema_dict = yaml.safe_load(f)
+            s = Schema.from_dict(schema_dict)
+            if format_ == "json":
+                schema_str = s.to_pretty_json(remove_defaults=remove_defaults)
+            elif format_ == "yaml":
+                schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
+            elif format_ == "dbml":
+                schema_str = s.to_dbml()
+            elif format_ == "dot":
+                schema_str = s.to_dot()
+            else:
+                schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
+
+            fmt.echo(schema_str)
+
         schema_command_wrapper(args.file, args.format, args.remove_defaults)
 
 
@@ -499,6 +522,12 @@ The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the d
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        @utils.track_command("dashboard", True)
+        def dashboard_command_wrapper(pipelines_dir: Optional[str], edit: bool) -> None:
+            from dlt._workspace.helpers.dashboard.runner import run_dashboard
+
+            run_dashboard(pipelines_dir=pipelines_dir, edit=edit)
+
         dashboard_command_wrapper(pipelines_dir=args.pipelines_dir, edit=args.edit)
 
 
@@ -514,6 +543,8 @@ The `dlt telemetry` command shows the current status of dlt telemetry. Learn mor
         self.parser = parser
 
     def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace.cli._telemetry_command import telemetry_status_command_wrapper
+
         telemetry_status_command_wrapper()
 
 
@@ -635,6 +666,8 @@ the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers
             self.parser.print_help()
             raise CliCommandException()
         else:
+            from dlt._workspace.cli._deploy_command import deploy_command_wrapper
+
             deploy_command_wrapper(
                 pipeline_script_path=deploy_args.pop("pipeline_script_path"),
                 deployment_method=deploy_args.pop("deployment_method"),
@@ -667,6 +700,7 @@ If you are reading this on the docs website, you are looking at the rendered ver
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._dlt import _create_parser
+        from dlt._workspace.cli._docs_command import render_argparse_markdown
 
         parser, _ = _create_parser()
 
@@ -725,48 +759,129 @@ Files are fetched from https://github.com/dlt-hub/verified-sources by default.
         # ai_mcp_cmd = ai_subparsers.add_parser("mcp", help="Launch the dlt MCP server")
 
     def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace.cli._ai_command import ai_setup_command_wrapper
+
         ai_setup_command_wrapper(ide=args.ide, branch=args.branch, repo=args.location)
 
 
-#
-# Register all commands
-#
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_init() -> Type[SupportsCliCommand]:
-    return InitCommand
+class WorkspaceCommand(SupportsCliCommand):
+    command = "workspace"
+    help_string = "Manage current Workspace"
+    description = """
+Commands to get info, cleanup local files and launch Workspace MCP
+"""
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+
+        subparsers = parser.add_subparsers(
+            title="Available subcommands", dest="workspace_command", required=False
+        )
+
+        # clean command
+        clean_local_parser = subparsers.add_parser(
+            "clean",
+            help=(
+                "Cleans local data for the selected profile. Locally loaded data will be deleted. "
+                "Pipelines working directories are also deleted by default. Data in remote "
+                "destinations is not affected."
+            ),
+        )
+        clean_local_parser.add_argument(
+            "--skip-data-dir",
+            action="store_true",
+            default=False,
+            help="Do not delete pipelines working dir.",
+        )
+
+        subparsers.add_parser(
+            "info",
+            help="Displays workspace info.",
+        )
+
+        DEFAULT_DLT_MCP_PORT = 43654
+        add_mcp_arg_parser(
+            subparsers,
+            "This MCP allows to attach to any pipeline that was previously ran in this workspace"
+            " and then facilitates schema and data exploration in the pipeline's dataset.",
+            "Launch dlt MCP server in current Python environment and Workspace in SSE transport"
+            " mode by default.",
+            DEFAULT_DLT_MCP_PORT,
+        )
+
+    def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli._workspace_command import (
+            print_workspace_info,
+            clean_workspace,
+            start_mcp,
+        )
+
+        workspace_context = active()
+
+        if args.workspace_command == "info" or not args.workspace_command:
+            print_workspace_info(workspace_context)
+        elif args.workspace_command == "clean":
+            clean_workspace(workspace_context, args)
+        elif args.workspace_command == "mcp":
+            start_mcp(workspace_context, port=args.port, stdio=args.stdio)
+        else:
+            self.parser.print_usage()
 
 
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_pipeline() -> Type[SupportsCliCommand]:
-    return PipelineCommand
+class ProfileCommand(SupportsCliCommand):
+    command = "profile"
+    help_string = "Manage Workspace built-in profiles"
+    description = """
+Commands to list and pin profiles
+Run without arguments to list all profiles, the default profile and the
+pinned profile in current project.
+"""
 
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
 
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_schema() -> Type[SupportsCliCommand]:
-    return SchemaCommand
+        parser.add_argument("profile_name", help="Name of the profile", nargs="?")
 
+        subparsers = parser.add_subparsers(
+            title="Available subcommands", dest="profile_command", required=False
+        )
 
-# TODO: define actual command and re-enable
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_dashboard() -> Type[SupportsCliCommand]:
-    return DashboardCommand
+        subparsers.add_parser(
+            "info",
+            help="Show information about the current profile.",
+            description="Show information about the current profile.",
+        )
 
+        subparsers.add_parser(
+            "list",
+            help="Show list of built-in profiles.",
+            description="Show list of built-in profiles.",
+        )
 
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_telemetry() -> Type[SupportsCliCommand]:
-    return TelemetryCommand
+        subparsers.add_parser(
+            "pin",
+            help="Pin a profile to the Workspace.",
+            description="""
+Pin a profile to the Workspace, this will be the new default profile while it is pinned.
+""",
+        )
 
+    def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli._profile_command import (
+            print_profile_info,
+            list_profiles,
+            pin_profile,
+        )
 
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_deploy() -> Type[SupportsCliCommand]:
-    return DeployCommand
+        workspace_context = active()
 
-
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_docs() -> Type[SupportsCliCommand]:
-    return CliDocsCommand
-
-
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_ai() -> Type[SupportsCliCommand]:
-    return AiCommand
+        if args.profile_command == "info" or not args.profile_command:
+            print_profile_info(workspace_context)
+        elif args.profile_command == "list":
+            list_profiles(workspace_context)
+        elif args.profile_command == "pin":
+            pin_profile(workspace_context, args.profile_name)
+        else:
+            self.parser.print_usage()

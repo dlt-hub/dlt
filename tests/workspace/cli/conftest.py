@@ -4,19 +4,7 @@ import pytest
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
-from tests.utils import (
-    auto_unload_modules,
-)
-
 from tests.workspace.utils import isolated_workspace
-
-
-@pytest.fixture(autouse=True)
-def auto_unload_core_sources(auto_unload_modules) -> None:
-    """Unload core sources so all init tests will pass"""
-    sys.modules.pop("dlt.sources.rest_api", None)
-    sys.modules.pop("dlt.sources.sql_database", None)
-    sys.modules.pop("dlt.sources.filesystem", None)
 
 
 @pytest.fixture(autouse=True)

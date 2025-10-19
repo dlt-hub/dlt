@@ -21,6 +21,8 @@ from dlt._workspace.cli._deploy_command_helpers import (
     wrap_template_str,
     get_schedule_description,
 )
+from dlt._workspace.cli.exceptions import CliCommandException, PipelineWasNotRun
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 DLT_AIRFLOW_GCP_DOCS_URL = (
@@ -426,3 +428,54 @@ class AirflowDeployment(BaseDeployment):
         fmt.echo("c. Push changes to github. Use your Git UI or the following command")
         fmt.echo(fmt.bold("git push origin"))
         fmt.echo("6. You should see your pipeline in Airflow.")
+
+
+@utils.track_command("deploy", False, "deployment_method")
+def deploy_command_wrapper(
+    pipeline_script_path: str,
+    deployment_method: str,
+    repo_location: str,
+    branch: Optional[str] = None,
+    **kwargs: Any,
+) -> None:
+    try:
+        utils.ensure_git_command("deploy")
+    except Exception as ex:
+        fmt.secho(str(ex), err=True, fg="red")
+        raise CliCommandException(error_code=-2)
+    from git import InvalidGitRepositoryError, NoSuchPathError
+
+    try:
+        deploy_command(
+            pipeline_script_path=pipeline_script_path,
+            deployment_method=deployment_method,
+            repo_location=repo_location,
+            branch=branch,
+            **kwargs,
+        )
+    except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
+        fmt.note(
+            "You must run the pipeline locally successfully at least once in order to deploy it."
+        )
+        raise CliCommandException(error_code=-3, raiseable_exception=ex)
+    except InvalidGitRepositoryError:
+        fmt.secho(
+            "No git repository found for pipeline script %s." % fmt.bold(pipeline_script_path),
+            err=True,
+            fg="red",
+        )
+        fmt.note("If you do not have a repository yet, you can do either of:")
+        fmt.note(
+            "- Run the following command to initialize new repository: %s" % fmt.bold("git init")
+        )
+        fmt.note(
+            "- Add your local code to Github as described here: %s"
+            % fmt.bold(
+                "https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github"
+            )
+        )
+        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        raise CliCommandException(error_code=-4)
+    except NoSuchPathError as path_ex:
+        fmt.secho("The pipeline script does not exist\n%s" % str(path_ex), err=True, fg="red")
+        raise CliCommandException(error_code=-5)

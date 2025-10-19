@@ -801,3 +801,30 @@ def _list_verified_sources(
 
 def _list_core_destinations() -> list[str]:
     return dlt.destinations.__all__
+
+
+@utils.track_command("init", False, "source_name", "destination_type")
+def init_command_wrapper(
+    source_name: str,
+    destination_type: str,
+    repo_location: str,
+    branch: str,
+    eject_source: bool = False,
+) -> None:
+    init_command(
+        source_name,
+        destination_type,
+        repo_location,
+        branch,
+        eject_source,
+    )
+
+
+@utils.track_command("list_sources", False)
+def list_sources_command_wrapper(repo_location: str, branch: str) -> None:
+    list_sources_command(repo_location, branch)
+
+
+@utils.track_command("list_destinations", False)
+def list_destinations_command_wrapper() -> None:
+    list_destinations_command()

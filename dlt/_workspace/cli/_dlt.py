@@ -10,7 +10,7 @@ from dlt._workspace.cli import SupportsCliCommand
 
 import dlt._workspace.cli.echo as fmt
 from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli._command_wrappers import (
+from dlt._workspace.cli._telemetry_command import (
     telemetry_change_status_command_wrapper,
 )
 from dlt._workspace.cli import _debug

@@ -77,7 +77,7 @@ def plug_cli_ai() -> Type[plugins.SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_profile() -> Type[plugins.SupportsCliCommand]:
     if is_workspace_active():
-        from dlt._workspace.cli._profile_command import ProfileCommand
+        from dlt._workspace.cli.commands import ProfileCommand
 
         return ProfileCommand
     else:
@@ -87,7 +87,7 @@ def plug_cli_profile() -> Type[plugins.SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_workspace() -> Type[plugins.SupportsCliCommand]:
     if is_workspace_active():
-        from dlt._workspace.cli._workspace_command import WorkspaceCommand
+        from dlt._workspace.cli.commands import WorkspaceCommand
 
         return WorkspaceCommand
     else:
