@@ -76,7 +76,7 @@ def _may_safe_delete_local(run_context: RunContextBase, deleted_dir_type: str) -
     ):
         if deleted_abs == ctx_abs:
             fmt.error(
-                f"{deleted_dir_type} `deleted_dir` is the same as {label} and cannot be deleted"
+                f"{deleted_dir_type} `{deleted_dir}` is the same as {label} and cannot be deleted"
             )
             return False
 
@@ -88,8 +88,8 @@ def _may_safe_delete_local(run_context: RunContextBase, deleted_dir_type: str) -
         common = ""
     if common != run_dir_abs:
         fmt.error(
-            f"{deleted_dir_type} `deleted_dir` is not within run dir (workspace root) and cannot be"
-            " deleted"
+            f"{deleted_dir_type} `{deleted_dir}` is not within run dir (workspace root) and cannot"
+            " be deleted"
         )
         return False
 

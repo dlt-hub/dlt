@@ -106,7 +106,7 @@ def _assert_protected_deletion(
 
     out = capsys.readouterr().out
     label = "run dir (workspace root)" if equals_attr == "run_dir" else "settings dir"
-    assert f"ERROR: {dir_attr} `deleted_dir` is the same as {label} and cannot be deleted" in out
+    assert f"ERROR: {dir_attr} `{target_path}` is the same as {label} and cannot be deleted" in out
 
 
 @pytest.mark.parametrize(
@@ -165,7 +165,7 @@ def test_delete_local_data_rejects_dirs_outside_run_dir(
 
     out = capsys.readouterr().out
     assert (
-        "ERROR: local_dir `deleted_dir` is not within run dir (workspace root) and cannot be"
+        f"ERROR: local_dir `{ctx.local_dir}` is not within run dir (workspace root) and cannot be"
         " deleted"
         in out
     )

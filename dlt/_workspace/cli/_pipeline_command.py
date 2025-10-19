@@ -319,6 +319,14 @@ def pipeline_command(
             p = p.drop()
             fmt.echo("Restoring from destination")
             p.sync_destination()
+            if p.first_run:
+                # remote state was not found
+                p._wipe_working_folder()
+                fmt.error(
+                    f"Pipeline {pipeline_name} was not found in dataset {dataset_name} in"
+                    f" {destination}"
+                )
+                return
 
     if operation == "load-package":
         load_id = command_kwargs.get("load_id")
