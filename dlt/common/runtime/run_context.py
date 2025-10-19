@@ -14,10 +14,14 @@ from dlt.common.configuration.providers import (
     ConfigTomlProvider,
 )
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
     PluggableRunContext,
 )
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.runtime.init import initialize_runtime
 
 # dlt settings folder
 DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
@@ -28,6 +32,7 @@ class RunContext(RunContextBase):
 
     def __init__(self, run_dir: Optional[str]):
         self._init_run_dir = run_dir or "."
+        self._runtime_config: RuntimeConfiguration = None
 
     @property
     def global_dir(self) -> str:
@@ -65,6 +70,22 @@ class RunContext(RunContextBase):
             ConfigTomlProvider(self.settings_dir, self.global_dir),
         ]
         return providers
+
+    def initialize_runtime(self, runtime_config: RuntimeConfiguration = None) -> None:
+        if runtime_config is None:
+            self._runtime_config = resolve_configuration(RuntimeConfiguration())
+        else:
+            self._runtime_config = runtime_config
+
+        initialize_runtime(self.name, self._runtime_config)
+
+    @property
+    def runtime_config(self) -> RuntimeConfiguration:
+        return self._runtime_config
+
+    @property
+    def config(self) -> BaseConfiguration:
+        return None
 
     @property
     def module(self) -> Optional[ModuleType]:

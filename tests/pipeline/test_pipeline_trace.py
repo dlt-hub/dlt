@@ -649,7 +649,7 @@ def test_slack_hook(environment: DictStrStr) -> None:
     with requests_mock.mock() as m:
         m.post(hook_url, json={})
         load_info = dlt.pipeline().run([1, 2, 3], table_name="data", destination="dummy")
-        assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200  # type: ignore[attr-defined]
+        assert slack_notify_load_success(load_info.pipeline.config.runtime.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200  # type: ignore[attr-defined]
     assert m.called
     message = m.last_request.json()
     assert "rudolfix" in message["text"]
@@ -661,7 +661,7 @@ def test_broken_slack_hook(environment: DictStrStr) -> None:
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "http://localhost:22"
     load_info = dlt.pipeline().run([1, 2, 3], table_name="data", destination="dummy")
     # connection error
-    assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1  # type: ignore[attr-defined]
+    assert slack_notify_load_success(load_info.pipeline.config.runtime.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1  # type: ignore[attr-defined]
     # pipeline = dlt.pipeline()
     # assert pipeline.last_trace is not None
     # assert pipeline._trace is None
