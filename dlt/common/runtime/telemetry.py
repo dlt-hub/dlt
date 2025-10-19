@@ -20,8 +20,6 @@ _TELEMETRY_STARTED = False
 
 def start_telemetry(config: RuntimeConfiguration) -> None:
     # enable telemetry only once
-
-    global _TELEMETRY_STARTED
     if is_telemetry_started():
         return
 
@@ -41,6 +39,7 @@ def start_telemetry(config: RuntimeConfiguration) -> None:
 
         init_platform_tracker()
 
+    global _TELEMETRY_STARTED
     _TELEMETRY_STARTED = True
 
 
@@ -71,17 +70,50 @@ def is_telemetry_started() -> bool:
 
 
 def with_telemetry(
-    category: TEventCategory, command: str, track_before: bool, *args: str
+    category: TEventCategory, command: str, track_before: bool, *args: str, **kwargs: Any
 ) -> Callable[[TFun], TFun]:
-    """Adds telemetry to f: TFun and add optional f *args values to `properties` of telemetry event"""
+    """Decorator factory that attaches telemetry to a callable.
+
+    The returned decorator wraps a function so that an anonymous telemetry event is
+    emitted either before execution (if ``track_before`` is True) or after execution.
+    When tracked after execution, the event includes whether the call succeeded.
+    Telemetry is initialized lazily on first use if it is not already running.
+
+    Args:
+        category: telemetry event category used by the anon tracker.
+        command: event/command name to report.
+        track_before: if True, emit a single event before calling the function.
+            if False, emit a single event after the call, including success state.
+        *args: names of parameters from the decorated function whose values should
+            be included in the event properties. names must match the function
+            signature and can refer to positional or keyword parameters.
+        **kwargs: additional key-value pairs to include in the event properties.
+
+    Returns:
+        a decorator that takes a function and returns a wrapped function with
+        telemetry tracking applied. the wrapped function preserves the original
+        signature and return value.
+
+    Notes:
+        - success is determined as follows when tracking after execution:
+          - if the wrapped function returns an int, 0 is treated as success; any
+            other value is treated as failure.
+          - for non-int returns, success is True unless an exception is raised.
+        - on exception, a failure event is emitted and the exception is re-raised.
+        - event properties always include elapsed execution time in seconds under
+          the 'elapsed' key and the success flag under 'success'.
+
+    """
 
     def decorator(f: TFun) -> TFun:
         sig: inspect.Signature = inspect.signature(f)
 
         def _wrap(*f_args: Any, **f_kwargs: Any) -> Any:
-            # look for additional arguments
+            # look for additional arguments in call arguments
             bound_args = sig.bind(*f_args, **f_kwargs)
             props = {p: bound_args.arguments[p] for p in args if p in bound_args.arguments}
+            # append additional props from kwargs
+            props.update(kwargs)
             start_ts = time.time()
 
             def _track(success: bool) -> None:
