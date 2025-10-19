@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Optional
 
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
@@ -21,7 +22,7 @@ def plug_workspace_context_impl(
 ) -> Optional[RunContextBase]:
     # TODO: if recursive search was requested
     # if runtime_kwargs.get("_look_recursive")
-    run_dir = run_dir or "."
+    run_dir = os.path.abspath(run_dir or ".")
     if is_workspace_dir(run_dir):
         profile: str = None
         if runtime_kwargs:
