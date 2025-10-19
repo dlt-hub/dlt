@@ -1,3 +1,4 @@
+import sys
 import io
 from copy import deepcopy
 import hashlib
@@ -84,6 +85,18 @@ TEMPLATES = [
 
 # a few verified sources we know to exist
 SOME_KNOWN_VERIFIED_SOURCES = ["chess", "google_sheets", "pipedrive"]
+
+from tests.utils import (
+    auto_unload_modules,
+)
+
+
+@pytest.fixture(autouse=True)
+def auto_unload_core_sources(auto_unload_modules) -> None:
+    """Unload core sources so all init tests will pass"""
+    sys.modules.pop("dlt.sources.rest_api", None)
+    sys.modules.pop("dlt.sources.sql_database", None)
+    sys.modules.pop("dlt.sources.filesystem", None)
 
 
 def get_source_candidates(repo_dir: str, source_type: TSourceType = "verified") -> List[str]:

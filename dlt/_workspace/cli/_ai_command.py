@@ -3,10 +3,11 @@ import shutil
 from pathlib import Path
 from typing import List, Tuple, get_args, Literal, Union, cast
 
-from dlt._workspace.cli import echo as fmt
 from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
+
+from dlt._workspace.cli import echo as fmt, utils
 
 TSupportedIde = Literal[
     "amp",
@@ -135,6 +136,11 @@ def vibe_source_setup(
         )
         for file in copied_files:
             fmt.echo(fmt.bold(file))
+
+
+@utils.track_command("ai", False, operation="setup")
+def ai_setup_command_wrapper(ide: TSupportedIde, branch: Union[str, None], repo: str) -> None:
+    ai_setup_command(ide, location=repo, branch=branch)
 
 
 # TODO create a command to create a copy-pasteable MCP server config

@@ -23,7 +23,6 @@ def plug_workspace_context_impl(
     # if runtime_kwargs.get("_look_recursive")
     run_dir = run_dir or "."
     if is_workspace_dir(run_dir):
-        # TODO: use RunContext to read WorkspaceConfiguration
         profile: str = None
         if runtime_kwargs:
             profile = runtime_kwargs.get("profile")
