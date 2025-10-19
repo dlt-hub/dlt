@@ -1,6 +1,6 @@
 from tests.utils import (
     autouse_test_storage,
     preserve_environ,
-    patch_home_dir,
+    auto_test_run_context,
     deactivate_pipeline,
 )

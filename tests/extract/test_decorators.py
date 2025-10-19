@@ -22,7 +22,7 @@ from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.typing import TDataItem, TFun, TTableNames
 
-from dlt.cli.source_detection import detect_source_configs
+from dlt._workspace.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
 from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper, defer
 from dlt.extract.hints import TResourceNestedHints
@@ -47,7 +47,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
-from tests.utils import unload_modules
+from tests.utils import auto_unload_modules
 
 
 @pytest.fixture(autouse=True, scope="function")

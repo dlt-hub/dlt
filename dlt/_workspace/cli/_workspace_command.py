@@ -1,14 +1,12 @@
 import argparse
 
-from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
     RunContextBase,
 )
 
-from dlt.cli import SupportsCliCommand, echo as fmt, utils
-
+from dlt._workspace.cli import SupportsCliCommand, echo as fmt, utils
 from dlt._workspace._workspace_context import WorkspaceRunContext, active
 from dlt._workspace.cli.utils import add_mcp_arg_parser, delete_local_data
 from dlt._workspace.profile import read_profile_pin

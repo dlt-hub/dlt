@@ -123,7 +123,7 @@ test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data ACTIVE_DESTINATIONS='["postgres"]' ALL_FILESYSTEM_DRIVERS='["memory"]'  uv run pytest tests/load
 
 test-common:
-	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common tests/load/test_dummy_client.py tests/libs tests/destinations
+	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
 
 reset-test-storage:
 	-rm -r _storage
@@ -180,8 +180,8 @@ test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
 start-dlt-dashboard-e2e:
-	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
+	uv run marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
 
 # creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
-	uv run python tests/helpers/dashboard/example_pipelines.py
+	uv run python tests/workspace/helpers/dashboard/example_pipelines.py

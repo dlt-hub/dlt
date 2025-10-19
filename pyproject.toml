@@ -115,7 +115,7 @@ motherduck = [
     "pyarrow>=16.0.0",
 ]
 cli = [
-    "pipdeptree>=2.9.0,<2.10",
+    "pipdeptree>=2.9.3,<2.10",
     "cron-descriptor>=1.2.32",
     "pip>=23.0.0",
 ]
@@ -193,7 +193,7 @@ Homepage = "https://github.com/dlt-hub"
 Repository = "https://github.com/dlt-hub/dlt"
 
 [project.scripts]
-dlt = "dlt.cli._dlt:_main"
+dlt = "dlt._workspace.cli._dlt:_main"
 
 [dependency-groups]
 # NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group
@@ -330,12 +330,10 @@ flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", br
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]
+# hatchling follows .gitignore and will include all files in gitindex under `dlt`
 include = [
     "LICENSE.txt",
     "README.md",
-    "dlt/sources/pipeline_templates/.gitignore",
-    "dlt/sources/pipeline_templates/.dlt/config.toml",
-    "dlt/helpers/dashboard/dlt_dashboard_styles.css"
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -343,8 +341,6 @@ packages = ["dlt"]
 include = [
     "LICENSE.txt",
     "README.md",
-    "dlt/sources/pipeline_templates/.gitignore",
-    "dlt/sources/pipeline_templates/.dlt/config.toml",
 ]
 
 [build-system]

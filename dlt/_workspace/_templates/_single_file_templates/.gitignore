@@ -1,0 +1,13 @@
+# ignore secrets, virtual environments and typical python compilation artifacts
+secrets.toml
+*.secrets.toml
+# ignore pinned profile name
+.dlt/profile-name
+# ignore basic python artifacts
+.env
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+# ignore duckdb
+*.duckdb
+*.wal
