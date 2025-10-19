@@ -4,6 +4,7 @@ import contextlib
 import sys
 import multiprocessing
 import platform
+from typing import Optional
 
 from dlt.common.runtime.typing import TExecutionContext, TVersion, TExecInfoNames
 from dlt.common.typing import StrStr, StrAny, List
@@ -155,9 +156,11 @@ def is_marimo() -> bool:
     return False
 
 
-def dlt_version_info(pipeline_name: str) -> StrStr:
+def dlt_version_info(pipeline_name: Optional[str]) -> StrStr:
     """Gets dlt version info including commit and image version available in docker"""
-    version_info = {"dlt_version": __version__, "pipeline_name": pipeline_name}
+    version_info = {"dlt_version": __version__}
+    if pipeline_name:
+        version_info["pipeline_name"] = pipeline_name
     # extract envs with build info
     version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))
 

@@ -14,6 +14,8 @@ from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 
 import pytest
+from dlt.common.configuration import resolve
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
@@ -57,6 +59,7 @@ from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
+from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import (
     InvalidPipelineName,
     PipelineNeverRan,
@@ -95,7 +98,6 @@ def test_default_pipeline() -> None:
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
-    assert p.runtime_config.pipeline_name == p.pipeline_name
     # default dataset name is not created until a destination that requires it is set
     assert p.dataset_name is None
     assert p.destination is None
@@ -115,6 +117,12 @@ def test_default_pipeline() -> None:
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
+def test_pipeline_configuration_gen_name() -> None:
+    c = resolve.resolve_configuration(PipelineConfiguration())
+    assert c.pipeline_name.startswith("dlt_")
+    assert c.runtime.slack_incoming_hook is None
+
+
 def test_default_pipeline_dataset_layout(environment) -> None:
     # Set dataset_name_layout to "bobby_%s"
     dataset_name_layout = "bobby_%s"
@@ -130,7 +138,6 @@ def test_default_pipeline_dataset_layout(environment) -> None:
     ]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
-    assert p.runtime_config.pipeline_name == p.pipeline_name
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
     assert p.default_schema_name is None
@@ -352,8 +359,6 @@ def test_pipeline_with_non_alpha_name() -> None:
     assert p.pipeline_name == name
     # default dataset is set (we used filesystem destination that requires dataset)
     assert p.dataset_name == f"{name}_dataset"
-    # also pipeline name in runtime must be correct
-    assert p.runtime_config.pipeline_name == p.pipeline_name
 
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
@@ -993,6 +998,7 @@ def test_sentry_tracing() -> None:
     import sentry_sdk
 
     os.environ["RUNTIME__SENTRY_DSN"] = TEST_SENTRY_DSN
+    Container()[PluggableRunContext].reload()
 
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)

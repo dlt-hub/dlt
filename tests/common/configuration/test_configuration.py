@@ -717,11 +717,6 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
             assert not c.instrumented.is_partial()
 
 
-def test_run_configuration_gen_name(environment: Any) -> None:
-    C = resolve.resolve_configuration(RuntimeConfiguration())
-    assert C.pipeline_name.startswith("dlt_")
-
-
 def test_runtime_configuration_telemetry_disabled_on_non_threading_platform(monkeypatch) -> None:
     c = resolve.resolve_configuration(RuntimeConfiguration())
     assert c.dlthub_telemetry

@@ -3,6 +3,7 @@ import dataclasses
 
 from types import TracebackType
 from typing import (
+    ClassVar,
     Optional,
     NamedTuple,
     Literal,
@@ -22,7 +23,11 @@ import datetime  # noqa: 251
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.configuration import configspec, NotResolved
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+    known_sections,
+)
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
     resolve_replace_strategy,
@@ -150,6 +155,8 @@ class DestinationClientConfiguration(BaseConfiguration):
     credentials: Optional[CredentialsConfiguration] = None
     destination_name: Optional[str] = None  # name of the destination
     environment: Optional[str] = None
+
+    __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
