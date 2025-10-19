@@ -104,6 +104,11 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     @property
     def config(self) -> WorkspaceConfiguration:
+        def _to_run_dir(dir_: Optional[str]) -> Optional[str]:
+            if not dir_:
+                return None
+            return os.path.join(self.run_dir, dir_)
+
         if self._config is None:
             from dlt.common.configuration.resolve import resolve_configuration
 
@@ -114,18 +119,17 @@ class WorkspaceRunContext(ProfilesRunContext):
             if self._config.settings.name:
                 self._name = self._config.settings.name
 
-            self._data_dir = default_working_dir(
+            self._data_dir = _to_run_dir(self._config.settings.working_dir) or default_working_dir(
                 self.settings_dir,
                 self.name,
                 self.profile,
-                self._config.settings.data_dir or DEFAULT_WORKSPACE_WORKING_FOLDER,
+                DEFAULT_WORKSPACE_WORKING_FOLDER,
             )
-            # TODO: if local_dir == run_dir and profile "dev" profile prefixing for local_dir for OSS compat
-            self._local_dir = default_working_dir(
+            self._local_dir = _to_run_dir(self._config.settings.local_dir) or default_working_dir(
                 self.run_dir,
                 self.name,
                 self.profile,
-                self._config.settings.local_dir or DEFAULT_LOCAL_FOLDER,
+                DEFAULT_LOCAL_FOLDER,
             )
         return self._config
 

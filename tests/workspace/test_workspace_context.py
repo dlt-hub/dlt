@@ -74,11 +74,19 @@ def test_profile_switch_no_workspace():
 
 
 def test_workspace_configuration():
-    with isolated_workspace("configured_workspace") as ctx:
+    with isolated_workspace("configured_workspace", profile="tests") as ctx:
         # should be used as component for logging
         assert ctx.runtime_config.pipeline_name == "component"
         assert ctx.name == "name_override"
-        # check dirs
+        # check dirs for tests profile
+        assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
+        assert ctx.local_dir.endswith(os.path.join("_local", "tests"))
+
+        ctx = ctx.switch_profile("dev")
+        assert ctx.name == "name_override"
+        assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
+        # this OSS compat mode where local dir is same as run dir
+        assert ctx.local_dir == os.path.join(ctx.run_dir, ".")
 
 
 def test_pinned_profile() -> None:

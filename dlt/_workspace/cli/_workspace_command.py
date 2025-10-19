@@ -14,7 +14,7 @@ from dlt._workspace.profile import read_profile_pin
 
 @utils.track_command("workspace", track_before=False, operation="info")
 def print_workspace_info(run_context: WorkspaceRunContext) -> None:
-    # fmt.echo("Workspace %s:" % fmt.bold(run_context.name))
+    fmt.echo("Workspace %s:" % fmt.bold(run_context.name))
     fmt.echo("Workspace dir: %s" % fmt.bold(run_context.run_dir))
     fmt.echo("Settings dir: %s" % fmt.bold(run_context.settings_dir))
     # profile info
@@ -23,7 +23,7 @@ def print_workspace_info(run_context: WorkspaceRunContext) -> None:
     fmt.echo("  Pipelines and other working data: %s" % fmt.bold(run_context.data_dir))
     fmt.echo("  Locally loaded data: %s" % fmt.bold(run_context.local_dir))
     if run_context.profile == read_profile_pin(run_context):
-        fmt.echo("  Profile in %s" % fmt.bold("pinned"))
+        fmt.echo("  Profile is %s" % fmt.bold("pinned"))
     # provider info
     providers_context = Container()[PluggableRunContext].providers
     fmt.echo()
