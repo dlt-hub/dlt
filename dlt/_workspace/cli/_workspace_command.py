@@ -54,3 +54,10 @@ def start_mcp(run_context: WorkspaceRunContext, port: int, stdio: bool) -> None:
         fmt.echo("Starting dlt MCP server", err=True)
     mcp_server = WorkspaceMCP(f"dlt: {run_context.name}@{run_context.profile}", port=port)
     mcp_server.run(transport)
+
+
+@utils.track_command("dashboard", True)
+def show_workspace(run_context: WorkspaceRunContext, edit: bool) -> None:
+    from dlt._workspace.helpers.dashboard.runner import run_dashboard
+
+    run_dashboard(edit=edit)

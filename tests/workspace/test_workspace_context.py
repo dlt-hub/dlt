@@ -165,7 +165,7 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     expected_settings = os.path.join(context.run_dir, DOT_DLT)
     assert context.settings_dir == expected_settings
 
-    # path / _data / profile
+    # path / .var / profile
     expected_data_dir = os.path.join(
         context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER, profile
     )
