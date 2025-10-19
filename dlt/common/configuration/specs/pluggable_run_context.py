@@ -111,6 +111,14 @@ class RunContextBase(ABC):
     def plug(self) -> None:
         """Called when context is added to container"""
 
+    def reload(self) -> "RunContextBase":
+        """This will reload current context by triggering run context plugin via Container"""
+        from dlt.common.configuration.container import Container
+
+        plug_ctx = Container()[PluggableRunContext]
+        plug_ctx.reload(self.run_dir, runtime_kwargs=self.runtime_kwargs)
+        return plug_ctx.context
+
     @staticmethod
     def import_run_dir_module(run_dir: str) -> ModuleType:
         """Returns a top Python module of the workspace (if importable)"""
