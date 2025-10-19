@@ -712,7 +712,14 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
     _result.append(
         mo.accordion(
-            {"Show full stacktrace": mo.ui.code_editor("".join(_exception_traces), language="sh")},
+            {
+                "Show full stacktrace": mo.ui.code_editor(
+                    "".join(_exception_traces),
+                    language="python",
+                    disabled=True,
+                    show_copy_button=True,
+                )
+            },
             lazy=True,
         )
     )
