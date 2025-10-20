@@ -85,6 +85,12 @@ To initialize a dltHub workspace, execute the following:
 dlt init dlthub:{source_name} duckdb
 ```
 
+For example:
+
+```sh
+dlt init dlthub:github duckdb
+```
+
 The command scaffolds a **workspace-ready REST API pipeline project** with AI-assisted development support.
 
 It creates:
@@ -273,16 +279,6 @@ PROGRESS=enlighten python {source_name}_pipeline.py
 Alternatives: `tqdm`, `alive_progress`, or `PROGRESS=log`.
 
 [See monitor loading progress->](../general-usage/pipeline#monitor-the-loading-progress)
-
-**View data & tables (dashboard)**
-
-```bash
-dlt pipeline {pipeline_name} show
-```
-
-Opens a Marimo dashboard with all the metadata, tables, row counts, and ad-hoc queries.
-
-![marimo](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
 
 **Inspect loads & trace**
 
