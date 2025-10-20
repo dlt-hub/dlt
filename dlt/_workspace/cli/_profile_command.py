@@ -8,7 +8,7 @@ from dlt._workspace.profile import (
     read_profile_pin,
     save_profile_pin,
 )
-from dlt.cli import SupportsCliCommand, echo as fmt
+from dlt._workspace.cli import SupportsCliCommand, echo as fmt
 
 
 class ProfileCommand(SupportsCliCommand):

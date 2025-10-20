@@ -1,5 +1,4 @@
-from typing import Any, Dict, Iterator
-from git import List
+from typing import Any, Dict, Iterator, List
 import pytest
 import io
 

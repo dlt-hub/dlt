@@ -23,7 +23,7 @@ from tests.common.runtime.utils import mock_image_env, mock_github_env, mock_pod
 from tests.common.configuration.utils import environment
 from tests.utils import (
     preserve_environ,
-    unload_modules,
+    auto_unload_modules,
     SentryLoggerConfiguration,
     disable_temporary_telemetry,
     init_test_logging,

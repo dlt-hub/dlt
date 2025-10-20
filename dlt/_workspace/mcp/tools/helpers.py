@@ -2,11 +2,6 @@ import pyarrow as pa
 import pyarrow.csv as pacsv
 import pyarrow.types as patypes
 import unicodedata
-from dlt.cli.init_command import (
-    _list_verified_sources,
-    DEFAULT_VERIFIED_SOURCES_REPO,
-)
-from dlt.cli.echo import suppress_echo
 
 
 def format_csv(table: pa.Table, info: str = "") -> str:
@@ -60,14 +55,3 @@ def format_csv(table: pa.Table, info: str = "") -> str:
     pacsv.write_csv(cleaned_table, sink, write_options=write_options)
     csv_text = sink.getvalue().to_pybytes().decode("utf-8")
     return str(info + csv_text)
-
-
-def get_verified_sources() -> dict[str, str]:
-    """List all available verified sources, cloning from dlt-verified-sources"""
-    sources = {}
-    with suppress_echo():
-        for source_name, source_config in _list_verified_sources(
-            repo_location=DEFAULT_VERIFIED_SOURCES_REPO
-        ).items():
-            sources[source_name] = source_config.doc
-        return sources

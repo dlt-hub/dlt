@@ -14,19 +14,17 @@ from typing import (
     MutableMapping,
     Optional,
     Sequence,
-    TYPE_CHECKING,
 )
 
 from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.typing import TSecretValue, StrAny
-from tests.utils import _inject_providers, _reset_providers, inject_providers
+from tests.utils import _reset_providers, inject_providers
 
 
 @configspec
@@ -118,7 +116,7 @@ def environment() -> Any:
 
 
 @pytest.fixture(autouse=True)
-def reset_resolved_traces() -> Iterator[None]:
+def auto_reset_resolved_traces() -> Iterator[None]:
     log = get_resolved_traces()
     try:
         log.clear()
