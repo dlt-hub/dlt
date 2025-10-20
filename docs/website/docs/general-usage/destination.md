@@ -18,20 +18,10 @@ We recommend that you declare the destination type when creating a pipeline inst
 
 Above, we want to use the **filesystem** built-in destination. You can use shorthand types only for built-ins.
 
-* Use a **custom destination name** with a configured type
+* Use a [**named destination**](#use-named-destinations) with a configured type
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::custom_destination_name-->
 
-Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable.
-
-:::note
-When resolving non-module destination references (e.g., `"filesystem"` or `"my_destination"`, not `"dlt.destinations.filesystem"`), dlt first attempts to resolve the reference as a named destination with a valid destination type configured, then falls back to shorthand type resolution.
-
-This means that, in the previous example, if the destination type was not properly configured or was not a valid destination type, dlt would have attempted to resolve `"my_destination"` as a shorthand for a built-in type and would have eventually failed.
-
-As another example, the following:
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::avoid_example-->
-will be resolved as a BigQuery destination that is named `"filesystem"`!
-:::
+Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable. This approach is especially useful when switching between destinations without modifying the actual pipeline code. See details in the [section on using named destinations](#use-named-destinations-to-switch-destinations-without-changing-pipeline-code).
 
 * Use full **destination factory type**
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class_type-->
@@ -67,7 +57,7 @@ DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME=dltdata
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="storage key"
 ```
 
-When using named destination factories, use the destination name in the config section:
+When using destination factories, use the destination name in the config section:
 <!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::name_layout-->
 
 For custom destination names passed to your pipeline (e.g., `destination="my_destination"`), dlt resolves the destination type from configuration. Add `destination_type` to specify which destination type to use:
@@ -111,31 +101,117 @@ print(dict(duck_.capabilities()))
 ```
 The example above is overriding the `naming_convention` and `recommended_file_size` in the destination capabilities.
 
-### Configure multiple destinations in a pipeline
-To configure multiple destinations within a pipeline, you need to provide the credentials for each destination in the "secrets.toml" file. This example demonstrates how to configure a BigQuery destination named `destination_one`:
+
+## Use named destinations
+
+Named destinations are destinations with a custom name, the type of which can be explicitly provided or be resolved from the toml files or equivalent environment variables. There are multiple ways to use named destinations:
+
+- Use a named destination string reference with type configured via an environment variable
+
+<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::custom_destination_name-->
+
+- Use `dlt.destination()` with the type configured via an environment variable
+
+<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::named_destination_dlt_destination-->
+
+- Use `dlt.destination()` with the type explicitly configured
+
+<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::named_destination_dlt_destination_explicit_type-->
+
+For all of the above, the destination type can alternatively be configured in the `secrets.toml` file as follows:
 
 ```toml
-[destination.destination_one]
-destination_type = "bigquery"
+[destination.my_destination]
+destination_type = "filesystem"
+```
+
+:::note
+When resolving non-module destination string references (e.g., `"bigquery"` or `"my_destination"`, not `"dlt.destinations.bigquery"`), dlt first attempts to resolve the reference as a named destination with a valid destination type configured, then falls back to shorthand type resolution.
+
+This means that, in the examples above, if the destination type was not properly configured or was not a valid destination type, dlt would have attempted to resolve `"my_destination"` as a shorthand for a built-in type and would have eventually failed.
+
+As another example, the following:
+<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::avoid_example-->
+will be resolved as a DuckDB destination that is named `"bigquery"`, because a valid destination type `"duckdb"` is configured and dlt does not attempt to resolve the name `"bigquery"` as a shorthand for a built-in type!
+
+**Exception:** If `dlt.destination()` is used and the `destination_type` is explicitly provided as an argument, dlt will skip the shorthand fallback and only attempt named destination resolution.
+
+:::
+
+
+### Configure multiple destinations of the same type
+
+One of the benefits of named destinations is the ability to configure multiple destinations of the same type for use across different pipelines in a single script. For example, if you have two BigQuery destinations, you could define the following in the `secrets.toml` file:
+
+```toml
+[destination.my_destination]
 location = "US"
-[destination.destination_one.credentials]
+[destination.my_destination.credentials]
+project_id = "please set me up!"
+private_key = "please set me up!"
+client_email = "please set me up!"
+
+[destination.my_other_destination]
+location = "EU"
+[destination.my_other_destination.credentials]
 project_id = "please set me up!"
 private_key = "please set me up!"
 client_email = "please set me up!"
 ```
 
-You can then use this destination in your pipeline as follows:
+And use it in the pipeline code as follows:
 ```py
 import dlt
 
-# Configure the pipeline to use the "destination_one" BigQuery destination
-pipeline = dlt.pipeline(
-    pipeline_name='pipeline',
-    destination=dlt.destination("destination_one"),
+# Configure the pipeline to use the "my_destination" BigQuery destination
+my_pipeline = dlt.pipeline(
+    pipeline_name='my_pipeline',
+    destination=dlt.destination("my_destination", destination_type="bigquery"),
+    dataset_name='dataset_name'
+)
+
+# Configure the pipeline to use the "my_other_destination" BigQuery destination
+my_other_pipeline = dlt.pipeline(
+    pipeline_name='my_other_pipeline',
+    destination=dlt.destination("my_other_destination", destination_type="bigquery"),
     dataset_name='dataset_name'
 )
 ```
-Similarly, you can assign multiple destinations to the same or different drivers.
+
+### Use named destinations to switch destinations without changing code
+
+Another advantage of named destinations is environment-based switching. When you need to use different destinations across development, staging, and production environments, named destinations allow you to switch destinations by modifying only the toml configuration files without changing the pipeline code. For example, if you are developing with DuckDB, you would first have your `secrets.toml` file configured as follows:
+
+```toml
+[destination.my_destination]
+destination_type = "duckdb"
+```
+
+With the pipeline code being:
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name='my_pipeline',
+    destination='my_destination',
+    dataset_name='dataset_name'
+)
+```
+
+Then when you deploy the script, you would simply adjust your toml file with:
+
+```toml
+[destination.my_destination]
+destination_type = "bigquery"
+[destination.my_destination.credentials]
+project_id = "please set me up!"
+private_key = "please set me up!"
+client_email = "please set me up!"
+```
+
+And keep the pipeline code intact.
+
 
 ## Access a destination
 When loading data, `dlt` will access the destination in two cases:
