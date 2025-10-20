@@ -28,13 +28,12 @@ class HexBytes(bytes):
         bytesval = HexBytes._to_bytes(val)
         return cast(HexBytes, super().__new__(cls, bytesval))  # type: ignore  # https://github.com/python/typeshed/issues/2630  # noqa: E501
 
-    def hex(self) -> str:  # noqa: A003
+    def hex(self, sep: Union[str, bytes] = None, bytes_per_sep: int = 1) -> str:  # noqa: A003
         """
         Output hex-encoded bytes, with an "0x" prefix.
         Everything following the "0x" is output exactly like :meth:`bytes.hex`.
         """
-
-        return HEX_PREFIX_LOWER + super().hex()
+        return HEX_PREFIX_LOWER + (super().hex() if not sep else super().hex(sep, bytes_per_sep))
 
     @overload
     def __getitem__(self, key: "SupportsIndex") -> int:  # noqa: F811
