@@ -171,13 +171,14 @@ def main() -> None:
     print("Changing directory to", website_dir)
     os.chdir(website_dir)
 
-    process_docs()
-
     from .preprocess_change import watch
 
     if args.watch:
         print("Watching for file changes...")
         watch()
+    else:
+        process_docs()
+
 
 
 if __name__ == "__main__":
