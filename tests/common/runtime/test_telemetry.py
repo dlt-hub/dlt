@@ -23,12 +23,12 @@ from tests.common.runtime.utils import mock_image_env, mock_github_env, mock_pod
 from tests.common.configuration.utils import environment
 from tests.utils import (
     preserve_environ,
-    unload_modules,
+    auto_unload_modules,
     SentryLoggerConfiguration,
     disable_temporary_telemetry,
     init_test_logging,
     start_test_telemetry,
-    wipe_pipeline,
+    deactivate_pipeline,
 )
 
 
@@ -176,8 +176,9 @@ def test_track_anon_event(
     # verify context
     context = event["context"]
     assert context["library"] == {"name": DLT_PKG_NAME, "version": __version__}
+    print(context)
     # we assume plus is not installed
-    assert "plus" not in context
+    assert "dlthub" not in context
     assert isinstance(context["cpu"], int)
     assert isinstance(context["ci_run"], bool)
     assert isinstance(context["exec_info"], list)
@@ -199,13 +200,13 @@ def test_forced_anon_tracker() -> None:
 def test_execution_context_with_plugin() -> None:
     import sys
 
-    # move working dir so dlt_plus mock is importable and appears in settings
+    # move working dir so dlthub mock is importable and appears in settings
     plus_path = os.path.dirname(__file__)
     sys.path.append(plus_path)
     try:
         context = get_execution_context()
         # has plugin info
-        assert context["plus"] == {"name": "dlt_plus", "version": "1.7.1"}
+        assert context["dlthub"] == {"name": "dlthub", "version": "1.7.1"}
     finally:
         sys.path.remove(plus_path)
 

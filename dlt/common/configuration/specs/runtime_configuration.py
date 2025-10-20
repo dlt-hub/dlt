@@ -53,9 +53,6 @@ class RuntimeConfiguration(BaseConfiguration):
                 Dlt100DeprecationWarning,
                 stacklevel=1,
             )
-        # always use abs path for data_dir
-        # if self.data_dir:
-        #     self.data_dir = abspath(self.data_dir)
         if self.slack_incoming_hook:
             # it may be obfuscated base64 value
             # TODO: that needs to be removed ASAP

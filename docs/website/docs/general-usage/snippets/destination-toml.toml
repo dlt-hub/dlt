@@ -13,3 +13,12 @@ bucket_url="az://dlt-azure-bucket"
 azure_storage_account_name="dltdata"
 azure_storage_account_key="storage key"
 # @@@DLT_SNIPPET_END name_layout
+
+# @@@DLT_SNIPPET_START custom_name_layout
+[destination.my_destination]
+destination_type="filesystem"
+bucket_url="az://dlt-azure-bucket"
+[destination.my_destination.credentials]
+azure_storage_account_name="dltdata"
+azure_storage_account_key="storage key"
+# @@@DLT_SNIPPET_END custom_name_layout

@@ -9,7 +9,12 @@ from tests.load.utils import (
     drop_pipeline,
     empty_schema,
 )
-from tests.utils import preserve_environ, patch_home_dir, autouse_test_storage, public_http_server
+from tests.utils import (
+    preserve_environ,
+    auto_test_run_context,
+    autouse_test_storage,
+    public_http_server,
+)
 
 
 @pytest.fixture(scope="function", params=DEFAULT_BUCKETS)

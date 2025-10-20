@@ -109,7 +109,7 @@ Some details about the project structure above:
 * The `runtime` section is analogous to the config.toml [runtime] section and could also be omitted in this case.
 * The `profiles` section is not doing much in this case. There are two implicit profiles: `dev` and `tests` that are present in any project; we will learn about profiles in more detail later.
 
-You can reference environment variables in the `dlt.yml` file using the `{env.ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#project-settings-and-variable-substitution) that are automatically substituted during loading.
+You can reference environment variables in the `dlt.yml` file using the `{env.ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/project/overview.md#project-settings-and-variable-substitution) that are automatically substituted during loading.
 
 :::tip
 You can find more information about the `dlt.yml` structure in the [dlt+ Project section](../core-concepts/project.md).
@@ -125,10 +125,10 @@ dlt pipeline my_pipeline run
 
 This command:
 - Locates the pipeline named `my_pipeline` in `dlt.yml`.
-- Executes it, populating the duckdb destination that [is defined to be stored](../features/projects.md#local-and-temporary-files-data_dir) in `_data/dev/local/duckdb.duckdb`.
+- Executes it, populating the duckdb destination that [is defined to be stored](../features/project/overview.md#local-and-temporary-files-data_dir) in `_data/dev/local/duckdb.duckdb`.
 
 :::tip
-Take a look at the [Projects context](../features/projects.md#project-context) to learn more about how to work with nested projects and how dlt searches for the pipelines based on its name.
+Take a look at the [Projects context](../features/project/overview.md#project-context) to learn more about how to work with nested projects and how dlt searches for the pipelines based on its name.
 :::
 
 ### Inspecting the results
@@ -379,5 +379,5 @@ dlt dataset --profile dev my_duckdb_destination_dataset row-counts
 dlt dataset --profile prod my_duckdb_destination_dataset row-counts
 ```
 
-To locate your [loaded data](../features/projects.md#local-and-temporary-files-data_dir), check the `_data\{profile name}\local` directory.
+To locate your [loaded data](../features/project/overview.md#local-and-temporary-files-data_dir), check the `_data\{profile name}\local` directory.
 

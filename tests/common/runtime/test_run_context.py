@@ -12,6 +12,7 @@ from dlt.common.runtime.run_context import (
     RunContext,
     get_plugin_modules,
     is_folder_writable,
+    switched_run_context,
 )
 from dlt.common.storages.configuration import _make_file_url
 from dlt.common.utils import set_working_dir
@@ -28,16 +29,6 @@ def preserve_logger() -> Iterator[None]:
         yield
     finally:
         logger.LOGGER = old_logger
-
-
-@pytest.fixture(autouse=True)
-def preserve_run_context() -> Iterator[None]:
-    container = Container()
-    old_ctx = container[PluggableRunContext]
-    try:
-        yield
-    finally:
-        container[PluggableRunContext] = old_ctx
 
 
 def test_run_context() -> None:
@@ -74,7 +65,7 @@ def test_run_context() -> None:
 
     # check plugin modules
     # NOTE: first `dlt` - is the root module of current context, second is always present
-    assert get_plugin_modules() == ["dlt", "dlt"]
+    assert get_plugin_modules() == ["dlt"]
 
 
 def test_context_without_module() -> None:
@@ -111,44 +102,53 @@ def test_context_init_with_runtime() -> None:
 
 
 def test_run_context_handover() -> None:
+    # test handover of run context to process pool worker
     runtime_config = RuntimeConfiguration()
     ctx = PluggableRunContext()
-    mock = MockableRunContext.from_context(ctx.context)
-    mock._name = "handover-dlt"
-    # also adds to context, should initialize runtime
-    global _INITIALIZED
+    container = Container()
+    old_ctx = container[PluggableRunContext]
     try:
-        telemetry_init = _INITIALIZED
-        # do not initialize telemetry here
-        _INITIALIZED = True
-        restore_run_context(mock, runtime_config)
+        mock = MockableRunContext.from_context(ctx.context)
+        mock._name = "handover-dlt"
+        # also adds to context, should initialize runtime
+        global _INITIALIZED
+        try:
+            telemetry_init = _INITIALIZED
+            # do not initialize telemetry here
+            _INITIALIZED = True
+            # this will insert pickled/unpickled objects into the container
+            mock = pickle.loads(pickle.dumps(mock))
+            runtime_config = pickle.loads(pickle.dumps(runtime_config))
+            restore_run_context(mock, runtime_config)
+        finally:
+            _INITIALIZED = telemetry_init
+
+        # logger initialized and named
+        assert logger.LOGGER.name == "handover-dlt"
+
+        # get regular context
+        import dlt
+
+        run_ctx = dlt.current.run_context()
+        assert run_ctx is mock
+        ctx = Container()[PluggableRunContext]
+        assert ctx.runtime_config is runtime_config
     finally:
-        _INITIALIZED = telemetry_init
-
-    # logger initialized and named
-    assert logger.LOGGER.name == "handover-dlt"
-
-    # get regular context
-    import dlt
-
-    run_ctx = dlt.current.run_context()
-    assert run_ctx is mock
-    ctx = Container()[PluggableRunContext]
-    assert ctx.runtime_config is runtime_config
+        container[PluggableRunContext] = old_ctx
 
 
 def test_context_switch_restores_logger() -> None:
     ctx = PluggableRunContext()
     mock = MockableRunContext.from_context(ctx.context)
     mock._name = "dlt-tests"
-    ctx.context = mock
-    with Container().injectable_context(ctx):
+    # ctx.context = mock
+    with switched_run_context(mock):
         assert logger.LOGGER.name == "dlt-tests"
         ctx = PluggableRunContext()
         mock = MockableRunContext.from_context(ctx.context)
         mock._name = "dlt-tests-2"
-        ctx.context = mock
-        with Container().injectable_context(ctx):
+        # ctx.context = mock
+        with switched_run_context(mock):
             assert logger.LOGGER.name == "dlt-tests-2"
         assert logger.LOGGER.name == "dlt-tests"
 

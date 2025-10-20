@@ -34,7 +34,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import TSecretValue
 
-from tests.utils import preserve_environ, unload_modules
+from tests.utils import preserve_environ, auto_unload_modules
 from tests.common.configuration.utils import (
     ConnectionStringCompatCredentials,
     SecretCredentials,
