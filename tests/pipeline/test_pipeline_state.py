@@ -100,25 +100,11 @@ def test_state_repr() -> None:
     ]
 
 
-@pytest.mark.parametrize(
-    "use_factory_method",
-    [True, False],
-    ids=["use_factory_method", "use_from_reference"],
-)
-def test_restore_state_props(use_factory_method: bool) -> None:
-    """Test pipeline state persistence and restoration.
-
-    Args:
-        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
-            `Destination.from_reference()` internally). If False, calls
-            `Destination.from_reference()` directly. Both should behave identically.
-    """
-    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
-
+def test_restore_state_props() -> None:
     p = dlt.pipeline(
         pipeline_name="restore_state_props",
-        destination=dest_ref_func("redshift", destination_name="redshift_name"),
-        staging=dest_ref_func("filesystem", destination_name="filesystem_name"),
+        destination=Destination.from_reference("redshift", destination_name="redshift_name"),
+        staging=Destination.from_reference("filesystem", destination_name="filesystem_name"),
         dataset_name="the_dataset",
     )
     print(get_dlt_pipelines_dir())

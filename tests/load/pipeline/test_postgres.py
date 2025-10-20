@@ -56,39 +56,22 @@ def test_postgres_encoded_binary(
     assert data["table"][0]["hash"].tobytes() == blob
 
 
+# do not remove - it allows us to filter tests by destination
 @pytest.mark.no_load
-@pytest.mark.parametrize(
-    "use_factory_method",
-    [True, False],
-    ids=["use_factory_method", "use_from_reference"],
-)
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
     ids=lambda x: x.name,
 )
 def test_pipeline_explicit_destination_credentials(
-    use_factory_method: bool,
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """
-    Tests that explicit destination credentials.
-
-    Args:
-        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
-            `Destination.from_reference()` internally). If False, calls
-            `Destination.from_reference()` directly. Both should behave identically.
-        destination_config (DestinationTestConfiguration): Test configuration for the destination.
-            This allows filtering tests by destination type. Do not remove.
-    """
     from dlt.destinations import postgres
     from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 
-    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
-
     # explicit credentials resolved
     p = dlt.pipeline(
-        destination=dest_ref_func(
+        destination=Destination.from_reference(
             "postgres",
             destination_name="mydest",
             credentials="postgresql://loader:loader@localhost:7777/dlt_data",
@@ -101,7 +84,7 @@ def test_pipeline_explicit_destination_credentials(
     # explicit credentials resolved ignoring the config providers
     os.environ["DESTINATION__MYDEST__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(
-        destination=dest_ref_func(
+        destination=Destination.from_reference(
             "postgres",
             destination_name="mydest",
             credentials="postgresql://loader:loader@localhost:5432/dlt_data",
@@ -114,7 +97,7 @@ def test_pipeline_explicit_destination_credentials(
     os.environ["DESTINATION__MYDEST__CREDENTIALS__USERNAME"] = "UN"
     os.environ["DESTINATION__MYDEST__CREDENTIALS__PASSWORD"] = "PW"
     p = dlt.pipeline(
-        destination=dest_ref_func(
+        destination=Destination.from_reference(
             "postgres",
             destination_name="mydest",
             credentials="postgresql://localhost:5432/dlt_data",

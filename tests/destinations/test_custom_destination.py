@@ -25,8 +25,6 @@ from tests.cases import table_update_and_row
 from tests.load.utils import (
     assert_all_data_types_row,
 )
-from tests.utils import preserve_environ
-
 
 SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
 
@@ -160,22 +158,7 @@ def test_capabilities() -> None:
     assert dict(caps) == dict(client_caps)
 
 
-@pytest.mark.parametrize(
-    "use_factory_method",
-    [True, False],
-    ids=["use_factory_method", "use_from_reference"],
-)
-def test_instantiation(use_factory_method: bool) -> None:
-    """
-    Test custom destination instantiation.
-
-    Args:
-        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
-            `Destination.from_reference()` internally). If False, calls
-            `Destination.from_reference()` directly. Both should behave identically.
-    """
-    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
-
+def test_instantiation() -> None:
     # also tests DESTINATIONS registry
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
@@ -201,7 +184,7 @@ def test_instantiation(use_factory_method: bool) -> None:
     calls = []
     p = dlt.pipeline(
         "sink_test",
-        destination=dest_ref_func("destination", destination_callable=local_sink_func),
+        destination=Destination.from_reference("destination", destination_callable=local_sink_func),
         dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -217,7 +200,9 @@ def test_instantiation(use_factory_method: bool) -> None:
 
     p = dlt.pipeline(
         "sink_test",
-        destination=dest_ref_func("destination", destination_callable=local_sink_func_no_params),
+        destination=Destination.from_reference(
+            "destination", destination_callable=local_sink_func_no_params
+        ),
         dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -226,11 +211,10 @@ def test_instantiation(use_factory_method: bool) -> None:
     global global_calls
     global_calls = []
     # this is technically possible but should not be used
-    dest_ref = dest_ref_func(
+    dest_ref = Destination.from_reference(
         "destination",
         destination_callable="tests.destinations.test_custom_destination.global_sink_func",
     )
-
     assert dest_ref.destination_name == "global_sink_func"
     # type comes from the "destination" wrapper destination
     assert dest_ref.destination_type == "dlt.destinations.destination"
@@ -260,11 +244,10 @@ def test_instantiation(use_factory_method: bool) -> None:
     assert len(global_calls) == 2
 
     # we can import type (it is not a ref)
-    dest_ref = dest_ref_func(
+    dest_ref = Destination.from_reference(
         "tests.destinations.test_custom_destination.GlobalSinkFuncDestination",
         destination_name="alt_name",
     )
-
     assert dest_ref.destination_name == "alt_name"
     assert (
         dest_ref.destination_type
@@ -280,7 +263,9 @@ def test_instantiation(use_factory_method: bool) -> None:
     assert len(global_calls) == 3
 
     # now import by ref
-    dest_ref = dest_ref_func("tests.destinations.test_custom_destination.global_sink_func")
+    dest_ref = Destination.from_reference(
+        "tests.destinations.test_custom_destination.global_sink_func"
+    )
     assert dest_ref.destination_name == "global_sink_func"
     assert (
         dest_ref.destination_type
@@ -298,7 +283,7 @@ def test_instantiation(use_factory_method: bool) -> None:
     # pass None as callable arg will fail on load
     p = dlt.pipeline(
         "sink_test",
-        destination=dest_ref_func("destination", destination_callable=None),
+        destination=Destination.from_reference("destination", destination_callable=None),
         dev_mode=True,
     )
     with pytest.raises(ConfigurationValueError):
@@ -308,7 +293,9 @@ def test_instantiation(use_factory_method: bool) -> None:
     with pytest.raises(UnknownCustomDestinationCallable):
         p = dlt.pipeline(
             "sink_test",
-            destination=dest_ref_func("destination", destination_callable="does.not.exist"),
+            destination=Destination.from_reference(
+                "destination", destination_callable="does.not.exist"
+            ),
             dev_mode=True,
         )
 

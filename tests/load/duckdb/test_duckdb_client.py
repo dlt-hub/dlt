@@ -307,22 +307,7 @@ def test_credentials_wrong_config() -> None:
 
 
 @pytest.mark.no_load
-@pytest.mark.parametrize(
-    "use_factory_method",
-    [True, False],
-    ids=["use_factory_method", "use_from_reference"],
-)
-def test_duckdb_in_memory_mode_via_factory(use_factory_method: bool):
-    """
-    Tests duckdb in-memory mode validation (rejecting :memory: credentials).
-
-    Args:
-        use_factory_method (bool): If True, uses `dlt.destination()` (which calls
-            `Destination.from_reference()` internally). If False, calls
-            `Destination.from_reference()` directly. Both should behave identically.
-    """
-    dest_ref_func = dlt.destination if use_factory_method else Destination.from_reference
-
+def test_duckdb_in_memory_mode_via_factory():
     import duckdb
 
     # Check if passing external duckdb connection works fine
@@ -351,7 +336,7 @@ def test_duckdb_in_memory_mode_via_factory(use_factory_method: bool):
     with pytest.raises(PipelineStepFailed) as exc:
         p = dlt.pipeline(
             pipeline_name="booboo",
-            destination=dest_ref_func("duckdb", credentials=":memory:"),
+            destination=Destination.from_reference("duckdb", credentials=":memory:"),
         )
         p.run([1, 2, 3], table_name="numbers")
 

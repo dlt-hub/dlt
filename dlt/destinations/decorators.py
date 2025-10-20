@@ -201,6 +201,7 @@ def destination(
 def destination(
     func_or_name: Union[Optional[AnyFun], str] = None,
     /,
+    *,
     loader_file_format: TLoaderFileFormat = None,
     batch_size: int = 10,
     name: str = None,
