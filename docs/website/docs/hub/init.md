@@ -42,7 +42,7 @@ It scaffolds the pipeline template — a minimal starter project with a single P
 - read a public CSV with pandas, and
 - pull rows from a SQL database via SQLAlchemy.
 
-The file also includes an optional GitHub REST client example (a @dlt.resource + @dlt.source) that can use a token from .dlt/secrets.toml, but will work unauthenticated at low rate limits.
+The file also includes an optional GitHub REST client example (a `@dlt.resource` + `@dlt.source`) that can use a token from `.dlt/secrets.toml`, but will work unauthenticated at low rate limits.
 It’s meant as a hands-on playground you can immediately run and then adapt into a real pipeline.
 
 Learn how to build you own dlt pipeline with [dlt Fundamentals course.](https://dlthub.learnworlds.com/course/dlt-fundamentals)
@@ -54,20 +54,40 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 - **Cursor**,
 - **Continue**,
 - **Copilot**,
-- [the whole list is here ->](../dlt-ecosystem/llm-tooling/llm-native-workflow#prerequisites)
+- [the full list ->](../dlt-ecosystem/llm-tooling/llm-native-workflow#prerequisites)
 
-#### Initialize workspace
+
+**What is dlt Workspace?**
+
+**dlt Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
+It enables a single developer to:
+
+* Build and test pipelines locally with `dlt`
+* Run transformations, notebooks, and reports with one command
+* Access datasets directly for live, production-ready insights
+
+Workspace introduces **profiles** to isolate environments like `dev`, `prod`, or `test`, and supports seamless switching between local and cloud destinations.
+Future versions will add one-click cloud deployment, runtime agents, validation dashboards, and live reporting.
+
+[More about dlt Workspace ->](../dlthub/workspace)
+
+
+**Install dlt with workspace support**
+
+To use workspace functionality, install dlt with the workspace extra:
+
+```bash
+pip install "dlt[workspace]"
+```
+
+This adds support for AI-assisted workflows and the `dlt ai` command.
+
+**Initialize your first workspace pipeline**
 
 dltHub provides prepared contexts for 1000+ sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace).
 To get started, search for your API and follow the tailored instructions.
 
 ![search for your source](https://storage.googleapis.com/dlt-blog-images/llm_workflows_search.png)
-
-Install the workspace tools:
-
-```bash
-pip install "dlt[workspace]"
-```
 
 To initialize a dltHub workspace, execute the following:
 
@@ -85,8 +105,12 @@ It creates:
 * **AI assistant rule files** that enable `dlt ai` workflows.
 * A **`{source_name}-docs.yaml`** file providing source-specific context for the LLM.
 
+It will first prompt you to choose an AI editor/agent.
+If you pick the wrong one, no problem.
+After initializing the workspace, you can delete the incorrect editor rules and run `dlt ai setup` to select the editor again.
 
-#### Generate code
+
+**Generate code**
 
 To get started quickly, we recommend using our pre-defined prompts tailored for each API. Visit [https://dlthub.com/workspace](https://dlthub.com/workspace) and copy the prompt for your selected source.
 Prompts are adjusted per API to provide the most accurate and relevant context.
@@ -109,14 +133,14 @@ For example, see [Cursor’s guide](https://docs.cursor.com/context/@-symbols/ov
 * `@{source}-docs.yaml` contains the source specification and describes the source with endpoints, parameters, and other details.
 * `@dlt_rest_api` contains the documentation for dlt's REST API source.
 
-For more on the workspace concept, see [LLM-native workflow ->](../dlt-ecosystem/llm-tooling/llm-native-workflow)
+For more on the workspace concept, [see LLM-native workflow ->](../dlt-ecosystem/llm-tooling/llm-native-workflow)
 
 
 ### Verified source setup (community connectors)
 
 You can also initialize a verified source — prebuilt connectors contributed and maintained by the dlt team and community.
 
-#### List and select a verified source
+**List and select a verified source**
 
 List available sources:
 
@@ -129,7 +153,7 @@ Pick one, for example:
 ```bash
 dlt init github duckdb
 ```
-#### Project structure
+**Project structure**
 
 This command creates a project like:
 
@@ -148,7 +172,7 @@ This command creates a project like:
 
 Follow the command output to install dependencies and add secrets.
 
-#### General process
+**General process**
 
 To initialize any verified source:
 
@@ -169,26 +193,19 @@ After running the command:
 * You’ll be prompted to install dependencies.
 * Add your credentials to `.dlt/secrets.toml`.
 
-#### Update or customize verified sources
+**Update or customize verified sources**
 
 You can modify an existing verified source in place.
 
 * If your changes are **generally useful**, consider contributing them back via PR.
 * If they’re **specific to your use case**, make them modular so you can still pull upstream updates.
 
-To update your local verified source to the latest version:
-
-```bash
-dlt init pipedrive bigquery
-```
-
-[Read more about verified sources here ->](../walkthroughs/add-a-verified-source)
+[Read more about verified sources ->](../walkthroughs/add-a-verified-source)
 
 ## Step 2: Add credentials
 
 Most pipelines require authentication or connection details such as API keys, passwords, or database credentials.
 `dlt` retrieves these values automatically through **config providers**, which it checks in order when your pipeline runs.
-You can use one location or combine several — for example, store `api_key` in an environment variable and `api_url` in a TOML file.
 
 **Provider priority:**
 
@@ -215,9 +232,8 @@ You can use one location or combine several — for example, store `api_key` in 
 4. **Custom providers** – added via `register_provider()` for your own configuration formats.
 5. **Default values** – from your function signatures.
 
----
 
-### Using credentials in code
+**Using credentials in code**
 
 `dlt` automatically injects secrets into your functions when you call them.
 For example:
@@ -231,16 +247,69 @@ def github_api_source(api_secret_key: str = dlt.secrets.value):
 You don’t need to load secrets manually — `dlt` resolves them from any of the above providers.
 
 
-[Read more about setting credentials here ->](../general-usage/credentials)
+[Read more about setting credentials ->](../general-usage/credentials)
 
 ## Step 3: Run a pipeline
 
+**Run your script**
+
+Run the pipeline to verify that everything works correctly:
+
+```bash
+python {source_name}_pipeline.py
+```
+
+This executes your pipeline — fetching data from the source, normalizing it, and loading it into your chosen destination.
+
+
+**What you should see**
+
+A printed `load_info` summary similar to::
+
+```
+Pipeline github_api_pipeline completed in 0.7 seconds
+1 load package(s) were loaded to destination duckdb and into dataset github_data
+Load package 1749667187.541553 is COMPLETED and contains no failed jobs
+```
+
+
+**Monitor progress (optional)**
+
+```bash
+pip install enlighten
+PROGRESS=enlighten python {source_name}_pipeline.py
+```
+
+Alternatives: `tqdm`, `alive_progress`, or `PROGRESS=log`.
+
+[See monitor loading progress->](../general-usage/pipeline#monitor-the-loading-progress)
+
+**View data & tables (dashboard)**
+
+```bash
+dlt pipeline {pipeline_name} show
+```
+
+Opens a Marimo dashboard with all the metadata, tables, row counts, and ad-hoc queries.
+
+![marimo](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
+
+**Inspect loads & trace**
+
+```bash
+dlt pipeline {pipeline_name} info            # overview
+dlt pipeline {pipeline_name} load-package    # latest package
+dlt pipeline -v {pipeline_name} load-package # with schema changes
+dlt pipeline {pipeline_name} trace           # last run trace & errors
+```
+
+[Read more about running a pipeline ->](../walkthroughs/run-a-pipeline)
 
 ## Next steps: Deploy and scale
 
 Once your pipeline runs locally:
 
-* [Deploy a pipeline](../../walkthroughs/deploy-a-pipeline/)
-* [Share a dataset](../../walkthroughs/share-a-dataset.md)
-* [Monitor via the workspace dashboard](../walkthroughs/llm-native-workflow.md)
+* [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/)
+* [Share a dataset](../walkthroughs/share-a-dataset)
+* [Monitor via the workspace dashboard](../dlthub/dashboard)
 
