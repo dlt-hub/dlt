@@ -138,10 +138,7 @@ def _make_file_url(scheme: str, fs_path: str, bucket_url: str) -> str:
 
 
 def _make_http_url(schema: str, fs_path: str, bucket_url: str) -> str:
-    parsed_http_url = urlparse(fs_path)
-    if not parsed_http_url.scheme:
-        parsed_http_url.scheme = schema
-
+    parsed_http_url = urlparse(fs_path, schema)
     return urlunparse(parsed_http_url)
 
 
