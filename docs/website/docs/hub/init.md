@@ -20,6 +20,21 @@ You can create one in three ways:
 | Verified source | `dlt init <verified_source> <destination>` | Prebuilt, tested connectors from the community |
 
 
+## Step 0: Install dlt with workspace support
+
+To use workspace functionality, install dlt with the workspace extra:
+
+```bash
+pip install "dlt[workspace]"
+```
+
+This adds support for AI-assisted workflows and the `dlt ai` command.
+
+**dlt Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
+
+[More about dlt Workspace ->](../dlthub/workspace)
+
+
 ## Step 1: Initialize a custom pipeline
 
 ### CLI-based setup (standard workflow)
@@ -56,31 +71,6 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 - **Copilot**,
 - [the full list ->](../dlt-ecosystem/llm-tooling/llm-native-workflow#prerequisites)
 
-
-**What is dlt Workspace?**
-
-**dlt Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
-It enables a single developer to:
-
-* Build and test pipelines locally with `dlt`
-* Run transformations, notebooks, and reports with one command
-* Access datasets directly for live, production-ready insights
-
-Workspace introduces **profiles** to isolate environments like `dev`, `prod`, or `test`, and supports seamless switching between local and cloud destinations.
-Future versions will add one-click cloud deployment, runtime agents, validation dashboards, and live reporting.
-
-[More about dlt Workspace ->](../dlthub/workspace)
-
-
-**Install dlt with workspace support**
-
-To use workspace functionality, install dlt with the workspace extra:
-
-```bash
-pip install "dlt[workspace]"
-```
-
-This adds support for AI-assisted workflows and the `dlt ai` command.
 
 **Initialize your first workspace pipeline**
 
