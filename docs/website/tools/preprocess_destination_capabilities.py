@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Tuple, cast
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.reference import Destination
 
-from tools.constants import (
+from .constants import (
     CAPABILITIES_MARKER,
     DESTINATION_CAPABILITIES_SOURCE_DIR,
     DESTINATION_NAME_PATTERN,
