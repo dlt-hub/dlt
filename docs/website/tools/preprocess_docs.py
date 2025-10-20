@@ -180,6 +180,5 @@ def main() -> None:
         process_docs()
 
 
-
 if __name__ == "__main__":
     main()
