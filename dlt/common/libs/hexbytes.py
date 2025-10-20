@@ -1,7 +1,5 @@
-import binascii
 from typing import (
     TYPE_CHECKING,
-    Type,
     Union,
     cast,
     overload,
@@ -12,7 +10,10 @@ if TYPE_CHECKING:
         SupportsIndex,
     )
 
-BytesLike = Union[bool, bytearray, bytes, int, str, memoryview]
+BytesLike = Union[bytearray, bytes, str, memoryview]
+
+HEX_PREFIX_LOWER = "0x"
+HEX_PREFIX_UPPER = "0X"
 
 
 class HexBytes(bytes):
@@ -23,22 +24,17 @@ class HexBytes(bytes):
         2. The representation at console (__repr__) is 0x-prefixed
     """
 
-    def __new__(cls: Type[bytes], val: BytesLike) -> "HexBytes":
+    def __new__(cls, val: BytesLike) -> "HexBytes":
         bytesval = HexBytes._to_bytes(val)
         return cast(HexBytes, super().__new__(cls, bytesval))  # type: ignore  # https://github.com/python/typeshed/issues/2630  # noqa: E501
 
-    def hex(  # noqa: A003
-        self, sep: Union[str, bytes] = None, bytes_per_sep: "SupportsIndex" = 1
-    ) -> str:
+    def hex(self) -> str:  # noqa: A003
         """
         Output hex-encoded bytes, with an "0x" prefix.
-
         Everything following the "0x" is output exactly like :meth:`bytes.hex`.
         """
-        raw_hex = super().hex()
-        if raw_hex.startswith("0x"):
-            return raw_hex
-        return "0x" + raw_hex
+
+        return HEX_PREFIX_LOWER + super().hex()
 
     @overload
     def __getitem__(self, key: "SupportsIndex") -> int:  # noqa: F811
@@ -50,55 +46,40 @@ class HexBytes(bytes):
 
     def __getitem__(  # noqa: F811
         self, key: Union["SupportsIndex", slice]
-    ) -> Union[int, bytes, "HexBytes"]:
+    ) -> Union[int, "HexBytes"]:
         result = super().__getitem__(key)
-        if hasattr(result, "hex"):
-            return type(self)(result)
-        else:
-            return result
+        return result if isinstance(key, int) else self.__class__(result)
 
     def __repr__(self) -> str:
         return f"HexBytes({self.hex()!r})"
 
     @staticmethod
-    def _to_bytes(val: Union[bool, bytearray, bytes, int, str, memoryview]) -> bytes:
+    def _to_bytes(val: BytesLike) -> bytes:
         """
-        Equivalent to: `eth_utils.hexstr_if_str(eth_utils.to_bytes, val)` .
+        Convert BytesLike input to bytes representation.
 
-        Convert a hex string, integer, or bool, to a bytes representation.
-        Alternatively, pass through bytes or bytearray as a bytes value.
+        Args:
+            val: bytes, str (hex), bytearray, or memoryview
+
+        Returns:
+            bytes representation of the input
         """
         if isinstance(val, bytes):
             return val
-        elif isinstance(val, str):
-            return HexBytes._hexstr_to_bytes(val)
-        elif isinstance(val, bytearray):
-            return bytes(val)
-        elif isinstance(val, bool):
-            return b"\x01" if val else b"\x00"
-        elif isinstance(val, int):
-            if val < 0:
-                raise ValueError(f"Cannot convert negative integer {val} to bytes")
-            else:
-                return HexBytes._to_bytes(hex(val))
-        elif isinstance(val, memoryview):
-            return bytes(val)
+        if isinstance(val, str):
+            return HexBytes.fromhex(val)
+        return bytes(val)
 
-    @staticmethod
-    def _hexstr_to_bytes(hexstr: str) -> bytes:
-        if hexstr.startswith(("0x", "0X")):
-            non_prefixed_hex = hexstr[2:]
-        else:
-            non_prefixed_hex = hexstr
+    @classmethod
+    def fromhex(cls, hexstr: str) -> "HexBytes":
+        """
+        Create HexBytes from hex string, handling optional 0x prefix.
 
-        if len(hexstr) % 2:
-            padded_hex = "0" + non_prefixed_hex
-        else:
-            padded_hex = non_prefixed_hex
+        Args:
+            hexstr: Hex string with or without 0x/0X prefix
 
-        try:
-            ascii_hex = padded_hex.encode("ascii")
-        except UnicodeDecodeError:
-            raise ValueError(f"hex string {padded_hex} may only contain [0-9a-fA-F] characters")
-        else:
-            return binascii.unhexlify(ascii_hex)
+        Returns:
+            HexBytes instance
+        """
+        cleaned_hex = hexstr.removeprefix(HEX_PREFIX_LOWER).removeprefix(HEX_PREFIX_UPPER)
+        return super(HexBytes, cls).__new__(cls, bytes.fromhex(cleaned_hex))

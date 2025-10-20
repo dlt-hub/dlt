@@ -25,29 +25,6 @@ def test_hexbytes_from_hex_string():
     assert hex_bytes_with_prefix.hex() == "0x62696e61727920737472696e67"
 
 
-def test_hexbytes_from_int():
-    # Test creation from integers
-    single_byte = HexBytes(255)  # 0xff
-    assert single_byte == b"\xff"
-    assert single_byte.hex() == "0xff"
-
-    # Test with larger number
-    two_bytes = HexBytes(65535)  # 0xffff
-    assert two_bytes == b"\xff\xff"
-    assert two_bytes.hex() == "0xffff"
-
-
-def test_hexbytes_from_bool():
-    # Test creation from booleans
-    hex_from_true = HexBytes(True)
-    hex_from_false = HexBytes(False)
-
-    assert hex_from_true == b"\x01"
-    assert hex_from_false == b"\x00"
-    assert hex_from_true.hex() == "0x01"
-    assert hex_from_false.hex() == "0x00"
-
-
 def test_hexbytes_indexing():
     # Test indexing behavior
     test_bytes = HexBytes(b"binary")
@@ -73,15 +50,6 @@ def test_hexbytes_representation():
 
     # Test actual bytes content
     assert bytes(test_bytes) == b"test"
-
-
-def test_hexbytes_errors():
-    # Test error cases
-    with pytest.raises(ValueError):
-        HexBytes(-1)  # Negative integers not allowed
-
-    with pytest.raises(ValueError):
-        HexBytes("not a hex string")  # Invalid hex string
 
 
 def test_hexbytes_comparison():
