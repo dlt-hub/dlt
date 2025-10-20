@@ -291,10 +291,9 @@ def destination(
             **kwargs,
         )
     elif kwargs.get("destination_callable"):
-        destination_name = None if func_or_name == "destination" else func_or_name
         destination = Destination.from_reference(
             ref="destination",
-            destination_name=destination_name,
+            destination_name=func_or_name,
             **kwargs,
         )
     else:

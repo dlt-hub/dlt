@@ -1,7 +1,7 @@
 from copy import deepcopy
 import gzip
 import os
-from typing import Any, Iterator, List, cast
+from typing import Any, Iterator, List, cast, Tuple
 from pathlib import Path
 import pytest
 
@@ -15,7 +15,8 @@ from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.common.schema.utils import new_table
-from dlt.common.typing import TDataItem
+from dlt.common.schema import TTableSchema
+from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DestinationUndefinedEntity
@@ -1228,3 +1229,23 @@ def test_pipeline_with_named_destination_via_factory_initializer() -> None:
     info = pipeline.run(test_data())
     assert_load_info(info)
     assert (Path(TEST_STORAGE_ROOT) / FILE_BUCKET / pipeline.dataset_name / "test_data").exists()
+
+    # 9. Should automatically infer destination type as 'dlt.destinations.destination' (custom destination implementation),
+    # if destination_callable is provided
+    calls: List[Tuple[TDataItems, TTableSchema]] = []
+
+    def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
+        nonlocal calls
+        assert my_val == "something"
+        calls.append((items, table))
+
+    os.environ["DESTINATION__MY_VAL"] = "something"
+
+    p = dlt.pipeline(
+        "sink_test",
+        destination=dlt.destination("custom_name", destination_callable=local_sink_func),
+    )
+    assert p.destination.destination_name == "custom_name"
+    assert p.destination.destination_type == "dlt.destinations.destination"
+    p.run([1, 2, 3], table_name="items")
+    assert len(calls) == 1
