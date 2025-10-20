@@ -13,7 +13,7 @@ from dlt.common.runners import Venv
 from dlt.common.typing import StrAny
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
-from dlt._workspace.cli import _deploy_command, echo, _command_wrappers
+from dlt._workspace.cli import _deploy_command, echo
 from dlt._workspace.cli.exceptions import CliCommandInnerException, PipelineWasNotRun
 from dlt._workspace.cli._deploy_command_helpers import get_schedule_description
 from dlt._workspace.cli.exceptions import CliCommandException
@@ -48,7 +48,7 @@ def test_deploy_command_no_repo(deployment_method: str, deployment_args: StrAny)
 
     # test wrapper
     with pytest.raises(CliCommandException) as ex:
-        _command_wrappers.deploy_command_wrapper(
+        _deploy_command.deploy_command_wrapper(
             "debug_pipeline.py",
             deployment_method,
             _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
@@ -77,7 +77,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
             )
         assert "Your current repository has no origin set" in py_ex.value.args[0]
         with pytest.raises(CliCommandInnerException):
-            _command_wrappers.deploy_command_wrapper(
+            _deploy_command.deploy_command_wrapper(
                 "debug_pipeline.py",
                 deployment_method,
                 _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
@@ -94,7 +94,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
                 **deployment_args,
             )
         with pytest.raises(CliCommandException) as ex:
-            _command_wrappers.deploy_command_wrapper(
+            _deploy_command.deploy_command_wrapper(
                 "debug_pipeline.py",
                 deployment_method,
                 _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
@@ -120,7 +120,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
         assert "The last pipeline run ended with error" in py_ex2.value.args[0]
 
         with pytest.raises(CliCommandException) as ex:
-            _command_wrappers.deploy_command_wrapper(
+            _deploy_command.deploy_command_wrapper(
                 "debug_pipeline.py",
                 deployment_method,
                 _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
@@ -186,7 +186,7 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
             )
         with echo.always_choose(False, always_choose_value=True):
             with pytest.raises(CliCommandException) as ex:
-                _command_wrappers.deploy_command_wrapper(
+                _deploy_command.deploy_command_wrapper(
                     "no_pipeline.py",
                     deployment_method,
                     _deploy_command.COMMAND_DEPLOY_REPO_LOCATION,

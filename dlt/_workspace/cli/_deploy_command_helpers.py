@@ -29,7 +29,6 @@ from dlt.common.configuration.providers import (
     StringTomlProvider,
 )
 from dlt.common.libs.git import get_origin, get_repo, Repo
-from dlt.common.configuration.specs.runtime_configuration import get_default_pipeline_name
 from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo, TPipelineState, get_dlt_repos_dir
@@ -38,6 +37,7 @@ from dlt.common.utils import set_working_dir
 
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace
+from dlt.pipeline.configuration import get_default_pipeline_name
 from dlt.reflection import names as n
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
