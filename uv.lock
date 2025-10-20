@@ -2206,6 +2206,7 @@ workspace = [
     { name = "ibis-framework", marker = "python_full_version >= '3.10'" },
     { name = "marimo" },
     { name = "mcp", marker = "python_full_version >= '3.10'" },
+    { name = "pathspec" },
     { name = "pyarrow" },
 ]
 
@@ -2375,6 +2376,7 @@ requires-dist = [
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
     { name = "packaging", specifier = ">=21.1" },
     { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0" },
+    { name = "pathspec", marker = "extra == 'workspace'", specifier = ">=0.11.2" },
     { name = "pathvalidate", specifier = ">=2.5.2" },
     { name = "pendulum", specifier = ">=2.1.2" },
     { name = "pendulum", marker = "python_full_version >= '3.14'", specifier = ">=3.0.0" },
