@@ -28,9 +28,9 @@ class HexBytes(bytes):
         bytesval = HexBytes._to_bytes(val)
         return cast(HexBytes, super().__new__(cls, bytesval))  # type: ignore  # https://github.com/python/typeshed/issues/2630  # noqa: E501
 
-    def hex(
+    def hex(  # noqa: A003
         self, sep: Union[str, bytes] = None, bytes_per_sep: "SupportsIndex" = 1
-    ) -> str:  # noqa: A003
+    ) -> str:
         """
         Output hex-encoded bytes, with an "0x" prefix.
         Everything following the "0x" is output exactly like :meth:`bytes.hex`.
