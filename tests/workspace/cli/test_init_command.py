@@ -5,12 +5,12 @@ import os
 import contextlib
 from subprocess import CalledProcessError
 from typing import List, Tuple, Optional
-from hexbytes import HexBytes
 import pytest
 from unittest import mock
 import re
 from packaging.requirements import Requirement
 from typing import Dict
+from dlt.common.libs.hexbytes import HexBytes
 
 # import that because O3 modules cannot be unloaded
 import cryptography.hazmat.bindings._rust
