@@ -13,14 +13,13 @@ from dlt._workspace.deployment.package_builder import (
 from dlt._workspace.deployment.file_selector import WorkspaceFileSelector
 from dlt._workspace.deployment.manifest import DEPLOYMENT_ENGINE_VERSION
 
-from tests.workspace.utils import isolated_workspace, WORKSPACE_CASES_DIR
+from tests.workspace.utils import isolated_workspace
 
 
 def test_write_package_to_stream() -> None:
     """Test building deployment package to a stream and verify structure."""
 
-    run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "test_write_package_to_stream") as ctx:
+    with isolated_workspace("default") as ctx:
         builder = DeploymentPackageBuilder(ctx)
         selector = WorkspaceFileSelector(ctx, ignore_file=".ignorefile")
 
@@ -66,8 +65,7 @@ def test_write_package_to_stream() -> None:
 def test_build_package() -> None:
     """Test that deployment packages are content-addressable with reproducible hashes."""
 
-    run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "test_package_builder") as ctx:
+    with isolated_workspace("default") as ctx:
         builder = DeploymentPackageBuilder(ctx)
         selector = WorkspaceFileSelector(ctx)
 
@@ -75,6 +73,8 @@ def test_build_package() -> None:
         assert str(package_path).startswith(f"{ctx.data_dir}{os.sep}deployment-")
         assert len(content_hash) == 44  # sha3_256 base64 string
 
+        # NOTE: Sleep ensures tarballs have different timestamps in their metadata, proving
+        # digest256_tar_stream produces identical hashes despite different creation times
         time.sleep(0.2)
 
         package_path_2, content_hash_2 = builder.build_package(selector)

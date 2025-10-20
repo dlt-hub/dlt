@@ -137,6 +137,10 @@ def digest256_tar_stream(stream: BinaryIO, chunk_size: int = 8192) -> str:
     Hashes only filenames and file contents, ignoring timestamps and other metadata.
     This ensures identical file contents produce identical hashes regardless of when
     the tar was created.
+
+    Note: This function operates entirely in-memory using tar.extractfile() which reads
+    from the archive stream. No files are written to disk, preventing leakage of sensitive
+    data that may be contained in the archive.
     """
     stream.seek(0)
     hash_obj = hashlib.sha3_256()

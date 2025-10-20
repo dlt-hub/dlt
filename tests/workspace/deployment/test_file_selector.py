@@ -3,7 +3,7 @@ import pytest
 
 from dlt._workspace.deployment.file_selector import WorkspaceFileSelector
 
-from tests.workspace.utils import isolated_workspace, WORKSPACE_CASES_DIR
+from tests.workspace.utils import isolated_workspace
 
 
 @pytest.mark.parametrize(
@@ -23,8 +23,7 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
     if with_additional_exclude:
         expected_files.remove("additional_exclude/empty_file.py")
 
-    run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "test_file_selector") as ctx:
+    with isolated_workspace("default") as ctx:
         selector = WorkspaceFileSelector(
             ctx, additional_excludes=additional_excludes, ignore_file=".ignorefile"
         )
