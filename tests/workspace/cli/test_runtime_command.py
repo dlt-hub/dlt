@@ -5,12 +5,14 @@ import uuid
 from typing import Any
 
 import jwt as pyjwt
+import pytest
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
 from dlt._workspace._workspace_context import active as ws_active
+from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
-from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt._workspace.runtime_clients.api.models.organization_response import (
     OrganizationResponse,
 )
@@ -23,6 +25,11 @@ from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete
 from dlt._workspace.runtime_clients.auth.models.github_device_flow_start_response import (
     GithubDeviceFlowStartResponse,
 )
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+
+
+def reload_config_providers():
+    Container()[PluggableRunContext].reload_providers()
 
 
 def make_valid_jwt(email: str = "user@example.com", user_id: str | None = None) -> str:
@@ -54,7 +61,7 @@ def get_token_from_secrets() -> str | None:
     ctx = ws_active()
     secrets = SecretsTomlProvider(settings_dir=ctx.global_dir)
     token, _ = secrets.get_value(
-        "dlthub_runtime_auth_token", str, None, RuntimeConfiguration.__section__
+        "auth_token", str, None, WorkspaceRuntimeConfiguration.__section__
     )
     return token
 
@@ -62,7 +69,7 @@ def get_token_from_secrets() -> str | None:
 def get_workspace_id_from_config() -> str | None:
     ctx = ws_active()
     cfg = ConfigTomlProvider(settings_dir=ctx.settings_dir)
-    ws_id, _ = cfg.get_value("workspace_id", str, None, RuntimeConfiguration.__section__)
+    ws_id, _ = cfg.get_value("workspace_id", str, None, WorkspaceRuntimeConfiguration.__section__)
     return ws_id
 
 
@@ -75,7 +82,7 @@ def set_workspace_id_in_config(value: str) -> None:
         with open(config_file, "w", encoding="utf-8") as f:
             f.write("")
     cfg = ConfigTomlProvider(settings_dir=ctx.settings_dir)
-    cfg.set_value("workspace_id", value, None, RuntimeConfiguration.__section__)
+    cfg.set_value("workspace_id", value, None, WorkspaceRuntimeConfiguration.__section__)
     cfg.write_toml()
 
 
@@ -88,7 +95,7 @@ def set_token_in_secrets(value: str) -> None:
         with open(secrets_file, "w", encoding="utf-8") as f:
             f.write("")
     secrets = SecretsTomlProvider(settings_dir=ctx.global_dir)
-    secrets.set_value("dlthub_runtime_auth_token", value, None, RuntimeConfiguration.__section__)
+    secrets.set_value("auth_token", value, None, WorkspaceRuntimeConfiguration.__section__)
     secrets.write_toml()
 
 
@@ -109,9 +116,9 @@ def oauth_success_ctx(token: str):
             return_value=github_oauth_complete.LoginResponse(
                 email="user@example.com", id=uuid.uuid4(), jwt=token
             ),
-        ):
+        ), \
+        patch("dlt._workspace.cli._runtime_command.time.sleep", return_value=None):
             yield
-
 
 
 @contextmanager
@@ -188,6 +195,8 @@ def test_runtime_login_with_valid_existing_token_skips_oauth(script_runner: Scri
     set_token_in_secrets(token)
     set_workspace_id_in_config(str(workspace_id))
 
+    reload_config_providers()
+
     with me_response_ctx(workspace_id):
         with patch("dlt._workspace.cli._runtime_command.github_oauth_start.sync") as start_mock, patch(
             "dlt._workspace.cli._runtime_command.github_oauth_complete.sync"
@@ -226,6 +235,8 @@ def test_runtime_login_overwrites_mismatched_workspace_id(script_runner: ScriptR
     remote_ws = uuid.uuid4()
     set_workspace_id_in_config(local_ws)
 
+    reload_config_providers()
+
     with me_response_ctx(remote_ws):
         result = script_runner.run(["dlt", "runtime", "login"])
 
@@ -243,6 +254,8 @@ def test_runtime_login_overwrites_absent_workspace_id(script_runner: ScriptRunne
     ctx = ws_active()
     cfg = ConfigTomlProvider(settings_dir=ctx.settings_dir)
     cfg.write_toml()  # ensure file exists but without key
+
+    reload_config_providers()
 
     remote_ws = uuid.uuid4()
     with me_response_ctx(remote_ws):

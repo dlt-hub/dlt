@@ -7,6 +7,7 @@ from pydantic import BaseModel, ValidationError
 from tomlkit.toml_file import TOMLFile
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 from dlt._workspace.exceptions import (
     LocalWorkspaceIdNotSet,
     RuntimeNotAuthenticated,
@@ -26,7 +27,6 @@ from dlt.common.configuration.providers.toml import (
 )
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
-from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.runtime.run_context import active
 
 
@@ -94,10 +94,8 @@ class RuntimeAuthService:
             else:
                 raise RuntimeError("Failed to get me response")
 
-        local_toml_config = ConfigTomlProvider(self.workspace_run_context.settings_dir)
-        self._local_workspace_id, _ = local_toml_config.get_value(
-            "workspace_id", str, None, RuntimeConfiguration.__section__
-        )
+        config = resolve_configuration(WorkspaceRuntimeConfiguration())
+        self._local_workspace_id = config.workspace_id
 
         if not self._local_workspace_id:
             raise LocalWorkspaceIdNotSet(self._remote_workspace_id)
@@ -109,26 +107,23 @@ class RuntimeAuthService:
     def overwrite_local_workspace_id(self) -> None:
         local_toml_config = ConfigTomlProvider(self.workspace_run_context.settings_dir)
         local_toml_config.set_value(
-            "workspace_id", str(self._remote_workspace_id), None, RuntimeConfiguration.__section__
+            "workspace_id", str(self._remote_workspace_id), None, WorkspaceRuntimeConfiguration.__section__
         )
         local_toml_config.write_toml()
         self._local_workspace_id = self._remote_workspace_id
 
     def _read_token(self) -> AuthInfo:
-        secrets = SecretsTomlProvider(settings_dir=self.run_context.global_dir)
-        token, _ = secrets.get_value(
-            "dlthub_runtime_auth_token", str, None, RuntimeConfiguration.__section__
-        )
-        if not token:
+        config = resolve_configuration(WorkspaceRuntimeConfiguration())
+        if not config.auth_token:
             raise RuntimeNotAuthenticated("No token found")
-        self.auth_info = self._validate_and_decode_jwt(token)
+        self.auth_info = self._validate_and_decode_jwt(config.auth_token)
         return self.auth_info
 
     def _save_token(self, token: str) -> AuthInfo:
         self.auth_info = self._validate_and_decode_jwt(token)
         value = [
             WritableConfigValue(
-                "dlthub_runtime_auth_token", str, token, (RuntimeConfiguration.__section__,)
+                "auth_token", str, token, (WorkspaceRuntimeConfiguration.__section__,)
             )
         ]
         # write global secrets
@@ -148,12 +143,12 @@ class RuntimeAuthService:
         doc = toml.read()
 
         # Safely check for structure and remove the key
-        runtime_section = doc.get("runtime")
+        runtime_section = doc.get(WorkspaceRuntimeConfiguration.__section__)
         if not isinstance(runtime_section, dict):
             return
-        if "dlthub_runtime_auth_token" not in runtime_section:
+        if "auth_token" not in runtime_section:
             return
-        runtime_section.pop("dlthub_runtime_auth_token")
+        runtime_section.pop("auth_token")
         toml.write(doc)
 
     def _validate_and_decode_jwt(self, token: Union[str, bytes]) -> AuthInfo:
@@ -173,12 +168,12 @@ class RuntimeAuthService:
 
 
 def get_auth_client() -> AuthClient:
-    config = resolve_configuration(RuntimeConfiguration())
+    config = resolve_configuration(WorkspaceRuntimeConfiguration())
     return AuthClient(base_url=config.auth_base_url, verify_ssl=False)
 
 
 def get_api_client(auth_service: Optional["RuntimeAuthService"] = None) -> ApiClient:
-    config = resolve_configuration(RuntimeConfiguration())
+    config = resolve_configuration(WorkspaceRuntimeConfiguration())
     if auth_service is None:
         auth_service = RuntimeAuthService(run_context=active())
         auth_service.authenticate()

@@ -3,6 +3,7 @@ from git import Optional
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.typing import TSecretStrValue
 
 
 @configspec
@@ -21,9 +22,14 @@ class WorkspaceSettings(BaseConfiguration):
 @configspec
 class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Extends runtime configuration with dlthub runtime"""
+    __section__: ClassVar[str] = "workspace_runtime"
 
-    # TODO: connect workspace to runtime here
-    # TODO: optionally define scripts and other runtime settings
+    workspace_id: Optional[str] = None
+    auth_token: Optional[TSecretStrValue] = None
+    auth_base_url: Optional[str] = "http://127.0.0.1:30001"
+    """Base URL for the dltHub Runtime authentication API"""
+    api_base_url: Optional[str] = "http://127.0.0.1:30000"
+    """Base URL for the dltHub Runtime API"""
 
 
 @configspec

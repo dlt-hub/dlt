@@ -37,10 +37,6 @@ class RuntimeConfiguration(BaseConfiguration):
     """Include HTTP response body in raised exceptions/logs. Default is False"""
     http_max_error_body_length: int = 8192
     """Maximum length of HTTP error response body to include in logs/exceptions"""
-    auth_base_url: Optional[str] = "http://127.0.0.1:30001"
-    """Base URL for the dltHub Runtime authentication API"""
-    api_base_url: Optional[str] = "http://127.0.0.1:30000"
-    """Base URL for the dltHub Runtime API"""
 
     __section__: ClassVar[str] = "runtime"
 
