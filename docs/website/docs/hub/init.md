@@ -205,7 +205,7 @@ Most pipelines require authentication or connection details such as API keys, pa
 
 **Provider priority:**
 
-1. **Environment variables** – highest priority.
+1. **Environment variables** – the highest priority.
 
    ```bash
    export SOURCES__GITHUB__API_SECRET_KEY="<github_personal_access_token>"
