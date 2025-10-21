@@ -6,12 +6,12 @@ keywords: ["data access", "security", "contracts", "data sharing"]
 
 # Secure data access and sharing
 
-dlt+ makes it easy for end-users like data scientists or analysts to access high-quality production data in a secure and Python-friendly way. A [dlt+ Project](../core-concepts/project.md) exposes a standard Python API which connects to the production data using an "access" [profile](../core-concepts/profiles.md). This profile can be configured to specify how users are allowed to interact with the data, e.g., by applying restrictions on datasets that are not allowed to be modified.
+dltHub makes it easy for end-users like data scientists or analysts to access high-quality production data in a secure and Python-friendly way. A [dltHub Project](../core-concepts/project.md) exposes a standard Python API which connects to the production data using an "access" [profile](../core-concepts/profiles.md). This profile can be configured to specify how users are allowed to interact with the data, e.g., by applying restrictions on datasets that are not allowed to be modified.
 
 ## Project packaging
 
-dlt+ Projects can be distributed as Python packages, with which data end-users can easily interact within their own Pythonic workflows.
-To package an existing dlt+ Project, you need to:
+dltHub Projects can be distributed as Python packages, with which data end-users can easily interact within their own Pythonic workflows.
+To package an existing dltHub Project, you need to:
 
 1. Add an `__init__.py` file to the root of your project.
 
@@ -94,7 +94,7 @@ dlt-project = "dlt_example_project"
 </details>
 
 :::info
-cli support for packaging dlt+ Projects is currently in development and will be available in future releases.
+cli support for packaging dltHub Projects is currently in development and will be available in future releases.
 :::
 
 ## Data access and sharing
