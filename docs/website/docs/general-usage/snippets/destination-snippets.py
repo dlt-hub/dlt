@@ -118,13 +118,13 @@ def destination_instantiation_snippet() -> None:
     import os
     import dlt
 
-    os.environ["DESTINATION__FILESYSTEM__DESTINATION_TYPE"] = "duckdb"
+    os.environ["DESTINATION__BIGQUERY__DESTINATION_TYPE"] = "duckdb"
 
     pipeline = dlt.pipeline("pipeline", destination="bigquery")
     # @@@DLT_SNIPPET_END avoid_example
 
-    assert pipeline.destination.destination_type == "dlt.destinations.bigquery"
-    assert pipeline.destination.destination_name == "filesystem"
+    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
+    assert pipeline.destination.destination_name == "bigquery"
 
     bucket_url = posixpath.join("file://", os.path.abspath(TEST_STORAGE_ROOT))
 
