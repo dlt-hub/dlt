@@ -44,7 +44,7 @@ class MyLogCollector(PlusLogCollector):
             # os.environ["RUNTIME__SLACK_INCOMING_HOOK"] = "https://hooks.slack.com/services/..."
 
             msg = f"schema {schema_name} change in pipeline {pipeline.pipeline_name}**:\n{changes}"
-            send_slack_message(pipeline.runtime_config.slack_incoming_hook, msg)
+            send_slack_message(pipeline.runtime_config.slack_incoming_hook, msg)  # type: ignore
         except Exception as e:
             # fail without interrupting the pipeline
             print(f"Error trying to send slack message: {e}")

@@ -1,4 +1,3 @@
-import copy
 import contextlib
 import dataclasses
 import warnings
@@ -8,6 +7,7 @@ from typing import (
     Callable,
     List,
     Optional,
+    Sequence,
     Union,
     Any,
     Dict,
@@ -307,6 +307,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Fields set to non-defaults during resolve, including explicit values"""
     __section__: ClassVar[str] = None
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
+    __recommended_sections__: ClassVar[Sequence[str]] = None
+    """Recommended sections layout"""
     __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]

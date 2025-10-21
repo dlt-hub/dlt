@@ -2,14 +2,12 @@ import os
 import yaml
 from typing import Any, Sequence, Tuple
 import dlt
-from dlt._workspace.cli.exceptions import CliCommandInnerException
 
 from dlt.common.json import json
 from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
-from dlt.common.runtime import run_context
 from dlt.common.schema.utils import (
     group_tables_by_resource,
     has_table_seen_data,
@@ -21,8 +19,8 @@ from dlt.common.storages import FileStorage, PackageStorage
 from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-
-from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli import echo as fmt, utils
+from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 
 
 DLT_PIPELINE_COMMAND_DOCS_URL = (
@@ -321,6 +319,14 @@ def pipeline_command(
             p = p.drop()
             fmt.echo("Restoring from destination")
             p.sync_destination()
+            if p.first_run:
+                # remote state was not found
+                p._wipe_working_folder()
+                fmt.error(
+                    f"Pipeline {pipeline_name} was not found in dataset {dataset_name} in"
+                    f" {destination}"
+                )
+                return
 
     if operation == "load-package":
         load_id = command_kwargs.get("load_id")
@@ -449,3 +455,18 @@ def pipeline_command(
             fmt.warning(warning)
         if fmt.confirm("Do you want to apply these changes?", default=False):
             drop()
+
+
+@utils.track_command("pipeline", True, "operation")
+def pipeline_command_wrapper(
+    operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any
+) -> None:
+    try:
+        pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, **command_kwargs)
+    except CannotRestorePipelineException as ex:
+        fmt.secho(str(ex), err=True, fg="red")
+        fmt.secho(
+            "Try command %s to restore the pipeline state from destination"
+            % fmt.bold(f"dlt pipeline {pipeline_name} sync")
+        )
+        raise CliCommandException(error_code=-2)

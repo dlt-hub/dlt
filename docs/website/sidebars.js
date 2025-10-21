@@ -486,12 +486,12 @@ const sidebars = {
     {
       type: 'category',
       label: 'Workspace',
-      // link: {
-      //   type: 'doc',
-      //   id: 'hub/workspace/index',
-      // },
+       link: {
+         type: 'doc',
+         id: 'hub/workspace/intro',
+       },
       items: [
-        // 'hub/workspace/index',
+         'hub/workspace/intro',
         {
           type: 'category',
           label: 'Create pipeline',

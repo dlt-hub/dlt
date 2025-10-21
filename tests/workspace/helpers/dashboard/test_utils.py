@@ -12,6 +12,7 @@ from dlt.common import pendulum
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils import (
     PICKLE_TRACE_FILE,
+    get_dashboard_config_sections,
     get_query_result_cached,
     resolve_dashboard_config,
     get_local_pipelines,
@@ -56,6 +57,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     PIPELINES_WITH_EXCEPTIONS,
     PIPELINES_WITH_LOAD,
 )
+from tests.workspace.utils import isolated_workspace
 
 
 @pytest.fixture
@@ -110,10 +112,23 @@ def test_get_local_data_path(pipeline: dlt.Pipeline):
         assert get_local_data_path(pipeline)
 
 
-def test_resolve_dashboard_config(success_pipeline_duckdb):
+def test_get_dashboard_config_sections(success_pipeline_duckdb) -> None:
+    # NOTE: "dashboard" obligatory section comes from configuration __section__
+    assert get_dashboard_config_sections(success_pipeline_duckdb) == (
+        "pipelines",
+        "success_pipeline_duckdb",
+    )
+    assert get_dashboard_config_sections(None) == ()
+
+    # create workspace context
+    with isolated_workspace("configured_workspace"):
+        assert get_dashboard_config_sections(None) == ("workspace",)
+
+
+def test_resolve_dashboard_config(success_pipeline_duckdb) -> None:
     """Test resolving dashboard config with a real pipeline"""
 
-    os.environ["DASHBOARD__SUCCESS_PIPELINE_DUCKDB__DATETIME_FORMAT"] = "some format"
+    os.environ["PIPELINES__SUCCESS_PIPELINE_DUCKDB__DASHBOARD__DATETIME_FORMAT"] = "some format"
     os.environ["DASHBOARD__DATETIME_FORMAT"] = "other format"
 
     config = resolve_dashboard_config(success_pipeline_duckdb)
@@ -125,6 +140,12 @@ def test_resolve_dashboard_config(success_pipeline_duckdb):
     other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckdb")
     config = resolve_dashboard_config(other_pipeline)
     assert config.datetime_format == "other format"
+
+    # create workspace context
+    with isolated_workspace("configured_workspace"):
+        os.environ["WORKSPACE__DASHBOARD__DATETIME_FORMAT"] = "workspace format"
+        config = resolve_dashboard_config(None)
+        assert config.datetime_format == "workspace format"
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)

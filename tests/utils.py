@@ -28,15 +28,15 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
 )
-from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
+from dlt.common.pipeline import PipelineContext, SupportsPipeline
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
-from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
+from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import DictStrAny, StrAny, TDataItem
-from dlt.common.utils import custom_environ, set_working_dir, uniq_id
+from dlt.common.typing import StrAny, TDataItem
+from dlt.common.utils import set_working_dir
 
 TEST_STORAGE_ROOT = "_storage"
 
@@ -205,19 +205,11 @@ def auto_module_test_run_context(auto_module_test_storage) -> Iterator[None]:
 
 
 def create_test_run_context() -> Iterator[None]:
+    # this plugs active context
     ctx = PluggableRunContext()
     mock = MockableRunContext.from_context(ctx.context)
     mock._local_dir = os.path.abspath(TEST_STORAGE_ROOT)
     mock._global_dir = mock._data_dir = os.path.join(mock._local_dir, DOT_DLT)
-    # ctx.context = mock
-
-    # also emit corresponding env variables so pipelines in env work like that
-    # with custom_environ(
-    #     {
-    #         known_env.DLT_LOCAL_DIR: mock.local_dir,
-    #         known_env.DLT_DATA_DIR: mock.data_dir,
-    #     }
-    # ):
     ctx_plug = Container()[PluggableRunContext]
     cookie = ctx_plug.push_context()
     try:
@@ -306,6 +298,7 @@ class MockableRunContext(RunContext):
         cls_._settings_dir = ctx.settings_dir
         cls_._data_dir = ctx.data_dir
         cls_._local_dir = ctx.local_dir
+        cls_._runtime_config = ctx.runtime_config
         return cls_
 
 
@@ -438,9 +431,8 @@ def arrow_item_from_table(
 
 
 def init_test_logging(c: RuntimeConfiguration = None) -> None:
-    if not c:
-        c = resolve_configuration(RuntimeConfiguration())
-    Container()[PluggableRunContext].initialize_runtime(c)
+    ctx = Container()[PluggableRunContext].context
+    ctx.initialize_runtime(c)
 
 
 @configspec
@@ -455,7 +447,9 @@ def start_test_telemetry(c: RuntimeConfiguration = None):
     stop_telemetry()
     if not c:
         c = resolve_configuration(RuntimeConfiguration())
-    start_telemetry(c)
+        c.dlthub_telemetry = True
+    ctx = Container()[PluggableRunContext].context
+    ctx.initialize_runtime(c)
 
 
 @pytest.fixture
@@ -476,6 +470,9 @@ def disable_temporary_telemetry() -> Iterator[None]:
         # force stop telemetry
         telemetry._TELEMETRY_STARTED = True
         stop_telemetry()
+        from dlt.common.runtime import anon_tracker
+
+        assert anon_tracker._ANON_TRACKER_ENDPOINT is None
 
 
 def clean_test_storage(
