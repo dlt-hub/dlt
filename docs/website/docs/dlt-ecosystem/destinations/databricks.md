@@ -728,7 +728,33 @@ databricks_adapter(
 ## Troubleshooting
 Use the following steps to avoid conflicts with Databricks' built-in Delta Live Tables (DLT) module and enable dltHub integration.
 
-### 1. Add an `init` script
+### Serverless (16.x)
+Live Tables (DLT) were not available on serverless but the import machinery that were patching DLT is still there in form of import hooks. You
+can temporarily disable this machinery to import `dlt` and use it afterwards. In a notebook cell (assuming that `dlt` is already installed):
+```py
+%restart_python
+import sys
+
+# dlt patching is a first
+metas = list(sys.meta_path)
+sys.meta_path = metas[1:]
+print(sys.meta_path)
+import os
+
+# TODO: fix in dlt - ignore invalid runtime settings, otherwise dlt fails when resolving configuration
+del os.environ["RUNTIME"]
+
+import dlt
+sys.meta_path = metas
+info = dlt.run([1, 2, 3], destination=dlt.destinations.filesystem("_data"), table_name="digits")
+print(info)
+```
+
+### LTS 16.4
+Databricks discontinued Delta Live Tables (DLT) as a separate entity and moved the related
+
+
+### 1. Add an `init` script (15.x)
 To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
 
 1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:

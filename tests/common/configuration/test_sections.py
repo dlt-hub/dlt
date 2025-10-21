@@ -54,6 +54,12 @@ class EmbeddedWithIgnoredEmbeddedConfiguration(BaseConfiguration):
     ignored_embedded: EmbeddedIgnoredWithSectionedConfiguration = None
 
 
+@configspec
+class SectionedNativeValueConfiguration(SectionedConfiguration):
+    def parse_native_representation(self, native_value: Any) -> None:
+        raise ValueError(native_value)
+
+
 def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider) -> None:
     with pytest.raises(ConfigFieldMissingException) as exc_val:
         resolve.resolve_configuration(SectionedConfiguration())
@@ -81,6 +87,18 @@ def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider)
     environment["DLT_TEST__PASSWORD"] = "PASS"
     C = resolve.resolve_configuration(SectionedConfiguration())
     assert C.password == "PASS"
+
+
+def test_sectioned_configuration_ignore_native_values(environment) -> None:
+    environment["DLT_TEST"] = "invalid()"
+    environment["DLT_TEST__PASSWORD"] = "PASS"
+    resolve.resolve_configuration(SectionedConfiguration())
+
+    # same for runtime
+    from dlt.common.configuration.specs import RuntimeConfiguration
+
+    environment["RUNTIME"] = "16.0LTS"
+    resolve.resolve_configuration(RuntimeConfiguration())
 
 
 def test_explicit_sections(mock_provider: MockProvider) -> None:
@@ -265,9 +283,9 @@ def test_section_with_pipeline_name(mock_provider: MockProvider) -> None:
         # "PIPE", "DLT_TEST"
         mock_provider.return_value_on = ()
         mock_provider.reset_stats()
-        # () will return "value" which cannot be parsed by the SectionedConfiguration
+        # () will return "value" which cannot be parsed by the SectionedNativeValueConfiguration
         with pytest.raises(InvalidNativeValue):
-            resolve.resolve_configuration(SectionedConfiguration())
+            resolve.resolve_configuration(SectionedNativeValueConfiguration())
         mock_provider.return_value_on = ("DLT_TEST",)
         mock_provider.reset_stats()
         resolve.resolve_configuration(SectionedConfiguration())
