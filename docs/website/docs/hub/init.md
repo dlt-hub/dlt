@@ -6,7 +6,7 @@ keywords: [create a pipeline, verified source, workspace, rest client, how to, d
 
 # Initialize a pipeline
 
-This guide walks you through creating and initializing a `dlt` pipeline — whether manually via the CLI, through the LLM-native **dltHub workspace**, or from one of the community-maintained **verified sources**.
+This guide walks you through creating and initializing a `dlt` pipeline in dltHub Workspace — whether manually, with the LLM help, or from one of the community-maintained **verified sources**.
 
 ## Overview
 
