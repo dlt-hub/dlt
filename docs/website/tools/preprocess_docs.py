@@ -16,6 +16,7 @@ import shutil
 import threading
 from typing import List, Tuple
 import argparse
+import time
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -33,9 +34,13 @@ from .constants import (
     WATCH_EXTENSIONS,
 )
 from .utils import walk_sync, remove_remaining_markers
+from .preprocess_snippets import insert_snippets
+from .preprocess_tuba import insert_tuba_links, fetch_tuba_config
+from .preprocess_destination_capabilities import insert_destination_capabilities
+from .preprocess_examples import build_example_doc, sync_examples
 
 _processing_lock: threading.Lock = threading.Lock()
-_change_counter: int = 0
+_pending_changes: bool = False
 
 
 class SimpleEventHandler(FileSystemEventHandler):
@@ -43,37 +48,46 @@ class SimpleEventHandler(FileSystemEventHandler):
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
+            print(f"Found a change in: {event.src_path}")
             handle_change(str(event.src_path))
 
     def on_created(self, event: FileSystemEvent) -> None:
-        if not event.is_directory:
+        if not event.is_directory and not MD_TARGET_DIR in event.src_path:
+            print(f"Found a creation in: {event.src_path}")
             handle_change(str(event.src_path))
 
 
 def handle_change(file_path: str) -> None:
     """Handle a file change by rebuilding docs if needed."""
-    ext = os.path.splitext(file_path)[1]
+    print(f"Handling change in: {file_path}")
+
+    global _processing_lock, _pending_changes
+
+    rel_path = os.path.relpath(file_path)
+    ext = os.path.splitext(rel_path)[1]
+
     should_process = (
-        file_path.startswith(MD_SOURCE_DIR) or file_path.startswith(EXAMPLES_SOURCE_DIR)
+        rel_path.startswith(MD_SOURCE_DIR) or rel_path.startswith(EXAMPLES_SOURCE_DIR)
     ) and ext in WATCH_EXTENSIONS
 
     if not should_process:
+        print(f"Skipping change in: {rel_path}")
         return
 
     if _processing_lock.locked():
-        _change_counter += 1
+        print(f"Found a change in: {rel_path}, but processing is locked, adding to pending changes")
+        _pending_changes = True
         return
 
-    if _change_counter == 0:
-        _change_counter += 1
-    while _change_counter > 0:
-        _change_counter -= 1
-        with _processing_lock:
-            try:
-                print(f"Found a change in: {file_path}, rebuilding docs")
+    _pending_changes = True
+    while _pending_changes:
+        _pending_changes = False
+        try:
+            with _processing_lock:
                 process_docs()
-            except Exception as e:
-                print(f"Error rebuilding docs: {e}")
+        except Exception as e:
+            print(f"Error rebuilding docs: {e}")
+            raise e
 
 
 def watch() -> None:
@@ -120,10 +134,6 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
             lines = content.split("\n")
     except FileNotFoundError:
         return 0, 0, 0, False
-
-    from .preprocess_snippets import insert_snippets
-    from .preprocess_tuba import insert_tuba_links, fetch_tuba_config
-    from .preprocess_destination_capabilities import insert_destination_capabilities
 
     snippet_count, lines = insert_snippets(file_name, lines)
     tuba_count, lines = insert_tuba_links(fetch_tuba_config(), lines)
@@ -205,9 +215,6 @@ def check_docs() -> None:
 
 def process_example_change(file_path: str) -> None:
     """Process an example file change."""
-    # Lazy import
-    from .preprocess_examples import build_example_doc
-
     example_name = os.path.splitext(os.path.basename(file_path))[0]
     if build_example_doc(example_name):
         target_file_name = f"{EXAMPLES_DESTINATION_DIR}/{example_name}.md"
@@ -218,8 +225,6 @@ def process_docs() -> None:
     """Main processing function."""
     if os.path.exists(MD_TARGET_DIR):
         shutil.rmtree(MD_TARGET_DIR)
-
-    from .preprocess_examples import sync_examples
 
     sync_examples()
     preprocess_docs()
@@ -239,8 +244,6 @@ def main() -> None:
     website_dir = os.path.dirname(script_dir)
     print("Changing directory to", website_dir)
     os.chdir(website_dir)
-
-    from .preprocess_change import watch
 
     if args.watch:
         print("Watching for file changes...")
