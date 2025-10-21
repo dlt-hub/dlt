@@ -10,6 +10,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
+from tests.sources.rest_api.utils import POKEMON_EXPECTED_TABLE_COUNTS
 
 
 def _make_pipeline(destination_name: str):
@@ -54,10 +55,7 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration) -> No
     table_counts = load_table_counts(pipeline)
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
-
-    assert table_counts["pokemon_list"] == 1302
-    assert table_counts["berry"] == 64
-    assert table_counts["location"] == 1070
+    assert table_counts.items() >= POKEMON_EXPECTED_TABLE_COUNTS.items()
 
 
 @pytest.mark.parametrize(
