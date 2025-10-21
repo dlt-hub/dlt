@@ -12,6 +12,7 @@ from typing import (
     Tuple,
     Any,
     cast,
+    Set,
 )
 
 from dlt.common.schema.migrations import migrate_schema
@@ -373,21 +374,12 @@ class Schema:
         must contain all nested tables to tables being dropped.
         """
         result = []
-        candidates = set()
-
-        for table_name in table_names:
-            if self.get_table(table_name) and table_name not in candidates:
-                candidates.add(table_name)
-                # also add table chain
-                candidates.update(
-                    t["name"] for t in utils.get_nested_tables(self._schema_tables, table_name)
-                )
-        # compare extension with original list
-        if orphaned := candidates.difference(table_names):
+        orphaned, candidates = self.validate_table_drop_list(table_names, table_names)
+        if orphaned:
             raise SchemaCorruptedException(
                 self._schema_name,
-                "A set tables to drop would leave orphaned tables. Please use consistent list of "
-                f"table names in `drop_table`. Orphaned tabled: {orphaned}",
+                "A set of tables to drop would leave orphaned tables. Please use a consistent list"
+                f" of table names in `drop_tables`. Orphaned tables: {orphaned}",
             )
         # final drop
         for table_name in table_names:
@@ -396,6 +388,38 @@ class Schema:
                 self.data_item_normalizer.remove_table(table_name)
 
         return result
+
+    def validate_table_drop_list(
+        self, parent_tables: Sequence[str], provided_table_names: Sequence[str]
+    ) -> Tuple[Set[str], Set[str]]:
+        """Validate a table drop list by expanding to nested tables and finding orphans.
+
+        When dropping tables, nested/child tables must also be dropped. This method checks if all
+        necessary dependent tables are included in the drop list.
+
+        Args:
+            parent_tables (Sequence[str]): Tables to analyze for dependencies (typically the tables user wants to drop)
+            provided_table_names (Sequence[str]): Complete list of table names that will be dropped
+
+        Returns:
+            Tuple[Set[str], Set[str]]: Tuple of
+                - orphaned_tables: Child/nested tables that would be left without parents
+                - all_dependent_tables: Complete set including parents and all their children
+        """
+        all_dependent_tables = set()
+
+        for table_name in parent_tables:
+            if self.get_table(table_name) and table_name not in all_dependent_tables:
+                all_dependent_tables.add(table_name)
+                # Add all nested/child tables that depend on this parent
+                all_dependent_tables.update(
+                    t["name"] for t in utils.get_nested_tables(self._schema_tables, table_name)
+                )
+
+        # Find tables that would be orphaned (dependent tables not in the provided list)
+        orphaned_tables = all_dependent_tables.difference(provided_table_names)
+
+        return orphaned_tables, all_dependent_tables
 
     def drop_columns(self, table_name: str, column_names: Sequence[str]) -> TPartialTableSchema:
         """Drops columns from the table schema in place and returns the table schema with the dropped columns"""

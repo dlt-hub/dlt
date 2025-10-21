@@ -436,16 +436,12 @@ def update_dlt_schema(
 
     # 2. For entire table drops, we make sure no orphaned tables remain
     for table_name in table_drops.copy():
-        child_tables = get_nested_tables(schema.tables, table_name)
-        orphaned_table_names: List[str] = []
-        for child_table in child_tables:
-            if child_table["name"] not in table_drops:
-                orphaned_table_names.append(child_table["name"])
-        if orphaned_table_names:
+        orphans, _ = schema.validate_table_drop_list([table_name], list(table_drops.keys()))
+        if orphans:
             table_drops.pop(table_name)
             logger.warning(
-                f"Removing table '{table_name}' from the dlt schema would leave orphan"
-                f" table(s): {'.'.join(repr(t) for t in orphaned_table_names)}. Drop these"
+                f"Removing table '{table_name}' from the dlt schema would leave orphaned"
+                f" table(s): {'.'.join(repr(t) for t in orphans)}. Drop these"
                 " child tables in the destination and sync the dlt schema again."
             )
 
