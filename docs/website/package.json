@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "npm run gen-api-ref && npm run preprocess-docs &&concurrently --kill-others \"PYTHONPATH=. uv run python -u -m tools.preprocess_docs --watch\" \"docusaurus start\"",
+    "start": "npm run gen-api-ref && npm run preprocess-docs && concurrently --kill-others \"PYTHONPATH=. uv run python -u -m tools.preprocess_docs --watch\" \"docusaurus start\"",
     "build": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && docusaurus build",
     "swizzle": "docusaurus swizzle",
     "clear": "docusaurus clear",
