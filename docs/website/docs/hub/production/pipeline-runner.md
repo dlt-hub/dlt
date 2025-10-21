@@ -1,11 +1,11 @@
 ---
 title: "Pipeline runner"
-description: Run pipelines with the dlt+ runner
+description: Run pipelines with the dltHub runner
 keywords: ["runner", "pipeline", "retry", "trace"]
 ---
 # Runner
 
-dlt+ provides a production-ready runner for your pipelines. It offers robust error handling, retry mechanisms, and near atomic trace storage to destinations of your choice.
+dltHub provides a production-ready runner for your pipelines. It offers robust error handling, retry mechanisms, and near atomic trace storage to destinations of your choice.
 
 ## Usage
 
@@ -208,7 +208,7 @@ pipelines:
 ```
 
 :::note
-The dlt+ runner behaves slightly differently from `pipeline.run()` when there exists pending data in the pipeline's working directory: `pipeline.run()` will load only the pending data and needs to be invoked again, whereas the dlt+ runner will run with the pending data, and then automatically run again with the given data.
+The dltHub runner behaves slightly differently from `pipeline.run()` when there exists pending data in the pipeline's working directory: `pipeline.run()` will load only the pending data and needs to be invoked again, whereas the dltHub runner will run with the pending data, and then automatically run again with the given data.
 :::
 
 ## Retry policies
@@ -300,5 +300,5 @@ print(load_info)
 
 ## Callbacks
 
-You can implement [custom callbacks](observability.md) by inheriting from dlt+'s `PlusLogCollector` class.
+You can implement [custom callbacks](observability.md) by inheriting from dltHub's `PlusLogCollector` class.
 If such a collector is attached to a pipeline, the runner will detect it and will call its `on_before`, `on_after` and `on_retry` methods.

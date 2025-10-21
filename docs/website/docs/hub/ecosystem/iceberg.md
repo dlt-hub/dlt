@@ -672,7 +672,7 @@ def my_upsert_resource():
 ```
 
 :::note
-dlt+ is not using PyIceberg's `Table.upsert` but implements its own method using delete and insert operations in a single transaction.
+dltHub is not using PyIceberg's `Table.upsert` but implements its own method using delete and insert operations in a single transaction.
 :::
 
 :::info Performance Testing
@@ -691,7 +691,7 @@ The created views reflect the latest available snapshot. To ensure fresh data du
 
 ## Credentials for data access
 By default, credentials for accessing data are vended by the catalog, and per-table secrets are created automatically. This works best with cloud storage providers like AWS S3 using STS credentials.
-However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dlt+ transformations.
+However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dltHub transformations.
 This approach allows for native DuckDB filesystem access, persistent secrets, and faster data access. For example, when using AWS S3 as the storage location
 for your Iceberg tables, you can provide explicit credentials in the destination configuration in `filesystem` section:
 
@@ -705,7 +705,7 @@ aws_secret_access_key = "please set me up!"
 
 Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance.
 
-There are two ways to configure partitioning in dlt+ Iceberg destination:
+There are two ways to configure partitioning in dltHub Iceberg destination:
 * Using the [`iceberg_adapter`](#using-the-iceberg_adapter-function) function
 * Using column-level [`partition`](#using-column-level-partition-property) property
 

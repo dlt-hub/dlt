@@ -3,7 +3,7 @@ title: Setup
 description: Define and execute local transformations
 ---
 
-dlt+ provides a powerful mechanism for executing transformations on your data using a locally spun-up cache. It automatically creates and manages the cache before execution and cleans it up afterward.
+dltHub provides a powerful mechanism for executing transformations on your data using a locally spun-up cache. It automatically creates and manages the cache before execution and cleans it up afterward.
 
 A transformation consists of functions that modify data stored in a [cache](../../core-concepts/cache.md). These transformations can be implemented using:
 
@@ -96,7 +96,7 @@ Now you can update the generated transformations and create new ones to reflect 
 
 ## Run transformations
 
-dlt+ offers comprehensive CLI support for executing transformations. You can find the full list of available commands in the [command line interface](../../reference.md).
+dltHub offers comprehensive CLI support for executing transformations. You can find the full list of available commands in the [command line interface](../../reference.md).
 
 To run the defined transformation, use the [following command](../../reference.md#dlt-transformation-run):
 

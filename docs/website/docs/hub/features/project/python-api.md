@@ -1,12 +1,12 @@
 ---
 title: Python API
-description:  Python interface of dlt+ Project
+description:  Python interface of dltHub Project
 ---
 
-# Python API to interact with dlt+ Project
+# Python API to interact with dltHub Project
 
-You can access any [dlt+ Project](../../core-concepts/project.md) entity or function via the Python interface.
-The current module provides access to various parts of your active dlt+ Project.
+You can access any [dltHub Project](../../core-concepts/project.md) entity or function via the Python interface.
+The current module provides access to various parts of your active dltHub Project.
 
 Import statement:
 ```py
@@ -20,7 +20,7 @@ Available methods:
 - `dlt.hub.current.project.runner()` - Allows you to run pipelines programmatically
 
 :::info
-If you packaged your dlt+ Project into a pip-installable package, you can access all methods above directly from the package. For example:
+If you packaged your dltHub Project into a pip-installable package, you can access all methods above directly from the package. For example:
 ```py
 import my_dlt_package
 
@@ -63,7 +63,7 @@ Here, we access the entities manager, which allows you to create sources, destin
 
 ## Running pipelines with the runner
 
-dlt+ includes a pipeline runner, which is the same one used when you run pipelines from the CLI.
+dltHub includes a pipeline runner, which is the same one used when you run pipelines from the CLI.
 You can also use it directly in your code through the project context:
 
 ```py
@@ -96,9 +96,9 @@ It covers how to browse, filter tables, and retrieve data in various formats.
 
 ## Writing data back to the catalog
 
-You can also write data to datasets in the dlt+ catalog. Each dataset has a `.save()` method that lets you write data back to it.
+You can also write data to datasets in the dltHub catalog. Each dataset has a `.save()` method that lets you write data back to it.
 In the future, you'll be able to control which datasets are writable using contracts.
-Under the hood, dlt+ runs an ad-hoc pipeline to handle the write operation.
+Under the hood, dltHub runs an ad-hoc pipeline to handle the write operation.
 
 :::warning
 Writing data to the catalog is an **experimental feature**.
