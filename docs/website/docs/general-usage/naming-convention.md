@@ -141,6 +141,24 @@ naming="tests.common.cases.normalizers.sql_upper"
 ```
 `dlt` will import `tests.common.cases.normalizers.sql_upper` and use the `NamingConvention` class found in it as the naming convention.
 
+:::tip
+Do not pass custom naming convention as modules if you do it explicitly. We recommend pattern below:
+```py
+import dlt
+
+# you should be able to import sql_cs_latin2 here!
+dest_ = dlt.destinations.postgres(naming_convention="sql_cs_latin2")
+```
+
+⛔ avoid this or you may get pickle errors ie. when using parallel normalization:
+```py
+import dlt
+
+import sql_cs_latin2  # type: ignore[import-not-found]
+
+dest_ = dlt.destinations.postgres(naming_convention=sql_cs_latin2)
+```
+:::
 
 ### Available naming conventions
 You can pick from a few built-in naming conventions.
