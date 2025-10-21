@@ -11,12 +11,12 @@ This guide walks you through creating and initializing a `dlt` pipeline in dltHu
 ## Overview
 
 A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg). Initializing a pipeline is the first step in the data workflow.
-You can create one in three ways:
+You can create one in three CLI-based ways:
 
-| Method | Command | Best for |
-|---------|----------|----------|
-| CLI-based | `dlt init <source> <destination>` | Developers who prefer manual setup |
-| Workspace-based | `dlt init dlthub:<source> <destination>` | AI-assisted development with editors like Cursor |
+| Method          | Command | Best for |
+|-----------------|----------|----------|
+| Manual          | `dlt init <source> <destination>` | Developers who prefer manual setup |
+| LLM-native      | `dlt init dlthub:<source> <destination>` | AI-assisted development with editors like Cursor |
 | Verified source | `dlt init <verified_source> <destination>` | Prebuilt, tested connectors from the community and dltHub team |
 
 
@@ -37,7 +37,7 @@ This adds support for AI-assisted workflows and the `dlt ai` command.
 
 ## Step 1: Initialize a custom pipeline
 
-### CLI-based setup (standard workflow)
+### Manual setup (standard workflow)
 
 A lightweight, code-first approach ideal for developers comfortable with Python.
 
@@ -53,7 +53,7 @@ dlt init my_github_pipeline duckdb
 
 It scaffolds the pipeline template — a minimal starter project with a single Python script that shows three quick ways to load data into DuckDB using dlt:
 
-- fetch JSON from a public REST API (Chess.com) with requests,
+- fetch JSON from a public REST API (Chess.com as an example) with requests,
 - read a public CSV with pandas, and
 - pull rows from a SQL database via SQLAlchemy.
 
@@ -77,7 +77,7 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 dltHub provides prepared contexts for thousands of different sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace).
 To get started, search for your API and follow the tailored instructions.
 
-![search for your source](https://storage.googleapis.com/dlt-blog-images/llm_workflows_search.png)
+![search for your source](https://storage.googleapis.com/dlt-blog-images/workspace-images/workspace.png)
 
 To initialize a dltHub workspace, execute the following:
 
@@ -134,7 +134,7 @@ For more on the workspace concept, [see LLM-native workflow ->](../dlt-ecosystem
 
 ### Verified source setup (community connectors)
 
-You can also initialize a verified source — prebuilt connectors contributed and maintained by the dlt team and community.
+You can also initialize a [verified source](../dlt-ecosystem/verified-sources) — prebuilt connectors contributed and maintained by the dlt team and community.
 
 **List and select a verified source**
 
@@ -195,6 +195,15 @@ You can modify an existing verified source in place.
 
 * If your changes are **generally useful**, consider contributing them back via PR.
 * If they’re **specific to your use case**, make them modular so you can still pull upstream updates.
+
+:::info
+`dlt` includes several powerful, built-in sources for extracting data from different systems:
+* [rest_api](../dlt-ecosystem/verified-sources/rest_api) — extract data from any REST API using a declarative configuration for endpoints, pagination, and authentication.
+* [sql_database](../dlt-ecosystem/verified-sources/sql_database) — load data from 30+ SQL databases via SQLAlchemy, PyArrow, pandas, or ConnectorX. Supports automatic table reflection and all major SQL dialects.
+* [filesystem](../dlt-ecosystem/verified-sources/filesystem) — load files from local or cloud storage (S3, GCS, Azure Blob, Google Drive, SFTP). Natively supports CSV, Parquet, and JSONL formats.
+
+Together, these sources cover the most common data ingestion scenarios — from APIs and databases to files.
+:::
 
 [Read more about verified sources ->](../walkthroughs/add-a-verified-source)
 
