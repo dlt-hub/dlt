@@ -10,7 +10,7 @@ This guide walks you through creating and initializing a `dlt` pipeline in dltHu
 
 ## Overview
 
-A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg).
+A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg). Initializing a pipeline is the first step in the data workflow.
 You can create one in three ways:
 
 | Method | Command | Best for |
