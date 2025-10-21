@@ -113,7 +113,13 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
     if caps is None:
         return []
 
-    table_lines = [CAPABILITIES_TABLE_HEADER.rstrip("\n"), "|---------|-------|------|"]
+    table_lines = [
+        "## Destination capabilities",
+        f"The following table shows the capabilities of the {destination_name} destination:",
+        "",
+        CAPABILITIES_TABLE_HEADER.rstrip("\n"), 
+        "|---------|-------|------|"
+    ]
 
     attrs = {k: v for k, v in vars(caps).items() if _is_relevant_capability(k, v)}
 
