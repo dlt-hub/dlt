@@ -206,35 +206,22 @@ class Dataset:
         """Convenience method to proxy `Dataset.query()`. See this method for details."""
         return self.query(query, query_dialect, _execute_raw_query=_execute_raw_query)
 
-    @overload
-    def table(self, table_name: str) -> dlt.Relation: ...
-
-    @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> dlt.Relation: ...
-
-    @overload
-    def table(self, table_name: str, table_type: Literal["ibis"]) -> ir.Table: ...
-
-    # TODO remove `table_type` argument. Instead, `dlt.Relation()` should have `.to_ibis()` method
-    def table(
-        self, table_name: str, table_type: Literal["relation", "ibis"] = "relation"
-    ) -> Union[dlt.Relation, ir.Table]:
+    def table(self, table_name: str, **kwargs) -> dlt.Relation:
         """Get a `dlt.Relation` associated with a table from the dataset."""
 
-        # dataset only provides access to tables known in dlt schema, direct query may circumvent this
-        available_tables = self.tables
-        if table_name not in available_tables:
+        # NOTE dataset only provides access to tables known in dlt schema
+        # raw query execution could access tables unknown by dlt
+        if table_name not in self.tables:
             # TODO: raise TableNotFound
-            raise ValueError(
-                f"Table `{table_name}` not found in schema `{self.schema.name}` of dataset"
-                f" `{self.dataset_name}`. Available table(s):"
-                f" {', '.join(available_tables)}"
+            raise ValueError(f"Table `{table_name}` not found. Available table(s): {self.tables}")
+
+        # TODO remove in due time;
+        if kwargs.get("table_type") == "ibis":
+            raise DeprecationWarning(
+                "Calling `.table(..., table_type='ibis') is deprecated. Instead, call" \
+                "`.table('foo').to_ibis()` to create a `dlt.Relation` and then retrieve the" \
+                "Ibis Table."
             )
-
-        if table_type == "ibis":
-            from dlt.helpers.ibis import create_unbound_ibis_table
-
-            return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
 
         # fallback to the standard dbapi relation
         return dlt.Relation(dataset=self, table_name=table_name)
