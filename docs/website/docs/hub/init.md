@@ -24,7 +24,7 @@ You can create one in three CLI-based ways:
 
 To use workspace functionality, install dlt with the workspace extra:
 
-```bash
+```sh
 pip install "dlt[workspace]"
 ```
 
@@ -41,13 +41,13 @@ This adds support for AI-assisted workflows and the `dlt ai` command.
 
 A lightweight, code-first approach ideal for developers comfortable with Python.
 
-```bash
+```sh
 dlt init {source_name} duckdb
 ````
 
 for example:
 
-```bash
+```sh
 dlt init my_github_pipeline duckdb
 ```
 
@@ -140,13 +140,13 @@ You can also initialize a [verified source](../dlt-ecosystem/verified-sources) �
 
 List available sources:
 
-```bash
+```sh
 dlt init -l
 ```
 
 Pick one, for example:
 
-```bash
+```sh
 dlt init github duckdb
 ```
 **Project structure**
@@ -172,13 +172,13 @@ Follow the command output to install dependencies and add secrets.
 
 To initialize any verified source:
 
-```bash
+```sh
 dlt init {source_name} {destination_name}
 ```
 
 For example:
 
-```bash
+```sh
 dlt init google_ads duckdb
 dlt init mongodb bigquery
 ```
@@ -216,7 +216,7 @@ Most pipelines require authentication or connection details such as API keys, pa
 
 1. **Environment variables** – the highest priority.
 
-   ```bash
+   ```sh
    export SOURCES__GITHUB__API_SECRET_KEY="<github_personal_access_token>"
    export DESTINATION__DUCKDB__CREDENTIALS="duckdb:///_storage/github_data.duckdb"
    ```
@@ -260,7 +260,7 @@ You don’t need to load secrets manually — `dlt` resolves them from any of th
 
 Run the pipeline to verify that everything works correctly:
 
-```bash
+```sh
 python {source_name}_pipeline.py
 ```
 
@@ -271,7 +271,7 @@ This executes your pipeline — fetching data from the source, normalizing it, a
 
 A printed `load_info` summary similar to::
 
-```
+```text
 Pipeline github_api_pipeline completed in 0.7 seconds
 1 load package(s) were loaded to destination duckdb and into dataset github_data
 Load package 1749667187.541553 is COMPLETED and contains no failed jobs
@@ -280,7 +280,7 @@ Load package 1749667187.541553 is COMPLETED and contains no failed jobs
 
 **Monitor progress (optional)**
 
-```bash
+```sh
 pip install enlighten
 PROGRESS=enlighten python {source_name}_pipeline.py
 ```
@@ -291,7 +291,7 @@ Alternatives: `tqdm`, `alive_progress`, or `PROGRESS=log`.
 
 **Inspect loads & trace**
 
-```bash
+```sh
 dlt pipeline {pipeline_name} info            # overview
 dlt pipeline {pipeline_name} load-package    # latest package
 dlt pipeline -v {pipeline_name} load-package # with schema changes
