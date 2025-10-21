@@ -524,30 +524,7 @@ const sidebars = {
           label: 'Deploy workspace',
           items: [
             'hub/core-concepts/profiles',
-          {
-            type: 'category',
-            label: 'Deploy a pipeline',
-            link: {
-              type: 'generated-index',
-              title: 'Deploy a pipeline',
-              description: 'Deploy dlt pipelines with different methods',
-              slug: 'hub/walkthroughs/deploy-a-pipeline',
-            },
-            items: [
-              'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
-              'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
-              'reference/explainers/airflow-gcp-cloud-composer',
-              'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
-              'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-run',
-              'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
-              'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
-              'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
-              'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
-              'walkthroughs/deploy-a-pipeline/deploy-with-modal',
-              'walkthroughs/deploy-a-pipeline/deploy-with-orchestra',
-            ]
-          },
-          'hub/production/pipeline-runner',
+            'hub/production/pipeline-runner',
           ]
         },
       ]
@@ -575,19 +552,6 @@ const sidebars = {
         'hub/ecosystem/snowflake_plus',
       ]
     },
-    {
-              type: 'category',
-              label: 'Project',
-              link: {
-                type: 'doc',
-                id: 'hub/features/project/index',
-              },
-              items: [
-                'hub/features/project/overview',
-                'hub/features/project/source-configuration',
-                'hub/features/project/python-api',
-              ]
-            },
     'hub/reference',
     'hub/EULA',
     ],

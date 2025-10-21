@@ -5,7 +5,7 @@ description: Installation of dlthub package
 
 :::info Supported Python versions
 
-dltHub currently supports Python versions 3.9-3.12.
+dltHub currently supports Python versions 3.9-3.13.
 
 :::
 
@@ -127,11 +127,7 @@ C:\> .\venv\Scripts\activate
 
 ```sh
 # install the newest dlt version or upgrade the existing version to the newest one
-<<<<<<< HEAD
 uv pip install -U "dlt[workspace]"
-=======
-uv pip install -U dlthub
->>>>>>> devel
 ```
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
@@ -153,7 +149,7 @@ export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
 license="eyJhbGciOiJSUz...vKSjbEc==="
 ```
 
-3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/project) referencing a user-defined environment variable:
+3. **`dlt.yml`**: add the license key directly in the project manifest file referencing a user-defined environment variable:
 
 ```yaml
 runtime:
