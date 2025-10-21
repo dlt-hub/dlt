@@ -17,7 +17,7 @@ You can create one in three ways:
 |---------|----------|----------|
 | CLI-based | `dlt init <source> <destination>` | Developers who prefer manual setup |
 | Workspace-based | `dlt init dlthub:<source> <destination>` | AI-assisted development with editors like Cursor |
-| Verified source | `dlt init <verified_source> <destination>` | Prebuilt, tested connectors from the community |
+| Verified source | `dlt init <verified_source> <destination>` | Prebuilt, tested connectors from the community and dltHub team |
 
 
 ## Step 0: Install dlt with workspace support
