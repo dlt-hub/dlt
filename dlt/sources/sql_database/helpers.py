@@ -199,6 +199,10 @@ class TableLoader:
                 # columns = [c[0] for c in result.cursor.description]
                 columns = list(result.keys())
                 for partition in result.partitions(size=self.chunk_size):
+                    # 🛠️ DB2 driver sometimes yields None instead of empty iterable
+                    if partition is None:
+                        logger.debug("Skipped None partition from DB2 driver.")
+                        continue
                     if self.backend == "sqlalchemy":
                         yield [dict(row._mapping) for row in partition]
                     elif self.backend == "pandas":
