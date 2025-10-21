@@ -115,7 +115,10 @@ def generate_capabilities_table(destination_name: str) -> List[str]:
 
     table_lines = [
         "## Destination capabilities",
-        f"The following table shows the capabilities of the {destination_name} destination:",
+        (
+            "The following table shows the capabilities of the"
+            f" {destination_name.title()} destination:"
+        ),
         "",
         CAPABILITIES_TABLE_HEADER.rstrip("\n"),
         "|---------|-------|------|",

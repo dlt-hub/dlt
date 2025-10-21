@@ -16,7 +16,6 @@ import shutil
 import threading
 from typing import List, Tuple
 import argparse
-import time
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -48,12 +47,10 @@ class SimpleEventHandler(FileSystemEventHandler):
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
-            print(f"Found a change in: {event.src_path}")
             handle_change(str(event.src_path))
 
     def on_created(self, event: FileSystemEvent) -> None:
-        if not event.is_directory and not MD_TARGET_DIR in event.src_path:
-            print(f"Found a creation in: {event.src_path}")
+        if not event.is_directory and MD_TARGET_DIR not in event.src_path:
             handle_change(str(event.src_path))
 
 
