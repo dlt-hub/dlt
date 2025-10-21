@@ -122,19 +122,19 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
 
     def run(self) -> None:
         # update filepath, it will be in running jobs now
-        try:
-            if self._config.batch_size == 0:
-                # on batch size zero we only call the callable with the filename
-                self.call_callable_with_items(self._file_path)
-            else:
-                current_index = self._destination_state.get(self._storage_id, 0)
-                for batch in self.get_batches(current_index):
-                    self.call_callable_with_items(batch)
-                    current_index += len(batch)
-                    self._destination_state[self._storage_id] = current_index
-        finally:
+        if self._config.batch_size == 0:
+            # on batch size zero we only call the callable with the filename
+            self.call_callable_with_items(self._file_path)
             # save progress
             commit_load_package_state()
+        else:
+            current_index = self._destination_state.get(self._storage_id, 0)
+            for batch in self.get_batches(current_index):
+                self.call_callable_with_items(batch)
+                current_index += len(batch)
+                self._destination_state[self._storage_id] = current_index
+                # save progress
+                commit_load_package_state()
 
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:
