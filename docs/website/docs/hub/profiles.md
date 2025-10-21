@@ -1,3 +1,4 @@
+---
 title: Profiles
 description: Manage environment-specific configurations and secrets in dlt and dltHub Workspace
 keywords: [dltHub, profiles, workspace, configuration, secrets, environments]
