@@ -74,7 +74,7 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 
 **Initialize your first workspace pipeline**
 
-dltHub provides prepared contexts for 1000+ sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace).
+dltHub provides prepared contexts for thousands of different sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace).
 To get started, search for your API and follow the tailored instructions.
 
 ![search for your source](https://storage.googleapis.com/dlt-blog-images/llm_workflows_search.png)
