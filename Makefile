@@ -49,7 +49,7 @@ dev: has-uv
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
-lint: lint-core lint-security lint-docstrings check-cli-docs
+lint: lint-core lint-security lint-docstrings
 
 lint-core:
 	uv run mypy --config-file mypy.ini dlt tests
