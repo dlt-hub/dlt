@@ -38,6 +38,9 @@ SELECTED_CAPABILITIES_ATTRIBUTES = {
     "supported_replace_strategies",
     "supports_tz_aware_datetime",
     "supports_naive_datetime",
+    "sqlglot_dialect",
+    "preferred_table_format",
+    "supported_table_formats",
 }
 
 CAPABILITIES_DOC_LINK_PATTERNS = [

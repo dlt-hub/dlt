@@ -22,7 +22,7 @@
     "build:netlify": "npm run update-versions && npm run preprocess-docs:cloudflare && npm run gen-api-ref:cloudflare &&  docusaurus build --out-dir build/docs",
     "serve:cloudflare": "wrangler dev --port 3001 --local",
     "preview:cloudflare": "npm run build:cloudflare && npm run serve:cloudflare",
-    "deploy:netlify": "npm run build:cloudflare && wrangler deploy"
+    "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy"
   },
   "dependencies": {
     "@docusaurus/core": "^3.7.0",

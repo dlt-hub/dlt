@@ -13,10 +13,15 @@ This script processes markdown files by:
 
 import os
 import shutil
+import threading
 from typing import List, Tuple
 import argparse
 
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.observers import Observer
+
 from .constants import (
+    EXAMPLES_SOURCE_DIR,
     MD_SOURCE_DIR,
     MD_TARGET_DIR,
     MOVE_FILES_EXTENSION,
@@ -25,8 +30,72 @@ from .constants import (
     HTTP_LINK,
     ABS_LINK,
     ABS_IMG_LINK,
+    WATCH_EXTENSIONS,
 )
 from .utils import walk_sync, remove_remaining_markers
+
+_processing_lock: threading.Lock = threading.Lock()
+_change_counter: int = 0
+
+
+class SimpleEventHandler(FileSystemEventHandler):
+    """Simple event handler for file watching."""
+
+    def on_modified(self, event: FileSystemEvent) -> None:
+        if not event.is_directory:
+            handle_change(str(event.src_path))
+
+    def on_created(self, event: FileSystemEvent) -> None:
+        if not event.is_directory:
+            handle_change(str(event.src_path))
+
+
+def handle_change(file_path: str) -> None:
+    """Handle a file change by rebuilding docs if needed."""
+    ext = os.path.splitext(file_path)[1]
+    should_process = (
+        file_path.startswith(MD_SOURCE_DIR) or file_path.startswith(EXAMPLES_SOURCE_DIR)
+    ) and ext in WATCH_EXTENSIONS
+
+    if not should_process:
+        return
+
+    if _processing_lock.locked():
+        _change_counter += 1
+        return
+
+    if _change_counter == 0:
+        _change_counter += 1
+    while _change_counter > 0:
+        _change_counter -= 1
+        with _processing_lock:
+            try:
+                print(f"Found a change in: {file_path}, rebuilding docs")
+                process_docs()
+            except Exception as e:
+                print(f"Error rebuilding docs: {e}")
+
+
+def watch() -> None:
+    """Start watching for file changes."""
+    event_handler = SimpleEventHandler()
+    observer = Observer()
+
+    watch_dirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR]
+    for watch_dir in watch_dirs:
+        if os.path.exists(watch_dir):
+            observer.schedule(event_handler, watch_dir, recursive=True)
+            print(f"Watching directory: {watch_dir}")
+
+    observer.start()
+
+    try:
+        observer.join()
+    except KeyboardInterrupt:
+        print("\nStopping file watcher...")
+        observer.stop()
+        observer.join()
+        print("File watcher stopped.")
 
 
 def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
