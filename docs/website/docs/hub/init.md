@@ -63,7 +63,7 @@ It’s meant as a hands-on playground you can immediately run and then adapt int
 Learn how to build you own dlt pipeline with [dlt Fundamentals course.](https://dlthub.learnworlds.com/course/dlt-fundamentals)
 
 
-### LLM-native setup (workspace workflow)
+### LLM-native setup
 
 A collaborative AI-human workflow that integrates `dlt` with AI editors and agents like:
 - **Cursor**,
