@@ -12,10 +12,6 @@ keywords: [duckdb, destination, data warehouse]
 pip install "dlt[duckdb]"
 ```
 
-## Destination capabilities
-
-The following table shows the capabilities of the DuckDB destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES duckdb-->
 
 ## Setup guide

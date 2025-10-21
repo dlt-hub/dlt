@@ -13,10 +13,6 @@ keywords: [bigquery, destination, data warehouse]
 ```sh
 pip install "dlt[bigquery]"
 ```
-## Destination capabilities
-
-The following table shows the capabilities of the BigQuery destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES bigquery-->
 
 ## Setup guide

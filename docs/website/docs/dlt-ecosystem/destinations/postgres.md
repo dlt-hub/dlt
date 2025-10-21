@@ -12,10 +12,6 @@ keywords: [postgres, destination, data warehouse]
 pip install "dlt[postgres]"
 ```
 
-## Destination capabilities
-
-The following table shows the capabilities of the Postgres destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES postgres-->
 
 ## Setup guide

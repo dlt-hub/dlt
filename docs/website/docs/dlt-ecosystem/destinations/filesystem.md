@@ -25,11 +25,6 @@ pip install s3fs
 so pip does not fail on backtracking.
 :::
 
-
-## Destination capabilities
-
-The following table shows the capabilities of the Filesystem destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES filesystem-->
 
 ## Initialize the dlt project

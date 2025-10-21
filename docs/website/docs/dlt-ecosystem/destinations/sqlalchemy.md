@@ -26,10 +26,6 @@ pip install mysqlclient
 
 Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/en/20/dialects/) for information about client libraries required for supported databases.
 
-## Destination capabilities
-
-The following table shows the capabilities of the Sqlalchemy destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
 
 ### Create a pipeline

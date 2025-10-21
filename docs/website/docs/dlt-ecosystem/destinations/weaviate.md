@@ -10,10 +10,6 @@ keywords: [weaviate, vector database, destination, dlt]
 This destination helps you load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
 
-## Destination capabilities
-
-The following table shows the capabilities of the Weaviate destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES weaviate-->
 
 ## Setup guide

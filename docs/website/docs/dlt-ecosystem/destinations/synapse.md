@@ -12,10 +12,6 @@ keywords: [synapse, destination, data warehouse]
 pip install "dlt[synapse]"
 ```
 
-## Destination capabilities
-
-The following table shows the capabilities of the Synapse destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES synapse-->
 
 ## Setup guide

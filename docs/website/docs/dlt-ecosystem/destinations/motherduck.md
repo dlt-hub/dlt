@@ -22,10 +22,6 @@ or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../
 :::
 
 
-## Destination capabilities
-
-The following table shows the capabilities of the Motherduck destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
 
 ## Setup guide

@@ -19,10 +19,6 @@ To install `dlt` without additional dependencies:
 pip install dlt
 ```
 
-## Destination capabilities
-
-The following table shows the capabilities of the Destination destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES destination-->
 
 ## Set up a destination function for your pipeline

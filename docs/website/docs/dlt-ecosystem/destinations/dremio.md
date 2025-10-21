@@ -12,10 +12,6 @@ keywords: [dremio, iceberg, aws, glue catalog]
 pip install "dlt[dremio,s3]"
 ```
 
-## Destination capabilities
-
-The following table shows the capabilities of the Dremio destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES dremio-->
 
 ## Setup guide

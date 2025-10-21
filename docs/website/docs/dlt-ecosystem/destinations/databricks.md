@@ -26,10 +26,6 @@ Databricks supports both **Delta** (default) and **Apache Iceberg** table format
 pip install "dlt[databricks]"
 ```
 
-## Destination capabilities
-
-The following table shows the capabilities of the Databricks destination:
-
 <!--@@@DLT_DESTINATION_CAPABILITIES databricks-->
 
 ## Set up your Databricks workspace
