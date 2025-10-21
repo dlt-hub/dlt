@@ -72,7 +72,7 @@ def test_example_plugin() -> None:
     plugin_context = Container()[PluginContext]
     assert plugin_context.plugin_modules == [context.module.__name__, "dlt"]
     # reference prefixes we probe when resolving
-    assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt_example_plugin", "dlt"]
+    assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt"]
     assert context.local_dir.startswith(context.data_dir)
     assert context.local_dir.endswith("tmp")
 

@@ -1,3 +1,12 @@
+"""Module registering command line plugins
+To add a new plugin here, do the following:
+1. create a new command class in like ie. `dlt._workspace.cli.commands `ProfileCommand(SupportsCliCommand):`
+2. provide the implementation of command functions like ie. in `dlt._workspace.cli._profile_command`
+3. remember to wrap command in telemetry ie. @utils.track_command("profile", track_before=False, operation="info")
+4. register the plugin here.
+
+this module is inspected by pluggy on dlt startup
+"""
 from typing import Type
 
 from dlt.common.configuration import plugins
@@ -21,56 +30,56 @@ __all__ = [
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_init() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import InitCommand
+    from dlt._workspace.cli.commands import InitCommand
 
     return InitCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_pipeline() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import PipelineCommand
+    from dlt._workspace.cli.commands import PipelineCommand
 
     return PipelineCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_schema() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import SchemaCommand
+    from dlt._workspace.cli.commands import SchemaCommand
 
     return SchemaCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_dashboard() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import DashboardCommand
+    from dlt._workspace.cli.commands import DashboardCommand
 
     return DashboardCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_telemetry() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import TelemetryCommand
+    from dlt._workspace.cli.commands import TelemetryCommand
 
     return TelemetryCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_deploy() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import DeployCommand
+    from dlt._workspace.cli.commands import DeployCommand
 
     return DeployCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_docs() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import CliDocsCommand
+    from dlt._workspace.cli.commands import CliDocsCommand
 
     return CliDocsCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_ai() -> Type[plugins.SupportsCliCommand]:
-    from dlt.cli.commands import AiCommand
+    from dlt._workspace.cli.commands import AiCommand
 
     return AiCommand
 
@@ -88,7 +97,7 @@ def plug_cli_runtime() -> Type[plugins.SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_profile() -> Type[plugins.SupportsCliCommand]:
     if is_workspace_active():
-        from dlt._workspace.cli._profile_command import ProfileCommand
+        from dlt._workspace.cli.commands import ProfileCommand
 
         return ProfileCommand
     else:
@@ -98,7 +107,7 @@ def plug_cli_profile() -> Type[plugins.SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_workspace() -> Type[plugins.SupportsCliCommand]:
     if is_workspace_active():
-        from dlt._workspace.cli._workspace_command import WorkspaceCommand
+        from dlt._workspace.cli.commands import WorkspaceCommand
 
         return WorkspaceCommand
     else:

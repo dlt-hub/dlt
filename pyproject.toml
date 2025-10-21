@@ -35,7 +35,6 @@ dependencies = [
     "simplejson>=3.17.5",
     "PyYAML>=5.4.1",
     "semver>=3.0.0",
-    "hexbytes>=0.2.2",
     "tzdata>=2022.1",
     "tomlkit>=0.11.3",
     "pathvalidate>=2.5.2",
@@ -115,7 +114,7 @@ motherduck = [
     "pyarrow>=16.0.0",
 ]
 cli = [
-    "pipdeptree>=2.9.0,<2.10",
+    "pipdeptree>=2.9.3,<2.10",
     "cron-descriptor>=1.2.32",
     "pip>=23.0.0",
 ]
@@ -183,6 +182,7 @@ workspace = [
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
     "mcp>=1.2.1 ; python_version >= '3.10'",
+    "pathspec>=0.11.2",
 ]
 dbml = [
     "pydbml"
@@ -193,7 +193,7 @@ Homepage = "https://github.com/dlt-hub"
 Repository = "https://github.com/dlt-hub/dlt"
 
 [project.scripts]
-dlt = "dlt.cli._dlt:_main"
+dlt = "dlt._workspace.cli._dlt:_main"
 
 [dependency-groups]
 # NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group
@@ -330,12 +330,10 @@ flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", br
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]
+# hatchling follows .gitignore and will include all files in gitindex under `dlt`
 include = [
     "LICENSE.txt",
     "README.md",
-    "dlt/sources/pipeline_templates/.gitignore",
-    "dlt/sources/pipeline_templates/.dlt/config.toml",
-    "dlt/helpers/dashboard/dlt_dashboard_styles.css"
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -343,8 +341,6 @@ packages = ["dlt"]
 include = [
     "LICENSE.txt",
     "README.md",
-    "dlt/sources/pipeline_templates/.gitignore",
-    "dlt/sources/pipeline_templates/.dlt/config.toml",
 ]
 
 [build-system]
@@ -402,3 +398,17 @@ profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3
 
+[tool.pytest.ini_options]
+pythonpath = ["dlt", "docs/website/docs"]
+norecursedirs = [".direnv", ".eggs", "build", "dist"]
+addopts = "--showlocals --durations 10"
+xfail_strict = true
+log_cli_level = "INFO"
+console_output_style = "count"
+python_files = ["test_*.py", "*_test.py", "*snippets.py", "*snippet.pytest"]
+python_functions = ["*_test", "test_*", "*_snippet"]
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "essential: marks all essential tests",
+    "no_load: marks tests that do not load anything"
+]

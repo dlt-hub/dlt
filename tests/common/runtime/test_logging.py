@@ -33,11 +33,10 @@ def test_version_extract(environment: DictStrStr) -> None:
     assert version == {"dlt_version": lib_version, "pipeline_name": "logger"}
     # mock image info available in container
     mock_image_env(environment)
-    version = exec_info.dlt_version_info("logger")
+    version = exec_info.dlt_version_info(None)
     assert version == {
         "dlt_version": lib_version,
         "commit_sha": "192891",
-        "pipeline_name": "logger",
         "image_version": "scale/v:112",
     }
 

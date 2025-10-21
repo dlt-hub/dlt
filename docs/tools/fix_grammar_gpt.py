@@ -11,7 +11,7 @@ from typing import List
 from openai import OpenAI
 from dotenv import load_dotenv
 
-import dlt.cli.echo as fmt
+import dlt._workspace.cli.echo as fmt
 
 from utils import collect_markdown_files
 

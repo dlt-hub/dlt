@@ -18,7 +18,11 @@ from dlt.destinations import filesystem, athena
 from dlt.destinations.impl.athena.configuration import LakeformationConfig
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
+from tests.utils import (
+    preserve_module_environ,
+    auto_module_test_storage,
+    auto_module_test_run_context,
+)
 
 # These tests require Lakeformation permissions to be able to run.
 # The tests have only been run as lakeformation admin so far, since the fixtures require
@@ -27,7 +31,7 @@ from tests.utils import preserve_module_environ, autouse_module_test_storage, pa
 
 @pytest.fixture(scope="module")
 def botocore_session(
-    autouse_module_test_storage, preserve_module_environ, patch_module_home_dir
+    auto_module_test_storage, preserve_module_environ, auto_module_test_run_context
 ) -> Iterator[Session]:
     # with dlt.pipeline("lf_client_pipeline", destination="athena").destination_client() as client:
     credentials = dlt.config.get("destination.athena.credentials", AwsCredentials)

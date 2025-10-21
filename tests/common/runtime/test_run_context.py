@@ -6,7 +6,7 @@ import pickle
 from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
-from dlt.common.runtime.init import _INITIALIZED, apply_runtime_config, restore_run_context
+from dlt.common.runtime.init import restore_run_context
 from dlt.common.runtime.run_context import (
     DOT_DLT,
     RunContext,
@@ -18,7 +18,7 @@ from dlt.common.storages.configuration import _make_file_url
 from dlt.common.utils import set_working_dir
 
 import tests
-from tests.utils import MockableRunContext, TEST_STORAGE_ROOT
+from tests.utils import MockableRunContext, TEST_STORAGE_ROOT, disable_temporary_telemetry
 
 
 @pytest.fixture(autouse=True)
@@ -41,18 +41,23 @@ def test_run_context() -> None:
     assert run_context.run_dir == run_context.local_dir
     assert run_context.uri == _make_file_url(None, run_context.run_dir, None)
     assert run_context.uri.startswith("file://")
+    assert run_context.config is None
 
     # check config providers
     assert len(run_context.initial_providers()) == 3
 
-    # apply runtime config
-    assert ctx.runtime_config is None
+    assert ctx.context.runtime_config is None
     ctx.add_extras()
-    assert ctx.runtime_config is not None
+    # still not applied - must be in container
+    assert ctx.context.runtime_config is None
+
+    with Container().injectable_context(ctx):
+        ctx.initialize_runtime()
+    assert ctx.context.runtime_config is not None
 
     runtime_config = RuntimeConfiguration()
-    ctx.initialize_runtime(runtime_config)
-    assert ctx.runtime_config is runtime_config
+    ctx.context.initialize_runtime(runtime_config)
+    assert ctx.context.runtime_config is runtime_config
 
     # entities
     assert "data_entity" in run_context.get_data_entity("data_entity")
@@ -61,11 +66,13 @@ def test_run_context() -> None:
     assert run_context.get_run_entity("run_entity") == run_context.run_dir
 
     # check if can be pickled
-    pickle.dumps(run_context)
+    pickled_ = pickle.dumps(run_context)
+    run_context_unpickled = pickle.loads(pickled_)
+    assert dict(run_context.runtime_config) == dict(run_context_unpickled.runtime_config)
 
     # check plugin modules
     # NOTE: first `dlt` - is the root module of current context, second is always present
-    assert get_plugin_modules() == ["dlt", "dlt"]
+    assert get_plugin_modules() == ["dlt"]
 
 
 def test_context_without_module() -> None:
@@ -77,51 +84,29 @@ def test_context_without_module() -> None:
 
 
 def test_context_init_without_runtime() -> None:
-    runtime_config = RuntimeConfiguration()
     ctx = PluggableRunContext()
     with Container().injectable_context(ctx):
         # logger is immediately initialized
         assert logger.LOGGER is not None
         # runtime is also initialized but logger was not created
-        assert ctx.runtime_config is not None
-        # this will call init_runtime on injected context internally
-        apply_runtime_config(runtime_config)
-        assert logger.LOGGER is not None
-        assert ctx.runtime_config is runtime_config
+        assert ctx.context.runtime_config is not None
 
 
-def test_context_init_with_runtime() -> None:
-    runtime_config = RuntimeConfiguration()
-    ctx = PluggableRunContext(runtime_config=runtime_config)
-    assert ctx.runtime_config is runtime_config
-    # logger not initialized until placed in the container
-    assert logger.LOGGER is None
-    with Container().injectable_context(ctx):
-        assert ctx.runtime_config is runtime_config
-        assert logger.LOGGER is not None
-
-
-def test_run_context_handover() -> None:
+def test_run_context_handover(disable_temporary_telemetry) -> None:
     # test handover of run context to process pool worker
-    runtime_config = RuntimeConfiguration()
     ctx = PluggableRunContext()
     container = Container()
     old_ctx = container[PluggableRunContext]
+    runtime_config = old_ctx.context.runtime_config
     try:
+        ctx.context._runtime_config = runtime_config  # type: ignore
         mock = MockableRunContext.from_context(ctx.context)
         mock._name = "handover-dlt"
+        # this will insert pickled/unpickled objects into the container simulating cross process
+        # call in process pool
+        mock = pickle.loads(pickle.dumps(mock))
         # also adds to context, should initialize runtime
-        global _INITIALIZED
-        try:
-            telemetry_init = _INITIALIZED
-            # do not initialize telemetry here
-            _INITIALIZED = True
-            # this will insert pickled/unpickled objects into the container
-            mock = pickle.loads(pickle.dumps(mock))
-            runtime_config = pickle.loads(pickle.dumps(runtime_config))
-            restore_run_context(mock, runtime_config)
-        finally:
-            _INITIALIZED = telemetry_init
+        restore_run_context(mock)
 
         # logger initialized and named
         assert logger.LOGGER.name == "handover-dlt"
@@ -132,7 +117,7 @@ def test_run_context_handover() -> None:
         run_ctx = dlt.current.run_context()
         assert run_ctx is mock
         ctx = Container()[PluggableRunContext]
-        assert ctx.runtime_config is runtime_config
+        assert ctx.context.runtime_config is mock._runtime_config
     finally:
         container[PluggableRunContext] = old_ctx
 

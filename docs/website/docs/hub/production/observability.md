@@ -19,7 +19,7 @@ For an extended description, we recommend you look at the actual implementation 
 Here is a simple example of how to inherit from the `PlusLogCollector` and use the [slack-hook](../../running-in-production/running#using-slack-to-send-messages) to send a message when a schema change is detected.
 
 ```py
-from dlt_plus._runner.plus_log_collector import PlusLogCollector
+from dlthub._runner.plus_log_collector import PlusLogCollector
 from dlt.sources.sql_database import sql_database
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.pipeline import SupportsPipeline
@@ -44,7 +44,7 @@ class MyLogCollector(PlusLogCollector):
             # os.environ["RUNTIME__SLACK_INCOMING_HOOK"] = "https://hooks.slack.com/services/..."
 
             msg = f"schema {schema_name} change in pipeline {pipeline.pipeline_name}**:\n{changes}"
-            send_slack_message(pipeline.runtime_config.slack_incoming_hook, msg)
+            send_slack_message(pipeline.runtime_config.slack_incoming_hook, msg)  # type: ignore
         except Exception as e:
             # fail without interrupting the pipeline
             print(f"Error trying to send slack message: {e}")

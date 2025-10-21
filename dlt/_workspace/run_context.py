@@ -4,9 +4,10 @@ import tempfile
 from dlt.common.configuration.specs.pluggable_run_context import (
     ProfilesRunContext,
 )
+from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import is_folder_writable, switch_context
 
-DEFAULT_WORKSPACE_WORKING_FOLDER = "_data"
+DEFAULT_WORKSPACE_WORKING_FOLDER = ".var"
 DEFAULT_LOCAL_FOLDER = "_local"
 
 
@@ -42,4 +43,13 @@ def switch_profile(profile: str) -> ProfilesRunContext:
     """
     from dlt.common.runtime.run_context import active
 
-    return switch_context(active().run_dir, profile=profile, required=True)  # type: ignore[return-value]
+    ctx = active()
+    # can switch profile only on a context that supports that
+    context_class = ctx.__class__.__name__
+    if not isinstance(ctx, ProfilesRunContext):
+        raise RunContextNotAvailable(
+            ctx.run_dir,
+            f"Run context of type `{context_class}` located at `{ctx.run_dir}` does not support"
+            " profiles.",
+        )
+    return switch_context(ctx.run_dir, profile=profile, required=context_class)  # type: ignore[return-value]

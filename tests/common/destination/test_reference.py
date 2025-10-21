@@ -25,10 +25,9 @@ def test_import_unknown_destination() -> None:
     assert unk_ex.value.qualified_refs == [
         "meltdb",
         "dlt.destinations.meltdb",
-        "dlt.destinations.meltdb",
     ]
     traces = unk_ex.value.traces
-    assert len(traces) == 2 and traces[0].reason == "AttrNotFound"
+    assert len(traces) == 1 and traces[0].reason == "AttrNotFound"
 
     # custom module
     with pytest.raises(UnknownDestinationModule) as unk_ex:
@@ -306,6 +305,81 @@ def test_import_destination_config() -> None:
     # incorrect name will fail with correct error
     with pytest.raises(UnknownDestinationModule):
         Destination.from_reference(ref=None, destination_name="balh")
+
+
+@pytest.mark.parametrize(
+    "destination_type",
+    ["duckdb", "wrong_type"],
+    ids=["destination_type_duckdb", "destination_type_invalid"],
+)
+def test_import_destination_type_config(
+    environment: Dict[str, str],
+    destination_type: str,
+) -> None:
+    """Test destination resolution behavior with both valid and invalid destination types.
+
+    This test covers the resolution strategy where dlt first tries to resolve
+    a destination as a named destination with configured type, and if that fails,
+    falls back to resolving it as a direct destination type reference.
+    """
+    environment["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = destination_type
+
+    if destination_type == "wrong_type":
+        # Case 1: Fully qualified ref with dots
+        # Skips named destination resolution and only attempts direct type resolution
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref=f"dlt.destinations.{destination_type}")
+        assert "`dlt.destinations.wrong_type` is not registered" in str(py_exc.value)
+        assert not py_exc.value.named_dest_attempted
+        assert not py_exc.value.destination_type
+
+        # Case 2: Explicit destination_name provided
+        # Same as Case 1
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref=destination_type, destination_name="my_destination")
+        assert "`wrong_type` is not one of the standard dlt destinations" in str(py_exc.value)
+        assert not py_exc.value.named_dest_attempted
+        assert not py_exc.value.destination_type
+
+        # Case 3: Named destination with invalid configured type
+        # First tries named destination "my_destination" with configured type "wrong_type"
+        # Then tries "my_destination" as destination type
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref="my_destination")
+        assert f"destination type '{destination_type}' is not valid" in str(py_exc.value)
+        assert "dlt also tried to resolve 'my_destination' as a standard destination" in str(
+            py_exc.value
+        )
+        assert py_exc.value.named_dest_attempted is True
+        assert py_exc.value.destination_type == "wrong_type"
+
+        # Case 4: Named destination with missing type configuration
+        # First tries named destination "my_destination" but no type configured (config error)
+        # Then tries "my_destination" as direct destination type
+        environment.clear()
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref="my_destination")
+        assert "no destination type was configured" in str(py_exc.value)
+        assert "dlt also tried to resolve 'my_destination' as a standard destination" in str(
+            py_exc.value
+        )
+        assert py_exc.value.named_dest_attempted is True
+        assert not py_exc.value.destination_type
+
+    else:
+        dest = Destination.from_reference(ref="my_destination")
+        assert dest.destination_type == "dlt.destinations.duckdb"
+        assert dest.destination_name == "my_destination"
+
+        dest = Destination.from_reference(
+            ref=f"dlt.destinations.{destination_type}", destination_name="my_destination"
+        )
+        assert dest.destination_type == "dlt.destinations.duckdb"
+        assert dest.destination_name == "my_destination"
+
+        dest = Destination.from_reference(ref=f"dlt.destinations.{destination_type}")
+        assert dest.destination_type == "dlt.destinations.duckdb"
+        assert dest.destination_name == "duckdb"
 
 
 def test_destination_config_explicit_credentials() -> None:

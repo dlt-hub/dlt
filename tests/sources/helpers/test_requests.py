@@ -212,7 +212,7 @@ def test_init_default_client() -> None:
 
     os.environ.update({key: str(value) for key, value in cfg.items()})
 
-    dlt.pipeline(pipeline_name="dummy_pipeline")
+    dlt.current.run_context().reload()
 
     session = default_client.session
     assert session.timeout == cfg["RUNTIME__REQUEST_TIMEOUT"]

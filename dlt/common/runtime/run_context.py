@@ -1,9 +1,9 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import os
 import tempfile
 import warnings
 from types import ModuleType
-from typing import Any, ClassVar, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urlencode
 
 from dlt.common import known_env
@@ -14,10 +14,14 @@ from dlt.common.configuration.providers import (
     ConfigTomlProvider,
 )
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
     PluggableRunContext,
 )
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.runtime.init import initialize_runtime
 
 # dlt settings folder
 DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
@@ -28,6 +32,7 @@ class RunContext(RunContextBase):
 
     def __init__(self, run_dir: Optional[str]):
         self._init_run_dir = run_dir or "."
+        self._runtime_config: RuntimeConfiguration = None
 
     @property
     def global_dir(self) -> str:
@@ -66,6 +71,22 @@ class RunContext(RunContextBase):
         ]
         return providers
 
+    def initialize_runtime(self, runtime_config: RuntimeConfiguration = None) -> None:
+        if runtime_config is None:
+            self._runtime_config = resolve_configuration(RuntimeConfiguration())
+        else:
+            self._runtime_config = runtime_config
+
+        initialize_runtime(self.name, self._runtime_config)
+
+    @property
+    def runtime_config(self) -> RuntimeConfiguration:
+        return self._runtime_config
+
+    @property
+    def config(self) -> BaseConfiguration:
+        return None
+
     @property
     def module(self) -> Optional[ModuleType]:
         try:
@@ -99,7 +120,7 @@ class RunContext(RunContextBase):
 
 
 def switch_context(
-    run_dir: Optional[str], profile: str = None, required: bool = True, validate: bool = False
+    run_dir: Optional[str], profile: str = None, required: str = None, validate: bool = False
 ) -> RunContextBase:
     """Switch the run context to a project at `run_dir` with an optional profile.
 
@@ -115,12 +136,13 @@ def switch_context(
     of any config files and manifests associated with the run context.
 
     Args:
-        run_dir: Filesystem path of the project directory to activate. If None,
+        run_dir (str): Filesystem path of the project directory to activate. If None,
             plugins may resolve the directory themselves.
-        profile: Profile name to activate for the run context.
-        required: If True, plugins should raise if a context cannot be created
-            for the provided `run_dir`.
-        validate: If True, plugins should perform strict validation of config
+        profile (str): Profile name to activate for the run context.
+        required (str, optional): A class name of the context be instantiated at `run_dir` ie. setting
+            it to `WorkspaceRunContext` will cause the workspace context plugin to raise if workspace is
+            not found at `run_dir`.
+        validate (str, optional): If True, plugins should perform strict validation of config
             files and manifests associated with the run context.
 
     Returns:
@@ -204,7 +226,11 @@ def get_plugin_modules() -> List[str]:
     ctx_module = active().module
     run_module_name = ctx_module.__name__ if ctx_module else ""
 
-    return [run_module_name] + [p for p in Container()[PluginContext].plugin_modules]
+    plugin_modules = Container()[PluginContext].plugin_modules.copy()
+    with suppress(ValueError):
+        plugin_modules.remove(run_module_name)
+    plugin_modules.insert(0, run_module_name)
+    return plugin_modules
 
 
 def context_uri(name: str, run_dir: str, runtime_kwargs: Optional[Dict[str, Any]]) -> str:

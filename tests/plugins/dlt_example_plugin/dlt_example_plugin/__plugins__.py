@@ -4,11 +4,11 @@ from typing import Any, ClassVar, Dict, Optional, Type
 
 from dlt.common.configuration import plugins
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
-from dlt.cli import SupportsCliCommand
+from dlt._workspace.cli import SupportsCliCommand
 from dlt.common.runtime.run_context import RunContext, DOT_DLT
 
 from tests.utils import TEST_STORAGE_ROOT
-from dlt.cli.exceptions import CliCommandException
+from dlt._workspace.cli.exceptions import CliCommandException
 
 
 class RunContextTest(RunContext):

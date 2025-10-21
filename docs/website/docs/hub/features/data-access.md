@@ -32,7 +32,7 @@ A demonstration package that sends GitHub events to Delta Lake, aggregates, and 
 
 import os
 import dlt as dlt
-from dlt_plus.project import Catalog, EntityFactory, ProjectRunContext, Project, PipelineManager
+from dlthub.project import Catalog, EntityFactory, ProjectRunContext, Project, PipelineManager
 
 def access_profile() -> str:
     """Implement this function to select profile assigned to users that import this Python package
@@ -45,7 +45,7 @@ def context() -> ProjectRunContext:
     """Returns the context of this package, including run directory,
     data directory and project config
     """
-    from dlt_plus.project.run_context import ensure_project
+    from dlthub.project.run_context import ensure_project
     return ensure_project(run_dir=os.path.dirname(__file__), profile=access_profile())
 
 
@@ -84,8 +84,8 @@ description = "Description"
 requires-python = ">=3.9,<3.13"
 
 dependencies = [
-    "dlt>=1.7.0",
-    "dlt-plus==0.7.0"
+    "dlt>=1.18.0",
+    "dlthub"
 ]
 
 [project.entry-points.dlt_package]
@@ -127,7 +127,7 @@ Once you've created a Python package, you can distribute it via PyPI (private or
 
     ```sh
     Datasets in project dlt_example_project for profile access:
-    github_events_dataset@delta_lake[s3://dlt-ci-test-bucket/dlt_plus_demo/lake_1/]
+    github_events_dataset@delta_lake[s3://dlt-ci-test-bucket/dlthub_demo/lake_1/]
     reports_dataset@warehouse[snowflake://loader:***@kgiotue-wn98412/dlt_data]
     ```
 

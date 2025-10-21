@@ -1,14 +1,14 @@
 import os
 
 from dlt.common.exceptions import DltException
-from dlt.common.runtime.exceptions import RuntimeException
+from dlt.common.runtime.exceptions import RunContextNotAvailable
 
 
 class WorkspaceException(DltException):
     pass
 
 
-class WorkspaceRunContextNotAvailable(WorkspaceException, RuntimeException):
+class WorkspaceRunContextNotAvailable(RunContextNotAvailable, WorkspaceException):
     def __init__(self, run_dir: str):
         msg = (
             f"Workspace could not be found in `{run_dir}` (`{os.path.abspath(run_dir)}`). To enable"

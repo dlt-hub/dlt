@@ -150,7 +150,7 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
             executor = ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.restore_run_context,
-                initargs=(ctx.context, ctx.runtime_config),
+                initargs=(ctx.context,),
                 mp_context=multiprocessing.get_context(method=start_method),
             )
         else:
