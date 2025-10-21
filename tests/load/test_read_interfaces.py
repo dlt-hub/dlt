@@ -1038,8 +1038,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     dataset = populated_pipeline.dataset()
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
-    items_table = dataset.table("items", table_type="ibis")
-    double_items_table = dataset.table("double_items", table_type="ibis")
+    items_table = dataset.table("items").to_ibis()
+    double_items_table = dataset.table("double_items").to_ibis()
 
     # check full table access
     df = dataset(items_table).df()
