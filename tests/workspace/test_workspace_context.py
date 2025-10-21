@@ -4,7 +4,7 @@ import pickle
 
 import dlt
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
-from dlt._workspace.cli.utils import delete_local_data
+from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin
 from dlt._workspace.run_context import (
@@ -12,19 +12,17 @@ from dlt._workspace.run_context import (
     DEFAULT_WORKSPACE_WORKING_FOLDER,
     switch_profile,
 )
-from dlt.cli.echo import maybe_no_stdin
+from dlt._workspace.cli.echo import always_choose
 from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
 
 from tests.pipeline.utils import assert_table_counts
-from tests.workspace.utils import isolated_workspace, WORKSPACE_CASES_DIR
+from tests.workspace.utils import isolated_workspace
 
 
 def test_legacy_workspace() -> None:
     # do not create workspace context without feature flag
-    with isolated_workspace(
-        os.path.join(WORKSPACE_CASES_DIR, "legacy"), "legacy", required=None
-    ) as ctx:
+    with isolated_workspace("legacy", required=None) as ctx:
         assert isinstance(ctx, RunContext)
         # fail when getting active workspace
         with pytest.raises(WorkspaceRunContextNotAvailable):
@@ -33,23 +31,21 @@ def test_legacy_workspace() -> None:
 
 def test_require_workspace_context() -> None:
     with pytest.raises(RunContextNotAvailable):
-        with isolated_workspace(
-            os.path.join(WORKSPACE_CASES_DIR, "legacy"), "legacy", required="WorkspaceRunContext"
-        ):
+        with isolated_workspace("legacy", required="WorkspaceRunContext"):
             pass
 
 
 def test_workspace_settings() -> None:
-    run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "default") as ctx:
-        assert_run_context(ctx, "default", DEFAULT_PROFILE)
+    with isolated_workspace("default") as ctx:
+        assert_workspace_context(ctx, "default", DEFAULT_PROFILE)
         assert_dev_config()
 
 
 def test_workspace_profile() -> None:
-    run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "default", profile="prod") as ctx:
-        assert_run_context(ctx, "default", "prod")
+    with isolated_workspace("default", profile="prod") as ctx:
+        assert_workspace_context(ctx, "default", "prod")
+        # mocked global dir
+        assert ctx.global_dir.endswith(".global_dir")
 
         # files for dev profile will be ignores
         assert dlt.config["config_val"] == "config.toml"
@@ -65,19 +61,36 @@ def test_workspace_profile() -> None:
         assert ctx.profile == "dev"
         ctx = dlt.current.workspace()
         assert ctx.profile == "dev"
-        assert_run_context(ctx, "default", "dev")
+        assert_workspace_context(ctx, "default", "dev")
+        # standard global dir
+        assert ctx.global_dir == global_dir()
         assert_dev_config()
 
 
 def test_profile_switch_no_workspace():
-    with isolated_workspace(os.path.join(WORKSPACE_CASES_DIR, "legacy"), "legacy", required=None):
+    with isolated_workspace("legacy", required=None):
         with pytest.raises(RunContextNotAvailable):
             switch_profile("dev")
 
 
+def test_workspace_configuration():
+    with isolated_workspace("configured_workspace", profile="tests") as ctx:
+        # should be used as component for logging
+        assert ctx.runtime_config.pipeline_name == "component"
+        assert ctx.name == "name_override"
+        # check dirs for tests profile
+        assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
+        assert ctx.local_dir.endswith(os.path.join("_local", "tests"))
+
+        ctx = ctx.switch_profile("dev")
+        assert ctx.name == "name_override"
+        assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
+        # this OSS compat mode where local dir is same as run dir
+        assert ctx.local_dir == os.path.join(ctx.run_dir, ".")
+
+
 def test_pinned_profile() -> None:
-    run_dir = os.path.join(WORKSPACE_CASES_DIR, "default")
-    with isolated_workspace(run_dir, "default") as ctx:
+    with isolated_workspace("default") as ctx:
         save_profile_pin(ctx, "prod")
         assert read_profile_pin(ctx) == "prod"
 
@@ -86,7 +99,7 @@ def test_pinned_profile() -> None:
         assert ctx.profile == "prod"
         ctx = dlt.current.workspace()
         assert ctx.profile == "prod"
-        assert_run_context(ctx, "default", "prod")
+        assert_workspace_context(ctx, "default", "prod")
 
 
 def test_dev_env_overwrite() -> None:
@@ -96,8 +109,7 @@ def test_dev_env_overwrite() -> None:
 def test_workspace_pipeline() -> None:
     pytest.importorskip("duckdb", minversion="1.3.2")
 
-    run_dir = os.path.join(WORKSPACE_CASES_DIR, "pipelines")
-    with isolated_workspace(run_dir, "pipelines", profile="tests") as ctx:
+    with isolated_workspace("pipelines", profile="tests") as ctx:
         # `ducklake_pipeline` configured in config.toml
         pipeline = dlt.pipeline(pipeline_name="ducklake_pipeline")
         assert pipeline.run_context is ctx
@@ -114,8 +126,8 @@ def test_workspace_pipeline() -> None:
         assert os.path.isdir(os.path.join(ctx.get_data_entity("pipelines"), "ducklake_pipeline"))
 
         # test wipe function
-        with maybe_no_stdin():
-            delete_local_data(ctx, skip_data_dir=False)
+        with always_choose(always_choose_default=False, always_choose_value=True):
+            delete_local_data(ctx, check_delete_local_data(ctx, skip_data_dir=False))
         # must recreate pipeline
         pipeline = pipeline.drop()
         load_info = pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
@@ -145,16 +157,15 @@ def assert_dev_config() -> None:
     assert dlt.secrets["secrets_val_dev"] == "dev.secrets.toml"
 
 
-def assert_run_context(context: WorkspaceRunContext, name_prefix: str, profile: str) -> None:
+def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, profile: str) -> None:
     # basic properties must be set
     assert context.name.startswith(name_prefix)
     assert context.profile == profile
 
-    assert context.global_dir == global_dir()
     expected_settings = os.path.join(context.run_dir, DOT_DLT)
     assert context.settings_dir == expected_settings
 
-    # path / _data / profile
+    # path / .var / profile
     expected_data_dir = os.path.join(
         context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER, profile
     )
@@ -176,4 +187,7 @@ def assert_run_context(context: WorkspaceRunContext, name_prefix: str, profile: 
     assert context.get_setting("config.toml") == os.path.join(expected_settings, "config.toml")
 
     # check if can be pickled
-    pickle.dumps(context)
+    pickled_ = pickle.dumps(context)
+    run_context_unpickled = pickle.loads(pickled_)
+    assert dict(context.runtime_config) == dict(run_context_unpickled.runtime_config)
+    assert dict(context.config) == dict(run_context_unpickled.config)

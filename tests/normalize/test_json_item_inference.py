@@ -3,8 +3,7 @@ from pendulum import UTC
 import pytest
 from copy import deepcopy
 from typing import Any, Iterator, List, Sequence
-from hexbytes import HexBytes
-
+from dlt.common.libs.hexbytes import HexBytes
 from dlt.common import Wei, Decimal, pendulum, json
 from dlt.common.configuration.container import Container
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext

@@ -3,7 +3,6 @@ from copy import copy
 from typing import Any, Dict, Type
 from unittest.mock import Mock, patch
 import pytest
-import pyarrow.csv as acsv
 import pyarrow.parquet as pq
 
 from dlt.common import json
@@ -17,6 +16,7 @@ from dlt.common.data_writers.writers import (
 )
 from dlt.common.libs.pyarrow import remove_columns
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.utils import custom_environ
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
@@ -24,7 +24,7 @@ from tests.cases import (
     arrow_table_all_data_types,
     table_update_and_row,
 )
-from tests.utils import TestDataItemFormat, custom_environ
+from tests.utils import TestDataItemFormat
 
 
 def test_csv_arrow_writer_all_data_fields() -> None:

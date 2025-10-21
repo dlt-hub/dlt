@@ -1,18 +1,18 @@
 ---
 title: "Cache 🧪"
 description: Execute data transformations in your local cache
-keywords: ["dlt+", "cache", "transformations"]
+keywords: ["dltHub", "cache", "transformations"]
 ---
 
 :::caution
-🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list)
 :::
 
-The dlt+ Cache is a temporary local storage created by dlt+ to enhance development workflows. It allows you to efficiently run local transformations, materialize dbt models, and test your queries before deploying them to production.
+The dltHub Cache is a temporary local storage created by dltHub to enhance development workflows. It allows you to efficiently run local transformations, materialize dbt models, and test your queries before deploying them to production.
 
 ## How it works
 
-The dlt+ Cache is a powerful tool that enables users to shift parts of their data workflows earlier in the development process. Its primary use case today is [running transformations locally](../features/transformations/index.md), but we plan to support more use cases and workflows in the future.
+The dltHub Cache is a powerful tool that enables users to shift parts of their data workflows earlier in the development process. Its primary use case today is [running transformations locally](../features/transformations/index.md), but we plan to support more use cases and workflows in the future.
 
 The cache is powered by DuckDB, supporting the full DuckDB SQL dialect. You can manipulate cached data and push it back to any dlt destination.
 

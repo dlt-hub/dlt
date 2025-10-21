@@ -48,8 +48,10 @@ dev: has-uv
 
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
-	
-lint:
+
+lint: lint-core lint-security lint-docstrings
+
+lint-core:
 	uv run mypy --config-file mypy.ini dlt tests
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
@@ -59,8 +61,6 @@ lint:
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
-	$(MAKE) lint-security
-	$(MAKE) lint-docstrings
 
 format:
 	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
@@ -123,7 +123,7 @@ test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data ACTIVE_DESTINATIONS='["postgres"]' ALL_FILESYSTEM_DRIVERS='["memory"]'  uv run pytest tests/load
 
 test-common:
-	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common tests/load/test_dummy_client.py tests/libs tests/destinations
+	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
 
 reset-test-storage:
 	-rm -r _storage
@@ -180,8 +180,8 @@ test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
 start-dlt-dashboard-e2e:
-	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
+	uv run marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
 
 # creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
-	uv run python tests/helpers/dashboard/example_pipelines.py
+	uv run python tests/workspace/helpers/dashboard/example_pipelines.py

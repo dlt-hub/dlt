@@ -503,8 +503,6 @@ class SupportsPipeline(Protocol):
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""
-    runtime_config: RuntimeConfiguration
-    """A configuration of runtime options like logging level and format and various tracing options"""
     run_context: RunContextBase
     """A run context associated with the pipeline when instance was created"""
     working_dir: str

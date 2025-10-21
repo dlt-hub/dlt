@@ -127,7 +127,7 @@ jobs:
 
       - name: Run workspace tests
         run: |
-          pytest tests/workspace tests/cli/common ${{ matrix.pytest_args }}
+          pytest tests/workspace ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14.0-beta.4'
 
       - name: Install pipeline and sources dependencies

@@ -13,7 +13,7 @@ from typing import List, Dict
 
 import tomlkit
 import yaml
-import dlt.cli.echo as fmt
+import dlt._workspace.cli.echo as fmt
 
 from dlt.common import json
 
