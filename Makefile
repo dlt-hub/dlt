@@ -49,7 +49,7 @@ dev: has-uv
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
-lint: lint-core lint-security lint-docstrings
+lint: lint-core lint-security lint-docstrings check-cli-docs
 
 lint-core:
 	uv run mypy --config-file mypy.ini dlt tests
@@ -124,11 +124,6 @@ test-load-local-postgres:
 
 test-common:
 	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
-
-reset-test-storage:
-	-rm -r _storage
-	mkdir _storage
-	python3 tests/tools/create_storages.py
 
 build-library: dev
 	uv version
