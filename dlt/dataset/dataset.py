@@ -206,7 +206,7 @@ class Dataset:
         """Convenience method to proxy `Dataset.query()`. See this method for details."""
         return self.query(query, query_dialect, _execute_raw_query=_execute_raw_query)
 
-    def table(self, table_name: str, **kwargs) -> dlt.Relation:
+    def table(self, table_name: str, **kwargs: Any) -> dlt.Relation:
         """Get a `dlt.Relation` associated with a table from the dataset."""
 
         # NOTE dataset only provides access to tables known in dlt schema
@@ -218,9 +218,9 @@ class Dataset:
         # TODO remove in due time;
         if kwargs.get("table_type") == "ibis":
             raise DeprecationWarning(
-                "Calling `.table(..., table_type='ibis') is deprecated. Instead, call" \
-                "`.table('foo').to_ibis()` to create a `dlt.Relation` and then retrieve the" \
-                "Ibis Table."
+                "Calling `.table(..., table_type='ibis') is deprecated. Instead, call"
+                " `.table('foo').to_ibis()` to create a `dlt.Relation` and then retrieve the"
+                " Ibis Table."
             )
 
         # fallback to the standard dbapi relation
