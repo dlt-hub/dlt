@@ -735,24 +735,21 @@ can temporarily disable this machinery to import `dlt` and use it afterwards. In
 %restart_python
 import sys
 
-# dlt patching is a first
+# dlt patching hook is the first one on the list
 metas = list(sys.meta_path)
 sys.meta_path = metas[1:]
-print(sys.meta_path)
-import os
 
-# TODO: fix in dlt - ignore invalid runtime settings, otherwise dlt fails when resolving configuration
-del os.environ["RUNTIME"]
+# remove RUNTIME - uncomment on dlt before 1.18.0
+# import os
+# del os.environ["RUNTIME"]
 
 import dlt
-sys.meta_path = metas
+sys.meta_path = metas  # restore post import hooks
+
+# use dlt
 info = dlt.run([1, 2, 3], destination=dlt.destinations.filesystem("_data"), table_name="digits")
 print(info)
 ```
-
-### LTS 16.4
-Databricks discontinued Delta Live Tables (DLT) as a separate entity and moved the related
-
 
 ### 1. Add an `init` script (15.x)
 To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
