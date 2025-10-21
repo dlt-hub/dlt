@@ -1,6 +1,7 @@
 import argparse
 import time
 from typing import Optional
+from dlt.common.configuration.plugins import SupportsCliCommand
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.exceptions import (
@@ -10,7 +11,7 @@ from dlt._workspace.exceptions import (
 )
 from dlt._workspace.runtime import RuntimeAuthService, get_auth_client
 from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete, github_oauth_start
-from dlt.cli import SupportsCliCommand, echo as fmt
+from dlt._workspace.cli import echo as fmt
 
 
 class RuntimeCommand(SupportsCliCommand):

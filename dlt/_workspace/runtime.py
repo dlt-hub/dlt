@@ -18,7 +18,7 @@ from dlt._workspace.runtime_clients.api.api.me import me
 from dlt._workspace.runtime_clients.api.client import Client as ApiClient
 from dlt._workspace.runtime_clients.api.models.me_response import MeResponse
 from dlt._workspace.runtime_clients.auth.client import Client as AuthClient
-from dlt.cli.config_toml_writer import WritableConfigValue, write_values
+from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
     ConfigTomlProvider,

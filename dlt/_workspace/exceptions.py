@@ -1,7 +1,7 @@
 import os
 
 from dlt.common.exceptions import DltException
-from dlt.common.runtime.exceptions import RunContextNotAvailable
+from dlt.common.runtime.exceptions import RunContextNotAvailable, RuntimeException
 
 
 class WorkspaceException(DltException):
