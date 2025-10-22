@@ -91,7 +91,7 @@ def _format_doc_link_for_key(key: str, link: str) -> str:
     if key == "merge":
         return f"[Merge strategy]({link})"
     if key == "replace":
-        return f"[Truncate-and-insert strategy]({link})"
+        return f"[Replace strategy]({link})"
     if key == "time":
         return f"[Timestamps and Timezones]({link})"
     if key == "dialect":

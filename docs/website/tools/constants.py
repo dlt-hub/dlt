@@ -47,7 +47,10 @@ CAPABILITIES_DOC_LINK_PATTERNS = [
     ("table", "../table-formats/"),
     ("file_format", "../file-formats/"),
     ("merge", "../../general-usage/merge-loading#merge-strategies"),
-    ("replace", "../../general-usage/full-loading#the-truncate-and-insert-strategy"),
+    (
+        "replace",
+        "../../general-usage/full-loading#choosing-the-correct-replace-strategy-for-your-full-load",
+    ),
     ("time", "../../general-usage/schema#handling-of-timestamp-and-time-zones"),
     ("dialect", "../../general-usage/dataset-access/dataset"),
     (
