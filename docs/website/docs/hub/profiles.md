@@ -27,24 +27,24 @@ Profiles let you:
 Profiles are part of the [dltHub Workspace](workspace) feature.
 To use them, first install `dlt` with Workspace support:
 
-```bash
+```sh
 pip install "dlt[workspace]"
 ```
 Initialize a project:
 
-```bash
+```sh
 dlt init dlthub:pokemon_api duckdb
 ```
 
 Then, enable the Workspace feature by creating a flag file:
 
-```bash
+```sh
 touch .dlt/.workspace
 ```
 
 Once enabled, the Workspace automatically activates **profile support** and adds new commands such as:
 
-```bash
+```sh
 dlt profile
 dlt workspace
 ```
@@ -70,7 +70,7 @@ The others become active when pinned or automatically selected by Runtime.
 
 View available profiles:
 
-```bash
+```sh
 dlt profile list
 ```
 
@@ -89,25 +89,25 @@ Available profiles:
 To change environments, **pin the desired profile**.
 This makes it the default for all commands and runs:
 
-```bash
+```sh
 dlt profile prod pin
 ```
 
 You can verify your current profile:
 
-```bash
+```sh
 dlt profile
 ```
 
 To unpin:
 
-```bash
+```sh
 rm .dlt/profile-name
 ```
 
 Once pinned, you can simply run your pipeline as usual:
 
-```bash
+```sh
 python pokemon_api_pipeline.py
 ```
 
@@ -128,7 +128,7 @@ destination_type = "duckdb"
 
 Or via **environment variable**:
 
-```shell
+```sh
 DESTINATION__WAREHOUSE__DESTINATION_TYPE="duckdb"
 ```
 
@@ -146,7 +146,7 @@ pipeline = dlt.pipeline(
 
 Run it locally:
 
-```bash
+```sh
 python pokemon_api_pipeline.py
 ```
 
@@ -165,7 +165,7 @@ credentials = "md:///dlt_data?motherduck_token=...."
 
 Pin and activate the profile:
 
-```bash
+```sh
 dlt profile prod pin
 ```
 
@@ -173,7 +173,7 @@ dlt profile prod pin
 
 Before running your pipeline in production, you can verify that the credentials and dataset configuration work correctly:
 
-```bash
+```sh
 dlt --debug pipeline pokemon_api_pipeline sync --destination warehouse --dataset-name pokemon_api_data
 ```
 
@@ -189,13 +189,13 @@ ERROR: Pipeline pokemon_api_pipeline was not found in dataset pokemon_api_data i
 This simply means the target dataset hasn’t been created yet — no action is required.
 Now, run your pipeline script to load data into MotherDuck:
 
-```bash
+```sh
 python pokemon_api_pipeline.py
 ```
 
 Once the pipeline completes, open the **Workspace Dashboard** with:
 
-```bash
+```sh
 dlt workspace show
 ```
 
@@ -206,19 +206,19 @@ You’ll see your pipeline connected to the remote MotherDuck dataset and ready 
 
 * **List profiles**
 
-  ```bash
+  ```sh
   dlt profile list
   ```
 
 * **Show the current profile**
 
-  ```bash
+  ```sh
   dlt profile
   ```
 
 * **Clean workspace (useful in dev)**
 
-  ```bash
+  ```sh
   dlt workspace clean
   ```
 
@@ -230,8 +230,6 @@ You’ll see your pipeline connected to the remote MotherDuck dataset and ready 
 * Use **named destinations** (like `warehouse`) to simplify switching.
 * Commit `config.toml`, but exclude all `.secrets.toml` files.
 
-
-Here’s a concise and well-structured **“What’s next”** section that fits naturally at the end of your *Profiles* documentation page:
 
 ## Next steps
 
