@@ -26,17 +26,17 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext, configspec
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.pluggable_run_context import (
-    SupportsRunContext,
+    RunContextBase,
 )
-from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
+from dlt.common.pipeline import PipelineContext, SupportsPipeline
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
-from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
+from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import DictStrAny, StrAny, TDataItem
-from dlt.common.utils import custom_environ, set_working_dir, uniq_id
+from dlt.common.typing import StrAny, TDataItem
+from dlt.common.utils import set_working_dir
 
 TEST_STORAGE_ROOT = "_storage"
 
@@ -183,12 +183,13 @@ def preserve_environ() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def patch_home_dir() -> Iterator[None]:
-    yield from _patch_home_dir()
+def auto_test_run_context() -> Iterator[None]:
+    """Creates a run context that points to TEST_STORAGE_ROOT (_storage)"""
+    yield from create_test_run_context()
 
 
 @pytest.fixture(autouse=True, scope="module")
-def autouse_module_test_storage(request) -> FileStorage:
+def auto_module_test_storage(request) -> FileStorage:
     request.keywords["skip_autouse_test_storage"] = True
     return clean_test_storage()
 
@@ -199,26 +200,24 @@ def preserve_module_environ() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True, scope="module")
-def patch_module_home_dir(autouse_module_test_storage) -> Iterator[None]:
-    yield from _patch_home_dir()
+def auto_module_test_run_context(auto_module_test_storage) -> Iterator[None]:
+    yield from create_test_run_context()
 
 
-def _patch_home_dir() -> Iterator[None]:
+def create_test_run_context() -> Iterator[None]:
+    # this plugs active context
     ctx = PluggableRunContext()
     mock = MockableRunContext.from_context(ctx.context)
     mock._local_dir = os.path.abspath(TEST_STORAGE_ROOT)
     mock._global_dir = mock._data_dir = os.path.join(mock._local_dir, DOT_DLT)
-    ctx.context = mock
-
-    # also emit corresponding env variables so pipelines in env work like that
-    with custom_environ(
-        {
-            known_env.DLT_LOCAL_DIR: mock.local_dir,
-            known_env.DLT_DATA_DIR: mock.data_dir,
-        }
-    ):
-        with Container().injectable_context(ctx):
-            yield
+    ctx_plug = Container()[PluggableRunContext]
+    cookie = ctx_plug.push_context()
+    try:
+        ctx_plug.reload(mock)
+        yield
+    finally:
+        assert ctx_plug is Container()[PluggableRunContext], "PluggableRunContext was replaced"
+        ctx_plug.pop_context(cookie)
 
 
 def _preserve_environ() -> Iterator[None]:
@@ -244,6 +243,18 @@ def _preserve_environ() -> Iterator[None]:
                 environ[key_] = value_ or ""
             else:
                 del environ[key_]
+
+
+@pytest.fixture(autouse=True)
+def preserve_run_context() -> Iterator[None]:
+    """Restores initial run context when test completes"""
+    ctx_plug = Container()[PluggableRunContext]
+    cookie = ctx_plug.push_context()
+    try:
+        yield
+    finally:
+        assert ctx_plug is Container()[PluggableRunContext], "PluggableRunContext was replaced"
+        ctx_plug.pop_context(cookie)
 
 
 class MockableRunContext(RunContext):
@@ -279,7 +290,7 @@ class MockableRunContext(RunContext):
     _local_dir: str
 
     @classmethod
-    def from_context(cls, ctx: SupportsRunContext) -> "MockableRunContext":
+    def from_context(cls, ctx: RunContextBase) -> "MockableRunContext":
         cls_ = cls(ctx.run_dir)
         cls_._name = ctx.name
         cls_._global_dir = ctx.global_dir
@@ -287,25 +298,12 @@ class MockableRunContext(RunContext):
         cls_._settings_dir = ctx.settings_dir
         cls_._data_dir = ctx.data_dir
         cls_._local_dir = ctx.local_dir
+        cls_._runtime_config = ctx.runtime_config
         return cls_
 
 
 @pytest.fixture(autouse=True)
-def patch_random_home_dir() -> Iterator[None]:
-    ctx = PluggableRunContext()
-    mock = MockableRunContext.from_context(ctx.context)
-    mock._global_dir = mock._data_dir = os.path.abspath(
-        os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id(), DOT_DLT)
-    )
-    ctx.context = mock
-
-    os.makedirs(ctx.context.global_dir, exist_ok=True)
-    with Container().injectable_context(ctx):
-        yield
-
-
-@pytest.fixture(autouse=True)
-def unload_modules() -> Iterator[None]:
+def auto_unload_modules() -> Iterator[None]:
     """Unload all modules inspected in this tests"""
     prev_modules = dict(sys.modules)
     yield
@@ -315,8 +313,8 @@ def unload_modules() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def wipe_pipeline(preserve_environ) -> Iterator[None]:
-    """Wipes pipeline local state and deactivates it"""
+def deactivate_pipeline(preserve_environ) -> Iterator[None]:
+    """Deactivates pipeline. Local state is not removed"""
     container = Container()
     if container[PipelineContext].is_active():
         container[PipelineContext].deactivate()
@@ -433,9 +431,8 @@ def arrow_item_from_table(
 
 
 def init_test_logging(c: RuntimeConfiguration = None) -> None:
-    if not c:
-        c = resolve_configuration(RuntimeConfiguration())
-    Container()[PluggableRunContext].initialize_runtime(c)
+    ctx = Container()[PluggableRunContext].context
+    ctx.initialize_runtime(c)
 
 
 @configspec
@@ -450,7 +447,9 @@ def start_test_telemetry(c: RuntimeConfiguration = None):
     stop_telemetry()
     if not c:
         c = resolve_configuration(RuntimeConfiguration())
-    start_telemetry(c)
+        c.dlthub_telemetry = True
+    ctx = Container()[PluggableRunContext].context
+    ctx.initialize_runtime(c)
 
 
 @pytest.fixture
@@ -471,6 +470,9 @@ def disable_temporary_telemetry() -> Iterator[None]:
         # force stop telemetry
         telemetry._TELEMETRY_STARTED = True
         stop_telemetry()
+        from dlt.common.runtime import anon_tracker
+
+        assert anon_tracker._ANON_TRACKER_ENDPOINT is None
 
 
 def clean_test_storage(

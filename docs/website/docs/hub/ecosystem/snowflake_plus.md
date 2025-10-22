@@ -19,7 +19,7 @@ All [data access](../../general-usage/dataset-access/) methods (pandas, arrow, I
 You can [link](https://docs.snowflake.com/LIMITEDACCESS/iceberg/tables-iceberg-externally-managed-writes#label-tables-iceberg-external-writes-create-cld) any catalog (Lakekeeper, Glue, S3Tables or Open Catalog/Polaris) used by `dlt` [Iceberg](iceberg.md) destination to a Snowflake database.
 :::
 
-This destination is available starting from dlt+ version 0.9.0. It fully supports all the functionality of the standard Snowflake destination, plus:
+This destination is available starting from dltHub version 0.9.0. It fully supports all the functionality of the standard Snowflake destination, plus:
 
 1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file or `dlt.yml` file.
 2. Additional configuration for Iceberg tables in Snowflake via:
@@ -31,10 +31,10 @@ This destination is available starting from dlt+ version 0.9.0. It fully support
 
 ## Installation
 
-Install the `dlt-plus` package with the `snowflake` extra:
+Install the `dlthub` package with the `snowflake` extra:
 
 ```sh
-pip install "dlt-plus[snowflake]"
+pip install "dlthub[snowflake]"
 ```
 
 Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use the `snowflake` destination.
@@ -50,7 +50,7 @@ Once the `snowflake` extra is installed, you can configure a pipeline to use `sn
 GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 ```
 
-5. Configure the `snowflake_plus` destination. For a dlt+ project (in `dlt.yml`) or for a Python script (in `config.toml`):
+5. Configure the `snowflake_plus` destination. For a dltHub project (in `dlt.yml`) or for a Python script (in `config.toml`):
 
 <Tabs
   groupId="config-format"
@@ -61,7 +61,7 @@ GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 ]}>
   <TabItem value="dlt-yml">
 
-If you don't have a dlt+ project yet, initialize one in the current working directory. Replace `sql_database` with the source of your choice:
+If you don't have a dltHub project yet, initialize one in the current working directory. Replace `sql_database` with the source of your choice:
 
 ```sh
 dlt project init sql_database snowflake_plus

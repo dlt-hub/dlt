@@ -4,7 +4,7 @@ import dlt
 
 # import auto fixture that sets global and data dir to TEST_STORAGE
 from dlt.common.runtime.run_context import DOT_DLT
-from tests.utils import TEST_STORAGE_ROOT, patch_home_dir
+from tests.utils import TEST_STORAGE_ROOT, auto_test_run_context
 
 
 def test_data_dir_test_storage() -> None:

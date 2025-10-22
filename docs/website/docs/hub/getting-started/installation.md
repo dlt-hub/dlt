@@ -1,20 +1,20 @@
 ---
 title: Installation
-description: Installation information for dlt+
+description: Installation of dlthub package
 ---
 
 :::info Supported Python versions
 
-dlt+ currently supports Python versions 3.9-3.12.
+dltHub currently supports Python versions 3.9-3.13.
 
 :::
 
 ## Quickstart
 
-To install the `dlt-plus` package, run:
+To install the `dlthub` package, run:
 
 ```sh
-pip install dlt-plus
+pip install dlthub
 ```
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
@@ -121,20 +121,20 @@ C:\> .\venv\Scripts\activate
   </TabItem>
 </Tabs>
 
-### Install dlt+
+### Install dlthub
 
-You can now install dlt+ in your virtual environment by running:
+`dlthub` will be automatically installed with workspace extra:
 
 ```sh
 # install the newest dlt version or upgrade the existing version to the newest one
-uv pip install -U dlt-plus
+uv pip install -U "dlt[workspace]"
 ```
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
 
 ## Licensing
 
-Once you have a valid license, you can make it available to dlt+ using one of the following methods:
+Once you have a valid license, you can make it available to dlthub using one of the following methods:
 
 1. **Environment variable**: set the license key as an environment variable:
 
@@ -149,7 +149,7 @@ export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
 license="eyJhbGciOiJSUz...vKSjbEc==="
 ```
 
-3. **`dlt.yml`**: add the license key directly in the [project manifest file](../features/projects.md) referencing a user-defined environment variable:
+3. **`dlt.yml`**: add the license key directly in the project manifest file referencing a user-defined environment variable:
 
 ```yaml
 runtime:
@@ -162,4 +162,4 @@ You can verify that the license was installed correctly and is valid by running:
 $ dlt license show
 ```
 
-Our license terms can be found [here](https://dlthub.com/legal/dlt-plus-eula).
+Our license terms can be found [here](../EULA.md).

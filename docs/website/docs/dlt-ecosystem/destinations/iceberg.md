@@ -126,6 +126,10 @@ The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strat
 Until _pyiceberg_ > 0.9.1 is released, upsert is executed in chunks of **1000** rows. 
 :::
 
+:::warning
+Schema evolution (changing the set of columns) is not supported when using the `upsert` merge strategy with _pyiceberg_ == 0.10.0
+:::
+
 ```py
 @dlt.resource(
     write_disposition={"disposition": "merge", "strategy": "upsert"},

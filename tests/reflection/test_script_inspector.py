@@ -9,7 +9,7 @@ from dlt.reflection.script_inspector import (
     PipelineIsRunning,
 )
 
-from tests.utils import unload_modules
+from tests.utils import auto_unload_modules
 
 MODULE_CASES = "./tests/reflection/module_cases"
 

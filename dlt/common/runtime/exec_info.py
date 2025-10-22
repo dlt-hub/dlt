@@ -4,6 +4,7 @@ import contextlib
 import sys
 import multiprocessing
 import platform
+from typing import Optional
 
 from dlt.common.runtime.typing import TExecutionContext, TVersion, TExecInfoNames
 from dlt.common.typing import StrStr, StrAny, List
@@ -155,9 +156,11 @@ def is_marimo() -> bool:
     return False
 
 
-def dlt_version_info(pipeline_name: str) -> StrStr:
+def dlt_version_info(pipeline_name: Optional[str]) -> StrStr:
     """Gets dlt version info including commit and image version available in docker"""
-    version_info = {"dlt_version": __version__, "pipeline_name": pipeline_name}
+    version_info = {"dlt_version": __version__}
+    if pipeline_name:
+        version_info["pipeline_name"] = pipeline_name
     # extract envs with build info
     version_info.update(filter_env_vars(["COMMIT_SHA", "IMAGE_VERSION"]))
 
@@ -217,9 +220,9 @@ def is_gcp_cloud_function() -> bool:
 
 
 def get_plus_version() -> TVersion:
-    "Gets dlt+ library version"
+    "Gets dlthub library version"
     try:
-        from dlt_plus.version import __version__, PKG_NAME
+        from dlthub.version import __version__, PKG_NAME
 
         return TVersion(name=PKG_NAME, version=__version__)
     except Exception:
@@ -253,6 +256,6 @@ def get_execution_context() -> TExecutionContext:
         run_context=run_context_name(),
     )
     if plus_version := get_plus_version():
-        context["plus"] = plus_version
+        context["dlthub"] = plus_version
 
     return context
