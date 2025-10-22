@@ -11,8 +11,6 @@ from dlt.common.schema.utils import (
     create_version_and_loads_schema_name_reference,
 )
 
-from tests.utils import preserve_environ, patch_home_dir, autouse_test_storage
-
 
 @pytest.fixture
 def schema() -> dlt.Schema:
