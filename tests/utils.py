@@ -222,23 +222,27 @@ def auto_module_test_run_context(auto_module_test_storage) -> Iterator[None]:
     yield from create_test_run_context()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def public_http_server():
     """
     A simple HTTP server serving files from the current directory.
     Used to simulate public CDN. It allows only file access, directory listing is forbidden.
     """
     httpd = http.server.ThreadingHTTPServer(
-        ("localhost", 8080),
+        ("localhost", 8189),
         partial(
             PublicCDNHandler.factory, directory=Path.cwd().joinpath("tests/common/storages/samples")
         ),
     )
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
-    yield httpd
-    httpd.shutdown()
-    server_thread.join()
+    try:
+        yield httpd
+    finally:
+        # always close
+        httpd.shutdown()
+        server_thread.join()
+        httpd.server_close()
 
 
 def create_test_run_context() -> Iterator[None]:

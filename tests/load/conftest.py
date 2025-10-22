@@ -13,7 +13,6 @@ from tests.utils import (
     preserve_environ,
     auto_test_run_context,
     autouse_test_storage,
-    public_http_server,
 )
 
 
