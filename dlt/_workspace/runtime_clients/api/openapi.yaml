@@ -44,6 +44,7 @@ components:
           description: Whether the script is active
           type: boolean
         default_profile_id_or_name:
+          default: default
           description: The ID or name of the profile to use for the script
           type: string
         description:
@@ -64,7 +65,6 @@ components:
         script_type:
           $ref: '#/components/schemas/ScriptType'
       required:
-      - default_profile_id_or_name
       - description
       - entry_point
       - name
@@ -121,6 +121,109 @@ components:
       - version
       - workspace_id
       title: DeploymentResponse
+      type: object
+    DetailedRunResponse:
+      properties:
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        deployment_id:
+          description: The ID of the deployment that will be used when running the
+            script
+          format: uuid
+          type: string
+        duration:
+          description: The time the run took in seconds
+          oneOf:
+          - type: integer
+          - type: 'null'
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        logs:
+          description: A link to the logs of the run
+          oneOf:
+          - type: string
+          - type: 'null'
+        number:
+          description: The number of the run. Will increment for each new run of the
+            script
+          type: integer
+        profile:
+          $ref: '#/components/schemas/ProfileResponse'
+        profile_version_id:
+          description: The ID of the profile version that will be used when running
+            the script
+          format: uuid
+          type: string
+        script:
+          $ref: '#/components/schemas/ScriptResponse'
+        script_version_id:
+          description: The ID of the script version that will be used when running
+            the script
+          format: uuid
+          type: string
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        time_ended:
+          description: The time the run ended
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        time_started:
+          description: The time the run started
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        trigger:
+          $ref: '#/components/schemas/RunTriggerType'
+        triggered_by:
+          description: The ID of the identity who triggered the run if triggered manually
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+        workspace_id:
+          description: The ID of the workspace the run belongs to
+          format: uuid
+          type: string
+      required:
+      - date_added
+      - date_updated
+      - deployment_id
+      - id
+      - number
+      - profile
+      - profile_version_id
+      - script
+      - script_version_id
+      - status
+      - trigger
+      - workspace_id
+      title: DetailedRunResponse
+      type: object
+    LogsResponse:
+      properties:
+        logs:
+          description: The logs of the run. Set to none if no logs are available
+          oneOf:
+          - type: string
+          - type: 'null'
+        run_id:
+          description: The ID of the run the logs belong to
+          format: uuid
+          type: string
+      required:
+      - run_id
+      title: LogsResponse
       type: object
     MeResponse:
       properties:
@@ -314,13 +417,7 @@ components:
             script
           format: uuid
           type: string
-        end_time:
-          description: The time the run ended
-          oneOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-        execution_time:
+        duration:
           description: The time the run took in seconds
           oneOf:
           - type: integer
@@ -348,14 +445,20 @@ components:
             the script
           format: uuid
           type: string
-        start_time:
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        time_ended:
+          description: The time the run ended
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        time_started:
           description: The time the run started
           oneOf:
           - format: date-time
             type: string
           - type: 'null'
-        status:
-          $ref: '#/components/schemas/RunStatus'
         trigger:
           $ref: '#/components/schemas/RunTriggerType'
         triggered_by:
@@ -364,6 +467,10 @@ components:
           - format: uuid
             type: string
           - type: 'null'
+        workspace_id:
+          description: The ID of the workspace the run belongs to
+          format: uuid
+          type: string
       required:
       - date_added
       - date_updated
@@ -374,6 +481,7 @@ components:
       - script_version_id
       - status
       - trigger
+      - workspace_id
       title: RunResponse
       type: object
     RunStatus:
@@ -2322,7 +2430,7 @@ paths:
                 properties:
                   items:
                     items:
-                      $ref: '#/components/schemas/RunResponse'
+                      $ref: '#/components/schemas/DetailedRunResponse'
                     type: array
                   limit:
                     description: Maximal number of items to send.
@@ -2432,7 +2540,7 @@ paths:
       deprecated: false
       description: '
 
-        Gets latest run for a workspace by ID. Can be filtered by script ID and status.
+        Gets latest run for a workspace by ID.
 
 
         Requires READ permission. On the organization level.
@@ -2463,7 +2571,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunResponse'
+                $ref: '#/components/schemas/DetailedRunResponse'
           description: Request fulfilled, document follows
           headers: {}
         '400':
@@ -2730,7 +2838,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunResponse'
+                $ref: '#/components/schemas/DetailedRunResponse'
           description: Request fulfilled, document follows
           headers: {}
         '400':
@@ -2822,6 +2930,143 @@ paths:
                 type: object
           description: Nothing matches the given URI
       summary: GetRun
+      tags:
+      - runs
+  /v1/workspaces/{workspace_id}/runs/{run_id}/logs:
+    get:
+      deprecated: false
+      description: '
+
+        Gets the logs for a run for a workspace by ID.
+
+
+        Requires READ permission. On the organization level.
+
+        '
+      operationId: get_run_logs
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: script_id
+        required: false
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: GetRunLogs
       tags:
       - runs
   /v1/workspaces/{workspace_id}/scripts:

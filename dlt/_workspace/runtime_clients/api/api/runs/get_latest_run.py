@@ -6,11 +6,11 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.detailed_run_response import DetailedRunResponse
 from ...models.get_latest_run_response_400 import GetLatestRunResponse400
 from ...models.get_latest_run_response_401 import GetLatestRunResponse401
 from ...models.get_latest_run_response_403 import GetLatestRunResponse403
 from ...models.get_latest_run_response_404 import GetLatestRunResponse404
-from ...models.run_response import RunResponse
 from ...types import UNSET, Response, Unset
 
 
@@ -47,15 +47,15 @@ def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Optional[
     Union[
+        DetailedRunResponse,
         GetLatestRunResponse400,
         GetLatestRunResponse401,
         GetLatestRunResponse403,
         GetLatestRunResponse404,
-        RunResponse,
     ]
 ]:
     if response.status_code == 200:
-        response_200 = RunResponse.from_dict(response.json())
+        response_200 = DetailedRunResponse.from_dict(response.json())
 
         return response_200
 
@@ -89,11 +89,11 @@ def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
     Union[
+        DetailedRunResponse,
         GetLatestRunResponse400,
         GetLatestRunResponse401,
         GetLatestRunResponse403,
         GetLatestRunResponse404,
-        RunResponse,
     ]
 ]:
     return Response(
@@ -111,17 +111,17 @@ def sync_detailed(
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Response[
     Union[
+        DetailedRunResponse,
         GetLatestRunResponse400,
         GetLatestRunResponse401,
         GetLatestRunResponse403,
         GetLatestRunResponse404,
-        RunResponse,
     ]
 ]:
     """GetLatestRun
 
 
-    Gets latest run for a workspace by ID. Can be filtered by script ID and status.
+    Gets latest run for a workspace by ID.
 
     Requires READ permission. On the organization level.
 
@@ -134,7 +134,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404, RunResponse]]
+        Response[Union[DetailedRunResponse, GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -156,17 +156,17 @@ def sync(
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Optional[
     Union[
+        DetailedRunResponse,
         GetLatestRunResponse400,
         GetLatestRunResponse401,
         GetLatestRunResponse403,
         GetLatestRunResponse404,
-        RunResponse,
     ]
 ]:
     """GetLatestRun
 
 
-    Gets latest run for a workspace by ID. Can be filtered by script ID and status.
+    Gets latest run for a workspace by ID.
 
     Requires READ permission. On the organization level.
 
@@ -179,7 +179,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404, RunResponse]
+        Union[DetailedRunResponse, GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404]
     """
 
     return sync_detailed(
@@ -196,17 +196,17 @@ async def asyncio_detailed(
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Response[
     Union[
+        DetailedRunResponse,
         GetLatestRunResponse400,
         GetLatestRunResponse401,
         GetLatestRunResponse403,
         GetLatestRunResponse404,
-        RunResponse,
     ]
 ]:
     """GetLatestRun
 
 
-    Gets latest run for a workspace by ID. Can be filtered by script ID and status.
+    Gets latest run for a workspace by ID.
 
     Requires READ permission. On the organization level.
 
@@ -219,7 +219,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404, RunResponse]]
+        Response[Union[DetailedRunResponse, GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -239,17 +239,17 @@ async def asyncio(
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Optional[
     Union[
+        DetailedRunResponse,
         GetLatestRunResponse400,
         GetLatestRunResponse401,
         GetLatestRunResponse403,
         GetLatestRunResponse404,
-        RunResponse,
     ]
 ]:
     """GetLatestRun
 
 
-    Gets latest run for a workspace by ID. Can be filtered by script ID and status.
+    Gets latest run for a workspace by ID.
 
     Requires READ permission. On the organization level.
 
@@ -262,7 +262,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404, RunResponse]
+        Union[DetailedRunResponse, GetLatestRunResponse400, GetLatestRunResponse401, GetLatestRunResponse403, GetLatestRunResponse404]
     """
 
     return (

@@ -37,6 +37,7 @@ from .create_run_response_404 import CreateRunResponse404
 from .create_run_response_404_extra import CreateRunResponse404Extra
 from .create_script_request import CreateScriptRequest
 from .deployment_response import DeploymentResponse
+from .detailed_run_response import DetailedRunResponse
 from .get_deployment_response_400 import GetDeploymentResponse400
 from .get_deployment_response_400_extra import GetDeploymentResponse400Extra
 from .get_deployment_response_401 import GetDeploymentResponse401
@@ -101,6 +102,14 @@ from .get_profile_version_response_403 import GetProfileVersionResponse403
 from .get_profile_version_response_403_extra import GetProfileVersionResponse403Extra
 from .get_profile_version_response_404 import GetProfileVersionResponse404
 from .get_profile_version_response_404_extra import GetProfileVersionResponse404Extra
+from .get_run_logs_response_400 import GetRunLogsResponse400
+from .get_run_logs_response_400_extra import GetRunLogsResponse400Extra
+from .get_run_logs_response_401 import GetRunLogsResponse401
+from .get_run_logs_response_401_extra import GetRunLogsResponse401Extra
+from .get_run_logs_response_403 import GetRunLogsResponse403
+from .get_run_logs_response_403_extra import GetRunLogsResponse403Extra
+from .get_run_logs_response_404 import GetRunLogsResponse404
+from .get_run_logs_response_404_extra import GetRunLogsResponse404Extra
 from .get_run_response_400 import GetRunResponse400
 from .get_run_response_400_extra import GetRunResponse400Extra
 from .get_run_response_401 import GetRunResponse401
@@ -187,6 +196,7 @@ from .list_scripts_response_403 import ListScriptsResponse403
 from .list_scripts_response_403_extra import ListScriptsResponse403Extra
 from .list_scripts_response_404 import ListScriptsResponse404
 from .list_scripts_response_404_extra import ListScriptsResponse404Extra
+from .logs_response import LogsResponse
 from .me_response import MeResponse
 from .me_response_401 import MeResponse401
 from .me_response_401_extra import MeResponse401Extra
@@ -244,6 +254,7 @@ __all__ = (
     "CreateRunResponse404Extra",
     "CreateScriptRequest",
     "DeploymentResponse",
+    "DetailedRunResponse",
     "GetDeploymentResponse400",
     "GetDeploymentResponse400Extra",
     "GetDeploymentResponse401",
@@ -308,6 +319,14 @@ __all__ = (
     "GetProfileVersionResponse403Extra",
     "GetProfileVersionResponse404",
     "GetProfileVersionResponse404Extra",
+    "GetRunLogsResponse400",
+    "GetRunLogsResponse400Extra",
+    "GetRunLogsResponse401",
+    "GetRunLogsResponse401Extra",
+    "GetRunLogsResponse403",
+    "GetRunLogsResponse403Extra",
+    "GetRunLogsResponse404",
+    "GetRunLogsResponse404Extra",
     "GetRunResponse400",
     "GetRunResponse400Extra",
     "GetRunResponse401",
@@ -394,6 +413,7 @@ __all__ = (
     "ListScriptVersionsResponse403Extra",
     "ListScriptVersionsResponse404",
     "ListScriptVersionsResponse404Extra",
+    "LogsResponse",
     "MeResponse",
     "MeResponse401",
     "MeResponse401Extra",
