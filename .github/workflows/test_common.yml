@@ -43,7 +43,7 @@ jobs:
             python-version: "3.13"
             shell: bash
 
-          - os: ubuntu-latest
+          - os: "macos-14"
             python-version: "3.14"
             shell: bash
 
