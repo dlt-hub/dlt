@@ -4,6 +4,106 @@ description: Install the dlt MCP with your preferred LLM-enabled IDE.
 keywords: [mcp, llm, agents, ai]
 ---
 
+# Workspace MCP Server - current status
+
+The server can do the following:
+- list pipelines in workspace
+- inspect table schema and data for dataset in particular pipeline
+- do sql queries
+
+It is the same server that is called **the open-source `dlt`** in the documentation below.
+
+Since all mcp clients work with `sse` transport, it is the default when running the server. Before we were struggling with
+launching `mcp` as a part of client process. There was no way to pass right Python virtual environment and dlt run context.
+There were also issues with `stdio` pollution from `print` statement (overall that was IMO a dead end, mcp is a server by nature.)
+
+To launch the server in workspace context:
+```sh
+dlt workspace mcp
+
+INFO:     Started server process [24925]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:43654 (Press CTRL+C to quit)
+```
+Workspace mcp server has **43654** as default port and is configured without any path (ie `/sse`) so user can just copy the link above in the right
+client.
+
+To launch the server in pipeline context:
+```sh
+dlt pipeline fruitshop mcp
+
+Starting dlt MCP server
+INFO:     Started server process [28972]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:43656 (Press CTRL+C to quit)
+
+```
+Pipeline mcp server has **43656** as default port. Pipeline is already attached when mcp server starts. Both pipeline and workspace mcps can work side by side.
+
+
+Example client configurations
+
+Cursor, Cline
+```json
+{
+  "mcpServers": {
+    "dlt-workspace": {
+      "url": "http://127.0.0.1:43654/"
+    },
+    "dlt-pipeline-mcp": {
+      "url": "http://127.0.0.1:43656/"
+    }
+  }
+}
+```
+
+Continue: for some reason it does see mcp configuration created in dev container. Maybe someone will make it work...
+```yaml
+name: dlt mcps
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: dlt-workspace
+    type: sse
+    url: "http://localhost:43654"
+```
+
+## Configuration
+Server can still be started with `stdio` transport and different port using the command line. The plan is to allow to configure
+mcp deeply via dlt configuration system.
+
+```toml
+[workspace.mcp]
+path="/sse"
+port=888
+```
+
+```toml
+[pipelines.fruitshop.mcp]
+transport="stdio"
+```
+
+## Interactions with Runtime
+This is a heads-up on how we host mcps on runtime. To be deleted.
+
+* deployed workspace dashboard has two routes `/app` to see the notebook and `/mcp` to connect to mcp server
+* workspace dashboard in single pipeline mode `/app/fruitshop` and `/mcp/fruitshop`
+* I'm also pondering exposing some kind of mcp attached to each marimo notebook
+
+
+# Project MCP server
+
+This is our "project" mcp (**integrates with `dltHub` features** below) and can be launched with:
+```sh
+dlt project mcp
+```
+It gets **43655** port and project context is obtained before launching the server.
+
+
+
+
 # MCP Server
 
 Currently, dltHub is [building two MCP servers](https://dlthub.com/blog/deep-dive-assistants-mcp-continue) that you can run locally and integrate with your preferred IDE. One server is for the open-source `dlt` library and the other integrates with `dltHub` features ([Learn more](ai.md)).
