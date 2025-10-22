@@ -1,9 +1,9 @@
 import dataclasses
 
-from typing import List
+from typing import ClassVar, List
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, known_sections
 
 
 @configspec
@@ -41,3 +41,5 @@ class DashboardConfiguration(BaseConfiguration):
             + ", ".join(self.column_other_hints)
             + self.datetime_format
         )
+
+    __section__: ClassVar[str] = known_sections.DASHBOARD

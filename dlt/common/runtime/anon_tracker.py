@@ -109,7 +109,7 @@ def always_track() -> Iterator[None]:
         from dlt.common.configuration.container import Container
         from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 
-        init_anon_tracker(Container()[PluggableRunContext].runtime_config)
+        init_anon_tracker(Container()[PluggableRunContext].context.runtime_config)
     try:
         yield
     finally:

@@ -2048,7 +2048,6 @@ dependencies = [
     { name = "fsspec" },
     { name = "gitpython" },
     { name = "giturlparse" },
-    { name = "hexbytes" },
     { name = "humanize" },
     { name = "jsonpath-ng" },
     { name = "orjson", version = "3.10.18", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' and sys_platform != 'emscripten'" },
@@ -2207,6 +2206,7 @@ workspace = [
     { name = "ibis-framework", marker = "python_full_version >= '3.10'" },
     { name = "marimo" },
     { name = "mcp", marker = "python_full_version >= '3.10'" },
+    { name = "pathspec" },
     { name = "pyarrow" },
 ]
 
@@ -2365,7 +2365,6 @@ requires-dist = [
     { name = "google-cloud-bigquery", marker = "extra == 'gcp'", specifier = ">=2.26.0" },
     { name = "grpcio", marker = "extra == 'bigquery'", specifier = ">=1.50.0" },
     { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
-    { name = "hexbytes", specifier = ">=0.2.2" },
     { name = "humanize", specifier = ">=4.4.0" },
     { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3" },
@@ -2377,6 +2376,7 @@ requires-dist = [
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
     { name = "packaging", specifier = ">=21.1" },
     { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0" },
+    { name = "pathspec", marker = "extra == 'workspace'", specifier = ">=0.11.2" },
     { name = "pathvalidate", specifier = ">=2.5.2" },
     { name = "pendulum", specifier = ">=2.1.2" },
     { name = "pendulum", marker = "python_full_version >= '3.14'", specifier = ">=3.0.0" },
@@ -3747,15 +3747,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1b/38/d7f80fd13e6582fb8e0df8c9a653dcc02b03ca34f4d72f34869298c5baf8/h2-4.2.0.tar.gz", hash = "sha256:c8a52129695e88b1a0578d8d2cc6842bbd79128ac685463b887ee278126ad01f", size = 2150682, upload-time = "2025-02-02T07:43:51.815Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/9e/984486f2d0a0bd2b024bf4bc1c62688fcafa9e61991f041fb0e2def4a982/h2-4.2.0-py3-none-any.whl", hash = "sha256:479a53ad425bb29af087f3458a61d30780bc818e4ebcf01f0b536ba916462ed0", size = 60957, upload-time = "2025-02-01T11:02:26.481Z" },
-]
-
-[[package]]
-name = "hexbytes"
-version = "0.3.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c1/94/fbfd526e8964652eec6a7b74ae18d1426e225ab602553858531ec6567d05/hexbytes-0.3.1.tar.gz", hash = "sha256:a3fe35c6831ee8fafd048c4c086b986075fc14fd46258fa24ecb8d65745f9a9d", size = 6188, upload-time = "2023-06-08T20:36:59.73Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/9e/fdfe374c28d448a58563e7e43f569f8cf8cf600db092efac2e8ac2f86782/hexbytes-0.3.1-py3-none-any.whl", hash = "sha256:383595ad75026cf00abd570f44b368c6cdac0c6becfae5c39ff88829877f8a59", size = 5944, upload-time = "2023-06-08T20:36:58.066Z" },
 ]
 
 [[package]]

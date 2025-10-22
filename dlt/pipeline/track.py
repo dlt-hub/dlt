@@ -60,7 +60,7 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
 
 
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
-    if pipeline.runtime_config.sentry_dsn:
+    if pipeline.run_context.runtime_config.sentry_dsn:
         # print(f"START SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}"
         transaction = Scope.get_current_scope().start_transaction(name=step, op=step)
         if isinstance(transaction, Transaction):
@@ -71,7 +71,7 @@ def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: Supports
 def on_start_trace_step(
     trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
 ) -> None:
-    if pipeline.runtime_config.sentry_dsn:
+    if pipeline.run_context.runtime_config.sentry_dsn:
         # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
         span = Scope.get_current_scope().start_span(description=step, op=step)
         _add_sentry_tags(span, pipeline)
@@ -114,8 +114,7 @@ def on_end_trace_step(
     step_info: Any,
     send_state: bool,
 ) -> None:
-    if pipeline.runtime_config.sentry_dsn:
-        # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
+    if pipeline.run_context.runtime_config.sentry_dsn:
         Scope.get_current_scope().span.__exit__(None, None, None)
     # disable automatic slack messaging until we can configure messages themselves
     # if step.step == "load":
@@ -137,6 +136,6 @@ def on_end_trace_step(
 
 
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
-    if pipeline.runtime_config.sentry_dsn:
+    if pipeline.run_context.runtime_config.sentry_dsn:
         # print(f"---END SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
         Scope.get_current_scope().transaction.__exit__(None, None, None)

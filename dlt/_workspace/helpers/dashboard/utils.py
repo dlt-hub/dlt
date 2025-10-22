@@ -2,7 +2,7 @@ import shutil
 import functools
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Tuple, Union, cast
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union, cast
 import os
 import platform
 import subprocess
@@ -24,6 +24,8 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.destination.client import DestinationClientConfiguration
+from dlt.common.destination.exceptions import SqlClientNotAvailable
+from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import map_nested_keys_in_place
@@ -34,9 +36,7 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUn
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.trace import PipelineTrace
-from dlt.common.destination.exceptions import SqlClientNotAvailable
 
-from dlt.common.storages.configuration import WithLocalFiles
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -60,11 +60,31 @@ def _exception_to_string(exception: Exception) -> str:
     return str(exception)
 
 
-def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
+def get_dashboard_config_sections(p: Optional[dlt.Pipeline]) -> Tuple[str, ...]:
+    """Find dashboard config section layout for a particular pipeline or for active
+    run context type.
+    """
+    sections: Tuple[str, ...] = ()
+
+    if p is None:
+        # use workspace section layout
+        context = dlt.current.run_context()
+        if context.config is None or not context.config.__class__.__recommended_sections__:
+            pass
+        else:
+            sections = tuple(context.config.__class__.__recommended_sections__) + sections
+    else:
+        # pipeline section layout
+        sections = (known_sections.PIPELINES, p.pipeline_name) + sections
+
+    return sections
+
+
+def resolve_dashboard_config(p: Optional[dlt.Pipeline]) -> DashboardConfiguration:
     """Resolve the dashboard configuration"""
     return resolve_configuration(
         DashboardConfiguration(),
-        sections=(known_sections.DASHBOARD, p.pipeline_name if p else None),
+        sections=get_dashboard_config_sections(p),
     )
 
 
@@ -692,7 +712,14 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
     _result.append(
         mo.accordion(
-            {"Show full stacktrace": mo.ui.code_editor("".join(_exception_traces), language="sh")},
+            {
+                "Show full stacktrace": mo.ui.code_editor(
+                    "".join(_exception_traces),
+                    language="python",
+                    disabled=True,
+                    show_copy_button=True,
+                )
+            },
             lazy=True,
         )
     )

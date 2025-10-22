@@ -14,6 +14,7 @@ import importlib
         ("fruitshop_pipeline", ("load_shop",)),
     ],
 )
+@pytest.mark.rfam
 def test_debug_pipeline(template_name: str, examples: str) -> None:
     demo_module = importlib.import_module(
         f"dlt._workspace._templates._single_file_templates.{template_name}"

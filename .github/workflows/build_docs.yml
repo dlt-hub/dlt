@@ -1,0 +1,36 @@
+name: docs | build docs
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build_docs:
+    name: docs | build docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@master
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9.13.2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install node dependencies
+        run: cd docs/website && npm install
+
+      - name: Install python dependencies
+        run: cd docs/website && pip install -r requirements.txt
+
+      - name: Build docs
+        run: cd docs/website && npm run build:cloudflare

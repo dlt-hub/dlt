@@ -35,7 +35,6 @@ dependencies = [
     "simplejson>=3.17.5",
     "PyYAML>=5.4.1",
     "semver>=3.0.0",
-    "hexbytes>=0.2.2",
     "tzdata>=2022.1",
     "tomlkit>=0.11.3",
     "pathvalidate>=2.5.2",
@@ -183,6 +182,7 @@ workspace = [
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
     "mcp>=1.2.1 ; python_version >= '3.10'",
+    "pathspec>=0.11.2",
 ]
 dbml = [
     "pydbml"
@@ -401,7 +401,7 @@ multi_line_output = 3
 [tool.pytest.ini_options]
 pythonpath = ["dlt", "docs/website/docs"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
-addopts = "--showlocals --durations 10"
+addopts = "--showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
 log_cli_level = "INFO"
 console_output_style = "count"
@@ -410,5 +410,6 @@ python_functions = ["*_test", "test_*", "*_snippet"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",
-    "no_load: marks tests that do not load anything"
+    "no_load: marks tests that do not load anything",
+    "rfam: marks tests that use rfam db"
 ]

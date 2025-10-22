@@ -36,7 +36,7 @@ from dlt.common.destination.exceptions import (
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
 )
-from dlt.common.runtime import signals, apply_runtime_config
+from dlt.common.runtime import signals
 from dlt.common.schema.typing import (
     TSchemaTables,
     TTableFormat,
@@ -112,7 +112,7 @@ from dlt.destinations.dataset import get_destination_clients
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
-from dlt.pipeline.configuration import PipelineConfiguration
+from dlt.pipeline.configuration import PipelineConfiguration, PipelineRuntimeConfiguration
 from dlt.pipeline.progress import _Collector, _NULL_COLLECTOR
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
@@ -321,7 +321,6 @@ class Pipeline(SupportsPipeline):
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
-        runtime: RuntimeConfiguration,
         refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
@@ -334,8 +333,7 @@ class Pipeline(SupportsPipeline):
 
         self.pipeline_salt = pipeline_salt
         self.config = config
-        self.runtime_config = runtime
-        self.run_context = config.pluggable_run_context.context
+        self.run_context = config.runtime.pluggable_run_context.context
         self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self._destination = None
@@ -394,7 +392,6 @@ class Pipeline(SupportsPipeline):
             self.collector,
             False,
             self.config,
-            self.runtime_config,
         )
         if pipeline_name is not None and pipeline_name != self.pipeline_name:
             self = self.__class__(
@@ -410,7 +407,6 @@ class Pipeline(SupportsPipeline):
                 deepcopy(self.collector),
                 False,
                 self.config,
-                self.runtime_config,
             )
         # activate (possibly new) self
         self.activate()
@@ -945,6 +941,10 @@ class Pipeline(SupportsPipeline):
             return self._last_trace
         return load_trace(self.working_dir)
 
+    @property
+    def runtime_config(self) -> PipelineRuntimeConfiguration:
+        return self.config.runtime
+
     def __repr__(self) -> str:
         kwargs = {
             "pipeline_name": self.pipeline_name,
@@ -1398,8 +1398,7 @@ class Pipeline(SupportsPipeline):
 
     def _set_context(self, is_active: bool) -> None:
         if not self.is_active and is_active:
-            # initialize runtime if not active previously
-            apply_runtime_config(self.runtime_config)
+            pass
 
         self.is_active = is_active
         if is_active:

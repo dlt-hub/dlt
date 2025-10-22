@@ -193,22 +193,22 @@ class PipelineMCPTools(BaseMCPTools):
         pipeline_name = self.pipeline.pipeline_name
         mcp_server.add_tool(
             self.available_tables,
-            name=f"available_tables_in_pipeline_{pipeline_name}",
+            name="available_tables",
             description=f"All available tables in the pipeline {pipeline_name}",
         )
         mcp_server.add_tool(
             self.table_head,
-            name=f"table_head_in_pipeline_{pipeline_name}",
+            name="table_head",
             description=f"Get the first 10 rows of the table in the pipeline {pipeline_name}",
         )
         mcp_server.add_tool(
             self.table_schema,
-            name=f"table_schema_in_pipeline_{pipeline_name}",
+            name="table_schema",
             description=f"Get the schema of the table in the pipeline {pipeline_name}",
         )
         mcp_server.add_tool(
             self.query_sql,
-            name=f"query_sql_in_pipeline_{pipeline_name}",
+            name="query_sql",
             description=(
                 f"Executes sql statement on a given pipeline {pipeline_name} as returns the result "
                 "as | delimited csv. Use this tool for simple analysis where the number of rows is "
@@ -219,7 +219,7 @@ class PipelineMCPTools(BaseMCPTools):
         )
         mcp_server.add_tool(
             self.bookmark_sql,
-            name=f"bookmark_sql_in_pipeline_{pipeline_name}",
+            name="bookmark_sql",
             description=(
                 f"Executes sql statement on a pipeline {pipeline_name} and bookmarks it under "
                 "given bookmark for further processing. Use this tool when you need to select "

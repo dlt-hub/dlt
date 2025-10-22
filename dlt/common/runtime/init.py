@@ -4,20 +4,19 @@ from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
 )
 
-# telemetry should be initialized only once
-_INITIALIZED = False
 
-
-def initialize_runtime(run_context: RunContextBase, runtime_config: RuntimeConfiguration) -> None:
-    from dlt.sources.helpers import requests
+def initialize_runtime(logger_name: str, runtime_config: RuntimeConfiguration) -> None:
     from dlt.common import logger
     from dlt.common.runtime.exec_info import dlt_version_info
+    from dlt.common.runtime.telemetry import start_telemetry
+
+    from dlt.sources.helpers import requests
 
     version = dlt_version_info(runtime_config.pipeline_name)
 
     # initialize or re-initialize logging with new settings
     logger.LOGGER = logger._create_logger(
-        run_context.name,
+        logger_name,
         runtime_config.log_level,
         runtime_config.log_format,
         runtime_config.pipeline_name,
@@ -26,32 +25,17 @@ def initialize_runtime(run_context: RunContextBase, runtime_config: RuntimeConfi
 
     # Init or update default requests client config
     requests.init(runtime_config)
+    # initialize telemetry
+    start_telemetry(runtime_config)
 
 
-def restore_run_context(run_context: RunContextBase, runtime_config: RuntimeConfiguration) -> None:
+def restore_run_context(run_context: RunContextBase) -> None:
     """Restores `run_context` by placing it into container and if `runtime_config` is present, initializes runtime
     Intended to be called by workers in a process pool.
     """
     from dlt.common.configuration.container import Container
 
-    Container()[PluggableRunContext] = PluggableRunContext(run_context, runtime_config)
-    apply_runtime_config(runtime_config)
-    init_telemetry(runtime_config)
+    # make sure runtime configuration is attached
+    assert run_context.runtime_config is not None
 
-
-def init_telemetry(runtime_config: RuntimeConfiguration) -> None:
-    """Starts telemetry only once"""
-    from dlt.common.runtime.telemetry import start_telemetry
-
-    global _INITIALIZED
-    # initialize only once
-    if not _INITIALIZED:
-        start_telemetry(runtime_config)
-        _INITIALIZED = True
-
-
-def apply_runtime_config(runtime_config: RuntimeConfiguration) -> None:
-    """Updates run context with newest runtime_config"""
-    from dlt.common.configuration.container import Container
-
-    Container()[PluggableRunContext].initialize_runtime(runtime_config)
+    Container()[PluggableRunContext] = PluggableRunContext(run_context)

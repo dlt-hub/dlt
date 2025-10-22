@@ -11,8 +11,10 @@ EXAMPLES_DIR = "../examples"
 
 # settings
 SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
-SKIP_EXAMPLES: List[str] = []
+# @pytest.mark.rfam
+SKIP_EXAMPLES: List[str] = ["backfill_in_chunks", "connector_x_arrow"]
 SKIP_FORK_EXAMPLES: List[str] = ["custom_destination_lancedb"]
+
 
 # the entry point for the script
 MAIN_CLAUSE = 'if __name__ == "__main__":'

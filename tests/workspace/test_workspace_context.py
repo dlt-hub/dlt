@@ -4,7 +4,7 @@ import pickle
 
 import dlt
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
-from dlt._workspace.cli.utils import delete_local_data
+from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin
 from dlt._workspace.run_context import (
@@ -12,7 +12,7 @@ from dlt._workspace.run_context import (
     DEFAULT_WORKSPACE_WORKING_FOLDER,
     switch_profile,
 )
-from dlt._workspace.cli.echo import maybe_no_stdin
+from dlt._workspace.cli.echo import always_choose
 from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
 
@@ -73,6 +73,22 @@ def test_profile_switch_no_workspace():
             switch_profile("dev")
 
 
+def test_workspace_configuration():
+    with isolated_workspace("configured_workspace", profile="tests") as ctx:
+        # should be used as component for logging
+        assert ctx.runtime_config.pipeline_name == "component"
+        assert ctx.name == "name_override"
+        # check dirs for tests profile
+        assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
+        assert ctx.local_dir.endswith(os.path.join("_local", "tests"))
+
+        ctx = ctx.switch_profile("dev")
+        assert ctx.name == "name_override"
+        assert ctx.data_dir == os.path.join(ctx.run_dir, "_data")
+        # this OSS compat mode where local dir is same as run dir
+        assert ctx.local_dir == os.path.join(ctx.run_dir, ".")
+
+
 def test_pinned_profile() -> None:
     with isolated_workspace("default") as ctx:
         save_profile_pin(ctx, "prod")
@@ -110,8 +126,8 @@ def test_workspace_pipeline() -> None:
         assert os.path.isdir(os.path.join(ctx.get_data_entity("pipelines"), "ducklake_pipeline"))
 
         # test wipe function
-        with maybe_no_stdin():
-            delete_local_data(ctx, skip_data_dir=False)
+        with always_choose(always_choose_default=False, always_choose_value=True):
+            delete_local_data(ctx, check_delete_local_data(ctx, skip_data_dir=False))
         # must recreate pipeline
         pipeline = pipeline.drop()
         load_info = pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
@@ -149,7 +165,7 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     expected_settings = os.path.join(context.run_dir, DOT_DLT)
     assert context.settings_dir == expected_settings
 
-    # path / _data / profile
+    # path / .var / profile
     expected_data_dir = os.path.join(
         context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER, profile
     )
@@ -171,4 +187,7 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     assert context.get_setting("config.toml") == os.path.join(expected_settings, "config.toml")
 
     # check if can be pickled
-    pickle.dumps(context)
+    pickled_ = pickle.dumps(context)
+    run_context_unpickled = pickle.loads(pickled_)
+    assert dict(context.runtime_config) == dict(run_context_unpickled.runtime_config)
+    assert dict(context.config) == dict(run_context_unpickled.config)

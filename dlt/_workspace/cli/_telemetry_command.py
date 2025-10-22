@@ -3,12 +3,13 @@ import os
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import ConfigTomlProvider
 from dlt.common.configuration.specs import RuntimeConfiguration
-
-from dlt._workspace.cli import echo as fmt
-from dlt._workspace.cli.utils import get_telemetry_status
-from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.specs import PluggableRunContext
 from dlt.common.runtime.anon_tracker import get_anonymous_id
+
+from dlt._workspace.cli import echo as fmt, utils
+from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.utils import get_telemetry_status
+from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
 
 DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
 
@@ -49,3 +50,16 @@ def change_telemetry_status_command(enabled: bool) -> None:
         fmt.echo("Telemetry switched %s" % fmt.bold("OFF"))
     # reload config providers
     Container()[PluggableRunContext].reload_providers()
+
+
+@utils.track_command("telemetry", False)
+def telemetry_status_command_wrapper() -> None:
+    telemetry_status_command()
+
+
+@utils.track_command("telemetry_switch", False, "enabled")
+def telemetry_change_status_command_wrapper(enabled: bool) -> None:
+    try:
+        change_telemetry_status_command(enabled)
+    except Exception as ex:
+        raise CliCommandException(docs_url=DLT_TELEMETRY_DOCS_URL, raiseable_exception=ex)

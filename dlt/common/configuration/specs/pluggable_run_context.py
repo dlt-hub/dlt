@@ -4,7 +4,10 @@ from typing import Any, ClassVar, Dict, List, Optional, Union
 from abc import ABC, abstractmethod
 
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    ContainerInjectableContext,
+)
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.typing import Self
@@ -72,6 +75,23 @@ class RunContextBase(ABC):
         """Returns initial providers for this context"""
 
     @abstractmethod
+    def initialize_runtime(self, runtime_config: RuntimeConfiguration = None) -> None:
+        """Initializes runtime (ie. log, telemetry) using RuntimeConfiguration"""
+        pass
+
+    @property
+    @abstractmethod
+    def runtime_config(self) -> RuntimeConfiguration:
+        """Runtime configuration used for initialize_runtime"""
+        pass
+
+    @property
+    @abstractmethod
+    def config(self) -> BaseConfiguration:
+        """Returns (optionally resolves) run context configuration"""
+        pass
+
+    @abstractmethod
     def get_data_entity(self, entity: str) -> str:
         """Gets path in data_dir where `entity` (ie. `pipelines`, `repos`) are stored"""
 
@@ -90,6 +110,14 @@ class RunContextBase(ABC):
     @abstractmethod
     def plug(self) -> None:
         """Called when context is added to container"""
+
+    def reload(self) -> "RunContextBase":
+        """This will reload current context by triggering run context plugin via Container"""
+        from dlt.common.configuration.container import Container
+
+        plug_ctx = Container()[PluggableRunContext]
+        plug_ctx.reload(self.run_dir, runtime_kwargs=self.runtime_kwargs)
+        return plug_ctx.context
 
     @staticmethod
     def import_run_dir_module(run_dir: str) -> ModuleType:
@@ -139,13 +167,10 @@ class PluggableRunContext(ContainerInjectableContext):
 
     context: RunContextBase = None
     providers: ConfigProvidersContainer
-    runtime_config: RuntimeConfiguration
 
     _context_stack: List[Any] = []
 
-    def __init__(
-        self, init_context: RunContextBase = None, runtime_config: RuntimeConfiguration = None
-    ) -> None:
+    def __init__(self, init_context: RunContextBase = None) -> None:
         super().__init__()
 
         if init_context:
@@ -154,7 +179,6 @@ class PluggableRunContext(ContainerInjectableContext):
             # autodetect run dir
             self._plug(run_dir=None)
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
-        self.runtime_config = runtime_config
 
     def reload(
         self,
@@ -170,7 +194,6 @@ class PluggableRunContext(ContainerInjectableContext):
             elif self.context.runtime_kwargs:
                 runtime_kwargs = {**self.context.runtime_kwargs, **runtime_kwargs}
 
-        self.runtime_config = None
         self.before_remove()
         if isinstance(run_dir_or_context, str):
             self._plug(run_dir_or_context, runtime_kwargs=runtime_kwargs)
@@ -189,8 +212,7 @@ class PluggableRunContext(ContainerInjectableContext):
         super().after_add()
 
         # initialize runtime if context comes back into container
-        if self.runtime_config:
-            self.initialize_runtime(self.runtime_config)
+        self.initialize_runtime()
 
     def before_remove(self) -> None:
         super().before_remove()
@@ -199,26 +221,20 @@ class PluggableRunContext(ContainerInjectableContext):
             self.context.unplug()
 
     def add_extras(self) -> None:
-        from dlt.common.configuration.resolve import resolve_configuration
-
         # add extra providers
         self.providers.add_extras()
         # resolve runtime configuration
-        if not self.runtime_config:
-            self.initialize_runtime(resolve_configuration(RuntimeConfiguration()))
+        self.initialize_runtime()
         # plug context
         self.context.plug()
 
-    def initialize_runtime(self, runtime_config: RuntimeConfiguration) -> None:
-        self.runtime_config = runtime_config
-
-        # do not activate logger if not in the container
+    def initialize_runtime(self) -> None:
+        """Calls initialize_runtime on context only if active in container. We do not want
+        to initialize runtime if instance is not active
+        """
         if not self.in_container:
             return
-
-        from dlt.common.runtime.init import initialize_runtime
-
-        initialize_runtime(self.context, self.runtime_config)
+        self.context.initialize_runtime()
 
     def _plug(self, run_dir: Optional[str], runtime_kwargs: Dict[str, Any] = None) -> None:
         from dlt.common.configuration import plugins
@@ -230,17 +246,16 @@ class PluggableRunContext(ContainerInjectableContext):
     def push_context(self) -> str:
         """Pushes current context on stack and returns assert cookie"""
         cookie = uniq_id()
-        self._context_stack.append((cookie, self.context, self.providers, self.runtime_config))
+        self._context_stack.append((cookie, self.context, self.providers))
         return cookie
 
     def pop_context(self, cookie: str) -> None:
         """Pops context from stack and re-initializes it if in container"""
-        _c, context, providers, runtime_config = self._context_stack.pop()
+        _c, context, providers = self._context_stack.pop()
         if cookie != _c:
             raise ValueError(
                 f"Run context stack mangled. Got cookie `{_c}` but expected `{cookie}`"
             )
-        self.runtime_config = runtime_config
         self.reload(context)
 
     def drop_context(self, cookie: str) -> None:

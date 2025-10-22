@@ -389,11 +389,8 @@ const sidebars = {
       type: 'category',
       label: 'Code examples',
       link: {
-        type: 'generated-index',
-        title: 'Code examples',
-        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
-        slug: 'examples',
-        keywords: ['examples'],
+        type: 'doc',
+        id: 'examples/index',
       },
       items: [
         'walkthroughs/dispatch-to-multiple-tables',
@@ -476,100 +473,85 @@ const sidebars = {
   hubSidebar: [
     {
       type: 'category',
-      label: 'dltHub Features',
-      link: {
-        type: 'doc',
-        id: 'hub/intro',
-      },
+      label: 'Getting started',
+      items: [
+        'hub/intro',
+        'hub/getting-started/installation',
+        'dlt-ecosystem/llm-tooling/llm-native-workflow',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Workspace',
+       link: {
+         type: 'doc',
+         id: 'hub/workspace/intro',
+       },
+      items: [
+         'hub/workspace/intro',
+        {
+          type: 'category',
+          label: 'Create pipeline',
+          items: [
+          // 'hub/workspace/init-and-verified-sources',
+          'hub/ecosystem/ms-sql',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Ensure data quality',
+          items: [
+            'general-usage/dashboard',
+            'hub/features/mcp-server',
+            'hub/features/quality/data-quality',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Create reports and transformations',
+          items: [
+            'general-usage/dataset-access/marimo',
+            'general-usage/dataset-access/dataset',
+            'hub/features/transformations/index',
+            'hub/features/transformations/dbt-transformations',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Deploy workspace',
+          items: [
+            'hub/core-concepts/profiles',
+            'hub/production/pipeline-runner',
+          ]
+        },
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Runtime',
       items: [
         {
           type: 'category',
-          label: 'Getting started',
+          label: 'Maintain data workflows',
           items: [
-            'hub/getting-started/installation',
-            'hub/getting-started/tutorial',
-            'hub/getting-started/advanced_tutorial',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Core concepts',
-          items: [
-            'hub/core-concepts/project',
-            'hub/core-concepts/cache',
-            'hub/core-concepts/datasets',
-            'hub/core-concepts/profiles',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Sources & Destinations',
-          items: [
-            'hub/ecosystem/ms-sql',
-            'hub/ecosystem/iceberg',
-            'hub/ecosystem/delta',
-            'hub/ecosystem/snowflake_plus',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Features',
-          items: [
-            {
-              type: 'category',
-              label: 'Transformations',
-              link: {
-                type: 'doc',
-                id: 'hub/features/transformations/index',
-              },
-              items: [
-                'hub/features/transformations/index',
-              ]
-            },
-            'hub/features/data-access',
-            {
-              type: 'category',
-              label: 'Project',
-              link: {
-                type: 'doc',
-                id: 'hub/features/project/index',
-              },
-              items: [
-                'hub/features/project/overview',
-                'hub/features/project/source-configuration',
-                'hub/features/project/python-api',
-              ]
-            },
-            {
-              type: 'category',
-              label: 'dbt generator',
-              link: {
-                type: 'doc',
-                id: 'hub/features/transformations/index',
-              },
-              items: [
-                'hub/features/transformations/setup',
-                'hub/features/transformations/dbt-transformations',
-              ]
-            },
-            'hub/features/ai',
-            "hub/features/mcp-server",
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Going to production',
-          items: [
-            'hub/production/pipeline-runner',
             'hub/production/observability',
             'hub/production/prefect-integration',
           ]
         },
-        'hub/reference',
-        'hub/EULA'
       ]
     },
-  ],
+    {
+      type: 'category',
+      label: 'Storage',
+      items: [
+        'hub/ecosystem/delta',
+        'hub/ecosystem/iceberg',
+        'hub/ecosystem/snowflake_plus',
+      ]
+    },
+    'hub/reference',
+    'hub/EULA',
+    ],
 };
 
 // insert examples

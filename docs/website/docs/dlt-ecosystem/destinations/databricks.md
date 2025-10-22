@@ -26,6 +26,8 @@ Databricks supports both **Delta** (default) and **Apache Iceberg** table format
 pip install "dlt[databricks]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES databricks-->
+
 ## Set up your Databricks workspace
 
 To use the Databricks destination, you need:
@@ -134,11 +136,11 @@ client_secret = "XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_ID="XXX"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_SECRET="XXX"
+export DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
+export DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
+export DESTINATION__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
+export DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID="XXX"
+export DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET="XXX"
 ```
   </TabItem>
 
@@ -149,11 +151,11 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID")
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET")
 ```
 </TabItem>
 </Tabs>
@@ -190,10 +192,10 @@ access_token = "XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__ACCESS_TOKEN="XXX"
+export DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
+export DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
+export DESTINATION__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
+export DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN="XXX"
 ```
   </TabItem>
 
@@ -204,10 +206,10 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN")
 ```
 </TabItem>
 </Tabs>
@@ -392,9 +394,9 @@ aws_secret_access_key="XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__FILESYSTEM__BUCKET_URL="s3://your-bucket-name"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="XXX"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="XXX"
+export DESTINATION__FILESYSTEM__BUCKET_URL="s3://your-bucket-name"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="XXX"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="XXX"
 ```
   </TabItem>
 
@@ -405,9 +407,9 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__FILESYSTEM__BUCKET_URL"] = "s3://your-bucket-name"
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://your-bucket-name"
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
 ```
 </TabItem>
 </Tabs>
@@ -454,9 +456,9 @@ azure_storage_account_key="XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__FILESYSTEM__BUCKET_URL="abfss://container_name@storage_account_name.dfs.core.windows.net/path"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME="XXX"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="XXX"
+export DESTINATION__FILESYSTEM__BUCKET_URL="abfss://container_name@storage_account_name.dfs.core.windows.net/path"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME="XXX"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="XXX"
 ```
   </TabItem>
 
@@ -467,9 +469,9 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__FILESYSTEM__BUCKET_URL"] = "abfss://container_name@storage_account_name.dfs.core.windows.net/path"
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
+os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "abfss://container_name@storage_account_name.dfs.core.windows.net/path"
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
 ```
 </TabItem>
 </Tabs>
@@ -728,7 +730,36 @@ databricks_adapter(
 ## Troubleshooting
 Use the following steps to avoid conflicts with Databricks' built-in Delta Live Tables (DLT) module and enable dltHub integration.
 
-### 1. Add an `init` script
+### Enable dlt on serverless (16.x)
+Live Tables (DLT) are not available on serverless but the import machinery that is patching DLT is still there in form of import hooks. You
+can temporarily disable this machinery to import `dlt` and use it afterwards. In a notebook cell (assuming that `dlt` is already installed):
+
+```sh
+%restart_python
+```
+
+```py
+import sys
+
+# dlt patching hook is the first one on the list
+metas = list(sys.meta_path)
+sys.meta_path = metas[1:]
+
+# remove RUNTIME - uncomment on dlt before 1.18.0
+# import os
+# del os.environ["RUNTIME"]
+
+import dlt
+sys.meta_path = metas  # restore post import hooks
+
+# use dlt
+info = dlt.run([1, 2, 3], destination=dlt.destinations.filesystem("_data"), table_name="digits")
+print(info)
+```
+
+### Enable dlt on a cluster
+
+#### 1. Add an `init` script
 To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
 
 1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:
@@ -757,7 +788,15 @@ pip install dlt
 
 4. Click Confirm to apply the change. The cluster will restart automatically.
 
-### 2. Remove preloaded databricks modules in the notebook
+:::warning
+The location of `DeltaLiveTablesHook.py` might change when a new Databricks runtime version is released.
+
+The following locations have been confirmed for the two latest LTS runtime versions:
+- 16.4 LTS: /databricks/python_shell/lib/dbruntime/dlt/hook.py
+- 15.4 LTS: /databricks/python_shell/lib/dbruntime/DeltaLiveTablesHook.py
+:::
+
+#### 2. Remove preloaded databricks modules in the notebook
 After the cluster starts, Databricks may partially import its built-in Delta Live Tables (DLT) modules, which can interfere with the dlt package from dltHub.
 
 To ensure a clean environment, add the following code at the top of your notebook:
