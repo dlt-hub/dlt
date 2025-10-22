@@ -17,25 +17,31 @@ T = TypeVar("T", bound="ScriptVersionResponse")
 class ScriptVersionResponse:
     """
     Attributes:
-        created_by (UUID): The ID of the identity who created the script version
+        active (bool): Whether the profile is active and may be used to run scripts
+        created_by (UUID): The ID of the identity who created the profile
         date_added (datetime.datetime): The date the entity was added
         date_updated (datetime.datetime): The date the entity was updated
+        default_profile_id (UUID): The ID of the profile to use for the script
+        description (str): The description of the script
         entry_point (str): The entry point of the script. Will usually be the path to a python file in the uploaded
             tarball
         id (UUID): The uniqueID of the entity
-        profile_id (UUID): The ID of the profile that will be used when running the script
+        name (str): The name of the script
         script_id (UUID): The ID of the script the script version belongs to
         script_type (ScriptType):
-        version (int): The version of the script version. Will increment for each new version of the script
+        version (int): The current version of the profile
         schedule (Union[None, Unset, str]): The schedule of the script. Use 'cron' format for cron jobs
     """
 
+    active: bool
     created_by: UUID
     date_added: datetime.datetime
     date_updated: datetime.datetime
+    default_profile_id: UUID
+    description: str
     entry_point: str
     id: UUID
-    profile_id: UUID
+    name: str
     script_id: UUID
     script_type: ScriptType
     version: int
@@ -43,17 +49,23 @@ class ScriptVersionResponse:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        active = self.active
+
         created_by = str(self.created_by)
 
         date_added = self.date_added.isoformat()
 
         date_updated = self.date_updated.isoformat()
 
+        default_profile_id = str(self.default_profile_id)
+
+        description = self.description
+
         entry_point = self.entry_point
 
         id = str(self.id)
 
-        profile_id = str(self.profile_id)
+        name = self.name
 
         script_id = str(self.script_id)
 
@@ -71,12 +83,15 @@ class ScriptVersionResponse:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "active": active,
                 "created_by": created_by,
                 "date_added": date_added,
                 "date_updated": date_updated,
+                "default_profile_id": default_profile_id,
+                "description": description,
                 "entry_point": entry_point,
                 "id": id,
-                "profile_id": profile_id,
+                "name": name,
                 "script_id": script_id,
                 "script_type": script_type,
                 "version": version,
@@ -90,17 +105,23 @@ class ScriptVersionResponse:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+        active = d.pop("active")
+
         created_by = UUID(d.pop("created_by"))
 
         date_added = isoparse(d.pop("date_added"))
 
         date_updated = isoparse(d.pop("date_updated"))
 
+        default_profile_id = UUID(d.pop("default_profile_id"))
+
+        description = d.pop("description")
+
         entry_point = d.pop("entry_point")
 
         id = UUID(d.pop("id"))
 
-        profile_id = UUID(d.pop("profile_id"))
+        name = d.pop("name")
 
         script_id = UUID(d.pop("script_id"))
 
@@ -118,12 +139,15 @@ class ScriptVersionResponse:
         schedule = _parse_schedule(d.pop("schedule", UNSET))
 
         script_version_response = cls(
+            active=active,
             created_by=created_by,
             date_added=date_added,
             date_updated=date_updated,
+            default_profile_id=default_profile_id,
+            description=description,
             entry_point=entry_point,
             id=id,
-            profile_id=profile_id,
+            name=name,
             script_id=script_id,
             script_type=script_type,
             version=version,

@@ -11,11 +11,16 @@ from ..models.run_status import RunStatus
 from ..models.run_trigger_type import RunTriggerType
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="RunResponse")
+if TYPE_CHECKING:
+    from ..models.profile_response import ProfileResponse
+    from ..models.script_response import ScriptResponse
+
+
+T = TypeVar("T", bound="DetailedRunResponse")
 
 
 @_attrs_define
-class RunResponse:
+class DetailedRunResponse:
     """
     Attributes:
         date_added (datetime.datetime): The date the entity was added
@@ -23,14 +28,17 @@ class RunResponse:
         deployment_id (UUID): The ID of the deployment that will be used when running the script
         id (UUID): The uniqueID of the entity
         number (int): The number of the run. Will increment for each new run of the script
+        profile (ProfileResponse):
         profile_version_id (UUID): The ID of the profile version that will be used when running the script
+        script (ScriptResponse):
         script_version_id (UUID): The ID of the script version that will be used when running the script
         status (RunStatus):
         trigger (RunTriggerType):
-        end_time (Union[None, Unset, datetime.datetime]): The time the run ended
-        execution_time (Union[None, Unset, int]): The time the run took in seconds
+        workspace_id (UUID): The ID of the workspace the run belongs to
+        duration (Union[None, Unset, int]): The time the run took in seconds
         logs (Union[None, Unset, str]): A link to the logs of the run
-        start_time (Union[None, Unset, datetime.datetime]): The time the run started
+        time_ended (Union[None, Unset, datetime.datetime]): The time the run ended
+        time_started (Union[None, Unset, datetime.datetime]): The time the run started
         triggered_by (Union[None, UUID, Unset]): The ID of the identity who triggered the run if triggered manually
     """
 
@@ -39,18 +47,24 @@ class RunResponse:
     deployment_id: UUID
     id: UUID
     number: int
+    profile: "ProfileResponse"
     profile_version_id: UUID
+    script: "ScriptResponse"
     script_version_id: UUID
     status: RunStatus
     trigger: RunTriggerType
-    end_time: Union[None, Unset, datetime.datetime] = UNSET
-    execution_time: Union[None, Unset, int] = UNSET
+    workspace_id: UUID
+    duration: Union[None, Unset, int] = UNSET
     logs: Union[None, Unset, str] = UNSET
-    start_time: Union[None, Unset, datetime.datetime] = UNSET
+    time_ended: Union[None, Unset, datetime.datetime] = UNSET
+    time_started: Union[None, Unset, datetime.datetime] = UNSET
     triggered_by: Union[None, UUID, Unset] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.profile_response import ProfileResponse
+        from ..models.script_response import ScriptResponse
+
         date_added = self.date_added.isoformat()
 
         date_updated = self.date_updated.isoformat()
@@ -61,7 +75,11 @@ class RunResponse:
 
         number = self.number
 
+        profile = self.profile.to_dict()
+
         profile_version_id = str(self.profile_version_id)
+
+        script = self.script.to_dict()
 
         script_version_id = str(self.script_version_id)
 
@@ -69,19 +87,13 @@ class RunResponse:
 
         trigger = self.trigger.value
 
-        end_time: Union[None, Unset, str]
-        if isinstance(self.end_time, Unset):
-            end_time = UNSET
-        elif isinstance(self.end_time, datetime.datetime):
-            end_time = self.end_time.isoformat()
-        else:
-            end_time = self.end_time
+        workspace_id = str(self.workspace_id)
 
-        execution_time: Union[None, Unset, int]
-        if isinstance(self.execution_time, Unset):
-            execution_time = UNSET
+        duration: Union[None, Unset, int]
+        if isinstance(self.duration, Unset):
+            duration = UNSET
         else:
-            execution_time = self.execution_time
+            duration = self.duration
 
         logs: Union[None, Unset, str]
         if isinstance(self.logs, Unset):
@@ -89,13 +101,21 @@ class RunResponse:
         else:
             logs = self.logs
 
-        start_time: Union[None, Unset, str]
-        if isinstance(self.start_time, Unset):
-            start_time = UNSET
-        elif isinstance(self.start_time, datetime.datetime):
-            start_time = self.start_time.isoformat()
+        time_ended: Union[None, Unset, str]
+        if isinstance(self.time_ended, Unset):
+            time_ended = UNSET
+        elif isinstance(self.time_ended, datetime.datetime):
+            time_ended = self.time_ended.isoformat()
         else:
-            start_time = self.start_time
+            time_ended = self.time_ended
+
+        time_started: Union[None, Unset, str]
+        if isinstance(self.time_started, Unset):
+            time_started = UNSET
+        elif isinstance(self.time_started, datetime.datetime):
+            time_started = self.time_started.isoformat()
+        else:
+            time_started = self.time_started
 
         triggered_by: Union[None, Unset, str]
         if isinstance(self.triggered_by, Unset):
@@ -114,20 +134,23 @@ class RunResponse:
                 "deployment_id": deployment_id,
                 "id": id,
                 "number": number,
+                "profile": profile,
                 "profile_version_id": profile_version_id,
+                "script": script,
                 "script_version_id": script_version_id,
                 "status": status,
                 "trigger": trigger,
+                "workspace_id": workspace_id,
             }
         )
-        if end_time is not UNSET:
-            field_dict["end_time"] = end_time
-        if execution_time is not UNSET:
-            field_dict["execution_time"] = execution_time
+        if duration is not UNSET:
+            field_dict["duration"] = duration
         if logs is not UNSET:
             field_dict["logs"] = logs
-        if start_time is not UNSET:
-            field_dict["start_time"] = start_time
+        if time_ended is not UNSET:
+            field_dict["time_ended"] = time_ended
+        if time_started is not UNSET:
+            field_dict["time_started"] = time_started
         if triggered_by is not UNSET:
             field_dict["triggered_by"] = triggered_by
 
@@ -135,6 +158,9 @@ class RunResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.profile_response import ProfileResponse
+        from ..models.script_response import ScriptResponse
+
         d = dict(src_dict)
         date_added = isoparse(d.pop("date_added"))
 
@@ -146,7 +172,11 @@ class RunResponse:
 
         number = d.pop("number")
 
+        profile = ProfileResponse.from_dict(d.pop("profile"))
+
         profile_version_id = UUID(d.pop("profile_version_id"))
+
+        script = ScriptResponse.from_dict(d.pop("script"))
 
         script_version_id = UUID(d.pop("script_version_id"))
 
@@ -154,31 +184,16 @@ class RunResponse:
 
         trigger = RunTriggerType(d.pop("trigger"))
 
-        def _parse_end_time(data: object) -> Union[None, Unset, datetime.datetime]:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            try:
-                if not isinstance(data, str):
-                    raise TypeError()
-                end_time_type_0 = isoparse(data)
+        workspace_id = UUID(d.pop("workspace_id"))
 
-                return end_time_type_0
-            except:  # noqa: E722
-                pass
-            return cast(Union[None, Unset, datetime.datetime], data)
-
-        end_time = _parse_end_time(d.pop("end_time", UNSET))
-
-        def _parse_execution_time(data: object) -> Union[None, Unset, int]:
+        def _parse_duration(data: object) -> Union[None, Unset, int]:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
             return cast(Union[None, Unset, int], data)
 
-        execution_time = _parse_execution_time(d.pop("execution_time", UNSET))
+        duration = _parse_duration(d.pop("duration", UNSET))
 
         def _parse_logs(data: object) -> Union[None, Unset, str]:
             if data is None:
@@ -189,7 +204,7 @@ class RunResponse:
 
         logs = _parse_logs(d.pop("logs", UNSET))
 
-        def _parse_start_time(data: object) -> Union[None, Unset, datetime.datetime]:
+        def _parse_time_ended(data: object) -> Union[None, Unset, datetime.datetime]:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -197,14 +212,31 @@ class RunResponse:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                start_time_type_0 = isoparse(data)
+                time_ended_type_0 = isoparse(data)
 
-                return start_time_type_0
+                return time_ended_type_0
             except:  # noqa: E722
                 pass
             return cast(Union[None, Unset, datetime.datetime], data)
 
-        start_time = _parse_start_time(d.pop("start_time", UNSET))
+        time_ended = _parse_time_ended(d.pop("time_ended", UNSET))
+
+        def _parse_time_started(data: object) -> Union[None, Unset, datetime.datetime]:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                time_started_type_0 = isoparse(data)
+
+                return time_started_type_0
+            except:  # noqa: E722
+                pass
+            return cast(Union[None, Unset, datetime.datetime], data)
+
+        time_started = _parse_time_started(d.pop("time_started", UNSET))
 
         def _parse_triggered_by(data: object) -> Union[None, UUID, Unset]:
             if data is None:
@@ -223,25 +255,28 @@ class RunResponse:
 
         triggered_by = _parse_triggered_by(d.pop("triggered_by", UNSET))
 
-        run_response = cls(
+        detailed_run_response = cls(
             date_added=date_added,
             date_updated=date_updated,
             deployment_id=deployment_id,
             id=id,
             number=number,
+            profile=profile,
             profile_version_id=profile_version_id,
+            script=script,
             script_version_id=script_version_id,
             status=status,
             trigger=trigger,
-            end_time=end_time,
-            execution_time=execution_time,
+            workspace_id=workspace_id,
+            duration=duration,
             logs=logs,
-            start_time=start_time,
+            time_ended=time_ended,
+            time_started=time_started,
             triggered_by=triggered_by,
         )
 
-        run_response.additional_properties = d
-        return run_response
+        detailed_run_response.additional_properties = d
+        return detailed_run_response
 
     @property
     def additional_keys(self) -> list[str]:

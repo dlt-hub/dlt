@@ -110,7 +110,7 @@ def sync_detailed(
     """GetScriptVersion
 
 
-    Gets a script version for a script, either by ID or by version number.
+    Gets a historic version for a script, either by ID or by version number.
 
     Requires READ permission on the organization level.
 
@@ -158,7 +158,7 @@ def sync(
     """GetScriptVersion
 
 
-    Gets a script version for a script, either by ID or by version number.
+    Gets a historic version for a script, either by ID or by version number.
 
     Requires READ permission on the organization level.
 
@@ -201,7 +201,7 @@ async def asyncio_detailed(
     """GetScriptVersion
 
 
-    Gets a script version for a script, either by ID or by version number.
+    Gets a historic version for a script, either by ID or by version number.
 
     Requires READ permission on the organization level.
 
@@ -247,7 +247,7 @@ async def asyncio(
     """GetScriptVersion
 
 
-    Gets a script version for a script, either by ID or by version number.
+    Gets a historic version for a script, either by ID or by version number.
 
     Requires READ permission on the organization level.
 

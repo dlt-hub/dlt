@@ -1,62 +1,10 @@
 components:
   schemas:
-    ConfigurationResponse:
-      properties:
-        config:
-          description: The configuration of the profile
-          type: string
-        created_by:
-          description: The ID of the identity who created the configuration
-          format: uuid
-          type: string
-        date_added:
-          description: The date the entity was added
-          format: date-time
-          type: string
-        date_updated:
-          description: The date the entity was updated
-          format: date-time
-          type: string
-        id:
-          description: The uniqueID of the entity
-          format: uuid
-          type: string
-        profile_id:
-          description: The ID of the profile the configuration belongs to
-          format: uuid
-          type: string
-        secrets:
-          description: The secrets of the profile
-          type: string
-        version:
-          description: The version of the configuration
-          type: integer
-      required:
-      - config
-      - created_by
-      - date_added
-      - date_updated
-      - id
-      - profile_id
-      - secrets
-      - version
-      title: ConfigurationResponse
-      type: object
-    CreateConfigurationRequest:
-      properties:
-        config:
-          description: The configuration of the profile
-          type: string
-        secrets:
-          description: The secrets of the profile
-          type: string
-      required:
-      - config
-      - secrets
-      title: CreateConfigurationRequest
-      type: object
     CreateProfileRequest:
       properties:
+        config:
+          description: The config.toml of the profile
+          type: string
         description:
           description: The description of the profile
           oneOf:
@@ -65,8 +13,13 @@ components:
         name:
           description: The name of the profile
           type: string
+        secrets:
+          description: The secrets.toml of the profile
+          type: string
       required:
+      - config
       - name
+      - secrets
       title: CreateProfileRequest
       type: object
     CreateRunRequest:
@@ -90,26 +43,18 @@ components:
           default: true
           description: Whether the script is active
           type: boolean
+        default_profile_id_or_name:
+          description: The ID or name of the profile to use for the script
+          type: string
         description:
           description: The description of the script
           type: string
-        name:
-          description: The name of the script
-          type: string
-      required:
-      - description
-      - name
-      title: CreateScriptRequest
-      type: object
-    CreateScriptVersionRequest:
-      properties:
         entry_point:
           description: The entry point of the script. Will usually be the path to
             a python file in the uploaded tarball
           type: string
-        profile_id_or_name:
-          default: default
-          description: The ID or name of the profile to use for the script version
+        name:
+          description: The name of the script
           type: string
         schedule:
           description: The schedule of the script. Use 'cron' format for cron jobs
@@ -119,9 +64,12 @@ components:
         script_type:
           $ref: '#/components/schemas/ScriptType'
       required:
+      - default_profile_id_or_name
+      - description
       - entry_point
+      - name
       - script_type
-      title: CreateScriptVersionRequest
+      title: CreateScriptRequest
       type: object
     DeploymentResponse:
       properties:
@@ -243,6 +191,16 @@ components:
       type: object
     ProfileResponse:
       properties:
+        active:
+          description: Whether the profile is active and may be used to run scripts
+          type: boolean
+        config:
+          description: The config.toml of the profile
+          type: string
+        created_by:
+          description: The ID of the identity who created the profile
+          format: uuid
+          type: string
         date_added:
           description: The date the entity was added
           format: date-time
@@ -263,25 +221,86 @@ components:
         name:
           description: The name of the profile
           type: string
+        secrets:
+          description: The secrets.toml of the profile
+          type: string
+        version:
+          description: The current version of the profile
+          type: integer
         workspace_id:
           description: The ID of the workspace the profile belongs to
           format: uuid
           type: string
       required:
+      - active
+      - config
+      - created_by
       - date_added
       - date_updated
       - id
       - name
+      - secrets
+      - version
       - workspace_id
       title: ProfileResponse
       type: object
-    RunResponse:
+    ProfileVersionResponse:
       properties:
-        config_id:
-          description: The ID of the configuration that will be used when running
-            the script
+        active:
+          description: Whether the profile is active and may be used to run scripts
+          type: boolean
+        config:
+          description: The config.toml of the profile
+          type: string
+        created_by:
+          description: The ID of the identity who created the profile
           format: uuid
           type: string
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        description:
+          description: The description of the profile
+          oneOf:
+          - type: string
+          - type: 'null'
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        name:
+          description: The name of the profile
+          type: string
+        profile_id:
+          description: The ID of the profile this version belongs to
+          format: uuid
+          type: string
+        secrets:
+          description: The secrets.toml of the profile
+          type: string
+        version:
+          description: The current version of the profile
+          type: integer
+      required:
+      - active
+      - config
+      - created_by
+      - date_added
+      - date_updated
+      - id
+      - name
+      - profile_id
+      - secrets
+      - version
+      title: ProfileVersionResponse
+      type: object
+    RunResponse:
+      properties:
         date_added:
           description: The date the entity was added
           format: date-time
@@ -319,6 +338,11 @@ components:
           description: The number of the run. Will increment for each new run of the
             script
           type: integer
+        profile_version_id:
+          description: The ID of the profile version that will be used when running
+            the script
+          format: uuid
+          type: string
         script_version_id:
           description: The ID of the script version that will be used when running
             the script
@@ -341,12 +365,12 @@ components:
             type: string
           - type: 'null'
       required:
-      - config_id
       - date_added
       - date_updated
       - deployment_id
       - id
       - number
+      - profile_version_id
       - script_version_id
       - status
       - trigger
@@ -355,9 +379,11 @@ components:
     RunStatus:
       enum:
       - pending
+      - starting
       - running
       - completed
       - failed
+      - cancelled
       title: RunStatus
       type: string
     RunTriggerType:
@@ -369,9 +395,12 @@ components:
     ScriptResponse:
       properties:
         active:
-          default: true
-          description: Whether the script is active
+          description: Whether the profile is active and may be used to run scripts
           type: boolean
+        created_by:
+          description: The ID of the identity who created the profile
+          format: uuid
+          type: string
         date_added:
           description: The date the entity was added
           format: date-time
@@ -380,8 +409,16 @@ components:
           description: The date the entity was updated
           format: date-time
           type: string
+        default_profile_id:
+          description: The ID of the profile to use for the script
+          format: uuid
+          type: string
         description:
           description: The description of the script
+          type: string
+        entry_point:
+          description: The entry point of the script. Will usually be the path to
+            a python file in the uploaded tarball
           type: string
         id:
           description: The uniqueID of the entity
@@ -390,16 +427,32 @@ components:
         name:
           description: The name of the script
           type: string
+        schedule:
+          description: The schedule of the script. Use 'cron' format for cron jobs
+          oneOf:
+          - type: string
+          - type: 'null'
+        script_type:
+          $ref: '#/components/schemas/ScriptType'
+        version:
+          description: The current version of the profile
+          type: integer
         workspace_id:
           description: The ID of the workspace the script belongs to
           format: uuid
           type: string
       required:
+      - active
+      - created_by
       - date_added
       - date_updated
+      - default_profile_id
       - description
+      - entry_point
       - id
       - name
+      - script_type
+      - version
       - workspace_id
       title: ScriptResponse
       type: object
@@ -411,8 +464,11 @@ components:
       type: string
     ScriptVersionResponse:
       properties:
+        active:
+          description: Whether the profile is active and may be used to run scripts
+          type: boolean
         created_by:
-          description: The ID of the identity who created the script version
+          description: The ID of the identity who created the profile
           format: uuid
           type: string
         date_added:
@@ -423,6 +479,13 @@ components:
           description: The date the entity was updated
           format: date-time
           type: string
+        default_profile_id:
+          description: The ID of the profile to use for the script
+          format: uuid
+          type: string
+        description:
+          description: The description of the script
+          type: string
         entry_point:
           description: The entry point of the script. Will usually be the path to
             a python file in the uploaded tarball
@@ -431,9 +494,8 @@ components:
           description: The uniqueID of the entity
           format: uuid
           type: string
-        profile_id:
-          description: The ID of the profile that will be used when running the script
-          format: uuid
+        name:
+          description: The name of the script
           type: string
         schedule:
           description: The schedule of the script. Use 'cron' format for cron jobs
@@ -447,16 +509,18 @@ components:
         script_type:
           $ref: '#/components/schemas/ScriptType'
         version:
-          description: The version of the script version. Will increment for each
-            new version of the script
+          description: The current version of the profile
           type: integer
       required:
+      - active
       - created_by
       - date_added
       - date_updated
+      - default_profile_id
+      - description
       - entry_point
       - id
-      - profile_id
+      - name
       - script_id
       - script_type
       - version
@@ -1518,12 +1582,21 @@ paths:
       - profiles
     post:
       deprecated: false
-      description: "\nCreates a new profile for a workspace. A profile name in a workspace\
-        \ must be unique. A profile has a versioned configuration, the \nhighest version\
-        \ is the active configuration. When running a script, the profile can be specified\
-        \ to use a specific configuration.\n\nRequires WRITE permission on the organization\
-        \ level.\n"
-      operationId: create_profile
+      description: '
+
+        Creates a new profile for a workspace, if provided profile name exists, updates
+        existing profile with name. A profile name in a workspace must be unique.
+        A profile also saves a verions history with
+
+        ascending version number. The highest version is equal tot he active profile
+        version. When running a script, the profile can be specified to use a specific
+        profile version.
+
+
+        Requires WRITE permission on the organization level.
+
+        '
+      operationId: create_or_update_profile
       parameters:
       - deprecated: false
         in: path
@@ -1634,7 +1707,7 @@ paths:
                 - status_code
                 type: object
           description: Nothing matches the given URI
-      summary: CreateProfile
+      summary: CreateOrUpdateProfile
       tags:
       - profiles
   /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}:
@@ -1762,19 +1835,19 @@ paths:
       summary: GetProfile
       tags:
       - profiles
-  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations:
+  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/versions:
     get:
       deprecated: false
       description: '
 
-        Gets the configuration history for a profile. Returns a paginated list of
-        configurations ordered by version descending, latest first.
+        Gets the profile_version history for a profile. Returns a paginated list of
+        profile_versions ordered by version descending, latest first.
 
 
         Requires READ permission on the organization level.
 
         '
-      operationId: list_configurations
+      operationId: list_profile_versions
       parameters:
       - deprecated: false
         in: path
@@ -1815,7 +1888,7 @@ paths:
                 properties:
                   items:
                     items:
-                      $ref: '#/components/schemas/ConfigurationResponse'
+                      $ref: '#/components/schemas/ProfileVersionResponse'
                     type: array
                   limit:
                     description: Maximal number of items to send.
@@ -1917,149 +1990,22 @@ paths:
                 - status_code
                 type: object
           description: Nothing matches the given URI
-      summary: ListConfigurations
+      summary: ListProfileVersions
       tags:
       - profiles
-    post:
-      deprecated: false
-      description: "\nCreates a new configuration for a profile. A configuration has\
-        \ a version number, a config and a secrets. The \nconfig and secrets attributes\
-        \ are optional but should be a valid config and secrets if provided.\n\nPLEASE\
-        \ NOTE: Secrets are not yet encrypted at rest on this endpoint. Avoid sending\
-        \ production secrets!\n\nRequires WRITE permission on the organization level.\n"
-      operationId: create_configuration
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      - deprecated: false
-        in: path
-        name: profile_id_or_name
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateConfigurationRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConfigurationResponse'
-          description: Document created, URL follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Nothing matches the given URI
-      summary: CreateConfiguration
-      tags:
-      - profiles
-  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations/latest:
+  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/versions/latest:
     get:
       deprecated: false
       description: '
 
-        Gets the latest and therefore active configuration for a profile. If non exists,
-        a default configuration is created and returned.
+        Gets the latest and therefore active profile_version for a profile. If non
+        exists, a default profile_version is created and returned.
 
 
         Requires READ permission. On the organization level.
 
         '
-      operationId: get_latest_configuration
+      operationId: get_latest_profile_version
       parameters:
       - deprecated: false
         in: path
@@ -2079,7 +2025,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConfigurationResponse'
+                $ref: '#/components/schemas/ProfileVersionResponse'
           description: Request fulfilled, document follows
           headers: {}
         '400':
@@ -2170,21 +2116,22 @@ paths:
                 - status_code
                 type: object
           description: Nothing matches the given URI
-      summary: GetLatestConfiguration
+      summary: GetLatestProfileVersion
       tags:
       - profiles
-  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/configurations/{configuration_id_or_version}:
+  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/versions/{profile_version_id_or_version}:
     get:
       deprecated: false
       description: '
 
-        Gets a configuration for a profile, either by ID or by version number.
+        Gets a historic profile_version for a profile, either by ID or by version
+        number.
 
 
         Requires READ permission on the organization level.
 
         '
-      operationId: get_configuration
+      operationId: get_profile_version
       parameters:
       - deprecated: false
         in: path
@@ -2195,7 +2142,7 @@ paths:
           type: string
       - deprecated: false
         in: path
-        name: configuration_id_or_version
+        name: profile_version_id_or_version
         required: true
         schema:
           oneOf:
@@ -2213,7 +2160,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConfigurationResponse'
+                $ref: '#/components/schemas/ProfileVersionResponse'
           description: Request fulfilled, document follows
           headers: {}
         '400':
@@ -2304,7 +2251,7 @@ paths:
                 - status_code
                 type: object
           description: Nothing matches the given URI
-      summary: GetConfiguration
+      summary: GetProfileVersion
       tags:
       - profiles
   /v1/workspaces/{workspace_id}/runs:
@@ -2619,7 +2566,7 @@ paths:
         will be used. The profile associated with the script version will be used,
         of which
 
-        the latest configuration will be used. You may specify a specific profile
+        the latest profile_version will be used. You may specify a specific profile
         to use.
 
 
@@ -3038,7 +2985,7 @@ paths:
         \ deactivated, so that they are not run on schedule or accessible via public\n\
         endpoints in the cases where they are notebooks.\n\nRequires WRITE permission\
         \ on the organization level.\n"
-      operationId: create_script
+      operationId: create_or_update_script
       parameters:
       - deprecated: false
         in: path
@@ -3149,7 +3096,7 @@ paths:
                 - status_code
                 type: object
           description: Nothing matches the given URI
-      summary: CreateScript
+      summary: CreateOrUpdateScript
       tags:
       - scripts
   /v1/workspaces/{workspace_id}/scripts/{script_id_or_name}:
@@ -3435,135 +3382,6 @@ paths:
       summary: ListScriptVersions
       tags:
       - scripts
-    post:
-      deprecated: false
-      description: "\nCreates a new script version for a script. A script version\
-        \ has a version number, an entry point, a script type and a schedule. \nThe\
-        \ profile attribute is optional but should be a valid profile name or ID if\
-        \ provided, if not provided, the default profile will be attached.\nThe profile\
-        \ governs which configuration will be used if the script is executed.\nThe\
-        \ schedule attribute is optional but should be a valid cron expression if\
-        \ provided.\n\nRequires WRITE permission on the organization level.\n"
-      operationId: create_script_version
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      - deprecated: false
-        in: path
-        name: script_id_or_name
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateScriptVersionRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScriptVersionResponse'
-          description: Document created, URL follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Nothing matches the given URI
-      summary: CreateScriptVersion
-      tags:
-      - scripts
   /v1/workspaces/{workspace_id}/scripts/{script_id_or_name}/versions/latest:
     get:
       deprecated: false
@@ -3688,7 +3506,7 @@ paths:
       deprecated: false
       description: '
 
-        Gets a script version for a script, either by ID or by version number.
+        Gets a historic version for a script, either by ID or by version number.
 
 
         Requires READ permission on the organization level.

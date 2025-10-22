@@ -9,11 +9,11 @@ from dateutil.parser import isoparse
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="ProfileResponse")
+T = TypeVar("T", bound="ProfileVersionResponse")
 
 
 @_attrs_define
-class ProfileResponse:
+class ProfileVersionResponse:
     """
     Attributes:
         active (bool): Whether the profile is active and may be used to run scripts
@@ -23,9 +23,9 @@ class ProfileResponse:
         date_updated (datetime.datetime): The date the entity was updated
         id (UUID): The uniqueID of the entity
         name (str): The name of the profile
+        profile_id (UUID): The ID of the profile this version belongs to
         secrets (str): The secrets.toml of the profile
         version (int): The current version of the profile
-        workspace_id (UUID): The ID of the workspace the profile belongs to
         description (Union[None, Unset, str]): The description of the profile
     """
 
@@ -36,9 +36,9 @@ class ProfileResponse:
     date_updated: datetime.datetime
     id: UUID
     name: str
+    profile_id: UUID
     secrets: str
     version: int
-    workspace_id: UUID
     description: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -57,11 +57,11 @@ class ProfileResponse:
 
         name = self.name
 
+        profile_id = str(self.profile_id)
+
         secrets = self.secrets
 
         version = self.version
-
-        workspace_id = str(self.workspace_id)
 
         description: Union[None, Unset, str]
         if isinstance(self.description, Unset):
@@ -80,9 +80,9 @@ class ProfileResponse:
                 "date_updated": date_updated,
                 "id": id,
                 "name": name,
+                "profile_id": profile_id,
                 "secrets": secrets,
                 "version": version,
-                "workspace_id": workspace_id,
             }
         )
         if description is not UNSET:
@@ -107,11 +107,11 @@ class ProfileResponse:
 
         name = d.pop("name")
 
+        profile_id = UUID(d.pop("profile_id"))
+
         secrets = d.pop("secrets")
 
         version = d.pop("version")
-
-        workspace_id = UUID(d.pop("workspace_id"))
 
         def _parse_description(data: object) -> Union[None, Unset, str]:
             if data is None:
@@ -122,7 +122,7 @@ class ProfileResponse:
 
         description = _parse_description(d.pop("description", UNSET))
 
-        profile_response = cls(
+        profile_version_response = cls(
             active=active,
             config=config,
             created_by=created_by,
@@ -130,14 +130,14 @@ class ProfileResponse:
             date_updated=date_updated,
             id=id,
             name=name,
+            profile_id=profile_id,
             secrets=secrets,
             version=version,
-            workspace_id=workspace_id,
             description=description,
         )
 
-        profile_response.additional_properties = d
-        return profile_response
+        profile_version_response.additional_properties = d
+        return profile_version_response
 
     @property
     def additional_keys(self) -> list[str]:

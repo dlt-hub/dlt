@@ -1,84 +1,69 @@
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from uuid import UUID
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="CreateProfileRequest")
+T = TypeVar("T", bound="LogsResponse")
 
 
 @_attrs_define
-class CreateProfileRequest:
+class LogsResponse:
     """
     Attributes:
-        config (str): The config.toml of the profile
-        name (str): The name of the profile
-        secrets (str): The secrets.toml of the profile
-        description (Union[None, Unset, str]): The description of the profile
+        run_id (UUID): The ID of the run the logs belong to
+        logs (Union[None, Unset, str]): The logs of the run. Set to none if no logs are available
     """
 
-    config: str
-    name: str
-    secrets: str
-    description: Union[None, Unset, str] = UNSET
+    run_id: UUID
+    logs: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        config = self.config
+        run_id = str(self.run_id)
 
-        name = self.name
-
-        secrets = self.secrets
-
-        description: Union[None, Unset, str]
-        if isinstance(self.description, Unset):
-            description = UNSET
+        logs: Union[None, Unset, str]
+        if isinstance(self.logs, Unset):
+            logs = UNSET
         else:
-            description = self.description
+            logs = self.logs
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "config": config,
-                "name": name,
-                "secrets": secrets,
+                "run_id": run_id,
             }
         )
-        if description is not UNSET:
-            field_dict["description"] = description
+        if logs is not UNSET:
+            field_dict["logs"] = logs
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        config = d.pop("config")
+        run_id = UUID(d.pop("run_id"))
 
-        name = d.pop("name")
-
-        secrets = d.pop("secrets")
-
-        def _parse_description(data: object) -> Union[None, Unset, str]:
+        def _parse_logs(data: object) -> Union[None, Unset, str]:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
             return cast(Union[None, Unset, str], data)
 
-        description = _parse_description(d.pop("description", UNSET))
+        logs = _parse_logs(d.pop("logs", UNSET))
 
-        create_profile_request = cls(
-            config=config,
-            name=name,
-            secrets=secrets,
-            description=description,
+        logs_response = cls(
+            run_id=run_id,
+            logs=logs,
         )
 
-        create_profile_request.additional_properties = d
-        return create_profile_request
+        logs_response.additional_properties = d
+        return logs_response
 
     @property
     def additional_keys(self) -> list[str]:

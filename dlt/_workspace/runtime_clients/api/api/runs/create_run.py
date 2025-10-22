@@ -117,7 +117,7 @@ def sync_detailed(
 
     Triggers a new run for a script in a workspace. The latest script version will be used. The profile
     associated with the script version will be used, of which
-    the latest configuration will be used. You may specify a specific profile to use.
+    the latest profile_version will be used. You may specify a specific profile to use.
 
     Requires WRITE permission on the organization level.
 
@@ -164,7 +164,7 @@ def sync(
 
     Triggers a new run for a script in a workspace. The latest script version will be used. The profile
     associated with the script version will be used, of which
-    the latest configuration will be used. You may specify a specific profile to use.
+    the latest profile_version will be used. You may specify a specific profile to use.
 
     Requires WRITE permission on the organization level.
 
@@ -206,7 +206,7 @@ async def asyncio_detailed(
 
     Triggers a new run for a script in a workspace. The latest script version will be used. The profile
     associated with the script version will be used, of which
-    the latest configuration will be used. You may specify a specific profile to use.
+    the latest profile_version will be used. You may specify a specific profile to use.
 
     Requires WRITE permission on the organization level.
 
@@ -251,7 +251,7 @@ async def asyncio(
 
     Triggers a new run for a script in a workspace. The latest script version will be used. The profile
     associated with the script version will be used, of which
-    the latest configuration will be used. You may specify a specific profile to use.
+    the latest profile_version will be used. You may specify a specific profile to use.
 
     Requires WRITE permission on the organization level.
 
