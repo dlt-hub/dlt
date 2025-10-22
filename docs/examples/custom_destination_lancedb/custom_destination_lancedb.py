@@ -16,6 +16,7 @@ You can get a Spotify client ID and secret from https://developer.spotify.com/.
 We'll learn how to:
 - Use the [custom destination](../dlt-ecosystem/destinations/destination.md)
 - Delegate the embeddings to LanceDB using OpenAI Embeddings
+- Use Pydantic for unified dlt and lancedb schema validation
 """
 
 __source_name__ = "spotify"
@@ -59,16 +60,21 @@ os.environ["OPENAI_API_KEY"] = openai_api_key
 
 
 class EpisodeSchema(LanceModel):
+    """Used for dlt and lance schema validation"""
     id: str  # noqa: A003
     name: str
     description: str = func.SourceField()
-    vector: Vector(func.ndims()) = func.VectorField()  # type: ignore[valid-type]
     release_date: datetime.date
     audio_preview_url: str
     duration_ms: int
     href: str
     uri: str
     # there is more data but we are not using it ...
+
+
+class EpisodeSchemaVector(EpisodeSchema):
+    """Adds lance vector field"""
+    vector: Vector(func.ndims()) = func.VectorField()  # type: ignore[valid-type]
 
 
 @dataclass(frozen=True)
@@ -120,11 +126,16 @@ def spotify_shows(
         yield dlt.resource(
             client.paginate(url, params={"limit": 50}),
             name=show_name,
-            write_disposition="merge",
             primary_key="id",
             parallelized=True,
             max_table_nesting=0,
-        )
+            # reuse lance model to filter out all non-matching items and extra columns from spotify api
+            # 1. unknown columns are removed ("columns": "discard_value")
+            # 2. non validating items (ie. without id or url) are removed ("data_type": "discard_row")
+            # 3. for some reason None values are returned as well 🤯, add_filter takes care of that
+            columns=EpisodeSchema,
+            schema_contract={"tables": "evolve", "columns": "discard_value", "data_type": "discard_row"}
+        ).add_filter(lambda i: i is not None)
 
 
 @dlt.destination(batch_size=250, name="lancedb")
@@ -135,16 +146,9 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
     try:
         tbl = db.open_table(table["name"])
     except ValueError:
-        tbl = db.create_table(table["name"], schema=EpisodeSchema)
-
-    # remove all fields that are not in the schema
-    for item in items:
-        keys_to_remove = [key for key in item.keys() if key not in EpisodeSchema.model_fields]
-        for key in keys_to_remove:
-            del item[key]
+        tbl = db.create_table(table["name"], schema=EpisodeSchemaVector)
 
     tbl.add(items)
-
 
 if __name__ == "__main__":
     db_path = Path(dlt.config.get("lancedb.db_path"))
