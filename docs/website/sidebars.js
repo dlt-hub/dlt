@@ -389,11 +389,8 @@ const sidebars = {
       type: 'category',
       label: 'Code examples',
       link: {
-        type: 'generated-index',
-        title: 'Code examples',
-        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
-        slug: 'examples',
-        keywords: ['examples'],
+        type: 'doc',
+        id: 'examples/index',
       },
       items: [
         'walkthroughs/dispatch-to-multiple-tables',
