@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from types import MethodType
 
 import pytest
@@ -28,6 +28,7 @@ from dlt.common.schema.typing import (
     TColumnName,
     TSimpleRegex,
     COLUMN_HINTS,
+    TTableReferenceStandalone,
     TTableSchemaColumns,
 )
 from dlt.common.storages import SchemaStorage
@@ -802,9 +803,16 @@ def test_schema_tables_property() -> None:
     )
 
 
-def test_schema_references_property() -> None:
-    schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
-    expected_references = [
+@pytest.mark.parametrize("naming", ("snake_case", "tests.common.cases.normalizers.title_case"))
+def test_schema_references_property(naming: str) -> None:
+    # change naming convention
+    os.environ["SCHEMA__NAMING"] = naming
+    os.environ["SCHEMA__ALLOW_IDENTIFIER_CHANGE_ON_TABLE_WITH_DATA"] = "True"
+    schema_dict = load_yml_case("schemas/eth/ethereum_schema_v11")
+    schema = Schema.from_dict(schema_dict)
+    schema.update_normalizers()
+
+    expected_references: List[TTableReferenceStandalone] = [
         {
             "label": "_dlt_load",
             "cardinality": "many_to_one",
@@ -898,6 +906,17 @@ def test_schema_references_property() -> None:
     assert set(ref["label"] for ref in schema.references) == set(
         [C_CHILD_PARENT_REF_LABEL, C_DESCENDANT_ROOT_REF_LABEL, C_ROOT_LOAD_REF_LABEL]
     )
+    # normalize table and column names in expected_references
+    for reference in expected_references:
+        reference["table"] = schema.naming.normalize_tables_path(reference["table"])
+        reference["referenced_table"] = schema.naming.normalize_tables_path(
+            reference["referenced_table"]
+        )
+        reference["columns"] = [schema.naming.normalize_path(c) for c in reference["columns"]]
+        reference["referenced_columns"] = [
+            schema.naming.normalize_path(c) for c in reference["referenced_columns"]
+        ]
+
     assert schema.references == expected_references
 
 
@@ -1074,7 +1093,7 @@ def test_get_nested_tables(include_self: bool, max_nesting: int) -> None:
 
     assert set(expected) == set(descendant_tbl_names)
 
-    # Ensure non existend table doesn't return anything
+    # Ensure non existent table doesn't return anything
 
     assert [] == utils.get_nested_tables(
         tables=schema_eth.tables,
