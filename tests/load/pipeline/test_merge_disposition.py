@@ -19,7 +19,7 @@ from dlt.common.schema.exceptions import (
 from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
-from dlt.common.destination import AnyDestination, DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
@@ -70,6 +70,10 @@ def test_merge_on_keys_in_schema_nested_hints(
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v11.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
+
+    if destination_config.destination_type == "databricks":
+        # remove `partition` hint because it conflicts with `cluster` on databricks
+        schema.merge_hints({"partition": []}, replace=True)
 
     # make block uncles unseen to trigger filtering loader in loader for nested tables
     if has_table_seen_data(schema.tables["blocks__uncles"]):

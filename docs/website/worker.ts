@@ -17,6 +17,10 @@ const REDIRECTS = [
         from: "/docs/",
         to: "/docs/intro"
     },
+    {
+        from: "/docs/hub",
+        to: "/docs/hub/intro"
+    },
 
     // docs section redirects
     {

@@ -158,8 +158,10 @@ def _maybe_parse_native_value(
                 .as_dict_nondefault()
                 .items()
             }
-        except (ValueError, NotImplementedError) as v_err:
+        except ValueError as v_err:
             raise InvalidNativeValue(type(config), type(native_value), embedded_sections, v_err)
+        except NotImplementedError:
+            pass
 
     return native_value  # type: ignore[no-any-return]
 
