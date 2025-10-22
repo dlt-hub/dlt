@@ -1,6 +1,6 @@
 ---
 title: Profiles
-keywords: [dlt+, profiles]
+keywords: [dltHub, profiles]
 ---
 
 A profile is a set of configurations and secrets defined for a specific use case. Profiles provide a way to manage different configurations for different environments.
@@ -74,6 +74,6 @@ The profile pin is kept in the `.dlt/profile-name` file. Remove this file to unp
 
 ### Settings in the `dlt.yml` file vs TOML files
 
-For dlt+ Projects, it's best practice to keep all non-secret settings in `dlt.yml` and store secrets only in `.dlt/secrets.toml`. This ensures that sensitive data is only available in the necessary profiles or environments.
+For dltHub Projects, it's best practice to keep all non-secret settings in `dlt.yml` and store secrets only in `.dlt/secrets.toml`. This ensures that sensitive data is only available in the necessary profiles or environments.
 
 In the example above, some non-secret values were moved to `.dlt/secrets.toml` for demonstration purposes only - this is not the recommended approach.
