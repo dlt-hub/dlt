@@ -27,9 +27,9 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
 
     workspace_id: Optional[str] = None
     auth_token: Optional[TSecretStrValue] = None
-    auth_base_url: Optional[str] = "http://127.0.0.1:30001"
+    auth_base_url: Optional[str] = "http://localhost:30001"
     """Base URL for the dltHub Runtime authentication API"""
-    api_base_url: Optional[str] = "http://127.0.0.1:30000"
+    api_base_url: Optional[str] = "http://localhost:30000"
     """Base URL for the dltHub Runtime API"""
 
 
