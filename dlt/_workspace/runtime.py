@@ -1,9 +1,9 @@
 import os
 from typing import Optional
 
+from dataclasses import dataclass
 import jwt
 from git import Union
-from pydantic import BaseModel, ValidationError
 from tomlkit.toml_file import TOMLFile
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
@@ -30,7 +30,8 @@ from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.runtime.run_context import active
 
 
-class AuthInfo(BaseModel):
+@dataclass
+class AuthInfo:
     user_id: str
     email: str
     jwt_token: str
@@ -163,8 +164,12 @@ class RuntimeAuthService:
             raise RuntimeNotAuthenticated("Failed to decode JWT") from e
 
         try:
-            auth_info = AuthInfo(jwt_token=token.decode("utf-8"), **payload)
-        except ValidationError as e:
+            auth_info = AuthInfo(
+                jwt_token=token.decode("utf-8"), 
+                email=payload["email"], 
+                user_id=payload["user_id"]
+            )
+        except (KeyError, TypeError) as e:
             raise RuntimeNotAuthenticated("Failed to validate JWT payload") from e
 
         return auth_info
