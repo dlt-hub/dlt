@@ -4,14 +4,114 @@ description: Install the dlt MCP with your preferred LLM-enabled IDE.
 keywords: [mcp, llm, agents, ai]
 ---
 
+# Workspace MCP Server - current status
+
+The server can do the following:
+- list pipelines in workspace
+- inspect table schema and data for dataset in particular pipeline
+- do sql queries
+
+It is the same server that is called **the open-source `dlt`** in the documentation below.
+
+Since all mcp clients work with `sse` transport, it is the default when running the server. Before we were struggling with
+launching `mcp` as a part of client process. There was no way to pass right Python virtual environment and dlt run context.
+There were also issues with `stdio` pollution from `print` statement (overall that was IMO a dead end, mcp is a server by nature.)
+
+To launch the server in workspace context:
+```sh
+dlt workspace mcp
+
+INFO:     Started server process [24925]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:43654 (Press CTRL+C to quit)
+```
+Workspace mcp server has **43654** as default port and is configured without any path (ie `/sse`) so user can just copy the link above in the right
+client.
+
+To launch the server in pipeline context:
+```sh
+dlt pipeline fruitshop mcp
+
+Starting dlt MCP server
+INFO:     Started server process [28972]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:43656 (Press CTRL+C to quit)
+
+```
+Pipeline mcp server has **43656** as default port. Pipeline is already attached when mcp server starts. Both pipeline and workspace mcps can work side by side.
+
+
+Example client configurations
+
+Cursor, Cline
+```json
+{
+  "mcpServers": {
+    "dlt-workspace": {
+      "url": "http://127.0.0.1:43654/"
+    },
+    "dlt-pipeline-mcp": {
+      "url": "http://127.0.0.1:43656/"
+    }
+  }
+}
+```
+
+Continue: for some reason it does see mcp configuration created in dev container. Maybe someone will make it work...
+```yaml
+name: dlt mcps
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: dlt-workspace
+    type: sse
+    url: "http://localhost:43654"
+```
+
+## Configuration
+Server can still be started with `stdio` transport and different port using the command line. The plan is to allow to configure
+mcp deeply via dlt configuration system.
+
+```toml
+[workspace.mcp]
+path="/sse"
+port=888
+```
+
+```toml
+[pipelines.fruitshop.mcp]
+transport="stdio"
+```
+
+## Interactions with Runtime
+This is a heads-up on how we host mcps on runtime. To be deleted.
+
+* deployed workspace dashboard has two routes `/app` to see the notebook and `/mcp` to connect to mcp server
+* workspace dashboard in single pipeline mode `/app/fruitshop` and `/mcp/fruitshop`
+* I'm also pondering exposing some kind of mcp attached to each marimo notebook
+
+
+# Project MCP server
+
+This is our "project" mcp (**integrates with `dltHub` features** below) and can be launched with:
+```sh
+dlt project mcp
+```
+It gets **43655** port and project context is obtained before launching the server.
+
+
+
+
 # MCP Server
 
-Currently, dltHub is [building two MCP servers](https://dlthub.com/blog/deep-dive-assistants-mcp-continue) that you can run locally and integrate with your preferred IDE. One server is for the open-source `dlt` library and the other integrates with `dlt+` features ([Learn more](ai.md)).
+Currently, dltHub is [building two MCP servers](https://dlthub.com/blog/deep-dive-assistants-mcp-continue) that you can run locally and integrate with your preferred IDE. One server is for the open-source `dlt` library and the other integrates with `dltHub` features ([Learn more](ai.md)).
 
 This page gives an overview of what we're building and includes detailed instructions to install the MCP in your favorite IDE.
 
 :::warning
-🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list).
+🚧 This feature is under development, and the interface may change in future releases. Interested in becoming an early tester? [Join dltHub early access](https://info.dlthub.com/waiting-list).
 :::
 
 ## Model Context Protocol
@@ -23,7 +123,7 @@ In the context of the MCP, the **client** is built-in the user-facing applicatio
 
 - **Resources** are data objects that can be retrieved by the client and added to the context (i.e., prompt) of the LLM request. Resources will be manually selected by the user, or certain clients will automatically retrieved them.
 
-- **Tools** provided a way to execute code and provide information to the LLM. Tools are called by the LLM; they can't be selected by the user or the client. 
+- **Tools** provided a way to execute code and provide information to the LLM. Tools are called by the LLM; they can't be selected by the user or the client.
 
 - **Prompts** are strings, or templated strings, that can be injected in the conversation. Prompts are selected by the user. They provide shortcuts for frequent commands, or allow to ask the LLMs to use specific tools.
 
@@ -35,7 +135,7 @@ The MCP is progressively being adopted and not all clients support all the featu
 
 ## Features
 
-The dlt and dlt+ MCP servers aim to be a toolbox to help developers build, maintain, and operate `dlt` pipelines. There are two primary avenues:
+The dlt and dltHub MCP servers aim to be a toolbox to help developers build, maintain, and operate `dlt` pipelines. There are two primary avenues:
 
 - **Code generation**: LLMs are good at writing Python code, but they don't know everything about `dlt`. The MCP provides resources and tools to provide up-to-date information to the LLm about the dlt library and the specifics of your project.
 
@@ -67,26 +167,26 @@ The next sections are a non-exhaustive documentation of existing and upcoming fe
 
 ## Installation
 
-The `dlt` and `dlt+` MCP servers are intended to run locally on your machine and communicate over standard I/O. Typically, the MCP server process is launched by the MCP client, i.e., the IDE. We will use the [uv package manager](https://docs.astral.sh/uv/#installation) to launch the MCP server.
+The `dlt` and `dltHub` MCP servers are intended to run locally on your machine and communicate over standard I/O. Typically, the MCP server process is launched by the MCP client, i.e., the IDE. We will use the [uv package manager](https://docs.astral.sh/uv/#installation) to launch the MCP server.
 
 The next sections include client-specific instructions, references, and snippets to configure the MCP server. They are mainly derived from this `uv` command:
 
 ```sh
-uv tool run --with "dlt-plus[mcp]==0.9.0" dlt mcp run
+uv tool run --with "dlthub[mcp]==0.9.0" dlt mcp run
 ```
 
 To explain each part:
 - [uv tool run](https://docs.astral.sh/uv/guides/tools/) executes the command in an isolated virtual environment
 -`--with PACKAGE_NAME` specifies the Python dependencies for the command that follows
-- `dlt-plus[mcp]` ensures to get all the extra dependencies for the MCP server
-- `dlt-plus==0.9.0` pins a specific `dlt-plus` version (where the MCP code lives). We suggest at least pinning the `dlt-plus` version to provide a consistent experience
-- `dlt mcp run` is a CLI command found in dlt+ that starts the dlt MCP server. Use `dlt mcp run_plus` to
+- `dlthub[mcp]` ensures to get all the extra dependencies for the MCP server
+- `dlthub==0.9.0` pins a specific `dlthub` version (where the MCP code lives). We suggest at least pinning the `dlthub` version to provide a consistent experience
+- `dlt mcp run` is a CLI command found in dltHub that starts the dlt MCP server. Use `dlt mcp run_plus` to
 
 Then, to enable the MCP server and tool usage, several IDEs require you to enable "tool/agent/mcp mode".
 
-### dlt+ MCP server
+### dltHub MCP server
 
-To run the `dlt+` MCP server, you will need to set your [dlt+ License](../getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE) and use `dlt mcp run_plus` in your configuration. If the `dlt+` license is missing, the dlt MCP server will be launched instead. You can tell the two apart by the tools, resources, and prompts available­.
+To run the `dltHub` MCP server, you will need to set your [dltHub License](../getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE) and use `dlt mcp run_plus` in your configuration. If the `dltHub` license is missing, the dlt MCP server will be launched instead. You can tell the two apart by the tools, resources, and prompts available­.
 
 
 ### Continue
@@ -94,7 +194,7 @@ To run the `dlt+` MCP server, you will need to set your [dlt+ License](../gettin
 With Continue, you can use [Continue Hub](https://docs.continue.dev/hub/introduction) for a 1-click install of the MCP, or a local config file. Select `Agent Mode` to enable the MCP server.
 
 #### Continue Hub
-See the [dltHub page](https://hub.continue.dev/dlthub) and select the `dlt` or `dlt+` Assistants. This bundles the MCP with additional Continue-specific features. You can also select the `dlt` or `dlt+` MCP blocks to install the server exclusively.
+See the [dltHub page](https://hub.continue.dev/dlthub) and select the `dlt` or `dltHub` Assistants. This bundles the MCP with additional Continue-specific features. You can also select the `dlt` or `dltHub` MCP blocks to install the server exclusively.
 
 #### Local
 You can define an assistant locally with the same YAML syntax as the Continue Hub by adding files to `$PROJECT_ROOT/.continue/assistants`. This snippet creates an assistant with the MCP only.
@@ -111,7 +211,7 @@ mcpServers:
       - tool
       - run
       - --with
-      - dlt-plus[mcp]==0.9.0
+      - dlthub[mcp]==0.9.0
       - dlt
       - mcp
       - run
@@ -130,7 +230,7 @@ There's also a global configuration specs in JSON
             "tool",
             "run",
             "--with",
-            "dlt-plus[mcp]==0.9.0",
+            "dlthub[mcp]==0.9.0",
             "dlt",
             "mcp",
             "run"
@@ -155,12 +255,12 @@ You need to [add a JSON configuration file](https://modelcontextprotocol.io/quic
         "tool",
         "run",
         "--with",
-        "dlt-plus[mcp]==0.9.0",
+        "dlthub[mcp]==0.9.0",
         "dlt",
         "mcp",
         "run"
       ]
-    } 
+    }
   }
 }
 ```
@@ -179,12 +279,12 @@ Select **Agent Mode** to enable the MCP server. The [configuration](https://docs
         "tool",
         "run",
         "--with",
-        "dlt-plus[mcp]==0.9.0",
+        "dlthub[mcp]==0.9.0",
         "dlt",
         "mcp",
         "run"
       ]
-    } 
+    }
   }
 }
 ```
@@ -197,7 +297,7 @@ Follow [this tutorial](https://docs.cline.bot/mcp-servers/mcp-quickstart) to use
 
 The following methods allow the user to manually launch the MCP server from their preferred directory and Python environment before connecting to the IDE. The basic installation methods let the IDE launch the server over STDIO in isolation from the current project directory and Python environment.
 
-We won't use `uv tool run` because we want to use the local Python environment instead of an isolated one. We assume that `dlt-plus[mcp]` is installed in the environment, giving access to the `dlt mcp` command.
+We won't use `uv tool run` because we want to use the local Python environment instead of an isolated one. We assume that `dlthub[mcp]` is installed in the environment, giving access to the `dlt mcp` command.
 
 :::warning
 🚧 The MCP, IDE features, and the dlt MCP server are all rapidly evolving and some details are likely to change.
@@ -211,7 +311,7 @@ To launch the server using [Server-Sent Events (SSE) transport](https://modelcon
 dlt mcp run_plus --sse --port 43655
 ```
 
-Then, configure your IDE to connect to the local connection at `http://127.0.0.1:43655/sse` (the `/sse` path is important). Many IDEs don't currently support SSE connection, but [Cline does](https://docs.cline.bot/mcp-servers/configuring-mcp-servers#sse-transport). 
+Then, configure your IDE to connect to the local connection at `http://127.0.0.1:43655/sse` (the `/sse` path is important). Many IDEs don't currently support SSE connection, but [Cline does](https://docs.cline.bot/mcp-servers/configuring-mcp-servers#sse-transport).
 
 #### Proxy mode
 
@@ -228,7 +328,7 @@ To launch the proxy server, follow the basic installation method (Cursor, Contin
 uv tool run mcp-proxy "http://127.0.0.1:43655/sse"
 ```
 
-For example, Cursor would use this config. 
+For example, Cursor would use this config.
 
 ```json
 {
@@ -241,7 +341,7 @@ For example, Cursor would use this config.
         "mcp-proxy",
         "http://127.0.0.1:43655/sse"
       ]
-    } 
+    }
   }
 }
 ```

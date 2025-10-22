@@ -1,4 +1,8 @@
+# NOTE: the below is used by cloudlfare to install python dependencies used for building
 pydoc-markdown==4.8.2
 typing-extensions==4.6.3
 databind.json==4.4.2
 databind.core==4.4.2
+watchdog==3.0.0
+requests>=2.31.0
+dlt
