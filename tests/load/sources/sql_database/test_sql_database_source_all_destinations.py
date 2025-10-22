@@ -191,13 +191,13 @@ def test_load_sql_table_incremental(
     assert_row_counts(pipeline, postgres_db, tables)
 
 
-@pytest.mark.skip(reason="Skipping this test temporarily")
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
+@pytest.mark.rfam
 def test_load_mysql_data_load(
     destination_config: DestinationTestConfiguration, backend: TableBackend
 ) -> None:
