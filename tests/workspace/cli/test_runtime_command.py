@@ -27,6 +27,12 @@ from dlt._workspace.runtime_clients.auth.models.github_device_flow_start_respons
     GithubDeviceFlowStartResponse,
 )
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+from dlt._workspace.cli import _debug
+
+
+@pytest.fixture(autouse=True)
+def disable_debug():
+    _debug.disable_debug()
 
 
 def reload_config_providers():
