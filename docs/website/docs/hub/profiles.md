@@ -14,7 +14,7 @@ Each profile provides isolated configuration, credentials, and working directori
 ## Overview
 
 A **profile** is a named configuration context that controls how and where your pipelines run.
-Profiles are defined and managed through **TOML files** located in the `.dlt` directory or **environment variables** (alongside other [configuration providers](../general-usage/credentials)).
+Profiles are defined and managed through [**TOML files**](../general-usage/credentials) located in the `.dlt` directory.
 
 Profiles let you:
 
@@ -124,12 +124,6 @@ In `.dlt/dev.secrets.toml` (to fully split profiles), define your local destinat
 ```toml
 [destination.warehouse]
 destination_type = "duckdb"
-```
-
-Or via **environment variable**:
-
-```sh
-DESTINATION__WAREHOUSE__DESTINATION_TYPE="duckdb"
 ```
 
 Then, in your pipeline script change the code `(destination="warehouse")`:
