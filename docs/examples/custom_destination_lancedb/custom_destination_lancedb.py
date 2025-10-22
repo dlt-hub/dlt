@@ -61,7 +61,10 @@ os.environ["OPENAI_API_KEY"] = openai_api_key
 
 class EpisodeSchema(LanceModel):
     """Used for dlt and lance schema validation"""
+<<<<<<< HEAD
 
+=======
+>>>>>>> e56364592b4c2be162eaa0d0f68ed50731f7ace1
     id: str  # noqa: A003
     name: str
     description: str = func.SourceField()
@@ -75,7 +78,10 @@ class EpisodeSchema(LanceModel):
 
 class EpisodeSchemaVector(EpisodeSchema):
     """Adds lance vector field"""
+<<<<<<< HEAD
 
+=======
+>>>>>>> e56364592b4c2be162eaa0d0f68ed50731f7ace1
     vector: Vector(func.ndims()) = func.VectorField()  # type: ignore[valid-type]
 
 
@@ -155,7 +161,6 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
         tbl = db.create_table(table["name"], schema=EpisodeSchemaVector)
 
     tbl.add(items)
-
 
 if __name__ == "__main__":
     db_path = Path(dlt.config.get("lancedb.db_path"))
