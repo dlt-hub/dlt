@@ -22,6 +22,7 @@ class WorkspaceSettings(BaseConfiguration):
 @configspec
 class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Extends runtime configuration with dlthub runtime"""
+
     __section__: ClassVar[str] = "workspace_runtime"
 
     workspace_id: Optional[str] = None

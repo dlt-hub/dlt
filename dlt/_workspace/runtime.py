@@ -107,7 +107,10 @@ class RuntimeAuthService:
     def overwrite_local_workspace_id(self) -> None:
         local_toml_config = ConfigTomlProvider(self.workspace_run_context.settings_dir)
         local_toml_config.set_value(
-            "workspace_id", str(self._remote_workspace_id), None, WorkspaceRuntimeConfiguration.__section__
+            "workspace_id",
+            str(self._remote_workspace_id),
+            None,
+            WorkspaceRuntimeConfiguration.__section__,
         )
         local_toml_config.write_toml()
         self._local_workspace_id = self._remote_workspace_id
