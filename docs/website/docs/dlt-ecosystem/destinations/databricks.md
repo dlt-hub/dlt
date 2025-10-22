@@ -18,7 +18,7 @@ There are two options to run dlt pipelines and load data:
 
 Databricks supports both **Delta** (default) and **Apache Iceberg** table formats. See the [table_format](#apache-iceberg-tables) section for details on using Iceberg tables.
 
-## Install dlt with Databricks 22
+## Install dlt with Databricks
 
 **To install the dlt library with Databricks dependencies:**
 
