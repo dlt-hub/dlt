@@ -29,18 +29,18 @@ DESTINATION_NAME_PATTERN = r"([a-z0-9_-]+?)(?:--|$)"
 CAPABILITIES_TABLE_HEADER = "| Feature | Value | More |\n"
 
 SELECTED_CAPABILITIES_ATTRIBUTES = {
-    "preferred_loader_file_format",
-    "supported_loader_file_formats",
-    "preferred_staging_file_format",
-    "supported_staging_file_formats",
-    "has_case_sensitive_identifiers",
-    "supported_merge_strategies",
-    "supported_replace_strategies",
-    "supports_tz_aware_datetime",
-    "supports_naive_datetime",
-    "sqlglot_dialect",
-    "preferred_table_format",
-    "supported_table_formats",
+    "preferred_loader_file_format", # /docs/dlt-ecosystem/file-formats
+    "supported_loader_file_formats", # /docs/dlt-ecosystem/file-formats
+    "preferred_staging_file_format", # /docs/dlt-ecosystem/file-formats
+    "supported_staging_file_formats", # /docs/devel/dlt-ecosystem/file-formats
+    "has_case_sensitive_identifiers", # /docs/general-usage/naming-convention#case-sensitive-and-insensitive-destinations
+    "supported_merge_strategies", # /docs/general-usage/merge-loading#merge-strategies
+    "supported_replace_strategies", # /docs/general-usage/full-loading#the-truncate-and-insert-strategy
+    "supports_tz_aware_datetime", # /docs/general-usage/schema#handling-of-timestamp-and-time-zones
+    "supports_naive_datetime", # /docs/general-usage/schema#handling-of-timestamp-and-time-zones
+    "sqlglot_dialect", # /docs/general-usage/dataset-access/dataset
+    "preferred_table_format", # /docs/dlt-ecosystem/table-formats
+    "supported_table_formats", # /docs/dlt-ecosystem/table-formats
 }
 
 CAPABILITIES_DOC_LINK_PATTERNS = [
@@ -59,6 +59,6 @@ SNIPPET_END_MARKER = f"{DLT_MARKER}_SNIPPET_END"
 CAPABILITIES_MARKER = f"{DLT_MARKER}_DESTINATION_CAPABILITIES"
 
 # Strings to search for in check_docs
-HTTP_LINK = "](https://dlthub.com/docs"
+HTTP_LINK = "](/docs"
 ABS_LINK = "](/"
 ABS_IMG_LINK = "](/img"
