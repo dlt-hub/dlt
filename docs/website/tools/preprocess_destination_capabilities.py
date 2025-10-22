@@ -74,13 +74,31 @@ def _format_value(value: Any) -> str:
 
 def _generate_doc_link(attr_name: str) -> str:
     """Generate documentation link based on attribute name pattern."""
-    for pattern, link in CAPABILITIES_DOC_LINK_PATTERNS:
-        if attr_name.endswith(pattern):
-            section_name = (
-                link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").capitalize()
-            )
-            return f"[{section_name}]({link})"
+    lower = attr_name.lower()
+    for key, link in CAPABILITIES_DOC_LINK_PATTERNS:
+        if key in lower:
+            return _format_doc_link_for_key(key, link)
+
+    # Fallback to data types link when nothing matches
     return CAPABILITIES_DATA_TYPES_DOC_LINK
+
+
+def _format_doc_link_for_key(key: str, link: str) -> str:
+    """Format the markdown link for a capability mapping key and link.
+
+    Centralizes any human-friendly label overrides.
+    """
+    if key == "merge":
+        return f"[Merge strategy]({link})"
+    if key == "replace":
+        return f"[Truncate-and-insert strategy]({link})"
+    if key == "time":
+        return f"[Timestamps and Timezones]({link})"
+    if key == "dialect":
+        return f"[Dataset access]({link})"
+
+    section_name = link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").capitalize()
+    return f"[{section_name}]({link})"
 
 
 def _is_relevant_capability(attr_name: str, value: Any) -> bool:

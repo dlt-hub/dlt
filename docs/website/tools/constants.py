@@ -29,23 +29,31 @@ DESTINATION_NAME_PATTERN = r"([a-z0-9_-]+?)(?:--|$)"
 CAPABILITIES_TABLE_HEADER = "| Feature | Value | More |\n"
 
 SELECTED_CAPABILITIES_ATTRIBUTES = {
-    "preferred_loader_file_format", # /docs/dlt-ecosystem/file-formats
-    "supported_loader_file_formats", # /docs/dlt-ecosystem/file-formats
-    "preferred_staging_file_format", # /docs/dlt-ecosystem/file-formats
-    "supported_staging_file_formats", # /docs/devel/dlt-ecosystem/file-formats
-    "has_case_sensitive_identifiers", # /docs/general-usage/naming-convention#case-sensitive-and-insensitive-destinations
-    "supported_merge_strategies", # /docs/general-usage/merge-loading#merge-strategies
-    "supported_replace_strategies", # /docs/general-usage/full-loading#the-truncate-and-insert-strategy
-    "supports_tz_aware_datetime", # /docs/general-usage/schema#handling-of-timestamp-and-time-zones
-    "supports_naive_datetime", # /docs/general-usage/schema#handling-of-timestamp-and-time-zones
-    "sqlglot_dialect", # /docs/general-usage/dataset-access/dataset
-    "preferred_table_format", # /docs/dlt-ecosystem/table-formats
-    "supported_table_formats", # /docs/dlt-ecosystem/table-formats
+    "preferred_loader_file_format",
+    "supported_loader_file_formats",
+    "preferred_staging_file_format",
+    "supported_staging_file_formats",
+    "has_case_sensitive_identifiers",
+    "supported_merge_strategies",
+    "supported_replace_strategies",
+    "supports_tz_aware_datetime",
+    "supports_naive_datetime",
+    "sqlglot_dialect",
+    "preferred_table_format",
+    "supported_table_formats",
 }
 
 CAPABILITIES_DOC_LINK_PATTERNS = [
-    ("_formats", "../file-formats/"),
-    ("_strategies", "../../general-usage/merge-loading#merge-strategies"),
+    ("table", "../table-formats/"),
+    ("file_format", "../file-formats/"),
+    ("merge", "../../general-usage/merge-loading#merge-strategies"),
+    ("replace", "../../general-usage/full-loading#the-truncate-and-insert-strategy"),
+    ("time", "../../general-usage/schema#handling-of-timestamp-and-time-zones"),
+    ("dialect", "../../general-usage/dataset-access/dataset"),
+    (
+        "identifier",
+        "../../general-usage/naming-convention#case-sensitive-and-insensitive-destinations",
+    ),
 ]
 
 CAPABILITIES_DATA_TYPES_DOC_LINK = "[Data types](../../general-usage/schema#data-types)"
