@@ -9,7 +9,6 @@ from dlt.sources.credentials import ConnectionStringCredentials
 
 from dlt.sources.sql_database import sql_database, sql_table, Table
 
-from sqlalchemy.sql.sqltypes import TypeEngine
 import sqlalchemy as sa
 
 
@@ -105,43 +104,10 @@ def load_standalone_table_resource() -> None:
         defer_table_reflect=True,
     )
 
-    # Run the resources together
-    info = pipeline.extract([family, genome], write_disposition="merge")
+    # Run the resources together (just take one page of results to make it faster)
+    info = pipeline.extract([family.limit(1), genome.limit(1)], write_disposition="merge")
     print(info)
     # Show inferred columns
-    print(pipeline.default_schema.to_pretty_yaml())
-
-
-def select_columns() -> None:
-    """Uses table adapter callback to modify list of columns to be selected"""
-    pipeline = dlt.pipeline(
-        pipeline_name="rfam_database",
-        destination="duckdb",
-        dataset_name="rfam_data_cols",
-        dev_mode=True,
-    )
-
-    def table_adapter(table: Table) -> Table:
-        print(table.name)
-        if table.name == "family":
-            # this is SqlAlchemy table. _columns are writable
-            # let's drop updated column
-            table._columns.remove(table.columns["updated"])  # type: ignore
-        return table
-
-    family = sql_table(
-        credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",
-        table="family",
-        chunk_size=10,
-        reflection_level="full_with_precision",
-        table_adapter_callback=table_adapter,
-    )
-
-    # also we do not want the whole table, so we add limit to get just one chunk (10 records)
-    pipeline.run(family.add_limit(1))
-    # only 10 rows
-    print(pipeline.last_trace.last_normalize_info)
-    # no "updated" column in "family" table
     print(pipeline.default_schema.to_pretty_yaml())
 
 
@@ -346,9 +312,6 @@ def specify_columns_to_load() -> None:
 if __name__ == "__main__":
     # Load selected tables with different settings
     # load_select_tables_from_database()
-
-    # load a table and select columns
-    # select_columns()
 
     # load_entire_database()
     # select_with_end_value_and_row_order()
