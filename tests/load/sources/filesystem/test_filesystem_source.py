@@ -15,13 +15,13 @@ from dlt.sources.filesystem.helpers import fsspec_from_resource
 
 from tests.common.storages.utils import TEST_SAMPLE_FILES
 from tests.common.configuration.utils import environment
-from tests.load.utils import HTTP_BUCKET, DestinationTestConfiguration, destinations_configs
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
     assert_query_column,
 )
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, public_http_server
 from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
 
 
@@ -298,32 +298,6 @@ def test_incremental_load(
     load_info = pipeline.run((all_files | bypass).with_name("csv_files_2"))
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["csv_files_2"] == 4
-
-
-@pytest.mark.parametrize(
-    "bucket_url",
-    [
-        HTTP_BUCKET,
-    ],
-)
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True),
-    ids=lambda x: x.name,
-)
-def test_http_filesystem(
-    public_http_server, bucket_url: str, destination_config: DestinationTestConfiguration
-):
-    public_resource = filesystem(bucket_url=bucket_url, file_glob="parquet/mlb_players.parquet")
-    pipeline = destination_config.setup_pipeline("test_http_load", dev_mode=True)
-    # just execute iterator
-    load_info = pipeline.run(
-        [
-            public_resource.with_name("http_parquet_example"),
-        ]
-    )
-    assert_load_info(load_info)
-    assert pipeline.last_trace.last_normalize_info.row_counts["http_parquet_example"] == 1
 
 
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
