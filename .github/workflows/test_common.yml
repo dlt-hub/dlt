@@ -63,11 +63,11 @@ jobs:
           - os: windows-latest
             python-version: "3.11"
             shell: cmd
-            pytest_args: '-m "not forked"'
+            pytest_args: '-m "not forked and not rfam"'
           - os: windows-latest
             python-version: "3.13"
             shell: cmd
-            pytest_args: '-m "not forked"'
+            pytest_args: '-m "not forked and not rfam"'
 
     defaults:
       run:

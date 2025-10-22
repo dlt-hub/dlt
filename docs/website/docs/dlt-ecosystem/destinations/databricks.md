@@ -26,6 +26,8 @@ Databricks supports both **Delta** (default) and **Apache Iceberg** table format
 pip install "dlt[databricks]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES databricks-->
+
 ## Set up your Databricks workspace
 
 To use the Databricks destination, you need:
@@ -728,7 +730,36 @@ databricks_adapter(
 ## Troubleshooting
 Use the following steps to avoid conflicts with Databricks' built-in Delta Live Tables (DLT) module and enable dltHub integration.
 
-### 1. Add an `init` script
+### Enable dlt on serverless (16.x)
+Live Tables (DLT) are not available on serverless but the import machinery that is patching DLT is still there in form of import hooks. You
+can temporarily disable this machinery to import `dlt` and use it afterwards. In a notebook cell (assuming that `dlt` is already installed):
+
+```sh
+%restart_python
+```
+
+```py
+import sys
+
+# dlt patching hook is the first one on the list
+metas = list(sys.meta_path)
+sys.meta_path = metas[1:]
+
+# remove RUNTIME - uncomment on dlt before 1.18.0
+# import os
+# del os.environ["RUNTIME"]
+
+import dlt
+sys.meta_path = metas  # restore post import hooks
+
+# use dlt
+info = dlt.run([1, 2, 3], destination=dlt.destinations.filesystem("_data"), table_name="digits")
+print(info)
+```
+
+### Enable dlt on a cluster
+
+#### 1. Add an `init` script
 To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
 
 1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:
@@ -765,7 +796,7 @@ The following locations have been confirmed for the two latest LTS runtime versi
 - 15.4 LTS: /databricks/python_shell/lib/dbruntime/DeltaLiveTablesHook.py
 :::
 
-### 2. Remove preloaded databricks modules in the notebook
+#### 2. Remove preloaded databricks modules in the notebook
 After the cluster starts, Databricks may partially import its built-in Delta Live Tables (DLT) modules, which can interfere with the dlt package from dltHub.
 
 To ensure a clean environment, add the following code at the top of your notebook:
