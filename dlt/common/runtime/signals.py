@@ -103,7 +103,10 @@ def _clear_signals() -> None:
 
 @contextmanager
 def delayed_signals() -> Iterator[None]:
-    """Will delay signalling until `raise_if_signalled` is used or signalled `sleep`
+    """Will delay signalling until `raise_if_signalled` is explicitly used or when
+    a second signal with the same int value arrives.
+
+    A no-op when not called on main thread.
 
     Can be nested - nested calls are no-ops.
     """
