@@ -81,7 +81,7 @@ def handle_change(file_path: str) -> None:
         _pending_changes = False
         try:
             with _processing_lock:
-                process_docs()
+                process_docs(incremental_run=True)
         except Exception as e:
             print(f"Error rebuilding docs: {e}")
             raise e
@@ -137,8 +137,17 @@ def process_doc_file(file_name: str) -> Tuple[int, int, int, bool]:
     capabilities_count, lines = insert_destination_capabilities(lines)
     lines = remove_remaining_markers(lines)
 
-    with open(target_file_name, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+    existing_file_content = ""
+    if os.path.exists(target_file_name):
+        with open(target_file_name, "r", encoding="utf-8") as f:
+            existing_file_content = f.read()
+
+    new_file_content = "\n".join(lines)
+
+    if existing_file_content != new_file_content:
+        print(f"Updating {target_file_name}")
+        with open(target_file_name, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
 
     return snippet_count, tuba_count, capabilities_count, True
 
@@ -218,9 +227,9 @@ def process_example_change(file_path: str) -> None:
         process_doc_file(target_file_name)
 
 
-def process_docs() -> None:
+def process_docs(incremental_run: bool = False) -> None:
     """Main processing function."""
-    if os.path.exists(MD_TARGET_DIR):
+    if not incremental_run and os.path.exists(MD_TARGET_DIR):
         shutil.rmtree(MD_TARGET_DIR)
 
     sync_examples()

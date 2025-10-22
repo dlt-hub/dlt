@@ -4,6 +4,7 @@ Tuba links processing for documentation.
 
 import random
 from typing import Any, Dict, List, Optional, Tuple
+from datetime import date
 
 import requests
 
@@ -41,6 +42,10 @@ def format_tuba_links_section(links: List[Dict[str, Any]]) -> List[str]:
     result = []
     result.append("## Additional Setup guides")
 
+    # see per day, so there are no constant changes when regenerating the docs locally
+    today = date.today()
+    seed = int(today.strftime("%Y%m%d"))
+    random.seed(seed)
     random.shuffle(links)
 
     for i, link in enumerate(links):
