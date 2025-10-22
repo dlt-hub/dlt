@@ -4,6 +4,8 @@ title: Overview
 
 # Workspace
 
+The dltHub Workspace is a unified data engineering environment that extends the open-source dlt library with enterprise-grade features for managing data workflows. It provides a structured, opinionated framework where data teams can create, configure, and manage data pipelines through a declarative YAML interface, with built-in support for multiple environments (dev, prod, tests, access) through profiles that isolate configurations and data storage. The workspace includes powerful transformation capabilities with Python decorators and dbt integration, secure data access controls, AI-powered workflows, and comprehensive observability tools including dashboards and MCP (Model Context Protocol) servers. It automates essential tasks like data loading, quality checks, and governance while enabling seamless collaboration across teams and providing a consistent development-to-production workflow with features like named destinations, profile-based configuration management, and integrated data validation and transformation pipelines.
+
 1. install dlt with workspace support
 ```sh
 [uv] pip install "dlt[workspace]"

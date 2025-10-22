@@ -485,10 +485,10 @@ const sidebars = {
       label: 'Workspace',
        link: {
          type: 'doc',
-         id: 'hub/workspace/intro',
+         id: 'hub/workspace/overview',
        },
       items: [
-         'hub/workspace/intro',
+         'hub/workspace/overview',
         {
           type: 'category',
           label: 'Create pipeline',
