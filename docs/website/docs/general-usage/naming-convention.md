@@ -134,31 +134,16 @@ password="pass"
 ```
 The snippet above demonstrates how to apply a certain naming for an example `zendesk` source.
 
+You can set the naming convention in your code via destination factory. This will overwrite destination's preferred convention and make it
+a default one for the whole pipeline:
+
+```py
+import dlt
+
+dest_ = dlt.destinations.postgres(naming_convention="sql_cs_v1")
+```
+
 You can use naming conventions that you created yourself or got from other users. In that case, you should pass a full Python import path to the [module that contains the naming convention](#write-your-own-naming-convention):
-```toml
-[schema]
-naming="tests.common.cases.normalizers.sql_upper"
-```
-`dlt` will import `tests.common.cases.normalizers.sql_upper` and use the `NamingConvention` class found in it as the naming convention.
-
-:::tip
-Do not pass custom naming convention as modules if you do it explicitly. We recommend pattern below:
-```py
-import dlt
-
-# you should be able to import sql_cs_latin2 here!
-dest_ = dlt.destinations.postgres(naming_convention="sql_cs_latin2")
-```
-
-⛔ avoid this or you may get pickle errors ie. when using parallel normalization:
-```py
-import dlt
-
-import sql_cs_latin2  # type: ignore[import-not-found]
-
-dest_ = dlt.destinations.postgres(naming_convention=sql_cs_latin2)
-```
-:::
 
 ### Available naming conventions
 You can pick from a few built-in naming conventions.
@@ -209,7 +194,32 @@ Custom naming conventions are classes that derive from `NamingConvention`, which
 1. Each naming convention resides in a separate Python module (file).
 2. The class is always named `NamingConvention`.
 
-In that case, you can use a fully qualified module name in [schema configuration](#configure-naming-convention) or pass the module [explicitly](#configure-naming-convention).
+In that case, you can use a fully qualified module name in [schema configuration](#configure-naming-convention) or pass the module fully qualified name [explicitly](#configure-naming-convention).
+
+```toml
+[schema]
+naming="tests.common.cases.normalizers.sql_upper"
+```
+`dlt` will import `tests.common.cases.normalizers.sql_upper` and use the `NamingConvention` class found in it as the naming convention.
+
+:::tip
+Do not pass custom naming convention as modules if you do it explicitly. We recommend pattern below:
+```py
+import dlt
+
+dest_ = dlt.destinations.postgres(naming_convention="my_package.sql_cs_latin2")
+```
+
+⛔ avoid this or you may get pickle errors ie. when using parallel normalization:
+```py
+import dlt
+
+import my_package.sql_cs_latin2  # type: ignore[import-not-found]
+
+dest_ = dlt.destinations.postgres(naming_convention=my_package.sql_cs_latin2)
+```
+:::
+
 
 We include [two examples](../examples/custom_naming) of naming conventions that you may find useful:
 
