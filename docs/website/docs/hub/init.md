@@ -32,7 +32,7 @@ This adds support for AI-assisted workflows and the `dlt ai` command.
 
 **dlt Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 
-[More about dlt Workspace ->](../dlthub/workspace)
+[More about dlt Workspace ->](workspace)
 
 
 ## Step 1: Initialize a custom pipeline
@@ -306,5 +306,5 @@ Once your pipeline runs locally:
 
 * [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/)
 * [Share a dataset](../walkthroughs/share-a-dataset)
-* [Monitor via the workspace dashboard](../dlthub/dashboard)
+* [Monitor via the workspace dashboard](../general-usage/dataset-access/data-quality-dashboard)
 
