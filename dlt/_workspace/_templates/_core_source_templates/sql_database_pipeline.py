@@ -105,7 +105,7 @@ def load_standalone_table_resource() -> None:
     )
 
     # Run the resources together (just take one page of results to make it faster)
-    info = pipeline.extract([family.limit(1), genome.limit(1)], write_disposition="merge")
+    info = pipeline.extract([family.add_limit(1), genome.add_limit(1)], write_disposition="merge")
     print(info)
     # Show inferred columns
     print(pipeline.default_schema.to_pretty_yaml())
