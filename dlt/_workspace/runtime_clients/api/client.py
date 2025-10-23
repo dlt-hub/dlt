@@ -1,6 +1,8 @@
+# Python internals
 import ssl
 from typing import Any, Optional, Union
 
+# Other libraries
 import httpx
 from attrs import define, evolve, field
 

@@ -9,7 +9,8 @@ class UnexpectedStatus(Exception):
         self.content = content
 
         super().__init__(
-            f"Unexpected status code: {status_code}\n\nResponse content:\n{content.decode(errors='ignore')}"
+            f"Unexpected status code: {status_code}\n\nResponse"
+            f" content:\n{content.decode(errors='ignore')}"
         )
 
 

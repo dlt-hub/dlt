@@ -1,10 +1,10 @@
-import json
+# Python internals
 from collections.abc import Mapping
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union
+from typing import Any, TypeVar, Union
 
-from attrs import define as _attrs_define
-from attrs import field as _attrs_field
+# Other libraries
+from attrs import define as _attrs_define, field as _attrs_field
 
 from .. import types
 from ..types import UNSET, File, FileTypes, Unset

@@ -1,12 +1,14 @@
+# Python internals
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 
+# Other libraries
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.ping_response import PingResponse
-from ...types import UNSET, Response
+from ...types import Response
 
 
 def _get_kwargs() -> dict[str, Any]:

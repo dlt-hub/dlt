@@ -1,11 +1,10 @@
+# Python internals
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
-from attrs import define as _attrs_define
-from attrs import field as _attrs_field
-
-from ..types import UNSET, Unset
+# Other libraries
+from attrs import define as _attrs_define, field as _attrs_field
 
 if TYPE_CHECKING:
     from ..models.organization_response import OrganizationResponse
@@ -34,9 +33,6 @@ class MeResponse:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.organization_response import OrganizationResponse
-        from ..models.workspace_response import WorkspaceResponse
-
         default_organization = self.default_organization.to_dict()
 
         default_workspace = self.default_workspace.to_dict()

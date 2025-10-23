@@ -1,10 +1,11 @@
+# Python internals
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
 from uuid import UUID
 
-from attrs import define as _attrs_define
-from attrs import field as _attrs_field
+# Other libraries
+from attrs import define as _attrs_define, field as _attrs_field
 from dateutil.parser import isoparse
 
 from ..models.run_status import RunStatus
@@ -62,9 +63,6 @@ class DetailedRunResponse:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.profile_response import ProfileResponse
-        from ..models.script_response import ScriptResponse
-
         date_added = self.date_added.isoformat()
 
         date_updated = self.date_updated.isoformat()

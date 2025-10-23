@@ -1,8 +1,9 @@
+# Python internals
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, TypeVar, Union
 
-from attrs import define as _attrs_define
-from attrs import field as _attrs_field
+# Other libraries
+from attrs import define as _attrs_define, field as _attrs_field
 
 from ..types import UNSET, Unset
 
@@ -31,10 +32,6 @@ class GetLatestScriptVersionResponse403:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.get_latest_script_version_response_403_extra import (
-            GetLatestScriptVersionResponse403Extra,
-        )
-
         detail = self.detail
 
         status_code = self.status_code

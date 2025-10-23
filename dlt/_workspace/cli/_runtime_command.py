@@ -78,9 +78,7 @@ class RuntimeCommand(SupportsCliCommand):
             help="The run id to query status for",
         )
         status_parser.add_argument(
-            "--verbose",
-            action=argparse.BooleanOptionalAction,
-            help="Show detailed status output"
+            "--verbose", action=argparse.BooleanOptionalAction, help="Show detailed status output"
         )
 
         logs_parser = subparsers.add_parser(
@@ -191,12 +189,11 @@ def authorize(auth_service: Optional[RuntimeAuthService] = None) -> RuntimeAuthS
 def deploy() -> None:
     auth_service = authorize()
     api_client = get_api_client(auth_service)
-    
+
     output_stream = BytesIO()
     package_builder = DeploymentPackageBuilder(context=active())
     package_builder.write_package_to_stream(
-        file_selector=WorkspaceFileSelector(active()),
-        output_stream=output_stream
+        file_selector=WorkspaceFileSelector(active()), output_stream=output_stream
     )
 
     create_deployment_result = create_deployment.sync(
@@ -204,11 +201,9 @@ def deploy() -> None:
         client=api_client,
         body=CreateDeploymentBody(
             file=File(
-                payload=output_stream,
-                file_name="workspace.tar.gz",
-                mime_type="application/x-tar"
+                payload=output_stream, file_name="workspace.tar.gz", mime_type="application/x-tar"
             )
-        )
+        ),
     )
     if isinstance(create_deployment_result, create_deployment.DeploymentResponse):
         fmt.echo("Deployment created successfully")
@@ -245,7 +240,10 @@ def run(script_file_name: str) -> None:
         ),
     )
     if isinstance(create_run_result, create_run.RunResponse):
-        fmt.echo("Script %s run successfully with run id %s" % (fmt.bold(script_file_name), fmt.bold(create_run_result.id)))
+        fmt.echo(
+            "Script %s run successfully with run id %s"
+            % (fmt.bold(script_file_name), fmt.bold(create_run_result.id))
+        )
     else:
         raise RuntimeError("Failed to run script")
 

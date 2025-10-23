@@ -1,7 +1,9 @@
+# Python internals
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 from uuid import UUID
 
+# Other libraries
 import httpx
 
 from ... import errors

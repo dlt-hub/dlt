@@ -1,7 +1,9 @@
+# Python internals
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 from uuid import UUID
 
+# Other libraries
 import httpx
 
 from ... import errors
@@ -11,7 +13,7 @@ from ...models.get_script_response_401 import GetScriptResponse401
 from ...models.get_script_response_403 import GetScriptResponse403
 from ...models.get_script_response_404 import GetScriptResponse404
 from ...models.script_response import ScriptResponse
-from ...types import UNSET, Response
+from ...types import Response
 
 
 def _get_kwargs(

@@ -1,9 +1,11 @@
 """Contains some shared types for properties"""
 
+# Python internals
 from collections.abc import Mapping, MutableMapping
 from http import HTTPStatus
 from typing import IO, BinaryIO, Generic, Literal, Optional, TypeVar, Union
 
+# Other libraries
 from attrs import define
 
 
