@@ -131,7 +131,7 @@ jobs:
         if: matrix.python-version != '3.14.0-beta.4'
 
       - name: Install pipeline and sources dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
+        run: uv sync ${{ matrix.uv_sync_args }} --extra http --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
         if: matrix.python-version != '3.14.0-beta.4'
 
       - name: Run extract and pipeline tests

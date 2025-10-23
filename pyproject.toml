@@ -108,6 +108,9 @@ az = [
 sftp = [
     "paramiko>=3.3.0"
 ]
+http = [
+    "aiohttp>3.9.0"
+]
 snowflake = ["snowflake-connector-python>=3.5.0"]
 motherduck = [
     "duckdb>=0.9",

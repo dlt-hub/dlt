@@ -2140,6 +2140,9 @@ gcp = [
 gs = [
     { name = "gcsfs" },
 ]
+http = [
+    { name = "aiohttp" },
+]
 lancedb = [
     { name = "lancedb", marker = "python_full_version < '3.13'" },
     { name = "pyarrow" },
@@ -2336,6 +2339,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'az'", specifier = ">=2024.7.0" },
     { name = "adlfs", marker = "extra == 'clickhouse'", specifier = ">=2024.7.0" },
     { name = "adlfs", marker = "extra == 'synapse'", specifier = ">=2024.7.0" },
+    { name = "aiohttp", marker = "extra == 'http'", specifier = ">3.9.0" },
     { name = "alembic", marker = "extra == 'sqlalchemy'", specifier = ">1.10.0" },
     { name = "botocore", marker = "extra == 'athena'", specifier = ">=1.28" },
     { name = "botocore", marker = "extra == 'filesystem'", specifier = ">=1.28" },
@@ -2430,7 +2434,7 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.22" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
-provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml"]
+provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml"]
 
 [package.metadata.requires-dev]
 adbc = [{ name = "adbc-driver-postgresql", specifier = ">=1.6.0" }]
