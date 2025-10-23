@@ -24,6 +24,13 @@ Profiles let you:
 
 ## Enable the Workspace and Profiles
 
+:::info
+Currently, some Workspace features (including Profiles) are experimental and disabled by default.
+They are hidden behind a feature flag, which means you need to manually enable them before use.
+
+To activate these features, create the `.dlt/.workspace` file in your project directory, this tells `dlt` to switch from the classic project mode to the new Workspace mode.
+:::
+
 Profiles are part of the [dltHub Workspace](workspace) feature.
 To use them, first install `dlt` with Workspace support:
 
