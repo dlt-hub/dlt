@@ -31,7 +31,7 @@ They are hidden behind a feature flag, which means you need to manually enable t
 To activate these features, create the `.dlt/.workspace` file in your project directory, this tells `dlt` to switch from the classic project mode to the new Workspace mode.
 :::
 
-Profiles are part of the [dltHub Workspace](workspace) feature.
+Profiles are part of the [dltHub Workspace](./workspace) feature.
 To use them, first install `dlt` with Workspace support:
 
 ```sh
@@ -234,6 +234,6 @@ You’ll see your pipeline connected to the remote MotherDuck dataset and ready 
 
 ## Next steps
 
-* [Configure the Workspace.](workspace)
+* [Configure the Workspace.](./workspace)
 * [Deploy your pipeline.](../walkthroughs/deploy-a-pipeline)
 * [Monitor and debug pipelines.](../general-usage/pipeline#monitor-the-loading-progress)
