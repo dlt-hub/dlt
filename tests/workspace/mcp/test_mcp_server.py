@@ -18,11 +18,11 @@ def test_pipeline_mcp_server(pokemon_pipeline_context: RunContextBase) -> None:
     tools = asyncio.run(mcp.list_tools())
 
     tool_names_expected = [
-        "available_tables_in_pipeline_rest_api_pokemon",
-        "table_head_in_pipeline_rest_api_pokemon",
-        "table_schema_in_pipeline_rest_api_pokemon",
-        "query_sql_in_pipeline_rest_api_pokemon",
-        "bookmark_sql_in_pipeline_rest_api_pokemon",
+        "available_tables",
+        "table_head",
+        "table_schema",
+        "query_sql",
+        "bookmark_sql",
         "read_result_from_bookmark",
         "recent_result",
     ]

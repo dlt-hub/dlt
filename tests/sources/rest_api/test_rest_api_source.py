@@ -8,6 +8,7 @@ from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from dlt.sources.rest_api import rest_api_source, rest_api
 
 from tests.common.configuration.utils import environment, toml_providers
+from tests.sources.rest_api.utils import POKEMON_EXPECTED_TABLE_COUNTS
 from tests.utils import ALL_DESTINATIONS
 from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
 
@@ -78,10 +79,7 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
     table_counts = load_table_counts(pipeline)
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
-
-    assert table_counts["pokemon_list"] == 1302
-    assert table_counts["berry"] == 64
-    assert table_counts["location"] == 1070
+    assert table_counts.items() >= POKEMON_EXPECTED_TABLE_COUNTS.items()
 
 
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)

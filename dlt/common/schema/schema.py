@@ -418,13 +418,14 @@ class Schema:
     def merge_hints(
         self,
         new_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]],
+        replace: bool = False,
         normalize_identifiers: bool = True,
     ) -> None:
-        """Merges existing default hints with `new_hints`. Normalizes names in column regexes if possible. Compiles setting at the end
+        """Merges or replace existing default hints with `new_hints`. Normalizes names in column regexes if possible. Compiles setting at the end
 
         NOTE: you can manipulate default hints collection directly via `Schema.settings` as long as you call Schema._compile_settings() at the end.
         """
-        self._merge_hints(new_hints, normalize_identifiers)
+        self._merge_hints(new_hints, replace=replace, normalize_identifiers=normalize_identifiers)
         self._compile_settings()
 
     def update_preferred_types(
@@ -813,6 +814,7 @@ class Schema:
     def _merge_hints(
         self,
         new_hints: Mapping[TColumnDefaultHint, Sequence[TSimpleRegex]],
+        replace: bool = False,
         normalize_identifiers: bool = True,
     ) -> None:
         """Used by `merge_hints method, does not compile settings at the end"""
@@ -829,7 +831,7 @@ class Schema:
         default_hints = self._settings.setdefault("default_hints", {})
         # add `new_hints` to existing hints
         for h, l in new_hints.items():
-            if h in default_hints:
+            if h in default_hints and not replace:
                 extend_list_deduplicated(default_hints[h], l, utils.canonical_simple_regex)
             else:
                 # set new hint type
