@@ -303,8 +303,8 @@ dlt pipeline {pipeline_name} trace           # last run trace & errors
 ## Next steps: Deploy and scale
 
 Once your pipeline runs locally:
-
-* [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/)
-* [Share a dataset](../walkthroughs/share-a-dataset)
 * [Monitor via the workspace dashboard](../general-usage/dataset-access/data-quality-dashboard)
+* Set up Profiles to manage separate dev, prod, and test environments
+* [Deploy a pipeline](../walkthroughs/deploy-a-pipeline/)
+
 
