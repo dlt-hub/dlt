@@ -63,11 +63,11 @@ jobs:
           - os: windows-latest
             python-version: "3.11"
             shell: cmd
-            pytest_args: '-m "not forked"'
+            pytest_args: '-m "not forked and not rfam"'
           - os: windows-latest
             python-version: "3.13"
             shell: cmd
-            pytest_args: '-m "not forked"'
+            pytest_args: '-m "not forked and not rfam"'
 
     defaults:
       run:
@@ -131,7 +131,7 @@ jobs:
         if: matrix.python-version != '3.14'
 
       - name: Install pipeline and sources dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
+        run: uv sync ${{ matrix.uv_sync_args }} --extra http --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
         if: matrix.python-version != '3.14'
 
       - name: Run extract and pipeline tests

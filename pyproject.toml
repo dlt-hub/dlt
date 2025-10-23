@@ -52,7 +52,7 @@ dependencies = [
     "orjson>=3.11.0 ; python_version > '3.13'",
     "tenacity>=8.0.2",
     "jsonpath-ng>=1.5.3",
-    "fsspec>=2022.4.0",
+    "fsspec>=2025.9.0",
     "packaging>=21.1",
     "pluggy>=1.3.0",
     "win-precise-time>=1.4.2 ; os_name == 'nt' and python_version < '3.13'",
@@ -107,6 +107,9 @@ az = [
 ]
 sftp = [
     "paramiko>=3.3.0"
+]
+http = [
+    "aiohttp>3.9.0"
 ]
 snowflake = ["snowflake-connector-python>=3.5.0"]
 motherduck = [
@@ -401,7 +404,7 @@ multi_line_output = 3
 [tool.pytest.ini_options]
 pythonpath = ["dlt", "docs/website/docs"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
-addopts = "--showlocals --durations 10"
+addopts = "--showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
 log_cli_level = "INFO"
 console_output_style = "count"
@@ -410,5 +413,6 @@ python_functions = ["*_test", "test_*", "*_snippet"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",
-    "no_load: marks tests that do not load anything"
+    "no_load: marks tests that do not load anything",
+    "rfam: marks tests that use rfam db"
 ]
