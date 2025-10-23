@@ -230,7 +230,7 @@ def run(script_file_name: str) -> None:
         body=create_or_update_script.CreateScriptRequest(
             name=script_file_name,
             description=f"The {script_file_name} script",
-            entry_point="files/" + script_file_name,
+            entry_point=script_file_name,
             script_type=ScriptType.BATCH,
         ),
     )
