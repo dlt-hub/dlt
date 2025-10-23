@@ -159,7 +159,7 @@ dlt license issue <scope>
 * `dlthub.transformation`: [Python-first query-agnostic data transformations](../features/transformations/)
 * `dlthub.destinations.iceberg`: [Iceberg destination with full catalog support](../ecosystem/iceberg)
 * `dlthub.destinations.snowflake_plus`: [Snowflake iceberg extension with Open Catalog](../ecosystem/snowflake_plus)
-* `dlthub.runner`: [Production pipeline runner and orchestrator support](../features/runner)
+* `dlthub.runner`: Production pipeline runner and orchestrator support
 
 
 Find your installed licenses with:
