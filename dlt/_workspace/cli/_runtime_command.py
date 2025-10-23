@@ -2,10 +2,11 @@ import argparse
 from io import BytesIO
 from pathlib import Path
 import time
+from uuid import UUID
 from typing import Optional
 from dlt._workspace.deployment.file_selector import WorkspaceFileSelector
 from dlt._workspace.deployment.package_builder import DeploymentPackageBuilder
-from dlt._workspace.runtime_clients.api.api.runs import create_run, get_run, get_run_logs
+from dlt._workspace.runtime_clients.api.api.runs import create_run, get_run, get_run_logs, list_runs
 from dlt._workspace.runtime_clients.api.api.scripts import create_or_update_script
 from dlt._workspace.runtime_clients.api.models.create_deployment_body import CreateDeploymentBody
 from dlt._workspace.runtime_clients.api.models.script_type import ScriptType
@@ -81,15 +82,21 @@ class RuntimeCommand(SupportsCliCommand):
             "--verbose", action=argparse.BooleanOptionalAction, help="Show detailed status output"
         )
 
-        logs_parser = subparsers.add_parser(
+        run_logs_parser = subparsers.add_parser(
             "logs",
             help="Get the logs of a run",
             description="Get the logs of a run",
         )
-        logs_parser.add_argument(
+        run_logs_parser.add_argument(
             "run_id",
             type=str,
             help="The run id to fetch logs for",
+        )
+
+        subparsers.add_parser(
+            "runs",
+            help="List all runs in workspace",
+            description="List all runs",
         )
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -104,7 +111,9 @@ class RuntimeCommand(SupportsCliCommand):
         elif args.runtime_command == "status":
             check_status(args.run_id, args.verbose)
         elif args.runtime_command == "logs":
-            get_logs(args.run_id)
+            get_logs(run_id=args.run_id)
+        elif args.runtime_command == "runs":
+            get_runs()
         else:
             self.parser.print_usage()
 
@@ -197,7 +206,7 @@ def deploy() -> None:
     )
 
     create_deployment_result = create_deployment.sync(
-        workspace_id=auth_service.workspace_id,
+        workspace_id=UUID(auth_service.workspace_id),
         client=api_client,
         body=CreateDeploymentBody(
             file=File(
@@ -206,7 +215,11 @@ def deploy() -> None:
         ),
     )
     if isinstance(create_deployment_result, create_deployment.DeploymentResponse):
-        fmt.echo("Deployment created successfully")
+        fmt.echo(f"Deployment # {create_deployment_result.version} created successfully")
+        fmt.echo(f"Deployment id: {create_deployment_result.id}")
+        fmt.echo(f"File count: {create_deployment_result.file_count}")
+        fmt.echo(f"Content hash: {create_deployment_result.content_hash}")
+
     else:
         raise RuntimeError("Failed to create deployment")
 
@@ -221,7 +234,7 @@ def run(script_file_name: str) -> None:
 
     create_script_result = create_or_update_script.sync(
         client=api_client,
-        workspace_id=auth_service.workspace_id,
+        workspace_id=UUID(auth_service.workspace_id),
         body=create_or_update_script.CreateScriptRequest(
             name=script_file_name,
             description=f"The {script_file_name} script",
@@ -234,15 +247,15 @@ def run(script_file_name: str) -> None:
 
     create_run_result = create_run.sync(
         client=api_client,
-        workspace_id=auth_service.workspace_id,
+        workspace_id=UUID(auth_service.workspace_id),
         body=create_run.CreateRunRequest(
             script_id_or_name=script_file_name,
         ),
     )
     if isinstance(create_run_result, create_run.RunResponse):
         fmt.echo(
-            "Script %s run successfully with run id %s"
-            % (fmt.bold(script_file_name), fmt.bold(create_run_result.id))
+            "Script %s run for script id %s successfully created"
+            % (fmt.bold(str(script_file_name)), fmt.bold(str(create_run_result.id)))
         )
     else:
         raise RuntimeError("Failed to run script")
@@ -254,8 +267,8 @@ def check_status(run_id: str, verbose: bool = False) -> None:
 
     get_run_result = get_run.sync(
         client=api_client,
-        workspace_id=auth_service.workspace_id,
-        run_id=run_id,
+        workspace_id=UUID(auth_service.workspace_id),
+        run_id=UUID(run_id),
     )
     if isinstance(get_run_result, get_run.DetailedRunResponse):
         if verbose:
@@ -274,12 +287,38 @@ def get_logs(run_id: str) -> None:
 
     get_run_logs_result = get_run_logs.sync(
         client=api_client,
-        workspace_id=auth_service.workspace_id,
-        run_id=run_id,
+        workspace_id=UUID(auth_service.workspace_id),
+        run_id=UUID(run_id),
     )
     if isinstance(get_run_logs_result, get_run_logs.LogsResponse):
-        fmt.echo("========== Run logs: ==========")
+        run = get_run_logs_result.run
+        run_info = (
+            f"Run # {run.number} of script {run.script.name}, status: {run.status}, run id:"
+            f" {run.id}"
+        )
+        fmt.echo(f"========== Run logs for {run_info} ==========")
         fmt.echo(get_run_logs_result.logs)
-        fmt.echo("========== End of run logs: ==========")
+        fmt.echo(f"========== End of run logs for {run_info} ==========")
     else:
         raise RuntimeError("Failed to get run logs")
+
+
+def get_runs() -> None:
+    auth_service = authorize()
+    api_client = get_api_client(auth_service)
+
+    list_runs_result = list_runs.sync(
+        client=api_client,
+        workspace_id=UUID(auth_service.workspace_id),
+    )
+    if isinstance(list_runs_result, list_runs.ListRunsResponse200):
+        if not list_runs_result.items:
+            fmt.echo("No runs executed in this workspace")
+            return
+        for run in reversed(list_runs_result.items):
+            fmt.echo(
+                f"Run # {run.number} of script {run.script.name}, status: {run.status}, profile: {run.profile.name}, started at"
+                f" {run.time_started}, ended at {run.time_ended}, run id: {run.id}"
+            )
+    else:
+        raise RuntimeError("Failed to list workspace runs")

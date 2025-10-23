@@ -1,12 +1,15 @@
 # Python internals
 from collections.abc import Mapping
-from typing import Any, TypeVar, Union, cast
-from uuid import UUID
+from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
 
 # Other libraries
 from attrs import define as _attrs_define, field as _attrs_field
 
 from ..types import UNSET, Unset
+
+if TYPE_CHECKING:
+    from ..models.detailed_run_response import DetailedRunResponse
+
 
 T = TypeVar("T", bound="LogsResponse")
 
@@ -15,16 +18,16 @@ T = TypeVar("T", bound="LogsResponse")
 class LogsResponse:
     """
     Attributes:
-        run_id (UUID): The ID of the run the logs belong to
+        run (DetailedRunResponse):
         logs (Union[None, Unset, str]): The logs of the run. Set to none if no logs are available
     """
 
-    run_id: UUID
+    run: "DetailedRunResponse"
     logs: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        run_id = str(self.run_id)
+        run = self.run.to_dict()
 
         logs: Union[None, Unset, str]
         if isinstance(self.logs, Unset):
@@ -36,7 +39,7 @@ class LogsResponse:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "run_id": run_id,
+                "run": run,
             }
         )
         if logs is not UNSET:
@@ -46,8 +49,10 @@ class LogsResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.detailed_run_response import DetailedRunResponse
+
         d = dict(src_dict)
-        run_id = UUID(d.pop("run_id"))
+        run = DetailedRunResponse.from_dict(d.pop("run"))
 
         def _parse_logs(data: object) -> Union[None, Unset, str]:
             if data is None:
@@ -59,7 +64,7 @@ class LogsResponse:
         logs = _parse_logs(d.pop("logs", UNSET))
 
         logs_response = cls(
-            run_id=run_id,
+            run=run,
             logs=logs,
         )
 

@@ -217,12 +217,10 @@ components:
           oneOf:
           - type: string
           - type: 'null'
-        run_id:
-          description: The ID of the run the logs belong to
-          format: uuid
-          type: string
+        run:
+          $ref: '#/components/schemas/DetailedRunResponse'
       required:
-      - run_id
+      - run
       title: LogsResponse
       type: object
     MeResponse:
