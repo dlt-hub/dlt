@@ -5,6 +5,7 @@ import pytest
 
 import dlt
 from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
+from ..conftest import DEFAULT_COMMENTS_COUNT, DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES, DEFAULT_REACTIONS_COUNT
 
 
 def _make_pipeline(destination_name: str):
@@ -288,6 +289,7 @@ def test_rest_api_source_yield_map(mock_api_server) -> None:
 
     data = list(mock_source.with_resources("posts"))
 
+    assert len(data) == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * DEFAULT_REACTIONS_COUNT
     assert all("reaction" in record and "reactions" not in record for record in data)
     assert all(
         record["reaction"]["title"]
@@ -316,6 +318,7 @@ def test_rest_api_source_filter_then_yield_map(mock_api_server) -> None:
 
     data = list(mock_source.with_resources("posts"))
 
+    assert len(data) == (DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES - 1) * DEFAULT_REACTIONS_COUNT
     assert all(record["id"] != 1 for record in data)
 
 
@@ -339,6 +342,7 @@ def test_rest_api_source_yield_map_then_filter_reactions(mock_api_server) -> Non
 
     data = list(mock_source.with_resources("posts"))
 
+    assert len(data) == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * (DEFAULT_REACTIONS_COUNT - 1)
     assert all(record["reaction"]["id"] != 0 for record in data)
 
 
@@ -396,5 +400,7 @@ def test_rest_api_source_yield_map_child(mock_api_server, comments_endpoint) -> 
     mock_source = rest_api_source(config)
 
     data = list(mock_source.with_resources("comments"))
+
+    assert len(data) == DEFAULT_COMMENTS_COUNT * DEFAULT_REACTIONS_COUNT
     assert data[0]["body"] == "Post 2 - Comment 0 for post 2"
     assert data[0]["_posts_reaction"]["title"] == "Reaction 0 for post 2"

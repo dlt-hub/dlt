@@ -19,6 +19,7 @@ DEFAULT_PAGE_SIZE = 5
 DEFAULT_TOTAL_PAGES = 5
 DEFAULT_LIMIT = 10
 DEFAULT_REACTIONS_COUNT = 5
+DEFAULT_COMMENTS_COUNT = 50
 
 
 router = APIRouter(MOCK_BASE_URL)
@@ -43,7 +44,7 @@ def generate_posts_with_reactions(
     ]
 
 
-def generate_comments(post_id, count=50):
+def generate_comments(post_id, count=DEFAULT_COMMENTS_COUNT):
     return [
         {"id": i, "post_id": post_id, "body": f"Comment {i} for post {post_id}"}
         for i in range(count)
