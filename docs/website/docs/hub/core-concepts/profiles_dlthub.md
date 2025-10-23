@@ -7,14 +7,14 @@ keywords: [dltHub, profiles, workspace, configuration, secrets, environments]
 # Profiles
 
 Profiles in `dlt` define **environment-specific configurations and secrets**.
-They let you manage separate settings for development, testing, and production using the same codebase.
+They allow you to manage separate settings for development, testing, and production using the same codebase.
 
 Each profile provides isolated configuration, credentials, and working directories, ensuring your pipelines are secure and environment-aware.
 
 ## Overview
 
 A **profile** is a named configuration context that controls how and where your pipelines run.
-Profiles are defined and managed through [**TOML files**](../general-usage/credentials) located in the `.dlt` directory.
+Profiles are defined and managed through [**TOML files**](../../general-usage/credentials) located in the `.dlt` directory.
 
 Profiles let you:
 
@@ -22,16 +22,16 @@ Profiles let you:
 * Isolate pipeline state, configuration, and local data storage.
 * Switch between environments without changing code.
 
-## Enable the Workspace and Profiles
+## Enable the workspace and profiles
 
 :::info
 Currently, some Workspace features (including Profiles) are experimental and disabled by default.
 They are hidden behind a feature flag, which means you need to manually enable them before use.
 
-To activate these features, create the `.dlt/.workspace` file in your project directory, this tells `dlt` to switch from the classic project mode to the new Workspace mode.
+To activate these features, create the `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the new Workspace mode.
 :::
 
-Profiles are part of the [dltHub Workspace](workspace/intro) feature.
+Profiles are part of the [dltHub Workspace](../workspace/intro) feature.
 To use them, first install `dlt` with Workspace support:
 
 ```sh
@@ -58,13 +58,13 @@ dlt workspace
 
 ## Default profiles
 
-When you initialize a project with `dlt init`, it creates a complete project structure — including configuration and secrets directories (`.dlt/`), a sample pipeline script, and default `dev` profile.
+When you initialize a project with `dlt init`, it creates a complete project structure — including configuration and secrets directories (`.dlt/`), a sample pipeline script, and a default `dev` profile.
 This setup lets you start developing and running pipelines immediately, with environment-specific configurations ready to extend or customize.
 
 The **dltHub Workspace** adds predefined profiles that isolate environments and simplify transitions between them:
 
 | Profile | Description                                                                                                 |
-|----------|-------------------------------------------------------------------------------------------------------------|
+|---------|-------------------------------------------------------------------------------------------------------------|
 | **`dev`** | Default profile for local development. Pipelines store data in `_local/dev/` and state in `.dlt/.var/dev/`. |
 | **`prod`** | Production profile, used by pipelines deployed in Runtime.                                                  |
 | **`tests`** | Profile for automated test runs and CI/CD.                                                                  |
@@ -120,9 +120,9 @@ python pokemon_api_pipeline.py
 
 The workspace automatically uses the active profile’s configuration and secrets.
 
-## Example: switching between environments
+## Example: Switching between environments
 
-Let’s walk through a setup that switches between **local DuckDB** (`dev`) and **MotherDuck** (`prod`).
+Let's walk through a setup that switches between **local DuckDB** (`dev`) and **MotherDuck** (`prod`).
 
 ### Step 1. Configure the development profile
 
@@ -133,7 +133,7 @@ In `.dlt/dev.secrets.toml` (to fully split profiles), define your local destinat
 destination_type = "duckdb"
 ```
 
-Then, in your pipeline script change the code `(destination="warehouse")`:
+Then, in your pipeline script, change the code `(destination="warehouse")`:
 
 ```py
 import dlt
@@ -170,7 +170,7 @@ Pin and activate the profile:
 dlt profile prod pin
 ```
 
-#### Test the connection (Optional)
+#### Test the connection (optional)
 
 Before running your pipeline in production, you can verify that the credentials and dataset configuration work correctly:
 
@@ -226,7 +226,7 @@ You’ll see your pipeline connected to the remote MotherDuck dataset and ready 
 ## Best practices
 
 * Use **`dev`** for local testing and experimentation.
-* Use **`prod`** for production jobs and Runtime environments.
+* Use **`prod`** for production jobs and runtime environments.
 * Keep secrets in separate `<profile>.secrets.toml` files — never in code.
 * Use **named destinations** (like `warehouse`) to simplify switching.
 * Commit `config.toml`, but exclude all `.secrets.toml` files.
@@ -234,6 +234,6 @@ You’ll see your pipeline connected to the remote MotherDuck dataset and ready 
 
 ## Next steps
 
-* [Configure the Workspace.](workspace/intro)
-* [Deploy your pipeline.](../walkthroughs/deploy-a-pipeline)
-* [Monitor and debug pipelines.](../general-usage/pipeline#monitor-the-loading-progress)
+* [Configure the workspace.](../workspace/intro)
+* [Deploy your pipeline.](../../walkthroughs/deploy-a-pipeline)
+* [Monitor and debug pipelines.](../../general-usage/pipeline#monitor-the-loading-progress)

@@ -10,6 +10,7 @@ from typing import List
 
 from openai import OpenAI
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 import dlt._workspace.cli.echo as fmt
 
@@ -143,7 +144,7 @@ if __name__ == "__main__":
         fmt.note(f"Created {len(chunks)} chunks for {doc_length} chars")
 
         fixed_chunks: List[str] = []
-        for chunk in chunks:
+        for chunk in tqdm(chunks, total=len(chunks)):
             client = OpenAI()
             in_string = "".join(chunk)
             response = client.chat.completions.create(
