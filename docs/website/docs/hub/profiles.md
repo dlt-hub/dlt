@@ -163,7 +163,7 @@ Pin and activate the profile:
 dlt profile prod pin
 ```
 
-**Test the connection** (Optional)
+#### Test the connection (Optional)
 
 Before running your pipeline in production, you can verify that the credentials and dataset configuration work correctly:
 
