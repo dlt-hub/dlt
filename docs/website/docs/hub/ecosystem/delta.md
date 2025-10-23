@@ -9,7 +9,7 @@ keywords: [delta, delta lake]
 The Delta destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
 :::warning
-Under the hood, dlt+ uses the [deltalake library](https://pypi.org/project/deltalake/) to write Delta tables. Beware that when loading a large amount of data for one table, the underlying Rust implementation will consume a lot of memory. This is a known issue, and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
+Under the hood, dltHub uses the [deltalake library](https://pypi.org/project/deltalake/) to write Delta tables. Beware that when loading a large amount of data for one table, the underlying Rust implementation will consume a lot of memory. This is a known issue, and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
 :::
 
 ## Setup
@@ -20,7 +20,7 @@ pip install deltalake
 pip install pyarrow>=2.0.18
 ```
 
-Initialize a dlt+ project in the current working directory with the following command:
+Initialize a dltHub project in the current working directory with the following command:
 
 ```sh
 # replace sql_database with the source of your choice

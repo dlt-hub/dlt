@@ -1,23 +1,22 @@
 ---
 title: Introduction
-description: Introduction to dlt+
+description: Introduction to dltHub
 ---
 
-# What is dlt+?
+# What is dltHub?
 
-![dlt+](/img/slot-machine-gif.gif)
+![dltHub](/img/slot-machine-gif.gif)
 
-dlt+ is an commercial extension to the open-source data load tool (dlt). It augments it with a set of features like transformations, data validations,
-iceberg with full catalog support and provides a yaml interface to define data platforms. dlt+ features include:
+dltHub is a commercial extension to the open-source data load tool (dlt). It augments it with a set of features like transformations, data validations,
+iceberg with full catalog support and provides a yaml interface to define data platforms. dltHub features include:
 
 - [@dlt.hub.transformation](features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
-- [Project](features/project): a declarative YAML interface that allows any team member to easily define sources, destinations, and pipelines.
 - [dbt transformations](features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
 - [Iceberg support](ecosystem/iceberg.md)
 - [Secure data access and sharing](features/data-access.md)
 - [AI workflows](features/ai.md): agents to augment your data engineering team.
 
-To get started with dlt+, install the library using pip (Python 3.9-3.12):
+To get started with dltHub, install the library using pip (Python 3.9-3.12):
 
 ```sh
 pip install dlthub

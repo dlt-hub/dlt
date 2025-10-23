@@ -6,7 +6,7 @@ keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 
 # MS SQL replication
 
-dlt+ provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
+dltHub provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
 
 ## Prerequisites
 
@@ -39,9 +39,9 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 - `[YourSchemaName].[YourTableName]`: Replace with your schema and table names.
 - `TRACK_COLUMNS_UPDATED`: When set to ON, allows you to see which columns were updated in a row. Set to OFF if you don’t need this level of detail.
 
-### Set up dlt+ and drivers
+### Set up dlthub and drivers
 
-* Make sure dlt+ is installed according to the [installation guide](../getting-started/installation.md).
+* Make sure dltHub is installed according to the [installation guide](../getting-started/installation.md).
 
 * Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). If you prefer, there is also a [Python library alternative](https://www.pymssql.org/).
 

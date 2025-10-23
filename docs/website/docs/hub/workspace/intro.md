@@ -1,5 +1,5 @@
 ---
-title: Workspace info
+title: Overview
 ---
 
 # Workspace
@@ -36,8 +36,8 @@ to get basic information of the workspace. Now you can see basic file layout:
 .
 ├── .dlt/
 │   ├── config.toml
-|   ├── secrets.toml          
-|   ├── .workspace     # feature flag       
+|   ├── secrets.toml
+|   ├── .workspace     # feature flag
 │   └── .var/dev/    # working dir for pipelines for `dev` (default profile)
 ├── _local/dev                # locally loaded data: ducklake, duckdb databases etc will go there
 ├── .gitignore
@@ -69,7 +69,7 @@ tells us that pipelines working dir is in `.dlt/.var/dev/pipelines`. Further `dl
 
 6. Now we can access data.
 
-* `dlt workspace show` will launch Workspace Dashboard 
+* `dlt workspace show` will launch Workspace Dashboard
 * `dlt workspace mcp` will launch Workspace MCP (Thierry's OSS MCP) in sse mode.
 * `dlt pipeline foo mcp` will launch pipeline MCP (old Marcin's MCP) in sse mode.
 * `dlt pipeline foo show` will launch Workspace Dashboard and open pipeline `foo`
