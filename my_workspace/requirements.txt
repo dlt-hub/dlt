@@ -1,1 +1,3 @@
-dlt[duckdb]>=1.18.0a0
+dlt[duckdb,workspace]>=1.18.0a0
+numpy
+pandas

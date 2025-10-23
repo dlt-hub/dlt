@@ -15,6 +15,7 @@ from dlt._workspace.runtime_clients.api.api.deployments import list_deployments
 from dlt._workspace.runtime_clients.api.types import File
 from dlt.common.configuration.plugins import SupportsCliCommand
 from dlt._workspace.runtime_clients.api.models.detailed_run_response import DetailedRunResponse
+from dlt._workspace.runtime_clients.api.api.runs import cancel_run
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.exceptions import (
@@ -149,6 +150,11 @@ class RuntimeCommand(SupportsCliCommand):
             help="List all runs in workspace",
             description="List all runs in workspace",
         )
+        runs_subparsers.add_parser(
+            "cancel",
+            help="Cancel a script run in the Runtime",
+            description="Cancel a script run in the Runtime",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         if args.runtime_command == "login":
@@ -169,6 +175,8 @@ class RuntimeCommand(SupportsCliCommand):
                 check_status(run_id=args.run_id)
             elif args.operation == "logs":
                 get_logs(run_id=args.run_id)
+            elif args.operation == "cancel":
+                request_run_cancel(run_id=args.run_id)
         elif args.runtime_command == "script":
             if args.operation == "run":
                 run(args.script_path_or_id)
@@ -521,3 +529,18 @@ def get_deployments() -> None:
                 f" {deployment.id}, file count: {deployment.file_count}, content hash:"
                 f" {deployment.content_hash}"
             )
+
+
+def request_run_cancel(run_id: Union[str, UUID]) -> None:
+    auth_service = authorize()
+    api_client = get_api_client(auth_service)
+
+    cancel_run_result = cancel_run.sync(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        run_id=_to_uuid(run_id),
+    )
+    if isinstance(cancel_run_result, cancel_run.DetailedRunResponse):
+        fmt.echo(f"Successfully requested cancellation of run {run_id}")
+    else:
+        raise RuntimeError("Failed to request cancellation of run")
