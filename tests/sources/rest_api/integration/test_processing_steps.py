@@ -5,7 +5,12 @@ import pytest
 
 import dlt
 from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
-from ..conftest import DEFAULT_COMMENTS_COUNT, DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES, DEFAULT_REACTIONS_COUNT
+from ..conftest import (
+    DEFAULT_COMMENTS_COUNT,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_TOTAL_PAGES,
+    DEFAULT_REACTIONS_COUNT,
+)
 
 
 def _make_pipeline(destination_name: str):
