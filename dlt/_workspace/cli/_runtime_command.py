@@ -11,6 +11,7 @@ from dlt._workspace.runtime_clients.api.api.runs import create_run, get_run, get
 from dlt._workspace.runtime_clients.api.api.scripts import create_or_update_script, get_script
 from dlt._workspace.runtime_clients.api.models.create_deployment_body import CreateDeploymentBody
 from dlt._workspace.runtime_clients.api.models.script_type import ScriptType
+from dlt._workspace.runtime_clients.api.api.deployments import list_deployments
 from dlt._workspace.runtime_clients.api.types import File
 from dlt.common.configuration.plugins import SupportsCliCommand
 from dlt._workspace.runtime_clients.api.models.detailed_run_response import DetailedRunResponse
@@ -63,10 +64,16 @@ class RuntimeCommand(SupportsCliCommand):
         )
 
         # deployments
-        subparsers.add_parser(
+        deploy_cmd = subparsers.add_parser(
             "deploy",
             help="Deploy local workspace to the Runtime",
             description="Deploy local workspace to the Runtime",
+        )
+        deploy_cmd.add_argument(
+            "--list",
+            "-l",
+            action=argparse.BooleanOptionalAction,
+            help="List all deployments in workspace",
         )
 
         # logs
@@ -149,7 +156,10 @@ class RuntimeCommand(SupportsCliCommand):
         elif args.runtime_command == "logout":
             logout()
         elif args.runtime_command == "deploy":
-            deploy()
+            if args.list:
+                get_deployments()
+            else:
+                deploy()
         elif args.runtime_command == "logs":
             get_logs()
         elif args.runtime_command == "runs":
@@ -491,3 +501,23 @@ def get_runs(script_id_or_name: str = None) -> None:
             )
     else:
         raise RuntimeError("Failed to list workspace runs")
+
+
+def get_deployments() -> None:
+    auth_service = authorize()
+    api_client = get_api_client(auth_service)
+
+    list_deployments_result = list_deployments.sync(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    if isinstance(list_deployments_result, list_deployments.ListDeploymentsResponse200):
+        if not list_deployments_result.items:
+            fmt.echo("No deployments found in this workspace")
+            return
+        for deployment in reversed(list_deployments_result.items):
+            fmt.echo(
+                f"Deployment # {deployment.version}, created at: {deployment.date_added}, id:"
+                f" {deployment.id}, file count: {deployment.file_count}, content hash:"
+                f" {deployment.content_hash}"
+            )
