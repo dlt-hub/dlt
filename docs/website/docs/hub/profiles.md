@@ -7,7 +7,7 @@ keywords: [dltHub, profiles, workspace, configuration, secrets, environments]
 # Profiles
 
 Profiles in `dlt` define **environment-specific configurations and secrets**.
-They let you manage separate settings for development, testing, and production — all within the same codebase.
+They let you manage separate settings for development, testing, and production using the same codebase.
 
 Each profile provides isolated configuration, credentials, and working directories, ensuring your pipelines are secure and environment-aware.
 
