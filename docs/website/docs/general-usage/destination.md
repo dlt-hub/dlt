@@ -21,7 +21,7 @@ Above, we want to use the **filesystem** built-in destination. You can use short
 * Use a [**named destination**](#use-named-destinations) with a configured type
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::custom_destination_name-->
 
-Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable. This approach is especially useful when switching between destinations without modifying the actual pipeline code. See details in the [section on using named destinations](#use-named-destinations-to-switch-destinations-without-changing-pipeline-code).
+Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable. This approach is especially useful when switching between destinations without modifying the actual pipeline code. See details in the [section on using named destinations](#use-named-destinations-to-switch-destinations-without-changing-code).
 
 * Use full **destination factory type**
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class_type-->

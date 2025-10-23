@@ -747,7 +747,7 @@ You have additional options for using multiple instances of the same source:
 
 1. Use the `clone()` method as explained in the [sql_database documentation](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#configure-many-sources-side-by-side-with-custom-sections).
 
-2. Create [named destinations](../destination.md#configure-multiple-destinations-in-a-pipeline) to use the same destination type with different configurations.
+2. Create [named destinations](../destination.md#configure-multiple-destinations-of-the-same-type) to use the same destination type with different configurations.
 :::
 
 ## Troubleshoot configuration errors
