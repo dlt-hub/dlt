@@ -84,6 +84,8 @@ def _drop_column_in_sql(
             col_defs = [
                 f"{client.escape_ddl_identifier('id')} bigint",
                 f"{client.escape_ddl_identifier('name')} string",
+                f"{client.escape_ddl_identifier('_dlt_load_id')} string",
+                f"{client.escape_ddl_identifier('_dlt_id')} string",
             ]
             ddl = (
                 f"ALTER TABLE {client.make_qualified_ddl_table_name(table_name)} "
@@ -244,7 +246,7 @@ def test_sync_dlt_schema(
     logger_spy.assert_called()
     assert logger_spy.call_count == 1
     expected_warning = (
-        "Removing table 'my_last_table' from the dlt schema would leave orphan table(s):"
+        "Removing table 'my_last_table' from the dlt schema would leave orphaned table(s):"
         " 'my_last_table__children'. Drop these child tables in the destination and sync the dlt"
         " schema again."
     )

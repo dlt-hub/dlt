@@ -317,16 +317,9 @@ def _diff_between_actual_and_dlt_schema(
     destination table. It's used during schema synchronization to detect when columns may have
     been dropped from the destination and need to be removed from the dlt schema as well.
 
-    However, dlt internal columns (_dlt_id, _dlt_load_id) are treated specially because:
-
-    1. Users rarely drop dlt internal columns manually, and if they did,
-       dlt cannot recover from this situation anyway.
-
-    2. Athena has a constraint where dlt columns exist in the data but not in the table metadata:
-
-       - Athena external tables have fixed schemas defined at CREATE TABLE time
-       - These columns exist in the actual data files but don't appear in INFORMATION_SCHEMA
-       - This causes false positives where dlt columns appear "missing" when they're not
+    However, dlt internal columns (_dlt_id, _dlt_load_id) are treated specially because
+    users rarely drop dlt internal columns manually, and if they did,
+    dlt cannot recover from this situation anyway.
 
     Args:
         client (WithTableReflectionAndSql): The destination client with table reflection capabilities.
