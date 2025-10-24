@@ -2533,6 +2533,135 @@ paths:
       summary: ListRuns
       tags:
       - runs
+    post:
+      deprecated: false
+      description: '
+
+        Triggers a new run for a script in a workspace. The latest script version
+        will be used. The profile associated with the script version will be used,
+        of which
+
+        the latest profile_version will be used. You may specify a specific profile
+        to use.
+
+
+        Requires WRITE permission on the organization level.
+
+        '
+      operationId: create_run
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation Exception
+                examples:
+                - detail: Bad Request
+                  extra: {}
+                  status_code: 400
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Not Authorized Exception
+                examples:
+                - detail: Unauthorized
+                  extra: {}
+                  status_code: 401
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Entity Permission Denied Exception
+                examples:
+                - detail: Forbidden
+                  extra: {}
+                  status_code: 403
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Entity Not Found Exception
+                examples:
+                - detail: Not Found
+                  extra: {}
+                  status_code: 404
+                properties:
+                  detail:
+                    type: string
+                  extra:
+                    additionalProperties: {}
+                    type: object
+                  status_code:
+                    type: integer
+                required:
+                - detail
+                - status_code
+                type: object
+          description: Nothing matches the given URI
+      summary: CreateRun
+      tags:
+      - runs
   /v1/workspaces/{workspace_id}/runs/latest:
     get:
       deprecated: false
@@ -2661,136 +2790,6 @@ paths:
                 type: object
           description: Nothing matches the given URI
       summary: GetLatestRun
-      tags:
-      - runs
-  /v1/workspaces/{workspace_id}/runs/runs:
-    post:
-      deprecated: false
-      description: '
-
-        Triggers a new run for a script in a workspace. The latest script version
-        will be used. The profile associated with the script version will be used,
-        of which
-
-        the latest profile_version will be used. You may specify a specific profile
-        to use.
-
-
-        Requires WRITE permission on the organization level.
-
-        '
-      operationId: create_run
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateRunRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunResponse'
-          description: Document created, URL follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
-          description: Nothing matches the given URI
-      summary: CreateRun
       tags:
       - runs
   /v1/workspaces/{workspace_id}/runs/{run_id}:
