@@ -26,23 +26,23 @@ def test_sleep() -> None:
 
 
 def test_sleep_not_raises_if_signalled() -> None:
-    signals.signal_receiver(4, None)
+    signals._signal_receiver(4, None)
     sleep(0.1)
 
 
 def test_signal_receiver() -> None:
-    signals.signal_receiver(8, None)
+    signals._signal_receiver(8, None)
     assert signals._received_signal == 8
     assert signals._signal_counts[8] == 1
 
-    signals.signal_receiver(4, None)
+    signals._signal_receiver(4, None)
     assert signals._received_signal == 4
     assert signals._signal_counts[4] == 1
 
 
 def test_raise_if_signalled() -> None:
     signals.raise_if_signalled()
-    signals.signal_receiver(8, None)
+    signals._signal_receiver(8, None)
     with pytest.raises(SignalReceivedException) as exc:
         signals.raise_if_signalled()
     assert exc.value.signal_code == 8
@@ -53,7 +53,7 @@ def test_delayed_signals_context_manager() -> None:
 
     with signals.delayed_signals():
         with pytest.raises(SignalReceivedException):
-            signals.signal_receiver(2, None)
+            signals._signal_receiver(2, None)
             # now it raises
             signals.raise_if_signalled()
 
@@ -73,7 +73,7 @@ def test_raise_if_signalled_thread() -> None:
         try:
             # this will sleep on exit event forever
             sleep(100000)
-            assert signals.signal_received()
+            assert signals.was_signal_received()
             signals.raise_if_signalled()
         except SignalReceivedException as siex:
             thread_signal = siex.signal_code
@@ -82,7 +82,7 @@ def test_raise_if_signalled_thread() -> None:
     p.start()
     time.sleep(0.1)
     # this sets exit event
-    signals.signal_receiver(4, None)
+    signals._signal_receiver(4, None)
     p.join()
     assert thread_signal == 4
 

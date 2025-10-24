@@ -15,7 +15,7 @@ _signal_counts: Dict[int, int] = {}
 _original_handlers: Dict[int, Union[int, Callable[[int, Optional[FrameType]], Any]]] = {}
 
 
-def signal_receiver(sig: int, frame: FrameType) -> None:
+def _signal_receiver(sig: int, frame: FrameType) -> None:
     """Handle POSIX signals with two-stage escalation.
 
     This handler is installed by delayed_signals(). On the first occurrence of a
@@ -34,14 +34,12 @@ def signal_receiver(sig: int, frame: FrameType) -> None:
           Worker threads must cooperatively observe shutdown via raise_if_signalled()
           or the signal-aware sleep().
     """
-    global _received_signal
-
     # track how many times this signal type has been received
     _signal_counts[sig] = _signal_counts.get(sig, 0) + 1
 
     if _signal_counts[sig] == 1:
         # first signal of this type: set flag and wake threads
-        _received_signal = sig
+        set_received_signal(sig)
         if sig == signal.SIGINT:
             sig_desc = "CTRL-C"
         else:
@@ -57,13 +55,13 @@ def signal_receiver(sig: int, frame: FrameType) -> None:
         else:
             logger.warning(msg)
     elif _signal_counts[sig] >= 2:
-        # Second signal of this type: call original handler
+        # second signal of this type: call original handler
         logger.debug(f"Second signal {sig} received, calling default handler")
         original_handler = _original_handlers.get(sig, signal.SIG_DFL)
         if callable(original_handler):
             original_handler(sig, frame)
         elif original_handler == signal.SIG_DFL:
-            # Restore default and re-raise to trigger default behavior
+            # restore default and re-raise to trigger default behavior
             signal.signal(sig, signal.SIG_DFL)
             signal.raise_signal(sig)
 
@@ -71,12 +69,28 @@ def signal_receiver(sig: int, frame: FrameType) -> None:
     logger.debug("Sleeping threads signalled")
 
 
+def _clear_signals() -> None:
+    global _received_signal
+
+    _received_signal = 0
+    _signal_counts.clear()
+    _original_handlers.clear()
+
+
+def set_received_signal(sig: int) -> None:
+    """Called when signal was received"""
+    global _received_signal
+
+    _received_signal = sig
+
+
 def raise_if_signalled() -> None:
-    if _received_signal:
+    """Raises `SignalReceivedException` if signal was received."""
+    if was_signal_received():
         raise SignalReceivedException(_received_signal)
 
 
-def signal_received() -> bool:
+def was_signal_received() -> bool:
     """check if a signal was received"""
     return True if _received_signal else False
 
@@ -93,14 +107,6 @@ def wake_all() -> None:
     exit_event.set()
 
 
-def _clear_signals() -> None:
-    global _received_signal
-
-    _received_signal = 0
-    _signal_counts.clear()
-    _original_handlers.clear()
-
-
 @contextmanager
 def delayed_signals() -> Iterator[None]:
     """Will delay signalling until `raise_if_signalled` is explicitly used or when
@@ -115,7 +121,7 @@ def delayed_signals() -> Iterator[None]:
         # check if handlers are already installed (nested call)
         current_sigint_handler = signal.getsignal(signal.SIGINT)
 
-        if current_sigint_handler is signal_receiver:
+        if current_sigint_handler is _signal_receiver:
             # already installed, this is a nested call - just yield
             yield
             return
@@ -129,8 +135,8 @@ def delayed_signals() -> Iterator[None]:
         _original_handlers[signal.SIGTERM] = original_sigterm_handler
 
         try:
-            signal.signal(signal.SIGINT, signal_receiver)
-            signal.signal(signal.SIGTERM, signal_receiver)
+            signal.signal(signal.SIGINT, _signal_receiver)
+            signal.signal(signal.SIGTERM, _signal_receiver)
             yield
         finally:
             signal.signal(signal.SIGINT, original_sigint_handler)
