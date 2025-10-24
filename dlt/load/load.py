@@ -577,7 +577,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # do not spool new jobs if there was a signal or an exception was encountered
                 # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
                 # has changed (as determined by finalized jobs)
-                if signals.signal_received():
+                if signals.was_signal_received() and not self.config.start_new_jobs_on_signal:
                     if finalized_jobs:
                         logger.info(
                             f"Signal received, draining running jobs. {len(running_jobs)} to go."
