@@ -125,11 +125,6 @@ test-load-local-postgres:
 test-common:
 	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
 
-reset-test-storage:
-	-rm -r _storage
-	mkdir _storage
-	python3 tests/tools/create_storages.py
-
 build-library: dev
 	uv version
 	uv build
