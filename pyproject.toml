@@ -59,6 +59,9 @@ dependencies = [
     "sqlglot>=25.4.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
+    "npm>=0.1.1",
+    "nvm>=1.0.21",
+    "node>=1.2.2",
 ]
 
 [project.optional-dependencies]

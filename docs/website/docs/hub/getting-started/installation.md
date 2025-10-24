@@ -14,7 +14,7 @@ dltHub currently supports Python versions 3.9-3.13.
 To install the `dlt[workspace]` package, run:
 
 ```sh
-pip install dlt[workspace]
+pip install "dlt[workspace]"
 ```
 
 
@@ -136,20 +136,35 @@ Please install a valid license before proceeding, as described under [licensing]
 
 
 
-## Self-licensing
+## Licensing 
 
+To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License.
 
-You can self-issue an anonymous 30-day trial license to test dlthub features and use it for development, eductation, and ci ops. The self-issued licenses are not granted for "Production Use" and cannot be transfered to other machines/workspaces. 
+### Licensed Features:
 
+- [@dlt.hub.transformation](../features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
+- [dbt transformations](../features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
+- [Iceberg support](../ecosystem/iceberg.md)
+- [Secure data access and sharing](../features/data-access.md)
+- [AI workflows](../features/ai.md): agents to augment your data engineering team.
 
-### Choose a scope and issue a license:
+For more information about the feature scopes, see [Scopes](#scopes).
+Please also review our End User License Agreement [(EULA)](../EULA.md)
 
+### Self-licensing
+
+You can self-issue an anonymous 30-day trial license to explore dltHub’s paid features.
+This trial license is intended for development, education, and CI operations only. It is not valid for production use and cannot be transferred between machines or workspaces.
+
+See the [Special Terms](../EULA.md#specific-terms-for-the-self-issued-trial-license-self-issued-trial-terms) in our EULA for more details.
+
+#### Issue a Trial License
+Choose a scope for the feature you want to test, then issue a license with:
 ```sh
 dlt license issue <scope>
 ```
 
-#### Known scopes:
-
+#### Scopes:
 
 * `*`: All features 
 * `dlthub`: All dltHub features 
@@ -161,8 +176,9 @@ dlt license issue <scope>
 * `dlthub.destinations.snowflake_plus`: [Snowflake iceberg extension with Open Catalog](../ecosystem/snowflake_plus)
 * `dlthub.runner`: Production pipeline runner and orchestrator support
 
+You can self-issue multiple licenses; newly issued licenses will automatically include previously granted features.
 
-Find your installed licenses with:
+To view your installed licenses:
 ```sh
 dlt license info
 ```
