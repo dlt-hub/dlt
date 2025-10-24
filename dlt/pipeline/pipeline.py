@@ -1,6 +1,6 @@
 import contextlib
 import os
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
 from typing import (
@@ -531,7 +531,11 @@ class Pipeline(SupportsPipeline):
                 schema_storage=self._schema_storage,
             )
             try:
-                with signals.delayed_signals():
+                with (
+                    signals.delayed_signals()
+                    if self.runtime_config.intercept_signals
+                    else nullcontext()
+                ):
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
             except (Exception, KeyboardInterrupt) as n_ex:
@@ -586,7 +590,11 @@ class Pipeline(SupportsPipeline):
             initial_staging_client_config=staging_client.config if staging_client else None,
         )
         try:
-            with signals.delayed_signals():
+            with (
+                signals.delayed_signals()
+                if self.runtime_config.intercept_signals
+                else nullcontext()
+            ):
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
             self._update_last_run_context()
