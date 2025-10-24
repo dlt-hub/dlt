@@ -1,3 +1,4 @@
+import os
 import sys
 import threading
 import signal
@@ -6,13 +7,14 @@ from threading import Event
 from types import FrameType
 from typing import Any, Callable, Dict, Iterator, Optional, Union
 
-from dlt.common import logger
 from dlt.common.exceptions import SignalReceivedException
 
 _received_signal: int = 0
 exit_event = Event()
 _signal_counts: Dict[int, int] = {}
 _original_handlers: Dict[int, Union[int, Callable[[int, Optional[FrameType]], Any]]] = {}
+
+# NOTE: do not use logger and print in signal handlers
 
 
 def _signal_receiver(sig: int, frame: FrameType) -> None:
@@ -40,23 +42,22 @@ def _signal_receiver(sig: int, frame: FrameType) -> None:
     if _signal_counts[sig] == 1:
         # first signal of this type: set flag and wake threads
         set_received_signal(sig)
-        if sig == signal.SIGINT:
-            sig_desc = "CTRL-C"
-        else:
-            sig_desc = f"Signal {sig}"
-        msg = (
-            f"{sig_desc} received. Trying to shut down gracefully. It may take time to drain job"
-            f" pools. Send {sig_desc} again to force stop."
-        )
         if sys.stdin.isatty():
-            # log to console
-            sys.stderr.write(msg)
-            sys.stderr.flush()
-        else:
-            logger.warning(msg)
+            # log to console using low level functions that are safe for signal handlers
+            if sig == signal.SIGINT:
+                sig_desc = "CTRL-C"
+            else:
+                sig_desc = f"Signal {sig}"
+            msg = (
+                f"{sig_desc} received. Trying to shut down gracefully. It may take time to drain"
+                f" job pools. Send {sig_desc} again to force stop."
+            )
+            try:
+                os.write(sys.stderr.fileno(), msg.encode(encoding="utf-8"))
+            except OSError:
+                pass
     elif _signal_counts[sig] >= 2:
         # second signal of this type: call original handler
-        logger.debug(f"Second signal {sig} received, calling default handler")
         original_handler = _original_handlers.get(sig, signal.SIG_DFL)
         if callable(original_handler):
             original_handler(sig, frame)
@@ -66,7 +67,6 @@ def _signal_receiver(sig: int, frame: FrameType) -> None:
             signal.raise_signal(sig)
 
     exit_event.set()
-    logger.debug("Sleeping threads signalled")
 
 
 def _clear_signals() -> None:
@@ -144,5 +144,7 @@ def delayed_signals() -> Iterator[None]:
             _clear_signals()
 
     else:
+        from dlt.common import logger
+
         logger.info("Running in daemon thread, signals not enabled")
         yield
