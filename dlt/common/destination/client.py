@@ -349,6 +349,7 @@ class LoadJob(ABC):
             self._finished_at,
             self.state(),
             None,
+            self._parsed_file_name.retry_count,
         )
 
 
@@ -371,6 +372,7 @@ class RunnableLoadJob(LoadJob, ABC):
         # ensure file name
         super().__init__(file_path)
         self._state: TLoadJobState = "ready"
+        self._started_at = pendulum.now()
         self._exception: BaseException = None
 
         # variables needed by most jobs, set by the loader in set_run_vars
@@ -408,7 +410,6 @@ class RunnableLoadJob(LoadJob, ABC):
         # filepath is now moved to running
         try:
             self._state = "running"
-            self._started_at = pendulum.now()
             self._job_client.prepare_load_job_execution(self)
             self.run()
             self._state = "completed"
@@ -423,10 +424,10 @@ class RunnableLoadJob(LoadJob, ABC):
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
             if self._state != "retry":
+                self._finished_at = pendulum.now()
                 # wake up waiting threads
                 signals.wake_all()
 
