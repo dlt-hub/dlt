@@ -18,7 +18,7 @@ pip install "dlt[workspace]"
 ```
 
 
-This comes with the dlthub package. To use the features of dlthub, please install a valid license before proceeding, as described under [licensing](#self-licensing).
+This comes with the dlthub package. To use the features of dlthub, please get a valid license key before proceeding, as described under [licensing](#self-licensing).
 
 
 ## Setting up your environment
@@ -140,7 +140,27 @@ Please install a valid license before proceeding, as described under [licensing]
 
 To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License.
 
-### Licensed Features:
+
+When you purchase a paid dltHub offering, the required license will be issued and managed automatically for your account.
+
+You can also manually configure a license for local development or CI environments as shown below.
+
+
+#### Applying your license
+
+You can provide your license key in one of two ways:
+
+In the `secrets.toml` file:
+```toml
+license = "your-dlthub-license-key"
+```
+
+As an environment variable
+```bash
+export DLT_LICENSE_KEY="your-dlthub-license-key"
+```
+
+#### Features requiring a license:
 
 - [@dlt.hub.transformation](../features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
 - [dbt transformations](../features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
@@ -154,7 +174,7 @@ Please also review our End User License Agreement [(EULA)](../EULA.md)
 ### Self-licensing
 
 You can self-issue an anonymous 30-day trial license to explore dltHub’s paid features.
-This trial license is intended for development, education, and CI operations only. It is not valid for production use and cannot be transferred between machines or workspaces.
+This trial license is intended for development, education, and CI operations only. Self-issued licenses are bound to the specific machine on which they were created. They cannot be transferred or reused on other machines, workspaces, or environments.
 
 See the [Special Terms](../EULA.md#specific-terms-for-the-self-issued-trial-license-self-issued-trial-terms) in our EULA for more details.
 
