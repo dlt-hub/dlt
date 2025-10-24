@@ -9,7 +9,6 @@ from typing import (
     Generic,
     Iterator,
     Mapping,
-    MutableMapping,
     Optional,
     Union,
     Dict,
@@ -30,6 +29,7 @@ ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
 ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
 ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
 
+MetricsFunctionWithMeta = Callable[[TDataItems, Any, Dict[str, Any]], None]
 
 TCustomMetrics = TypeVar(
     "TCustomMetrics", covariant=True, bound=Mapping[str, Any], default=Dict[str, Any]
@@ -224,4 +224,22 @@ class LimitItem(ItemTransform[TDataItem]):
         if self.exhausted:
             return None
 
+        return item
+
+
+class MetricsItem(ItemTransform[None]):
+    """Collects custom metrics from data flowing through the pipe without modifying items.
+
+    The metrics function receives items, optionally meta, and a metrics dictionary that it can
+    update in-place. The items are passed through unchanged.
+    """
+
+    _metrics_f: MetricsFunctionWithMeta = None
+
+    def __init__(self, metrics_f: MetricsFunctionWithMeta) -> None:
+        BaseItemTransform.__init__(self)
+        self._metrics_f = metrics_f
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        self._metrics_f(item, meta, self._custom_metrics)
         return item

@@ -486,7 +486,7 @@ class Pipeline(SupportsPipeline):
                 # commit load packages with state
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
-        except Exception as exc:
+        except (Exception, KeyboardInterrupt) as exc:
             # emit step info
             step_info = self._get_step_info(extract_step)
             current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
@@ -534,7 +534,7 @@ class Pipeline(SupportsPipeline):
                 with signals.delayed_signals():
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
-            except Exception as n_ex:
+            except (Exception, KeyboardInterrupt) as n_ex:
                 step_info = self._get_step_info(normalize_step)
                 raise PipelineStepFailed(
                     self,
@@ -591,7 +591,7 @@ class Pipeline(SupportsPipeline):
             info: LoadInfo = self._get_step_info(load_step)
             self._update_last_run_context()
             return info
-        except Exception as l_ex:
+        except (Exception, KeyboardInterrupt) as l_ex:
             step_info = self._get_step_info(load_step)
             raise PipelineStepFailed(
                 self, "load", load_step.current_load_id, l_ex, step_info
@@ -684,8 +684,6 @@ class Pipeline(SupportsPipeline):
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
-
-        signals.raise_if_signalled()
         self.activate()
         self._set_destinations(
             destination=destination, destination_credentials=credentials, staging=staging
@@ -866,7 +864,7 @@ class Pipeline(SupportsPipeline):
                     state["default_schema_name"] = new_default_schema_name
             bump_pipeline_state_version_if_modified(state)
             self._save_state(state)
-        except Exception as ex:
+        except (Exception, KeyboardInterrupt) as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
 
     def activate(self) -> None:

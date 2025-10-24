@@ -1,4 +1,5 @@
 import asyncio
+from multiprocessing.dummy import DummyProcess
 import pathlib
 import pickle
 from concurrent.futures import ThreadPoolExecutor
@@ -12,16 +13,15 @@ from time import sleep
 from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
-
 import pytest
+
+import dlt
+from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration import resolve
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-
-import dlt
-from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
@@ -37,17 +37,16 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
-from dlt.common.runtime.collector import LogCollector
+from dlt.common.runtime import signals
+from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
-from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
-import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeBasic,
@@ -73,9 +72,7 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT
-from tests.pipeline.utils import assert_load_info, load_table_counts
-
+from tests.utils import TEST_STORAGE_ROOT, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -3975,3 +3972,185 @@ def test_pipeline_with_null_executors(monkeypatch) -> None:
     p = dlt.pipeline(pipeline_name="null_executor", destination="duckdb")
     p.run([{"id": 1}], table_name="test_table")
     assert p.dataset().row_counts().fetchall() == [("test_table", 1)]
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT, signals.signal.SIGTERM))
+@pytest.mark.forked
+def test_signal_graceful_load_step_shutdown(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    @dlt.destination
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            print(pipeline.collector.step)
+            signals.sleep(0.1)
+
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), sig)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should end gracefully
+    load_info = pipeline.run([1, 2, 3], table_name="digits")
+    assert_load_info(load_info)
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT, signals.signal.SIGTERM))
+# @pytest.mark.forked
+def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    @dlt.destination
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # should end gracefully
+        load_info = pipeline.run([1, 2, 3], table_name="digits")
+        assert_load_info(load_info)
+
+    # we can nest those freely
+    with signals.delayed_signals():
+        with signals.delayed_signals():
+            p = threading.Thread(target=_thread)
+            p.start()
+
+            # wait until pipeline gets into load step
+            while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+                print(pipeline.collector.step)
+                signals.sleep(0.1)
+
+            # send signal to drain pool and stop load
+            os.kill(os.getpid(), sig)
+
+        # must join in context manager
+        p.join()
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
+@pytest.mark.forked
+def test_signal_force_load_step_shutdown(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    _done = False
+
+    @dlt.destination
+    def wait_forever(item, schema):
+        # never exit
+        from time import sleep
+
+        # this one does not wake up on signal
+        while not _done:
+            sleep(1)
+
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter", destination=wait_forever(), dataset_name="_data", progress=DictCollector()
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            print(pipeline.collector.step)
+            signals.sleep(0.1)
+
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), sig)
+        signals.sleep(0.5)
+        # send to kill
+        os.kill(os.getpid(), sig)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise regular pipeline exception
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([1, 2, 3], table_name="digits")
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+
+    # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
+    _done = True
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
+@pytest.mark.forked
+def test_signal_extract_step_shutdown(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    _done = False
+
+    @dlt.resource
+    def wait_forever():
+        # never exit
+        from time import sleep
+
+        # this one does not wake up on signal
+        while not _done:
+            sleep(1)
+
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter", destination="dummy", dataset_name="_data", progress=DictCollector()
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into extract step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Extract"):
+            print(pipeline.collector.step)
+            signals.sleep(0.1)
+
+        # extract step does not set signals
+        os.kill(os.getpid(), sig)
+        signals.sleep(0.5)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise regular pipeline exception
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(wait_forever())
+    assert pip_ex.value.step == "extract"
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+
+    # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
+    _done = True
+
+
+def test_cleanup() -> None:
+    # this must happen after all forked tests (problems with tests teardowns in other tests)
+    pass
