@@ -179,10 +179,14 @@ This trial license is intended for development, education, and CI operations onl
 See the [Special Terms](../EULA.md#specific-terms-for-the-self-issued-trial-license-self-issued-trial-terms) in our EULA for more details.
 
 #### Issue a Trial License
+
 Choose a scope for the feature you want to test, then issue a license with:
 ```sh
 dlt license issue <scope>
 ```
+This command will:
+* Print your license key in the cli output
+* License key will be put into your toml file
 
 #### Scopes:
 
