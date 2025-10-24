@@ -1,8 +1,23 @@
+import imp
 import shutil
 import functools
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union, cast
+from this import d
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+    Literal,
+    NamedTuple,
+    get_args,
+)
 import os
 import platform
 import subprocess
@@ -12,7 +27,6 @@ import dlt
 import marimo as mo
 import pyarrow
 import traceback
-
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
@@ -36,7 +50,6 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUn
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.trace import PipelineTrace
-
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -809,3 +822,170 @@ def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> D
 def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Convert a dict to a list of dicts with name and value keys"""
     return [{"name": k, "value": v} for k, v in d.items()]
+
+
+#
+# pipeline run section helpers
+#
+
+TPipelineRunStatus = Literal["success", "failure"]
+TVisualPipelineStep = Literal["extract", "normalize", "load"]
+
+
+PIPELINE_RUN_STEP_COLORS: Dict[TVisualPipelineStep, str] = {
+    "extract": "var(--dlt-color-lime)",
+    "normalize": "var(--dlt-color-aqua)",
+    "load": "var(--dlt-color-pink)",
+}
+
+
+class PipelineStepData(NamedTuple):
+    step: TVisualPipelineStep
+    duration_ms: float
+    failed: bool
+
+
+def _format_duration(ms: float) -> str:
+    """Format duration as human-readable string"""
+    if ms < 1000:
+        return f"{int(ms)}ms"
+    elif ms < 60000:
+        return f"{round(ms / 100) / 10}s"
+    else:
+        return f"{round(ms / 6000) / 10}"
+
+
+def _build_visual_components(
+    transaction_id: str,
+    pipeline_name: str,
+    status: TPipelineRunStatus,
+    steps_data: List[PipelineStepData],
+) -> mo.Html:
+    """
+    Build bar visualization
+    """
+    total_ms = sum(step.duration_ms for step in steps_data)
+
+    segments_html = ""
+    labels_html = ""
+
+    for step in steps_data:
+        percentage = step.duration_ms / total_ms * 100
+        color = PIPELINE_RUN_STEP_COLORS.get(step.step)
+
+        segments_html += f"""
+            <div style="
+                width: {percentage}%;
+                background-color: {color};
+                height: 100%;
+            "></div>
+        """
+
+        labels_html += f"""
+            <span style="margin-right: 20px;">
+                <span style="color: {color};">●</span>
+                {step.step.capitalize()} {_format_duration(step.duration_ms)}
+            </span>
+        """
+
+    html = f"""
+    <div style="
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px 0;
+        background: white;
+    ">
+        <!-- Main 3-column flex container -->
+        <div style="
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 20px;
+        ">
+            <!-- LEFT COLUMN: Transaction ID and Pipeline name -->
+            <div style="
+                flex: 0 0 auto;
+                min-width: 150px;
+            ">
+                <div style="font-weight: bold; font-size: 16px;">{transaction_id[:8]}</div>
+                <div style="color: #6b7280; font-size: 14px;">Pipeline: <strong>{pipeline_name}</strong></div>
+            </div>
+
+            <!-- CENTER COLUMN: Timeline bar and legend -->
+            <div style="
+                flex: 1 1 auto;
+                max-width: 500px;
+            ">
+                <!-- Stacked bar -->
+                <div style="
+                    display: flex;
+                    height: 16px;
+                    overflow: hidden;
+                    margin-bottom: 12px;
+                ">
+                    {segments_html}
+                </div>
+
+                <!-- Labels -->
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 14px;
+                    color: #6b7280;
+                    gap: 15px;
+                ">
+                    {labels_html}
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Status badge only -->
+            <div style="
+                flex: 0 0 auto;
+            ">
+                <div style="
+                    background-color: {f"var(--{status}-badge-bg)"};
+                    color: {f"var(--{status}-badge-text)"};
+                    padding: 6px 16px;
+                    border-radius: 6px;
+                    font-weight: 500;
+                ">
+                    <strong>{status}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    return mo.Html(html)
+
+
+def build_pipeline_run_visualization(trace: PipelineTrace) -> mo.Html:
+    """Creates a visual timeline of pipeline run showing extract, normalize and load steps"""
+    steps_data: List[PipelineStepData] = []
+    for step in trace.steps:
+        if step.step not in get_args(TVisualPipelineStep):
+            continue
+
+        if not step.finished_at:
+            continue
+
+        duration_ms = (step.finished_at - step.started_at).total_seconds() * 1000
+
+        steps_data.append(
+            PipelineStepData(
+                step=cast(TVisualPipelineStep, step.step),
+                duration_ms=duration_ms,
+                failed=step.step_exception is not None,
+            )
+        )
+
+    is_failed = any(s.failed for s in steps_data)
+    status: TPipelineRunStatus = "failure" if is_failed else "success"
+
+    return _build_visual_components(
+        trace.transaction_id,
+        trace.pipeline_name,
+        status,
+        steps_data,
+    )

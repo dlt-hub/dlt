@@ -91,6 +91,13 @@ app_title_pipeline = """
 """
 
 #
+# Pipeline Run section
+#
+pipeline_run_title = "Pipeline Run"
+pipeline_run_subtitle = "Visual timeline of the last pipeline run"
+
+
+#
 # Overview section
 #
 overview_title = "Pipeline Overview"
