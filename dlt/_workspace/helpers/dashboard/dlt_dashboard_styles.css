@@ -7,12 +7,18 @@
   --dlt-color-lime: #c6d300;
   --dlt-color-aqua: #59c1d5;
   --dlt-color-purple: #191937;
+  --dlt-color-pink: #EE746D;
 
   /* background colors */
   --dlt-color-lime-background: #c6d30006;
   --dlt-color-aqua-background: #59c1d503;
   --dlt-color-purple-background: #19193706;
 
+  /* status badge colors */
+  --success-badge-bg: #a8e4ac;
+  --success-badge-text: #468A47;
+  --failure-badge-bg: #FBE8E8;
+  --failure-badge-text: #D47672;
 }
 
 /* Make headings bold */

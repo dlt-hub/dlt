@@ -119,6 +119,30 @@ def home(
 
 
 @app.cell(hide_code=True)
+def section_pipeline_run(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_pipeline_run_switch: mo.ui.switch,
+):
+    """
+    Visual representation of the last pipeline run
+    """
+
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.pipeline_run_title,
+        strings.pipeline_run_subtitle,
+        strings.pipeline_run_subtitle,
+        dlt_section_pipeline_run_switch,
+    )
+
+    if dlt_pipeline and dlt_section_pipeline_run_switch.value:
+        if dlt_pipeline.last_trace:
+            _result.append(utils.build_pipeline_run_visualization(dlt_pipeline.last_trace))
+    mo.vstack(_result) if _result else None
+    return
+
+
+@app.cell(hide_code=True)
 def section_overview(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_overview_switch: mo.ui.switch,
@@ -871,6 +895,9 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(
         value=True, label="overview" if mo_cli_arg_with_test_identifiers else ""
     )
+    dlt_section_pipeline_run_switch: mo.ui.switch = mo.ui.switch(
+        value=True, label="pipeline run" if mo_cli_arg_with_test_identifiers else ""
+    )
     dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="schema" if mo_cli_arg_with_test_identifiers else ""
     )
@@ -932,6 +959,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
         dlt_section_overview_switch,
+        dlt_section_pipeline_run_switch,
         dlt_section_schema_switch,
         dlt_section_state_switch,
         dlt_section_sync_switch,
