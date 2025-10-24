@@ -37,7 +37,7 @@ To use them, first install `dlt` with Workspace support:
 ```sh
 pip install "dlt[workspace]"
 ```
-Initialize a project:
+[Initialize](../workspace/init) a project:
 
 ```sh
 dlt init dlthub:pokemon_api duckdb
