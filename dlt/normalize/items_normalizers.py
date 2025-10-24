@@ -517,7 +517,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         )
             except StopIteration:
                 pass
-            # kill job if signalled
             signals.raise_if_signalled()
         return schema_update
 

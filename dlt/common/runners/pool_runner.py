@@ -201,12 +201,10 @@ def run_pool(
     try:
         logger.debug("Running pool")
         while _run_func():
-            # raise on signal: safe to do that out of _run_func()
+            # for next run
             signals.raise_if_signalled()
             runs_count += 1
             sleep(config.run_sleep)
-            # signal could come
-            signals.raise_if_signalled()
         return runs_count
     except SignalReceivedException as sigex:
         # sleep this may raise SignalReceivedException

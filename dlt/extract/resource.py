@@ -12,6 +12,9 @@ from typing import (
     Union,
     Any,
     Optional,
+    Mapping,
+    List,
+    Tuple,
     Dict,
 )
 
@@ -63,10 +66,8 @@ from dlt.extract.items_transform import (
     YieldMapItem,
     ValidateItem,
     LimitItem,
-    MetricsItem,
     ItemTransformFunc,
     ItemTransformFunctionWithMeta,
-    MetricsFunctionWithMeta,
 )
 from dlt.extract.state import resource_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
@@ -342,26 +343,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.append_step(MapItem(item_map))
         else:
             self._pipe.insert_step(MapItem(item_map), insert_at)
-        return self
-
-    def add_metrics(
-        self, metrics_f: MetricsFunctionWithMeta, insert_at: int = None
-    ) -> Self:  # noqa: A003
-        """Adds metrics collection function defined in `metrics_f` to the resource pipe at position `inserted_at`
-        `metrics_f` receives data items, meta, and metrics dictionary to update in-place.
-        Items are passed through unchanged.
-
-        Args:
-            metrics_f (MetricsFunctionWithMeta): A function taking items, meta argument, and metrics dict. Returns None.
-            insert_at (int, optional): At which step in pipe to insert the metrics collector. Defaults to None which inserts after last step
-
-        Returns:
-            "DltResource": returns self
-        """
-        if insert_at is None:
-            self._pipe.append_step(MetricsItem(metrics_f))
-        else:
-            self._pipe.insert_step(MetricsItem(metrics_f), insert_at)
         return self
 
     def add_yield_map(

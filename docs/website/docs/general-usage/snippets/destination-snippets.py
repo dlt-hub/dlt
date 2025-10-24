@@ -42,6 +42,18 @@ def destination_instantiation_snippet() -> None:
     assert pipeline.destination.destination_type == "dlt.destinations.filesystem"
     assert pipeline.destination.destination_name == "my_destination"
 
+    # @@@DLT_SNIPPET_START avoid_example
+    import os
+    import dlt
+
+    os.environ["DESTINATION__FILESYSTEM__DESTINATION_TYPE"] = "bigquery"
+
+    pipeline = dlt.pipeline("pipeline", destination="filesystem")
+    # @@@DLT_SNIPPET_END avoid_example
+
+    assert pipeline.destination.destination_type == "dlt.destinations.bigquery"
+    assert pipeline.destination.destination_name == "filesystem"
+
     # @@@DLT_SNIPPET_START instance
     import dlt
 
@@ -90,41 +102,6 @@ def destination_instantiation_snippet() -> None:
         "pipeline", destination=filesystem("az://dlt-azure-bucket", credentials=credentials)
     )
     # @@@DLT_SNIPPET_END config_partial_spec
-
-    # @@@DLT_SNIPPET_START named_destination_dlt_destination
-    import os
-    import dlt
-
-    os.environ["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = "filesystem"
-
-    pipeline = dlt.pipeline("pipeline", destination=dlt.destination("my_destination"))
-    # @@@DLT_SNIPPET_END named_destination_dlt_destination
-
-    # @@@DLT_SNIPPET_START named_destination_dlt_destination_explicit_type
-    import dlt
-
-    pipeline = dlt.pipeline(
-        "pipeline", destination=dlt.destination("my_destination", destination_type="filesystem")
-    )
-    # @@@DLT_SNIPPET_END named_destination_dlt_destination_explicit_type
-
-    # @@@DLT_SNIPPET_START named_destination_string_reference
-    import dlt
-
-    pipeline = dlt.pipeline("pipeline", destination="my_destination")
-    # @@@DLT_SNIPPET_END named_destination_string_reference
-
-    # @@@DLT_SNIPPET_START avoid_example
-    import os
-    import dlt
-
-    os.environ["DESTINATION__BIGQUERY__DESTINATION_TYPE"] = "duckdb"
-
-    pipeline = dlt.pipeline("pipeline", destination="bigquery")
-    # @@@DLT_SNIPPET_END avoid_example
-
-    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
-    assert pipeline.destination.destination_name == "bigquery"
 
     bucket_url = posixpath.join("file://", os.path.abspath(TEST_STORAGE_ROOT))
 

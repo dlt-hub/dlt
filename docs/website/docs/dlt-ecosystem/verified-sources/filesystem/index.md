@@ -11,7 +11,6 @@ The filesystem source allows seamless loading of files from the following locati
 * Azure Blob Storage
 * remote filesystem (via SFTP)
 * local filesystem
-* Public CDN
 
 The filesystem source natively supports [CSV](../../file-formats/csv.md), [Parquet](../../file-formats/parquet.md), and [JSONL](../../file-formats/jsonl.md) files and allows customization for loading any type of structured file.
 

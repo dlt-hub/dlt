@@ -53,7 +53,6 @@ class DictCollector(Collector):
     """A collector that just counts"""
 
     def __init__(self) -> None:
-        self.step = None
         self.counters: DefaultDict[str, int] = None
 
     def update(
@@ -102,7 +101,6 @@ class LogCollector(Collector):
             log_level (str, optional): Log level for the logger. Defaults to INFO level
             dump_system_stats (bool, optional): Log memory and cpu usage. Defaults to True
         """
-        self.step = None
         self.log_period = log_period
         self.logger = logger
         self.log_level = log_level
@@ -262,7 +260,6 @@ class TqdmCollector(Collector):
             raise MissingDependencyException(
                 "TqdmCollector", ["tqdm"], "We need tqdm to display progress bars."
             )
-        self.step = None
         self.single_bar = single_bar
         self._bars: Dict[str, tqdm[None]] = {}
         self.tqdm_kwargs = tqdm_kwargs or {}
@@ -324,7 +321,6 @@ class AliveCollector(Collector):
                 ["alive-progress"],
                 "We need alive-progress to display progress bars.",
             )
-        self.step = None
         self.single_bar = single_bar
         self._bars: Dict[str, Any] = {}
         self._bars_counts: Dict[str, int] = {}
@@ -403,7 +399,6 @@ class EnlightenCollector(Collector):
                 ["enlighten"],
                 "We need enlighten to display progress bars with a space for log messages.",
             )
-        self.step = None
         self.single_bar = single_bar
         self.enlighten_kwargs = enlighten_kwargs
 

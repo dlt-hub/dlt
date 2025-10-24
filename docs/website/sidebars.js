@@ -493,7 +493,7 @@ const sidebars = {
           type: 'category',
           label: 'Create pipeline',
           items: [
-          'hub/workspace/init',
+          // 'hub/workspace/init-and-verified-sources',
           'hub/ecosystem/ms-sql',
           ]
         },

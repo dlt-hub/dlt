@@ -1,8 +1,7 @@
 from copy import deepcopy
 import gzip
 import os
-from typing import Any, Iterator, List, cast, Tuple
-from pathlib import Path
+from typing import Any, Iterator, List, cast
 import pytest
 
 import dlt
@@ -15,8 +14,7 @@ from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.common.schema.utils import new_table
-from dlt.common.schema import TTableSchema
-from dlt.common.typing import TDataItem, TDataItems
+from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DestinationUndefinedEntity
@@ -43,7 +41,6 @@ from tests.load.utils import (
     delete_dataset,
     destinations_configs,
     DestinationTestConfiguration,
-    FILE_BUCKET,
 )
 from tests.load.pipeline.utils import simple_nested_pipeline, skip_if_unsupported_replace_strategy
 
@@ -1135,8 +1132,8 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
             assert actual == expected
 
 
-def test_pipeline_with_named_destination() -> None:
-    # 1. Destination type should be resolved from config (tests/.dlt/config.toml)
+def test_pipeline_with_destination_name():
+    # test configured destination name (tests/.dlt/config.toml)
     pipeline = dlt.pipeline(destination="custom_name")
     assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
     assert pipeline.destination.destination_name == "custom_name"
@@ -1148,104 +1145,15 @@ def test_pipeline_with_named_destination() -> None:
     info = pipeline.run(test_data())
     assert_load_info(info)
 
-    # 2. Should raise UnknownDestinationModule when shorthand type resolution fails (no config)
+    # test unconfigured destination name
     with pytest.raises(UnknownDestinationModule) as py_exc:
         dlt.pipeline(destination="another_custom_name")
     assert py_exc.value.named_dest_attempted is True
     assert not py_exc.value.destination_type
     assert "no destination type was configured" in str(py_exc.value)
 
-    # 3. Should raise UnknownDestinationModule for invalid full module reference without falling back to shorthand type resolution
+    # if destination contains dots, no fallbacks must happen
     with pytest.raises(UnknownDestinationModule) as py_exc:
         dlt.pipeline(destination="dlt.destinations.unknown")
     assert not py_exc.value.named_dest_attempted
     assert not py_exc.value.destination_type
-
-
-def test_pipeline_with_named_destination_via_factory_initializer() -> None:
-    # 1. Destination type should be resolved from config (tests/.dlt/config.toml) when not explicitly provided
-    pipeline = dlt.pipeline(destination=dlt.destination("custom_name"))
-    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
-    assert pipeline.destination.destination_name == "custom_name"
-
-    # 2. Explicit destination_type should override config settings
-    pipeline = dlt.pipeline(
-        destination=dlt.destination("custom_name", destination_type="filesystem")
-    )
-    assert pipeline.destination.destination_type == "dlt.destinations.filesystem"
-    assert pipeline.destination.destination_name == "custom_name"
-
-    # 3. Should fallback to shorthand type resolution when destination_type is not provided via explicit param or config
-    pipeline = dlt.pipeline(destination=dlt.destination("duckdb"))
-    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
-    assert pipeline.destination.destination_name == "duckdb"
-
-    # 4. Should raise UnknownDestinationModule when shorthand type resolution fails (no explicit param, no config)
-    with pytest.raises(UnknownDestinationModule) as py_exc:
-        dlt.pipeline(destination=dlt.destination("another_custom_name"))
-    assert py_exc.value.named_dest_attempted is True
-    assert not py_exc.value.destination_type
-
-    # 5. Should resolve full module reference when destination_type is not provided via explicit param or config
-    pipeline = dlt.pipeline(destination=dlt.destination("dlt.destinations.duckdb"))
-    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
-    assert pipeline.destination.destination_name == "duckdb"
-
-    # 6. Should raise UnknownDestinationModule for invalid full module reference without falling back to shorthand type resolution
-    with pytest.raises(UnknownDestinationModule) as py_exc:
-        dlt.pipeline(destination=dlt.destination("dlt.destinations.unknown"))
-    assert not py_exc.value.named_dest_attempted
-    assert not py_exc.value.destination_type
-
-    # 7. Should accept credentials
-    pipeline = dlt.pipeline(
-        destination=dlt.destination(
-            "custom_name",
-            credentials="duckdb:///random_duck_db.duckdb",
-        )
-    )
-    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
-    assert pipeline.destination.config_params["credentials"] == "duckdb:///random_duck_db.duckdb"
-
-    @dlt.resource
-    def test_data():
-        yield [{"id": 1, "name": "test"}]
-
-    info = pipeline.run(test_data())
-    assert_load_info(info)
-    assert (Path(TEST_STORAGE_ROOT) / "random_duck_db.duckdb").exists()
-
-    # 8. Should also accept additional destination parameters (such as bucket_url)
-    pipeline = dlt.pipeline(
-        destination=dlt.destination(
-            "custom_name",
-            destination_type="filesystem",
-            bucket_url=FILE_BUCKET,
-        )
-    )
-    assert pipeline.destination.destination_type == "dlt.destinations.filesystem"
-    assert pipeline.destination.config_params["bucket_url"] == FILE_BUCKET
-
-    info = pipeline.run(test_data())
-    assert_load_info(info)
-    assert (Path(TEST_STORAGE_ROOT) / FILE_BUCKET / pipeline.dataset_name / "test_data").exists()
-
-    # 9. Should automatically infer destination type as 'dlt.destinations.destination' (custom destination implementation),
-    # if destination_callable is provided
-    calls: List[Tuple[TDataItems, TTableSchema]] = []
-
-    def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
-        nonlocal calls
-        assert my_val == "something"
-        calls.append((items, table))
-
-    os.environ["DESTINATION__MY_VAL"] = "something"
-
-    p = dlt.pipeline(
-        "sink_test",
-        destination=dlt.destination("custom_name", destination_callable=local_sink_func),
-    )
-    assert p.destination.destination_name == "custom_name"
-    assert p.destination.destination_type == "dlt.destinations.destination"
-    p.run([1, 2, 3], table_name="items")
-    assert len(calls) == 1

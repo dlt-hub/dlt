@@ -532,7 +532,7 @@ all the settings to default.
 
 ### Automatically load schema file stored with source python module
 
-If no schema instance is passed, and a file with a name `{source name}.schema.yaml` exists in the
+If no schema instance is passed, and a file with a name `{source name}_schema.yml` exists in the
 same folder as the module with the decorated function, it will be automatically loaded and used as
 the schema.
 

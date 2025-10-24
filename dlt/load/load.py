@@ -597,7 +597,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     if pending_exception:
                         raise pending_exception
                     break
-                # this will wake up on os signal or if job thread pool signals
+                # this will raise on signal
                 sleep(self._run_loop_sleep_duration)
             except LoadClientJobFailed:
                 # the package is completed and skipped

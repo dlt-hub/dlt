@@ -400,10 +400,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             delta = left_gens - curr_gens
                             left_gens -= delta
                             collector.update("Resources", delta)
-
-                        # kill extraction if signalled
                         signals.raise_if_signalled()
-
                         resource = source.resources.with_pipe(pipe_item.pipe)
                         item_format = get_data_item_format(pipe_item.item)
                         extractors[item_format].write_items(

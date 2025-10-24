@@ -354,14 +354,12 @@ resource. The available transformation types:
 - **filter** - filter the data item (`resource.add_filter`).
 - [**yield map**](../dlt-ecosystem/transformations/add-map#add_yield_map) - a map that returns an iterator (so a single row may generate many rows -
   `resource.add_yield_map`).
-- [**metrics**](#using-add_metrics-as-a-transformation-step) - collect custom metrics without modifying data items (`resource.add_metrics`).
 
 Example: We have a resource that loads a list of users from an API endpoint. We want to customize it
 so:
 
-1. We track how many users with `user_id == "me"` are being filtered out.
-2. We remove users with `user_id == "me"`.
-3. We anonymize user data.
+1. We remove users with `user_id == "me"`.
+2. We anonymize user data.
 
 Here's our resource:
 
@@ -386,20 +384,8 @@ def anonymize_user(user_data):
     user_data["user_email"] = _hash_str(user_data["user_email"])
     return user_data
 
-def track_filtered(items, meta, metrics):
-    """Track how many 'me' users were filtered out."""
-    users_list = items if isinstance(items, list) else [items]
-    for user in users_list:
-        if user["user_id"] == "me":
-            metrics["filtered_me_users"] = metrics.get("filtered_me_users", 0) + 1
-
-# add metrics, filter, and anonymize function to users resource
-for user in (
-    users()
-    .add_metrics(track_filtered)
-    .add_filter(lambda user: user["user_id"] != "me")
-    .add_map(anonymize_user)
-):
+# add the filter and anonymize function to users resource and enumerate
+for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(anonymize_user):
     print(user)
 ```
 
@@ -716,9 +702,6 @@ The `with_name` method returns a deep copy of the original resource, its data pi
 
 ## Collect custom metrics
 
-
-### Using `dlt.current.resource_metrics()` within a resource
-
 You can track custom statistics during resource extraction with `dlt.current.resource_metrics()`, which might otherwise be lost:
 
 ```py
@@ -762,53 +745,6 @@ print(f"Custom metrics: {resource_metrics.custom_metrics}")
 ```
 
 As shown above, custom metrics are included in pipeline traces. Refer to [pipeline trace loading](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) for more details.
-
-### Using `add_metrics` as a transformation step
-
-Alternatively, you can collect metrics using `add_metrics`, which works as a transformation step in the pipeline.
-
-```py
-import dlt
-from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-
-github_client = RESTClient(
-    base_url="https://pokeapi.co/api/v2",
-    paginator=JSONLinkPaginator(next_url_path="next"),
-    data_selector="results",
-)
-
-@dlt.resource
-def get_pokemons():
-    for page in github_client.paginate(
-        "/pokemon",
-        params={
-            "limit": 100,
-        },
-    ):
-        yield page
-
-def page_counter(items, meta, metrics) -> None:
-    metrics["page_count"] = metrics.get("page_count", 0) + 1
-
-get_pokemons.add_metrics(page_counter)
-
-pipeline = dlt.pipeline(
-    pipeline_name="get_pokemons",
-    destination="duckdb",
-    dataset_name="github_data",
-)
-load_info = pipeline.run(get_pokemons)
-print(load_info)
-
-# Access custom metrics from last trace
-trace = pipeline.last_trace
-load_id = load_info.loads_ids[0]
-resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]
-
-print(f"Custom metrics: {resource_metrics.custom_metrics}")
-```
-
 
 ## Load resources
 

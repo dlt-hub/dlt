@@ -972,7 +972,7 @@ def repositories() -> Generator[Dict[str, Any], Any, Any]:
 
 The `processing_steps` field in the resource configuration allows you to apply transformations to the data fetched from the API before it is loaded into your destination. This is useful when you need to filter out certain records, modify the data structure, or anonymize sensitive information.
 
-Each processing step is a dictionary specifying the type of operation (`filter`, `map` or `yield_map`) and the function to apply. Steps apply in the order they are listed.
+Each processing step is a dictionary specifying the type of operation (`filter` or `map`) and the function to apply. Steps apply in the order they are listed.
 
 #### Quick example
 
@@ -980,12 +980,6 @@ Each processing step is a dictionary specifying the type of operation (`filter`,
 def lower_title(record):
     record["title"] = record["title"].lower()
     return record
-
-def flatten_reactions(post):
-    post_without_reactions = copy.deepcopy(post)
-    post_without_reactions.pop("reactions")
-    for reaction in post["reactions"]:
-        yield {"reaction": reaction, **post_without_reactions}
 
 config: RESTAPIConfig = {
     "client": {
@@ -997,7 +991,6 @@ config: RESTAPIConfig = {
             "processing_steps": [
                 {"filter": lambda x: x["id"] < 10},
                 {"map": lower_title},
-                {"yield_map": flatten_reactions},
             ],
         },
     ],
@@ -1007,9 +1000,7 @@ config: RESTAPIConfig = {
 In the example above:
 
 - First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
-- Then, the `map` step applies the `lower_title` function to each remaining record.
-- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record, 
-yielding a set of records, one for each reaction for the given post.
+- Thereafter, the `map` step applies the `lower_title` function to each remaining record.
 
 #### Using `filter`
 
@@ -1051,31 +1042,6 @@ config: RESTAPIConfig = {
 }
 ```
 
-#### Using `yield_map`
-
-The `yield_map` step allows you to transform a record into multiple records. The provided function should take a record as an argument and return an iterator of records. For example, to flatten the `reactions` field:
-
-```py
-def flatten_reactions(post):
-    post_without_reactions = copy.deepcopy(post)
-    post_without_reactions.pop("reactions")
-    for reaction in post["reactions"]:
-        yield {"reaction": reaction, **post_without_reactions}
-
-config: RESTAPIConfig = {
-    "client": {
-        "base_url": "https://api.example.com",
-    },
-    "resources": [
-        {
-            "name": "posts",
-            "processing_steps": [
-                {"yield_map": flatten_reactions},
-            ],
-        },
-    ],
-}
-```
 #### Combining `filter` and `map`
 
 You can combine multiple processing steps to achieve complex transformations:

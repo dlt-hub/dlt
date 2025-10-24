@@ -37,10 +37,8 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
     TSchemaSettings,
     TSimpleRegex,
-    TTableReferenceStandalone,
     TStoredSchema,
     TSchemaTables,
-    TTableReference,
     TTableSchema,
     TTableSchemaColumns,
     TColumnSchema,
@@ -607,45 +605,6 @@ class Schema:
     def tables(self) -> TSchemaTables:
         """Dictionary of schema tables"""
         return self._schema_tables
-
-    @property
-    def references(self) -> list[TTableReferenceStandalone]:
-        """References between tables"""
-        all_references: list[TTableReferenceStandalone] = []
-        for table_name, table in self.tables.items():
-            # TODO more specific error handling than ValueError
-            try:
-                parent_ref = utils.create_parent_child_reference(self.tables, table_name)
-                all_references.append(cast(TTableReferenceStandalone, parent_ref))
-            except ValueError:
-                pass
-
-            try:
-                root_ref = utils.create_root_child_reference(self.tables, table_name)
-                all_references.append(cast(TTableReferenceStandalone, root_ref))
-            except ValueError:
-                pass
-
-            try:
-                load_table_ref = utils.create_load_table_reference(
-                    self.tables[table_name], naming=self.naming
-                )
-                all_references.append(cast(TTableReferenceStandalone, load_table_ref))
-            except ValueError:
-                pass
-
-            refs = table.get("references")
-            if not refs:
-                continue
-
-            for ref in refs:
-                top_level_ref: TTableReference = ref.copy()
-                if top_level_ref.get("table") is None:
-                    top_level_ref["table"] = table_name
-
-                all_references.append(cast(TTableReferenceStandalone, top_level_ref))
-
-        return all_references
 
     @property
     def settings(self) -> TSchemaSettings:

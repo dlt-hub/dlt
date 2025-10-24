@@ -12,7 +12,6 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
 )
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.utils import uniq_id
 
 from dlt.common.typing import TTableNames, TDataItems
 from dlt.extract import DltResource, DltSource
@@ -21,7 +20,7 @@ from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import TResourceNestedHints, make_hints
 from dlt.extract.items_transform import ValidateItem
 
-from dlt.extract.items import TableNameMeta, DataItemWithMeta
+from dlt.extract.items import TableNameMeta
 from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 
@@ -728,97 +727,3 @@ def test_resource_step_custom_metrics(extract_step: Extract, with_custom_metrics
         assert resource_metrics.custom_metrics == expected_metrics
     else:
         assert resource_metrics.custom_metrics == {}
-
-
-@pytest.mark.parametrize(
-    "as_single_batch",
-    [True, False],
-    ids=["single_batch", "multiple_batches"],
-)
-def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
-    """Test metrics collection with add_metrics"""
-
-    # 1: Test metrics at different pipeline stages (before/after filter)
-    @dlt.resource
-    def some_data():
-        data = [1, 2, 3, 4, 5, 6]
-        if as_single_batch:
-            yield data
-        else:
-            yield from data
-
-    def early_counter(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
-        metrics["early_count"] = metrics.get("early_count", 0) + 1
-
-    def late_counter(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
-        metrics["late_count"] = metrics.get("late_count", 0) + 1
-
-    some_data.add_metrics(early_counter).add_filter(lambda x: x > 3).add_metrics(late_counter)
-
-    # 2. Test metrics with TableNameMeta
-    @dlt.resource
-    def multi_table_data():
-        yield dlt.mark.with_table_name({"id": 1, "name": "Alice"}, "users")
-        yield dlt.mark.with_table_name({"id": 2, "name": "Bob"}, "users")
-        yield dlt.mark.with_table_name({"product": "A"}, "products")
-        yield dlt.mark.with_table_name({"product": "B"}, "products")
-
-    def count_by_table(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
-        if isinstance(meta, TableNameMeta):
-            table_key = f"count_{meta.table_name}"
-            metrics[table_key] = metrics.get(table_key, 0) + 1
-
-    multi_table_data.add_metrics(count_by_table)
-
-    # 3. Test metrics with custom metadata
-    @dlt.resource
-    def data_with_priority():
-        yield DataItemWithMeta(meta={"priority": "high"}, data={"id": 1})
-        yield DataItemWithMeta(meta={"priority": "high"}, data={"id": 2})
-        yield DataItemWithMeta(meta={"priority": "low"}, data={"id": 3})
-        yield DataItemWithMeta(meta={"priority": "low"}, data={"id": 4})
-        yield DataItemWithMeta(meta={"priority": "low"}, data={"id": 5})
-
-    def count_by_priority(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
-        if isinstance(meta, dict) and "priority" in meta:
-            priority = meta["priority"]
-            key = f"{priority}_priority_count"
-            metrics[key] = metrics.get(key, 0) + 1
-
-    data_with_priority.add_metrics(count_by_priority)
-
-    source = DltSource(
-        dlt.Schema("metrics"), "module", [some_data, multi_table_data, data_with_priority]
-    )
-    load_id = extract_step.extract(source, 20, 1)
-
-    assert source.resources["some_data"].custom_metrics == {
-        "early_count": 1 if as_single_batch else 6,
-        "late_count": 1 if as_single_batch else 3,
-    }
-    assert source.resources["multi_table_data"].custom_metrics == {
-        "count_users": 2,
-        "count_products": 2,
-    }
-    assert source.resources["data_with_priority"].custom_metrics == {
-        "high_priority_count": 2,
-        "low_priority_count": 3,
-    }
-
-    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
-    all_resource_metrics = step_info.metrics[load_id][0]["resource_metrics"]
-    assert "some_data" in all_resource_metrics
-    assert "multi_table_data" in all_resource_metrics
-    assert "data_with_priority" in all_resource_metrics
-    assert all_resource_metrics["some_data"].custom_metrics == {
-        "early_count": 1 if as_single_batch else 6,
-        "late_count": 1 if as_single_batch else 3,
-    }
-    assert all_resource_metrics["multi_table_data"].custom_metrics == {
-        "count_users": 2,
-        "count_products": 2,
-    }
-    assert all_resource_metrics["data_with_priority"].custom_metrics == {
-        "high_priority_count": 2,
-        "low_priority_count": 3,
-    }
