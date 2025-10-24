@@ -4013,7 +4013,7 @@ def test_signal_graceful_load_step_shutdown(sig: int) -> None:
 
 @skipifwindows
 @pytest.mark.parametrize("start_new_jobs_on_signal", (True, False))
-# @pytest.mark.forked
+@pytest.mark.forked
 def test_signal_graceful_complete_load_step(start_new_jobs_on_signal: bool) -> None:
     # test setup makes sure that only one job at a time is started
     # so we can send the signal after first job is in the pool and expect second one to get completed
@@ -4065,7 +4065,7 @@ def test_signal_graceful_complete_load_step(start_new_jobs_on_signal: bool) -> N
 
 
 @skipifwindows
-# @pytest.mark.forked
+@pytest.mark.forked
 def test_ignore_signals_in_load() -> None:
     os.environ["PIPELINES__SIGNAL_WAITER__RUNTIME__INTERCEPT_SIGNALS"] = "False"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
@@ -4137,7 +4137,6 @@ def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None
 
             # wait until pipeline gets into load step
             while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
-                print(pipeline.collector.step)
                 signals.sleep(0.1)
 
             # send signal to drain pool and stop load
@@ -4174,7 +4173,6 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
     def _thread() -> None:
         # wait until pipeline gets into load step
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
-            print(pipeline.collector.step)
             signals.sleep(0.1)
 
         # send signal to drain pool and stop load
@@ -4222,7 +4220,6 @@ def test_signal_extract_step_shutdown(sig: int) -> None:
     def _thread() -> None:
         # wait until pipeline gets into extract step
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Extract"):
-            print(pipeline.collector.step)
             signals.sleep(0.1)
 
         # extract step does not set signals
