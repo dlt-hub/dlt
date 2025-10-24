@@ -379,6 +379,7 @@ class RunnableLoadJob(LoadJob, ABC):
         self._schema: Schema = None
         self._load_table: PreparedTableSchema = None
         self._load_id: str = None
+        # set by run_managed method
         self._job_client: "JobClientBase" = None
 
     def set_run_vars(self, load_id: str, schema: Schema, load_table: PreparedTableSchema) -> None:
