@@ -6,11 +6,11 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.detailed_run_response import DetailedRunResponse
 from ...models.get_run_response_400 import GetRunResponse400
 from ...models.get_run_response_401 import GetRunResponse401
 from ...models.get_run_response_403 import GetRunResponse403
 from ...models.get_run_response_404 import GetRunResponse404
-from ...models.run_response import RunResponse
 from ...types import UNSET, Response, Unset
 
 
@@ -48,10 +48,16 @@ def _get_kwargs(
 def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Optional[
-    Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+    Union[
+        DetailedRunResponse,
+        GetRunResponse400,
+        GetRunResponse401,
+        GetRunResponse403,
+        GetRunResponse404,
+    ]
 ]:
     if response.status_code == 200:
-        response_200 = RunResponse.from_dict(response.json())
+        response_200 = DetailedRunResponse.from_dict(response.json())
 
         return response_200
 
@@ -84,7 +90,13 @@ def _parse_response(
 def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+    Union[
+        DetailedRunResponse,
+        GetRunResponse400,
+        GetRunResponse401,
+        GetRunResponse403,
+        GetRunResponse404,
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -101,7 +113,13 @@ def sync_detailed(
     client: Union[AuthenticatedClient, Client],
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Response[
-    Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+    Union[
+        DetailedRunResponse,
+        GetRunResponse400,
+        GetRunResponse401,
+        GetRunResponse403,
+        GetRunResponse404,
+    ]
 ]:
     """GetRun
 
@@ -120,7 +138,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]]
+        Response[Union[DetailedRunResponse, GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -143,7 +161,13 @@ def sync(
     client: Union[AuthenticatedClient, Client],
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Optional[
-    Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+    Union[
+        DetailedRunResponse,
+        GetRunResponse400,
+        GetRunResponse401,
+        GetRunResponse403,
+        GetRunResponse404,
+    ]
 ]:
     """GetRun
 
@@ -162,7 +186,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+        Union[DetailedRunResponse, GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404]
     """
 
     return sync_detailed(
@@ -180,7 +204,13 @@ async def asyncio_detailed(
     client: Union[AuthenticatedClient, Client],
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Response[
-    Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+    Union[
+        DetailedRunResponse,
+        GetRunResponse400,
+        GetRunResponse401,
+        GetRunResponse403,
+        GetRunResponse404,
+    ]
 ]:
     """GetRun
 
@@ -199,7 +229,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]]
+        Response[Union[DetailedRunResponse, GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -220,7 +250,13 @@ async def asyncio(
     client: Union[AuthenticatedClient, Client],
     script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Optional[
-    Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+    Union[
+        DetailedRunResponse,
+        GetRunResponse400,
+        GetRunResponse401,
+        GetRunResponse403,
+        GetRunResponse404,
+    ]
 ]:
     """GetRun
 
@@ -239,7 +275,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404, RunResponse]
+        Union[DetailedRunResponse, GetRunResponse400, GetRunResponse401, GetRunResponse403, GetRunResponse404]
     """
 
     return (

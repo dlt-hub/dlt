@@ -12,7 +12,7 @@ from ...types import UNSET, Response
 def _get_kwargs() -> dict[str, Any]:
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/ping",
+        "url": "/v1/ping",
     }
 
     return _kwargs

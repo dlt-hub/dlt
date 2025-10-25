@@ -7,7 +7,7 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.run_response import RunResponse
+    from ..models.detailed_run_response import DetailedRunResponse
 
 
 T = TypeVar("T", bound="ListRunsResponse200")
@@ -17,20 +17,20 @@ T = TypeVar("T", bound="ListRunsResponse200")
 class ListRunsResponse200:
     """
     Attributes:
-        items (Union[Unset, list['RunResponse']]):
+        items (Union[Unset, list['DetailedRunResponse']]):
         limit (Union[Unset, int]): Maximal number of items to send.
         offset (Union[Unset, int]): Offset from the beginning of the query.
         total (Union[Unset, int]): Total number of items.
     """
 
-    items: Union[Unset, list["RunResponse"]] = UNSET
+    items: Union[Unset, list["DetailedRunResponse"]] = UNSET
     limit: Union[Unset, int] = UNSET
     offset: Union[Unset, int] = UNSET
     total: Union[Unset, int] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.run_response import RunResponse
+        from ..models.detailed_run_response import DetailedRunResponse
 
         items: Union[Unset, list[dict[str, Any]]] = UNSET
         if not isinstance(self.items, Unset):
@@ -61,13 +61,13 @@ class ListRunsResponse200:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.run_response import RunResponse
+        from ..models.detailed_run_response import DetailedRunResponse
 
         d = dict(src_dict)
         items = []
         _items = d.pop("items", UNSET)
         for items_item_data in _items or []:
-            items_item = RunResponse.from_dict(items_item_data)
+            items_item = DetailedRunResponse.from_dict(items_item_data)
 
             items.append(items_item)
 

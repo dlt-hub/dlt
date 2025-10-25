@@ -12,7 +12,7 @@ from ...types import UNSET, Response
 def _get_kwargs() -> dict[str, Any]:
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/github/device-flow/code",
+        "url": "/v1/github/device-flow/code",
     }
 
     return _kwargs

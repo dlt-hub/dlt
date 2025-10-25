@@ -19,7 +19,7 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/github/device-flow/token",
+        "url": "/v1/github/device-flow/token",
     }
 
     _kwargs["json"] = body.to_dict()

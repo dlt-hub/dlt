@@ -13,16 +13,24 @@ T = TypeVar("T", bound="CreateProfileRequest")
 class CreateProfileRequest:
     """
     Attributes:
+        config (str): The config.toml of the profile
         name (str): The name of the profile
+        secrets (str): The secrets.toml of the profile
         description (Union[None, Unset, str]): The description of the profile
     """
 
+    config: str
     name: str
+    secrets: str
     description: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        config = self.config
+
         name = self.name
+
+        secrets = self.secrets
 
         description: Union[None, Unset, str]
         if isinstance(self.description, Unset):
@@ -34,7 +42,9 @@ class CreateProfileRequest:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "config": config,
                 "name": name,
+                "secrets": secrets,
             }
         )
         if description is not UNSET:
@@ -45,7 +55,11 @@ class CreateProfileRequest:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+        config = d.pop("config")
+
         name = d.pop("name")
+
+        secrets = d.pop("secrets")
 
         def _parse_description(data: object) -> Union[None, Unset, str]:
             if data is None:
@@ -57,7 +71,9 @@ class CreateProfileRequest:
         description = _parse_description(d.pop("description", UNSET))
 
         create_profile_request = cls(
+            config=config,
             name=name,
+            secrets=secrets,
             description=description,
         )
 
