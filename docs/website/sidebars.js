@@ -520,7 +520,7 @@ const sidebars = {
           type: 'category',
           label: 'Deploy workspace',
           items: [
-            'hub/core-concepts/profiles',
+            'hub/core-concepts/profiles-dlthub',
             'hub/production/pipeline-runner',
           ]
         },
