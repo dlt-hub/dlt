@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import dataclasses
-
+import contextlib
+from threading import BoundedSemaphore
 from types import TracebackType
 from typing import (
     ClassVar,
@@ -381,6 +382,7 @@ class RunnableLoadJob(LoadJob, ABC):
         self._load_id: str = None
         # set by run_managed method
         self._job_client: "JobClientBase" = None
+        self._done_event: BoundedSemaphore = None
 
     def set_run_vars(self, load_id: str, schema: Schema, load_table: PreparedTableSchema) -> None:
         """
@@ -397,16 +399,17 @@ class RunnableLoadJob(LoadJob, ABC):
     def run_managed(
         self,
         job_client: "JobClientBase",
+        done_event: BoundedSemaphore,
+        /,
     ) -> None:
         """
         wrapper around the user implemented run method
         """
-        from dlt.common.runtime import signals
-
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
         self._job_client = job_client
+        self._done_event = done_event
 
         # filepath is now moved to running
         try:
@@ -430,7 +433,9 @@ class RunnableLoadJob(LoadJob, ABC):
             if self._state != "retry":
                 self._finished_at = pendulum.now()
                 # wake up waiting threads
-                signals.wake_all()
+                if self._done_event:
+                    with contextlib.suppress(ValueError):
+                        self._done_event.release()
 
     @abstractmethod
     def run(self) -> None:

@@ -1,5 +1,6 @@
 import contextlib
 from functools import reduce
+from threading import BoundedSemaphore
 from typing import Dict, List, Optional, Tuple, Iterator, Sequence
 from concurrent.futures import Executor
 
@@ -14,7 +15,6 @@ from dlt.common.schema.utils import get_root_table
 from dlt.common.storages.load_storage import (
     LoadPackageInfo,
     ParsedLoadJobFileName,
-    TPackageJobState,
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
@@ -89,6 +89,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._loaded_packages: List[LoadPackageInfo] = []
         self._job_metrics: Dict[str, LoadJobMetrics] = {}
+        # job completed signalling event (start blocking)
+        self._done_event = BoundedSemaphore()
+        self._done_event.acquire()
         self._run_loop_sleep_duration: float = (
             1.0  # amount of time to sleep between querying completed jobs
         )
@@ -244,7 +247,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         )
         with active_job_client as client:
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job.run_managed(active_job_client)
+                job.run_managed(active_job_client, self._done_event)
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
@@ -580,8 +583,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         new_jobs = self.get_new_jobs_info(load_id)
         self.init_jobs_counter(load_id)
         running_jobs = self.initialize_package(load_id, schema, new_jobs)
-        # take new jobs immediately
-        running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
         # loop until all jobs are processed
         pending_exception: Optional[LoadClientJobException] = None
         while True:
@@ -617,11 +618,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             self._step_info_update_metrics(load_id, metrics)
 
             if len(running_jobs) > 0:
-                # this will wake up on os signal or if job thread pool signals
-                sleep(self._run_loop_sleep_duration)
+                # wakes when managed job enters terminal state (in the pool)
+                acquired = self._done_event.acquire(timeout=self._run_loop_sleep_duration)
+                logger.debug(f"Sleep on package: {load_id} acquired: {acquired}")
             else:
                 break
 
+        remaining_jobs = self.load_storage.list_new_jobs(load_id)
         # if a pending exception was discovered during completion of jobs
         # we can raise it now
         if pending_exception:
@@ -630,18 +633,21 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.complete_package(load_id, schema, aborted=True)
             else:
                 self.gather_metrics(load_id, finished=False)
+                logger.warning(
+                    f"Package {load_id} was not fully loaded. Load job pool is successfully drained"
+                    f" but {len(remaining_jobs)} new jobs are left in the package."
+                )
             raise pending_exception
 
         # pool is drained
-        remaining_jobs = self.load_storage.list_new_jobs(load_id)
         if not remaining_jobs:
             # no new jobs, load package done
             self.complete_package(load_id, schema, aborted=False)
         else:
             self.gather_metrics(load_id, finished=False)
             logger.warning(
-                f"Package {load_id} was not completed. Load job pool is successfully drained but "
-                f"{len(remaining_jobs)} new jobs are left in the package."
+                f"Package {load_id} was not fully loaded. Load job pool is successfully drained but"
+                f" {len(remaining_jobs)} new jobs are left in the package."
             )
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:

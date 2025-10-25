@@ -334,7 +334,7 @@ def test_bigquery_job_resuming(client: BigQueryClient, file_storage: FileStorage
 
     # job will be automatically found and resumed
     r_job.set_run_vars(uniq_id(), client.schema, client.prepare_load_table(user_table_name))
-    r_job.run_managed(client)
+    r_job.run_managed(client, None)
     assert r_job.state() == "completed"
     assert r_job._resumed_job  # type: ignore
 

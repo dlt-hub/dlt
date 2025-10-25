@@ -625,6 +625,10 @@ def test_retry_on_new_loop() -> None:
         with pytest.raises(LoadClientJobRetry):
             load.run(pool)
 
+        # NOTE: loader does not guarantee that all jobs will retry 5 times before exception is called
+        # in principle that may happen after one job reaches 5 and all other jobs wait for a retry
+        # as a new job so the pool is drained and loader exits
+
         _assert_metrics(4)
 
         # 2nd retry
@@ -661,6 +665,7 @@ def test_retry_exceptions() -> None:
         # configured to retry 5 times before exception
         assert py_ex.value.max_retry_count == py_ex.value.retry_count == 5
         # we can do it again
+        # NOTE: that we count to 10 here is lucky coincidence see test_retry_on_new_loop
         with pytest.raises(LoadClientJobRetry) as py_ex:
             while True:
                 load.run(pool)

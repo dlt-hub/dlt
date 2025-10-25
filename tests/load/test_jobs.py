@@ -43,7 +43,7 @@ def test_runnable_job_results() -> None:
     assert metrics.finished_at is None
     assert metrics.retry_count == 0
 
-    j.run_managed(MockClient())  # type: ignore
+    j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "completed"
     metrics_2 = j.metrics()
     assert metrics_2.state == "completed"
@@ -56,7 +56,7 @@ def test_runnable_job_results() -> None:
 
     j = RandomExceptionJob(file_path)
     assert j.state() == "ready"
-    j.run_managed(MockClient())  # type: ignore
+    j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "retry"
     assert j.exception() == "Oh no!"
     metrics_3 = j.metrics()
@@ -72,7 +72,7 @@ def test_runnable_job_results() -> None:
 
     j = TerminalJob(file_path)
     assert j.state() == "ready"
-    j.run_managed(MockClient())  # type: ignore
+    j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "failed"
     assert j.exception() == "Oh no!"
     metrics_4 = j.metrics()

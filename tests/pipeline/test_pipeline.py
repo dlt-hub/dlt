@@ -3980,6 +3980,9 @@ def test_pipeline_with_null_executors(monkeypatch) -> None:
 def test_signal_graceful_load_step_shutdown(sig: int) -> None:
     # NOTE: forked tests do not show any console/logs
 
+    # do not create additional job for status. this creates race condition during pool drain
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
     @dlt.destination
     def wait_until_signal(item, schema):
         # exit if signalled
@@ -4249,6 +4252,8 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
             signals.sleep(0.1)
 
+        # wait for load pool to complete at least once
+        signals.sleep(1.5)
         # send signal to drain pool and stop load
         os.kill(os.getpid(), sig)
         signals.sleep(0.5)
