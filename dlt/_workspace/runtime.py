@@ -140,20 +140,14 @@ class RuntimeAuthService:
 
     def _delete_token(self) -> None:
         # delete from global secrets directly, because in other cases config deletion is not supported
-        secrets_path = os.path.join(self.run_context.global_dir, SECRETS_TOML)
-        if not os.path.isfile(secrets_path):
-            return
-        toml = TOMLFile(secrets_path)
-        doc = toml.read()
-
-        # Safely check for structure and remove the key
-        runtime_section = doc.get(WorkspaceRuntimeConfiguration.__section__)
-        if not isinstance(runtime_section, dict):
-            return
-        if "auth_token" not in runtime_section:
-            return
-        runtime_section.pop("auth_token")
-        toml.write(doc)
+        local_toml_config = SecretsTomlProvider(self.workspace_run_context.global_dir)
+        local_toml_config.set_value(
+            "auth_token",
+            "",
+            None,
+            WorkspaceRuntimeConfiguration.__section__,
+        )
+        local_toml_config.write_toml()
 
     def _validate_and_decode_jwt(self, token: Union[str, bytes]) -> AuthInfo:
         if isinstance(token, str):

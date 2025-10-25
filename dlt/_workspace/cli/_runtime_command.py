@@ -61,6 +61,8 @@ def login() -> None:
 
         # start device flow
         login_request = github_oauth_start.sync(client=client)
+        if not isinstance(login_request, github_oauth_start.GithubDeviceFlowStartResponse):
+            raise RuntimeError("Failed to log in with Github OAuth")
         fmt.echo(
             "Please go to %s and enter the code %s"
             % (fmt.bold(login_request.verification_uri), fmt.bold(login_request.user_code))
