@@ -288,7 +288,8 @@ class Relation(WithSqlClient):
         if self._table_name:
             ibis_table = backend.table(self._table_name)
         else:
-            ibis_table = backend.sql(self.to_sql())
+            # pass raw query before any identifiers are expanded, quoted or normalized
+            ibis_table = backend.sql(self.sqlglot_expression.sql())
 
         return ibis_table
 
