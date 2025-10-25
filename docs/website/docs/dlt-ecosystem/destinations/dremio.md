@@ -12,6 +12,8 @@ keywords: [dremio, iceberg, aws, glue catalog]
 pip install "dlt[dremio,s3]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES dremio-->
+
 ## Setup guide
 ### 1. Initialize the dlt project
 

@@ -1,9 +1,14 @@
 import contextlib
+from http import HTTPStatus
+import http.server
 import multiprocessing
 import os
 import platform
+import threading
 import sys
+from functools import partial
 from os import environ
+from pathlib import Path
 from typing import Any, Iterable, Iterator, Literal, Optional, Union, get_args, List
 from unittest.mock import patch
 
@@ -35,7 +40,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import StrAny, TDataItem
+from dlt.common.typing import StrAny, TDataItem, PathLike
 from dlt.common.utils import set_working_dir
 
 TEST_STORAGE_ROOT = "_storage"
@@ -139,6 +144,19 @@ def TEST_DICT_CONFIG_PROVIDER():
         return provider
 
 
+class PublicCDNHandler(http.server.SimpleHTTPRequestHandler):
+    @classmethod
+    def factory(cls, *args, directory: Path) -> "PublicCDNHandler":
+        return cls(*args, directory=directory)
+
+    def __init__(self, *args, directory: Optional[Path] = None):
+        super().__init__(*args, directory=str(directory) if directory else None)
+
+    def list_directory(self, path: Union[str, PathLike]) -> None:
+        self.send_error(HTTPStatus.FORBIDDEN, "Directory listing is forbidden")
+        return None
+
+
 class MockHttpResponse(Response):
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code
@@ -202,6 +220,29 @@ def preserve_module_environ() -> Iterator[None]:
 @pytest.fixture(autouse=True, scope="module")
 def auto_module_test_run_context(auto_module_test_storage) -> Iterator[None]:
     yield from create_test_run_context()
+
+
+@pytest.fixture
+def public_http_server():
+    """
+    A simple HTTP server serving files from the current directory.
+    Used to simulate public CDN. It allows only file access, directory listing is forbidden.
+    """
+    httpd = http.server.ThreadingHTTPServer(
+        ("localhost", 8189),
+        partial(
+            PublicCDNHandler.factory, directory=Path.cwd().joinpath("tests/common/storages/samples")
+        ),
+    )
+    server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    server_thread.start()
+    try:
+        yield httpd
+    finally:
+        # always close
+        httpd.shutdown()
+        server_thread.join()
+        httpd.server_close()
 
 
 def create_test_run_context() -> Iterator[None]:

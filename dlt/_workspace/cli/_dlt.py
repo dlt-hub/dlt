@@ -1,6 +1,6 @@
+import sys
 from typing import Any, Sequence, Type, cast, List, Dict, Tuple
 import argparse
-import click
 import rich_argparse
 from rich.markdown import Markdown
 
@@ -134,6 +134,15 @@ def _create_parser() -> Tuple[argparse.ArgumentParser, Dict[str, SupportsCliComm
             " clear enough."
         ),
     )
+    parser.add_argument(
+        "--no-pwd",
+        default=False,
+        action="store_true",
+        help=(
+            "Do not add current working directory to sys.path. By default $pwd is added to "
+            "reproduce Python behavior when running scripts."
+        ),
+    )
     subparsers = parser.add_subparsers(title="Available subcommands", dest="command")
 
     # load plugins
@@ -190,6 +199,9 @@ def main() -> int:
             # switch to non-interactive if tty not connected
             with maybe_no_stdin():
                 display_run_context_info()
+                if not args.no_pwd:
+                    if "" not in sys.path:
+                        sys.path.insert(0, "")
                 cmd.execute(args)
         except Exception as ex:
             docs_url = cmd.docs_url if hasattr(cmd, "docs_url") else DEFAULT_DOCS_URL
@@ -204,7 +216,7 @@ def main() -> int:
 
             # print exception if available
             if raiseable_exception:
-                click.secho(str(ex), err=True, fg="red")
+                fmt.secho(str(ex), err=True, fg="red")
 
             fmt.note("Please refer to our docs at '%s' for further assistance." % docs_url)
             if _debug.is_debug_enabled() and raiseable_exception:
