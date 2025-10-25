@@ -1066,6 +1066,32 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+
+    # take the same data using dlt backend
+    joined_table = joined_table.order_by("id")
+    joined_table.head(10).to_pandas()
+    arr_1 = joined_table.head(10).to_pyarrow()
+
+    # create relation from query and convert it to ibis
+    joined_table_from_relation = relation.order_by("id", "asc").to_ibis()
+    # print(joined_table_from_relation)
+    joined_table_from_relation.head(10).to_pandas()
+    arr_2 = joined_table_from_relation.head(10).to_pyarrow()
+    assert arr_1 == arr_2
+    # NOTE: identical column names both from snowflake, clickhouse and other destinations
+    assert arr_1.to_pylist() == [
+        {"id": 0, "double_id": 0},
+        {"id": 1, "double_id": 2},
+        {"id": 2, "double_id": 4},
+        {"id": 3, "double_id": 6},
+        {"id": 4, "double_id": 8},
+        {"id": 5, "double_id": 10},
+        {"id": 6, "double_id": 12},
+        {"id": 7, "double_id": 14},
+        {"id": 8, "double_id": 16},
+        {"id": 9, "double_id": 18},
+    ]
+
     # verify computed columns
     assert relation.columns == relation._ipython_key_completions_() == ["id", "double_id"]
 
