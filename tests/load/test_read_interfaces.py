@@ -1073,7 +1073,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     arr_1 = joined_table.head(10).to_pyarrow()
 
     # create relation from query and convert it to ibis
-    joined_table_from_relation = relation.order_by("id", "asc").to_ibis()
+    # NOTE: mssql / synapse dialect can't deal with double order by (.order_by("id", "asc"))
+    # but ibis expressions can (see above order_by("id"))
+    joined_table_from_relation = relation.to_ibis()
     # print(joined_table_from_relation)
     joined_table_from_relation.head(10).to_pandas()
     arr_2 = joined_table_from_relation.head(10).to_pyarrow()

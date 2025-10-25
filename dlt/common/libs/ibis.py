@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Generator, Mapping, Optional, Union
 
 import dlt
 from dlt.common.destination.dataset import SupportsDataAccess
-from dlt.helpers.ibis import DATA_TYPE_MAP, create_ibis_backend
+from dlt.helpers.ibis import DATA_TYPE_MAP, create_ibis_backend, _get_ibis_to_sqlglot_compiler
 from dlt.common.schema import Schema as DltSchema
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.schema.typing import TDataType, TTableSchema
@@ -85,7 +85,6 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     name: str = "dlt"
     supports_temporary_tables = False
     supports_python_udfs = False
-    compiler = sc.duckdb.compiler
 
     @classmethod
     def from_dataset(cls, dataset: dlt.Dataset) -> _DltBackend:
@@ -97,6 +96,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
         # sync with destination should be made through the dataset.
         new_backend = cls()
         new_backend._dataset = dataset
+        new_backend.compiler = _get_ibis_to_sqlglot_compiler(dataset.destination_dialect)
         return new_backend
 
     def to_native_ibis(self, *, read_only: bool = False) -> BaseBackend:
@@ -123,6 +123,7 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
             dataset_name=dataset_name,
             schema=schema,
         )
+        self.compiler = _get_ibis_to_sqlglot_compiler(self._dataset.destination_dialect)
 
     def disconnect(self) -> None:
         # no need to disconnect, no connections are persisted
