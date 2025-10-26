@@ -535,7 +535,6 @@ const sidebars = {
           label: 'Maintain data workflows',
           items: [
             'hub/production/observability',
-            'hub/production/prefect-integration',
           ]
         },
       ]
