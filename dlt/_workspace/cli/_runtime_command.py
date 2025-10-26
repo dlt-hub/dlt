@@ -54,7 +54,7 @@ def login() -> None:
     try:
         auth_info = auth_service.authenticate()
         fmt.echo("Already logged in as %s" % fmt.bold(auth_info.email))
-        authorize(auth_service=auth_service)
+        connect(auth_service=auth_service)
     except RuntimeNotAuthenticated:
         fmt.echo("Logging in with Github OAuth")
         client = get_auth_client()
@@ -80,7 +80,7 @@ def login() -> None:
             if isinstance(token_response, github_oauth_complete.LoginResponse):
                 auth_info = auth_service.login(token_response.jwt)
                 fmt.echo("Logged in as %s" % fmt.bold(auth_info.email))
-                authorize(auth_service=auth_service)
+                connect(auth_service=auth_service)
                 break
             elif isinstance(token_response, github_oauth_complete.GithubOauthCompleteResponse400):
                 raise RuntimeError("Failed to complete authentication with Github")
@@ -92,13 +92,13 @@ def logout() -> None:
     fmt.echo("Logged out")
 
 
-def authorize(auth_service: Optional[RuntimeAuthService] = None) -> None:
+def connect(auth_service: Optional[RuntimeAuthService] = None) -> None:
     if auth_service is None:
         auth_service = RuntimeAuthService(run_context=active())
         auth_service.authenticate()
 
     try:
-        auth_service.authorize()
+        auth_service.connect()
     except LocalWorkspaceIdNotSet:
         should_overwrite = fmt.confirm(
             "No workspace id found in local config. Do you want to connect local workspace to the"

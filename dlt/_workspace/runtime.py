@@ -1,13 +1,11 @@
 import os
-from typing import Optional
-
+from typing import Optional, Union
 from dataclasses import dataclass
-import jwt
-from git import Union
-from tomlkit.toml_file import TOMLFile
 
-from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
+from jose.exceptions import JOSEError
+import jose.jwt as jose_jwt
+
+from dlt._workspace._workspace_context import WorkspaceRunContext, active
 from dlt._workspace.exceptions import (
     LocalWorkspaceIdNotSet,
     RuntimeNotAuthenticated,
@@ -21,13 +19,11 @@ from dlt._workspace.runtime_clients.api.models.me_response import MeResponse
 from dlt._workspace.runtime_clients.auth.client import Client as AuthClient
 from dlt._workspace.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.providers.toml import (
-    SECRETS_TOML,
     ConfigTomlProvider,
     SecretsTomlProvider,
 )
-from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
-from dlt.common.runtime.run_context import active
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 
 
 @dataclass
@@ -84,7 +80,7 @@ class RuntimeAuthService:
         self._delete_token()
         self._remote_workspace_id = None
 
-    def authorize(self) -> str:
+    def connect(self) -> str:
         # Currently, ensuring workspace id is the same as default workspace id of the user
         if not self._remote_workspace_id:
             client = get_api_client(self)
@@ -95,8 +91,7 @@ class RuntimeAuthService:
             else:
                 raise RuntimeError("Failed to get me response")
 
-        config = resolve_configuration(WorkspaceRuntimeConfiguration())
-        self._local_workspace_id = config.workspace_id
+        self._local_workspace_id = self.workspace_run_context.runtime_config.workspace_id
 
         if not self._local_workspace_id:
             raise LocalWorkspaceIdNotSet(self._remote_workspace_id)
@@ -111,13 +106,13 @@ class RuntimeAuthService:
             "workspace_id",
             str(self._remote_workspace_id),
             None,
-            WorkspaceRuntimeConfiguration.__section__,
+            RuntimeConfiguration.__section__,
         )
         local_toml_config.write_toml()
         self._local_workspace_id = self._remote_workspace_id
 
     def _read_token(self) -> AuthInfo:
-        config = resolve_configuration(WorkspaceRuntimeConfiguration())
+        config = self.workspace_run_context.runtime_config
         if not config.auth_token:
             raise RuntimeNotAuthenticated("No token found")
         self.auth_info = self._validate_and_decode_jwt(config.auth_token)
@@ -125,11 +120,7 @@ class RuntimeAuthService:
 
     def _save_token(self, token: str) -> AuthInfo:
         self.auth_info = self._validate_and_decode_jwt(token)
-        value = [
-            WritableConfigValue(
-                "auth_token", str, token, (WorkspaceRuntimeConfiguration.__section__,)
-            )
-        ]
+        value = [WritableConfigValue("auth_token", str, token, (RuntimeConfiguration.__section__,))]
         # write global secrets
         global_path = self.run_context.global_dir
         os.makedirs(global_path, exist_ok=True)
@@ -145,7 +136,7 @@ class RuntimeAuthService:
             "auth_token",
             "",
             None,
-            WorkspaceRuntimeConfiguration.__section__,
+            RuntimeConfiguration.__section__,
         )
         local_toml_config.write_toml()
 
@@ -153,8 +144,8 @@ class RuntimeAuthService:
         if isinstance(token, str):
             token = token.encode("utf-8")
         try:
-            payload = jwt.decode(token, options={"verify_signature": False})
-        except jwt.PyJWTError as e:
+            payload = jose_jwt.decode(token, key="", options={"verify_signature": False})
+        except JOSEError as e:
             raise RuntimeNotAuthenticated("Failed to decode JWT") from e
 
         try:
@@ -168,18 +159,16 @@ class RuntimeAuthService:
 
 
 def get_auth_client() -> AuthClient:
-    config = resolve_configuration(WorkspaceRuntimeConfiguration())
-    return AuthClient(base_url=config.auth_base_url, verify_ssl=False)
+    return AuthClient(base_url=active().runtime_config.auth_base_url, verify_ssl=False)
 
 
 def get_api_client(auth_service: Optional["RuntimeAuthService"] = None) -> ApiClient:
-    config = resolve_configuration(WorkspaceRuntimeConfiguration())
     if auth_service is None:
         auth_service = RuntimeAuthService(run_context=active())
         auth_service.authenticate()
 
     return ApiClient(
-        base_url=config.api_base_url,
+        base_url=active().runtime_config.api_base_url,
         verify_ssl=False,
         headers={"Authorization": f"Bearer {auth_service.auth_info.jwt_token}"},
     )

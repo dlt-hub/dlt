@@ -1,5 +1,4 @@
-from typing import ClassVar, Sequence
-from git import Optional
+from typing import ClassVar, Sequence, Optional
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
@@ -23,10 +22,10 @@ class WorkspaceSettings(BaseConfiguration):
 class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Extends runtime configuration with dlthub runtime"""
 
-    __section__: ClassVar[str] = "workspace_runtime"
-
     workspace_id: Optional[str] = None
+    """Id of the remote workspace that local one should be connected to"""
     auth_token: Optional[TSecretStrValue] = None
+    """JWT token for Runtime API"""
     auth_base_url: Optional[str] = "http://127.0.0.1:30001"
     """Base URL for the dltHub Runtime authentication API"""
     api_base_url: Optional[str] = "http://127.0.0.1:30000"

@@ -2,16 +2,14 @@ import datetime
 from contextlib import contextmanager
 import os
 import uuid
-from typing import Any
+from typing import Any, Optional
 
-from git import Optional
-import jwt as pyjwt
+from jose import jwt
 import pytest
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
-from dlt._workspace._workspace_context import active as ws_active
-from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
+from dlt._workspace._workspace_context import WorkspaceRunContext, active as ws_active
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
 from dlt._workspace.runtime_clients.api.models.organization_response import (
@@ -28,6 +26,7 @@ from dlt._workspace.runtime_clients.auth.models.github_device_flow_start_respons
 )
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt._workspace.cli import _debug
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +41,7 @@ def reload_config_providers():
 def make_valid_jwt(email: str = "user@example.com", user_id: Optional[str] = None) -> str:
     payload = {"email": email, "user_id": user_id or str(uuid.uuid4())}
     # signature will not be verified (verify_signature=False in runtime)
-    return pyjwt.encode(payload, "secret", algorithm="HS256")
+    return jwt.encode(payload, "secret", algorithm="HS256")
 
 
 def build_me_response(default_workspace_id: uuid.UUID) -> Any:
@@ -73,14 +72,14 @@ def build_me_response(default_workspace_id: uuid.UUID) -> Any:
 def get_token_from_secrets() -> Optional[str]:
     ctx = ws_active()
     secrets = SecretsTomlProvider(settings_dir=ctx.global_dir)
-    token, _ = secrets.get_value("auth_token", str, None, WorkspaceRuntimeConfiguration.__section__)
+    token, _ = secrets.get_value("auth_token", str, None, RuntimeConfiguration.__section__)
     return token
 
 
 def get_workspace_id_from_config() -> Optional[str]:
     ctx = ws_active()
     cfg = ConfigTomlProvider(settings_dir=ctx.settings_dir)
-    ws_id, _ = cfg.get_value("workspace_id", str, None, WorkspaceRuntimeConfiguration.__section__)
+    ws_id, _ = cfg.get_value("workspace_id", str, None, RuntimeConfiguration.__section__)
     return ws_id
 
 
@@ -93,7 +92,7 @@ def set_workspace_id_in_config(value: str) -> None:
         with open(config_file, "w", encoding="utf-8") as f:
             f.write("")
     cfg = ConfigTomlProvider(settings_dir=ctx.settings_dir)
-    cfg.set_value("workspace_id", value, None, WorkspaceRuntimeConfiguration.__section__)
+    cfg.set_value("workspace_id", value, None, RuntimeConfiguration.__section__)
     cfg.write_toml()
 
 
@@ -106,7 +105,7 @@ def set_token_in_secrets(value: str) -> None:
         with open(secrets_file, "w", encoding="utf-8") as f:
             f.write("")
     secrets = SecretsTomlProvider(settings_dir=ctx.global_dir)
-    secrets.set_value("auth_token", value, None, WorkspaceRuntimeConfiguration.__section__)
+    secrets.set_value("auth_token", value, None, RuntimeConfiguration.__section__)
     secrets.write_toml()
 
 
@@ -293,7 +292,8 @@ def test_runtime_logout_deletes_token_but_keeps_workspace_id(script_runner: Scri
 
     # now logout
     result = script_runner.run(["dlt", "runtime", "logout"])
+    reload_config_providers()
     assert result.returncode == 0
-    assert get_token_from_secrets() is None
+    assert get_token_from_secrets() == ""
     # workspace_id remains
     assert get_workspace_id_from_config() == str(workspace_id)
