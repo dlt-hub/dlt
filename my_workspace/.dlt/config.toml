@@ -6,4 +6,4 @@ log_level="WARNING"  # the system log level of dlt
 dlthub_telemetry = true
 
 [workspace_runtime]
-workspace_id = "67080a7e-4854-4ea5-b99a-d312750ee31f"
+workspace_id = "89ccc9b4-3cef-4295-a7e6-a9280332078f"
