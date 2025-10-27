@@ -29,6 +29,7 @@
     "@docusaurus/faster": "^3.8.1",
     "@docusaurus/preset-classic": "^3.7.0",
     "@docusaurus/theme-common": "^3.7.0",
+    "@docusaurus/theme-mermaid": "^3.8.1",
     "@mdx-js/react": "^3.1.0",
     "@microlabs/otel-cf-workers": "1.0.0-rc.49",
     "clsx": "^1.2.1",
