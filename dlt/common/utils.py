@@ -132,11 +132,11 @@ def digest256_file_stream(stream: BinaryIO, chunk_size: int = 4096) -> str:
 
 
 def digest256_tar_stream(stream: BinaryIO, chunk_size: int = 8192) -> str:
-    """Returns a base64 encoded sha3_256 hash of tar archive contents (ignoring metadata)
+    """Returns a base64 encoded sha3_256 hash of tar archive contents.
 
     Hashes only filenames and file contents, ignoring timestamps and other metadata.
-    This ensures identical file contents produce identical hashes regardless of when
-    the tar was created.
+    Members are sorted by name before hashing, so tar member order doesn't affect
+    the hash.
 
     Note: This function operates entirely in-memory using tar.extractfile() which reads
     from the archive stream. No files are written to disk, preventing leakage of sensitive
