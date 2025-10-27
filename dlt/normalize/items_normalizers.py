@@ -17,7 +17,6 @@ from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.json.helpers import get_root_row_id_type
 from dlt.common.runtime import signals
-from dlt.common.schema import utils
 from dlt.common.schema.typing import (
     C_DLT_ID,
     C_DLT_LOAD_ID,
@@ -32,6 +31,18 @@ from dlt.common.schema.utils import (
     dlt_load_id_column,
     has_table_seen_data,
     normalize_table_identifiers,
+    new_table,
+    is_nested_table,
+    autodetect_sc_type,
+    merge_column,
+    is_complete_column,
+    is_nullable_column,
+    hint_to_column_prop,
+    has_seen_null_first_hint,
+    remove_seen_null_first_hint,
+    has_default_column_prop_value,
+    get_nested_tables,
+    merge_schema_updates,
 )
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
 from dlt.common.time import normalize_timezone
@@ -468,6 +479,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                                 else parent_table or table_name
                             ),  # parent_table, if present, exists in the schema
                         )
+
                         partial_table, filters = schema.apply_schema_contract(
                             schema_contract, partial_table, data_item=row
                         )
@@ -519,7 +531,47 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 pass
             # kill job if signalled
             signals.raise_if_signalled()
+
+        # self._clean_seen_null_first_hint(schema_update)
+
         return schema_update
+
+    def _clean_seen_null_first_hint(self, schema_update: TSchemaUpdate) -> None:
+        """
+        Performs schema and schema update cleanup related to `seen-null-first` hints.
+
+        1. Removes `seen-null-first` hints from columns that now have resolved data types.
+        2. Removes entire columns with `seen-null-first` hints from parent tables
+        when those columns have been converted to nested tables.
+
+        NOTE: The `seen-null-first` hint is used during schema inference to track columns
+        that were first encountered with null values. Once a column gets a proper
+        data type (from subsequent non-null values), the hint is no longer needed.
+        In cases where subsequent non-null values create a nested table, the entire
+        column with the `seen-null-first` hint in parent table becomes obsolete.
+
+        Args:
+            schema_update (TSchemaUpdate): Dictionary mapping table names to their table updates.
+        """
+        schema_update_copy = schema_update.copy()
+        for table_name, table_updates in schema_update_copy.items():
+            last_ident_path = self._full_ident_path_tracker.get(table_name)[-1]
+
+            for table_update in table_updates:
+                # Remove the entire column with hint from parent table if it was created as a nested table
+                if is_nested_table(table_update):
+                    parent_name = table_update.get("parent")
+                    parent_col_schemas = self.schema.get_table_columns(
+                        parent_name, include_incomplete=True
+                    )
+                    parent_col_schema = parent_col_schemas.get(last_ident_path)
+
+                    if parent_col_schema and has_seen_null_first_hint(parent_col_schema):
+                        parent_col_schemas.pop(last_ident_path)
+                        parent_updates = schema_update.get(parent_name, [])
+                        for j, parent_update in enumerate(parent_updates):
+                            if last_ident_path in parent_update["columns"]:
+                                schema_update[parent_name][j]["columns"].pop(last_ident_path)
 
     def _coerce_row(
         self, table_name: str, parent_table: str, row: StrAny
@@ -539,7 +591,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         table = self.schema._schema_tables.get(table_name)
         if not table:
             # print("NEW TABLE", table_name)
-            table = utils.new_table(table_name, parent_table)
+            table = new_table(table_name, parent_table)
         table_columns = table["columns"]
 
         new_row: DictStrAny = {}
@@ -591,10 +643,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             # already processed
             if hint == "not_null":
                 continue
-            column_prop = utils.hint_to_column_prop(hint)
+            column_prop = hint_to_column_prop(hint)
             hint_value = self.schema._infer_hint(hint, k)
             # set only non-default values
-            if not utils.has_default_column_prop_value(column_prop, hint_value):
+            if not has_default_column_prop_value(column_prop, hint_value):
                 column_schema[column_prop] = hint_value
 
         if is_variant:
@@ -626,14 +678,21 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     ) -> Optional[TColumnSchema]:
         """Raises when column is explicitly not nullable or creates unbounded column"""
         existing_column = table_columns.get(col_name)
-        # If it exists as a direct child table, don't infer
+        # If it exists as a direct child table or compound column(s) in the schema, don't infer
         if not existing_column:
             # Use cached table existence check to avoid expensive repeated lookups
             full_ident_path = self._full_ident_path_tracker.get(table_name)
             if full_ident_path and self._check_table_exists(full_ident_path, col_name):
                 return None
-        if existing_column and utils.is_complete_column(existing_column):
-            if not utils.is_nullable_column(existing_column):
+            # TODO: use column ident paths (also in Normalize.clean_x_normalizer),
+            # path separator is not reliable with shortened names
+            if any(
+                col.startswith(col_name + self.schema.naming.PATH_SEPARATOR)
+                for col in table_columns
+            ):
+                return None
+        if existing_column and is_complete_column(existing_column):
+            if not is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.schema.name, table_name, col_name)
         else:
             # generate unbounded column only if it does not exist or it does not
@@ -658,7 +717,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         new_column: TColumnSchema = None
         existing_column = table_columns.get(col_name)
         # if column exist but is incomplete then keep it as new column
-        if existing_column and not utils.is_complete_column(existing_column):
+        if existing_column and not is_complete_column(existing_column):
             new_column = existing_column
             existing_column = None
 
@@ -724,7 +783,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             # if there's incomplete new_column then merge it with inferred column
             if new_column:
                 # use all values present in incomplete column to override inferred column - also the defaults
-                new_column = utils.merge_column(inferred_column, new_column)
+                new_column = merge_column(inferred_column, new_column)
             else:
                 new_column = inferred_column
 
@@ -738,7 +797,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     def _infer_column_type(self, v: Any, col_name: str, skip_preferred: bool = False) -> TDataType:
         tv = type(v)
         # try to autodetect data type
-        mapped_type = utils.autodetect_sc_type(self.schema._type_detections, tv, v)
+        mapped_type = autodetect_sc_type(self.schema._type_detections, tv, v)
         # if not try standard type mapping
         if mapped_type is None:
             mapped_type = py_type_to_sc_type(tv)

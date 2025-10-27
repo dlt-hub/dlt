@@ -1,3 +1,4 @@
+from typing import List, Any, Dict
 import dlt, os
 import pytest
 
@@ -246,3 +247,150 @@ def test_import_schema_preserves_max_nesting(table_nesting: int) -> None:
         assert "my_table__children" not in p.default_schema.tables
     else:
         assert "my_table__children" in p.default_schema.tables
+
+
+def test_empty_column_later_becoming_child_table_removed() -> None:
+    """
+    Test that columns with `seen-null-first` hints are properly removed
+    from the export schema when they become nested tables.
+    """
+    name = "schema_test" + uniq_id()
+    p = dlt.pipeline(
+        pipeline_name=name,
+        destination=dummy(completed_prob=1),
+        export_schema_path=EXPORT_SCHEMA_PATH,
+    )
+
+    # Create column names that exceed max identifier length
+    # to ensure that shortened names of nested tables are internally still correctly
+    # tracked back to column names in the respective parent tables
+    col_a, col_b = (ch * (p.destination.capabilities().max_identifier_length + 1) for ch in "ab")
+
+    @dlt.resource(table_name="my_table")
+    def nested_data(with_grandchild: bool):
+        nested_example_data = EXAMPLE_DATA[0]
+        children_list: List[Dict[str, Any]] = [{"id": 2, "name": "Max"}]
+        nested_example_data[col_a] = children_list
+        if with_grandchild:
+            children_list[0][col_b] = [{"id": 3, "name": "Maximilian"}]
+        else:
+            children_list[0][col_b] = None
+        yield nested_example_data
+
+    # 1. Column 'b' is null, should get 'seen-null-first' hint
+    p.run(nested_data(with_grandchild=False))
+
+    # Calculate expected table and column names
+    norm_col_a, norm_col_b = (
+        p.default_schema.naming.shorten_fragments(col) for col in [col_a, col_b]
+    )
+
+    nested_tbl = p.default_schema.naming.shorten_fragments("my_table", f"{norm_col_a}")
+    nested_nested_tbl = p.default_schema.naming.shorten_fragments(
+        "my_table", f"{norm_col_a}", f"{norm_col_b}"
+    )
+
+    # Column 'b' should exist with 'seen-null-first' hint in the table nested_tbl_name
+    export_schema = _get_export_schema(name)
+    assert set(export_schema.tables[nested_tbl]["columns"].keys()) == {
+        "_dlt_list_idx",
+        "_dlt_parent_id",
+        "id",
+        "_dlt_id",
+        "name",
+        norm_col_b,
+    }
+    assert (
+        export_schema.tables[nested_tbl]["columns"]
+        .get(norm_col_b)["x-normalizer"]
+        .get("seen-null-first", False)
+    )
+
+    # 2. Column 'b' gets complex data, should create new nested table
+    p.run(nested_data(with_grandchild=True))
+
+    # Column 'b' should be removed from the parent table nested_tbl_name
+    # because it now has its own nested table nested_nested_tbl_name
+    export_schema = _get_export_schema(name)
+    assert set(export_schema.tables[nested_tbl]["columns"].keys()) == {
+        "_dlt_list_idx",
+        "_dlt_parent_id",
+        "id",
+        "_dlt_id",
+        "name",
+    }
+    assert nested_tbl in export_schema.tables
+    assert nested_nested_tbl in export_schema.tables
+    assert nested_tbl in p.default_schema.tables
+    assert nested_nested_tbl in p.default_schema.tables
+
+
+@pytest.mark.parametrize(
+    "use_long_col_name",
+    [True, False],
+    ids=["long_col_names", "short_col_names"],
+)
+def test_empty_column_later_becoming_compound_columns_removed(use_long_col_name: bool) -> None:
+    """
+    Test that columns with `seen-null-first` hints are properly removed
+    from the export schema when they become compound column(s) in the same table.
+    """
+    name = "schema_test" + uniq_id()
+    p = dlt.pipeline(
+        pipeline_name=name,
+        destination=dummy(completed_prob=1),
+        export_schema_path=EXPORT_SCHEMA_PATH,
+    )
+
+    col_a = (
+        "a" * (p.destination.capabilities().max_identifier_length + 1) if use_long_col_name else "a"
+    )
+
+    # 1. Column 'a' is null, should get 'seen-null-first' hint
+    p.run([{"id": 1, col_a: None}], table_name="my_table")
+
+    # Calculate column name
+    norm_col_a = p.default_schema.naming.shorten_fragments(col_a)
+
+    # Column 'a' should exist with 'seen-null-first' hint in the table
+    export_schema = _get_export_schema(name)
+    assert set(export_schema.tables["my_table"]["columns"].keys()) == {
+        "id",
+        norm_col_a,
+        "_dlt_id",
+        "_dlt_load_id",
+    }
+    assert (
+        export_schema.tables["my_table"]["columns"]
+        .get(norm_col_a)["x-normalizer"]
+        .get("seen-null-first", False)
+    )
+
+    # 2. Column 'a' gets complex data, should create compound columns
+    p.run([{"id": 1, col_a: {"col1": 1, "col2": "hey"}}], table_name="my_table")
+
+    # Column 'a' should be removed from the table
+    # because the values were normalized to compound columns
+    export_schema = _get_export_schema(name)
+    if not use_long_col_name:
+        assert set(export_schema.tables["my_table"]["columns"].keys()) == {
+            "id",
+            "_dlt_id",
+            "_dlt_load_id",
+            "a__col1",
+            "a__col2",
+        }
+    else:
+        # TODO: Currently we don't properly remove columns with `seen-null-first` hint
+        # when they become compound column(s) in the same table if they have very long names
+        # because we're merely using the naming convention's path separator
+        # to detect whether a column is a compund column.
+        # See Normalize.clean_x_normalizer and JsonLItemsNormalizer._coerce_null_value
+        assert set(export_schema.tables["my_table"]["columns"].keys()) == {
+            "id",
+            "_dlt_id",
+            "_dlt_load_id",
+            norm_col_a,
+            p.default_schema.naming.shorten_fragments(norm_col_a, "col1"),
+            p.default_schema.naming.shorten_fragments(norm_col_a, "col2"),
+        }
