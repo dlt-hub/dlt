@@ -23,7 +23,28 @@ For the most common cases we provide `readers` source that does the above in a s
 
 ## Quick example
 
-In two steps:
+Let's see how to load a parquet file from a public website. The following example downloads a single file of yellow taxi trip records from the [NYC Taxi & Limousine Commission](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) website and loads it into DuckDB.
+
+```py
+import datetime as dt
+
+import dlt
+from dlt.sources.filesystem import filesystem, read_parquet
+
+filesystem_resource = filesystem(
+  bucket_url="https://d37ci6vzurychx.cloudfront.net/trip-data",
+  file_glob=f"yellow_tripdata_{(dt.datetime.now() - dt.timedelta(days=90)).strftime('%Y-%m')}.parquet",
+)
+filesystem_pipe = filesystem_resource | read_parquet()
+
+# We load the data into the table_name table
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+load_info = pipeline.run(filesystem_pipe.with_name("yellow_tripdata"))
+print(load_info)
+print(pipeline.last_trace.last_normalize_info)
+```
+
+This section illustrates how to perform an efficient incremental load of Parquet files from a remote source, specifically an S3 bucket.
 
 ```py
 import dlt

@@ -485,15 +485,15 @@ const sidebars = {
       label: 'Workspace',
        link: {
          type: 'doc',
-         id: 'hub/workspace/intro',
+         id: 'hub/workspace/overview',
        },
       items: [
-         'hub/workspace/intro',
+         'hub/workspace/overview',
         {
           type: 'category',
           label: 'Create pipeline',
           items: [
-          // 'hub/workspace/init-and-verified-sources',
+          'hub/workspace/init',
           'hub/ecosystem/ms-sql',
           ]
         },
@@ -520,7 +520,7 @@ const sidebars = {
           type: 'category',
           label: 'Deploy workspace',
           items: [
-            'hub/core-concepts/profiles',
+            'hub/core-concepts/profiles-dlthub',
             'hub/production/pipeline-runner',
           ]
         },
@@ -535,7 +535,6 @@ const sidebars = {
           label: 'Maintain data workflows',
           items: [
             'hub/production/observability',
-            'hub/production/prefect-integration',
           ]
         },
       ]
