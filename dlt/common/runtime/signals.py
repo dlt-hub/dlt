@@ -20,7 +20,7 @@ _original_handlers: Dict[int, Union[int, Callable[[int, Optional[FrameType]], An
 def _signal_receiver(sig: int, frame: FrameType) -> None:
     """Handle POSIX signals with two-stage escalation.
 
-    This handler is installed by delayed_signals(). On the first occurrence of a
+    This handler is installed by intercepted_signals(). On the first occurrence of a
     supported signal (eg. SIGINT, SIGTERM) it requests a graceful shutdown by
     setting a process-wide flag and waking sleeping threads via exit_event.
     A second occurrence of the same signal escalates by delegating to the
@@ -108,9 +108,9 @@ def wake_all() -> None:
 
 
 @contextmanager
-def delayed_signals() -> Iterator[None]:
-    """Will delay signalling until `raise_if_signalled` is explicitly used or when
-    a second signal with the same int value arrives.
+def intercepted_signals() -> Iterator[None]:
+    """Will intercept SIGINT and SIGTERM and will delay calling signal handlers until
+    `raise_if_signalled` is explicitly used or when a second signal with the same int value arrives.
 
     A no-op when not called on main thread.
 

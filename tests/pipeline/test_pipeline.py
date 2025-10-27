@@ -4208,8 +4208,8 @@ def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None
         assert_load_info(load_info)
 
     # we can nest those freely
-    with signals.delayed_signals():
-        with signals.delayed_signals():
+    with signals.intercepted_signals():
+        with signals.intercepted_signals():
             p = threading.Thread(target=_thread)
             p.start()
 

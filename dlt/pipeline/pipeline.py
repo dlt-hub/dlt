@@ -532,7 +532,7 @@ class Pipeline(SupportsPipeline):
             )
             try:
                 with (
-                    signals.delayed_signals()
+                    signals.intercepted_signals()
                     if self.runtime_config.intercept_signals
                     else nullcontext()
                 ):
@@ -591,7 +591,7 @@ class Pipeline(SupportsPipeline):
         )
         try:
             with (
-                signals.delayed_signals()
+                signals.intercepted_signals()
                 if self.runtime_config.intercept_signals
                 else nullcontext()
             ):

@@ -51,7 +51,7 @@ def test_raise_if_signalled() -> None:
 def test_delayed_signals_context_manager() -> None:
     signals.raise_if_signalled()
 
-    with signals.delayed_signals():
+    with signals.intercepted_signals():
         with pytest.raises(SignalReceivedException):
             signals._signal_receiver(2, None)
             # now it raises
@@ -107,7 +107,7 @@ def test_signalling_graceful() -> None:
     p.start()
 
     # handle signals without killing the process
-    with signals.delayed_signals():
+    with signals.intercepted_signals():
         # now signal to itself
         os.kill(os.getpid(), signals.signal.SIGTERM)
 
@@ -134,7 +134,7 @@ def test_signalling_forced() -> None:
     p.start()
 
     # handle signals without killing the process
-    with signals.delayed_signals():
+    with signals.intercepted_signals():
         # now signal to itself
         os.kill(os.getpid(), signals.signal.SIGINT)
 
