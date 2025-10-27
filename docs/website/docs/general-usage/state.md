@@ -123,7 +123,7 @@ def comments(user_id: str):
         # get user comments table from pipeline dataset
         # get last user comment id with ibis expression, ibis-extras need to be installed
         dataset = current_pipeline.dataset()
-        user_comments = dataset.table("user_comments", table_type="ibis")
+        user_comments = dataset.table("user_comments").to_ibis()
         max_id_expression = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max())
         max_id_df = dataset(max_id_expression).df()
         # if there are no comments for the user, max_id will be None, so we replace it with 0

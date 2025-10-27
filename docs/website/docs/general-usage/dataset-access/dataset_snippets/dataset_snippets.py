@@ -213,8 +213,8 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     dataset = pipeline.dataset()
 
     # get two table expressions
-    customers_expression = dataset.table("customers", table_type="ibis")
-    purchases_expression = dataset.table("purchases", table_type="ibis")
+    customers_expression = dataset.table("customers").to_ibis()
+    purchases_expression = dataset.table("purchases").to_ibis()
 
     # join them using an ibis expression
     join_expression = customers_expression.join(
