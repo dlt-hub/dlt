@@ -905,6 +905,12 @@ def test_coerce_null_value_in_column_created_as_compound_columns() -> None:
         yield data
 
     data = [
+        # uncomment this to get "a" column generated and associated warning
+        # this is acceptable for now
+        # {
+        #     "timestamp": 82178.1298812,
+        #     "a": None,
+        # },
         {
             "timestamp": 82178.1298812,
             "a": {
@@ -912,13 +918,17 @@ def test_coerce_null_value_in_column_created_as_compound_columns() -> None:
                 "d": 82178.1298812,
             },
         },
+        {
+            "timestamp": 82178.1298812,
+            "a": None,
+        },
     ]
     pipeline.run(nested(data), schema_contract={"columns": "freeze"})
 
     assert "nested" in pipeline.default_schema.tables
     assert "a__timestamp" in pipeline.default_schema.tables["nested"]["columns"]
     assert "a__d" in pipeline.default_schema.tables["nested"]["columns"]
-    assert "a" not in pipeline.default_schema.tables["nested"]["columns"]
+    # assert "a" not in pipeline.default_schema.tables["nested"]["columns"]
 
     # verify that empty column that was previously flattened
     # doesn't create new column, i.e. violate the freeze contract on columns
@@ -929,3 +939,4 @@ def test_coerce_null_value_in_column_created_as_compound_columns() -> None:
         },
     ]
     pipeline.run(nested(data), schema_contract={"columns": "freeze"})
+    assert "a" not in pipeline.default_schema.tables["nested"]["columns"]
