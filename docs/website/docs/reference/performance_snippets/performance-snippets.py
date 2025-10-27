@@ -186,7 +186,7 @@ def parallel_pipelines_asyncio_snippet() -> None:
 
     # enable signal handling for graceful shutdowns - it is disabled for pipelines running
     # in threads
-    with signals.delayed_signals():
+    with signals.intercepted_signals():
         # load data
         asyncio.run(_run_async())
     # activate pipelines before they are used
