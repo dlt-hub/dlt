@@ -15,10 +15,10 @@
   --dlt-color-purple-background: #19193706;
 
   /* status badge colors */
-  --success-badge-bg: #a8e4ac;
-  --success-badge-text: #468A47;
-  --failure-badge-bg: #FBE8E8;
-  --failure-badge-text: #D47672;
+  --completed-badge-bg: #a8e4ac;
+  --completed-badge-text: #468A47;
+  --failed-badge-bg: #FBE8E8;
+  --failed-badge-text: #D47672;
 }
 
 /* Make headings bold */
@@ -66,30 +66,29 @@
 */
 
 /* data browser cells */
-#App .marimo-cell:nth-child(3) .output-area,
-#App .marimo-cell:nth-child(5) .output-area,
+#App .marimo-cell:nth-child(1) .output-area,
+#App .marimo-cell:nth-child(2) .output-area,
+#App .marimo-cell:nth-child(4) .output-area,
 #App .marimo-cell:nth-child(6) .output-area,
 #App .marimo-cell:nth-child(7) .output-area,
-#App .marimo-cell:nth-child(9) .output-area,
-#App .marimo-cell:nth-child(12) .output-area
+#App .marimo-cell:nth-child(8) .output-area,
+#App .marimo-cell:nth-child(10) .output-area,
+#App .marimo-cell:nth-child(13) .output-area
  {
   background-color: var(--dlt-color-aqua-background);
   border: 1px dashed var(--dlt-color-aqua);
 }
 
-#App .marimo-cell:nth-child(0) .output-area,
-#App .marimo-cell:nth-child(1) .output-area {
-  background-color: white;
-  border: none;
-}
-
+#App .marimo-cell:nth-child(1) .output-area,
+#App .marimo-cell:nth-child(2) .output-area,
 #App .marimo-cell:nth-child(3) .output-area,
 #App .marimo-cell:nth-child(4) .output-area,
 #App .marimo-cell:nth-child(5) .output-area,
-#App .marimo-cell:nth-child(8) .output-area,
+#App .marimo-cell:nth-child(6) .output-area,
 #App .marimo-cell:nth-child(9) .output-area,
 #App .marimo-cell:nth-child(10) .output-area,
-#App .marimo-cell:nth-child(12) .output-area {
+#App .marimo-cell:nth-child(11) .output-area,
+#App .marimo-cell:nth-child(13) .output-area {
   margin-top: 0.5rem;
 }
 
