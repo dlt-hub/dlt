@@ -35,8 +35,8 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     UnknownDestinationModule,
 )
-from dlt.common.exceptions import PipelineStateNotAvailable
-from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
+from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
+from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
@@ -3980,10 +3980,13 @@ def test_pipeline_with_null_executors(monkeypatch) -> None:
 def test_signal_graceful_load_step_shutdown(sig: int) -> None:
     # NOTE: forked tests do not show any console/logs
 
+    # do not create additional job for status. this creates race condition during pool drain
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
     @dlt.destination
     def wait_until_signal(item, schema):
         # exit if signalled
-        while not signals.signal_received():
+        while not signals.was_signal_received():
             signals.sleep(1)
         # some more sleep to make pipeline load pool drain
         signals.sleep(2)
@@ -3998,7 +4001,6 @@ def test_signal_graceful_load_step_shutdown(sig: int) -> None:
     def _thread() -> None:
         # wait until pipeline gets into load step
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
-            print(pipeline.collector.step)
             signals.sleep(0.1)
 
         # send signal to drain pool and stop load
@@ -4013,15 +4015,182 @@ def test_signal_graceful_load_step_shutdown(sig: int) -> None:
 
 
 @skipifwindows
+@pytest.mark.parametrize("start_new_jobs_on_signal", (True, False))
+@pytest.mark.forked
+def test_signal_graceful_complete_load_step(start_new_jobs_on_signal: bool) -> None:
+    # test setup makes sure that only one job at a time is started
+    # so we can send the signal after first job is in the pool and expect second one to get completed
+    os.environ["LOAD__START_NEW_JOBS_ON_SIGNAL"] = str(start_new_jobs_on_signal)
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    @dlt.destination(loader_parallelism_strategy="sequential")
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), signals.signal.SIGTERM)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    if start_new_jobs_on_signal:
+        # should end gracefully
+        load_info = pipeline.run(
+            [dlt.resource([1, 2, 3], name="digits"), dlt.resource(["a", "b", "c"], name="letters")]
+        )
+        assert_load_info(load_info)
+        # sanity check on load info
+        load_package = load_info.load_packages[0]
+        assert load_info.finished_at is not None
+        assert load_info.started_at is not None
+        assert load_package.completed_at is not None
+        assert load_package.state == "loaded"
+
+        metrics = load_info.metrics[load_package.load_id][0]["job_metrics"]
+        assert len(metrics) == 2
+        for metric in metrics.values():
+            assert metric.started_at is not None
+            assert metric.finished_at is not None
+            assert metric.state == "completed"
+            assert metric.retry_count == 0
+
+        # two tables completed
+        completed_job_count = 2
+        new_job_count = 0
+    else:
+        with pytest.raises(PipelineStepFailed) as pip_ex:
+            pipeline.run(
+                [
+                    dlt.resource([1, 2, 3], name="digits"),
+                    dlt.resource(["a", "b", "c"], name="letters"),
+                ]
+            )
+        assert isinstance(pip_ex.value.__cause__, SignalReceivedException)
+        assert pip_ex.value.__cause__.signal_code == 15  # SIGTERM
+        # load info in exception
+        load_info = pip_ex.value.step_info  # type: ignore
+
+        # sanity check on load info
+        load_package = load_info.load_packages[0]
+        assert load_info.finished_at is None
+        assert load_info.started_at is not None
+        assert load_package.completed_at is None
+        assert load_package.state == "normalized"
+
+        # just one job should go into job pool (read from package into ready state)
+        metrics = load_info.metrics[load_package.load_id][0]["job_metrics"]
+        # no more jobs because we drained the pool after the first
+        assert len(metrics) == 1
+        for metric in metrics.values():
+            assert metric.started_at is not None
+            assert metric.finished_at is not None
+            # completed because we drained
+            assert metric.state == "completed"
+            assert metric.retry_count == 0
+
+        # one table completed
+        completed_job_count = 1
+        new_job_count = 1
+
+    assert len(load_info.load_packages[0].jobs["completed_jobs"]) == completed_job_count
+    assert len(load_info.load_packages[0].jobs["new_jobs"]) == new_job_count
+
+
+@skipifwindows
+@pytest.mark.forked
+def test_ignore_signals_in_load() -> None:
+    os.environ["PIPELINES__SIGNAL_WAITER__RUNTIME__INTERCEPT_SIGNALS"] = "False"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    job_started = False
+
+    @dlt.destination(loader_parallelism_strategy="sequential")
+    def wait_until_signal(item, schema):
+        nonlocal job_started
+
+        signals.sleep(0.2)
+        job_started = True
+
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        # wait for job to run
+        while not job_started:
+            signals.sleep(0.1)
+
+        # sleep before signal to let pool to collect jobs and set metrics
+        signals.sleep(2)
+
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), signals.signal.SIGINT)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise on KeyboardInterrupt - delayed signals disabled
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(dlt.resource([1, 2, 3], name="digits"))
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # must have metrics and package
+    assert pip_ex.value.step == "load"
+    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
+    assert len(load_info.load_packages) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.started_at is not None
+    assert load_info.finished_at is None
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 1
+    for metric in metrics.values():
+        assert metric.started_at is not None
+        assert metric.finished_at is None
+        # killed in the middle
+        assert metric.state == "running"
+        assert metric.retry_count == 0
+    # stop destination
+    signals.set_received_signal(signals.signal.SIGINT)
+
+
+@skipifwindows
 @pytest.mark.parametrize("sig", (signals.signal.SIGINT, signals.signal.SIGTERM))
-# @pytest.mark.forked
+@pytest.mark.forked
 def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None:
     # NOTE: forked tests do not show any console/logs
 
     @dlt.destination
     def wait_until_signal(item, schema):
         # exit if signalled
-        while not signals.signal_received():
+        while not signals.was_signal_received():
             signals.sleep(1)
         # some more sleep to make pipeline load pool drain
         signals.sleep(2)
@@ -4039,14 +4208,13 @@ def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None
         assert_load_info(load_info)
 
     # we can nest those freely
-    with signals.delayed_signals():
-        with signals.delayed_signals():
+    with signals.intercepted_signals():
+        with signals.intercepted_signals():
             p = threading.Thread(target=_thread)
             p.start()
 
             # wait until pipeline gets into load step
             while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
-                print(pipeline.collector.step)
                 signals.sleep(0.1)
 
             # send signal to drain pool and stop load
@@ -4060,8 +4228,7 @@ def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None
 @pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
 @pytest.mark.forked
 def test_signal_force_load_step_shutdown(sig: int) -> None:
-    # NOTE: forked tests do not show any console/logs
-
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
     _done = False
 
     @dlt.destination
@@ -4083,9 +4250,10 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
     def _thread() -> None:
         # wait until pipeline gets into load step
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
-            print(pipeline.collector.step)
             signals.sleep(0.1)
 
+        # wait for load pool to complete at least once
+        signals.sleep(1.5)
         # send signal to drain pool and stop load
         os.kill(os.getpid(), sig)
         signals.sleep(0.5)
@@ -4099,6 +4267,21 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run([1, 2, 3], table_name="digits")
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # check load info
+    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
+    assert len(load_info.load_packages) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.started_at is not None
+    assert load_info.finished_at is None
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 1
+    for metric in metrics.values():
+        assert metric.started_at is not None
+        assert metric.finished_at is None
+        # killed in the middle
+        assert metric.state == "running"
+        assert metric.retry_count == 0
 
     # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
     _done = True
@@ -4108,7 +4291,7 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
 @pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
 @pytest.mark.forked
 def test_signal_extract_step_shutdown(sig: int) -> None:
-    # NOTE: forked tests do not show any console/logs
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
 
     _done = False
 
@@ -4131,7 +4314,6 @@ def test_signal_extract_step_shutdown(sig: int) -> None:
     def _thread() -> None:
         # wait until pipeline gets into extract step
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Extract"):
-            print(pipeline.collector.step)
             signals.sleep(0.1)
 
         # extract step does not set signals
@@ -4146,6 +4328,17 @@ def test_signal_extract_step_shutdown(sig: int) -> None:
         pipeline.run(wait_forever())
     assert pip_ex.value.step == "extract"
     assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # check extract info
+    extract_info: ExtractInfo = pip_ex.value.step_info  # type: ignore
+    assert len(extract_info.load_packages) == 1
+    load_id = extract_info.loads_ids[0]
+    assert extract_info.load_packages[0].load_id == load_id
+    # package is always completed
+    assert extract_info.started_at is not None
+    assert extract_info.finished_at is not None
+    # no jobs got collected. running jobs are not included
+    metrics = extract_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 0
 
     # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
     _done = True

@@ -1,3 +1,4 @@
+import os
 import sys
 import threading
 import signal
@@ -6,7 +7,6 @@ from threading import Event
 from types import FrameType
 from typing import Any, Callable, Dict, Iterator, Optional, Union
 
-from dlt.common import logger
 from dlt.common.exceptions import SignalReceivedException
 
 _received_signal: int = 0
@@ -14,11 +14,13 @@ exit_event = Event()
 _signal_counts: Dict[int, int] = {}
 _original_handlers: Dict[int, Union[int, Callable[[int, Optional[FrameType]], Any]]] = {}
 
+# NOTE: do not use logger and print in signal handlers
 
-def signal_receiver(sig: int, frame: FrameType) -> None:
+
+def _signal_receiver(sig: int, frame: FrameType) -> None:
     """Handle POSIX signals with two-stage escalation.
 
-    This handler is installed by delayed_signals(). On the first occurrence of a
+    This handler is installed by intercepted_signals(). On the first occurrence of a
     supported signal (eg. SIGINT, SIGTERM) it requests a graceful shutdown by
     setting a process-wide flag and waking sleeping threads via exit_event.
     A second occurrence of the same signal escalates by delegating to the
@@ -34,49 +36,61 @@ def signal_receiver(sig: int, frame: FrameType) -> None:
           Worker threads must cooperatively observe shutdown via raise_if_signalled()
           or the signal-aware sleep().
     """
-    global _received_signal
-
     # track how many times this signal type has been received
     _signal_counts[sig] = _signal_counts.get(sig, 0) + 1
 
     if _signal_counts[sig] == 1:
         # first signal of this type: set flag and wake threads
-        _received_signal = sig
-        if sig == signal.SIGINT:
-            sig_desc = "CTRL-C"
-        else:
-            sig_desc = f"Signal {sig}"
-        msg = (
-            f"{sig_desc} received. Trying to shut down gracefully. It may take time to drain job"
-            f" pools. Send {sig_desc} again to force stop."
-        )
+        set_received_signal(sig)
         if sys.stdin.isatty():
-            # log to console
-            sys.stderr.write(msg)
-            sys.stderr.flush()
-        else:
-            logger.warning(msg)
+            # log to console using low level functions that are safe for signal handlers
+            if sig == signal.SIGINT:
+                sig_desc = "CTRL-C"
+            else:
+                sig_desc = f"Signal {sig}"
+            msg = (
+                f"{sig_desc} received. Trying to shut down gracefully. It may take time to drain"
+                f" job pools. Send {sig_desc} again to force stop."
+            )
+            try:
+                os.write(sys.stderr.fileno(), msg.encode(encoding="utf-8"))
+            except OSError:
+                pass
     elif _signal_counts[sig] >= 2:
-        # Second signal of this type: call original handler
-        logger.debug(f"Second signal {sig} received, calling default handler")
+        # second signal of this type: call original handler
         original_handler = _original_handlers.get(sig, signal.SIG_DFL)
         if callable(original_handler):
             original_handler(sig, frame)
         elif original_handler == signal.SIG_DFL:
-            # Restore default and re-raise to trigger default behavior
+            # restore default and re-raise to trigger default behavior
             signal.signal(sig, signal.SIG_DFL)
             signal.raise_signal(sig)
 
     exit_event.set()
-    logger.debug("Sleeping threads signalled")
+
+
+def _clear_signals() -> None:
+    global _received_signal
+
+    _received_signal = 0
+    _signal_counts.clear()
+    _original_handlers.clear()
+
+
+def set_received_signal(sig: int) -> None:
+    """Called when signal was received"""
+    global _received_signal
+
+    _received_signal = sig
 
 
 def raise_if_signalled() -> None:
-    if _received_signal:
+    """Raises `SignalReceivedException` if signal was received."""
+    if was_signal_received():
         raise SignalReceivedException(_received_signal)
 
 
-def signal_received() -> bool:
+def was_signal_received() -> bool:
     """check if a signal was received"""
     return True if _received_signal else False
 
@@ -93,18 +107,10 @@ def wake_all() -> None:
     exit_event.set()
 
 
-def _clear_signals() -> None:
-    global _received_signal
-
-    _received_signal = 0
-    _signal_counts.clear()
-    _original_handlers.clear()
-
-
 @contextmanager
-def delayed_signals() -> Iterator[None]:
-    """Will delay signalling until `raise_if_signalled` is explicitly used or when
-    a second signal with the same int value arrives.
+def intercepted_signals() -> Iterator[None]:
+    """Will intercept SIGINT and SIGTERM and will delay calling signal handlers until
+    `raise_if_signalled` is explicitly used or when a second signal with the same int value arrives.
 
     A no-op when not called on main thread.
 
@@ -115,7 +121,7 @@ def delayed_signals() -> Iterator[None]:
         # check if handlers are already installed (nested call)
         current_sigint_handler = signal.getsignal(signal.SIGINT)
 
-        if current_sigint_handler is signal_receiver:
+        if current_sigint_handler is _signal_receiver:
             # already installed, this is a nested call - just yield
             yield
             return
@@ -129,8 +135,8 @@ def delayed_signals() -> Iterator[None]:
         _original_handlers[signal.SIGTERM] = original_sigterm_handler
 
         try:
-            signal.signal(signal.SIGINT, signal_receiver)
-            signal.signal(signal.SIGTERM, signal_receiver)
+            signal.signal(signal.SIGINT, _signal_receiver)
+            signal.signal(signal.SIGTERM, _signal_receiver)
             yield
         finally:
             signal.signal(signal.SIGINT, original_sigint_handler)
@@ -138,5 +144,7 @@ def delayed_signals() -> Iterator[None]:
             _clear_signals()
 
     else:
+        from dlt.common import logger
+
         logger.info("Running in daemon thread, signals not enabled")
         yield

@@ -293,7 +293,7 @@ Please note the following:
 process start method.
 2. If you created the `Pipeline` object in the worker thread and you use it from another (i.e., the main thread),
 call `pipeline.activate()` to inject the right context into the current thread.
-3. Note how `with signals.delayed_signals():` was used to enable graceful shutdown of pipelines running in a thread pool.
+3. Note how `with signals.intercepted_signals():` was used to [enable graceful shutdown](../running-in-production/running.md#allow-a-graceful-shutdown) of pipelines running in a thread pool.
 :::
 
 

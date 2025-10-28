@@ -887,7 +887,7 @@ def expect_load_file(
 
         if isinstance(job, RunnableLoadJob):
             job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
-            job.run_managed(client)
+            job.run_managed(client, None)
         # TODO: use semaphore
         while job.state() == "running":
             sleep(0.1)

@@ -17,8 +17,8 @@ class PipelineRuntimeConfiguration(BaseConfiguration):
     # mcp_config: McpConfiguration
     pluggable_run_context: PluggableRunContext = None
     """Pluggable run context with current run context"""
-    # dashboard configuration is resolved separately but following the same section layout
-    # dashboard: DashboardConfiguration
+    intercept_signals: bool = True
+    """Enable/disable signal handlers in normalize and load steps"""
 
     __section__: ClassVar[str] = "runtime"
 
