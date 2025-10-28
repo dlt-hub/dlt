@@ -1,19 +1,11 @@
 ---
 title: Installation
-<<<<<<< HEAD
-description: Installation of dlthub package
-=======
 description: Installation information of dlthub package
->>>>>>> 14e236a1 (update installadtion page)
 ---
 
 :::info Supported Python versions
 
-<<<<<<< HEAD
 dltHub currently supports Python versions 3.9-3.13.
-=======
-dlthub currently supports Python versions 3.9-3.12.
->>>>>>> 14e236a1 (update installadtion page)
 
 :::
 
@@ -26,7 +18,7 @@ pip install dlt[workspace]
 ```
 
 
-This comes with the dlthub package. To use the features of dlthub, please install a valid license before proceeding, as described under [licensing](##licensing).
+This comes with the dlthub package. To use the features of dlthub, please install a valid license before proceeding, as described under [licensing](#self-licensing).
 
 
 ## Setting up your environment
@@ -131,29 +123,18 @@ C:\> .\venv\Scripts\activate
   </TabItem>
 </Tabs>
 
-<<<<<<< HEAD
 ### Install dlthub
 
 `dlthub` will be automatically installed with workspace extra:
-=======
-
-### Install dlthub
-
-`dlthub` will automatically be installed with workspace extra:
->>>>>>> 14e236a1 (update installadtion page)
 
 ```sh
-# install the newest dlt version or upgrade the existing version to the newest one
+# install the newest dlt[workspace] version or upgrade the existing version to the newest one
 uv pip install -U "dlt[workspace]"
 ```
 
-Please install a valid license before proceeding, as described under [licensing](#licensing).
+Please install a valid license before proceeding, as described under [licensing](#self-licensing).
 
 
-<<<<<<< HEAD
-Once you have a valid license, you can make it available to dlthub using one of the following methods:
-=======
->>>>>>> 14e236a1 (update installadtion page)
 
 ## Self-licensing
 
@@ -167,22 +148,18 @@ You can self-issue an anonymous 30-day trial license to test dlthub features and
 dlt license issue <scope>
 ```
 
-Known scopes:
+#### Known scopes:
 
 
-<<<<<<< HEAD
-3. **`dlt.yml`**: add the license key directly in the project manifest file referencing a user-defined environment variable:
-=======
-`*` - All features 
-`dlthub` - All dltHub features 
-`dlthub.dbt_generator` - Generate dbt packages from dlt pipelines https://dlthub.com/docs/hub/features/transformations/dbt-transformations
-`dlthub.sources.mssql` - Change tracking for MSSQL https://dlthub.com/docs/hub/ecosystem/ms-sql
-`dlthub.project` - Declarative yaml interface for dlt https://dlthub.com/docs/hub/features/project/
-`dlthub.transformation` - Python-first query-agnostic data transformations https://dlthub.com/docs/hub/features/transformations/
-`dlthub.destinations.iceberg` - Iceberg destination with full catalog support https://dlthub.com/docs/hub/ecosystem/iceberg
-`dlthub.destinations.snowflake_plus` - Snowflake iceberg extension with Open Catalog https://dlthub.com/docs/hub/ecosystem/snowflake_plus
-`dlthub.runner` - Production pipeline runner and orchestrator support https://dlthub.com/docs/hub/features/runner
->>>>>>> 14e236a1 (update installadtion page)
+* `*`: All features 
+* `dlthub`: All dltHub features 
+* `dlthub.dbt_generator`: [Generate dbt packages from dlt pipelines](../features/transformations/dbt-transformations)
+* `dlthub.sources.mssql`: [Change tracking for MSSQL](../ecosystem/ms-sql)
+* `dlthub.project`: [Declarative yaml interface for dlt](../features/project/)
+* `dlthub.transformation`: [Python-first query-agnostic data transformations](../features/transformations/)
+* `dlthub.destinations.iceberg`: [Iceberg destination with full catalog support](../ecosystem/iceberg)
+* `dlthub.destinations.snowflake_plus`: [Snowflake iceberg extension with Open Catalog](../ecosystem/snowflake_plus)
+* `dlthub.runner`: [Production pipeline runner and orchestrator support](../features/runner)
 
 
 Find your installed licenses with:

@@ -123,7 +123,6 @@ Most features support a self-guided trial right after install, check the [instal
 * For exact features and pricing, check the site; this section is meant to help you choose a sensible starting point.
 :::
 =======
-
 To get started with dltHub, install the library using pip (Python 3.9-3.12):
 =======
 
