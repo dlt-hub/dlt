@@ -1,4 +1,3 @@
-import imp
 import shutil
 import functools
 from itertools import chain
@@ -828,7 +827,7 @@ def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
 # pipeline run section helpers
 #
 
-TPipelineRunStatus = Literal["success", "failure"]
+TPipelineRunStatus = Literal["completed", "failed"]
 TVisualPipelineStep = Literal["extract", "normalize", "load"]
 
 
@@ -872,84 +871,69 @@ def _build_visual_components(
     for step in steps_data:
         percentage = step.duration_ms / total_ms * 100
         color = PIPELINE_RUN_STEP_COLORS.get(step.step)
-
         segments_html += f"""
             <div style="
                 width: {percentage}%;
                 background-color: {color};
-                height: 100%;
             "></div>
         """
-
         labels_html += f"""
-            <span style="margin-right: 20px;">
-                <span style="color: {color};">●</span>
-                {step.step.capitalize()} {_format_duration(step.duration_ms)}
+            <span>
+            <span style="color: {color};">●</span>
+            {step.step.capitalize()} {_format_duration(step.duration_ms)}
             </span>
         """
 
     html = f"""
     <div style="
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 20px;
+        border-radius: 6px;
+        padding: 16px;
         margin: 10px 0;
         background: white;
     ">
         <!-- Main 3-column flex container -->
         <div style="
             display: flex;
+            flex-direction: row;
             justify-content: space-between;
-            align-items: start;
-            gap: 20px;
+            align-items: center;
         ">
-            <!-- LEFT COLUMN: Transaction ID and Pipeline name -->
-            <div style="
-                flex: 0 0 auto;
-                min-width: 150px;
-            ">
-                <div style="font-weight: bold; font-size: 16px;">{transaction_id[:8]}</div>
-                <div style="color: #6b7280; font-size: 14px;">Pipeline: <strong>{pipeline_name}</strong></div>
+            <!-- LEFT COLUMN: ID, Pipeline name, Total time -->
+            <div>
+                <div style="font-weight: bold;">{transaction_id[:8]}</div>
+                <div>Pipeline name: <strong>{pipeline_name}</strong></div>
+                <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
             </div>
 
             <!-- CENTER COLUMN: Timeline bar and legend -->
-            <div style="
-                flex: 1 1 auto;
-                max-width: 500px;
-            ">
-                <!-- Stacked bar -->
-                <div style="
-                    display: flex;
-                    height: 16px;
-                    overflow: hidden;
-                    margin-bottom: 12px;
-                ">
-                    {segments_html}
-                </div>
 
-                <!-- Labels -->
+            <div style="
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                flex: 0 0 50%;
+            ">
                 <div style="
                     display: flex;
-                    align-items: center;
+                    flex-direction: row;
                     justify-content: center;
-                    font-size: 14px;
-                    color: #6b7280;
-                    gap: 15px;
-                ">
-                    {labels_html}
-                </div>
+                    height: 16px;
+                ">{segments_html}</div>
+
+                <div style="
+                    display: flex;
+                    flex-direction: row;
+                    justify-content: space-between;
+                ">{labels_html}</div>
             </div>
 
             <!-- RIGHT COLUMN: Status badge only -->
-            <div style="
-                flex: 0 0 auto;
-            ">
+            <div>
                 <div style="
                     background-color: {f"var(--{status}-badge-bg)"};
                     color: {f"var(--{status}-badge-text)"};
                     padding: 6px 16px;
                     border-radius: 6px;
-                    font-weight: 500;
                 ">
                     <strong>{status}</strong>
                 </div>
@@ -981,7 +965,7 @@ def build_pipeline_run_visualization(trace: PipelineTrace) -> mo.Html:
         )
 
     is_failed = any(s.failed for s in steps_data)
-    status: TPipelineRunStatus = "failure" if is_failed else "success"
+    status: TPipelineRunStatus = "failed" if is_failed else "completed"
 
     return _build_visual_components(
         trace.transaction_id,
