@@ -420,15 +420,29 @@ def diff_table_references(
 
 
 def merge_column(
-    col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = True
+    col_a: TColumnSchema,
+    col_b: TColumnSchema,
+    merge_defaults: bool = True,
+    authoritative_nones: bool = False,
 ) -> TColumnSchema:
-    """Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
+    """Merges `col_b` into `col_a`.
 
-    Modifies col_a in place and returns it
+    If `merge_defaults` is True, only hints from `col_b` that are not default will be set.
+    If `authoritative_nones` is True, properties with non-default values in `col_a` that are absent in `col_b` and absent is the default will be removed.
+
+    Modifies col_a in place and returns it.
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
+
     for n, v in col_b_clean.items():
         col_a[n] = v  # type: ignore
+
+    if authoritative_nones:
+        for n, v in copy(col_a).items():
+            if not has_default_column_prop_value(n, v):
+                v_in_b = col_b_clean.get(n, None)
+                if v_in_b is None:
+                    col_a.pop(n)  # type: ignore
 
     return col_a
 
@@ -486,7 +500,9 @@ def diff_table(
         if col_b_name in tab_a_columns:
             col_a = tab_a_columns[col_b_name]
             # all other properties can change
-            merged_column = merge_column(copy(col_a), col_b)
+            merged_column = merge_column(
+                copy(col_a), col_b, merge_defaults=True, authoritative_nones=True
+            )
             if merged_column != col_a:
                 new_columns.append(merged_column)
         else:
