@@ -156,7 +156,7 @@ license = "your-dlthub-license-key"
 ```
 
 As an environment variable
-```bash
+```sh
 export DLT_LICENSE_KEY="your-dlthub-license-key"
 ```
 
