@@ -1,30 +1,30 @@
 ---
 title: Project tutorial
-description: Using the dlt+ cli commands to create and manage dlt+ Project
-keywords: [command line interface, cli, dlt init, dlt+, project]
+description: Using the dltHub cli commands to create and manage dltHub Project
+keywords: [command line interface, cli, dlt init, dltHub, project]
 ---
 
-This tutorial introduces you to dlt+ Project and the essential cli commands needed to create and manage it. You will learn how to:
+This tutorial introduces you to dltHub Project and the essential cli commands needed to create and manage it. You will learn how to:
 
-* initialize a new dlt+ Project
+* initialize a new dltHub Project
 * navigate the `dlt.yml` file
 * add sources, destinations, and pipelines
 * run pipelines using cli commands
 * inspect datasets
-* work with dlt+ Profiles for enabling different configurations
+* work with dltHub Profiles for enabling different configurations
 
 ## Prerequisites
 
 To follow this tutorial, make sure:
 
-- dlt+ is set up according to the [installation guide](./installation.md)
+- dltHub is set up according to the [installation guide](./installation.md)
 - you're familiar with the [core concepts of dlt](../../reference/explainers/how-dlt-works.md)
 
 :::tip
 You can find the full list of available cli commands under [cli reference](../reference.md)
 :::
 
-## Creating a new dlt+ Project
+## Creating a new dltHub Project
 
 Start by creating a new folder for your project. Then, navigate to the folder in your terminal.
 
@@ -32,10 +32,10 @@ Start by creating a new folder for your project. Then, navigate to the folder in
 mkdir tutorial && cd tutorial
 ```
 
-Run the following command to initialize a new dlt+ Project:
+Run the following command to initialize a new dltHub Project:
 
 ```sh
-# Initialize a dlt+ Project named "tutorial", the name is derived from the folder name
+# Initialize a dltHub Project named "tutorial", the name is derived from the folder name
 dlt project init arrow duckdb
 ```
 
@@ -72,7 +72,7 @@ After running the command, the following folder structure is created:
 
 ### Understanding `dlt.yml`
 
-The `dlt.yml` file is the central configuration for your dlt+ Project. It defines the pipelines, sources, and destinations. In the generated project, the file looks like this:
+The `dlt.yml` file is the central configuration for your dltHub Project. It defines the pipelines, sources, and destinations. In the generated project, the file looks like this:
 
 ```yaml
 profiles:
@@ -109,10 +109,10 @@ Some details about the project structure above:
 * The `runtime` section is analogous to the config.toml [runtime] section and could also be omitted in this case.
 * The `profiles` section is not doing much in this case. There are two implicit profiles: `dev` and `tests` that are present in any project; we will learn about profiles in more detail later.
 
-You can reference environment variables in the `dlt.yml` file using the `{env.ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/projects.md#project-settings-and-variable-substitution) that are automatically substituted during loading.
+You can reference environment variables in the `dlt.yml` file using the `{env.ENV_VARIABLE_NAME}` syntax. Additionally, dlt+ provides several [predefined project variables](../features/project/overview.md#project-settings-and-variable-substitution) that are automatically substituted during loading.
 
 :::tip
-You can find more information about the `dlt.yml` structure in the [dlt+ Project section](../core-concepts/project.md).
+You can find more information about the `dlt.yml` structure in the [dltHub Project section](../core-concepts/project.md).
 :::
 
 ## Running the pipeline
@@ -125,10 +125,10 @@ dlt pipeline my_pipeline run
 
 This command:
 - Locates the pipeline named `my_pipeline` in `dlt.yml`.
-- Executes it, populating the duckdb destination that [is defined to be stored](../features/projects.md#local-and-temporary-files-data_dir) in `_data/dev/local/duckdb.duckdb`.
+- Executes it, populating the duckdb destination that [is defined to be stored](../features/project/overview.md#local-and-temporary-files-data_dir) in `_data/dev/local/duckdb.duckdb`.
 
 :::tip
-Take a look at the [Projects context](../features/projects.md#project-context) to learn more about how to work with nested projects and how dlt searches for the pipelines based on its name.
+Take a look at the [Projects context](../features/project/overview.md#project-context) to learn more about how to work with nested projects and how dlt searches for the pipelines based on its name.
 :::
 
 ### Inspecting the results
@@ -180,7 +180,7 @@ dlt dataset duckdb_dataset head items --limit 50
 
 ## Adding sources, destinations, and pipelines to your project
 
-Adding a new entity to an existing dlt+ Project is easy. You can add a new entity to your project by running the command:
+Adding a new entity to an existing dltHub Project is easy. You can add a new entity to your project by running the command:
 
 ```sh
 dlt <entity_type> <entity_name> add
@@ -263,7 +263,7 @@ port = 4497
 
 ## Configuration and profiles
 
-dlt+ introduces a new core concept - [Profiles](../core-concepts/profiles.md), which provides a way to manage different configurations for different environments. Let's have a look at our example project. The profiles section currently looks like this:
+dltHub introduces a new core concept - [Profiles](../core-concepts/profiles.md), which provides a way to manage different configurations for different environments. Let's have a look at our example project. The profiles section currently looks like this:
 
 ```yaml
 profiles:
@@ -379,5 +379,5 @@ dlt dataset --profile dev my_duckdb_destination_dataset row-counts
 dlt dataset --profile prod my_duckdb_destination_dataset row-counts
 ```
 
-To locate your [loaded data](../features/projects.md#local-and-temporary-files-data_dir), check the `_data\{profile name}\local` directory.
+To locate your [loaded data](../features/project/overview.md#local-and-temporary-files-data_dir), check the `_data\{profile name}\local` directory.
 

@@ -12,6 +12,8 @@ keywords: [postgres, destination, data warehouse]
 pip install "dlt[postgres]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES postgres-->
+
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to Postgres by running:**

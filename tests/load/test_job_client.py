@@ -252,7 +252,7 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True),
+    destinations_configs(default_sql_configs=True, exclude=["bigquery"]),
     indirect=True,
     ids=lambda x: x.name,
 )
@@ -267,6 +267,9 @@ def test_schema_update_create_table(client: SqlJobClientBase) -> None:
     # this will be destkey
     sender_id = item_normalizer._infer_column("sender_id", "982398490809324")
     assert sender_id["cluster"] is True
+    # disable cluster on databricks: it does not support PARTITION and CLUSTER on a single table
+    has_cluster = client.config.destination_type != "databricks"
+    sender_id["cluster"] = has_cluster
     # this will be not null
     record_hash = item_normalizer._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     assert record_hash["unique"] is True
@@ -276,8 +279,9 @@ def test_schema_update_create_table(client: SqlJobClientBase) -> None:
     # check hints in schema update
     table_update = schema_update[table_name]["columns"]
     assert table_update["timestamp"]["sort"] is True
-    assert table_update["sender_id"]["cluster"] is True
+    assert table_update["sender_id"]["cluster"] is has_cluster
     assert table_update["_dlt_id"]["unique"] is True
+    assert table_update["_dlt_id"]["nullable"] is False
     _, storage_columns = list(client.get_storage_tables([table_name]))[0]
     assert len(storage_columns) > 0
 
@@ -289,7 +293,9 @@ def test_schema_update_create_table(client: SqlJobClientBase) -> None:
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("dataset_name", (None, "_hidden_ds"))
-def test_schema_update_create_table_bigquery(client: SqlJobClientBase, dataset_name: str) -> None:
+def test_schema_update_create_table_bigquery_hidden_dataset(
+    client: SqlJobClientBase, dataset_name: str
+) -> None:
     # patch dataset name
     if dataset_name:
         # drop existing dataset

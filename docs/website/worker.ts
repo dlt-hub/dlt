@@ -17,6 +17,10 @@ const REDIRECTS = [
         from: "/docs/",
         to: "/docs/intro"
     },
+    {
+        from: "/docs/hub",
+        to: "/docs/hub/intro"
+    },
 
     // docs section redirects
     {
@@ -63,6 +67,13 @@ const REDIRECTS = [
         from: "/docs/visualizations",
         to: "/docs/general-usage/dataset-access/"
     },
+
+    // dlt+ redirect
+    {
+        from: "/docs/hub",
+        to: "/docs/hub/intro"
+    },
+
 ]
 
 const ROUTE_404 = "/docs/404";
@@ -72,19 +83,25 @@ const handler = {
 
         const url = new URL(request.url);
 
+        // forward plus requests to hub
+        if (url.pathname.includes("/plus")) {
+            url.pathname = url.pathname.replace("/plus", "/hub");
+            return Response.redirect(url.toString(), 301);
+        }
+
         // handle redirects
         for (const redirect of REDIRECTS) {
             if (url.pathname === redirect.from) {
                 url.pathname = redirect.to;
-                return Response.redirect(url.toString(), redirect.code || 301);
+                return Response.redirect(url.toString(), 301);
             }
-        }   
+        }
 
         let res = await env.ASSETS.fetch(request);
         if (res.status === 404) {
             url.pathname = ROUTE_404;
             return Response.redirect(url.toString(), 301);
-        }    
+        }
         return res; // unchanged response (transparent externally)
     }
   };

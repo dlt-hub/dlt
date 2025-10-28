@@ -102,18 +102,19 @@ jobs:
       # Run pipeline dashboard unit tests
       - name: Run pipeline dashboard unit tests
         run: |
-          pytest tests/helpers/dashboard
+          pytest tests/workspace/helpers/dashboard
 
-      # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
-      # Mac is also disabled for the time being
+      # Run pipeline dashboard e2e tests (does not pass with python 3.9
       - name: Run dashboard e2e
         run: |
-          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
+          marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
         if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4' && matrix.os != 'windows-latest'
 
+      # note that this test will pass only when running from cmd shell (_storage\.dlt\pipelines\ must stay)
       - name: Run dashboard e2e windows
         run: |
-          start marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage\.dlt\pipelines\ --with_test_identifiers true
+          start marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage\.dlt\pipelines\ --with_test_identifiers true
+          timeout /t 6 /nobreak
           pytest --browser chromium tests/e2e
         if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4' && matrix.os == 'windows-latest'
   

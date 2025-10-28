@@ -30,6 +30,11 @@ jobs:
   test_docs_snippets:
     name: test snippets in docs
     uses: ./.github/workflows/test_docs_snippets.yml
+
+  # NOTE: we build docs the same way as on cloudflare, so we can catch problems early
+  build_docs:
+    name: build docs
+    uses: ./.github/workflows/build_docs.yml
   
   lint:
     name: lint on all python versions
@@ -61,10 +66,10 @@ jobs:
     needs: test_common
     uses: ./.github/workflows/test_sources_local.yml
 
-  test_hub:
-    name: test dlthub features
-    needs: lint
-    uses: ./.github/workflows/test_hub.yml
+  # test_hub:
+  #   name: test dlthub features
+  #   needs: lint
+  #   uses: ./.github/workflows/test_hub.yml
 
   test_tools_airflow:
     name: test airflow helpers

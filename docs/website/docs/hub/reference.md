@@ -47,16 +47,16 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * `--debug` - Displays full stack traces on exceptions. useful for debugging if the output is not clear enough.
 
 **Available subcommands**
-* [`transformation`](#dlt-transformation) - Run transformations dlt+ project. experimental.
-* [`source`](#dlt-source) - Manage dlt+ project sources
-* [`project`](#dlt-project) - Manage dlt+ projects
-* [`profile`](#dlt-profile) - Manage dlt+ project profiles
+* [`transformation`](#dlt-transformation) - Run transformations dltHub project. experimental.
+* [`source`](#dlt-source) - Manage dltHub sources
+* [`project`](#dlt-project) - Manage dltHub projects
+* [`profile`](#dlt-profile) - Manage dltHub profiles
 * [`pipeline`](#dlt-pipeline) - Operations on pipelines that were ran locally
-* [`license`](#dlt-license) - View dlt+ license status
+* [`license`](#dlt-license) - View dltHub license status
 * [`destination`](#dlt-destination) - Manage project destinations
-* [`dbt`](#dlt-dbt) - Dlt+ dbt transformation generator
-* [`dataset`](#dlt-dataset) - Manage dlt+ project datasets
-* [`cache`](#dlt-cache) - Manage dlt+ project local data cache. experimental.
+* [`dbt`](#dlt-dbt) - dltHub dbt transformation generator
+* [`dataset`](#dlt-dataset) - Manage dltHub datasets
+* [`cache`](#dlt-cache) - Manage dltHub local data cache. experimental.
 * [`telemetry`](#dlt-telemetry) - Shows telemetry status
 * [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
 * [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
@@ -67,7 +67,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 
 ## `dlt transformation`
 
-Run transformations dlt+ project. Experimental.
+Run transformations dltHub project. Experimental.
 
 **Usage**
 ```sh
@@ -78,7 +78,7 @@ dlt transformation [-h] [--project PROJECT] [--profile PROFILE] pond_name
 
 **Description**
 
-Commands to run transformations on local cache in dlt+ projects
+Commands to run transformations on local cache in dltHub projects
 
 **This is an experimental feature and will change substantially in the future.**
 
@@ -379,7 +379,7 @@ Inherits arguments from [`dlt transformation`](#dlt-transformation).
 
 ## `dlt source`
 
-Manage dlt+ project sources.
+Manage dltHub project sources.
 
 **Usage**
 ```sh
@@ -493,7 +493,7 @@ Inherits arguments from [`dlt source`](#dlt-source).
 
 ## `dlt project`
 
-Manage dlt+ projects.
+Manage dltHub projects.
 
 **Usage**
 ```sh
@@ -503,7 +503,7 @@ dlt project [-h] [--project PROJECT] [--profile PROFILE]
 
 **Description**
 
-Commands to manage dlt+ projects. Run without arguments to list all projects in scope.
+Commands to manage dltHub projects. Run without arguments to list all projects in scope.
 
 <details>
 
@@ -519,7 +519,7 @@ Inherits arguments from [`dlt`](#dlt).
 **Available subcommands**
 * [`config`](#dlt-project-config) - Configuration management commands
 * [`clean`](#dlt-project-clean) - Cleans local data for the selected profile. if tmp_dir is defined in project file, it gets deleted. pipelines and transformations working dir are also deleted by default. data in remote destinations is not affected
-* [`init`](#dlt-project-init) - Initialize a new dlt+ project
+* [`init`](#dlt-project-init) - Initialize a new dltHub project
 * [`list`](#dlt-project-list) - List all projects that could be found in installed dlt packages
 * [`info`](#dlt-project-info) - List basic project info of current project.
 * [`audit`](#dlt-project-audit) - Creates and locks resource and secrets audit for a current profile.
@@ -631,7 +631,7 @@ Inherits arguments from [`dlt project`](#dlt-project).
 
 ### `dlt project init`
 
-Initialize a new dlt+ project.
+Initialize a new dltHub project.
 
 **Usage**
 ```sh
@@ -641,7 +641,7 @@ dlt project init [-h] [--project-name PROJECT_NAME] [--package] [--force]
 
 **Description**
 
-Initialize a new dlt+ project.
+Initialize a new dltHub project.
 
 <details>
 
@@ -735,7 +735,7 @@ Inherits arguments from [`dlt project`](#dlt-project).
 
 ## `dlt profile`
 
-Manage dlt+ project profiles.
+Manage dltHub project profiles.
 
 **Usage**
 ```sh
@@ -1333,7 +1333,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 ## `dlt license`
 
-View dlt+ license status.
+View dltHub license status.
 
 **Usage**
 ```sh
@@ -1342,7 +1342,7 @@ dlt license [-h] {show,scopes} ...
 
 **Description**
 
-View dlt+ license status.
+View dltHub license status.
 
 <details>
 
@@ -1522,7 +1522,7 @@ Inherits arguments from [`dlt destination`](#dlt-destination).
 
 ## `dlt dbt`
 
-dlt+ dbt transformation generator.
+dltHub dbt transformation generator.
 
 **Usage**
 ```sh
@@ -1531,7 +1531,7 @@ dlt dbt [-h] {generate} ...
 
 **Description**
 
-dlt+ dbt transformation generator.
+dltHub dbt transformation generator.
 
 <details>
 
@@ -1581,7 +1581,7 @@ Inherits arguments from [`dlt dbt`](#dlt-dbt).
 
 ## `dlt dataset`
 
-Manage dlt+ project datasets.
+Manage dltHub project datasets.
 
 **Usage**
 ```sh
@@ -1771,7 +1771,7 @@ Inherits arguments from [`dlt dataset`](#dlt-dataset).
 
 ## `dlt cache`
 
-Manage dlt+ project local data cache. Experimental.
+Manage dltHub project local data cache. Experimental.
 
 **Usage**
 ```sh
@@ -1782,7 +1782,7 @@ dlt cache [-h] [--project PROJECT] [--profile PROFILE]
 
 **Description**
 
-Commands to manage local data cache for dlt+ project.
+Commands to manage local data cache for dltHub project.
 
 **This is an experimental feature and will change substantially in the future.**
 
@@ -1989,7 +1989,7 @@ dlt telemetry [-h]
 
 **Description**
 
-The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
+The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 

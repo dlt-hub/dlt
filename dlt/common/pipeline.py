@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import dataclasses
 import datetime  # noqa: 251
+import warnings
 import humanize
 from typing import (
     Any,
@@ -22,22 +23,16 @@ from typing import (
 )
 from typing_extensions import NotRequired
 
+from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.typing import TypedDict
 from dlt.common.configuration import configspec
-from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.destination import TDestinationReferenceArg, AnyDestination
 from dlt.common.destination.client import JobClientBase
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
-from dlt.common.exceptions import (
-    PipelineStateNotAvailable,
-    SourceSectionNotAvailable,
-    ResourceNameNotAvailable,
-)
 from dlt.common.metrics import (
     DataWriterMetrics,
     ExtractDataInfo,
@@ -418,14 +413,27 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         self._current_load_started = precise_time()
         self._load_id_metrics.setdefault(load_id, [])
 
-    def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
+    def _step_info_update_metrics(
+        self, load_id: str, metrics: TStepMetrics, immutable: bool = False
+    ) -> None:
+        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        step_metrics = self._load_id_metrics[load_id]
+        if immutable or len(step_metrics) == 0:
+            step_metrics.append(metrics)
+        else:
+            step_metrics[0] = metrics
+
+    def _step_info_complete_load_id(self, load_id: str, finished: bool = True) -> None:
         assert self._current_load_id == load_id, (
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
-        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
-        metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
-        self._load_id_metrics[load_id].append(metrics)
+        # metrics must be present
+        metrics = self._load_id_metrics[load_id][-1]
+        # update finished at
+        assert metrics["finished_at"] is None
+        if finished:
+            metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
         self._current_load_id = None
         self._current_load_started = None
 
@@ -508,8 +516,8 @@ class SupportsPipeline(Protocol):
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""
-    runtime_config: RuntimeConfiguration
-    """A configuration of runtime options like logging level and format and various tracing options"""
+    run_context: RunContextBase
+    """A run context associated with the pipeline when instance was created"""
     working_dir: str
     """A working directory of the pipeline"""
     pipeline_salt: str
@@ -641,11 +649,20 @@ class PipelineContext(ContainerInjectableContext):
 
     def activate(self, pipeline: SupportsPipeline) -> None:
         """Activates `pipeline` and deactivates active one."""
+        from dlt.common.runtime.run_context import active
+
+        # TODO: (1) compare run_context in pipeline with currently active context (via uri) and warn if they differ
+        if pipeline.run_context.uri != active().uri:
+            warnings.warn(
+                f"Runtime context changed from `{pipeline.run_context.uri}` to `{active().uri}`"
+                f" when activating pipeline `{pipeline.pipeline_name}`. Pipeline will keep its"
+                " working and local dirs. Other behaviors are undefined. Recreate pipeline"
+                " instance after run context change."
+            )
         # do not activate currently active pipeline
         if pipeline == self._pipeline:
             return
         self.deactivate()
-        # TODO: (1) compare run_context in pipeline with currently active context (via uri) and warn if they differ
         # TODO: (2) activate the right pipeline context. that requires that we should change pluggable run context
         #       to thread-affine or even contextvar that works in async pools
         pipeline._set_context(True)

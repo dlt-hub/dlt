@@ -41,3 +41,6 @@ DBT_CLOUD = "dbt_cloud"
 
 DASHBOARD = "dashboard"
 """dashboard configuration (DashboardConfiguration)"""
+
+WORKSPACE = "workspace"
+"""Workspace configuration"""

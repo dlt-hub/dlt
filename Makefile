@@ -48,8 +48,10 @@ dev: has-uv
 
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
-	
-lint:
+
+lint: lint-core lint-security lint-docstrings
+
+lint-core:
 	uv run mypy --config-file mypy.ini dlt tests
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
@@ -59,8 +61,6 @@ lint:
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
-	$(MAKE) lint-security
-	$(MAKE) lint-docstrings
 
 format:
 	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
@@ -68,13 +68,13 @@ format:
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
+	# TODO: re-enable transformation snippets tests when dlthub dep is available
+	uv pip install docstring_parser_fork --reinstall
+	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/
+	uv run ruff check
+	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo,docs/website/node_modules
 
 lint-and-test-snippets: lint-snippets
-	# TODO: re-enable transformation snippets tests
-	uv pip install docstring_parser_fork --reinstall
-	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/ --exclude docs/website/docs/general-usage/transformations/transformation-snippets.py
-	uv run ruff check
-	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo --exclude docs/website/docs/hub/features/transformations/transformation-snippets.py
 	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
 
 lint-and-test-examples:
@@ -123,12 +123,7 @@ test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data ACTIVE_DESTINATIONS='["postgres"]' ALL_FILESYSTEM_DRIVERS='["memory"]'  uv run pytest tests/load
 
 test-common:
-	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common tests/load/test_dummy_client.py tests/libs tests/destinations
-
-reset-test-storage:
-	-rm -r _storage
-	mkdir _storage
-	python3 tests/tools/create_storages.py
+	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
 
 build-library: dev
 	uv version
@@ -180,8 +175,8 @@ test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
 start-dlt-dashboard-e2e:
-	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
+	uv run marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
 
 # creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
-	uv run python tests/helpers/dashboard/example_pipelines.py
+	uv run python tests/workspace/helpers/dashboard/example_pipelines.py

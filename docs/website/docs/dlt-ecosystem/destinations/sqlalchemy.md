@@ -26,6 +26,8 @@ pip install mysqlclient
 
 Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/en/20/dialects/) for information about client libraries required for supported databases.
 
+<!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
+
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to MS SQL by running:**
@@ -140,7 +142,7 @@ Please report issues with particular dialects. We'll try to make them work.
 
 ### Trino limitations
 * Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
-* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables) 
+* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
 

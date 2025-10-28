@@ -1,31 +1,31 @@
 ---
 title: AI workflows
-description: Explore data in your dlt+ project with Claude Desktop using the Model Context Protocol
-keywords: [dlt+, Claude Desktop, MCP, Model Context Protocol]
+description: Explore data in your dltHub project with Claude Desktop using the Model Context Protocol
+keywords: [dltHub, Claude Desktop, MCP, Model Context Protocol]
 ---
 
 # AI workflows
 
-As part of dlt+, we are developing several tools to enhance development with AI workflows. The first of these is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.
+As part of dltHub, we are developing several tools to enhance development with AI workflows. The first of these is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) plugin for Claude Desktop for data exploration.
 
 ## Prerequisites
-- dlt+ installed in a virtual environment (see [installation guide](../getting-started/installation.md))
+- dltHub installed in a virtual environment (see [installation guide](../getting-started/installation.md))
 - [Claude Desktop](https://claude.ai/download) installed
 
-## Install dlt+ with MCP support
+## Install dltHub with MCP support
 
 Make sure your virtual environment is activated, then:
 
 ```sh
-pip install dlt-plus[mcp]
+pip install dlthub[mcp]
 ```
 
-## Set up or use a dlt+ project
+## Set up or use a dltHub project
 
-You can either use your existing dlt+ project or create a simple test project to try out the MCP workflow.
+You can either use your existing dltHub project or create a simple test project to try out the MCP workflow.
 
 ### Using an existing project
-If you already have a dlt+ project, you can use it directly - just make sure you have run at least one pipeline so there's some data to explore. You can skip to [configure Claude Desktop](#configure-claude-desktop) if you have a project ready.
+If you already have a dltHub project, you can use it directly - just make sure you have run at least one pipeline so there's some data to explore. You can skip to [configure Claude Desktop](#configure-claude-desktop) if you have a project ready.
 
 ### Creating a test project
 If you don't have a project yet, here's how to create a simple one:
@@ -72,7 +72,7 @@ datasets:
       - pokemon_local
 ```
 
-This will create a dlt+ project with a single pipeline that loads data from the Pokemon API and stores it in a local directory.
+This will create a dltHub project with a single pipeline that loads data from the Pokemon API and stores it in a local directory.
 
 Validate the project configuration:
 
@@ -116,7 +116,7 @@ Open the file in a text editor and add the following configuration:
 ```json
 {
   "mcpServers": {
-    "dlt+ project": {
+    "dltHub project": {
       "command": "</path/to/your/project/.venv/bin/dlt>",
       "args": [
         "project",
@@ -157,7 +157,7 @@ When you click on the icon, you will see the "Available MCP Tools" popup with th
 
 ## Start chatting
 
-Now you can start chatting with Claude Desktop and ask it questions about the data in your dlt+ project.
+Now you can start chatting with Claude Desktop and ask it questions about the data in your dltHub project.
 
 For example, you may ask, "Which tables do I have in my pipeline?":
 
@@ -180,5 +180,5 @@ More examples of the queries you can ask:
 - "Transform the pokemon table to add a new column with the pokemon name length."
 - "What is the average height of the pokemon?"
 
-That's it! You can now explore your dlt+ project from Claude Desktop using the MCP.
+That's it! You can now explore your dltHub project from Claude Desktop using the MCP.
 

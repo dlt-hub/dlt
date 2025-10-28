@@ -146,6 +146,9 @@ class FilesystemLoadJob(RunnableLoadJob):
 
     def metrics(self) -> Optional[LoadJobMetrics]:
         m = super().metrics()
+        # job client not available before run_managed called
+        if not self._job_client:
+            return m
         return m._replace(remote_url=self.make_remote_url())
 
 

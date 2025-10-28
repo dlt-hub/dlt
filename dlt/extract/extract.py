@@ -400,7 +400,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             delta = left_gens - curr_gens
                             left_gens -= delta
                             collector.update("Resources", delta)
+
+                        # kill extraction if signalled
                         signals.raise_if_signalled()
+
                         resource = source.resources.with_pipe(pipe_item.pipe)
                         item_format = get_data_item_format(pipe_item.item)
                         extractors[item_format].write_items(
@@ -429,10 +432,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             self.gather_metrics(load_id, source)
 
     def gather_metrics(self, load_id: str, source: DltSource) -> None:
-        # gather metrics
-        self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
-        # remove the metrics of files processed in this extract run
         # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+        # so metrics are immutable here and will be appended
+        self._step_info_update_metrics(
+            load_id, self._compute_metrics(load_id, source), immutable=True
+        )
+        self._step_info_complete_load_id(load_id)
+        # remove the metrics of files processed in this extract run
         self.extract_storage.remove_closed_files(load_id)
 
     def extract(

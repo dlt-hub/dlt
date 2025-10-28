@@ -25,6 +25,8 @@ pip install s3fs
 so pip does not fail on backtracking.
 :::
 
+<!--@@@DLT_DESTINATION_CAPABILITIES filesystem-->
+
 ## Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:

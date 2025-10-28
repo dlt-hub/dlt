@@ -16,7 +16,7 @@ files or secure vaults. It understands both simple and verbose layouts of [confi
 
 2. [secrets.toml and config.toml files](#secretstoml-and-configtoml): These files store configuration values and secrets. `secrets.toml` contains sensitive information, while `config.toml` holds non-sensitive configuration.
 
-3. [Vaults](#vaults): Credentials stored in secure vaults like Google Secrets Manager, Azure Key Vault, or AWS Secrets Manager.
+3. [Vaults](#vaults): Credentials stored in secure vaults like Google Secrets Manager, Azure Key Vault, or AWS Secrets Manager. Airflow Variables are also included here.
 
 4. [Custom Providers](#custom-providers) added with `register_provider`: These are custom implementations you can create to use your own configuration formats or perform specialized preprocessing.
 
@@ -257,9 +257,11 @@ Only values marked as secrets (with `dlt.secrets.value` or using types like `TSe
 
 `dlt` may read configuration from secure vaults - specialized services for storing credentials.
 
-* For Google Cloud Secrets Manager, see our [example walkthrough](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager).
+* For Google Cloud Secrets Manager, see our [example walkthrough](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager) and [reference](vaults.md#configure-google-secret-provider)
 
-* For other vault integrations like AWS Secrets Manager or Azure Key Vault, [contact our sales team](https://dlthub.com/contact-sales) to learn about our [secure building blocks for data platform teams](https://dlthub.com/product/data-platform-teams#secure).
+* For Airflow Variable see the [reference and examples](vaults.md#configure-airflow-variables-as-provider)
+
+* For other vault integrations like AWS Secrets Manager or Azure Key Vault we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
 
 ## secrets.toml and config.toml
 
@@ -745,7 +747,7 @@ You have additional options for using multiple instances of the same source:
 
 1. Use the `clone()` method as explained in the [sql_database documentation](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#configure-many-sources-side-by-side-with-custom-sections).
 
-2. Create [named destinations](../destination.md#configure-multiple-destinations-in-a-pipeline) to use the same destination type with different configurations.
+2. Create [named destinations](../destination.md#configure-multiple-destinations-of-the-same-type) to use the same destination type with different configurations.
 :::
 
 ## Troubleshoot configuration errors
