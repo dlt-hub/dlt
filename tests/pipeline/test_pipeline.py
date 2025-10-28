@@ -4003,6 +4003,7 @@ def test_signal_graceful_load_step_shutdown(sig: int) -> None:
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
             signals.sleep(0.1)
 
+        signals.sleep(1)
         # send signal to drain pool and stop load
         os.kill(os.getpid(), sig)
 
@@ -4217,6 +4218,7 @@ def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None
             while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
                 signals.sleep(0.1)
 
+            signals.sleep(1)
             # send signal to drain pool and stop load
             os.kill(os.getpid(), sig)
 
