@@ -1,10 +1,11 @@
 import pytest
-import dlt
-
 from typing import Any
 
-
+import dlt
 from tests.pipeline.utils import load_table_counts
+from tests.hub.conftest import auto_issue_license as auto_issue_license
+
+pytest.importorskip("dlthub")
 
 
 @pytest.fixture(scope="function")

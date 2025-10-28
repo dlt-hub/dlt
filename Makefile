@@ -75,7 +75,7 @@ lint-snippets:
 	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo,docs/website/node_modules
 
 lint-and-test-snippets: lint-snippets
-	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
+	cd docs/website/docs && uv run pytest --ignore=node_modules
 
 lint-and-test-examples:
 	uv pip install docstring_parser_fork --reinstall
@@ -134,7 +134,7 @@ clean-dist:
 
 publish-library: clean-dist build-library
 	ls -l dist/
-	@read -sp "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
+	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
 	uv publish --token "$$PYPI_API_TOKEN"
 
 test-build-images: build-library
