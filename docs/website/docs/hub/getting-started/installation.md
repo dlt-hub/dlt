@@ -1,23 +1,33 @@
 ---
 title: Installation
+<<<<<<< HEAD
 description: Installation of dlthub package
+=======
+description: Installation information of dlthub package
+>>>>>>> 14e236a1 (update installadtion page)
 ---
 
 :::info Supported Python versions
 
+<<<<<<< HEAD
 dltHub currently supports Python versions 3.9-3.13.
+=======
+dlthub currently supports Python versions 3.9-3.12.
+>>>>>>> 14e236a1 (update installadtion page)
 
 :::
 
 ## Quickstart
 
-To install the `dlthub` package, run:
+To install the `dlt[workspace]` package, run:
 
 ```sh
-pip install dlthub
+pip install dlt[workspace]
 ```
 
-Please install a valid license before proceeding, as described under [licensing](#licensing).
+
+This comes with the dlthub package. To use the features of dlthub, please install a valid license before proceeding, as described under [licensing](##licensing).
+
 
 ## Setting up your environment
 
@@ -121,9 +131,16 @@ C:\> .\venv\Scripts\activate
   </TabItem>
 </Tabs>
 
+<<<<<<< HEAD
 ### Install dlthub
 
 `dlthub` will be automatically installed with workspace extra:
+=======
+
+### Install dlthub
+
+`dlthub` will automatically be installed with workspace extra:
+>>>>>>> 14e236a1 (update installadtion page)
 
 ```sh
 # install the newest dlt version or upgrade the existing version to the newest one
@@ -132,34 +149,47 @@ uv pip install -U "dlt[workspace]"
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
 
-## Licensing
 
+<<<<<<< HEAD
 Once you have a valid license, you can make it available to dlthub using one of the following methods:
+=======
+>>>>>>> 14e236a1 (update installadtion page)
 
-1. **Environment variable**: set the license key as an environment variable:
+## Self-licensing
+
+
+You can self-issue an anonymous 30-day trial license to test dlthub features and use it for development, eductation, and ci ops. The self-issued licenses are not granted for "Production Use" and cannot be transfered to other machines/workspaces. 
+
+
+### Choose a scope and issue a license:
 
 ```sh
-export RUNTIME__LICENSE="eyJhbGciOiJSUz...vKSjbEc==="
+dlt license issue <scope>
 ```
 
-2. **Secrets file**: add the license key to a `secrets.toml` file. You can use either the project-level `secrets.toml` (located in `./.dlt/secrets.toml`) or the global one (located in `~/.dlt/secrets.toml`):
+Known scopes:
 
-```toml
-[runtime]
-license="eyJhbGciOiJSUz...vKSjbEc==="
-```
 
+<<<<<<< HEAD
 3. **`dlt.yml`**: add the license key directly in the project manifest file referencing a user-defined environment variable:
+=======
+`*` - All features 
+`dlthub` - All dltHub features 
+`dlthub.dbt_generator` - Generate dbt packages from dlt pipelines https://dlthub.com/docs/hub/features/transformations/dbt-transformations
+`dlthub.sources.mssql` - Change tracking for MSSQL https://dlthub.com/docs/hub/ecosystem/ms-sql
+`dlthub.project` - Declarative yaml interface for dlt https://dlthub.com/docs/hub/features/project/
+`dlthub.transformation` - Python-first query-agnostic data transformations https://dlthub.com/docs/hub/features/transformations/
+`dlthub.destinations.iceberg` - Iceberg destination with full catalog support https://dlthub.com/docs/hub/ecosystem/iceberg
+`dlthub.destinations.snowflake_plus` - Snowflake iceberg extension with Open Catalog https://dlthub.com/docs/hub/ecosystem/snowflake_plus
+`dlthub.runner` - Production pipeline runner and orchestrator support https://dlthub.com/docs/hub/features/runner
+>>>>>>> 14e236a1 (update installadtion page)
 
-```yaml
-runtime:
-  license: { env.MY_ENV_CONTAINING_LICENSE_KEY }
-```
 
-You can verify that the license was installed correctly and is valid by running:
-
+Find your installed licenses with:
 ```sh
-$ dlt license show
+dlt license info
 ```
 
-Our license terms can be found [here](../EULA.md).
+
+
+

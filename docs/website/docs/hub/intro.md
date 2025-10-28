@@ -15,6 +15,7 @@ dltHub is built around the open-source library [dlt](../intro.md). It uses the s
 * AI-assisted (“agentic”) workflows
 * Managed runtime
 
+
 dltHub supports both local and managed cloud development. A single developer can deploy and operate pipelines, transformations, and notebooks directly from a dltHub Workspace, using a single command.
 The dltHub Runtime, customizable pipeline dashboard, and validation tools make it straightforward to monitor, troubleshoot, and keep data reliable throughout the whole end-to-end data workflow:
 
@@ -121,3 +122,8 @@ Most features support a self-guided trial right after install, check the [instal
 * We favor open formats and portable storage (e.g., Iceberg), whether you choose our managed lakehouse or bring your own.
 * For exact features and pricing, check the site; this section is meant to help you choose a sensible starting point.
 :::
+=======
+
+To get started with dltHub, install the library using pip (Python 3.9-3.12):
+=======
+
