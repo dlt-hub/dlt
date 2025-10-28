@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -28,15 +28,10 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | WorkspaceResponse
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
+]:
     if response.status_code == 200:
         response_200 = WorkspaceResponse.from_dict(response.json())
 
@@ -69,9 +64,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | WorkspaceResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -84,9 +79,9 @@ def _build_response(
 def sync_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | WorkspaceResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
 ]:
     """GetWorkspace
 
@@ -103,7 +98,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | WorkspaceResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -120,45 +115,9 @@ def sync_detailed(
 def sync(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | WorkspaceResponse
-    | None
-):
-    """GetWorkspace
-
-
-    Gets information about a workspace.
-
-    Requires READ permission on the organization level.
-
-    Args:
-        workspace_id (UUID):
-
-    Raises:
-        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
-        httpx.TimeoutException: If the request takes longer than Client.timeout.
-
-    Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | WorkspaceResponse
-    """
-
-    return sync_detailed(
-        workspace_id=workspace_id,
-        client=client,
-    ).parsed
-
-
-async def asyncio_detailed(
-    workspace_id: UUID,
-    *,
-    client: AuthenticatedClient | Client,
-) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | WorkspaceResponse
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
 ]:
     """GetWorkspace
 
@@ -175,30 +134,22 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | WorkspaceResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
     """
 
-    kwargs = _get_kwargs(
+    return sync_detailed(
         workspace_id=workspace_id,
-    )
-
-    response = await client.get_async_httpx_client().request(**kwargs)
-
-    return _build_response(client=client, response=response)
+        client=client,
+    ).parsed
 
 
-async def asyncio(
+async def asyncio_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | WorkspaceResponse
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+) -> Response[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
+]:
     """GetWorkspace
 
 
@@ -214,7 +165,41 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | WorkspaceResponse
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]]
+    """
+
+    kwargs = _get_kwargs(
+        workspace_id=workspace_id,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    workspace_id: UUID,
+    *,
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
+]:
+    """GetWorkspace
+
+
+    Gets information about a workspace.
+
+    Requires READ permission on the organization level.
+
+    Args:
+        workspace_id (UUID):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, WorkspaceResponse]
     """
 
     return (

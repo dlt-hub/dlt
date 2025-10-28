@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -28,15 +28,12 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | OrganizationResponse
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[
+        ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse
+    ]
+]:
     if response.status_code == 200:
         response_200 = OrganizationResponse.from_dict(response.json())
 
@@ -69,9 +66,11 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
+    Union[
+        ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -84,9 +83,11 @@ def _build_response(
 def sync_detailed(
     organization_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
+    Union[
+        ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse
+    ]
 ]:
     """GetOrganization
 
@@ -103,7 +104,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -120,45 +121,11 @@ def sync_detailed(
 def sync(
     organization_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | OrganizationResponse
-    | None
-):
-    """GetOrganization
-
-
-    Gets information about an organization.
-
-    Requires READ permission on the organization level.
-
-    Args:
-        organization_id (UUID):
-
-    Raises:
-        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
-        httpx.TimeoutException: If the request takes longer than Client.timeout.
-
-    Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
-    """
-
-    return sync_detailed(
-        organization_id=organization_id,
-        client=client,
-    ).parsed
-
-
-async def asyncio_detailed(
-    organization_id: UUID,
-    *,
-    client: AuthenticatedClient | Client,
-) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[
+        ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse
+    ]
 ]:
     """GetOrganization
 
@@ -175,30 +142,24 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse]
     """
 
-    kwargs = _get_kwargs(
+    return sync_detailed(
         organization_id=organization_id,
-    )
-
-    response = await client.get_async_httpx_client().request(**kwargs)
-
-    return _build_response(client=client, response=response)
+        client=client,
+    ).parsed
 
 
-async def asyncio(
+async def asyncio_detailed(
     organization_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | OrganizationResponse
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+) -> Response[
+    Union[
+        ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse
+    ]
+]:
     """GetOrganization
 
 
@@ -214,7 +175,43 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse]]
+    """
+
+    kwargs = _get_kwargs(
+        organization_id=organization_id,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    organization_id: UUID,
+    *,
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[
+        ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse
+    ]
+]:
+    """GetOrganization
+
+
+    Gets information about an organization.
+
+    Requires READ permission on the organization level.
+
+    Args:
+        organization_id (UUID):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, OrganizationResponse]
     """
 
     return (

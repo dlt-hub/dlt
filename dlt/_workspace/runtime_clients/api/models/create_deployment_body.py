@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import json
 from collections.abc import Mapping
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -18,14 +16,14 @@ T = TypeVar("T", bound="CreateDeploymentBody")
 class CreateDeploymentBody:
     """
     Attributes:
-        file (File | Unset):
+        file (Union[Unset, File]):
     """
 
-    file: File | Unset = UNSET
+    file: Union[Unset, File] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        file: FileTypes | Unset = UNSET
+        file: Union[Unset, FileTypes] = UNSET
         if not isinstance(self.file, Unset):
             file = self.file.to_tuple()
 
@@ -52,7 +50,7 @@ class CreateDeploymentBody:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         _file = d.pop("file", UNSET)
-        file: File | Unset
+        file: Union[Unset, File]
         if isinstance(_file, Unset):
             file = UNSET
         else:

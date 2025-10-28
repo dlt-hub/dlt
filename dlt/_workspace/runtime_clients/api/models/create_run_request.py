@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -16,18 +14,18 @@ class CreateRunRequest:
     """
     Attributes:
         script_id_or_name (str): The ID or name of the script to run
-        profile_id_or_name (None | str | Unset): The ID or name of the profile to use for the run, will default to the
-            default profile of the script
+        profile_id_or_name (Union[None, Unset, str]): The ID or name of the profile to use for the run, will default to
+            the default profile of the script
     """
 
     script_id_or_name: str
-    profile_id_or_name: None | str | Unset = UNSET
+    profile_id_or_name: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         script_id_or_name = self.script_id_or_name
 
-        profile_id_or_name: None | str | Unset
+        profile_id_or_name: Union[None, Unset, str]
         if isinstance(self.profile_id_or_name, Unset):
             profile_id_or_name = UNSET
         else:
@@ -50,12 +48,12 @@ class CreateRunRequest:
         d = dict(src_dict)
         script_id_or_name = d.pop("script_id_or_name")
 
-        def _parse_profile_id_or_name(data: object) -> None | str | Unset:
+        def _parse_profile_id_or_name(data: object) -> Union[None, Unset, str]:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(None | str | Unset, data)
+            return cast(Union[None, Unset, str], data)
 
         profile_id_or_name = _parse_profile_id_or_name(d.pop("profile_id_or_name", UNSET))
 

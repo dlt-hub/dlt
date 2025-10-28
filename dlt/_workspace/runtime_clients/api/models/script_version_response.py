@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -32,7 +30,7 @@ class ScriptVersionResponse:
         script_id (UUID): The ID of the script the script version belongs to
         script_type (ScriptType):
         version (int): The current version of the profile
-        schedule (None | str | Unset): The schedule of the script. Use 'cron' format for cron jobs
+        schedule (Union[None, Unset, str]): The schedule of the script. Use 'cron' format for cron jobs
     """
 
     active: bool
@@ -47,7 +45,7 @@ class ScriptVersionResponse:
     script_id: UUID
     script_type: ScriptType
     version: int
-    schedule: None | str | Unset = UNSET
+    schedule: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -75,7 +73,7 @@ class ScriptVersionResponse:
 
         version = self.version
 
-        schedule: None | str | Unset
+        schedule: Union[None, Unset, str]
         if isinstance(self.schedule, Unset):
             schedule = UNSET
         else:
@@ -131,12 +129,12 @@ class ScriptVersionResponse:
 
         version = d.pop("version")
 
-        def _parse_schedule(data: object) -> None | str | Unset:
+        def _parse_schedule(data: object) -> Union[None, Unset, str]:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(None | str | Unset, data)
+            return cast(Union[None, Unset, str], data)
 
         schedule = _parse_schedule(d.pop("schedule", UNSET))
 

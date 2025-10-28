@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -30,15 +30,10 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileResponse
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+]:
     if response.status_code == 200:
         response_200 = ProfileResponse.from_dict(response.json())
 
@@ -71,9 +66,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -87,9 +82,9 @@ def sync_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
 ]:
     """GetProfile
 
@@ -107,7 +102,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -126,48 +121,9 @@ def sync(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileResponse
-    | None
-):
-    """GetProfile
-
-
-    Gets a profile for a workspace, either by ID or by profile name.
-
-    Requires READ permission. On the organization level.
-
-    Args:
-        workspace_id (UUID):
-        profile_id_or_name (str):
-
-    Raises:
-        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
-        httpx.TimeoutException: If the request takes longer than Client.timeout.
-
-    Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
-    """
-
-    return sync_detailed(
-        workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
-        client=client,
-    ).parsed
-
-
-async def asyncio_detailed(
-    workspace_id: UUID,
-    profile_id_or_name: str,
-    *,
-    client: AuthenticatedClient | Client,
-) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
 ]:
     """GetProfile
 
@@ -185,32 +141,24 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
     """
 
-    kwargs = _get_kwargs(
+    return sync_detailed(
         workspace_id=workspace_id,
         profile_id_or_name=profile_id_or_name,
-    )
-
-    response = await client.get_async_httpx_client().request(**kwargs)
-
-    return _build_response(client=client, response=response)
+        client=client,
+    ).parsed
 
 
-async def asyncio(
+async def asyncio_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileResponse
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+) -> Response[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+]:
     """GetProfile
 
 
@@ -227,7 +175,44 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]]
+    """
+
+    kwargs = _get_kwargs(
+        workspace_id=workspace_id,
+        profile_id_or_name=profile_id_or_name,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    workspace_id: UUID,
+    profile_id_or_name: str,
+    *,
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+]:
+    """GetProfile
+
+
+    Gets a profile for a workspace, either by ID or by profile name.
+
+    Requires READ permission. On the organization level.
+
+    Args:
+        workspace_id (UUID):
+        profile_id_or_name (str):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
     """
 
     return (

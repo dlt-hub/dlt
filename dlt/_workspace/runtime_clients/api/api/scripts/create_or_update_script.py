@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -38,15 +38,10 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ScriptResponse
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+]:
     if response.status_code == 201:
         response_201 = ScriptResponse.from_dict(response.json())
 
@@ -79,9 +74,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -94,10 +89,10 @@ def _build_response(
 def sync_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateScriptRequest,
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
 ]:
     """CreateOrUpdateScript
 
@@ -121,7 +116,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -139,55 +134,10 @@ def sync_detailed(
 def sync(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateScriptRequest,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ScriptResponse
-    | None
-):
-    """CreateOrUpdateScript
-
-
-    Creates a new script for a workspace. A script name in a workspace must be unique. A script has
-    versions the
-    highest version is the active version. Scripts define entry points of a workspace, or more
-    precisely, entry points for the
-    currently active deployment. Scripts can also be deactivated, so that they are not run on schedule
-    or accessible via public
-    endpoints in the cases where they are notebooks.
-
-    Requires WRITE permission on the organization level.
-
-    Args:
-        workspace_id (UUID):
-        body (CreateScriptRequest):
-
-    Raises:
-        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
-        httpx.TimeoutException: If the request takes longer than Client.timeout.
-
-    Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
-    """
-
-    return sync_detailed(
-        workspace_id=workspace_id,
-        client=client,
-        body=body,
-    ).parsed
-
-
-async def asyncio_detailed(
-    workspace_id: UUID,
-    *,
-    client: AuthenticatedClient | Client,
-    body: CreateScriptRequest,
-) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
 ]:
     """CreateOrUpdateScript
 
@@ -211,32 +161,24 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
     """
 
-    kwargs = _get_kwargs(
+    return sync_detailed(
         workspace_id=workspace_id,
+        client=client,
         body=body,
-    )
-
-    response = await client.get_async_httpx_client().request(**kwargs)
-
-    return _build_response(client=client, response=response)
+    ).parsed
 
 
-async def asyncio(
+async def asyncio_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateScriptRequest,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ScriptResponse
-    | None
-):
+) -> Response[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+]:
     """CreateOrUpdateScript
 
 
@@ -259,7 +201,50 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]]
+    """
+
+    kwargs = _get_kwargs(
+        workspace_id=workspace_id,
+        body=body,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    workspace_id: UUID,
+    *,
+    client: Union[AuthenticatedClient, Client],
+    body: CreateScriptRequest,
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+]:
+    """CreateOrUpdateScript
+
+
+    Creates a new script for a workspace. A script name in a workspace must be unique. A script has
+    versions the
+    highest version is the active version. Scripts define entry points of a workspace, or more
+    precisely, entry points for the
+    currently active deployment. Scripts can also be deactivated, so that they are not run on schedule
+    or accessible via public
+    endpoints in the cases where they are notebooks.
+
+    Requires WRITE permission on the organization level.
+
+    Args:
+        workspace_id (UUID):
+        body (CreateScriptRequest):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
     """
 
     return (

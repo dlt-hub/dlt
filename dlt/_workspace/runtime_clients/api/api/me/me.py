@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 
 import httpx
 
@@ -22,8 +22,8 @@ def _get_kwargs() -> dict[str, Any]:
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse | None:
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]:
     if response.status_code == 200:
         response_200 = MeResponse.from_dict(response.json())
 
@@ -51,8 +51,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse]:
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Response[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -63,8 +63,8 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse]:
+    client: Union[AuthenticatedClient, Client],
+) -> Response[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]:
     """Me
 
 
@@ -78,7 +78,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse]
+        Response[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]
     """
 
     kwargs = _get_kwargs()
@@ -92,8 +92,8 @@ def sync_detailed(
 
 def sync(
     *,
-    client: AuthenticatedClient | Client,
-) -> ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse | None:
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]:
     """Me
 
 
@@ -107,7 +107,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse
+        Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]
     """
 
     return sync_detailed(
@@ -117,8 +117,8 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: AuthenticatedClient | Client,
-) -> Response[ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse]:
+    client: Union[AuthenticatedClient, Client],
+) -> Response[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]:
     """Me
 
 
@@ -132,7 +132,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse]
+        Response[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]
     """
 
     kwargs = _get_kwargs()
@@ -144,8 +144,8 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: AuthenticatedClient | Client,
-) -> ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse | None:
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]]:
     """Me
 
 
@@ -159,7 +159,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | MeResponse
+        Union[ErrorResponse401, ErrorResponse403, ErrorResponse404, MeResponse]
     """
 
     return (

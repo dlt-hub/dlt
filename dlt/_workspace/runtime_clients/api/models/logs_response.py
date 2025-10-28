@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -17,17 +15,17 @@ class LogsResponse:
     """
     Attributes:
         run_id (UUID): The ID of the run the logs belong to
-        logs (None | str | Unset): The logs of the run. Set to none if no logs are available
+        logs (Union[None, Unset, str]): The logs of the run. Set to none if no logs are available
     """
 
     run_id: UUID
-    logs: None | str | Unset = UNSET
+    logs: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         run_id = str(self.run_id)
 
-        logs: None | str | Unset
+        logs: Union[None, Unset, str]
         if isinstance(self.logs, Unset):
             logs = UNSET
         else:
@@ -50,12 +48,12 @@ class LogsResponse:
         d = dict(src_dict)
         run_id = UUID(d.pop("run_id"))
 
-        def _parse_logs(data: object) -> None | str | Unset:
+        def _parse_logs(data: object) -> Union[None, Unset, str]:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(None | str | Unset, data)
+            return cast(Union[None, Unset, str], data)
 
         logs = _parse_logs(d.pop("logs", UNSET))
 

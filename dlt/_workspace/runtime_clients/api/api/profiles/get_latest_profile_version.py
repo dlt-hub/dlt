@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -30,15 +30,16 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
+]:
     if response.status_code == 200:
         response_200 = ProfileVersionResponse.from_dict(response.json())
 
@@ -71,13 +72,15 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -91,13 +94,15 @@ def sync_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
 ]:
     """GetLatestProfileVersion
 
@@ -116,7 +121,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -135,53 +140,15 @@ def sync(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
-    | None
-):
-    """GetLatestProfileVersion
-
-
-    Gets the latest and therefore active profile_version for a profile. If non exists, a default
-    profile_version is created and returned.
-
-    Requires READ permission. On the organization level.
-
-    Args:
-        workspace_id (UUID):
-        profile_id_or_name (str):
-
-    Raises:
-        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
-        httpx.TimeoutException: If the request takes longer than Client.timeout.
-
-    Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse
-    """
-
-    return sync_detailed(
-        workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
-        client=client,
-    ).parsed
-
-
-async def asyncio_detailed(
-    workspace_id: UUID,
-    profile_id_or_name: str,
-    *,
-    client: AuthenticatedClient | Client,
-) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
 ]:
     """GetLatestProfileVersion
 
@@ -200,32 +167,30 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]
     """
 
-    kwargs = _get_kwargs(
+    return sync_detailed(
         workspace_id=workspace_id,
         profile_id_or_name=profile_id_or_name,
-    )
-
-    response = await client.get_async_httpx_client().request(**kwargs)
-
-    return _build_response(client=client, response=response)
+        client=client,
+    ).parsed
 
 
-async def asyncio(
+async def asyncio_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+) -> Response[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
+]:
     """GetLatestProfileVersion
 
 
@@ -243,7 +208,51 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]]
+    """
+
+    kwargs = _get_kwargs(
+        workspace_id=workspace_id,
+        profile_id_or_name=profile_id_or_name,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    workspace_id: UUID,
+    profile_id_or_name: str,
+    *,
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
+]:
+    """GetLatestProfileVersion
+
+
+    Gets the latest and therefore active profile_version for a profile. If non exists, a default
+    profile_version is created and returned.
+
+    Requires READ permission. On the organization level.
+
+    Args:
+        workspace_id (UUID):
+        profile_id_or_name (str):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]
     """
 
     return (

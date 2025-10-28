@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -21,19 +19,19 @@ class CreateScriptRequest:
             tarball
         name (str): The name of the script
         script_type (ScriptType):
-        active (bool | Unset): Whether the script is active Default: True.
-        default_profile_id_or_name (str | Unset): The ID or name of the profile to use for the script Default:
+        active (Union[Unset, bool]): Whether the script is active Default: True.
+        default_profile_id_or_name (Union[Unset, str]): The ID or name of the profile to use for the script Default:
             'default'.
-        schedule (None | str | Unset): The schedule of the script. Use 'cron' format for cron jobs
+        schedule (Union[None, Unset, str]): The schedule of the script. Use 'cron' format for cron jobs
     """
 
     description: str
     entry_point: str
     name: str
     script_type: ScriptType
-    active: bool | Unset = True
-    default_profile_id_or_name: str | Unset = "default"
-    schedule: None | str | Unset = UNSET
+    active: Union[Unset, bool] = True
+    default_profile_id_or_name: Union[Unset, str] = "default"
+    schedule: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -49,7 +47,7 @@ class CreateScriptRequest:
 
         default_profile_id_or_name = self.default_profile_id_or_name
 
-        schedule: None | str | Unset
+        schedule: Union[None, Unset, str]
         if isinstance(self.schedule, Unset):
             schedule = UNSET
         else:
@@ -89,12 +87,12 @@ class CreateScriptRequest:
 
         default_profile_id_or_name = d.pop("default_profile_id_or_name", UNSET)
 
-        def _parse_schedule(data: object) -> None | str | Unset:
+        def _parse_schedule(data: object) -> Union[None, Unset, str]:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(None | str | Unset, data)
+            return cast(Union[None, Unset, str], data)
 
         schedule = _parse_schedule(d.pop("schedule", UNSET))
 

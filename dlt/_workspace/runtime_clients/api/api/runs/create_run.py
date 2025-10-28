@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -38,8 +38,10 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse | None:
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
+]:
     if response.status_code == 201:
         response_201 = RunResponse.from_dict(response.json())
 
@@ -72,9 +74,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -87,10 +89,10 @@ def _build_response(
 def sync_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateRunRequest,
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
 ]:
     """CreateRun
 
@@ -110,7 +112,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -128,44 +130,10 @@ def sync_detailed(
 def sync(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateRunRequest,
-) -> ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse | None:
-    """CreateRun
-
-
-    Triggers a new run for a script in a workspace. The latest script version will be used. The profile
-    associated with the script version will be used, of which
-    the latest profile_version will be used. You may specify a specific profile to use.
-
-    Requires WRITE permission on the organization level.
-
-    Args:
-        workspace_id (UUID):
-        body (CreateRunRequest):
-
-    Raises:
-        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
-        httpx.TimeoutException: If the request takes longer than Client.timeout.
-
-    Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse
-    """
-
-    return sync_detailed(
-        workspace_id=workspace_id,
-        client=client,
-        body=body,
-    ).parsed
-
-
-async def asyncio_detailed(
-    workspace_id: UUID,
-    *,
-    client: AuthenticatedClient | Client,
-    body: CreateRunRequest,
-) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
 ]:
     """CreateRun
 
@@ -185,25 +153,24 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
     """
 
-    kwargs = _get_kwargs(
+    return sync_detailed(
         workspace_id=workspace_id,
+        client=client,
         body=body,
-    )
-
-    response = await client.get_async_httpx_client().request(**kwargs)
-
-    return _build_response(client=client, response=response)
+    ).parsed
 
 
-async def asyncio(
+async def asyncio_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateRunRequest,
-) -> ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse | None:
+) -> Response[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
+]:
     """CreateRun
 
 
@@ -222,7 +189,46 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | RunResponse
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]]
+    """
+
+    kwargs = _get_kwargs(
+        workspace_id=workspace_id,
+        body=body,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    workspace_id: UUID,
+    *,
+    client: Union[AuthenticatedClient, Client],
+    body: CreateRunRequest,
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
+]:
+    """CreateRun
+
+
+    Triggers a new run for a script in a workspace. The latest script version will be used. The profile
+    associated with the script version will be used, of which
+    the latest profile_version will be used. You may specify a specific profile to use.
+
+    Requires WRITE permission on the organization level.
+
+    Args:
+        workspace_id (UUID):
+        body (CreateRunRequest):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, RunResponse]
     """
 
     return (

@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -18,11 +18,11 @@ def _get_kwargs(
     workspace_id: UUID,
     run_id: UUID,
     *,
-    script_id: None | Unset | UUID = UNSET,
+    script_id: Union[None, UUID, Unset] = UNSET,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {}
 
-    json_script_id: None | str | Unset
+    json_script_id: Union[None, Unset, str]
     if isinstance(script_id, Unset):
         json_script_id = UNSET
     elif isinstance(script_id, UUID):
@@ -46,15 +46,12 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    DetailedRunResponse
-    | ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
+]:
     if response.status_code == 200:
         response_200 = DetailedRunResponse.from_dict(response.json())
 
@@ -87,9 +84,11 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    DetailedRunResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -103,10 +102,12 @@ def sync_detailed(
     workspace_id: UUID,
     run_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    script_id: None | Unset | UUID = UNSET,
+    client: Union[AuthenticatedClient, Client],
+    script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Response[
-    DetailedRunResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
     """GetRun
 
@@ -118,14 +119,14 @@ def sync_detailed(
     Args:
         workspace_id (UUID):
         run_id (UUID):
-        script_id (None | Unset | UUID):
+        script_id (Union[None, UUID, Unset]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[DetailedRunResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404]
+        Response[Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -145,16 +146,13 @@ def sync(
     workspace_id: UUID,
     run_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    script_id: None | Unset | UUID = UNSET,
-) -> (
-    DetailedRunResponse
-    | ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+    script_id: Union[None, UUID, Unset] = UNSET,
+) -> Optional[
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
+]:
     """GetRun
 
 
@@ -165,14 +163,14 @@ def sync(
     Args:
         workspace_id (UUID):
         run_id (UUID):
-        script_id (None | Unset | UUID):
+        script_id (Union[None, UUID, Unset]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        DetailedRunResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
+        Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return sync_detailed(
@@ -187,10 +185,12 @@ async def asyncio_detailed(
     workspace_id: UUID,
     run_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    script_id: None | Unset | UUID = UNSET,
+    client: Union[AuthenticatedClient, Client],
+    script_id: Union[None, UUID, Unset] = UNSET,
 ) -> Response[
-    DetailedRunResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
     """GetRun
 
@@ -202,14 +202,14 @@ async def asyncio_detailed(
     Args:
         workspace_id (UUID):
         run_id (UUID):
-        script_id (None | Unset | UUID):
+        script_id (Union[None, UUID, Unset]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[DetailedRunResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404]
+        Response[Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -227,16 +227,13 @@ async def asyncio(
     workspace_id: UUID,
     run_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    script_id: None | Unset | UUID = UNSET,
-) -> (
-    DetailedRunResponse
-    | ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+    script_id: Union[None, UUID, Unset] = UNSET,
+) -> Optional[
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
+]:
     """GetRun
 
 
@@ -247,14 +244,14 @@ async def asyncio(
     Args:
         workspace_id (UUID):
         run_id (UUID):
-        script_id (None | Unset | UUID):
+        script_id (Union[None, UUID, Unset]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        DetailedRunResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
+        Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return (

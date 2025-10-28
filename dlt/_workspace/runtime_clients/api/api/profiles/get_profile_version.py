@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -17,7 +17,7 @@ from ...types import UNSET, Response
 def _get_kwargs(
     workspace_id: UUID,
     profile_id_or_name: str,
-    profile_version_id_or_version: int | UUID,
+    profile_version_id_or_version: Union[UUID, int],
 ) -> dict[str, Any]:
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -32,15 +32,16 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
+]:
     if response.status_code == 200:
         response_200 = ProfileVersionResponse.from_dict(response.json())
 
@@ -73,13 +74,15 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -92,15 +95,17 @@ def _build_response(
 def sync_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
-    profile_version_id_or_version: int | UUID,
+    profile_version_id_or_version: Union[UUID, int],
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
 ]:
     """GetProfileVersion
 
@@ -112,14 +117,14 @@ def sync_detailed(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        profile_version_id_or_version (int | UUID):
+        profile_version_id_or_version (Union[UUID, int]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -138,17 +143,18 @@ def sync_detailed(
 def sync(
     workspace_id: UUID,
     profile_id_or_name: str,
-    profile_version_id_or_version: int | UUID,
+    profile_version_id_or_version: Union[UUID, int],
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
+]:
     """GetProfileVersion
 
 
@@ -159,14 +165,14 @@ def sync(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        profile_version_id_or_version (int | UUID):
+        profile_version_id_or_version (Union[UUID, int]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]
     """
 
     return sync_detailed(
@@ -180,15 +186,17 @@ def sync(
 async def asyncio_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
-    profile_version_id_or_version: int | UUID,
+    profile_version_id_or_version: Union[UUID, int],
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
 ]:
     """GetProfileVersion
 
@@ -200,14 +208,14 @@ async def asyncio_detailed(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        profile_version_id_or_version (int | UUID):
+        profile_version_id_or_version (Union[UUID, int]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -224,17 +232,18 @@ async def asyncio_detailed(
 async def asyncio(
     workspace_id: UUID,
     profile_id_or_name: str,
-    profile_version_id_or_version: int | UUID,
+    profile_version_id_or_version: Union[UUID, int],
     *,
-    client: AuthenticatedClient | Client,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileVersionResponse
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ProfileVersionResponse,
+    ]
+]:
     """GetProfileVersion
 
 
@@ -245,14 +254,14 @@ async def asyncio(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        profile_version_id_or_version (int | UUID):
+        profile_version_id_or_version (Union[UUID, int]):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileVersionResponse
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]
     """
 
     return (

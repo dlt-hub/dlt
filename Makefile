@@ -188,11 +188,12 @@ create-test-pipelines:
 
 ## Generates python clients for runtime api and auth services
 # Before running, adjust the URL or run `make up` in runtime first
+# Uses pinned version of openapi-python-client to support python3.9's Optional syntax, pinned version to be removed when support for python3.9 is dropped
 generate-python-clients:
 	curl http://localhost:30000/schema/openapi.yaml -o dlt/_workspace/runtime_clients/api/openapi.yaml
 	python tools/clean_openapi_spec.py dlt/_workspace/runtime_clients/api/openapi.yaml
-	uvx openapi-python-client generate  --meta none --path dlt/_workspace/runtime_clients/api/openapi.yaml --output-path dlt/_workspace/runtime_clients/api --overwrite
+	uvx openapi-python-client@0.26.2 generate  --meta none --path dlt/_workspace/runtime_clients/api/openapi.yaml --output-path dlt/_workspace/runtime_clients/api --overwrite
 
 	curl http://localhost:30001/schema/openapi.yaml -o dlt/_workspace/runtime_clients/auth/openapi.yaml
 	python tools/clean_openapi_spec.py dlt/_workspace/runtime_clients/auth/openapi.yaml
-	uvx openapi-python-client generate  --meta none --path dlt/_workspace/runtime_clients/auth/openapi.yaml --output-path dlt/_workspace/runtime_clients/auth --overwrite
+	uvx openapi-python-client@0.26.2 generate  --meta none --path dlt/_workspace/runtime_clients/auth/openapi.yaml --output-path dlt/_workspace/runtime_clients/auth --overwrite

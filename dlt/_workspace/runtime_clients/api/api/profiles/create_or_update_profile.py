@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -38,15 +38,10 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileResponse
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+]:
     if response.status_code == 201:
         response_201 = ProfileResponse.from_dict(response.json())
 
@@ -79,9 +74,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -94,10 +89,10 @@ def _build_response(
 def sync_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateProfileRequest,
 ) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
 ]:
     """CreateOrUpdateProfile
 
@@ -118,7 +113,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]]
     """
 
     kwargs = _get_kwargs(
@@ -136,52 +131,10 @@ def sync_detailed(
 def sync(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateProfileRequest,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileResponse
-    | None
-):
-    """CreateOrUpdateProfile
-
-
-    Creates a new profile for a workspace, if provided profile name exists, updates existing profile
-    with name. A profile name in a workspace must be unique. A profile also saves a verions history with
-    ascending version number. The highest version is equal tot he active profile version. When running a
-    script, the profile can be specified to use a specific profile version.
-
-    Requires WRITE permission on the organization level.
-
-    Args:
-        workspace_id (UUID):
-        body (CreateProfileRequest):
-
-    Raises:
-        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
-        httpx.TimeoutException: If the request takes longer than Client.timeout.
-
-    Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
-    """
-
-    return sync_detailed(
-        workspace_id=workspace_id,
-        client=client,
-        body=body,
-    ).parsed
-
-
-async def asyncio_detailed(
-    workspace_id: UUID,
-    *,
-    client: AuthenticatedClient | Client,
-    body: CreateProfileRequest,
-) -> Response[
-    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
 ]:
     """CreateOrUpdateProfile
 
@@ -202,32 +155,24 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
     """
 
-    kwargs = _get_kwargs(
+    return sync_detailed(
         workspace_id=workspace_id,
+        client=client,
         body=body,
-    )
-
-    response = await client.get_async_httpx_client().request(**kwargs)
-
-    return _build_response(client=client, response=response)
+    ).parsed
 
 
-async def asyncio(
+async def asyncio_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
+    client: Union[AuthenticatedClient, Client],
     body: CreateProfileRequest,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ProfileResponse
-    | None
-):
+) -> Response[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+]:
     """CreateOrUpdateProfile
 
 
@@ -247,7 +192,47 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ProfileResponse
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]]
+    """
+
+    kwargs = _get_kwargs(
+        workspace_id=workspace_id,
+        body=body,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    workspace_id: UUID,
+    *,
+    client: Union[AuthenticatedClient, Client],
+    body: CreateProfileRequest,
+) -> Optional[
+    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+]:
+    """CreateOrUpdateProfile
+
+
+    Creates a new profile for a workspace, if provided profile name exists, updates existing profile
+    with name. A profile name in a workspace must be unique. A profile also saves a verions history with
+    ascending version number. The highest version is equal tot he active profile version. When running a
+    script, the profile can be specified to use a specific profile version.
+
+    Requires WRITE permission on the organization level.
+
+    Args:
+        workspace_id (UUID):
+        body (CreateProfileRequest):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
     """
 
     return (

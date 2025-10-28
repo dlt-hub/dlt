@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, Optional, Union, cast
 from uuid import UUID
 
 import httpx
@@ -17,8 +17,8 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     workspace_id: UUID,
     *,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {}
 
@@ -40,15 +40,16 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ListScriptsResponse200
-    | None
-):
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ListScriptsResponse200,
+    ]
+]:
     if response.status_code == 200:
         response_200 = ListScriptsResponse200.from_dict(response.json())
 
@@ -81,13 +82,15 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
+    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ListScriptsResponse200
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ListScriptsResponse200,
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -100,15 +103,17 @@ def _build_response(
 def sync_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
+    client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ListScriptsResponse200
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ListScriptsResponse200,
+    ]
 ]:
     """ListScripts
 
@@ -119,15 +124,15 @@ def sync_detailed(
 
     Args:
         workspace_id (UUID):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListScriptsResponse200]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListScriptsResponse200]]
     """
 
     kwargs = _get_kwargs(
@@ -146,17 +151,18 @@ def sync_detailed(
 def sync(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ListScriptsResponse200
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ListScriptsResponse200,
+    ]
+]:
     """ListScripts
 
 
@@ -166,15 +172,15 @@ def sync(
 
     Args:
         workspace_id (UUID):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListScriptsResponse200
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListScriptsResponse200]
     """
 
     return sync_detailed(
@@ -188,15 +194,17 @@ def sync(
 async def asyncio_detailed(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
+    client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> Response[
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ListScriptsResponse200
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ListScriptsResponse200,
+    ]
 ]:
     """ListScripts
 
@@ -207,15 +215,15 @@ async def asyncio_detailed(
 
     Args:
         workspace_id (UUID):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListScriptsResponse200]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListScriptsResponse200]]
     """
 
     kwargs = _get_kwargs(
@@ -232,17 +240,18 @@ async def asyncio_detailed(
 async def asyncio(
     workspace_id: UUID,
     *,
-    client: AuthenticatedClient | Client,
-    limit: int | Unset = 100,
-    offset: int | Unset = 0,
-) -> (
-    ErrorResponse400
-    | ErrorResponse401
-    | ErrorResponse403
-    | ErrorResponse404
-    | ListScriptsResponse200
-    | None
-):
+    client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
+) -> Optional[
+    Union[
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+        ListScriptsResponse200,
+    ]
+]:
     """ListScripts
 
 
@@ -252,15 +261,15 @@ async def asyncio(
 
     Args:
         workspace_id (UUID):
-        limit (int | Unset):  Default: 100.
-        offset (int | Unset):  Default: 0.
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListScriptsResponse200
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListScriptsResponse200]
     """
 
     return (

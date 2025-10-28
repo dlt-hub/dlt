@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -22,12 +20,12 @@ class ErrorResponse401:
     Attributes:
         detail (str):
         status_code (int):
-        extra (ErrorResponse401Extra | Unset):
+        extra (Union[Unset, ErrorResponse401Extra]):
     """
 
     detail: str
     status_code: int
-    extra: ErrorResponse401Extra | Unset = UNSET
+    extra: Union[Unset, "ErrorResponse401Extra"] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,7 +35,7 @@ class ErrorResponse401:
 
         status_code = self.status_code
 
-        extra: dict[str, Any] | Unset = UNSET
+        extra: Union[Unset, dict[str, Any]] = UNSET
         if not isinstance(self.extra, Unset):
             extra = self.extra.to_dict()
 
@@ -64,7 +62,7 @@ class ErrorResponse401:
         status_code = d.pop("status_code")
 
         _extra = d.pop("extra", UNSET)
-        extra: ErrorResponse401Extra | Unset
+        extra: Union[Unset, ErrorResponse401Extra]
         if isinstance(_extra, Unset):
             extra = UNSET
         else:

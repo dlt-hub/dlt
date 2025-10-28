@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -19,22 +17,22 @@ T = TypeVar("T", bound="ListRunsResponse200")
 class ListRunsResponse200:
     """
     Attributes:
-        items (list[DetailedRunResponse] | Unset):
-        limit (int | Unset): Maximal number of items to send.
-        offset (int | Unset): Offset from the beginning of the query.
-        total (int | Unset): Total number of items.
+        items (Union[Unset, list['DetailedRunResponse']]):
+        limit (Union[Unset, int]): Maximal number of items to send.
+        offset (Union[Unset, int]): Offset from the beginning of the query.
+        total (Union[Unset, int]): Total number of items.
     """
 
-    items: list[DetailedRunResponse] | Unset = UNSET
-    limit: int | Unset = UNSET
-    offset: int | Unset = UNSET
-    total: int | Unset = UNSET
+    items: Union[Unset, list["DetailedRunResponse"]] = UNSET
+    limit: Union[Unset, int] = UNSET
+    offset: Union[Unset, int] = UNSET
+    total: Union[Unset, int] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.detailed_run_response import DetailedRunResponse
 
-        items: list[dict[str, Any]] | Unset = UNSET
+        items: Union[Unset, list[dict[str, Any]]] = UNSET
         if not isinstance(self.items, Unset):
             items = []
             for items_item_data in self.items:
