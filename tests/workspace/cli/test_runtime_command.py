@@ -9,7 +9,7 @@ import pytest
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
-from dlt._workspace._workspace_context import WorkspaceRunContext, active as ws_active
+from dlt._workspace._workspace_context import active as ws_active
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, ConfigTomlProvider
 from dlt._workspace.runtime_clients.api.models.organization_response import (
@@ -148,7 +148,7 @@ def oauth_failure_400_ctx():
         ),
         patch(
             "dlt._workspace.cli._runtime_command.github_oauth_complete.sync",
-            return_value=github_oauth_complete.GithubOauthCompleteResponse400(
+            return_value=github_oauth_complete.ErrorResponse400(
                 detail="Bad Request", status_code=400
             ),
         ),

@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -26,7 +28,7 @@ class ProfileResponse:
         secrets (str): The secrets.toml of the profile
         version (int): The current version of the profile
         workspace_id (UUID): The ID of the workspace the profile belongs to
-        description (Union[None, Unset, str]): The description of the profile
+        description (None | str | Unset): The description of the profile
     """
 
     active: bool
@@ -39,7 +41,7 @@ class ProfileResponse:
     secrets: str
     version: int
     workspace_id: UUID
-    description: Union[None, Unset, str] = UNSET
+    description: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -63,7 +65,7 @@ class ProfileResponse:
 
         workspace_id = str(self.workspace_id)
 
-        description: Union[None, Unset, str]
+        description: None | str | Unset
         if isinstance(self.description, Unset):
             description = UNSET
         else:
@@ -113,12 +115,12 @@ class ProfileResponse:
 
         workspace_id = UUID(d.pop("workspace_id"))
 
-        def _parse_description(data: object) -> Union[None, Unset, str]:
+        def _parse_description(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         description = _parse_description(d.pop("description", UNSET))
 

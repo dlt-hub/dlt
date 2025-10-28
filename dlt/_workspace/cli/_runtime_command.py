@@ -82,7 +82,7 @@ def login() -> None:
                 fmt.echo("Logged in as %s" % fmt.bold(auth_info.email))
                 connect(auth_service=auth_service)
                 break
-            elif isinstance(token_response, github_oauth_complete.GithubOauthCompleteResponse400):
+            elif isinstance(token_response, github_oauth_complete.ErrorResponse400):
                 raise RuntimeError("Failed to complete authentication with Github")
 
 

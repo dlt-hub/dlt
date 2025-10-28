@@ -1,5 +1,23 @@
 components:
   schemas:
+    ErrorResponse400:
+      description: Validation Exception
+      examples:
+      - detail: Bad Request
+        extra: {}
+        status_code: 400
+      properties:
+        detail:
+          type: string
+        extra:
+          additionalProperties: {}
+          type: object
+        status_code:
+          type: integer
+      required:
+      - detail
+      - status_code
+      type: object
     GithubDeviceFlowLoginRequest:
       properties:
         device_code:
@@ -94,23 +112,7 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
       summary: GithubOauthComplete
       tags:

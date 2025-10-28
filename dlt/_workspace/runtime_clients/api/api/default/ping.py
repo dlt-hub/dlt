@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 import httpx
 
@@ -19,8 +19,8 @@ def _get_kwargs() -> dict[str, Any]:
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[PingResponse]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> PingResponse | None:
     if response.status_code == 200:
         response_200 = PingResponse.from_dict(response.json())
 
@@ -33,7 +33,7 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+    *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Response[PingResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -45,7 +45,7 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
 ) -> Response[PingResponse]:
     """Ping
 
@@ -73,8 +73,8 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[PingResponse]:
+    client: AuthenticatedClient | Client,
+) -> PingResponse | None:
     """Ping
 
 
@@ -97,7 +97,7 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
 ) -> Response[PingResponse]:
     """Ping
 
@@ -123,8 +123,8 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[PingResponse]:
+    client: AuthenticatedClient | Client,
+) -> PingResponse | None:
     """Ping
 
 

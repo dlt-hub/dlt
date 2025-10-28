@@ -1,15 +1,15 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.get_organization_response_400 import GetOrganizationResponse400
-from ...models.get_organization_response_401 import GetOrganizationResponse401
-from ...models.get_organization_response_403 import GetOrganizationResponse403
-from ...models.get_organization_response_404 import GetOrganizationResponse404
+from ...models.error_response_400 import ErrorResponse400
+from ...models.error_response_401 import ErrorResponse401
+from ...models.error_response_403 import ErrorResponse403
+from ...models.error_response_404 import ErrorResponse404
 from ...models.organization_response import OrganizationResponse
 from ...types import UNSET, Response
 
@@ -28,38 +28,37 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[
-    Union[
-        GetOrganizationResponse400,
-        GetOrganizationResponse401,
-        GetOrganizationResponse403,
-        GetOrganizationResponse404,
-        OrganizationResponse,
-    ]
-]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | OrganizationResponse
+    | None
+):
     if response.status_code == 200:
         response_200 = OrganizationResponse.from_dict(response.json())
 
         return response_200
 
     if response.status_code == 400:
-        response_400 = GetOrganizationResponse400.from_dict(response.json())
+        response_400 = ErrorResponse400.from_dict(response.json())
 
         return response_400
 
     if response.status_code == 401:
-        response_401 = GetOrganizationResponse401.from_dict(response.json())
+        response_401 = ErrorResponse401.from_dict(response.json())
 
         return response_401
 
     if response.status_code == 403:
-        response_403 = GetOrganizationResponse403.from_dict(response.json())
+        response_403 = ErrorResponse403.from_dict(response.json())
 
         return response_403
 
     if response.status_code == 404:
-        response_404 = GetOrganizationResponse404.from_dict(response.json())
+        response_404 = ErrorResponse404.from_dict(response.json())
 
         return response_404
 
@@ -70,15 +69,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+    *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Response[
-    Union[
-        GetOrganizationResponse400,
-        GetOrganizationResponse401,
-        GetOrganizationResponse403,
-        GetOrganizationResponse404,
-        OrganizationResponse,
-    ]
+    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -91,15 +84,9 @@ def _build_response(
 def sync_detailed(
     organization_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
 ) -> Response[
-    Union[
-        GetOrganizationResponse400,
-        GetOrganizationResponse401,
-        GetOrganizationResponse403,
-        GetOrganizationResponse404,
-        OrganizationResponse,
-    ]
+    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
 ]:
     """GetOrganization
 
@@ -116,7 +103,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetOrganizationResponse400, GetOrganizationResponse401, GetOrganizationResponse403, GetOrganizationResponse404, OrganizationResponse]]
+        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -133,16 +120,15 @@ def sync_detailed(
 def sync(
     organization_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[
-    Union[
-        GetOrganizationResponse400,
-        GetOrganizationResponse401,
-        GetOrganizationResponse403,
-        GetOrganizationResponse404,
-        OrganizationResponse,
-    ]
-]:
+    client: AuthenticatedClient | Client,
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | OrganizationResponse
+    | None
+):
     """GetOrganization
 
 
@@ -158,7 +144,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetOrganizationResponse400, GetOrganizationResponse401, GetOrganizationResponse403, GetOrganizationResponse404, OrganizationResponse]
+        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
     """
 
     return sync_detailed(
@@ -170,15 +156,9 @@ def sync(
 async def asyncio_detailed(
     organization_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
 ) -> Response[
-    Union[
-        GetOrganizationResponse400,
-        GetOrganizationResponse401,
-        GetOrganizationResponse403,
-        GetOrganizationResponse404,
-        OrganizationResponse,
-    ]
+    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
 ]:
     """GetOrganization
 
@@ -195,7 +175,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetOrganizationResponse400, GetOrganizationResponse401, GetOrganizationResponse403, GetOrganizationResponse404, OrganizationResponse]]
+        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -210,16 +190,15 @@ async def asyncio_detailed(
 async def asyncio(
     organization_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[
-    Union[
-        GetOrganizationResponse400,
-        GetOrganizationResponse401,
-        GetOrganizationResponse403,
-        GetOrganizationResponse404,
-        OrganizationResponse,
-    ]
-]:
+    client: AuthenticatedClient | Client,
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | OrganizationResponse
+    | None
+):
     """GetOrganization
 
 
@@ -235,7 +214,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetOrganizationResponse400, GetOrganizationResponse401, GetOrganizationResponse403, GetOrganizationResponse404, OrganizationResponse]
+        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | OrganizationResponse
     """
 
     return (

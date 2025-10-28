@@ -8,51 +8,28 @@ from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="PingResponse")
+T = TypeVar("T", bound="ErrorResponse400Extra")
 
 
 @_attrs_define
-class PingResponse:
-    """
-    Attributes:
-        message (str):
-        service (str):
-    """
+class ErrorResponse400Extra:
+    """ """
 
-    message: str
-    service: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        message = self.message
-
-        service = self.service
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "message": message,
-                "service": service,
-            }
-        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        message = d.pop("message")
+        error_response_400_extra = cls()
 
-        service = d.pop("service")
-
-        ping_response = cls(
-            message=message,
-            service=service,
-        )
-
-        ping_response.additional_properties = d
-        return ping_response
+        error_response_400_extra.additional_properties = d
+        return error_response_400_extra
 
     @property
     def additional_keys(self) -> list[str]:

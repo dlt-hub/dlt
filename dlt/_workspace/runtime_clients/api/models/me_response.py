@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -26,8 +28,8 @@ class MeResponse:
         user_id (UUID): The ID of the current user
     """
 
-    default_organization: "OrganizationResponse"
-    default_workspace: "WorkspaceResponse"
+    default_organization: OrganizationResponse
+    default_workspace: WorkspaceResponse
     email: str
     identity_id: UUID
     user_id: UUID

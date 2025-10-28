@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -16,13 +18,13 @@ class CreateProfileRequest:
         config (str): The config.toml of the profile
         name (str): The name of the profile
         secrets (str): The secrets.toml of the profile
-        description (Union[None, Unset, str]): The description of the profile
+        description (None | str | Unset): The description of the profile
     """
 
     config: str
     name: str
     secrets: str
-    description: Union[None, Unset, str] = UNSET
+    description: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -32,7 +34,7 @@ class CreateProfileRequest:
 
         secrets = self.secrets
 
-        description: Union[None, Unset, str]
+        description: None | str | Unset
         if isinstance(self.description, Unset):
             description = UNSET
         else:
@@ -61,12 +63,12 @@ class CreateProfileRequest:
 
         secrets = d.pop("secrets")
 
-        def _parse_description(data: object) -> Union[None, Unset, str]:
+        def _parse_description(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         description = _parse_description(d.pop("description", UNSET))
 

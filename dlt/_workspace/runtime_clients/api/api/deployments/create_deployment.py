@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
@@ -7,11 +7,11 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.create_deployment_body import CreateDeploymentBody
-from ...models.create_deployment_response_400 import CreateDeploymentResponse400
-from ...models.create_deployment_response_401 import CreateDeploymentResponse401
-from ...models.create_deployment_response_403 import CreateDeploymentResponse403
-from ...models.create_deployment_response_404 import CreateDeploymentResponse404
 from ...models.deployment_response import DeploymentResponse
+from ...models.error_response_400 import ErrorResponse400
+from ...models.error_response_401 import ErrorResponse401
+from ...models.error_response_403 import ErrorResponse403
+from ...models.error_response_404 import ErrorResponse404
 from ...types import UNSET, Response
 
 
@@ -36,38 +36,37 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[
-    Union[
-        CreateDeploymentResponse400,
-        CreateDeploymentResponse401,
-        CreateDeploymentResponse403,
-        CreateDeploymentResponse404,
-        DeploymentResponse,
-    ]
-]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> (
+    DeploymentResponse
+    | ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | None
+):
     if response.status_code == 201:
         response_201 = DeploymentResponse.from_dict(response.json())
 
         return response_201
 
     if response.status_code == 400:
-        response_400 = CreateDeploymentResponse400.from_dict(response.json())
+        response_400 = ErrorResponse400.from_dict(response.json())
 
         return response_400
 
     if response.status_code == 401:
-        response_401 = CreateDeploymentResponse401.from_dict(response.json())
+        response_401 = ErrorResponse401.from_dict(response.json())
 
         return response_401
 
     if response.status_code == 403:
-        response_403 = CreateDeploymentResponse403.from_dict(response.json())
+        response_403 = ErrorResponse403.from_dict(response.json())
 
         return response_403
 
     if response.status_code == 404:
-        response_404 = CreateDeploymentResponse404.from_dict(response.json())
+        response_404 = ErrorResponse404.from_dict(response.json())
 
         return response_404
 
@@ -78,15 +77,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+    *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Response[
-    Union[
-        CreateDeploymentResponse400,
-        CreateDeploymentResponse401,
-        CreateDeploymentResponse403,
-        CreateDeploymentResponse404,
-        DeploymentResponse,
-    ]
+    DeploymentResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -99,16 +92,10 @@ def _build_response(
 def sync_detailed(
     workspace_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreateDeploymentBody,
 ) -> Response[
-    Union[
-        CreateDeploymentResponse400,
-        CreateDeploymentResponse401,
-        CreateDeploymentResponse403,
-        CreateDeploymentResponse404,
-        DeploymentResponse,
-    ]
+    DeploymentResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
 ]:
     """CreateDeployment
 
@@ -127,7 +114,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CreateDeploymentResponse400, CreateDeploymentResponse401, CreateDeploymentResponse403, CreateDeploymentResponse404, DeploymentResponse]]
+        Response[DeploymentResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404]
     """
 
     kwargs = _get_kwargs(
@@ -145,17 +132,16 @@ def sync_detailed(
 def sync(
     workspace_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreateDeploymentBody,
-) -> Optional[
-    Union[
-        CreateDeploymentResponse400,
-        CreateDeploymentResponse401,
-        CreateDeploymentResponse403,
-        CreateDeploymentResponse404,
-        DeploymentResponse,
-    ]
-]:
+) -> (
+    DeploymentResponse
+    | ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | None
+):
     """CreateDeployment
 
 
@@ -173,7 +159,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CreateDeploymentResponse400, CreateDeploymentResponse401, CreateDeploymentResponse403, CreateDeploymentResponse404, DeploymentResponse]
+        DeploymentResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
     """
 
     return sync_detailed(
@@ -186,16 +172,10 @@ def sync(
 async def asyncio_detailed(
     workspace_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreateDeploymentBody,
 ) -> Response[
-    Union[
-        CreateDeploymentResponse400,
-        CreateDeploymentResponse401,
-        CreateDeploymentResponse403,
-        CreateDeploymentResponse404,
-        DeploymentResponse,
-    ]
+    DeploymentResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
 ]:
     """CreateDeployment
 
@@ -214,7 +194,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CreateDeploymentResponse400, CreateDeploymentResponse401, CreateDeploymentResponse403, CreateDeploymentResponse404, DeploymentResponse]]
+        Response[DeploymentResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404]
     """
 
     kwargs = _get_kwargs(
@@ -230,17 +210,16 @@ async def asyncio_detailed(
 async def asyncio(
     workspace_id: UUID,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreateDeploymentBody,
-) -> Optional[
-    Union[
-        CreateDeploymentResponse400,
-        CreateDeploymentResponse401,
-        CreateDeploymentResponse403,
-        CreateDeploymentResponse404,
-        DeploymentResponse,
-    ]
-]:
+) -> (
+    DeploymentResponse
+    | ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | None
+):
     """CreateDeployment
 
 
@@ -258,7 +237,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CreateDeploymentResponse400, CreateDeploymentResponse401, CreateDeploymentResponse403, CreateDeploymentResponse404, DeploymentResponse]
+        DeploymentResponse | ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404
     """
 
     return (

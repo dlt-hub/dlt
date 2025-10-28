@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -21,14 +23,14 @@ class WorkspaceResponse:
         date_updated (datetime.datetime): The date the entity was updated
         id (UUID): The uniqueID of the entity
         name (str): The name of the workspace
-        description (Union[None, Unset, str]): The description of the workspace
+        description (None | str | Unset): The description of the workspace
     """
 
     date_added: datetime.datetime
     date_updated: datetime.datetime
     id: UUID
     name: str
-    description: Union[None, Unset, str] = UNSET
+    description: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,7 +42,7 @@ class WorkspaceResponse:
 
         name = self.name
 
-        description: Union[None, Unset, str]
+        description: None | str | Unset
         if isinstance(self.description, Unset):
             description = UNSET
         else:
@@ -72,12 +74,12 @@ class WorkspaceResponse:
 
         name = d.pop("name")
 
-        def _parse_description(data: object) -> Union[None, Unset, str]:
+        def _parse_description(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         description = _parse_description(d.pop("description", UNSET))
 

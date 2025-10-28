@@ -1,15 +1,15 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.get_script_response_400 import GetScriptResponse400
-from ...models.get_script_response_401 import GetScriptResponse401
-from ...models.get_script_response_403 import GetScriptResponse403
-from ...models.get_script_response_404 import GetScriptResponse404
+from ...models.error_response_400 import ErrorResponse400
+from ...models.error_response_401 import ErrorResponse401
+from ...models.error_response_403 import ErrorResponse403
+from ...models.error_response_404 import ErrorResponse404
 from ...models.script_response import ScriptResponse
 from ...types import UNSET, Response
 
@@ -30,38 +30,37 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[
-    Union[
-        GetScriptResponse400,
-        GetScriptResponse401,
-        GetScriptResponse403,
-        GetScriptResponse404,
-        ScriptResponse,
-    ]
-]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ScriptResponse
+    | None
+):
     if response.status_code == 200:
         response_200 = ScriptResponse.from_dict(response.json())
 
         return response_200
 
     if response.status_code == 400:
-        response_400 = GetScriptResponse400.from_dict(response.json())
+        response_400 = ErrorResponse400.from_dict(response.json())
 
         return response_400
 
     if response.status_code == 401:
-        response_401 = GetScriptResponse401.from_dict(response.json())
+        response_401 = ErrorResponse401.from_dict(response.json())
 
         return response_401
 
     if response.status_code == 403:
-        response_403 = GetScriptResponse403.from_dict(response.json())
+        response_403 = ErrorResponse403.from_dict(response.json())
 
         return response_403
 
     if response.status_code == 404:
-        response_404 = GetScriptResponse404.from_dict(response.json())
+        response_404 = ErrorResponse404.from_dict(response.json())
 
         return response_404
 
@@ -72,15 +71,9 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+    *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Response[
-    Union[
-        GetScriptResponse400,
-        GetScriptResponse401,
-        GetScriptResponse403,
-        GetScriptResponse404,
-        ScriptResponse,
-    ]
+    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -94,15 +87,9 @@ def sync_detailed(
     workspace_id: UUID,
     script_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
 ) -> Response[
-    Union[
-        GetScriptResponse400,
-        GetScriptResponse401,
-        GetScriptResponse403,
-        GetScriptResponse404,
-        ScriptResponse,
-    ]
+    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
 ]:
     """GetScript
 
@@ -120,7 +107,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetScriptResponse400, GetScriptResponse401, GetScriptResponse403, GetScriptResponse404, ScriptResponse]]
+        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse]
     """
 
     kwargs = _get_kwargs(
@@ -139,16 +126,15 @@ def sync(
     workspace_id: UUID,
     script_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[
-    Union[
-        GetScriptResponse400,
-        GetScriptResponse401,
-        GetScriptResponse403,
-        GetScriptResponse404,
-        ScriptResponse,
-    ]
-]:
+    client: AuthenticatedClient | Client,
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ScriptResponse
+    | None
+):
     """GetScript
 
 
@@ -165,7 +151,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetScriptResponse400, GetScriptResponse401, GetScriptResponse403, GetScriptResponse404, ScriptResponse]
+        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
     """
 
     return sync_detailed(
@@ -179,15 +165,9 @@ async def asyncio_detailed(
     workspace_id: UUID,
     script_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
 ) -> Response[
-    Union[
-        GetScriptResponse400,
-        GetScriptResponse401,
-        GetScriptResponse403,
-        GetScriptResponse404,
-        ScriptResponse,
-    ]
+    ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
 ]:
     """GetScript
 
@@ -205,7 +185,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GetScriptResponse400, GetScriptResponse401, GetScriptResponse403, GetScriptResponse404, ScriptResponse]]
+        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse]
     """
 
     kwargs = _get_kwargs(
@@ -222,16 +202,15 @@ async def asyncio(
     workspace_id: UUID,
     script_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[
-    Union[
-        GetScriptResponse400,
-        GetScriptResponse401,
-        GetScriptResponse403,
-        GetScriptResponse404,
-        ScriptResponse,
-    ]
-]:
+    client: AuthenticatedClient | Client,
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ScriptResponse
+    | None
+):
     """GetScript
 
 
@@ -248,7 +227,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GetScriptResponse400, GetScriptResponse401, GetScriptResponse403, GetScriptResponse404, ScriptResponse]
+        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ScriptResponse
     """
 
     return (

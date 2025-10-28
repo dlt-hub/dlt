@@ -210,6 +210,78 @@ components:
       - workspace_id
       title: DetailedRunResponse
       type: object
+    ErrorResponse400:
+      description: Validation Exception
+      examples:
+      - detail: Bad Request
+        extra: {}
+        status_code: 400
+      properties:
+        detail:
+          type: string
+        extra:
+          additionalProperties: {}
+          type: object
+        status_code:
+          type: integer
+      required:
+      - detail
+      - status_code
+      type: object
+    ErrorResponse401:
+      description: Not Authorized Exception
+      examples:
+      - detail: Unauthorized
+        extra: {}
+        status_code: 401
+      properties:
+        detail:
+          type: string
+        extra:
+          additionalProperties: {}
+          type: object
+        status_code:
+          type: integer
+      required:
+      - detail
+      - status_code
+      type: object
+    ErrorResponse403:
+      description: Entity Permission Denied Exception
+      examples:
+      - detail: Forbidden
+        extra: {}
+        status_code: 403
+      properties:
+        detail:
+          type: string
+        extra:
+          additionalProperties: {}
+          type: object
+        status_code:
+          type: integer
+      required:
+      - detail
+      - status_code
+      type: object
+    ErrorResponse404:
+      description: Entity Not Found Exception
+      examples:
+      - detail: Not Found
+        extra: {}
+        status_code: 404
+      properties:
+        detail:
+          type: string
+        extra:
+          additionalProperties: {}
+          type: object
+        status_code:
+          type: integer
+      required:
+      - detail
+      - status_code
+      type: object
     LogsResponse:
       properties:
         logs:
@@ -700,67 +772,19 @@ paths:
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: Me
       tags:
@@ -797,89 +821,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetOrganization
       tags:
@@ -937,89 +897,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetWorkspace
       tags:
@@ -1089,89 +985,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: ListDeployments
       tags:
@@ -1214,89 +1046,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: CreateDeployment
       tags:
@@ -1327,89 +1095,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetLatestDeployment
       tags:
@@ -1449,89 +1153,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetDeployment
       tags:
@@ -1601,89 +1241,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: ListProfiles
       tags:
@@ -1731,89 +1307,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: CreateOrUpdateProfile
       tags:
@@ -1856,89 +1368,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetProfile
       tags:
@@ -2014,89 +1462,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: ListProfileVersions
       tags:
@@ -2140,89 +1524,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetLatestProfileVersion
       tags:
@@ -2275,89 +1595,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetProfileVersion
       tags:
@@ -2448,89 +1704,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: ListRuns
       tags:
@@ -2578,89 +1770,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetLatestRun
       tags:
@@ -2708,89 +1836,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: CreateRun
       tags:
@@ -2845,89 +1909,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetRun
       tags:
@@ -2982,89 +1982,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetRunLogs
       tags:
@@ -3134,89 +2070,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: ListScripts
       tags:
@@ -3257,89 +2129,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: CreateOrUpdateScript
       tags:
@@ -3382,89 +2190,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetScript
       tags:
@@ -3540,89 +2284,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: ListScriptVersions
       tags:
@@ -3659,89 +2339,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetLatestScriptVersion
       tags:
@@ -3793,89 +2409,25 @@ paths:
           content:
             application/json:
               schema:
-                description: Validation Exception
-                examples:
-                - detail: Bad Request
-                  extra: {}
-                  status_code: 400
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
         '401':
           content:
             application/json:
               schema:
-                description: Not Authorized Exception
-                examples:
-                - detail: Unauthorized
-                  extra: {}
-                  status_code: 401
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse401'
           description: No permission -- see authorization schemes
         '403':
           content:
             application/json:
               schema:
-                description: Entity Permission Denied Exception
-                examples:
-                - detail: Forbidden
-                  extra: {}
-                  status_code: 403
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse403'
           description: Request forbidden -- authorization will not help
         '404':
           content:
             application/json:
               schema:
-                description: Entity Not Found Exception
-                examples:
-                - detail: Not Found
-                  extra: {}
-                  status_code: 404
-                properties:
-                  detail:
-                    type: string
-                  extra:
-                    additionalProperties: {}
-                    type: object
-                  status_code:
-                    type: integer
-                required:
-                - detail
-                - status_code
-                type: object
+                $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetScriptVersion
       tags:

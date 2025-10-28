@@ -1,12 +1,12 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.error_response_400 import ErrorResponse400
 from ...models.github_device_flow_login_request import GithubDeviceFlowLoginRequest
-from ...models.github_oauth_complete_response_400 import GithubOauthCompleteResponse400
 from ...models.login_response import LoginResponse
 from ...types import UNSET, Response
 
@@ -31,15 +31,15 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[GithubOauthCompleteResponse400, LoginResponse]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> ErrorResponse400 | LoginResponse | None:
     if response.status_code == 201:
         response_201 = LoginResponse.from_dict(response.json())
 
         return response_201
 
     if response.status_code == 400:
-        response_400 = GithubOauthCompleteResponse400.from_dict(response.json())
+        response_400 = ErrorResponse400.from_dict(response.json())
 
         return response_400
 
@@ -50,8 +50,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[GithubOauthCompleteResponse400, LoginResponse]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[ErrorResponse400 | LoginResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -62,9 +62,9 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: GithubDeviceFlowLoginRequest,
-) -> Response[Union[GithubOauthCompleteResponse400, LoginResponse]]:
+) -> Response[ErrorResponse400 | LoginResponse]:
     """GithubOauthComplete
 
     Args:
@@ -75,7 +75,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GithubOauthCompleteResponse400, LoginResponse]]
+        Response[ErrorResponse400 | LoginResponse]
     """
 
     kwargs = _get_kwargs(
@@ -91,9 +91,9 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: GithubDeviceFlowLoginRequest,
-) -> Optional[Union[GithubOauthCompleteResponse400, LoginResponse]]:
+) -> ErrorResponse400 | LoginResponse | None:
     """GithubOauthComplete
 
     Args:
@@ -104,7 +104,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GithubOauthCompleteResponse400, LoginResponse]
+        ErrorResponse400 | LoginResponse
     """
 
     return sync_detailed(
@@ -115,9 +115,9 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: GithubDeviceFlowLoginRequest,
-) -> Response[Union[GithubOauthCompleteResponse400, LoginResponse]]:
+) -> Response[ErrorResponse400 | LoginResponse]:
     """GithubOauthComplete
 
     Args:
@@ -128,7 +128,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[GithubOauthCompleteResponse400, LoginResponse]]
+        Response[ErrorResponse400 | LoginResponse]
     """
 
     kwargs = _get_kwargs(
@@ -142,9 +142,9 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: GithubDeviceFlowLoginRequest,
-) -> Optional[Union[GithubOauthCompleteResponse400, LoginResponse]]:
+) -> ErrorResponse400 | LoginResponse | None:
     """GithubOauthComplete
 
     Args:
@@ -155,7 +155,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[GithubOauthCompleteResponse400, LoginResponse]
+        ErrorResponse400 | LoginResponse
     """
 
     return (

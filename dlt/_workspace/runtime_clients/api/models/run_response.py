@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, TextIO, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -28,11 +30,11 @@ class RunResponse:
         status (RunStatus):
         trigger (RunTriggerType):
         workspace_id (UUID): The ID of the workspace the run belongs to
-        duration (Union[None, Unset, int]): The time the run took in seconds
-        logs (Union[None, Unset, str]): A link to the logs of the run
-        time_ended (Union[None, Unset, datetime.datetime]): The time the run ended
-        time_started (Union[None, Unset, datetime.datetime]): The time the run started
-        triggered_by (Union[None, UUID, Unset]): The ID of the identity who triggered the run if triggered manually
+        duration (int | None | Unset): The time the run took in seconds
+        logs (None | str | Unset): A link to the logs of the run
+        time_ended (datetime.datetime | None | Unset): The time the run ended
+        time_started (datetime.datetime | None | Unset): The time the run started
+        triggered_by (None | Unset | UUID): The ID of the identity who triggered the run if triggered manually
     """
 
     date_added: datetime.datetime
@@ -45,11 +47,11 @@ class RunResponse:
     status: RunStatus
     trigger: RunTriggerType
     workspace_id: UUID
-    duration: Union[None, Unset, int] = UNSET
-    logs: Union[None, Unset, str] = UNSET
-    time_ended: Union[None, Unset, datetime.datetime] = UNSET
-    time_started: Union[None, Unset, datetime.datetime] = UNSET
-    triggered_by: Union[None, UUID, Unset] = UNSET
+    duration: int | None | Unset = UNSET
+    logs: None | str | Unset = UNSET
+    time_ended: datetime.datetime | None | Unset = UNSET
+    time_started: datetime.datetime | None | Unset = UNSET
+    triggered_by: None | Unset | UUID = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -73,19 +75,19 @@ class RunResponse:
 
         workspace_id = str(self.workspace_id)
 
-        duration: Union[None, Unset, int]
+        duration: int | None | Unset
         if isinstance(self.duration, Unset):
             duration = UNSET
         else:
             duration = self.duration
 
-        logs: Union[None, Unset, str]
+        logs: None | str | Unset
         if isinstance(self.logs, Unset):
             logs = UNSET
         else:
             logs = self.logs
 
-        time_ended: Union[None, Unset, str]
+        time_ended: None | str | Unset
         if isinstance(self.time_ended, Unset):
             time_ended = UNSET
         elif isinstance(self.time_ended, datetime.datetime):
@@ -93,7 +95,7 @@ class RunResponse:
         else:
             time_ended = self.time_ended
 
-        time_started: Union[None, Unset, str]
+        time_started: None | str | Unset
         if isinstance(self.time_started, Unset):
             time_started = UNSET
         elif isinstance(self.time_started, datetime.datetime):
@@ -101,7 +103,7 @@ class RunResponse:
         else:
             time_started = self.time_started
 
-        triggered_by: Union[None, Unset, str]
+        triggered_by: None | str | Unset
         if isinstance(self.triggered_by, Unset):
             triggered_by = UNSET
         elif isinstance(self.triggered_by, UUID):
@@ -161,25 +163,25 @@ class RunResponse:
 
         workspace_id = UUID(d.pop("workspace_id"))
 
-        def _parse_duration(data: object) -> Union[None, Unset, int]:
+        def _parse_duration(data: object) -> int | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, int], data)
+            return cast(int | None | Unset, data)
 
         duration = _parse_duration(d.pop("duration", UNSET))
 
-        def _parse_logs(data: object) -> Union[None, Unset, str]:
+        def _parse_logs(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         logs = _parse_logs(d.pop("logs", UNSET))
 
-        def _parse_time_ended(data: object) -> Union[None, Unset, datetime.datetime]:
+        def _parse_time_ended(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -192,11 +194,11 @@ class RunResponse:
                 return time_ended_type_0
             except:  # noqa: E722
                 pass
-            return cast(Union[None, Unset, datetime.datetime], data)
+            return cast(datetime.datetime | None | Unset, data)
 
         time_ended = _parse_time_ended(d.pop("time_ended", UNSET))
 
-        def _parse_time_started(data: object) -> Union[None, Unset, datetime.datetime]:
+        def _parse_time_started(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -209,11 +211,11 @@ class RunResponse:
                 return time_started_type_0
             except:  # noqa: E722
                 pass
-            return cast(Union[None, Unset, datetime.datetime], data)
+            return cast(datetime.datetime | None | Unset, data)
 
         time_started = _parse_time_started(d.pop("time_started", UNSET))
 
-        def _parse_triggered_by(data: object) -> Union[None, UUID, Unset]:
+        def _parse_triggered_by(data: object) -> None | Unset | UUID:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -226,7 +228,7 @@ class RunResponse:
                 return triggered_by_type_0
             except:  # noqa: E722
                 pass
-            return cast(Union[None, UUID, Unset], data)
+            return cast(None | Unset | UUID, data)
 
         triggered_by = _parse_triggered_by(d.pop("triggered_by", UNSET))
 

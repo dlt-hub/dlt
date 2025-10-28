@@ -1,16 +1,16 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.error_response_400 import ErrorResponse400
+from ...models.error_response_401 import ErrorResponse401
+from ...models.error_response_403 import ErrorResponse403
+from ...models.error_response_404 import ErrorResponse404
 from ...models.list_profile_versions_response_200 import ListProfileVersionsResponse200
-from ...models.list_profile_versions_response_400 import ListProfileVersionsResponse400
-from ...models.list_profile_versions_response_401 import ListProfileVersionsResponse401
-from ...models.list_profile_versions_response_403 import ListProfileVersionsResponse403
-from ...models.list_profile_versions_response_404 import ListProfileVersionsResponse404
 from ...types import UNSET, Response, Unset
 
 
@@ -18,8 +18,8 @@ def _get_kwargs(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {}
 
@@ -42,38 +42,37 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[
-    Union[
-        ListProfileVersionsResponse200,
-        ListProfileVersionsResponse400,
-        ListProfileVersionsResponse401,
-        ListProfileVersionsResponse403,
-        ListProfileVersionsResponse404,
-    ]
-]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ListProfileVersionsResponse200
+    | None
+):
     if response.status_code == 200:
         response_200 = ListProfileVersionsResponse200.from_dict(response.json())
 
         return response_200
 
     if response.status_code == 400:
-        response_400 = ListProfileVersionsResponse400.from_dict(response.json())
+        response_400 = ErrorResponse400.from_dict(response.json())
 
         return response_400
 
     if response.status_code == 401:
-        response_401 = ListProfileVersionsResponse401.from_dict(response.json())
+        response_401 = ErrorResponse401.from_dict(response.json())
 
         return response_401
 
     if response.status_code == 403:
-        response_403 = ListProfileVersionsResponse403.from_dict(response.json())
+        response_403 = ErrorResponse403.from_dict(response.json())
 
         return response_403
 
     if response.status_code == 404:
-        response_404 = ListProfileVersionsResponse404.from_dict(response.json())
+        response_404 = ErrorResponse404.from_dict(response.json())
 
         return response_404
 
@@ -84,15 +83,13 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+    *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Response[
-    Union[
-        ListProfileVersionsResponse200,
-        ListProfileVersionsResponse400,
-        ListProfileVersionsResponse401,
-        ListProfileVersionsResponse403,
-        ListProfileVersionsResponse404,
-    ]
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ListProfileVersionsResponse200
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -106,17 +103,15 @@ def sync_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
 ) -> Response[
-    Union[
-        ListProfileVersionsResponse200,
-        ListProfileVersionsResponse400,
-        ListProfileVersionsResponse401,
-        ListProfileVersionsResponse403,
-        ListProfileVersionsResponse404,
-    ]
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ListProfileVersionsResponse200
 ]:
     """ListProfileVersions
 
@@ -129,15 +124,15 @@ def sync_detailed(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ListProfileVersionsResponse200, ListProfileVersionsResponse400, ListProfileVersionsResponse401, ListProfileVersionsResponse403, ListProfileVersionsResponse404]]
+        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListProfileVersionsResponse200]
     """
 
     kwargs = _get_kwargs(
@@ -158,18 +153,17 @@ def sync(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
-) -> Optional[
-    Union[
-        ListProfileVersionsResponse200,
-        ListProfileVersionsResponse400,
-        ListProfileVersionsResponse401,
-        ListProfileVersionsResponse403,
-        ListProfileVersionsResponse404,
-    ]
-]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ListProfileVersionsResponse200
+    | None
+):
     """ListProfileVersions
 
 
@@ -181,15 +175,15 @@ def sync(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ListProfileVersionsResponse200, ListProfileVersionsResponse400, ListProfileVersionsResponse401, ListProfileVersionsResponse403, ListProfileVersionsResponse404]
+        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListProfileVersionsResponse200
     """
 
     return sync_detailed(
@@ -205,17 +199,15 @@ async def asyncio_detailed(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
 ) -> Response[
-    Union[
-        ListProfileVersionsResponse200,
-        ListProfileVersionsResponse400,
-        ListProfileVersionsResponse401,
-        ListProfileVersionsResponse403,
-        ListProfileVersionsResponse404,
-    ]
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ListProfileVersionsResponse200
 ]:
     """ListProfileVersions
 
@@ -228,15 +220,15 @@ async def asyncio_detailed(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ListProfileVersionsResponse200, ListProfileVersionsResponse400, ListProfileVersionsResponse401, ListProfileVersionsResponse403, ListProfileVersionsResponse404]]
+        Response[ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListProfileVersionsResponse200]
     """
 
     kwargs = _get_kwargs(
@@ -255,18 +247,17 @@ async def asyncio(
     workspace_id: UUID,
     profile_id_or_name: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
-) -> Optional[
-    Union[
-        ListProfileVersionsResponse200,
-        ListProfileVersionsResponse400,
-        ListProfileVersionsResponse401,
-        ListProfileVersionsResponse403,
-        ListProfileVersionsResponse404,
-    ]
-]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 100,
+    offset: int | Unset = 0,
+) -> (
+    ErrorResponse400
+    | ErrorResponse401
+    | ErrorResponse403
+    | ErrorResponse404
+    | ListProfileVersionsResponse200
+    | None
+):
     """ListProfileVersions
 
 
@@ -278,15 +269,15 @@ async def asyncio(
     Args:
         workspace_id (UUID):
         profile_id_or_name (str):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        limit (int | Unset):  Default: 100.
+        offset (int | Unset):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ListProfileVersionsResponse200, ListProfileVersionsResponse400, ListProfileVersionsResponse401, ListProfileVersionsResponse403, ListProfileVersionsResponse404]
+        ErrorResponse400 | ErrorResponse401 | ErrorResponse403 | ErrorResponse404 | ListProfileVersionsResponse200
     """
 
     return (
