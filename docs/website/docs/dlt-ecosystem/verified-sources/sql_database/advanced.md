@@ -256,6 +256,42 @@ source = sql_database(
 )
 ```
 
+### Selecting columns and filtering rows across multiple tables
+
+You can filter rows by applying SQL filters using the `query_adapter_callback`, and select specific columns using the `table_adapter_callback` (as above). You can use them together to shape data from multiple tables.
+```py
+from dlt.sources.sql_database import sql_database
+
+# define columns to keep per table
+# all columns are kept for tables not listed
+table_columns_keep = {
+    "family": ["rfam_acc", "rfam_id", "author"],
+    "clan_membership": ["clan_acc"],
+}
+
+def query_adapter_callback(query, table):
+    # apply WHERE filter for the 'family' table
+    if table.name == "family":
+        return query.where(table.c.rfam_id.ilike("%bacteria%"))
+    return query
+
+def table_adapter_callback(table):
+    # remove columns not listed for each table
+    columns_to_keep = table_columns_keep.get(table.name)
+    if columns_to_keep:
+        for col in list(table._columns):
+            if col.name not in columns_to_keep:
+                table._columns.remove(col)
+    return table
+
+# create a source with both callbacks
+source = sql_database(
+    table_names=["family", "clan_membership"],
+    query_adapter_callback=query_adapter_callback,
+    table_adapter_callback=table_adapter_callback,
+)
+```
+
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
 
