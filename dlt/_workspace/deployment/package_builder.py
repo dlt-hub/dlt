@@ -52,9 +52,11 @@ class DeploymentPackageBuilder:
                     }
                 )
             # Create and add manifest with file metadata at the end
+            # NOTE: Sort files in manifest because os.scandir(), which the file selector's pathspec.util.iter_tree_files() relies on,
+            # yields files in a system-dependent order (https://peps.python.org/pep-0471/#os-scandir).
             manifest: TDeploymentManifest = {
                 "engine_version": DEPLOYMENT_ENGINE_VERSION,
-                "files": manifest_files,
+                "files": sorted(manifest_files, key=lambda x: x["relative_path"]),
             }
             manifest_yaml = yaml.dump(
                 manifest, allow_unicode=True, default_flow_style=False, sort_keys=False

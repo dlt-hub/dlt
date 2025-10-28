@@ -284,6 +284,8 @@ def create_resources(
                     resource.add_filter(step["filter"])
                 if "map" in step:
                     resource.add_map(step["map"])
+                if "yield_map" in step:
+                    resource.add_yield_map(step["yield_map"])
             return resource
 
         if resolved_params is None:

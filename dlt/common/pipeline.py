@@ -413,14 +413,27 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         self._current_load_started = precise_time()
         self._load_id_metrics.setdefault(load_id, [])
 
-    def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
+    def _step_info_update_metrics(
+        self, load_id: str, metrics: TStepMetrics, immutable: bool = False
+    ) -> None:
+        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        step_metrics = self._load_id_metrics[load_id]
+        if immutable or len(step_metrics) == 0:
+            step_metrics.append(metrics)
+        else:
+            step_metrics[0] = metrics
+
+    def _step_info_complete_load_id(self, load_id: str, finished: bool = True) -> None:
         assert self._current_load_id == load_id, (
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
-        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
-        metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
-        self._load_id_metrics[load_id].append(metrics)
+        # metrics must be present
+        metrics = self._load_id_metrics[load_id][-1]
+        # update finished at
+        assert metrics["finished_at"] is None
+        if finished:
+            metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
         self._current_load_id = None
         self._current_load_started = None
 

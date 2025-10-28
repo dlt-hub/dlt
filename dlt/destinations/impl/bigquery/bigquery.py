@@ -346,7 +346,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             else cluster_columns_from_column_hints
         )
 
-        if cluster_columns_final:
+        if cluster_columns_final and not generate_alter:
             cluster_list = [
                 self.sql_client.escape_column_name(col) for col in cluster_columns_final
             ]

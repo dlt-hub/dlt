@@ -80,6 +80,7 @@ class GithubActionDeployment(BaseDeployment):
         run_on_push: bool = False,
         run_manually: bool = False,
         branch: Optional[str] = None,
+        **kwargs: Any,
     ):
         super().__init__(pipeline_script_path, location, branch)
         self.schedule = schedule
@@ -264,6 +265,7 @@ class AirflowDeployment(BaseDeployment):
         location: str,
         branch: Optional[str] = None,
         secrets_format: Optional[str] = None,
+        **kwargs: Any,
     ):
         super().__init__(pipeline_script_path, location, branch)
         self.secrets_format = secrets_format

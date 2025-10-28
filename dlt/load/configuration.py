@@ -18,9 +18,10 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     raise_on_max_retries: int = 5
     """When gt 0 will raise when job reaches raise_on_max_retries"""
     _load_storage_config: LoadStorageConfiguration = None
-    # if set to `True`, the staging dataset will be
-    # truncated after loading the data
     truncate_staging_dataset: bool = False
+    """If set to `True`, the staging dataset will be truncated after loading the data"""
+    start_new_jobs_on_signal: bool = False
+    """If set to False: will attempt to drain load pool on signal, if True: will continue loading new job"""
 
     def on_resolved(self) -> None:
         self.pool_type = (

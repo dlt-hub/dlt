@@ -609,6 +609,9 @@ tables:
       remote_url:
         data_type: text
         nullable: true
+      retry_count:
+        data_type: bigint
+        nullable: true
     parent: trace__steps
   trace__steps__step_info__load_packages__tables:
     columns:

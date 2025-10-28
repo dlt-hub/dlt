@@ -116,7 +116,7 @@ def test_unsupported_write_disposition() -> None:
     assert "LoadClientUnsupportedWriteDisposition" in e.value.failed_message
 
 
-def test_big_loadpackages() -> None:
+def test_big_load_packages() -> None:
     """
     This test guards against changes in the load that exponentially makes the loads slower
     """
@@ -189,7 +189,7 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
     ) == [schema.get_table("event_loop_interrupted")]
 
 
-def test_spool_job_failed() -> None:
+def test_spool_job_failed_and_package_completed() -> None:
     # this config fails job on start
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
@@ -227,7 +227,7 @@ def test_spool_job_failed() -> None:
     started_files = load.load_storage.normalized_packages.list_started_jobs(load_id)
     assert len(started_files) == 0
 
-    # test the whole
+    # test the whole flow - disable raising exceptions on failed jobs and let package to complete
     loader_config = LoaderConfiguration(
         raise_on_failed_jobs=False,
         workers=1,
@@ -290,10 +290,25 @@ def test_spool_job_failed_transiently_exception_init() -> None:
 
         # load id was never committed
         complete_load.assert_not_called()
-        # no metrics were gathered
-        assert len(load._job_metrics) == 0
+        # metrics collected from all jobs that were started
+        assert len(load._job_metrics) == 2
+        # metrics were gathered but not finished at on the package
         load_info = load.get_step_info(MockPipeline("pipe", True))  # type: ignore[abstract]
-        assert len(load_info.metrics) == 0
+        metrics = load_info.metrics[load_id][0]["job_metrics"]
+        assert len(metrics) == 2
+        for metric in metrics.values():
+            # 4 retries and current retry (5 together)
+            assert metric.state == "retry"
+            assert metric.retry_count == 4
+            assert metric.started_at is not None
+            assert metric.finished_at is None
+
+        # verify load package
+        load_package = load_info.load_packages[0]
+        assert load_info.finished_at is None
+        assert load_info.started_at is not None
+        assert load_package.completed_at is None
+        assert load_package.state == "normalized"
 
 
 def test_spool_job_failed_exception_complete() -> None:
@@ -322,6 +337,9 @@ def test_spool_job_retry_new() -> None:
     for f in files:
         job = load.submit_job(f, load_id, schema)
         assert job.state() == "retry"
+        metrics = job.metrics()
+        assert metrics.started_at is not None
+        assert metrics.finished_at is None
 
 
 def test_spool_job_retry_spool_new() -> None:
@@ -361,7 +379,9 @@ def test_spool_job_retry_started() -> None:
     remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 0
-    assert len(load._job_metrics) == 0
+    # ready and running jobs are in metrics
+    assert len(load._job_metrics) == 2
+
     # clear retry flag
     dummy_impl.JOBS = {}
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
@@ -579,17 +599,43 @@ def test_retry_on_new_loop() -> None:
     # test job that retries sitting in new jobs
     load = setup_loader(client_config=DummyClientConfiguration(retry_prob=1.0))
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+
+    def _assert_metrics(retry_count: int) -> None:
+        load_info = load.get_step_info(MockPipeline("pipeline", False))  # type: ignore
+        # verify package
+        assert load_info.started_at is not None
+        # assert load_info.finished_at is None
+        # assert load_info.dataset_name is None
+        load_package = load_info.load_packages[0]
+        assert load_package.load_id == load_id
+        assert load_package.state == "normalized"
+        metrics = load_info.metrics[load_id][0]["job_metrics"]
+        assert len(metrics) == 2
+        for metric in metrics.values():
+            assert metric.state == "retry"
+            assert metric.retry_count == retry_count
+            assert metric.table_name in ("event_loop_interrupted", "event_user")
+            assert metric.started_at is not None
+            assert metric.finished_at is None
+        files = load.load_storage.normalized_packages.list_new_jobs(load_id)
+        assert len(files) == 2
+
     with ThreadPoolExecutor() as pool:
         # 1st retry
         with pytest.raises(LoadClientJobRetry):
             load.run(pool)
-        files = load.load_storage.normalized_packages.list_new_jobs(load_id)
-        assert len(files) == 2
+
+        # NOTE: loader does not guarantee that all jobs will retry 5 times before exception is called
+        # in principle that may happen after one job reaches 5 and all other jobs wait for a retry
+        # as a new job so the pool is drained and loader exits
+
+        _assert_metrics(4)
+
         # 2nd retry
         with pytest.raises(LoadClientJobRetry):
             load.run(pool)
-        files = load.load_storage.normalized_packages.list_new_jobs(load_id)
-        assert len(files) == 2
+
+        _assert_metrics(9)
 
         # package will be completed
         load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
@@ -619,6 +665,7 @@ def test_retry_exceptions() -> None:
         # configured to retry 5 times before exception
         assert py_ex.value.max_retry_count == py_ex.value.retry_count == 5
         # we can do it again
+        # NOTE: that we count to 10 here is lucky coincidence see test_retry_on_new_loop
         with pytest.raises(LoadClientJobRetry) as py_ex:
             while True:
                 load.run(pool)

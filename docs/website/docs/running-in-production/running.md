@@ -258,6 +258,8 @@ print(load_info.has_failed_jobs)
 load_info.raise_on_failed_jobs()
 ```
 
+### Partially loaded packages
+
 :::warning
 Note that certain write dispositions will irreversibly modify your data:
 1. `replace` write disposition with the default `truncate-and-insert` [strategy](../general-usage/full-loading.md) will truncate tables before loading.
@@ -325,3 +327,73 @@ if __name__ == "__main__":
     load_info = load()
 ```
 
+### Allow a graceful shutdown
+`dlt` attempts a graceful shutdown of a running pipeline by installing custom signal handlers. In those handlers SIGINT (Ctrl-C) and SIGTERM
+are intercepted. Handlers are activated when pipeline runs and have the following effect:
+- `normalize` step: raises `SignalReceivedException` at certain checkpoints, typically immediately.
+- `load` step: on the first received signal, it attempts to drain the job pool by not accepting new load jobs and waiting for executing jobs to complete.
+   On a second signal, the default handler is called, resulting in a `KeyboardInterrupt` or immediate process termination (SIGTERM).
+- `extract` step does not intercept signals and uses default handlers.
+
+`normalize` and `extract` steps are atomic and can be terminated at any point without data loss. The `load` step [requires more attention](#partially-loaded-packages). Most production environments will try to terminate processes/jobs/pods gracefully by sending SIGTERM, waiting,
+and then killing the process if it does not stop. Below are examples for common environments:
+
+- Kubernetes:
+  - Set a long `terminationGracePeriodSeconds` (e.g., 300s) so `dlt` can drain load jobs.
+  - Optionally add a preStop hook to give the app a short head start before termination.
+
+- Docker / Docker Compose:
+  - Use a long `--stop-timeout` or `stop_grace_period`.
+
+- GitHub Actions:
+  - Choose a `timeout-minutes` large enough for graceful draining.
+  
+
+We recommend increasing those timeouts to a few minutes so that load jobs can be drained properly. Note that in this case **you can still end up with
+a partially loaded package that should be retried without wiping out the pipeline working directory**. In that case, make sure the pipeline working directory (.dlt) is on persistent storage.
+
+You can also opt to run the load step until completion after a signal is received. This gives `dlt` a chance to complete the current load package and then
+terminate:
+```toml
+[load]
+start_new_jobs_on_signal=true
+```
+
+Obviously, this requires a very long grace period to be defined in your production environment.
+
+#### Signals in thread pools and orchestrators
+
+:::warning
+Note that signal interception is possible only in the main Python thread. If you offload pipeline runs to a thread pool ([or async pool with thread executors](../reference/performance.md#parallelism-within-a-single-process)), intercept signal handling before any pipeline runs in the pool:
+```py
+import asyncio
+
+from dlt.common.runtime import signals
+
+
+with signals.intercepted_signals():
+    # load data
+    asyncio.run(_run_async())
+```
+
+Signal interception works in orchestrators that run your code in a separate process and propagate SIGTERM/SIGINT:
+- Dagster: default multiprocess and Kubernetes executors start a process per op/run; Kubernetes will send SIGTERM, respect the Pod grace period. Avoid thread-based executors for the pipeline step or wrap with interceptintercepted_signals_signals as shown above.
+- Airflow: task runners execute each task in its own process (Local/Celery/Kubernetes executors). On cancel/timeout, the task process receives SIGTERM then SIGKILL; if using KubernetesExecutor, rely on the Pod grace period.
+- Prefect: Subprocess flow/task runners and Kubernetes jobs deliver SIGTERM to your process; if you use thread-based concurrency inside a task, wrap the outermost entrypoint with intercepted_signals.
+
+:::
+
+#### Write custom signal handler
+You can disable dlt signal handlers and prevent interception of SIGINT and SIGTERM: for all or for a selected pipeline:
+```toml
+[runtime]
+intercept_signals=false
+```
+or
+```toml
+[pipelines.my_pipeline.runtime]
+intercept_signals=false
+```
+and then install your own handlers.
+
+Note that `signals.py` is a pretty simple module and you can call its methods from your own handler to plug into `dlt` signal handling machinery. We are working on making the `signals.py` pluggable to make it straightforward.

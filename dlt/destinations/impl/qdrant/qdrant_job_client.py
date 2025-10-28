@@ -16,7 +16,6 @@ from dlt.common.schema.utils import (
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
-    TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
     WithStateSync,
@@ -25,11 +24,8 @@ from dlt.common.destination.client import (
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
 from dlt.common.storages import FileStorage
-from dlt.common.time import precise_time
 
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
-
 from dlt.destinations.utils import get_pipeline_state_query_columns
 from dlt.destinations.impl.qdrant.configuration import QdrantClientConfiguration
 from dlt.destinations.impl.qdrant.qdrant_adapter import VECTORIZE_HINT

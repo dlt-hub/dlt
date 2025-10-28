@@ -16,7 +16,6 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
     SupportsStagingDestination,
-    TLoadJobState,
     HasFollowupJobs,
     RunnableLoadJob,
     FollowupJobRequest,
@@ -53,7 +52,7 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStagingDataset,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.utils import get_deterministic_temp_table_name

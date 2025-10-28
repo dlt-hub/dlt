@@ -3,6 +3,7 @@ import os
 import tempfile  # noqa: 251
 from typing import Dict, Iterable, List
 
+from dlt.common import pendulum
 from dlt.common.json import json
 from dlt.common.destination.client import (
     HasFollowupJobs,
@@ -29,19 +30,42 @@ class FinalizedLoadJob(LoadJob):
     """
 
     def __init__(
-        self, file_path: str, status: TLoadJobState = "completed", exception: str = None
+        self,
+        file_path: str,
+        /,
+        *,
+        started_at: pendulum.DateTime = None,
+        finished_at: pendulum.DateTime = None,
+        status: TLoadJobState = "completed",
+        exception: str = None,
     ) -> None:
+        super().__init__(file_path)
         self._status = status
         self._exception = exception
-        self._file_path = file_path
+        self._started_at = started_at or pendulum.now()
+        self._finished_at = finished_at or (
+            pendulum.now() if self._status in ("completed", "failed") else None
+        )
         assert self._status in ("completed", "failed", "retry")
-        super().__init__(file_path)
 
     @classmethod
     def from_file_path(
-        cls, file_path: str, status: TLoadJobState = "completed", message: str = None
+        cls,
+        file_path: str,
+        /,
+        *,
+        started_at: pendulum.DateTime = None,
+        finished_at: pendulum.DateTime = None,
+        status: TLoadJobState = "completed",
+        message: str = None,
     ) -> "FinalizedLoadJob":
-        return cls(file_path, status, exception=message)
+        return cls(
+            file_path,
+            started_at=started_at,
+            finished_at=finished_at,
+            status=status,
+            exception=message,
+        )
 
     def state(self) -> TLoadJobState:
         return self._status
@@ -122,19 +146,19 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
 
     def run(self) -> None:
         # update filepath, it will be in running jobs now
-        try:
-            if self._config.batch_size == 0:
-                # on batch size zero we only call the callable with the filename
-                self.call_callable_with_items(self._file_path)
-            else:
-                current_index = self._destination_state.get(self._storage_id, 0)
-                for batch in self.get_batches(current_index):
-                    self.call_callable_with_items(batch)
-                    current_index += len(batch)
-                    self._destination_state[self._storage_id] = current_index
-        finally:
+        if self._config.batch_size == 0:
+            # on batch size zero we only call the callable with the filename
+            self.call_callable_with_items(self._file_path)
             # save progress
             commit_load_package_state()
+        else:
+            current_index = self._destination_state.get(self._storage_id, 0)
+            for batch in self.get_batches(current_index):
+                self.call_callable_with_items(batch)
+                current_index += len(batch)
+                self._destination_state[self._storage_id] = current_index
+                # save progress
+                commit_load_package_state()
 
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:

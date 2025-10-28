@@ -18,6 +18,8 @@ MOCK_BASE_URL = "https://api.example.com"
 DEFAULT_PAGE_SIZE = 5
 DEFAULT_TOTAL_PAGES = 5
 DEFAULT_LIMIT = 10
+DEFAULT_REACTIONS_COUNT = 5
+DEFAULT_COMMENTS_COUNT = 50
 
 
 router = APIRouter(MOCK_BASE_URL)
@@ -27,7 +29,22 @@ def generate_posts(count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES):
     return [{"id": i, "title": f"Post {i}"} for i in range(count)]
 
 
-def generate_comments(post_id, count=50):
+def generate_posts_with_reactions(
+    count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES, count_reactions=DEFAULT_REACTIONS_COUNT
+):
+    return [
+        {
+            "id": i,
+            "title": f"Post {i}",
+            "reactions": [
+                {"id": j, "title": f"Reaction {j} for post {i}"} for j in range(count_reactions)
+            ],
+        }
+        for i in range(count)
+    ]
+
+
+def generate_comments(post_id, count=DEFAULT_COMMENTS_COUNT):
     return [
         {"id": i, "post_id": post_id, "body": f"Comment {i} for post {post_id}"}
         for i in range(count)
@@ -388,6 +405,10 @@ def mock_api_server():
         @router.post(r"/posts_form_data_incremental$")
         def posts(request, context):
             return paginate_by_page_number(request, generate_posts())
+
+        @router.get(r"/posts_with_reactions(\?.*)?$")
+        def posts_with_reactions(request, context):
+            return paginate_by_page_number(request, generate_posts_with_reactions())
 
         router.register_routes(m)
 

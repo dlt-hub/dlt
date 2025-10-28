@@ -2,6 +2,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
     Literal,
     Optional,
@@ -262,6 +263,7 @@ class Endpoint(TypedDict, total=False):
 class ProcessingSteps(TypedDict, total=False):
     filter: Optional[Callable[[Any], bool]]  # noqa: A003
     map: Optional[Callable[[Any], Any]]  # noqa: A003
+    yield_map: Optional[Callable[[Any], Iterator[Any]]]  # noqa: A003
 
 
 class ResourceBase(TResourceHintsBase, total=False):

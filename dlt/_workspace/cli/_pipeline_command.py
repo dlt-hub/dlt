@@ -141,7 +141,7 @@ def pipeline_command(
     if operation == "show":
         from dlt.common.runtime import signals
 
-        with signals.delayed_signals():
+        with signals.intercepted_signals():
             streamlit_cmd = [
                 "streamlit",
                 "run",

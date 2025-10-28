@@ -45,7 +45,6 @@ from dlt.common.schema.utils import (
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
-    TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
     WithStateSync,

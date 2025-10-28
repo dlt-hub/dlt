@@ -21,7 +21,7 @@ from tests.pipeline.utils import (
     load_table_counts,
     assert_query_column,
 )
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, public_http_server
 from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
 
 
