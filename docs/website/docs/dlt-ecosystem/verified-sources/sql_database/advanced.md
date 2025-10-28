@@ -284,6 +284,7 @@ source = sql_database(
     query_adapter_callback=query_adapter_callback,
     table_adapter_callback=table_adapter_callback,
 )
+```
 :::
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
