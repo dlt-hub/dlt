@@ -4044,6 +4044,7 @@ def test_signal_graceful_complete_load_step(start_new_jobs_on_signal: bool) -> N
         while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
             signals.sleep(0.1)
 
+        signals.sleep(0.5)
         # send signal to drain pool and stop load
         os.kill(os.getpid(), signals.signal.SIGTERM)
 
