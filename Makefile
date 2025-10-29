@@ -139,13 +139,12 @@ publish-library: clean-dist build-library
 
 test-build-images: build-library
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
-	uv sync --extra gcp --extra redshift --extra duckdb
-	uv pip freeze > _gen_requirements.txt
+	# uv sync --extra gcp --extra redshift --extra duckdb
+	# uv pip freeze > _gen_requirements.txt
 	# filter out libs that need native compilation
-	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
+	# grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
-    # enable when we upgrade arrow to 20.x
-    # docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version)" .
+	docker build -f deploy/dlt/Dockerfile.minimal --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 
 preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
