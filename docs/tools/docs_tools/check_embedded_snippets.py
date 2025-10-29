@@ -17,7 +17,7 @@ import dlt._workspace.cli.echo as fmt
 
 from dlt.common import json
 
-from utils import collect_markdown_files
+from docs_tools.utils import collect_markdown_files
 
 
 SNIPPET_MARKER = "```"
@@ -272,7 +272,7 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     fmt.note("All snippets passed type checking")
 
 
-if __name__ == "__main__":
+def main():
     fmt.note(
         "Welcome to Snippet Checker 3000, run 'python check_embedded_snippets.py --help' for help."
     )
