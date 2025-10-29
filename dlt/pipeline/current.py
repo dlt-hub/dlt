@@ -1,11 +1,12 @@
 """Easy access to active pipelines, state, sources and schemas"""
 
+from typing import TYPE_CHECKING
+
 from dlt.common.storages.load_package import (
     load_package_state,
     destination_state,
 )
 from dlt.common.runtime.run_context import active as _run_context
-from dlt._workspace._workspace_context import active as _workspace
 
 from dlt.extract.decorators import (
     get_resource,
@@ -20,14 +21,22 @@ from dlt.extract.state import (
     get_current_pipe as _get_current_pipe,
 )
 
-from dlt.pipeline.pipeline import Pipeline as _Pipeline
+if TYPE_CHECKING:
+    from dlt.pipeline.pipeline import Pipeline
+    from dlt._workspace._workspace_context import WorkspaceRunContext
 
 
-def pipeline() -> _Pipeline:
+def pipeline() -> "Pipeline":
     """Currently active pipeline ie. the most recently created or run"""
     from dlt import _pipeline
 
     return _pipeline()
+
+
+def workspace() -> "WorkspaceRunContext":
+    from dlt._workspace._workspace_context import active
+
+    return active()
 
 
 state = source_state
@@ -37,7 +46,6 @@ resource = get_resource
 pipe = _get_current_pipe
 resource_name = _get_current_pipe_name
 run_context = _run_context
-workspace = _workspace
 resource_metrics = get_resource_metrics
 
 __all__ = [
