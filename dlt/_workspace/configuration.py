@@ -1,5 +1,4 @@
-from typing import ClassVar, Sequence
-from git import Optional
+from typing import ClassVar, Optional, Sequence
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
