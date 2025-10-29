@@ -231,11 +231,18 @@ class TableLoader:
 
         # default settings
         backend_kwargs = {
-            "return_type": "arrow_stream",
             "protocol": "binary",
-            "batch_size": self.chunk_size,
             **backend_kwargs,
         }
+
+        is_streaming = False
+        if "return_type" in backend_kwargs:
+            if backend_kwargs["return_type"] == "arrow_stream":
+                is_streaming = True
+                backend_kwargs["batch_size"] = backend_kwargs.get("batch_size", self.chunk_size)
+        else:
+            backend_kwargs["return_type"] = "arrow"
+
         conn = backend_kwargs.pop(
             "conn",
             self.engine.url._replace(
@@ -251,10 +258,21 @@ class TableLoader:
                 f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
         logger.info(f"Executing query on ConnectorX: {query_str}")
-        record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
-        for record_batch in record_reader:
-            table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
-            yield self._maybe_fix_0000_timezone(table)
+
+        if is_streaming:
+            record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
+            for record_batch in record_reader:
+                table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
+                yield self._maybe_fix_0000_timezone(table)
+        else:
+            df = cx.read_sql(conn, query_str, **backend_kwargs)
+            if len(df) > self.chunk_size:
+                logger.info(
+                    f"The size of the dataset being loaded is more than {self.chunk_size}, consider"
+                    " using streaming mode (see"
+                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database/configuration#connectorx)"
+                )
+            yield self._maybe_fix_0000_timezone(df)
 
     def _maybe_fix_0000_timezone(self, df: Any) -> Any:
         """Optionally convert +00:00 timezone to UTC"""
