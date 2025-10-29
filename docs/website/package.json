@@ -19,7 +19,6 @@
     "preprocess-docs:cloudflare": "PYTHONPATH=. python -u -m tools.preprocess_docs",
     "render-cli-docs": "PYTHONPATH=. uv run dlt render-docs > docs/reference/command-line-interface-generated.md",
     "build:cloudflare": "pip install watchdog==3.0.0 && npm run update-versions  && npm run preprocess-docs:cloudflare && npm run gen-api-ref:cloudflare &&  docusaurus build --out-dir build/docs",
-    "build:netlify": "pip install watchdog==3.0.0 && npm run update-versions && npm run preprocess-docs:cloudflare && npm run gen-api-ref:cloudflare &&  docusaurus build --out-dir build/docs",
     "serve:cloudflare": "wrangler dev --port 3001 --local",
     "preview:cloudflare": "npm run build:cloudflare && npm run serve:cloudflare",
     "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy"
