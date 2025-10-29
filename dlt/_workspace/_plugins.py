@@ -10,9 +10,7 @@ __all__ = ["plug_workspace_context_impl"]
 
 def is_workspace_dir(run_dir: str) -> bool:
     """Checks if `run_dir` contains dlt workspace, this is true if a config file is found"""
-    if os.path.isfile(os.path.join(run_dir, DOT_DLT, ".workspace")):
-        return True
-    return False
+    return os.path.isfile(os.path.join(run_dir, DOT_DLT, ".workspace"))
 
 
 @_plugins.hookimpl(specname="plug_run_context", trylast=False)

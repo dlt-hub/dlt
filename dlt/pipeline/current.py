@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Easy access to active pipelines, state, sources and schemas"""
 
 from typing import TYPE_CHECKING
@@ -33,7 +35,7 @@ def pipeline() -> _Pipeline:
     return _pipeline()
 
 
-def workspace() -> "WorkspaceRunContext":
+def workspace() -> WorkspaceRunContext:
     from dlt._workspace._workspace_context import active
 
     return active()

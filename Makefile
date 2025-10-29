@@ -134,8 +134,8 @@ clean-dist:
 
 publish-library: clean-dist build-library
 	ls -l dist/
-	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
-	uv publish --token "$$PYPI_API_TOKEN"
+	@bash -c 'read -s -p "Enter PyPI API token: " PYPI_API_TOKEN; echo; \
+	uv publish --token "$$PYPI_API_TOKEN"'
 
 test-build-images: build-library
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
