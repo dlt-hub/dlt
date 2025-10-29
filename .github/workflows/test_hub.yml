@@ -62,19 +62,20 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
         if: matrix.os == 'ubuntu-latest'
 
-      - name: Install ODBC driver for SQL Server (macOS)
-        if: matrix.os == 'macos-latest'
-        env:
-          HOMEBREW_NONINTERACTIVE: 1
-          HOMEBREW_NO_AUTO_UPDATE: 1
-          HOMEBREW_NO_ANALYTICS: 1
-          HOMEBREW_NO_INSTALL_CLEANUP: 1
-        run: |
-          brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
-          printf "YES\n" | brew install msodbcsql18
-          # quick diagnostics (do not fail the build if unavailable)
-          odbcinst -j || true
-          odbcinst -q -d || true
+      # still does not work in mac
+      # - name: Install ODBC driver for SQL Server (macOS)
+      #   if: matrix.os == 'macos-latest'
+      #   env:
+      #     HOMEBREW_NONINTERACTIVE: 1
+      #     HOMEBREW_NO_AUTO_UPDATE: 1
+      #     HOMEBREW_NO_ANALYTICS: 1
+      #     HOMEBREW_NO_INSTALL_CLEANUP: 1
+      #   run: |
+      #     brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
+      #     printf "YES\n" | brew install msodbcsql18
+      #     # quick diagnostics (do not fail the build if unavailable)
+      #     odbcinst -j || true
+      #     odbcinst -q -d || true
 
       - name: Install all dependencies
         run: make dev
@@ -84,6 +85,11 @@ jobs:
 
       - name: Run tests
         run: pytest tests/hub
+        # if: matrix.os != 'macos-latest'
+      
+      # - name: Run tests mac
+      #   run: pytest tests/hub -m "not mssql"
+      #   if: matrix.os == 'macos-latest'
 
   matrix_job_required_check:
     name: hub | dlthub features tests
