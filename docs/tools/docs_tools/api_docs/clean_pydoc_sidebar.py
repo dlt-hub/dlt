@@ -2,7 +2,9 @@
 from typing import List, Any
 import json  # noqa: I251
 
-SIDEBAR_PATH = "docs_processed/api_reference/sidebar.json"
+from docs_tools.const import API_REFERENCE_DIR, DOCS_PROCESSED_DIR, API_REFERENCE_DIR
+
+SIDEBAR_PATH = f"{API_REFERENCE_DIR}/sidebar.json"
 
 
 def process_items(items: List[Any]) -> None:
@@ -26,10 +28,10 @@ if __name__ == "__main__":
         json.dump(sidebar, f, indent=2)
 
     # change init file title
-    with open("docs_processed/api_reference/dlt/__init__.md", "r", encoding="utf-8") as f:
+    with open(f"{API_REFERENCE_DIR}/dlt/__init__.md", "r", encoding="utf-8") as f:
         content = f.read()
 
     content = content.replace("sidebar_label: dlt", "sidebar_label: __init__")
 
-    with open("docs_processed/api_reference/dlt/__init__.md", "w", encoding="utf-8") as f:
+    with open(f"{API_REFERENCE_DIR}/dlt/__init__.md", "w", encoding="utf-8") as f:
         f.write(content)

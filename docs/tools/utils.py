@@ -1,5 +1,4 @@
 from typing import List
-import os
 import glob
 
 import dlt._workspace.cli.echo as fmt

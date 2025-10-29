@@ -1,0 +1,18 @@
+[project]
+name = "dlt-docs-tools"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dlt",
+    "docstring-parser>=0.11",
+    "pydoc-markdown>=4.8.2,<5",
+]
+
+
+[tool.hatch.build.targets.sdist]
+packages = ["docs_tools"]
+
+[tool.uv.sources]
+dlt = { path = "../..", editable = true }

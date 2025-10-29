@@ -306,7 +306,6 @@ docs = [
     "SQLAlchemy>=1.4.0",
     "pymysql>=1.1.0,<2",
     "pypdf2>=3.0.1,<4",
-    "pydoc-markdown>=4.8.2,<5",
     "dbt-core>=1.5.0",
     "dbt-duckdb>=1.5.0",
     "pymongo>=4.3.3",

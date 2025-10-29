@@ -1,14 +1,14 @@
 loaders:
   - type: python
-    search_path: [../..]
+    search_path: ["../../../.."]
     packages: ["dlt"]
 processors:
   - type: filter
     expression: not name.startswith("dlt._workspace.cli") and not name.startswith("dlt.normalize") and not name.startswith("dlt.load") and not name.startswith("dlt.reflection") and default()
-  - type: pydoc_markdown_dlt.DltProcessor
+  - type: docs.tools.docs_tools.api_docs.pydoc_markdown_dlt.DltProcessor
 renderer:
   type: docusaurus
-  docs_base_path: docs_processed
+  docs_base_path: ../../../website/docs_processed
   relative_output_path: api_reference
   relative_sidebar_path: sidebar.json
   sidebar_top_level_label: API Reference
@@ -21,6 +21,6 @@ renderer:
     source_linker:
       type: github
       repo: dlt-hub/dlt
-      root: ../..
+      root: ../../../..
     source_format: "[View source on GitHub]({url})"
 
