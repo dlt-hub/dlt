@@ -65,13 +65,13 @@ jobs:
       - name: Install ODBC driver for SQL Server (macOS)
         if: matrix.os == 'macos-latest'
         env:
-          ACCEPT_EULA: Y
+          HOMEBREW_NONINTERACTIVE: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_ANALYTICS: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
         run: |
           brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
-          brew install msodbcsql18
+          printf "YES\n" | brew install msodbcsql18
           # quick diagnostics (do not fail the build if unavailable)
           odbcinst -j || true
           odbcinst -q -d || true
@@ -79,20 +79,11 @@ jobs:
       - name: Install all dependencies
         run: make dev
 
-      - name: Install dlthub nightly devel build without cache
+      - name: Install dlthub
         run: uv run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.dlthub_dep }}
 
       - name: Run tests
         run: pytest tests/hub
-        if: matrix.os == 'ubuntu-latest'
-
-      # - name: Run tests on macOS
-      #   run: pytest tests/hub
-      #   if: matrix.os == 'macos-latest'
-
-      # - name: Run tests on Windows without mssql driver
-      #   run: pytest tests/hub -m "not mssql"
-      #   if: matrix.os == 'windows-latest'
 
   matrix_job_required_check:
     name: hub | dlthub features tests

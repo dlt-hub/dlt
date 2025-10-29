@@ -22,11 +22,11 @@ from dlt.extract.state import (
 )
 
 if TYPE_CHECKING:
-    from dlt.pipeline.pipeline import Pipeline
     from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt.pipeline.pipeline import Pipeline as _Pipeline
 
 
-def pipeline() -> "Pipeline":
+def pipeline() -> _Pipeline:
     """Currently active pipeline ie. the most recently created or run"""
     from dlt import _pipeline
 
