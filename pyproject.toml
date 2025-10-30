@@ -243,10 +243,6 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
     "graphviz>=0.21",
-    "nbqa>=1.9.1",
-    "pymongo>=4.15.3",
-    "dbt-core>=1.5.0",
-    "dbt-duckdb>=1.5.0",
 ]
 
 # NOTE: those dependencies are used to test built in sources
