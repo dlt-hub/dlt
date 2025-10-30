@@ -1,15 +1,15 @@
 ---
-title: Inspect your pipeline with the pipeline dashboard
+title: Inspect your pipeline with the workspace dashboard
 description: Open a comprehensive dashboard with information about your pipeline
 keywords: [pipeline, schema, data, inspect]
 ---
 
-# Inspect your pipeline with the pipeline dashboard
+# Inspect your pipeline with the workspace dashboard
 
 Once you have run a pipeline locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the Marimo Python notebook framework. For this to work, you will need to have the `marimo` package installed.
 
 :::tip
-The pipeline dashboard app works with all destinations that are supported by our dataset. Vector databases are generally unsupported at this point; however, you can still inspect metadata such as run traces, schemas, and pipeline state.
+The workspace dashboard app works with all destinations that are supported by our dataset. Vector databases are generally unsupported at this point; however, you can still inspect metadata such as run traces, schemas, and pipeline state.
 :::
 
 ## Features
@@ -113,9 +113,9 @@ This provides an overview and detailed information about loads found in the _dlt
 
 ![Pipeline loads](https://storage.googleapis.com/dlt-blog-images/dashboard-loads.png)
 
-## Creating your own pipeline dashboard
+## Creating your own workspace dashboard
 
-You can eject the code for the pipeline dashboard into your current working directory and start editing it to create a custom version that fits your needs. To do this, run the `show` command with the `--edit` flag:
+You can eject the code for the workspace dashboard into your current working directory and start editing it to create a custom version that fits your needs. To do this, run the `show` command with the `--edit` flag:
 
 ```sh
 dlt pipeline {pipeline_name} show --edit

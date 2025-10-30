@@ -131,13 +131,13 @@ def test_page_overview(page: Page):
     _go_home(page)
 
     # check title
-    expect(page).to_have_title("dlt pipeline dashboard")
+    expect(page).to_have_title("dlt workspace dashboard")
 
     # check top heading
     expect(
-        page.get_by_role("heading", name="Welcome to the dltHub pipeline dashboard...")
+        page.get_by_role("heading", name="Welcome to the dltHub workspace dashboard...")
     ).to_contain_text(
-        "Welcome to the dltHub pipeline dashboard..."
+        "Welcome to the dltHub workspace dashboard..."
     )  #
 
     #
