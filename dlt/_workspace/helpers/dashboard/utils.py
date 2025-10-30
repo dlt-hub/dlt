@@ -827,7 +827,7 @@ def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
 # pipeline run section helpers
 #
 
-TPipelineRunStatus = Literal["completed", "failed"]
+TPipelineRunStatus = Literal["succeeded", "failed"]
 TVisualPipelineStep = Literal["extract", "normalize", "load"]
 
 
@@ -856,9 +856,9 @@ def _format_duration(ms: float) -> str:
 
 def _build_visual_components(
     transaction_id: str,
-    pipeline_name: str,
     status: TPipelineRunStatus,
     steps_data: List[PipelineStepData],
+    migrations_count: int = 0,
 ) -> mo.Html:
     """
     Build bar visualization
@@ -868,14 +868,18 @@ def _build_visual_components(
     segments_html = ""
     labels_html = ""
 
-    for step in steps_data:
+    for i, step in enumerate(steps_data):
         percentage = step.duration_ms / total_ms * 100
         color = PIPELINE_RUN_STEP_COLORS.get(step.step)
         segments_html += f"""
             <div style="
                 width: {percentage}%;
                 background-color: {color};
-            "></div>
+                {'border-top-left-radius: 6px;' if i == 0 else ''}
+                {'border-bottom-left-radius: 6px;' if i == 0 else ''}
+                {'border-top-right-radius: 6px;' if i == len(steps_data) - 1 else ''}
+                {'border-bottom-right-radius: 6px;' if i == len(steps_data) - 1 else ''}
+                "></div>
         """
         labels_html += f"""
             <span>
@@ -884,12 +888,21 @@ def _build_visual_components(
             </span>
         """
 
+    migration_badge = f"""
+    <div style="
+        background-color: {'var(--migration-badge-bg)'};
+        color: {'var(--migration-badge-text)'};
+        padding: 6px 16px;
+        border-radius: 6px;
+    ">
+        <strong>{f'{migrations_count} dataset migration(s)'}</strong>
+    </div>
+    """ if migrations_count > 0 else ""
+
     html = f"""
     <div style="
-        border-radius: 6px;
-        padding: 16px;
-        margin: 10px 0;
-        background: white;
+        padding-top: 16px;
+        padding-bottom: 6px;
     ">
         <!-- Main 3-column flex container -->
         <div style="
@@ -897,21 +910,23 @@ def _build_visual_components(
             flex-direction: row;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
         ">
-            <!-- LEFT COLUMN: ID, Pipeline name, Total time -->
-            <div>
-                <div style="font-weight: bold;">{transaction_id[:8]}</div>
-                <div>Pipeline name: <strong>{pipeline_name}</strong></div>
+            <!-- LEFT COLUMN: Run ID, Total time -->
+            <div style="
+                display: flex;
+                flex-direction: column;
+            ">
+                <div>Last run ID: <strong>{transaction_id[:8]}</strong></div>
                 <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
             </div>
 
             <!-- CENTER COLUMN: Timeline bar and legend -->
-
             <div style="
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
-                flex: 0 0 50%;
+                flex: 0 0 40%;
             ">
                 <div style="
                     display: flex;
@@ -927,11 +942,17 @@ def _build_visual_components(
                 ">{labels_html}</div>
             </div>
 
-            <!-- RIGHT COLUMN: Status badge only -->
-            <div>
+            <!-- RIGHT COLUMN: Status badges -->
+            <div style="
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                gap: 16px;
+            ">
+                {migration_badge}
                 <div style="
-                    background-color: {f"var(--{status}-badge-bg)"};
-                    color: {f"var(--{status}-badge-text)"};
+                    background-color: {f'var(--{status}-badge-bg)'};
+                    color: {f'var(--{status}-badge-text)'};
                     padding: 6px 16px;
                     border-radius: 6px;
                 ">
@@ -965,11 +986,22 @@ def build_pipeline_run_visualization(trace: PipelineTrace) -> mo.Html:
         )
 
     is_failed = any(s.failed for s in steps_data)
-    status: TPipelineRunStatus = "failed" if is_failed else "completed"
+    status: TPipelineRunStatus = "failed" if is_failed else "succeeded"
+
+    # Count unique migrations (schema versions) from load packages
+    migrations_count: int = 0
+    if trace.last_load_info and trace.last_load_info.load_packages:
+        seen_schema_hashes = set()
+        for package in trace.last_load_info.load_packages:
+            # Only count if there are schema updates
+            if len(package.schema_update) > 0:
+                if package.schema_hash not in seen_schema_hashes:
+                    migrations_count += 1
+                    seen_schema_hashes.add(package.schema_hash)
 
     return _build_visual_components(
         trace.transaction_id,
-        trace.pipeline_name,
         status,
         steps_data,
+        migrations_count,
     )

@@ -72,6 +72,7 @@ def home(
     else:
         _buttons: List[Any] = []
         _buttons.append(dlt_refresh_button)
+        _pipeline_run_summary: mo.Html = None
         if dlt_pipeline:
             _buttons.append(
                 mo.ui.button(
@@ -79,13 +80,14 @@ def home(
                     on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
                 )
             )
-        if dlt_pipeline and (local_dir := utils.get_local_data_path(dlt_pipeline)):
-            _buttons.append(
-                mo.ui.button(
-                    label="<small>Open local data location</small>",
-                    on_click=lambda _: utils.open_local_folder(local_dir),
+            if local_dir := utils.get_local_data_path(dlt_pipeline):
+                _buttons.append(
+                    mo.ui.button(
+                        label="<small>Open local data location</small>",
+                        on_click=lambda _: utils.open_local_folder(local_dir),
+                    )
                 )
-            )
+            _pipeline_run_summary = utils.build_pipeline_run_visualization(dlt_pipeline.last_trace)
         _stack = [
             mo.vstack(
                 [
@@ -102,7 +104,8 @@ def home(
                     ),
                     mo.hstack(_buttons, justify="start"),
                 ]
-            )
+            ),
+            _pipeline_run_summary,
         ]
         if not dlt_pipeline and dlt_pipeline_name:
             _stack.append(
@@ -113,33 +116,8 @@ def home(
                     kind="warn",
                 )
             )
-
     mo.vstack(_stack)
     return (dlt_pipeline,)
-
-
-@app.cell(hide_code=True)
-def section_pipeline_run(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_section_pipeline_run_switch: mo.ui.switch,
-):
-    """
-    Visual representation of the last pipeline run
-    """
-
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.pipeline_run_title,
-        strings.pipeline_run_subtitle,
-        strings.pipeline_run_subtitle,
-        dlt_section_pipeline_run_switch,
-    )
-
-    if dlt_pipeline and dlt_section_pipeline_run_switch.value:
-        if dlt_pipeline.last_trace:
-            _result.append(utils.build_pipeline_run_visualization(dlt_pipeline.last_trace))
-    mo.vstack(_result) if _result else None
-    return
 
 
 @app.cell(hide_code=True)
@@ -895,9 +873,6 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(
         value=True, label="overview" if mo_cli_arg_with_test_identifiers else ""
     )
-    dlt_section_pipeline_run_switch: mo.ui.switch = mo.ui.switch(
-        value=True, label="pipeline run" if mo_cli_arg_with_test_identifiers else ""
-    )
     dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="schema" if mo_cli_arg_with_test_identifiers else ""
     )
@@ -959,7 +934,6 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
         dlt_section_overview_switch,
-        dlt_section_pipeline_run_switch,
         dlt_section_schema_switch,
         dlt_section_state_switch,
         dlt_section_sync_switch,
