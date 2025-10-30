@@ -285,7 +285,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 write_disposition=self._load_table["write_disposition"],
             )
 
-    def _get_partition_spec_list(self) -> List[PartitionSpec]:
+    def _get_partition_spec_list(self) -> List["PartitionSpec"]:
         """Resolve partition specs. Combines legacy partition columns (identity transform)
         with partition hints. Validates that identity partitions are not duplicated.
         """
