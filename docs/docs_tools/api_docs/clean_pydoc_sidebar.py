@@ -3,8 +3,10 @@
 from typing import List, Any
 import json  # noqa: I251
 
-from docs_tools.const import API_REFERENCE_DIR, DOCS_PROCESSED_DIR, API_REFERENCE_DIR
+from docs_tools.const import API_REFERENCE_DIR
 
+# for some reason this script resolves differently than the one in the preprocess docs...
+API_REFERENCE_DIR = API_REFERENCE_DIR.replace("../", "./")
 SIDEBAR_PATH = f"{API_REFERENCE_DIR}/sidebar.json"
 
 
@@ -18,7 +20,7 @@ def process_items(items: List[Any]) -> None:
             item["label"] = item["label"].split(".")[-1]
 
 
-if __name__ == "__main__":
+def main() -> None:
     # clean sidebar
     with open(SIDEBAR_PATH, "r", encoding="utf-8") as f:
         sidebar = json.load(f)

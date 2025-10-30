@@ -5,7 +5,7 @@ loaders:
 processors:
   - type: filter
     expression: not name.startswith("dlt._workspace.cli") and not name.startswith("dlt.normalize") and not name.startswith("dlt.load") and not name.startswith("dlt.reflection") and default()
-  - type: docs.tools.api_docs.pydoc_markdown_dlt.DltProcessor
+  - type: docs_tools.api_docs.pydoc_markdown_dlt.DltProcessor
 renderer:
   type: docusaurus
   docs_base_path: ../../website/docs_processed

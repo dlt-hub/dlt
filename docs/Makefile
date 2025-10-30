@@ -12,8 +12,8 @@ format: ## Formats the docs tooling
 	uv run ruff format
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
-	cd tools/api_docs && uv run pydoc-markdown
-	uv run python -m tools.api_docs.clean_pydoc_sidebar
+	cd docs_tools/api_docs && uv run pydoc-markdown
+	uv run clean-pydoc-sidebar
 
 preprocess-docs: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links
 	uv run preprocess-docs
