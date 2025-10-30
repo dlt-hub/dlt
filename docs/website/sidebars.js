@@ -37,6 +37,7 @@ const sidebars = {
       },
       items: [
         'reference/installation',
+        "dlt-ecosystem/llm-tooling/llm-native-workflow",
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
@@ -116,6 +117,12 @@ const sidebars = {
           items: [
             'dlt-ecosystem/verified-sources/rest_api/basic',
             'dlt-ecosystem/verified-sources/rest_api/advanced',
+            /*{
+              type: 'link',
+              label: '5k+ REST APIs with LLMs',
+              description: 'Pick one of 5k+ REST APIs in LLM-assisted workflow',
+              href: '../../llm-tooling/llm-native-workflow',
+            },*/
             {
               type: 'category',
               label: 'REST API helpers',
@@ -238,7 +245,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
-        {
+        /*{
           type: "category",
           label: "Build with LLMs",
           link: {
@@ -250,7 +257,7 @@ const sidebars = {
           items: [
             "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
-        },
+        },*/
         {
           type: 'category',
           label: 'Load data incrementally',
@@ -477,7 +484,7 @@ const sidebars = {
       items: [
         'hub/intro',
         'hub/getting-started/installation',
-        'dlt-ecosystem/llm-tooling/llm-native-workflow',
+        { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
       ]
     },
     {
@@ -501,7 +508,7 @@ const sidebars = {
           type: 'category',
           label: 'Ensure data quality',
           items: [
-            'general-usage/dashboard',
+            { type: 'ref', id: 'general-usage/dashboard' },
             'hub/features/mcp-server',
             'hub/features/quality/data-quality',
           ]
@@ -510,8 +517,8 @@ const sidebars = {
           type: 'category',
           label: 'Create reports and transformations',
           items: [
-            'general-usage/dataset-access/marimo',
-            'general-usage/dataset-access/dataset',
+            { type: 'ref', id: 'general-usage/dataset-access/marimo' },
+            { type: 'ref', id: 'general-usage/dataset-access/dataset' },
             'hub/features/transformations/index',
             'hub/features/transformations/dbt-transformations',
           ]
@@ -553,20 +560,20 @@ const sidebars = {
     ],
 };
 
-// insert examples
+ // insert examples
 for (const item of sidebars.docsSidebar) {
-  if (item.label === 'Code examples') {
-    for (let examplePath of walkSync("./docs_processed/examples")) {
-      examplePath = examplePath.replace("docs_processed/", "");
-      examplePath = examplePath.replace(".mdx", "");
-      examplePath = examplePath.replace(".md", "");
-      item.items.push(examplePath);
+    if (item.label === 'Code examples') {
+      for (let examplePath of walkSync("./docs_processed/examples")) {
+        examplePath = examplePath.replace("docs_processed/", "");
+        examplePath = examplePath.replace(".mdx", "");
+        examplePath = examplePath.replace(".md", "");
+        item.items.push(examplePath);
     }
   }
 }
 
 
-// inject api reference if it exists
+ // inject api reference if it exists
 if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
   for (const item of sidebars.docsSidebar) {
     if (item.label === 'Reference') {
