@@ -277,6 +277,8 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
             LINT_FOLDER,
             "--exclude",
             ".*/dataset-access/marimo",
+            "--exclude",
+            ".venv",
             "--check-untyped-defs",
             "--config-file",
             MYPY_INI,
