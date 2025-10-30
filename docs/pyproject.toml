@@ -7,7 +7,7 @@ requires-python = ">=3.9.2, <3.14"
 
 # NOTE: working here is always dev enviroment, so we don't need a dev group
 dependencies = [
-    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database]",
+    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,workspace]",
     "docstring-parser>=0.11",
     "flake8>=7.0.0,<8",
     "modal>=1.2.1",
