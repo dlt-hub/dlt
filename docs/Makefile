@@ -29,6 +29,8 @@ test-snippets: ## Tests the snippets in the snippets folder
 
 format: ## Formats the docs tooling, notebooks, and examples
 	uv run black docs_tools website examples
+	uv run black education --ipynb 
+
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
 	cd docs_tools/api_docs && uv run pydoc-markdown
