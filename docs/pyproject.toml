@@ -7,7 +7,7 @@ requires-python = ">=3.9.2, <3.14"
 
 # NOTE: working here is always dev enviroment, so we don't need a dev group
 dependencies = [
-    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,workspace]",
+    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,workspace,weaviate]",
     "docstring-parser>=0.11",
     "flake8>=7.0.0,<8",
     "modal>=1.2.1",
@@ -17,7 +17,7 @@ dependencies = [
     "pydoc-markdown>=4.8.2,<5",
     "pytest>=8.4.2",
     "python-dotenv>=1.2.1",
-    "requests>=2.32.5",
+    "requests>=2.30.5",
     "ruff>=0.3.2,<0.4",
     "types-pyyaml>=6.0.12.20250915",
     "types-regex>=2025.10.23.20251023",
@@ -39,6 +39,7 @@ dependencies = [
     "google-api-python-client>=1.7.11",
     "google-auth-oauthlib>=1.0.0,<2",
     "types-psycopg2>=2.9.21.20251012",
+    "weaviate-client==3.23.2",
 ]
 
 
