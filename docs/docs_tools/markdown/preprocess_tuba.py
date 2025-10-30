@@ -8,8 +8,8 @@ from datetime import date
 
 import requests
 
-from .constants import NUM_TUBA_LINKS, TUBA_MARKER
-from .utils import extract_marker_content
+from docs_tools.markdown.constants import NUM_TUBA_LINKS, TUBA_MARKER
+from docs_tools.markdown.utils import extract_marker_content
 
 
 # Cache for tuba config to avoid repeated network requests
@@ -56,7 +56,9 @@ def format_tuba_links_section(links: List[Dict[str, Any]]) -> List[str]:
     return result
 
 
-def insert_tuba_links(tuba_config: List[Dict[str, Any]], lines: List[str]) -> Tuple[int, List[str]]:
+def insert_tuba_links(
+    tuba_config: List[Dict[str, Any]], lines: List[str]
+) -> Tuple[int, List[str]]:
     """Insert tuba links into the markdown file."""
     result = []
     tuba_count = 0

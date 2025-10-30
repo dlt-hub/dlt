@@ -2,9 +2,12 @@
 Constants for documentation preprocessing.
 """
 
+from docs_tools.const import DOCS_DIR
+from docs_tools.const import DOCS_PROCESSED_DIR
+
 # Directory paths
-MD_SOURCE_DIR = "docs/"
-MD_TARGET_DIR = "docs_processed/"
+MD_SOURCE_DIR = DOCS_DIR + "/"
+MD_TARGET_DIR = DOCS_PROCESSED_DIR + "/"
 
 # File extensions
 MOVE_FILES_EXTENSION = [".md", ".mdx", ".py", ".png", ".jpg", ".jpeg"]

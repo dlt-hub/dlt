@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Tuple, cast
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.reference import Destination
 
-from .constants import (
+from docs_tools.markdown.constants import (
     CAPABILITIES_MARKER,
     DESTINATION_CAPABILITIES_SOURCE_DIR,
     DESTINATION_NAME_PATTERN,
@@ -41,11 +41,15 @@ def get_impl_destination_names() -> set[str]:
         }
         return _impl_destinations_cache
     except OSError as e:
-        print(f"Error: Could not read source directory {DESTINATION_CAPABILITIES_SOURCE_DIR}: {e}")
+        print(
+            f"Error: Could not read source directory {DESTINATION_CAPABILITIES_SOURCE_DIR}: {e}"
+        )
         return set()
 
 
-def get_raw_capabilities(destination_name: str) -> Optional[DestinationCapabilitiesContext]:
+def get_raw_capabilities(
+    destination_name: str,
+) -> Optional[DestinationCapabilitiesContext]:
     """Get destination capabilities (cached after first call)."""
     if destination_name in _capabilities_cache:
         return _capabilities_cache[destination_name]
@@ -54,7 +58,9 @@ def get_raw_capabilities(destination_name: str) -> Optional[DestinationCapabilit
         dest = Destination.from_reference(destination_name)
         caps = dest._raw_capabilities()
         if not isinstance(caps, DestinationCapabilitiesContext):
-            print(f"Error: Invalid capabilities type for {destination_name}: {type(caps)}")
+            print(
+                f"Error: Invalid capabilities type for {destination_name}: {type(caps)}"
+            )
             return None
         _capabilities_cache[destination_name] = caps
         return caps
@@ -97,7 +103,9 @@ def _format_doc_link_for_key(key: str, link: str) -> str:
     if key == "dialect":
         return f"[Dataset access]({link})"
 
-    section_name = link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").capitalize()
+    section_name = (
+        link.strip("/").split("/")[-1].split("#")[0].replace("-", " ").capitalize()
+    )
     return f"[{section_name}]({link})"
 
 
@@ -172,7 +180,9 @@ def insert_destination_capabilities(lines: List[str]) -> Tuple[int, List[str]]:
             result.append(line)
             continue
 
-        match = re.search(rf"{re.escape(CAPABILITIES_MARKER)}\s+{DESTINATION_NAME_PATTERN}", line)
+        match = re.search(
+            rf"{re.escape(CAPABILITIES_MARKER)}\s+{DESTINATION_NAME_PATTERN}", line
+        )
         if not match or match.group(1) not in impl_destinations:
             result.append(line)
             continue

@@ -5,8 +5,12 @@ Example processing for documentation.
 import os
 import sys
 
-from .constants import EXAMPLES_DESTINATION_DIR, EXAMPLES_SOURCE_DIR, EXAMPLES_EXCLUSIONS
-from .utils import list_dirs_sync, trim_array
+from docs_tools.markdown.constants import (
+    EXAMPLES_DESTINATION_DIR,
+    EXAMPLES_SOURCE_DIR,
+    EXAMPLES_EXCLUSIONS,
+)
+from docs_tools.markdown.utils import list_dirs_sync, trim_array
 
 
 def build_example_doc(example_name: str) -> bool:
@@ -67,7 +71,9 @@ def build_example_doc(example_name: str) -> bool:
 
     output.append(":::info")
     url = f"https://github.com/dlt-hub/dlt/tree/devel/docs/examples/{example_name}"
-    output.append("The source code for this example can be found in our repository at: ")
+    output.append(
+        "The source code for this example can be found in our repository at: "
+    )
     output.append(url)
     output.append(":::")
 

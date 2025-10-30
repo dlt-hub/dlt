@@ -107,7 +107,9 @@ def collect_snippets(markdown_files: List[str], verbose: bool) -> List[Snippet]:
     return snippets
 
 
-def filter_snippets(snippets: List[Snippet], files: str, snippet_numbers: str) -> List[Snippet]:
+def filter_snippets(
+    snippets: List[Snippet], files: str, snippet_numbers: str
+) -> List[Snippet]:
     """
     Filter out snippets based on file or snippet number
     """
@@ -144,7 +146,9 @@ def check_language(snippets: List[Snippet]) -> None:
     failed_count = 0
     for snippet in snippets:
         if snippet.language not in ALLOWED_LANGUAGES:
-            fmt.warning(f"{str(snippet)} has an invalid language {snippet.language} setting.")
+            fmt.warning(
+                f"{str(snippet)} has an invalid language {snippet.language} setting."
+            )
             failed_count += 1
 
     if failed_count:
@@ -310,7 +314,9 @@ def main() -> None:
         choices=["full", "parse", "lint", "typecheck"],
         default="full",
     )
-    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument(
+        "-v", "--verbose", help="Increase output verbosity", action="store_true"
+    )
     parser.add_argument(
         "-f",
         "--files",

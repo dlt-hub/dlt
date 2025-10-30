@@ -38,6 +38,7 @@ build-backend = "hatchling.build"
 [project.scripts]
 lint-embedded-snippets = "docs_tools.snippets.lint_embedded_snippets:main"
 fix-grammar = "docs_tools.grammar.fix_grammar_gpt:main"
+preprocess-docs = "docs_tools.markdown.preprocess_docs:main"
 
 [tool.uv.sources]
 dlt = { path = "..", editable = true }

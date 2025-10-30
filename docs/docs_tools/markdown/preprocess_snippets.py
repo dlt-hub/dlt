@@ -6,13 +6,13 @@ import os
 from textwrap import dedent
 from typing import List, Tuple, Optional, Dict
 
-from .constants import (
+from docs_tools.markdown.constants import (
     SNIPPETS_FILE_SUFFIX,
     SNIPPET_MARKER,
     SNIPPET_START_MARKER,
     SNIPPET_END_MARKER,
 )
-from .utils import extract_marker_content
+from docs_tools.markdown.utils import extract_marker_content
 
 
 def build_snippet_map(lines: List[str], file_name: str) -> Dict[str, Dict[str, int]]:
@@ -37,7 +37,9 @@ def build_snippet_map(lines: List[str], file_name: str) -> Dict[str, Dict[str, i
     return snippet_map
 
 
-def get_snippet_from_file(snippets_file_name: str, snippet_name: str) -> Optional[List[str]]:
+def get_snippet_from_file(
+    snippets_file_name: str, snippet_name: str
+) -> Optional[List[str]]:
     """Get a snippet from a file."""
     try:
         with open(snippets_file_name, "r", encoding="utf-8") as f:

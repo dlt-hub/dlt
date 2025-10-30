@@ -20,7 +20,7 @@ import argparse
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from .constants import (
+from docs_tools.markdown.constants import (
     EXAMPLES_SOURCE_DIR,
     MD_SOURCE_DIR,
     MD_TARGET_DIR,
@@ -32,11 +32,13 @@ from .constants import (
     ABS_IMG_LINK,
     WATCH_EXTENSIONS,
 )
-from .utils import walk_sync, remove_remaining_markers
-from .preprocess_snippets import insert_snippets
-from .preprocess_tuba import insert_tuba_links, fetch_tuba_config
-from .preprocess_destination_capabilities import insert_destination_capabilities
-from .preprocess_examples import build_example_doc, sync_examples
+from docs_tools.markdown.utils import walk_sync, remove_remaining_markers
+from docs_tools.markdown.preprocess_snippets import insert_snippets
+from docs_tools.markdown.preprocess_tuba import insert_tuba_links, fetch_tuba_config
+from docs_tools.markdown.preprocess_destination_capabilities import (
+    insert_destination_capabilities,
+)
+from docs_tools.markdown.preprocess_examples import build_example_doc, sync_examples
 
 _processing_lock: threading.Lock = threading.Lock()
 _pending_changes: bool = False
@@ -58,7 +60,7 @@ def handle_change(file_path: str) -> None:
     """Handle a file change by rebuilding docs if needed."""
     print(f"Handling change in: {file_path}")
 
-    global _processing_lock, _pending_changes
+    global _pending_changes
 
     rel_path = os.path.relpath(file_path)
     ext = os.path.splitext(rel_path)[1]
@@ -72,7 +74,9 @@ def handle_change(file_path: str) -> None:
         return
 
     if _processing_lock.locked():
-        print(f"Found a change in: {rel_path}, but processing is locked, adding to pending changes")
+        print(
+            f"Found a change in: {rel_path}, but processing is locked, adding to pending changes"
+        )
         _pending_changes = True
         return
 
@@ -161,7 +165,9 @@ def preprocess_docs() -> Tuple[int, int, int, int]:
     processed_capabilities_blocks = 0
 
     for file_name in walk_sync(MD_SOURCE_DIR):
-        snippet_count, tuba_count, capabilities_count, processed = process_doc_file(file_name)
+        snippet_count, tuba_count, capabilities_count, processed = process_doc_file(
+            file_name
+        )
         if not processed:
             continue
         processed_files += 1
@@ -174,7 +180,12 @@ def preprocess_docs() -> Tuple[int, int, int, int]:
     print(f"Processed {processed_tuba_blocks} tuba blocks.")
     print(f"Processed {processed_capabilities_blocks} capabilities blocks.")
 
-    return processed_files, inserted_snippets, processed_tuba_blocks, processed_capabilities_blocks
+    return (
+        processed_files,
+        inserted_snippets,
+        processed_tuba_blocks,
+        processed_capabilities_blocks,
+    )
 
 
 def check_file_links(file_name: str, lines: List[str]) -> bool:
@@ -191,7 +202,9 @@ def check_file_links(file_name: str, lines: List[str]) -> bool:
 
         if HTTP_LINK in line_lower:
             found_error = True
-            print(f"Found http md link referencing these docs in file {file_name}, line {line_no}")
+            print(
+                f"Found http md link referencing these docs in file {file_name}, line {line_no}"
+            )
 
     return found_error
 
@@ -241,7 +254,9 @@ def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Preprocess dlt documentation files")
     parser.add_argument(
-        "--watch", action="store_true", help="Watch for file changes and reprocess automatically"
+        "--watch",
+        action="store_true",
+        help="Watch for file changes and reprocess automatically",
     )
     print("Parsing args")
     args = parser.parse_args()
