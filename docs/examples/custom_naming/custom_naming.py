@@ -72,11 +72,15 @@ if __name__ == "__main__":
 
         conn: DuckDBPyConnection = client.native_connection
         # tags are deterministic so we can just use the naming convention to get table names to select
-        first_table = pipeline.default_schema.naming.normalize_table_identifier("BigData")
+        first_table = pipeline.default_schema.naming.normalize_table_identifier(
+            "BigData"
+        )
         sql = f"DESCRIBE TABLE {first_table}"
         print(sql)
         print(conn.sql(sql))
-        second_table = pipeline.default_schema.naming.normalize_table_identifier("bigdata")
+        second_table = pipeline.default_schema.naming.normalize_table_identifier(
+            "bigdata"
+        )
         sql = f"DESCRIBE TABLE {second_table}"
         print(sql)
         print(conn.sql(sql))

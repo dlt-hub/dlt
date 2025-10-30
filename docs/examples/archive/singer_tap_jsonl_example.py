@@ -11,7 +11,11 @@ schema = SchemaStorage.load_schema_file("docs/examples/schemas/", "hubspot", ("y
 
 p = dlt.pipeline(destination="postgres", dev_mode=True)
 # now load a pipeline created from jsonl resource that feeds messages into singer tap transformer
-pipe = jsonl_file("docs/examples/data/singer_taps/tap_hubspot.jsonl") | singer_raw_stream()
+pipe = (
+    jsonl_file("docs/examples/data/singer_taps/tap_hubspot.jsonl") | singer_raw_stream()
+)
 # provide hubspot schema
-info = p.run(pipe, schema=schema, credentials="postgres://loader@localhost:5432/dlt_data")
+info = p.run(
+    pipe, schema=schema, credentials="postgres://loader@localhost:5432/dlt_data"
+)
 print(info)

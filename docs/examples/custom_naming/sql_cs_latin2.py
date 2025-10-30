@@ -3,7 +3,9 @@ from typing import ClassVar
 # NOTE: we use regex library that supports unicode
 import regex as re
 
-from dlt.common.normalizers.naming.sql_cs_v1 import NamingConvention as SqlNamingConvention
+from dlt.common.normalizers.naming.sql_cs_v1 import (
+    NamingConvention as SqlNamingConvention,
+)
 from dlt.common.typing import REPattern
 
 

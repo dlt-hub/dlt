@@ -44,7 +44,9 @@ from dlt.extract import DltResource
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
+    start_date: Optional[TAnyDateTime] = pendulum.datetime(
+        year=2000, month=1, day=1
+    ),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
 ) -> DltResource:
     """
@@ -75,7 +77,9 @@ def zendesk_support(
     #  when two events have the same timestamp
     @dlt.resource(primary_key="id", write_disposition="append")
     def tickets_data(
-        updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+        updated_at: dlt.sources.incremental[
+            pendulum.DateTime
+        ] = dlt.sources.incremental(
             "updated_at",
             initial_value=start_date_obj,
             end_value=end_date_obj,

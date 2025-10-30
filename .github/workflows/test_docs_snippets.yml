@@ -75,7 +75,7 @@ jobs:
       #   run: uv run pip install --pre dlthub
 
       - name: run docs preprocessor
-        run: make preprocess-docs
+        run: cd docs &&  make preprocess-docs
 
       - name: Create secrets.toml for snippets
         run: |

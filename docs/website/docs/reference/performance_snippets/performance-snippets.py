@@ -14,7 +14,11 @@ def parallel_config_snippet() -> None:
         while item_slice := list(islice(rows, 1000)):
             now = pendulum.now().isoformat()
             yield [
-                {"row": _id, "description": "this is row with id {_id}", "timestamp": now}
+                {
+                    "row": _id,
+                    "description": "this is row with id {_id}",
+                    "timestamp": now,
+                }
                 for _id in item_slice
             ]
 

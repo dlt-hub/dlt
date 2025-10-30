@@ -22,13 +22,17 @@ with Venv.create(mkdtemp(), ["git+https://github.com/MeltanoLabs/tap-csv.git"]) 
         "files": [
             {
                 "entity": "annotations_202205",
-                "path": os.path.abspath("examples/data/singer_taps/model_annotations.csv"),
+                "path": os.path.abspath(
+                    "examples/data/singer_taps/model_annotations.csv"
+                ),
                 "keys": ["message id"],
             }
         ]
     }
     print("running tap-csv")
-    tap_source = tap(venv, "tap-csv", csv_tap_config, "examples/data/singer_taps/csv_catalog.json")
+    tap_source = tap(
+        venv, "tap-csv", csv_tap_config, "examples/data/singer_taps/csv_catalog.json"
+    )
     info = dlt.pipeline("meltano_csv", destination="postgres").run(
         tap_source, credentials="postgres://loader@localhost:5432/dlt_data"
     )

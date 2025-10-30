@@ -7,9 +7,12 @@ lint: ## Lints the docs tooling
 	uv run ruff check
 	uv run mypy --config-file ../mypy.ini docs_tools  --exclude docs_tools/snippets/lint_setup
 	uv run flake8 --max-line-length=200 docs_tools
+	uv run black docs_tools website examples --check --diff --color 
 
-format: ## Formats the docs tooling
-	uv run ruff format
+
+format: ## Formats the docs tooling, notebooks, and examples
+	uv run black docs_tools website examples 
+
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
 	cd docs_tools/api_docs && uv run pydoc-markdown

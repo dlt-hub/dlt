@@ -152,12 +152,14 @@ def check_language(snippets: List[Snippet]) -> None:
             failed_count += 1
 
     if failed_count:
-        fmt.error(f"""\
+        fmt.error(
+            f"""\
 Found {failed_count} snippets with invalid language settings.
 * Please choose the correct language for your snippets: {ALLOWED_LANGUAGES}"
 * All sh commands, except for windows (bat), should be marked as sh.
 * All code blocks that are not a specific (markup-) language should be marked as text.\
-""")
+"""
+        )
         exit(1)
     else:
         fmt.note("All snippets have valid language settings")

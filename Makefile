@@ -50,6 +50,7 @@ dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
 lint: lint-core lint-security lint-docstrings
+	cd docs && make lint
 
 lint-core:
 	uv run mypy --config-file mypy.ini dlt tests
@@ -60,11 +61,11 @@ lint-core:
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
-	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 
 format:
-	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
-	uv run black docs/education --ipynb --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black docs/education --ipynb 
+	cd docs && make format
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
@@ -142,10 +143,6 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
     # enable when we upgrade arrow to 20.x
     # docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version)" .
-
-preprocess-docs:
-	# run docs preprocessing to run a few checks and ensure examples can be parsed
-	cd docs/website && npm i && npm run preprocess-docs
 
 start-test-containers:
 	docker compose -f "tests/load/dremio/docker-compose.yml" up -d

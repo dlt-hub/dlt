@@ -53,12 +53,16 @@ def get_source_from_stream(
 
 
 @dlt.transformer()
-def singer_raw_stream(singer_messages: TDataItems, use_state: bool = True) -> Iterator[TDataItem]:
+def singer_raw_stream(
+    singer_messages: TDataItems, use_state: bool = True
+) -> Iterator[TDataItem]:
     if use_state:
         state = dlt.current.source_state()
     else:
         state = None
-    yield from get_source_from_stream(cast(Iterator[SingerMessage], singer_messages), state)
+    yield from get_source_from_stream(
+        cast(Iterator[SingerMessage], singer_messages), state
+    )
 
 
 @dlt.source(spec=BaseConfiguration)  # use BaseConfiguration spec to prevent injections
@@ -94,7 +98,10 @@ def tap(
         else:
             state = None
         if state is not None and state.get("singer"):
-            state_params = ("--state", as_config_file(dlt.current.source_state()["singer"]))
+            state_params = (
+                "--state",
+                as_config_file(dlt.current.source_state()["singer"]),
+            )
         else:
             state_params = ()  # type: ignore
 
