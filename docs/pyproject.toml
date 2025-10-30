@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.9.2, <3.14"
+
+# NOTE: working here is always dev enviroment, so we don't need a dev group
 dependencies = [
     "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database]",
     "docstring-parser>=0.11",
@@ -34,7 +36,6 @@ dependencies = [
     "lancedb>=0.8.2 ; python_version < '3.13'",
     "connectorx>=0.4.2 ; python_version >= '3.10'",
     "modal>=0.64.170",
-    # google secrets provider
     "google-api-python-client>=1.7.11",
     "google-auth-oauthlib>=1.0.0,<2",
     "types-psycopg2>=2.9.21.20251012",

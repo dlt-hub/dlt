@@ -28,7 +28,7 @@ jobs:
   # testing and linting of docs snippets is always run to catch problems in the docs
   # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
   test_docs:
-    name: test snippets in docs
+    name: lint and test snippets, examples and notebooks in docs, lints tools
     uses: ./.github/workflows/test_docs.yml
     secrets: inherit
 
