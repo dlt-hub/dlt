@@ -40,6 +40,7 @@ dependencies = [
     "google-auth-oauthlib>=1.0.0,<2",
     "types-psycopg2>=2.9.21.20251012",
     "weaviate-client==3.23.2",
+    "regex>=2025.10.23",
 ]
 
 
