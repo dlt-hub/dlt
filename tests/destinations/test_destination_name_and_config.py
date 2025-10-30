@@ -2,6 +2,15 @@ import os
 import pytest
 
 import dlt
+from dlt.destinations import athena, filesystem
+from dlt.destinations.impl.athena.sql_client import AthenaSQLClient
+from dlt.destinations.impl.athena.athena import AthenaClient
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
+
+import os
+import pytest
+
+import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
@@ -216,3 +225,40 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     )
     pathlib = p._fs_client().pathlib  # type: ignore[attr-defined]
     assert p._fs_client().dataset_path.endswith(p.dataset_name + pathlib.sep)
+
+
+def test_athena_connector_params_and_lf_gating_default(monkeypatch, mocker) -> None:
+    # Avoid real connections
+    monkeypatch.setattr(AthenaSQLClient, "open_connection", lambda self: None, raising=True)
+    monkeypatch.setattr(AthenaSQLClient, "close_connection", lambda self: None, raising=True)
+
+    dest = athena(
+        query_result_bucket="s3://dummy-bucket/dlt/",
+        athena_work_group="primary",
+        credentials={
+            "aws_access_key_id": "AKIA...",
+            "aws_secret_access_key": "SECRET...",
+            "region_name": "us-east-1",
+        },
+    )
+    assert dest.spec.lakeformation_config is None
+
+    p = dlt.pipeline(
+        pipeline_name="athena_cfg",
+        destination=dest,
+        staging=filesystem("memory://m"),
+        dev_mode=True,
+    )
+
+    with p.destination_client() as client:
+        # ensure manage_lf_tags is NOT called when lakeformation config is not explicitly set
+        mocked_manage = mocker.patch(
+            "dlt.destinations.impl.athena.athena.AthenaClient.manage_lf_tags"
+        )
+        mocker.patch(
+            "dlt.destinations.job_client_impl.SqlJobClientWithStagingDataset.update_stored_schema",
+            return_value=None,
+        )
+
+        client.update_stored_schema()
+        mocked_manage.assert_not_called()
