@@ -186,6 +186,9 @@ workspace = [
     "marimo>=0.14.5",
     "mcp>=1.2.1 ; python_version >= '3.10'",
     "pathspec>=0.11.2",
+    "httpx>=0.27.0",
+    "python-jose>=3.5.0",
+    "types-python-jose>=3.5.0.20250531",
 ]
 dbml = [
     "pydbml"
