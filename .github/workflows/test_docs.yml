@@ -75,6 +75,10 @@ jobs:
           activate-environment: true
           enable-cache: true
 
+      - name: Start weaviate
+        run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
+
+
       - name: Install dependencies
         run: cd docs && make dev
 
