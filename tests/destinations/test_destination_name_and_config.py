@@ -1,21 +1,12 @@
-import os
 import pytest
 
 import dlt
-from dlt.destinations import athena, filesystem
+from dlt.destinations import athena, duckdb, dummy, filesystem
 from dlt.destinations.impl.athena.sql_client import AthenaSQLClient
-from dlt.destinations.impl.athena.athena import AthenaClient
-from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
-
-import os
-import pytest
-
-import dlt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
 from dlt.common.storages import FilesystemConfiguration
-from dlt.destinations import duckdb, dummy, filesystem
 
 from tests.utils import TEST_STORAGE_ROOT
 
