@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, List, Optional, Union
 from enum import Enum
 from dataclasses import dataclass
+import warnings
 
 from fsspec import AbstractFileSystem
 from packaging.version import Version
@@ -29,6 +30,10 @@ try:
     from pyiceberg.table import Table as IcebergTable
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
+    from pyiceberg.partitioning import (
+        UNPARTITIONED_PARTITION_SPEC,
+        PartitionSpec as IcebergPartitionSpec,
+    )
     import pyarrow as pa
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -71,7 +76,7 @@ class PartitionSpec:
 
     column: str
     partition_type: str
-    index: int # to keep the order of partition in place
+    index: int  # to keep the order of partition in place
     name: Optional[str] = None
     bucket_count: Optional[int] = None
 
@@ -124,7 +129,9 @@ class IcebergPartitionManager:
                     update_spec.add_field(column, transform, partition_name)
 
             except Exception as e:
-                logger.warning(f"Failed to apply {transform_type} partition to column '{column}': {str(e)}.")
+                logger.warning(
+                    f"Failed to apply {transform_type} partition to column '{column}': {str(e)}."
+                )
                 continue
 
 
@@ -179,7 +186,7 @@ def _validate_and_fix_indices(specs: List[Dict[str, Any]]) -> List[Dict[str, Any
     # Check for duplicate indices
     indices = [spec["index"] for spec in specs]
     if len(set(indices)) == len(indices):
-        return specs # No duplicates, return as-is
+        return specs  # No duplicates, return as-is
 
     # TODO: Sort by original index, then assign sequential indices
     # sorted_specs = sorted(specs, key=lambda x: (x["index"], x["column"]))
@@ -401,16 +408,17 @@ def create_table(
     catalog: IcebergCatalog,
     table_id: str,
     table_location: str,
-    schema: pa.Schema,
+    schema: Union[pa.Schema, "pyiceberg.schema.Schema"],
     partition_columns: Optional[List[str]] = None,
-    partition_specs: Optional[List[Dict[str, Any]]] = None,
+    partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
 ) -> None:
-    schema = ensure_iceberg_compatible_arrow_schema(schema)
+    if isinstance(schema, pa.Schema):
+        schema = ensure_iceberg_compatible_arrow_schema(schema)
 
-<<<<<<< HEAD
     if partition_columns:
-        # If the table is partitioned, create it in two steps:
-        # (1) start a create-table transaction, and (2) add the partition spec before committing
+        warnings.warn(
+            "partition_columns is deprecated. Use partition_spec instead.", DeprecationWarning
+        )
         with catalog.create_table_transaction(
             table_id,
             schema=schema,
@@ -421,22 +429,12 @@ def create_table(
                 for col in partition_columns:
                     update_spec.add_identity(col)
     else:
-        catalog.create_table(table_id, schema=schema, location=table_location)
-=======
-    with catalog.create_table_transaction(
-        table_id,
-        schema=ensure_iceberg_compatible_arrow_schema(schema),
-        location=table_location,
-    ) as txn:
-        # add partitioning
-        with txn.update_spec() as update_spec:
-            if partition_specs:
-                IcebergPartitionManager.apply_partitioning(update_spec, partition_specs)
-            elif partition_columns:
-                # Legacy partitioning fallback
-                for col in partition_columns:
-                    update_spec.add_identity(col)
->>>>>>> 24d74e154 (feat: implement advanced Iceberg partitioning with explicit ordering)
+        catalog.create_table(
+            identifier=table_id,
+            schema=schema,
+            location=table_location,
+            partition_spec=partition_spec,
+        )
 
 
 def get_iceberg_tables(
