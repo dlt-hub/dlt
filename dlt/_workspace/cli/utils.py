@@ -37,11 +37,8 @@ def display_run_context_info() -> None:
         if run_context.default_profile != run_context.profile:
             # print warning
             fmt.echo(
-                "Profile %s activated on %s"
-                % (
-                    fmt.style(run_context.profile, fg="yellow", reset=True),
-                    fmt.bold(run_context.name),
-                ),
+                "Profile `%s` is active."
+                % (fmt.style(run_context.profile, fg="yellow", reset=True),),
                 err=True,
             )
 

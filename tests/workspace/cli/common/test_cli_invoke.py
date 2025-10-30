@@ -148,6 +148,7 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
         assert _deploy_command.call_args[1] == {
             "pipeline_script_path": "debug_pipeline.py",
             "deployment_method": "github-action",
+            "no_pwd": False,
             "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
             "branch": None,
             "command": "deploy",
@@ -176,6 +177,7 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
         assert _deploy_command.call_args[1] == {
             "pipeline_script_path": "debug_pipeline.py",
             "deployment_method": "github-action",
+            "no_pwd": False,
             "repo_location": "folder",
             "branch": "branch",
             "command": "deploy",
@@ -197,6 +199,7 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
         assert _deploy_command.call_args[1] == {
             "pipeline_script_path": "debug_pipeline.py",
             "deployment_method": "airflow-composer",
+            "no_pwd": False,
             "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
             "branch": None,
             "command": "deploy",
@@ -212,6 +215,7 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
         assert _deploy_command.call_args[1] == {
             "pipeline_script_path": "debug_pipeline.py",
             "deployment_method": "airflow-composer",
+            "no_pwd": False,
             "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
             "branch": None,
             "command": "deploy",

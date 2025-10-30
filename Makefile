@@ -72,10 +72,10 @@ lint-snippets:
 	uv pip install docstring_parser_fork --reinstall
 	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/
 	uv run ruff check
-	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo
+	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo,docs/website/node_modules
 
 lint-and-test-snippets: lint-snippets
-	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
+	cd docs/website/docs && uv run pytest --ignore=node_modules
 
 lint-and-test-examples:
 	uv pip install docstring_parser_fork --reinstall
@@ -125,11 +125,6 @@ test-load-local-postgres:
 test-common:
 	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
 
-reset-test-storage:
-	-rm -r _storage
-	mkdir _storage
-	python3 tests/tools/create_storages.py
-
 build-library: dev
 	uv version
 	uv build
@@ -139,18 +134,17 @@ clean-dist:
 
 publish-library: clean-dist build-library
 	ls -l dist/
-	@read -sp "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
-	uv publish --token "$$PYPI_API_TOKEN"
+	@bash -c 'read -s -p "Enter PyPI API token: " PYPI_API_TOKEN; echo; \
+	uv publish --token "$$PYPI_API_TOKEN"'
 
 test-build-images: build-library
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
-	uv sync --extra gcp --extra redshift --extra duckdb
-	uv pip freeze > _gen_requirements.txt
+	# uv sync --extra gcp --extra redshift --extra duckdb
+	# uv pip freeze > _gen_requirements.txt
 	# filter out libs that need native compilation
-	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
+	# grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
-    # enable when we upgrade arrow to 20.x
-    # docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version)" .
+	docker build -f deploy/dlt/Dockerfile.minimal --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 
 preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed

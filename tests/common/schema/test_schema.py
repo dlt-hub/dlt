@@ -1,10 +1,11 @@
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from types import MethodType
 
 import pytest
 from copy import deepcopy
 
+import dlt
 from dlt.common.json import json
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException
@@ -19,11 +20,15 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
+    C_CHILD_PARENT_REF_LABEL,
+    C_DESCENDANT_ROOT_REF_LABEL,
+    C_ROOT_LOAD_REF_LABEL,
     LOADS_TABLE_NAME,
     VERSION_TABLE_NAME,
     TColumnName,
     TSimpleRegex,
     COLUMN_HINTS,
+    TTableReferenceStandalone,
     TTableSchemaColumns,
 )
 from dlt.common.storages import SchemaStorage
@@ -762,6 +767,159 @@ def test_remove_processing_hints() -> None:
     assert no_hints.stored_version_hash == cloned.stored_version_hash
 
 
+def test_schema_tables_property() -> None:
+    schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
+
+    assert isinstance(schema.tables, dict)
+    assert schema.tables == schema._schema_tables
+    # check that keys are table names
+    assert set(schema.tables) == set(
+        [
+            "_dlt_loads",
+            "_dlt_version",
+            "blocks",
+            "blocks__transactions",
+            "blocks__transactions__logs",
+            "blocks__transactions__logs__topics",
+            "blocks__transactions__access_list",
+            "blocks__transactions__access_list__storage_keys",
+            "blocks__uncles",
+        ]
+    )
+    # check that values are TTableSchema
+    # can't do `isinstance(..., TTableSchema)` on a `TypedDict`
+    assert set(schema.tables["blocks"]) == set(
+        [
+            "description",
+            "x-annotation",
+            "write_disposition",
+            "filters",
+            "columns",
+            "schema_contract",
+            "resource",
+            "x-normalizer",
+            "name",
+        ]
+    )
+
+
+@pytest.mark.parametrize("naming", ("snake_case", "tests.common.cases.normalizers.title_case"))
+def test_schema_references_property(naming: str) -> None:
+    # change naming convention
+    os.environ["SCHEMA__NAMING"] = naming
+    os.environ["SCHEMA__ALLOW_IDENTIFIER_CHANGE_ON_TABLE_WITH_DATA"] = "True"
+    schema_dict = load_yml_case("schemas/eth/ethereum_schema_v11")
+    schema = Schema.from_dict(schema_dict)
+    schema.update_normalizers()
+
+    expected_references: List[TTableReferenceStandalone] = [
+        {
+            "label": "_dlt_load",
+            "cardinality": "many_to_one",
+            "table": "blocks",
+            "columns": ["_dlt_load_id"],
+            "referenced_table": "_dlt_loads",
+            "referenced_columns": ["load_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__logs__topics",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions__logs",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__logs__topics",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions__logs",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list__storage_keys",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions__access_list",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list__storage_keys",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__uncles",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__uncles",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks",
+            "referenced_columns": ["_dlt_id"],
+        },
+    ]
+
+    assert isinstance(schema.references, list)
+    assert len(schema.references) == 9
+    assert isinstance(schema.references[0], dict)
+    # check that keys are from TStandaloneTableReference
+    # can't do `isinstance(..., TStandaloneTableReference)` on a `TypedDict`
+    assert set(schema.references[0]) == set(
+        [
+            "label",
+            "table",
+            "columns",
+            "referenced_table",
+            "referenced_columns",
+            "cardinality",
+        ]
+    )
+    # `.references` should return parent-child, root-child, and load-root references
+    assert set(ref["label"] for ref in schema.references) == set(
+        [C_CHILD_PARENT_REF_LABEL, C_DESCENDANT_ROOT_REF_LABEL, C_ROOT_LOAD_REF_LABEL]
+    )
+    # normalize table and column names in expected_references
+    for reference in expected_references:
+        reference["table"] = schema.naming.normalize_tables_path(reference["table"])
+        reference["referenced_table"] = schema.naming.normalize_tables_path(
+            reference["referenced_table"]
+        )
+        reference["columns"] = [schema.naming.normalize_path(c) for c in reference["columns"]]
+        reference["referenced_columns"] = [
+            schema.naming.normalize_path(c) for c in reference["referenced_columns"]
+        ]
+
+    assert schema.references == expected_references
+
+
 def test_schema_repr() -> None:
     sentinel = object()
     schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
@@ -935,7 +1093,7 @@ def test_get_nested_tables(include_self: bool, max_nesting: int) -> None:
 
     assert set(expected) == set(descendant_tbl_names)
 
-    # Ensure non existend table doesn't return anything
+    # Ensure non existent table doesn't return anything
 
     assert [] == utils.get_nested_tables(
         tables=schema_eth.tables,

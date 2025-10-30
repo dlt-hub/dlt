@@ -192,22 +192,6 @@ switch_context = copy_sig_ret(_switch_context, WorkspaceRunContext)(_switch_cont
 switch_profile = copy_sig_ret(_switch_profile, WorkspaceRunContext)(_switch_profile)
 
 
-def is_workspace_dir(run_dir: str) -> bool:
-    """Checks if `project_dir` contains dlt project, this is true if a config file is found"""
-    if os.path.isfile(os.path.join(run_dir, DOT_DLT, ".workspace")):
-        return True
-    return False
-
-
-def is_workspace_active() -> bool:
-    try:
-        active()
-    except WorkspaceRunContextNotAvailable:
-        return False
-    else:
-        return True
-
-
 def active() -> WorkspaceRunContext:
     """Returns currently active Workspace"""
     ctx = Container()[PluggableRunContext].context

@@ -10,8 +10,8 @@ this module is inspected by pluggy on dlt startup
 from typing import Type
 
 from dlt.common.configuration import plugins
+from dlt.common.runtime.run_context import active as run_context_active
 
-from dlt._workspace._workspace_context import is_workspace_active
 
 __all__ = [
     "plug_cli_init",
@@ -26,6 +26,13 @@ __all__ = [
     "plug_cli_profile",
     "plug_cli_workspace",
 ]
+
+
+def is_workspace_active() -> bool:
+    # verify run context type without importing
+
+    ctx = run_context_active()
+    return ctx.__class__.__name__ == "WorkspaceRunContext"
 
 
 @plugins.hookimpl(specname="plug_cli")

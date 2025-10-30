@@ -1,10 +1,11 @@
 import pytest
-import dlt
-
 from typing import Any
 
-
+import dlt
 from tests.pipeline.utils import load_table_counts
+from tests.hub.conftest import auto_issue_license as auto_issue_license
+
+pytest.importorskip("dlthub")
 
 
 @pytest.fixture(scope="function")
@@ -51,7 +52,7 @@ def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     @dlt.hub.transformation(name="orders_per_user", write_disposition="merge")
     def orders_per_user(dataset: dlt.Dataset) -> Any:
-        purchases = dataset.table("purchases", table_type="ibis")
+        purchases = dataset.table("purchases").to_ibis()
         yield purchases.group_by(purchases.customer_id).aggregate(order_count=purchases.id.count())
 
     # @@@DLT_SNIPPET_END orders_per_user
@@ -94,13 +95,13 @@ def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     def my_transformations(dataset: dlt.Dataset) -> Any:
         @dlt.hub.transformation(write_disposition="append")
         def enriched_purchases(dataset: dlt.Dataset) -> Any:
-            purchases = dataset.table("purchases", table_type="ibis")
-            customers = dataset.table("customers", table_type="ibis")
+            purchases = dataset.table("purchases").to_ibis()
+            customers = dataset.table("customers").to_ibis()
             yield purchases.join(customers, purchases.customer_id == customers.id)
 
         @dlt.hub.transformation(write_disposition="replace")
         def total_items_sold(dataset: dlt.Dataset) -> Any:
-            purchases = dataset.table("purchases", table_type="ibis")
+            purchases = dataset.table("purchases").to_ibis()
             yield purchases.aggregate(total_qty=purchases.quantity.sum())
 
         return enriched_purchases(dataset), total_items_sold(dataset)
@@ -249,8 +250,8 @@ def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START computed_schema
     # Show the computed schema before the transformation is executed
     dataset = fruitshop_pipeline.dataset()
-    purchases = dataset.table("purchases", table_type="ibis")
-    customers = dataset.table("customers", table_type="ibis")
+    purchases = dataset.table("purchases").to_ibis()
+    customers = dataset.table("customers").to_ibis()
     enriched_purchases = purchases.join(customers, purchases.customer_id == customers.id)
     print(dataset(enriched_purchases).columns)
     # @@@DLT_SNIPPET_END computed_schema
@@ -309,8 +310,8 @@ def in_transit_transformations_snippet() -> None:
     # load aggregated data to a warehouse destination
     @dlt.hub.transformation
     def orders_per_store(dataset: dlt.Dataset) -> Any:
-        orders = dataset.table("orders", table_type="ibis")
-        stores = dataset.table("stores", table_type="ibis")
+        orders = dataset.table("orders").to_ibis()
+        stores = dataset.table("stores").to_ibis()
         yield (
             orders.join(stores, orders.store_id == stores.id)
             .group_by(stores.name)
@@ -341,9 +342,7 @@ def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> Non
         try:
             output_dataset = dlt.current.pipeline().dataset()
             if output_dataset.schema.tables.get("cleaned_customers"):
-                max_pimary_key_expr = output_dataset.table(
-                    "cleaned_customers", table_type="ibis"
-                ).id.max()
+                max_pimary_key_expr = output_dataset.table("cleaned_customers").to_ibis().id.max()
                 max_pimary_key = output_dataset(max_pimary_key_expr).fetchscalar()
         except PipelineNeverRan:
             # we get this exception if the destination dataset has not been run yet
@@ -351,7 +350,7 @@ def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> Non
             pass
 
         # return filtered transformation
-        customers_table = dataset.table("customers", table_type="ibis")
+        customers_table = dataset.table("customers").to_ibis()
 
         # filter only new customers and exclude the name column in the result
         yield customers_table.filter(customers_table.id > max_pimary_key).drop(customers_table.name)

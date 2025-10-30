@@ -129,21 +129,19 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   p = dlt.pipeline("my_pipe", destination=my_destination(api_key=os.getenv("API_KEY"))) # type: ignore[call-arg]
   ```
 
-- Directly via destination reference. In this case, don't use the decorator for the destination function.
+- Via the `dlt.destination()` function that initializes the destination. In this case, don't use the decorator for the destination function.
   ```py
   # File my_destination.py
-
-  from dlt.common.destination import Destination
 
   # Don't use the decorator
   def local_destination_func(items: TDataItems, table: TTableSchema) -> None:
       ...
 
-  # Via destination reference
+  # Via dlt.destination() that initializes the destination
   p = dlt.pipeline(
       "my_pipe",
-      destination=Destination.from_reference(
-          "destination", destination_callable=local_destination_func
+      destination=dlt.destination(
+          "my_destination", destination_callable=local_destination_func
       )
   )
   ```
@@ -151,13 +149,11 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   ```py
   # File my_pipeline.py
 
-  from dlt.common.destination import Destination
-
   # Fully qualified string to function location
   p = dlt.pipeline(
       "my_pipe",
-      destination=Destination.from_reference(
-          "destination", destination_callable="my_destination.local_destination_func"
+      destination=dlt.destination(
+          "my_destination", destination_callable="my_destination.local_destination_func"
       )
   )
   ```
