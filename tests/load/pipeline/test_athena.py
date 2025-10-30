@@ -31,6 +31,30 @@ pytestmark = pytest.mark.essential
     destinations_configs(default_sql_configs=True, subset=["athena"]),
     ids=lambda x: x.name,
 )
+def test_athena_lakeformation_config_gating(
+    destination_config: DestinationTestConfiguration, mocker
+) -> None:
+    pytest.importorskip("pyathena")
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
+
+    with pipeline.destination_client() as client:
+        mocked_manage = mocker.patch(
+            "dlt.destinations.impl.athena.athena.AthenaClient.manage_lf_tags"
+        )
+        mocker.patch(
+            "dlt.destinations.job_client_impl.SqlJobClientWithStagingDataset.update_stored_schema",
+            return_value=None,
+        )
+
+        client.update_stored_schema()
+        mocked_manage.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"]),
+    ids=lambda x: x.name,
+)
 def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
