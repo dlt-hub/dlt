@@ -1,5 +1,5 @@
 
-name: docs | snippets
+name: docs | lint and test tools, snippets and examples
 
 on:
   workflow_call:
@@ -11,6 +11,16 @@ env:
 
   # detect if the workflow is executed in a repo fork
   IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+
+  # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
+
+  # Slack hook for chess in production example
+  RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
+  # Path to local qdrant database
+  DESTINATION__QDRANT__CREDENTIALS__PATH: zendesk.qdb
+
 
 jobs:
 
@@ -66,23 +76,29 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --extra duckdb --extra parquet --extra postgres --extra s3 --extra workspace --group docs --group sentry-sdk --group ibis --group providers
+        run: cd docs && make dev
 
       - name: Install dlthub incl alpha releases
-        run: uv run pip install --pre dlthub
+        run: cd docs && uv run pip install --pre dlthub
 
-      - name: run docs preprocessor
-        run: cd docs &&  make preprocess-docs
+      - name: lint docs
+        run: cd docs && make lint
+
+      - name: lint embedded snippets
+        run: cd docs && make lint-embedded-snippets
 
       - name: Create secrets.toml for snippets
         run: |
           cp tests/.dlt/dev.secrets.toml docs/website/docs/.dlt/secrets.toml
 
-      - name: Run linter and tests on snippets
-        run: make lint-and-test-snippets
+      - name: test snippets
+        run: cd docs && make test-snippets
 
-      - name: Test notebooks
-        run: cd docs/notebooks && make test
+      - name: create secrets.toml for examples
+        run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
 
-      - name: Lint education notebooks
-        run: make lint-notebooks
+      - name: test examples
+        run: cd docs && make test-examples
+
+      - name: run docs preprocessor
+        run: cd docs && make preprocess-docs
