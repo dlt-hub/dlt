@@ -14,13 +14,13 @@ dependencies = [
 
 
 [tool.hatch.build.targets.sdist]
-packages = ["docs_tools"]
+packages = ["tools"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["docs_tools"]
+packages = ["tools"]
 
 [project.entry-points."console_scripts"]
-check-embedded-snippets = "docs_tools.check_embedded_snippets:main"
+check-embedded-snippets = "tools.check_embedded_snippets:main"
 
 [tool.uv.sources]
-dlt = { path = "../..", editable = true }
+dlt = { path = "..", editable = true }
