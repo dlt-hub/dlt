@@ -15,8 +15,12 @@ generate-api-ref: ## Generates the API reference documentation from dlt codebase
 	cd docs_tools/api_docs && uv run pydoc-markdown
 	uv run clean-pydoc-sidebar
 
-preprocess-docs: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links
+preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links
 	uv run preprocess-docs
+	$(MAKE) generate-api-ref
+
+preprocess-docs-watch: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links and watches for changes
+	uv run preprocess-docs --watch
 
 lint-embedded-snippets: ## Lints all embedded snippets in the docs
 	uv run lint-embedded-snippets full

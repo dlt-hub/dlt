@@ -3,21 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "npm run gen-api-ref && npm run preprocess-docs && concurrently --kill-others \"PYTHONPATH=. uv run python -u -m tools.preprocess_docs --watch\" \"docusaurus start\"",
-    "build": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && docusaurus build",
+    "start": "cd .. && make preprocess-docs && concurrently --kill-others \"make preprocess-docs-watch \" \"cd website && docusaurus start\"",
+    "build": "uv run npm run update-versions && cd .. && make preprocess-docs && cd website && docusaurus build --out-dir build/docs",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
     "clear-versions": "node tools/clear_versions.js",
     "update-versions": "node tools/update_versions.js",
-    "gen-api-ref": "cd .. && make generate-api-ref",
-    "gen-api-ref:cloudflare": "cd .. && make generate-api-ref",
-    "preprocess-docs": "PYTHONPATH=. uv run python -u -m tools.preprocess_docs",
-    "preprocess-docs:cloudflare": "PYTHONPATH=. python -u -m tools.preprocess_docs",
-    "render-cli-docs": "PYTHONPATH=. uv run dlt render-docs > docs/reference/command-line-interface-generated.md",
-    "build:cloudflare": "pip install watchdog==3.0.0 && npm run update-versions  && npm run preprocess-docs:cloudflare && npm run gen-api-ref:cloudflare &&  docusaurus build --out-dir build/docs",
+    "build:cloudflare": "npm run build",
     "serve:cloudflare": "wrangler dev --port 3001 --local",
-    "preview:cloudflare": "npm run build:cloudflare && npm run serve:cloudflare",
-    "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy"
+    "preview:cloudflare": "npm run build && npm run serve:cloudflare",
+    "deploy:cloudflare": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@docusaurus/core": "^3.7.0",

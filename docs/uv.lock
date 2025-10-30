@@ -512,6 +512,7 @@ dependencies = [
     { name = "ruff" },
     { name = "types-pyyaml" },
     { name = "types-requests" },
+    { name = "watchdog" },
 ]
 
 [package.metadata]
@@ -528,6 +529,7 @@ requires-dist = [
     { name = "ruff", specifier = ">=0.14.2" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
     { name = "types-requests", specifier = ">=2.32.4.20250913" },
+    { name = "watchdog", specifier = ">=6.0.0" },
 ]
 
 [[package]]
