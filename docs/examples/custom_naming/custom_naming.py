@@ -31,8 +31,8 @@ if __name__ == "__main__":
     # NOTE: ql_cs_latin2 is case sensitive and postgres accepts UNICODE letters in identifiers
     # create postgres destination with a custom naming convention. sql_cs_latin2 is an importable
     # module
-    # import sql_cs_latin2  # is resolving in this context
-    dest_ = dlt.destinations.postgres(naming_convention="sql_cs_latin2")
+    import sql_cs_latin2  # is resolving in this context
+    dest_ = dlt.destinations.postgres(naming_convention= sql_cs_latin2)
 
     # run a pipeline
     pipeline = dlt.pipeline(
