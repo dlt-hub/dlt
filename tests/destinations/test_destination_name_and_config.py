@@ -227,8 +227,7 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     assert p._fs_client().dataset_path.endswith(p.dataset_name + pathlib.sep)
 
 
-def test_athena_connector_params_and_lf_gating_default(monkeypatch, mocker) -> None:
-    # Avoid real connections
+def test_athena_lakeformation_config_gating(monkeypatch, mocker) -> None:
     monkeypatch.setattr(AthenaSQLClient, "open_connection", lambda self: None, raising=True)
     monkeypatch.setattr(AthenaSQLClient, "close_connection", lambda self: None, raising=True)
 
