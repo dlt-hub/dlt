@@ -3,7 +3,7 @@ name = "dlt-docs-tools"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9.2, <3.15"
 dependencies = [
     "dlt",
     "docstring-parser>=0.11",
