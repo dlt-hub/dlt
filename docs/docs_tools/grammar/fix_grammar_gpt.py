@@ -13,10 +13,10 @@ from dotenv import load_dotenv
 
 import dlt._workspace.cli.echo as fmt
 
-from utils import collect_markdown_files
+from docs_tools.utils import collect_markdown_files
+from docs_tools.const import DOCS_DIR
 
 # constants
-BASE_DIR = "../website/docs"
 GPT_MODEL = "gpt-4-turbo"
 MAX_CHUNK_SIZE = 4000  # make sure that this is below the context window size of the model to not have cut off files
 
@@ -29,7 +29,7 @@ Never insert any codeblock start or end statements such as "```"
 Do not change the spelling or casing of these words: dlt, sdf, dbt
 """
 
-if __name__ == "__main__":
+def main():
     load_dotenv()
 
     fmt.note("Welcome to Grammar Fixer 3000, run 'python fix_grammar_gpt.py --help' for help.")

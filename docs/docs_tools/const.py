@@ -1,3 +1,7 @@
+#
+# Shared constants for docs tooling
+#
+
 WEBSITE_ROOT = "./website"
 DOCS_DIR = f"{WEBSITE_ROOT}/docs"
 DOCS_PROCESSED_DIR = f"{WEBSITE_ROOT}/docs_processed"

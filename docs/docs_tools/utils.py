@@ -1,10 +1,12 @@
+"""
+Utility functions for docs tooling
+"""
+
 from typing import List
 import glob
 
 import dlt._workspace.cli.echo as fmt
-
-
-DOCS_DIR = "../website/docs"
+from docs_tools.const import DOCS_DIR
 
 
 def collect_markdown_files(verbose: bool) -> List[str]:

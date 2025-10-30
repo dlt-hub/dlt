@@ -2,7 +2,7 @@
 from typing import List, Any
 import json  # noqa: I251
 
-from tools.const import API_REFERENCE_DIR, DOCS_PROCESSED_DIR, API_REFERENCE_DIR
+from docs_tools.const import API_REFERENCE_DIR, DOCS_PROCESSED_DIR, API_REFERENCE_DIR
 
 SIDEBAR_PATH = f"{API_REFERENCE_DIR}/sidebar.json"
 

@@ -36,9 +36,10 @@ ALLOWED_LANGUAGES = [
     "mermaid",
 ]
 
-LINT_TEMPLATE = "./lint_setup/template.py"
-LINT_FILE = "./lint_setup/lint_me.py"
-LINT_FOLDER = "./lint_setup/lint_me"
+LINT_TEMPLATE = "./docs_tools/snippets/lint_setup/template.py"
+LINT_FILE = "./docs_tools/snippets/lint_setup/lint_me.py"
+LINT_FOLDER = "./docs_tools/snippets/lint_setup/lint_me"
+MYPY_INI = "./docs_tools/snippets/lint_setup/mypy.ini"
 
 ENABLE_MYPY = True
 
@@ -222,10 +223,13 @@ def prepare_for_linting(snippets: List[Snippet]) -> None:
     count = 0
     for filename, content in files.items():
         count += 1
+        if filename.startswith("."):
+            filename = filename[1:]
         target_file_name = LINT_FOLDER + filename
         target_file_name = target_file_name.replace(".md", "").replace("..", "")
         target_file_name += "_" + str(count) + ".py"
         os.makedirs(os.path.dirname(target_file_name), exist_ok=True)
+        
         with open(target_file_name, "w", encoding="utf-8") as f:
             f.write(content)
 
@@ -257,8 +261,9 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     fmt.secho(fmt.bold("Type checking Python snippets"))
 
     prepare_for_linting(snippets)
+    
     result = subprocess.run(
-        ["mypy", LINT_FOLDER, "--exclude", ".*/dataset-access/marimo", "--check-untyped-defs"],
+        ["mypy", LINT_FOLDER, "--exclude", ".*/dataset-access/marimo", "--check-untyped-defs", "--config-file", MYPY_INI],
         capture_output=True,
         text=True,
     )
