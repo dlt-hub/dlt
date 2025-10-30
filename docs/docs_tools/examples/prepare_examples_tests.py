@@ -8,7 +8,7 @@ from typing import List
 
 import dlt._workspace.cli.echo as fmt
 
-EXAMPLES_DIR = "../examples"
+EXAMPLES_DIR = "./examples"
 
 # settings
 SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
@@ -27,7 +27,7 @@ import pytest
 """
 
 
-if __name__ == "__main__":
+def main() -> None:
     # setup cli
     parser = argparse.ArgumentParser(
         description="Prepares examples in docs/examples for testing.",

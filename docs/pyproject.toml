@@ -62,6 +62,7 @@ lint-embedded-snippets = "docs_tools.snippets.lint_embedded_snippets:main"
 fix-grammar = "docs_tools.grammar.fix_grammar_gpt:main"
 preprocess-docs = "docs_tools.markdown.preprocess_docs:main"
 clean-pydoc-sidebar = "docs_tools.api_docs.clean_pydoc_sidebar:main"
+prepare-examples-tests = "docs_tools.examples.prepare_examples_tests:main"
 
 [tool.uv.sources]
 dlt = { path = "..", editable = true }

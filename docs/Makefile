@@ -21,7 +21,7 @@ lint-notebooks: ## Lints the notebooks in the education folder
 	--disable-error-code=top-level-await
 
 test-examples: ## Tests the examples in the examples folder
-	cd tools && uv run python prepare_examples_tests.py
+	uv run prepare-examples-tests
 	cd examples && uv run pytest
 
 test-snippets: ## Tests the snippets in the snippets folder
