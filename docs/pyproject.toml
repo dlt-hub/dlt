@@ -7,9 +7,9 @@ requires-python = ">=3.9.2, <3.14"
 dependencies = [
     "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database]",
     "docstring-parser>=0.11",
-    "flake8>=7.3.0",
+    "flake8>=7.0.0,<8",
     "modal>=1.2.1",
-    "mypy>=1.18.2",
+    "mypy>=1.11.0,<1.13.0",
     "nbqa>=1.9.1",
     "openai>=2.6.1",
     "pydoc-markdown>=4.8.2,<5",
@@ -37,6 +37,7 @@ dependencies = [
     # google secrets provider
     "google-api-python-client>=1.7.11",
     "google-auth-oauthlib>=1.0.0,<2",
+    "types-psycopg2>=2.9.21.20251012",
 ]
 
 

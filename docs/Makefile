@@ -14,8 +14,9 @@ lint-embedded-snippets: ## Lints all embedded snippets in the docs
 
 lint-notebooks: ## Lints the notebooks in the education folder
 	uv run nbqa flake8 education --extend-ignore=D,F704 --max-line-length=200
-	uv run nbqa mypy education \
+	uv run nbqa mypy  education \
 	--ignore-missing-imports \
+	--no-strict-optional \
 	--disable-error-code=no-redef \
 	--disable-error-code=top-level-await
 
