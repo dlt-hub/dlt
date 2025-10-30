@@ -1,6 +1,7 @@
 """
 Creates the pytest files for our examples tests. These will not be committed
 """
+
 import os
 import argparse
 from typing import List
@@ -71,7 +72,9 @@ if __name__ == "__main__":
             if line.startswith(MAIN_CLAUSE):
                 main_clause_found = True
                 if example not in SKIP_FORK_EXAMPLES:
-                    processed_lines.append("@pytest.mark.forked")  # run on forked-subprocess
+                    processed_lines.append(
+                        "@pytest.mark.forked"
+                    )  # run on forked-subprocess
                 processed_lines.append(f"def test_{example}():")
             else:
                 processed_lines.append(line)

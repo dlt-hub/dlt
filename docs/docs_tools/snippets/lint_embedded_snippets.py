@@ -1,6 +1,7 @@
 """
 Walks through all markdown files, finds all code snippets, and checks wether they are parseable.
 """
+
 import os
 import ast
 import subprocess
@@ -106,7 +107,9 @@ def collect_snippets(markdown_files: List[str], verbose: bool) -> List[Snippet]:
     return snippets
 
 
-def filter_snippets(snippets: List[Snippet], files: str, snippet_numbers: str) -> List[Snippet]:
+def filter_snippets(
+    snippets: List[Snippet], files: str, snippet_numbers: str
+) -> List[Snippet]:
     """
     Filter out snippets based on file or snippet number
     """
@@ -143,7 +146,9 @@ def check_language(snippets: List[Snippet]) -> None:
     failed_count = 0
     for snippet in snippets:
         if snippet.language not in ALLOWED_LANGUAGES:
-            fmt.warning(f"{str(snippet)} has an invalid language {snippet.language} setting.")
+            fmt.warning(
+                f"{str(snippet)} has an invalid language {snippet.language} setting."
+            )
             failed_count += 1
 
     if failed_count:
@@ -229,7 +234,7 @@ def prepare_for_linting(snippets: List[Snippet]) -> None:
         target_file_name = target_file_name.replace(".md", "").replace("..", "")
         target_file_name += "_" + str(count) + ".py"
         os.makedirs(os.path.dirname(target_file_name), exist_ok=True)
-        
+
         with open(target_file_name, "w", encoding="utf-8") as f:
             f.write(content)
 
@@ -243,7 +248,9 @@ def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
     # TODO replace this by the repo's main formatting and linting
     prepare_for_linting(snippets)
     result = subprocess.run(
-        ["ruff", "check", LINT_FOLDER, "--extend-ignore", "F704"], capture_output=True, text=True
+        ["ruff", "check", LINT_FOLDER, "--extend-ignore", "F704"],
+        capture_output=True,
+        text=True,
     )
 
     if "error" in result.stdout.lower():
@@ -261,9 +268,17 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     fmt.secho(fmt.bold("Type checking Python snippets"))
 
     prepare_for_linting(snippets)
-    
+
     result = subprocess.run(
-        ["mypy", LINT_FOLDER, "--exclude", ".*/dataset-access/marimo", "--check-untyped-defs", "--config-file", MYPY_INI],
+        [
+            "mypy",
+            LINT_FOLDER,
+            "--exclude",
+            ".*/dataset-access/marimo",
+            "--check-untyped-defs",
+            "--config-file",
+            MYPY_INI,
+        ],
         capture_output=True,
         text=True,
     )
@@ -277,7 +292,7 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     fmt.note("All snippets passed type checking")
 
 
-def main():
+def main() -> None:
     fmt.note(
         "Welcome to Snippet Checker 3000, run 'python check_embedded_snippets.py --help' for help."
     )
@@ -299,7 +314,9 @@ def main():
         choices=["full", "parse", "lint", "typecheck"],
         default="full",
     )
-    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument(
+        "-v", "--verbose", help="Increase output verbosity", action="store_true"
+    )
     parser.add_argument(
         "-f",
         "--files",

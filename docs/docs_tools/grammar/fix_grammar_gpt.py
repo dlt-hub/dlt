@@ -3,6 +3,7 @@ Fixes the grammar of all the markdown files in the docs/website/docs directory.
 Required openai package to be installed, and an .env file with the open ai api key to be present in the root directory:
 OPENAI_API_KEY="..."
 """
+
 import os
 import functools
 import argparse
@@ -29,10 +30,13 @@ Never insert any codeblock start or end statements such as "```"
 Do not change the spelling or casing of these words: dlt, sdf, dbt
 """
 
-def main():
+
+def main() -> None:
     load_dotenv()
 
-    fmt.note("Welcome to Grammar Fixer 3000, run 'python fix_grammar_gpt.py --help' for help.")
+    fmt.note(
+        "Welcome to Grammar Fixer 3000, run 'python fix_grammar_gpt.py --help' for help."
+    )
 
     # setup cli
     parser = argparse.ArgumentParser(
@@ -42,7 +46,9 @@ def main():
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument(
+        "-v", "--verbose", help="Increase output verbosity", action="store_true"
+    )
     parser.add_argument(
         "-f",
         "--files",
@@ -93,7 +99,9 @@ def main():
 
         processed += 1
 
-        fmt.note(f"Fixing grammar for file {file_path} ({count} of {len(markdown_files)})")
+        fmt.note(
+            f"Fixing grammar for file {file_path} ({count} of {len(markdown_files)})"
+        )
 
         with open(file_path, "r", encoding="utf-8") as f:
             doc = f.readlines()

@@ -1,12 +1,13 @@
 from pydoc_markdown.contrib.processors.smart import SmartProcessor
 import re
+from typing import Any
 from functools import partial
 
 sub = partial(re.sub, flags=re.M)
 
 
 class DltProcessor(SmartProcessor):
-    def _process(self, node):
+    def _process(self, node: Any) -> Any:
         if not getattr(node, "docstring", None):
             return
 

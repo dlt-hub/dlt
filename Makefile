@@ -93,11 +93,7 @@ lint-security:
 	uv run bandit -r dlt/ -n 3 -lll
 
 lint-notebooks:
-	uv run nbqa flake8 docs/education --extend-ignore=D,F704 --max-line-length=200
-	uv run nbqa mypy docs/education \
-	--ignore-missing-imports \
-	--disable-error-code=no-redef \
-	--disable-error-code=top-level-await
+	cd docs && make lint-notebooks
 
 # check docstrings for all important public classes and functions
 lint-docstrings:

@@ -1,4 +1,5 @@
 """Simplify labels in the sidebar"""
+
 from typing import List, Any
 import json  # noqa: I251
 
