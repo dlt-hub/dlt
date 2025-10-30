@@ -165,6 +165,9 @@ def preprocess_docs() -> Tuple[int, int, int, int]:
     processed_capabilities_blocks = 0
 
     for file_name in walk_sync(MD_SOURCE_DIR):
+        print(f"Processing file: {file_name}")
+        if "jaffle_shop" in file_name:
+            continue
         snippet_count, tuba_count, capabilities_count, processed = process_doc_file(
             file_name
         )
@@ -213,7 +216,8 @@ def check_docs() -> None:
     """Inspect all md files and run some checks."""
     found_error = False
 
-    for file_name in walk_sync(MD_SOURCE_DIR):
+    count = 0
+    for file_name in walk_sync(MD_TARGET_DIR):
         ext = os.path.splitext(file_name)[1]
         if ext not in DOCS_EXTENSIONS:
             continue
@@ -226,10 +230,11 @@ def check_docs() -> None:
 
         if check_file_links(file_name, lines):
             found_error = True
+        count += 1
 
     if found_error:
         raise ValueError("Found one or more errors while checking docs.")
-    print("Found no errors in md files")
+    print(f"Found no errors in {count} md files")
 
 
 def process_example_change(file_path: str) -> None:
@@ -260,11 +265,6 @@ def main() -> None:
     )
     print("Parsing args")
     args = parser.parse_args()
-    print("Args parsed")
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    website_dir = os.path.dirname(script_dir)
-    print("Changing directory to", website_dir)
-    os.chdir(website_dir)
 
     if args.watch:
         print("Watching for file changes...")

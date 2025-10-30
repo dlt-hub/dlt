@@ -5,8 +5,6 @@ import json  # noqa: I251
 
 from docs_tools.const import API_REFERENCE_DIR
 
-# for some reason this script resolves differently than the one in the preprocess docs...
-API_REFERENCE_DIR = API_REFERENCE_DIR.replace("../", "./")
 SIDEBAR_PATH = f"{API_REFERENCE_DIR}/sidebar.json"
 
 

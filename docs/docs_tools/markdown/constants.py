@@ -2,12 +2,16 @@
 Constants for documentation preprocessing.
 """
 
-from docs_tools.const import DOCS_DIR
+from docs_tools.const import DOCS_DIR, ROOT_DIR
 from docs_tools.const import DOCS_PROCESSED_DIR
 
 # Directory paths
 MD_SOURCE_DIR = DOCS_DIR + "/"
 MD_TARGET_DIR = DOCS_PROCESSED_DIR + "/"
+DESTINATION_CAPABILITIES_SOURCE_DIR = ROOT_DIR + "/dlt/destinations/impl"
+DESTINATION_CAPABILITIES_TARGET_DIR = f"{MD_TARGET_DIR}dlt-ecosystem/destinations"
+EXAMPLES_DESTINATION_DIR = f"./{MD_TARGET_DIR}examples/"
+
 
 # File extensions
 MOVE_FILES_EXTENSION = [".md", ".mdx", ".py", ".png", ".jpg", ".jpeg"]
@@ -21,13 +25,10 @@ SNIPPETS_FILE_SUFFIX = "-snippets.py"
 NUM_TUBA_LINKS = 10
 
 # Examples settings
-EXAMPLES_DESTINATION_DIR = f"./{MD_TARGET_DIR}examples/"
-EXAMPLES_SOURCE_DIR = "../examples/"
+EXAMPLES_SOURCE_DIR = "./examples/"
 EXAMPLES_EXCLUSIONS = [".", "_", "archive", "local_cache"]
 
 # Destination capabilities settings
-DESTINATION_CAPABILITIES_TARGET_DIR = "./docs_processed/dlt-ecosystem/destinations"
-DESTINATION_CAPABILITIES_SOURCE_DIR = "../../dlt/destinations/impl"
 DESTINATION_NAME_PATTERN = r"([a-z0-9_-]+?)(?:--|$)"
 CAPABILITIES_TABLE_HEADER = "| Feature | Value | More |\n"
 

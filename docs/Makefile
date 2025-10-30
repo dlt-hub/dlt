@@ -6,7 +6,7 @@ dev: ## Prepares development environment for docs tooling
 lint: ## Lints the docs tooling, non-embedded snippets, examples and notebooks NOTE: embedded snippets and notebooks are linted separately
 	uv run ruff check
 	uv run mypy --config-file ../mypy.ini docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/
-	uv run flake8 --max-line-length=200 docs_tools website examples --exclude website/.dlt-repo,website/node_modules
+	uv run flake8 --max-line-length=200 docs_tools website examples --exclude website/.dlt-repo,website/node_modules --exclude docs_tools/snippets/lint_setup
 	uv run black docs_tools website examples --check --diff --color
 
 lint-embedded-snippets: ## Lints all embedded snippets in the docs
