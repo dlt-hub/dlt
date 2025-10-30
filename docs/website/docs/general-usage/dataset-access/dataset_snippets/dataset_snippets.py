@@ -284,12 +284,12 @@ def iterating_with_limit_and_select_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START iterating_with_limit_and_select
     # Dataframes
-    for df_chunk in customers_relation.select("id", "name").limit(100).iter_df(chunk_size=20):
-        ...
+    for df_chunk in customers_relation.select("id", "name").limit(100).iter_df(chunk_size=20): ...
 
     # Arrow tables
-    for arrow_table in customers_relation.select("id", "name").limit(100).iter_arrow(chunk_size=20):
-        ...
+    for arrow_table in (
+        customers_relation.select("id", "name").limit(100).iter_arrow(chunk_size=20)
+    ): ...
 
     # Python tuples
     for records in customers_relation.select("id", "name").limit(100).iter_fetch(chunk_size=20):
