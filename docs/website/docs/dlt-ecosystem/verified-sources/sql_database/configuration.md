@@ -117,8 +117,39 @@ will create `sql_database` folder with the source code that you can import and u
         print(info)
 
     ```
+4. **Prefix table names using `apply_hints`**
 
-4. **Configuring table and column selection in `config.toml`**
+   You can rename tables before loading them into the destination by applying the `apply_hints` method to each resource. This is useful for avoiding naming collisions or organizing data.
+
+   ```py
+   import dlt
+   from dlt.sources.sql_database import sql_database
+   
+   def load_prefixed_tables_from_database() -> None:
+       
+       # Define the pipeline
+       pipeline = dlt.pipeline(
+           pipeline_name="rfam",
+           destination="duckdb",
+           dataset_name="rfam_data",
+       )
+       
+       # Fetch specific tables from the database
+       source = sql_database(table_names=["family", "clan"])
+       
+       # Prefix tables before loading to avoid collisions
+       source_system = "prefix"  # Your desired prefix
+       for _resource_name, resource in source.resources.items():
+           resource.apply_hints(table_name=f"{source_system}__{resource.name}")
+       
+       # Run the pipeline
+       load_info = pipeline.run(source)
+       print(load_info)
+
+   ```
+   This renames the tables before insertion. For example, the table "family" will be loaded as "prefix__family".
+   
+5. **Configuring table and column selection in `config.toml`**
 
    To manage table and column selections outside of your Python scripts, you can configure them directly in the `config.toml` file. This approach is especially beneficial when dealing with multiple tables or when you prefer to keep configuration separate from code.
 
