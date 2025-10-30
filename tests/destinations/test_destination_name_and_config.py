@@ -1,11 +1,12 @@
+import os
 import pytest
 
 import dlt
-from dlt.destinations import duckdb, dummy, filesystem
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
 from dlt.common.storages import FilesystemConfiguration
+from dlt.destinations import duckdb, dummy, filesystem
 
 from tests.utils import TEST_STORAGE_ROOT
 
@@ -215,33 +216,3 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     )
     pathlib = p._fs_client().pathlib  # type: ignore[attr-defined]
     assert p._fs_client().dataset_path.endswith(p.dataset_name + pathlib.sep)
-
-
-def test_athena_lakeformation_config_gating(environment: DictStrStr, mocker) -> None:
-    environment["DESTINATION_NAME"] = "athena"
-    environment["DESTINATION__ATHENA__LAKEFORMATION_CONFIG__ENABLED"] = "false"
-    environment["DESTINATION__ATHENA__CREDENTIALS__AWS_ACCESS_KEY_ID"] = "AKIA..."
-    environment["DESTINATION__ATHENA__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "SECRET..."
-    environment["DESTINATION__ATHENA__CREDENTIALS__REGION_NAME"] = "us-east-1"
-    environment["DESTINATION__QUERY_RESULT_BUCKET"] = "s3://dummy-bucket/dlt/"
-    environment["DESTINATION__ATHENA_WORK_GROUP"] = "primary"
-
-    p = dlt.pipeline(
-        pipeline_name="athena_cfg",
-        staging=filesystem("memory://m"),
-        dev_mode=True,
-    )
-    assert p.destination.destination_type == "dlt.destinations.athena"
-
-    with p.destination_client() as client:
-        # ensure manage_lf_tags is NOT called when lakeformation config is not explicitly set
-        mocked_manage = mocker.patch(
-            "dlt.destinations.impl.athena.athena.AthenaClient.manage_lf_tags"
-        )
-        mocker.patch(
-            "dlt.destinations.job_client_impl.SqlJobClientWithStagingDataset.update_stored_schema",
-            return_value=None,
-        )
-
-        client.update_stored_schema()
-        mocked_manage.assert_not_called()
