@@ -64,30 +64,9 @@ lint-core:
 
 format:
 	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	# NOTE: this needs to go to the docs project as well
 	uv run black docs/education --ipynb 
 	cd docs && make format
-
-lint-snippets:
-	cd docs/tools && uv run python check_embedded_snippets.py full
-	# TODO: re-enable transformation snippets tests when dlthub dep is available
-	uv pip install docstring_parser_fork --reinstall
-	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/
-	uv run ruff check
-	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo,docs/website/node_modules
-
-lint-and-test-snippets: lint-snippets
-	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
-
-lint-and-test-examples:
-	uv pip install docstring_parser_fork --reinstall
-	cd docs/tools && uv run python prepare_examples_tests.py
-	uv run ruff check
-	uv run flake8 --max-line-length=200 docs/examples
-	uv run mypy --config-file mypy.ini docs/examples
-	cd docs/examples && uv run pytest
-
-test-examples:
-	cd docs/examples && uv run pytest
 
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
