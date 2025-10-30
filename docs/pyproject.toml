@@ -3,19 +3,25 @@ name = "dlt-docs-tools"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.9.2, <3.15"
+requires-python = ">=3.9.2, <3.14"
 dependencies = [
-    "dlt",
+    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database]",
     "docstring-parser>=0.11",
     "flake8>=7.3.0",
+    "modal>=1.2.1",
+    "mongo>=0.2.0",
     "mypy>=1.18.2",
     "nbqa>=1.9.1",
     "openai>=2.6.1",
     "pydoc-markdown>=4.8.2,<5",
+    "pypdf2>=3.0.1",
+    "pytest>=8.4.2",
     "python-dotenv>=1.2.1",
     "requests>=2.32.5",
     "ruff>=0.3.2,<0.4",
+    "types-psycopg2>=2.9.21.20251012",
     "types-pyyaml>=6.0.12.20250915",
+    "types-regex>=2025.10.23.20251023",
     "types-requests>=2.32.4.20250913",
     "watchdog>=6.0.0",
 ]
@@ -44,3 +50,6 @@ clean-pydoc-sidebar = "docs_tools.api_docs.clean_pydoc_sidebar:main"
 
 [tool.uv.sources]
 dlt = { path = "..", editable = true }
+
+[tool.mypy]
+mypy_path = ["../tests"]

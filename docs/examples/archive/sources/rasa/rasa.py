@@ -78,4 +78,4 @@ def rasa(
         if store_last_timestamp and last_timestamp:
             dlt.current.source_state()["start_timestamp"] = last_timestamp
 
-    return events
+    return events  # type: ignore[return-value]

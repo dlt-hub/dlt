@@ -50,7 +50,6 @@ dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
 lint: lint-core lint-security lint-docstrings
-	cd docs && make lint
 
 lint-core:
 	uv run mypy --config-file mypy.ini dlt tests
@@ -66,14 +65,10 @@ format:
 	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
 	# NOTE: this needs to go to the docs project as well
 	uv run black docs/education --ipynb 
-	cd docs && make format
 
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
 	uv run bandit -r dlt/ -n 3 -lll
-
-lint-notebooks:
-	cd docs && make lint-notebooks
 
 # check docstrings for all important public classes and functions
 lint-docstrings:

@@ -9,7 +9,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import DictStrAny, StrAny, StrOrBytesPath, TDataItem, TDataItems
 
-from docs.examples.sources.stdout import json_stdout as singer_process_pipe
+from examples.archive.sources.stdout import json_stdout as singer_process_pipe
 
 FilePathOrDict = Union[StrAny, StrOrBytesPath]
 
@@ -114,6 +114,6 @@ def tap(
             os.path.abspath(catalog_file_path),
             *state_params,
         )
-        yield from get_source_from_stream(pipe_iterator, state)
+        yield from get_source_from_stream(pipe_iterator, state)  # type: ignore[arg-type]
 
     return singer_messages

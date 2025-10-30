@@ -2,8 +2,8 @@ import dlt
 
 from dlt.common.storages.schema_storage import SchemaStorage
 
-from docs.examples.sources.singer_tap import singer_raw_stream
-from docs.examples.sources.jsonl import jsonl_file
+from examples.archive.sources.singer_tap import singer_raw_stream
+from examples.archive.sources.jsonl import jsonl_file
 
 
 # load hubspot schema stub - it converts all field names with `timestamp` into timestamp type

@@ -5,7 +5,7 @@ dev: ## Prepares development environment for docs tooling
 
 lint: ## Lints the docs tooling, non-embedded snippets, examples and notebooks NOTE: embedded snippets and notebooks are linted separately
 	uv run ruff check
-	uv run mypy --config-file ../mypy.ini docs_tools website examples--exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude docs/website/versioned_docs/
+	uv run mypy --config-file ../mypy.ini docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/
 	uv run flake8 --max-line-length=200 docs_tools website examples --exclude website/.dlt-repo,website/node_modules
 	uv run black docs_tools website examples --check --diff --color
 
@@ -20,11 +20,11 @@ lint-notebooks: ## Lints the notebooks in the education folder
 	--disable-error-code=top-level-await
 
 test-examples: ## Tests the examples in the examples folder
-	cd docs/tools && uv run python prepare_examples_tests.py
-	cd docs/examples && uv run pytest
+	cd tools && uv run python prepare_examples_tests.py
+	cd examples && uv run pytest
 
 test-snippets: ## Tests the snippets in the snippets folder
-	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
+	cd website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
 
 format: ## Formats the docs tooling, notebooks, and examples
 	uv run black docs_tools website examples

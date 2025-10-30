@@ -295,9 +295,11 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     assert (
         fruitshop_pipeline.dataset().schema.tables["enriched_purchases"]["columns"][
             "name"
-        ]["x-annotation-pii"]
+        ][
+            "x-annotation-pii"  # type: ignore
+        ]
         is True
-    )  # type: ignore
+    )
     # @@@DLT_SNIPPET_END column_level_lineage
 
 

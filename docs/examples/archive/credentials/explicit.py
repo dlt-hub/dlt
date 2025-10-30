@@ -40,7 +40,7 @@ pipeline = dlt.pipeline(
     destination=postgres(credentials=dlt.secrets["custom.destination.credentials"])
 )
 # see nice credentials object
-print(pipeline.credentials)
+print(pipeline.destination_client().config.credentials)
 
 # you can also pass credentials partially, only the password comes from the secrets or environment
 pipeline = dlt.pipeline(

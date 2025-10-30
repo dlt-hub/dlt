@@ -2,7 +2,7 @@ import dlt
 from dlt.destinations import postgres
 from dlt.common.data_types.type_helpers import py_type_to_sc_type
 
-from docs.examples.sources.sql_query import query_table, query_sql
+from examples.archive.sources.sql_query import query_table, query_sql
 
 # the connection string to redshift instance holding some ethereum data
 # the connection string does not contain the password element and you should provide it in environment variable: SOURCES__CREDENTIALS__PASSWORD
