@@ -27,6 +27,7 @@ from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.utils import resolve_replace_strategy
 from dlt.common.json import json
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
     COLUMN_HINTS,
@@ -44,7 +45,13 @@ from dlt.common.schema.utils import (
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema import (
+    TColumnSchema,
+    Schema,
+    TTableSchemaColumns,
+    TSchemaTables,
+    TSchemaDrop,
+)
 from dlt.common.schema import TColumnHint
 from dlt.common.destination.client import (
     PreparedTableSchema,
@@ -60,6 +67,7 @@ from dlt.common.destination.client import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    WithTableReflection,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -74,6 +82,7 @@ from dlt.destinations.utils import (
     info_schema_null_to_bool,
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
+    update_dlt_schema,
 )
 
 import sqlglot
@@ -240,7 +249,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
-class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
+class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync, WithTableReflection):
     def __init__(
         self,
         schema: Schema,
