@@ -30,7 +30,7 @@ dependencies = [
     "dbt-duckdb>=1.5.0",
     "pymongo>=4.3.3",
     "pandas>=2.1.4",
-    "alive-progress>=3.0.1",
+    "alive-progress==3.2.0",
     "pyarrow>=16.0.0",
     "psycopg2-binary>=2.9",
     "lancedb>=0.8.2 ; python_version < '3.13'",

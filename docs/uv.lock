@@ -173,15 +173,15 @@ wheels = [
 
 [[package]]
 name = "alive-progress"
-version = "3.3.0"
+version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "about-time" },
-    { name = "graphemeu" },
+    { name = "grapheme" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/26/d43128764a6f8fe1668c4f87aba6b1fe52bea81d05a35c84a70d3c70b6f7/alive-progress-3.3.0.tar.gz", hash = "sha256:457dd2428b48dacd49854022a46448d236a48f1b7277874071c39395307e830c", size = 116281, upload-time = "2025-07-20T02:10:39.07Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/28/66/c2c1e6674b3b7202ce529cf7d9971c93031e843b8e0c86a85f693e6185b8/alive-progress-3.2.0.tar.gz", hash = "sha256:ede29d046ff454fe56b941f686f89dd9389430c4a5b7658e445cb0b80e0e4deb", size = 113231, upload-time = "2024-10-26T04:22:31.4Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/85/ec72f6c885703d18f3b09769645e950e14c7d0cc0a0e35d94127983f666f/alive_progress-3.3.0-py3-none-any.whl", hash = "sha256:63dd33bb94cde15ad9e5b666dbba8fedf71b72a4935d6fb9a92931e69402c9ff", size = 78403, upload-time = "2025-07-20T02:10:37.318Z" },
+    { url = "https://files.pythonhosted.org/packages/57/39/cade3a5a97fffa3ae84f298208237b3a9f7112d6b0ed57e8ff4b755e44b4/alive_progress-3.2.0-py3-none-any.whl", hash = "sha256:0677929f8d3202572e9d142f08170b34dbbe256cc6d2afbf75ef187c7da964a8", size = 77106, upload-time = "2024-10-26T04:22:29.103Z" },
 ]
 
 [[package]]
@@ -1389,7 +1389,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "alive-progress", specifier = ">=3.0.1" },
+    { name = "alive-progress", specifier = "==3.2.0" },
     { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.2" },
     { name = "dbt-core", specifier = ">=1.5.0" },
     { name = "dbt-duckdb", specifier = ">=1.5.0" },
@@ -2016,13 +2016,10 @@ wheels = [
 ]
 
 [[package]]
-name = "graphemeu"
-version = "0.7.2"
+name = "grapheme"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/76/20/d012f71e7d00e0d5bb25176b9a96c5313d0e30cf947153bfdfa78089f4bb/graphemeu-0.7.2.tar.gz", hash = "sha256:42bbe373d7c146160f286cd5f76b1a8ad29172d7333ce10705c5cc282462a4f8", size = 307626, upload-time = "2025-01-15T09:48:59.488Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/18/36503ea63e1ecd0a95590d7b6b8b7d227a1e4541a154e1612a231def1bdc/graphemeu-0.7.2-py3-none-any.whl", hash = "sha256:1444520f6899fd30114fc2a39f297d86d10fa0f23bf7579f772f8bc7efaa2542", size = 22670, upload-time = "2025-01-15T09:48:57.241Z" },
-]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/e7/bbaab0d2a33e07c8278910c1d0d8d4f3781293dfbc70b5c38197159046bf/grapheme-0.6.0.tar.gz", hash = "sha256:44c2b9f21bbe77cfb05835fec230bd435954275267fea1858013b102f8603cca", size = 207306, upload-time = "2020-03-07T17:13:55.492Z" }
 
 [[package]]
 name = "greenlet"
