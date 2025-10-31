@@ -25,8 +25,11 @@ def rest_api_source(access_token: str = dlt.secrets.value):
 
 
 pipeline = dlt.pipeline(
-    pipeline_name="rest_api_github",
+    pipeline_name="rest_api_ingest",
     destination="duckdb",
+    #  `dev_mode=True` creates a new namespace for each pipeline run.
+    # set to `False` once you have a working pipeline you're satisfied with.
+    dev_mode=True,
 )
 
 
