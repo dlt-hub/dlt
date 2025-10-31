@@ -34,7 +34,7 @@ from dlt.common.configuration.specs import known_sections
 from dlt.common.destination.client import WithStateSync
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.pipeline import get_dlt_pipelines_dir, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage, LoadPackageInfo
@@ -51,7 +51,7 @@ from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-from dlt.pipeline.trace import PipelineTrace
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -979,10 +979,13 @@ def _build_pipeline_run_html(
     return mo.Html(html)
 
 
-def build_pipeline_run_visualization(trace: PipelineTrace) -> mo.Html:
-    """Creates a visual timeline of pipeline run showing extract, normalize and load steps"""
+def _get_steps_data_and_status(
+    trace_steps: List[PipelineStepTrace],
+) -> Tuple[List[PipelineStepData], TPipelineRunStatus]:
+    """Gets trace steps data and the status of the corresponding pipeline execution"""
     steps_data: List[PipelineStepData] = []
-    for step in trace.steps:
+
+    for step in trace_steps:
         if step.step not in get_args(TVisualPipelineStep):
             continue
 
@@ -998,20 +1001,30 @@ def build_pipeline_run_visualization(trace: PipelineTrace) -> mo.Html:
                 failed=step.step_exception is not None,
             )
         )
-
     is_failed = any(s.failed for s in steps_data)
     status: TPipelineRunStatus = "failed" if is_failed else "succeeded"
+    return steps_data, status
 
-    # Count unique migrations (schema versions) from load packages
+
+def _get_migrations_count(last_load_info: LoadInfo) -> int:
+    """Counts the number of unique migrations (schema versions) from load packages"""
     migrations_count: int = 0
-    if trace.last_load_info and trace.last_load_info.load_packages:
-        seen_schema_hashes = set()
-        for package in trace.last_load_info.load_packages:
-            # Only count if there are schema updates
-            if len(package.schema_update) > 0:
-                if package.schema_hash not in seen_schema_hashes:
-                    migrations_count += 1
-                    seen_schema_hashes.add(package.schema_hash)
+    seen_schema_hashes = set()
+    for package in last_load_info.load_packages:
+        # Only count if there are schema updates
+        if len(package.schema_update) > 0:
+            if package.schema_hash not in seen_schema_hashes:
+                migrations_count += 1
+                seen_schema_hashes.add(package.schema_hash)
+    return migrations_count
+
+
+def build_pipeline_run_visualization(trace: PipelineTrace) -> Optional[mo.Html]:
+    """Creates a visual timeline of pipeline run showing extract, normalize and load steps"""
+
+    steps_data, status = _get_steps_data_and_status(trace.steps)
+
+    migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
 
     return _build_pipeline_run_html(
         trace.transaction_id,
