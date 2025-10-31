@@ -126,7 +126,7 @@ dataset = dlt.hub.current.project.catalog().dataset("my_pipeline_dataset")  # ty
 # This function reads data in chunks from an existing table and yields each chunk
 def transform_frames():
     # Read the 'items' table in chunks of 1000 rows
-    for df in dataset.items.iter_df(chunk_size=1000):
+    for df in dataset.table("items").iter_df(chunk_size=1000):
         # You can process the data here if needed
         yield df
 

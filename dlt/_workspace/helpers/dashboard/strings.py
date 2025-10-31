@@ -20,7 +20,7 @@ _credentials_info = (
 # App general
 #
 app_title = """
-# Welcome to the dltHub pipeline dashboard...
+# Welcome to the dltHub workspace dashboard...
 """
 app_intro = """
 <p align="center">...the hackable data platform for `dlt` developers.</p>
@@ -56,30 +56,30 @@ home_quick_start_title = """
 """
 
 home_basics_text = f"""
-## dltHub pipeline dashboard basics
+## dltHub workspace dashboard basics
 
 We found `{{}}` pipelines in the local directory `{{}}`. When you select a pipeline to inspect, you can:
 
 * See an overview of your pipeline
 * See the current pipeline schema and incremental state
-* Browse the data in the pipeline's dataset (requires credentials to be available to the dltHub pipeline dashboard)
+* Browse the data in the pipeline's dataset (requires credentials to be available to the dltHub workspace dashboard)
 * View the pipeline state locally and on the destination
 * Browse information about past loads and traces
 
-To inspect data in the destination dataset, ensure your destination credentials are available to the dltHub pipeline dashboard. Either provide them as environment variables, or start the dltHub pipeline dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
+To inspect data in the destination dataset, ensure your destination credentials are available to the dltHub workspace dashboard. Either provide them as environment variables, or start the dltHub workspace dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
 
-If the dltHub pipeline dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
+If the dltHub workspace dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
 
-## dltHub pipeline dashboard CLI commands
+## dltHub workspace dashboard CLI commands
 
-* `dlt pipeline <pipeline_name> show` - Start the pipeline dashboard for the selected pipeline
-* `dlt pipeline <pipeline_name> show --edit` - Start a local copy of the pipeline dashboard for the selected pipeline in edit mode
+* `dlt pipeline <pipeline_name> show` - Start the workspace dashboard for the selected pipeline
+* `dlt pipeline <pipeline_name> show --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
 
 ## Learn more
 
 * [dlt dashboard docs]({_help_url}) - Dashboard docs
 * [dlt pipeline sync]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
-* [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub pipeline dashboard
+* [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub workspace dashboard
 
 <small>
 2025 [dltHub](https://dlthub.com)
