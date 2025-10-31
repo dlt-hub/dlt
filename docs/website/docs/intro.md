@@ -4,8 +4,6 @@ description: Introduction to dlt
 keywords: [introduction, who, what, how]
 ---
 
-import snippets from '!!raw-loader!./intro-snippets.py';
-
 # Getting started
 
 ![dlt pacman](/img/dlt-pacman.gif)
