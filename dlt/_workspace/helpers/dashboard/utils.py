@@ -2,7 +2,23 @@ import shutil
 import functools
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union, cast
+from this import d
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+    cast,
+    Literal,
+    NamedTuple,
+    get_args,
+)
+from typing_extensions import TypeAlias
 import os
 import platform
 import subprocess
@@ -13,21 +29,21 @@ import marimo as mo
 import pyarrow
 import traceback
 
-
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.destination.client import WithStateSync
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.pipeline import get_dlt_pipelines_dir, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.storages import FileStorage
+from dlt.common.storages import FileStorage, LoadPackageInfo
+from dlt.common.storages.load_package import PackageStorage, TLoadPackageStatus
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, TypedDict
 from dlt.common.utils import map_nested_keys_in_place
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
@@ -35,8 +51,7 @@ from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-from dlt.pipeline.trace import PipelineTrace
-
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -809,3 +824,293 @@ def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> D
 def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Convert a dict to a list of dicts with name and value keys"""
     return [{"name": k, "value": v} for k, v in d.items()]
+
+
+#
+# last pipeline execution helpers
+#
+
+TPipelineRunStatus: TypeAlias = Literal["succeeded", "failed"]
+TVisualPipelineStep: TypeAlias = Literal["extract", "normalize", "load"]
+VISUAL_PIPELINE_STEPS: List[TVisualPipelineStep] = ["extract", "normalize", "load"]
+
+PIPELINE_RUN_STEP_COLORS: Dict[TVisualPipelineStep, str] = {
+    "extract": "var(--dlt-color-lime)",
+    "normalize": "var(--dlt-color-aqua)",
+    "load": "var(--dlt-color-pink)",
+}
+
+
+class PipelineStepData(NamedTuple):
+    step: TVisualPipelineStep
+    duration_ms: float
+    failed: bool
+
+
+def _format_duration(ms: float) -> str:
+    """Format duration as human-readable string"""
+    if ms < 1000:
+        return f"{int(ms)}ms"
+    elif ms < 60000:
+        return f"{round(ms / 100) / 10}s"
+    else:
+        return f"{round(ms / 6000) / 10}"
+
+
+def _build_pipeline_run_html(
+    transaction_id: str,
+    status: TPipelineRunStatus,
+    steps_data: List[PipelineStepData],
+    migrations_count: int = 0,
+) -> mo.Html:
+    """
+    Build an HTML visualization for a pipeline execution
+    """
+    total_ms = sum(step.duration_ms for step in steps_data)
+    last = len(steps_data) - 1
+
+    # Build the general info of the exection
+    general_info = f"""
+    <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
+    <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
+    """
+
+    # Build the pipeline execution timeline bar and labels
+    segments, labels = [], []
+    for i, step in enumerate(steps_data):
+        percentage = step.duration_ms / total_ms * 100
+        color = PIPELINE_RUN_STEP_COLORS.get(step.step)
+        radius = "6px 0 0 6px" if i == 0 else ("0 6px 6px 0" if i == last else "0")
+
+        segments.append(
+            "<div"
+            f' style="width:{percentage}%;background-color:{color};border-radius:{radius};"></div>'
+        )
+        labels.append(
+            f'<span><span style="color:{color};">●</span> '
+            f"{step.step.capitalize()} {_format_duration(step.duration_ms)}</span>"
+        )
+    segments_bar = f"""
+    <div style="
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        height: 16px;
+    ">{''.join(segments)}</div>
+    """
+    segment_labels = f"""
+    <div style="
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+    ">{''.join(labels)}</div>
+    """
+
+    # Build the migration badge if applicable
+    migration_badge = f"""
+    <div style="
+        background-color: {'var(--yellow-bg)'};
+        color: {'var(--yellow-text)'};
+        padding: 6px 16px;
+        border-radius: 6px;
+    ">
+        <strong>{f'{migrations_count} dataset migration(s)'}</strong>
+    </div>
+    """ if migrations_count > 0 else ""
+
+    # Build the status badge if applicable
+    status_badge = f"""
+    <div style="
+        background-color: var(--{'green' if status == "succeeded" else 'red'}-bg);
+        color: var(--{'green' if status == "succeeded" else 'red'}-text);
+        padding: 6px 16px;
+        border-radius: 6px;
+    ">
+        <strong>{status}</strong>
+    </div>
+    """
+
+    # Build the whole html
+    html = f"""
+    <div style="
+        padding-top: 16px;
+        padding-bottom: 10px;
+    ">
+        <!-- Main 3-column flex container -->
+        <div style="
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        ">
+            <!-- LEFT COLUMN: Run ID, Total time -->
+            <div style="
+                display: flex;
+                flex-direction: column;
+            ">
+                {general_info}
+            </div>
+
+            <!-- CENTER COLUMN: Timeline bar and legend -->
+            <div style="
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                flex: 0 0 40%;
+            ">
+                {segments_bar}
+                {segment_labels}
+            </div>
+
+            <!-- RIGHT COLUMN: Status badges -->
+            <div style="
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                gap: 16px;
+            ">
+                {migration_badge}
+                {status_badge}
+            </div>
+        </div>
+    </div>
+    """
+    return mo.Html(html)
+
+
+def _get_steps_data_and_status(
+    trace_steps: List[PipelineStepTrace],
+) -> Tuple[List[PipelineStepData], TPipelineRunStatus]:
+    """Gets trace steps data and the status of the corresponding pipeline execution"""
+    steps_data: List[PipelineStepData] = []
+
+    for step in trace_steps:
+        if step.step not in get_args(TVisualPipelineStep):
+            continue
+
+        if not step.finished_at:
+            continue
+
+        duration_ms = (step.finished_at - step.started_at).total_seconds() * 1000
+
+        steps_data.append(
+            PipelineStepData(
+                step=cast(TVisualPipelineStep, step.step),
+                duration_ms=duration_ms,
+                failed=step.step_exception is not None,
+            )
+        )
+    is_failed = any(s.failed for s in steps_data)
+    status: TPipelineRunStatus = "failed" if is_failed else "succeeded"
+    return steps_data, status
+
+
+def _get_migrations_count(last_load_info: LoadInfo) -> int:
+    """Counts the number of unique migrations (schema versions) from load packages"""
+    migrations_count: int = 0
+    seen_schema_hashes = set()
+    for package in last_load_info.load_packages:
+        # Only count if there are schema updates
+        if len(package.schema_update) > 0:
+            if package.schema_hash not in seen_schema_hashes:
+                migrations_count += 1
+                seen_schema_hashes.add(package.schema_hash)
+    return migrations_count
+
+
+def build_pipeline_run_visualization(trace: PipelineTrace) -> Optional[mo.Html]:
+    """Creates a visual timeline of pipeline run showing extract, normalize and load steps"""
+
+    steps_data, status = _get_steps_data_and_status(trace.steps)
+
+    migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
+
+    return _build_pipeline_run_html(
+        trace.transaction_id,
+        status,
+        steps_data,
+        migrations_count,
+    )
+
+
+#
+# last pipeline executions load packages helpers
+#
+
+
+PENDING_LOAD_STATUSES: Set[TLoadPackageStatus] = {"extracted", "normalized"}
+
+LOAD_PACKAGE_STATUS_COLORS: Dict[TLoadPackageStatus, str] = {
+    "new": "grey",
+    "extracted": "yellow",
+    "normalized": "yellow",
+    "loaded": "green",
+    "aborted": "red",
+}
+
+LOAD_PACKAGE_STATUS_BADGE_HTML = (
+    '<div style="'
+    "   background-color: var(--{k}-bg);"
+    "   color: var(--{k}-text);"
+    "   padding: 6px 16px;"
+    "   display: inline-block;"
+    "   border-radius: 6px;"
+    '">'
+    "<strong>{t}</strong></div>"
+)
+
+
+class TVisualLoadPackageStatusAndSteps(TypedDict):
+    package: LoadPackageInfo
+    seen_in_steps: List[TVisualPipelineStep]
+
+
+def _collect_load_packages_from_trace(
+    trace: PipelineTrace,
+) -> List[LoadPackageInfo]:
+    """Collect all unique load packages from all steps."""
+    packages_by_load_id: Dict[str, LoadPackageInfo] = {}
+
+    for step in trace.steps:
+        if step.step in VISUAL_PIPELINE_STEPS and step.step_info and step.step_info.load_packages:
+            for package in step.step_info.load_packages:
+                packages_by_load_id[package.load_id] = package
+
+    return list(packages_by_load_id.values())
+
+
+def load_package_status_labels(trace: PipelineTrace) -> mo.ui.table:
+    """
+    For each package in the trace, determine its visual status badge based on
+    whether the package is partially loaded, pending (extracted or normalized),
+    or in a final state (loaded, aborted, etc.). Returns a marimo table
+    containing the load id and a badge representing its status.
+    """
+    packages = _collect_load_packages_from_trace(trace)
+    result: List[Dict[str, Any]] = []
+
+    for package in packages:
+        is_partial = PackageStorage.is_package_partially_loaded(package)
+
+        badge_color_key = "red" if is_partial else LOAD_PACKAGE_STATUS_COLORS.get(package.state)
+        badge_text = (
+            f"partially {package.state}"
+            if is_partial
+            else "pending" if package.state in PENDING_LOAD_STATUSES else package.state
+        )
+        status_html = LOAD_PACKAGE_STATUS_BADGE_HTML.format(k=badge_color_key, t=badge_text)
+        result.append(
+            {
+                "load_id": package.load_id,
+                "status": mo.Html(status_html),
+            }
+        )
+
+    return mo.ui.table(
+        result,
+        selection=None,
+        pagination=True,
+        show_download=False,
+        style_cell=style_cell,
+    )
