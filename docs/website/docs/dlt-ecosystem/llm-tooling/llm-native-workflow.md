@@ -188,7 +188,7 @@ import dlt
 
 my_data = dlt.pipeline("{source}_pipeline").dataset()
 # get any table as Pandas frame
-# my_data.{table_name}.df().head()
+my_data.table("table_name").df().head()
 ```
 
 For more, see the [dataset access guide](../../general-usage/dataset-access).

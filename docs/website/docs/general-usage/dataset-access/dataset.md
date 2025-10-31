@@ -16,7 +16,7 @@ Here's a full example of how to retrieve data from a pipeline and load it into a
 
 ## Getting started
 
-Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain a `Dataset` which is contains the crendentials and schema to your destination dataset. You can run construct a query and execute it on the dataset to retrieve a `Relation` which you may use to retrieve data from the `Dataset`.
+Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain a `Dataset` which is contains the credentials and schema to your destination dataset. You can construct a query and execute it on the dataset to retrieve a `Relation` which you may use to retrieve data from the `Dataset`.
 
 **Note:** The `Dataset` and `Relation` objects are **lazy-loading**. They will only query and retrieve data when you perform an action that requires it, such as fetching data into a DataFrame or iterating over the data. This means that simply creating these objects does not load data into memory, making your code more efficient.
 
