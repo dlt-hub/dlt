@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 try:
     # ibis imports follow the convention used in the ibis source code
     import ibis
-    from ibis import util as ibis_util
+    from ibis import util as ibis_util, options as ibis_options
     import ibis.expr.datatypes as dt
     import ibis.expr.operations as ops
     import ibis.expr.schema as sch
@@ -150,7 +150,10 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
         # expr
         r_ = self._dataset.query(expr)
         if limit:
-            r_ = r_.limit(int(limit))
+            if limit == "default":
+                limit = ibis_options.sql.default_limit
+            if limit:
+                r_ = r_.limit(int(limit))
         sql = r_.to_sql(pretty=pretty)
         self._log(sql)
         # TODO: allow for `params`

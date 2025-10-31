@@ -136,7 +136,7 @@ jobs:
 
       - name: Run extract and pipeline tests
         run: |
-          pytest tests/extract tests/pipeline tests/libs tests/destinations tests/sources ${{ matrix.pytest_args }}
+          pytest tests/extract tests/pipeline tests/libs tests/destinations tests/dataset tests/sources ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14'
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again

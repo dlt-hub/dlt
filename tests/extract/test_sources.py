@@ -979,7 +979,7 @@ def test_limit_infinite_counter() -> None:
 
 @pytest.mark.parametrize("limit", (None, -1, 0, 10))
 def test_limit_edge_cases(limit: int) -> None:
-    r = dlt.resource(range(20), name="resource").add_limit(limit)  # type: ignore[call-overload]
+    r = dlt.resource(range(20), name="resource").add_limit(limit)
 
     @dlt.resource()
     async def r_async():
@@ -1313,7 +1313,7 @@ def test_resource_state() -> None:
     assert s.test_resource.state == {}
 
     with Container().injectable_context(StateInjectableContext(state={})) as state:
-        r.state["direct"] = True  # type: ignore[index]
+        r.state["direct"] = True
         s.test_resource.state["in-source"] = True  # type: ignore[index]
         # resource section is current module
         print(state.state)

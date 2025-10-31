@@ -1,33 +1,45 @@
 from __future__ import annotations
 
-from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
+from typing import (
+    Iterator,
+    overload,
+    Union,
+    Any,
+    Generator,
+    Optional,
+    Sequence,
+    Type,
+    TYPE_CHECKING,
+)
 from textwrap import indent
 from contextlib import contextmanager
-from dlt.common.utils import simple_repr, without_none
 
 from sqlglot import maybe_parse
 from sqlglot.optimizer.merge_subqueries import merge_subqueries
 from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
-
 import sqlglot.expressions as sge
 
 import dlt
+from dlt.common import json
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.libs.utils import is_instance_lib
 from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
 from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
+from dlt.common.destination.dataset import SupportsDataAccess
+from dlt.common.utils import simple_repr, without_none
+
 from dlt.dataset import lineage
+from dlt.extract.wrappers import wrap_additional_type, should_wrap_additional_type_in_list
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import _normalize_query, build_select_expr
-from dlt.common.exceptions import MissingDependencyException
-from dlt.common.destination.dataset import SupportsDataAccess
 
 
 if TYPE_CHECKING:
     from ibis import ir
     from dlt.helpers.ibis import Expr as IbisExpr
+    from pyarrow import Table, RecordBatch
 
 
 _FILTER_OP_MAP = {
@@ -564,3 +576,30 @@ def _get_relation_output_columns_schema(
         allow_partial=allow_partial,
     )
     return columns_schema, normalized_query
+
+
+def iterate_relation_as_arrow(
+    relation: Relation, buffer_max_items: int
+) -> Iterator[Union[Table, RecordBatch]]:
+    """Materializes and yields data from relation as Arrow batches. Preserves relation schema in
+    Arrow metadata.
+    """
+    from dlt.common.libs.pyarrow import add_arrow_metadata
+    from dlt.extract.hints import DLT_HINTS_METADATA_KEY
+
+    serialized_hints = json.dumps(relation.schema)
+    for chunk in relation.iter_arrow(chunk_size=buffer_max_items):
+        yield add_arrow_metadata(chunk, {DLT_HINTS_METADATA_KEY: serialized_hints})
+
+
+@wrap_additional_type.register(Relation)
+def _(data: Any) -> Any:
+    gen_ = iterate_relation_as_arrow(data, buffer_max_items=50000)
+    # add name to generator so resource can pick it up as its own name
+    gen_.__name__ = data._table_name or "query_relation"  # type: ignore[attr-defined]
+    return gen_
+
+
+@should_wrap_additional_type_in_list.register(Relation)
+def _(data: Any) -> bool:
+    return True
