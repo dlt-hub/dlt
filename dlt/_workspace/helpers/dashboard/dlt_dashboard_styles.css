@@ -14,15 +14,15 @@
   --dlt-color-aqua-background: #59c1d503;
   --dlt-color-purple-background: #19193706;
 
-  /* status badge colors */
-  --succeeded-badge-bg: #a8e4ac;
-  --succeeded-badge-text: #468A47;
-  --failed-badge-bg: #FBE8E8;
-  --failed-badge-text: #D47672;
-
-  /* dataset migration badge colors */
-  --migration-badge-bg: #F2D6A2;
-  --migration-badge-text: #AD7F37;
+  /* badge colors */
+  --grey-bg: #E0E0E0;
+  --grey-text: #555555;
+  --yellow-bg: #F2D6A2;
+  --yellow-text: #AD7F37;
+  --green-bg: #a8e4ac;
+  --green-text: #468A47;
+  --red-bg: #D47672;
+  --red-text: #FBE8E8;
 }
 
 /* Make headings bold */
