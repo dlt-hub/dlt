@@ -173,7 +173,7 @@ if __name__ == "__main__":
             destination="duckdb",
             dataset_name=target_schema_name,
             dev_mode=True,
-            progress="alive_progress",
+            # progress="alive_progress",
         )
     else:
         pipeline = dlt.pipeline(
