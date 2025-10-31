@@ -496,7 +496,7 @@ def resource(
 
 @overload
 def resource(
-    data: Union[List[Any], Iterator[Any]],
+    data: Any,
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
