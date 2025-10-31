@@ -17,7 +17,7 @@ dltHub is built around the open-source library [dlt](../intro.md). It uses the s
 
 
 dltHub supports both local and managed cloud development. A single developer can deploy and operate pipelines, transformations, and notebooks directly from a dltHub Workspace, using a single command.
-The dltHub Runtime, customizable pipeline dashboard, and validation tools make it straightforward to monitor, troubleshoot, and keep data reliable throughout the whole end-to-end data workflow:
+The dltHub Runtime, customizable workspace dashboard, and validation tools make it straightforward to monitor, troubleshoot, and keep data reliable throughout the whole end-to-end data workflow:
 
 ```mermaid
 flowchart LR

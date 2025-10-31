@@ -121,8 +121,8 @@ def multiple_transformation_instructions_snippet(fruitshop_pipeline: dlt.Pipelin
     # this (probably nonsensical) transformation will create a union of the customers and purchases tables
     @dlt.hub.transformation(write_disposition="append")
     def union_of_tables(dataset: dlt.Dataset) -> Any:
-        yield dataset.customers
-        yield dataset.purchases
+        yield dataset.table("purchases")
+        yield dataset.table("customers")
 
     # @@@DLT_SNIPPET_END multiple_transformation_instructions
 
@@ -210,7 +210,7 @@ def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None
     @dlt.hub.transformation
     def copied_customers(dataset: dlt.Dataset) -> Any:
         # get full customers table as arrow table
-        customers = dataset.customers.arrow()
+        customers = dataset.table("customers").arrow()
 
         # Sort the table by 'name'
         sorted_customers = customers.sort_by([("name", "ascending")])
@@ -222,8 +222,8 @@ def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None
     @dlt.hub.transformation
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
         # get both fully tables as dataframes
-        purchases = dataset.purchases.df()
-        customers = dataset.customers.df()
+        purchases = dataset.table("purchases").df()
+        customers = dataset.table("customers").df()
 
         # Merge (JOIN) the DataFrames
         result = purchases.merge(customers, left_on="customer_id", right_on="id")

@@ -189,14 +189,15 @@ pipeline state set by the resources during the extraction process.
         show_cmd = pipeline_subparsers.add_parser(
             "show",
             help=(
-                "Generates and launches Streamlit app with the loading status and dataset explorer"
+                "Generates and launches workspace dashboard with the loading status and dataset"
+                " explorer"
             ),
             description="""
-Launches the pipeline dashboard app with a comprehensive interface to inspect the pipeline state, schemas, and data in the destination.
+Launches the workspace dashboard with a comprehensive interface to inspect the pipeline state, schemas, and data in the destination.
 
-This app should be executed from the same folder from which you ran the pipeline script to be able access destination credentials.
+This dashboard should be executed from the same folder from which you ran the pipeline script to be able access destination credentials.
 
-If the --edit flag is used, will launch the editable version of the app if it exists in the current directory, or create this version and launch it in edit mode.
+If the --edit flag is used, will launch the editable version of the dashboard if it exists in the current directory, or create this version and launch it in edit mode.
 
 Requires `marimo` to be installed in the current environment: `pip install marimo`. Use the --streamlit flag to launch the legacy streamlit app.
 """,
@@ -205,16 +206,16 @@ Requires `marimo` to be installed in the current environment: `pip install marim
             "--streamlit",
             default=False,
             action="store_true",
-            help="Launch the legacy Streamlit dashboard instead of the new pipeline dashboard. ",
+            help="Launch the legacy Streamlit dashboard instead of the new workspace dashboard. ",
         )
         show_cmd.add_argument(
             "--edit",
             default=False,
             action="store_true",
             help=(
-                "Creates editable version of pipeline dashboard in current directory if it does not"
-                " exist there yet and launches it in edit mode. Will have no effect when using the"
-                " streamlit flag."
+                "Creates editable version of workspace dashboard in current directory if it does"
+                " not exist there yet and launches it in edit mode. Will have no effect when using"
+                " the streamlit flag."
             ),
         )
         pipeline_subparsers.add_parser(
@@ -498,9 +499,9 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
 
 class DashboardCommand(SupportsCliCommand):
     command = "dashboard"
-    help_string = "Starts the dlt pipeline dashboard"
+    help_string = "Starts the dlt workspace dashboard"
     description = """
-The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the dashboard:
+The `dlt dashboard` command starts the dlt workspace dashboard. You can use the dashboard:
 
 * to list and inspect local pipelines
 * browse the full pipeline schema and all hints
