@@ -168,6 +168,8 @@ def preprocess_docs() -> Tuple[int, int, int, int]:
         print(f"Processing file: {file_name}")
         if "jaffle_shop" in file_name:
             continue
+        if file_name.endswith(".py"):
+            continue
         snippet_count, tuba_count, capabilities_count, processed = process_doc_file(
             file_name
         )

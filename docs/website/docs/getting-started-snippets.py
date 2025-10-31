@@ -1,5 +1,6 @@
 import pytest
 from tests.pipeline.utils import assert_load_info
+from typing import Any, Dict, Iterator
 
 
 def start_snippet() -> None:
@@ -152,10 +153,10 @@ def incremental_snippet() -> None:
 
     @dlt.resource(table_name="issues", write_disposition="append")
     def get_issues(
-        created_at=dlt.sources.incremental(
+        created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
             "created_at", initial_value="1970-01-01T00:00:00Z"
         ),
-    ):
+    ) -> Iterator[Dict[str, Any]]:
         # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
         url = "https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
 
@@ -201,10 +202,10 @@ def incremental_merge_snippet() -> None:
         primary_key="id",
     )
     def get_issues(
-        updated_at=dlt.sources.incremental(
+        updated_at: dlt.sources.incremental[str] = dlt.sources.incremental(
             "updated_at", initial_value="1970-01-01T00:00:00Z"
         ),
-    ):
+    ) -> Iterator[Dict[str, Any]]:
         # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
         url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}&per_page=100&sort=updated&directions=desc&state=open"
 
@@ -242,7 +243,11 @@ def table_dispatch_snippet() -> None:
     @dlt.resource(
         primary_key="id", table_name=lambda i: i["type"], write_disposition="append"
     )
-    def repo_events(last_created_at=dlt.sources.incremental("created_at")):
+    def repo_events(
+        last_created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
+            "created_at"
+        ),
+    ) -> Iterator[Dict[str, Any]]:
         url = "https://api.github.com/repos/dlt-hub/dlt/events?per_page=100"
 
         while True:

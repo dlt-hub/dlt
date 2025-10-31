@@ -3,7 +3,7 @@ import os
 from dlt.common.exceptions import MissingDependencyException
 
 from tests.utils import TEST_STORAGE_ROOT
-from utils import parse_toml_file
+from website.docs.utils import parse_toml_file
 
 
 def destination_instantiation_snippet() -> None:

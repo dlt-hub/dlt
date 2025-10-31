@@ -1,4 +1,6 @@
-from utils import parse_toml_file
+from website.docs.utils import parse_toml_file
+
+# mypy: disable-error-code="no-untyped-def,arg-type"
 
 
 def parallel_config_snippet() -> None:
