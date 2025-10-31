@@ -14,4 +14,4 @@ from dlt.common.typing import DictStrAny
 def json_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[DictStrAny]:
     """Create a standalone resource from a pipe to another process stdout. Yields line by line. Parses lines as json."""
     # use pipe iterator and mapping function to get dict iterator from pipe
-    yield from map(lambda s: json.loads(s), iter_stdout(venv, command, *script_args))  # type: ignore
+    yield from map(lambda s: json.loads(s), iter_stdout(venv, command, *script_args))

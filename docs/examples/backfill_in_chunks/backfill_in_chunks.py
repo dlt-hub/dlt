@@ -28,10 +28,14 @@ from dlt.sources.sql_database import sql_database
 if __name__ == "__main__":
     # NOTE: this is a live table in the rfam database, so the number of final rows may change
     TOTAL_TABLE_ROWS = 4178
-    RFAM_CONNECTION_STRING = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+    RFAM_CONNECTION_STRING = (
+        "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+    )
 
     # create sql database source that only loads the family table in chunks of 1000 rows
-    source = sql_database(RFAM_CONNECTION_STRING, table_names=["family"], chunk_size=1000)
+    source = sql_database(
+        RFAM_CONNECTION_STRING, table_names=["family"], chunk_size=1000
+    )
 
     # we apply some hints to the table, we know the rfam_id is unique and that we can order
     # and load incrementally on the created datetime column
@@ -48,7 +52,10 @@ if __name__ == "__main__":
 
     # create pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="rfam", destination="duckdb", dataset_name="rfam_data", dev_mode=True
+        pipeline_name="rfam",
+        destination="duckdb",
+        dataset_name="rfam_data",
+        dev_mode=True,
     )
 
     def _assert_unique_row_count(df: pd.DataFrame, num_rows: int) -> None:

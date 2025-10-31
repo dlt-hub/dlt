@@ -2,7 +2,7 @@ import dlt
 from dlt.destinations import postgres
 from dlt.common.data_types.type_helpers import py_type_to_sc_type
 
-from docs.examples.sources.sql_query import query_table, query_sql
+from examples.archive.sources.sql_query import query_table, query_sql
 
 # the connection string to redshift instance holding some ethereum data
 # the connection string does not contain the password element and you should provide it in environment variable: SOURCES__CREDENTIALS__PASSWORD
@@ -10,7 +10,10 @@ source_dsn = "redshift+redshift_connector://loader@chat-analytics.czwteevq7bpe.e
 
 # get data from table, we preserve method signature from pandas
 items = query_table(
-    "blocks__transactions", source_dsn, table_schema_name="mainnet_2_ethereum", coerce_float=False
+    "blocks__transactions",
+    source_dsn,
+    table_schema_name="mainnet_2_ethereum",
+    coerce_float=False,
 )
 # the data is also an iterator
 
@@ -20,7 +23,9 @@ for i in items:
         print(f"{k}:{v} ({type(v)}:{py_type_to_sc_type(type(v))})")
 
 # get data from query
-items = query_sql("select *  from mainnet_2_ethereum.blocks__transactions limit 10", source_dsn)
+items = query_sql(
+    "select *  from mainnet_2_ethereum.blocks__transactions limit 10", source_dsn
+)
 
 # and load it into a local postgres instance
 # the connection string does not have the password part. provide it in DESTINATION__CREDENTIALS__PASSWORD

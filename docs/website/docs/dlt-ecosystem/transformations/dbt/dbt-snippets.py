@@ -9,7 +9,9 @@ def run_dbt_standalone_snippet() -> None:
         None,  # we do not need dataset name and we do not pass any credentials in environment to dlt
         working_dir=".",  # the package below will be cloned to current dir
         package_location="https://github.com/dbt-labs/jaffle_shop.git",
-        package_profiles_dir=os.path.abspath("."),  # profiles.yml must be placed in this dir
+        package_profiles_dir=os.path.abspath(
+            "."
+        ),  # profiles.yml must be placed in this dir
         package_profile_name="duckdb_dlt_dbt_test",  # name of the profile
     )
 

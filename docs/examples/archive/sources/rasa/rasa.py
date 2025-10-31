@@ -35,7 +35,8 @@ def rasa(
         # recover start_timestamp from state if given
         if store_last_timestamp:
             start_timestamp = max(
-                initial_timestamp or 0, dlt.current.source_state().get("start_timestamp", 0)
+                initial_timestamp or 0,
+                dlt.current.source_state().get("start_timestamp", 0),
             )
         # we expect tracker store events here
         last_timestamp: int = None
@@ -46,7 +47,9 @@ def rasa(
             # must be a dict
             assert isinstance(source_event, dict)
             # filter out events
-            if timestamp_within(source_event["timestamp"], start_timestamp, end_timestamp):
+            if timestamp_within(
+                source_event["timestamp"], start_timestamp, end_timestamp
+            ):
                 # yield tracker table with all-event index
                 event_type = source_event["event"]
                 last_timestamp = source_event["timestamp"]
@@ -75,4 +78,4 @@ def rasa(
         if store_last_timestamp and last_timestamp:
             dlt.current.source_state()["start_timestamp"] = last_timestamp
 
-    return events
+    return events  # type: ignore[return-value]

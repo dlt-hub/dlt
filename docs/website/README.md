@@ -33,6 +33,8 @@ That command installs and uses the latest stable version of Node.js (and therefo
 
 `nvm` is the Node Version Manager, and yes, you may need to install that first, using your usual way of installing software on your OS.
 
+You will also need the uv python package manager (https://docs.astral.sh/uv/guides/install-python/), as some of the npm commands call python based pre-preprocessing scripts to prepare the markdown files for docusaurus. We are mixing python and javascript tools in this project.
+
 ## Local Development
 
 In this mode, most of your authoring changes will be reflected live in the browser just by saving files, without having to restart the server. Type:
@@ -62,7 +64,7 @@ The site is deployed using `cloudflare workers`. There are several commands spec
 npm run preview:cloudflare
 ```
 
-This will build the project fully and serve via a local wrangler webserver which simulates a cloudflare worker. This way you can also test tracking and redirects. Please be aware that cloudflare preview and build commands expect certain python depdendencies, so you need to be inside the uv shell or run the command with uv run: `uv run npm run preview:cloudflare` for it to work locally.
+This will build the project fully and serve via a local wrangler webserver which simulates a cloudflare worker. This way you can also test tracking and redirects. 
 
 ## Redirects
 

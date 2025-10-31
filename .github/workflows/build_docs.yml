@@ -21,16 +21,14 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
+          activate-environment: true
 
       - name: Install node dependencies
         run: cd docs/website && npm install
 
       - name: Install python dependencies
-        run: cd docs/website && pip install -r requirements.txt
-
-      - name: Build docs
-        run: cd docs/website && npm run build:cloudflare
+        run: cd docs/website && npm run build
