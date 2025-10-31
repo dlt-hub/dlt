@@ -116,13 +116,7 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/verified-sources/rest_api/basic',
-            'dlt-ecosystem/verified-sources/rest_api/advanced',
-            /*{
-              type: 'link',
-              label: '5k+ REST APIs with LLMs',
-              description: 'Pick one of 5k+ REST APIs in LLM-assisted workflow',
-              href: '../../llm-tooling/llm-native-workflow',
-            },*/
+            'dlt-ecosystem/verified-sources/rest_api/advanced',            
             {
               type: 'category',
               label: 'REST API helpers',
@@ -134,6 +128,12 @@ const sidebars = {
                 'general-usage/http/rest-client',
                 'general-usage/http/requests',
               ]
+            },
+            {
+              type: 'link',
+              label: '5k+ REST APIs with LLMs',
+              description: 'Pick one of 5k+ REST APIs from LLM context',
+              href: 'https://dlthub.com/workspace',
             },
           ]
         },

@@ -1,10 +1,10 @@
 ---
-title: Build with LLMs
+title: Build pipelines and reports with LLMs
 description: How to extract and explore data from REST API with AI editors/agents
 keywords: [cursor, llm, restapi, ai]
 ---
 
-# Build with LLMs
+# Build dlt pipelines and reports with LLMs
 
 ## Overview
 
@@ -76,7 +76,7 @@ pip install "dlt[workspace]"
 
 ### Initialize workspace
 
-dltHub provides prepared contexts for 1000+ sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace). To get started, search for your API and follow the tailored instructions.
+We provide LLM context from over 5,000 sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace). To get started, search for your API and follow the tailored instructions.
 
 <div style={{textAlign: 'center'}}>
 ![search for your source](https://storage.googleapis.com/dlt-blog-images/llm_workflows_search.png)

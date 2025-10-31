@@ -69,7 +69,7 @@ Try it out in our **[Colab Demo](https://colab.research.google.com/drive/1NfSB1D
 
 ## Features
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect, and transform data. dlt is built from the ground up to be used with LLMs: the [LLM-native workflow](https://dlthub.com/docs/dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take your pipeline code to data in a notebook for [4700+ sources](https://dlthub.com/workspace).
+dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect, and transform data. dlt and dlt docs are built from the ground up to be used with LLMs: the [LLM-native workflow](https://dlthub.com/docs/dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take your pipeline code to data in a notebook for over [5000 sources](https://dlthub.com/workspace).
 
 dlt is designed to be easy to use, flexible, and scalable:
 
