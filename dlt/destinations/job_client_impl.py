@@ -683,17 +683,20 @@ WHERE """
         self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
+        return [f"ADD COLUMN {self._get_column_def_sql(c, table)} {self.config.gen_on_cluster()}" for c in new_columns]
 
     def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
         """Begins CREATE TABLE statement"""
+        
         not_exists_clause = " "
+        
         if (
             table["name"] in self.schema.dlt_table_names()
             and self.capabilities.supports_create_table_if_not_exists
         ):
             not_exists_clause = " IF NOT EXISTS "
-        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
+        return f"CREATE TABLE{not_exists_clause}{qualified_name} {self.config.gen_on_cluster()}"
+
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -706,13 +709,13 @@ WHERE """
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
-            sql = self._make_create_table(qualified_name, table) + " (\n"
+            sql = self._make_create_table(qualified_name, table) +" (\n"
             sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
             sql += self._get_constraints_sql(table_name, new_columns, generate_alter)
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = f"ALTER TABLE {qualified_name}\n"
+            sql_base = f"ALTER TABLE {qualified_name} {self.config.gen_on_cluster()}\n"
             add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"

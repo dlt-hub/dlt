@@ -76,7 +76,7 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         default=None, init=False, repr=False, compare=False
     )
     credentials: ClickHouseCredentials = None
-
+    
     dataset_table_separator: str = "___"
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
     table_engine_type: Optional[TTableEngineType] = "merge_tree"

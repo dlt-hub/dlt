@@ -24,6 +24,10 @@ class DatabaseUndefinedRelation(DestinationUndefinedEntity, DatabaseException):
     def __init__(self, dbapi_exception: Exception) -> None:
         super().__init__(dbapi_exception)
 
+class DatabaseMacroException(DestinationUndefinedEntity, DatabaseException):
+    def __init__(self, dbapi_exception: Exception) -> None:
+        super().__init__(f"KimTT: {dbapi_exception}")
+
 
 class DatabaseTransientException(DestinationTransientException, DatabaseException):
     def __init__(self, dbapi_exception: Exception) -> None:

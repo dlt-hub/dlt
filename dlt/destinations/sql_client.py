@@ -138,6 +138,7 @@ SELECT 1
         """Drops a set of tables if they exist"""
         if not tables:
             return
+        
         statements = [
             f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)}" for table in tables
         ]

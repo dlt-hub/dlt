@@ -156,9 +156,12 @@ class DestinationClientConfiguration(BaseConfiguration):
     credentials: Optional[CredentialsConfiguration] = None
     destination_name: Optional[str] = None  # name of the destination
     environment: Optional[str] = None
-
+    cluster_name: Optional[str] = None
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
-
+    def gen_on_cluster(self):
+       if self.cluster_name is None:
+          return ""
+       return f"ON CLUSTER {self.cluster_name} "
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
         return ""

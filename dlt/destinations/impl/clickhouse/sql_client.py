@@ -34,6 +34,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTransientException,
     DatabaseTerminalException,
+    DatabaseMacroException
 )
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
@@ -137,7 +138,7 @@ class ClickHouseSqlClient(
         )
         sentinel_table_type = cast(TTableEngineType, self.config.table_engine_type)
         self.execute_sql(f"""
-            CREATE TABLE {sentinel_table_name}
+            CREATE TABLE {sentinel_table_name} {self.config.gen_on_cluster()}
             (_dlt_id String NOT NULL)
             ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
             PRIMARY KEY _dlt_id
@@ -164,7 +165,7 @@ class ClickHouseSqlClient(
         catalog_name = self.catalog_name()
         # drop a sentinel table only when dataset name was empty (was not included in the schema)
         if not self.dataset_name:
-            self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+            self.execute_sql(f"DROP TABLE {sentinel_table_name} {self.config.gen_on_cluster()} SYNC")
             logger.warning(
                 "Dataset without name (tables without prefix) got dropped. Only tables known in the"
                 " current dlt schema and sentinel tables were removed."
@@ -182,7 +183,7 @@ class ClickHouseSqlClient(
             # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
             # To resolve this, we are forced to provide the full query string here.
             self.execute_sql(
-                f"DROP TABLE {catalog_name}.{self.capabilities.escape_identifier(table)} SYNC"
+                f"DROP TABLE {catalog_name}.{self.capabilities.escape_identifier(table)} {self.config.gen_on_cluster()} SYNC"
             )
 
     def drop_tables(self, *tables: str) -> None:
@@ -190,7 +191,7 @@ class ClickHouseSqlClient(
         if not tables:
             return
         statements = [
-            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC" for table in tables
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} {self.config.gen_on_cluster()} SYNC" for table in tables
         ]
         self.execute_many(statements)
 
@@ -311,6 +312,8 @@ class ClickHouseSqlClient(
                 return DatabaseTerminalException(ex)
             elif "Code: 60." in str(ex) or "Code: 81." in str(ex):
                 return DatabaseUndefinedRelation(ex)
+            elif "Code: 36" in str(ex):
+                return DatabaseMacroException(ex)
             else:
                 return DatabaseTransientException(ex)
         elif isinstance(
