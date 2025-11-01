@@ -256,6 +256,36 @@ source = sql_database(
 )
 ```
 
+### Filtering rows
+
+You can use `query_adapter_callback` to filter rows using SQL conditions.
+This allows you to include only the data that matches specific criteria.
+```py
+from dlt.sources.sql_database import sql_database
+
+def query_adapter_callback(query, table):
+    if table.name == "family":
+        return query.where(table.c.rfam_id.ilike("%bacteria%"))
+    return query
+
+source = sql_database(
+    table_names=["family"],
+    query_adapter_callback=query_adapter_callback,
+)
+```
+:::note
+You can combine both `query_adapter_callback` and `table_adapter_callback`  
+to filter rows and select specific columns within the same source.  
+This works for one or more tables.
+
+```py
+source = sql_database(
+    table_names=["family"],
+    query_adapter_callback=query_adapter_callback,
+    table_adapter_callback=table_adapter_callback,
+)
+```
+:::
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
 
