@@ -4,6 +4,7 @@ import dlt
 from dlt.sources.rest_api import rest_api_resources
 from dlt.sources.rest_api.typing import RESTAPIConfig
 
+
 # if no argument is provided, `access_token` is read from `.dlt/secrets.toml`
 @dlt.source
 def rest_api_source(access_token: str = dlt.secrets.value):
@@ -39,4 +40,4 @@ pipeline = dlt.pipeline(
 
 if __name__ == "__main__":
     load_info = pipeline.run(rest_api_source())
-    print(load_info)
+    print(load_info)  # noqa: T201
