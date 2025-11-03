@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 import dataclasses
 import datetime  # noqa: 251
@@ -740,7 +741,7 @@ def pipeline_state(
 
 def get_dlt_pipelines_dir() -> str:
     """Gets default directory where pipelines' data will be stored
-    1. in user home directory ~/.dlt/pipelines/
+    1. in user or workspace home directory ie. ~/.dlt/pipelines/
     2. if current user is root in /var/dlt/pipelines
     3. if current user does not have a home directory in /tmp/dlt/pipelines
     """
@@ -750,7 +751,9 @@ def get_dlt_pipelines_dir() -> str:
 
 
 def get_dlt_repos_dir() -> str:
-    """Gets default directory where command repositories will be stored"""
+    """Gets default directory where command repositories will be stored
+    which is $global_dir/repos
+    """
     from dlt.common.runtime import run_context
 
-    return run_context.active().get_data_entity("repos")
+    return os.path.join(run_context.active().global_dir, "repos")

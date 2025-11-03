@@ -16,7 +16,6 @@ from dlt.common.runtime import run_context
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt._workspace.profile import LOCAL_PROFILES
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
 
@@ -27,7 +26,6 @@ PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
 AIRFLOW_DAGS_FOLDER = os.path.join("dags")
 AIRFLOW_BUILD_FOLDER = os.path.join("build")
-LOCAL_COMMAND_REPO_FOLDER = "repos"
 MODULE_INIT = "__init__.py"
 
 
