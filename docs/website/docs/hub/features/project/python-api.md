@@ -5,6 +5,10 @@ description:  Python interface of dltHub Project
 
 # Python API to interact with dltHub Project
 
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
 You can access any [dltHub Project](../../core-concepts/project.md) entity or function via the Python interface.
 The current module provides access to various parts of your active dltHub Project.
 

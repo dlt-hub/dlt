@@ -75,7 +75,7 @@ dltHub consists of three main products. You can use them together or compose the
 **[Workspace](workspace/overview.md) [Public preview]** - the unified environment for building, running, and maintaining data workflows end-to-end.
 
 * Scaffolding and LLM helpers for faster pipeline creation.
-* Integrated transformations (@dlt.hub.transformation decorator).
+* Integrated transformations (`@dlt.hub.transformation` decorator).
 * Data quality rules, test runs, and result surfacing.
 * Notebook and data apps (e.g., Marimo) for sharing insights.
 * Visual dashboards for pipeline health and run history.
@@ -105,7 +105,7 @@ Some of the features described in this documentation are free to use. Others req
 Most features support a self-guided trial right after install, check the [installation instructions](getting-started/installation.md) for more information.
 
 | Tier                  | Best for                                                                                   | Runtime                        | Typical use case                                                             | Notes                                          | Availability    |
-| --------------------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------- |-----------------|
+| --------------------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------- | --------------- |
 | **dltHub Basic**      | Solo developers or small teams owning a **single pipeline + dataset + reports** end-to-end | Managed dltHub Runtime         | Set up a pipeline quickly, add tests and transformations, share a simple app | Optimized for velocity with minimal setup      | Private preview |
 | **dltHub Scale**      | Data teams building **composable data platforms** with governance and collaboration        | Managed dltHub Runtime         | Multiple pipelines, shared assets, team workflows, observability             | Team features and extended governance          | Alpha           |
 | **dltHub Enterprise** | Organizations needing **enterprise controls** or **self-managed runtime**                  | Managed or self-hosted Runtime | On-prem/VPC deployments, custom licensing, advanced security                 | Enterprise features and deployment flexibility | In developement |
@@ -122,6 +122,3 @@ Most features support a self-guided trial right after install, check the [instal
 * We favor open formats and portable storage (e.g., Iceberg), whether you choose our managed lakehouse or bring your own.
 * For exact features and pricing, check the site; this section is meant to help you choose a sensible starting point.
 :::
-=======
-To get started with dltHub, install the library using pip (Python 3.9-3.12):
-=======
