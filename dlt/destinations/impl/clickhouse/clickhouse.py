@@ -314,7 +314,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 self.config.table_engine_type,
             ),
         )
-
+        primary_key = f" PRIMARY KEY "
+        if self.config.table_engine_type == 'replicated_merge_tree':
+            primary_key = f" ORDER BY "
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
         if primary_key_list := [
@@ -322,9 +324,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             for c in new_columns
             if c.get("primary_key")
         ]:
-            sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
+            sql[0] += f"\n{primary_key}(" + ", ".join(primary_key_list) + ")"
         else:
-            sql[0] += "\nPRIMARY KEY tuple()"
+            sql[0] += f"\n{primary_key} tuple()"
 
         return sql
 

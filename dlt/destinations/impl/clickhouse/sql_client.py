@@ -307,6 +307,8 @@ class ClickHouseSqlClient(
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
+        print(ex.__traceback__)
+            
         if isinstance(ex, clickhouse_driver.dbapi.errors.OperationalError):
             if "Code: 57." in str(ex) or "Code: 82." in str(ex) or "Code: 47." in str(ex):
                 return DatabaseTerminalException(ex)

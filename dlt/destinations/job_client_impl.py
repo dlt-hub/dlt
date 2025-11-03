@@ -683,7 +683,7 @@ WHERE """
         self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c, table)} {self.config.gen_on_cluster()}" for c in new_columns]
+        return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
 
     def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
         """Begins CREATE TABLE statement"""
