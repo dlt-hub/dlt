@@ -857,7 +857,7 @@ def _format_duration(ms: float) -> str:
         return f"{round(ms / 6000) / 10}"
 
 
-def _build_pipeline_run_html(
+def _build_pipeline_execution_html(
     transaction_id: str,
     status: TPipelineRunStatus,
     steps_data: List[PipelineStepData],
@@ -909,12 +909,12 @@ def _build_pipeline_run_html(
     # Build the migration badge if applicable
     migration_badge = f"""
     <div style="
-        background-color: {'var(--yellow-bg)'};
-        color: {'var(--yellow-text)'};
+        background-color: var(--yellow-bg);
+        color: var(--yellow-text);
         padding: 6px 16px;
         border-radius: 6px;
     ">
-        <strong>{f'{migrations_count} dataset migration(s)'}</strong>
+        <strong>{migrations_count} dataset migration(s)</strong>
     </div>
     """ if migrations_count > 0 else ""
 
@@ -1019,14 +1019,13 @@ def _get_migrations_count(last_load_info: LoadInfo) -> int:
     return migrations_count
 
 
-def build_pipeline_run_visualization(trace: PipelineTrace) -> Optional[mo.Html]:
+def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.Html]:
     """Creates a visual timeline of pipeline run showing extract, normalize and load steps"""
 
     steps_data, status = _get_steps_data_and_status(trace.steps)
-
     migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
 
-    return _build_pipeline_run_html(
+    return _build_pipeline_execution_html(
         trace.transaction_id,
         status,
         steps_data,
@@ -1059,11 +1058,6 @@ LOAD_PACKAGE_STATUS_BADGE_HTML = (
     '">'
     "<strong>{t}</strong></div>"
 )
-
-
-class TVisualLoadPackageStatusAndSteps(TypedDict):
-    package: LoadPackageInfo
-    seen_in_steps: List[TVisualPipelineStep]
 
 
 def _collect_load_packages_from_trace(

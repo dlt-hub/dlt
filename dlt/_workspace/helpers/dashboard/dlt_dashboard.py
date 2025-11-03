@@ -72,8 +72,8 @@ def home(
     else:
         _buttons: List[Any] = []
         _buttons.append(dlt_refresh_button)
-        _pipeline_run_summary: mo.Html = None
-        _last_load_packages_button: mo.Html = None
+        _pipeline_execution_summary: mo.Html = None
+        _last_load_packages_info: mo.Html = None
         if dlt_pipeline:
             _buttons.append(
                 mo.ui.button(
@@ -88,14 +88,16 @@ def home(
                         on_click=lambda _: utils.open_local_folder(local_dir),
                     )
                 )
-
-            _pipeline_run_summary = utils.build_pipeline_run_visualization(dlt_pipeline.last_trace)
-            _last_load_packages_button = mo.vstack(
-                [
-                    mo.md(f"<small>{strings.view_load_packages_text}</small>"),
-                    utils.load_package_status_labels(dlt_pipeline.last_trace),
-                ]
-            )
+            if dlt_pipeline.last_trace:
+                _pipeline_execution_summary = utils.build_pipeline_execution_visualization(
+                    dlt_pipeline.last_trace
+                )
+                _last_load_packages_info = mo.vstack(
+                    [
+                        mo.md(f"<small>{strings.view_load_packages_text}</small>"),
+                        utils.load_package_status_labels(dlt_pipeline.last_trace),
+                    ]
+                )
         _stack = [
             mo.vstack(
                 [
@@ -112,8 +114,8 @@ def home(
                     ),
                 ]
             ),
-            _pipeline_run_summary,
-            _last_load_packages_button,
+            _pipeline_execution_summary,
+            _last_load_packages_info,
             mo.hstack(_buttons, justify="start"),
         ]
         if not dlt_pipeline and dlt_pipeline_name:
