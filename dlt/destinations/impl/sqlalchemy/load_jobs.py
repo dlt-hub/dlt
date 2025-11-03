@@ -4,6 +4,7 @@ import math
 import sqlalchemy as sa
 
 from dlt.common.destination.client import (
+    DestinationClientConfiguration,
     RunnableLoadJob,
     HasFollowupJobs,
     PreparedTableSchema,
@@ -107,6 +108,7 @@ class SqlalchemyReplaceJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlalchemyClient,  # type: ignore[override]
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         statements: List[str] = []
         for table in table_chain:

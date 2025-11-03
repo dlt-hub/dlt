@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
+from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
@@ -23,6 +24,7 @@ from dlt.common.storages.load_package import load_package_state as current_load_
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
+from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfiguration
 from dlt.destinations.job_impl import FollowupJobRequestImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.destination.exceptions import DestinationTransientException
@@ -49,6 +51,7 @@ class SqlFollowupJob(FollowupJobRequestImpl):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> FollowupJobRequestImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
@@ -63,7 +66,8 @@ class SqlFollowupJob(FollowupJobRequestImpl):
             # Remove line breaks from multiline statements and write one SQL statement per line in output file
             # to support clients that need to execute one statement at a time (i.e. snowflake)
             sql = [
-                " ".join(stmt.splitlines()) for stmt in cls.generate_sql(table_chain, sql_client)
+                " ".join(stmt.splitlines())
+                for stmt in cls.generate_sql(table_chain, sql_client, config)
             ]
             job = cls(file_info.file_name())
             job._save_text_file("\n".join(sql))
@@ -77,6 +81,7 @@ class SqlFollowupJob(FollowupJobRequestImpl):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         pass
 
@@ -135,6 +140,7 @@ class SqlStagingReplaceFollowupJob(SqlStagingFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         root_table = table_chain[0]
         if (
@@ -154,6 +160,7 @@ class SqlStagingCopyFollowupJob(SqlStagingFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         return cls._generate_insert_sql(table_chain, sql_client, truncate_first=False)
 
@@ -169,6 +176,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
+        
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         # resolve only root table
         root_table = table_chain[0]
@@ -178,7 +187,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         merge_sql = None
         if merge_strategy == "delete-insert":
-            merge_sql = cls.gen_merge_sql(table_chain, sql_client)
+            merge_sql = cls.gen_merge_sql(table_chain, sql_client, config)
         elif merge_strategy == "upsert":
             merge_sql = cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
@@ -227,7 +236,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as"
             f" s WHERE {' OR '.join([c.format(d='d',s='s') for c in key_clauses])})"
         ]
-
+    
     @classmethod
     def gen_delete_temp_table_sql(
         cls,
@@ -235,6 +244,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         unique_column: str,
         key_table_clauses: Sequence[str],
         sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> Tuple[List[str], str]:
         """Generate sql that creates delete temp table and inserts `unique_column` from root table for all records to delete. May return several statements.
 
@@ -243,7 +253,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         sql: List[str] = []
         temp_table_name = cls._new_temp_table_name(table_name, "delete", sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
-        sql.append(cls._to_temp_table(select_statement, temp_table_name, unique_column))
+        sql.append(cls._to_temp_table(select_statement, temp_table_name, unique_column,config))
         for clause in key_table_clauses[1:]:
             sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause}")
         return sql, temp_table_name
@@ -333,6 +343,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         condition: str = None,
         condition_columns: Sequence[str] = None,
         skip_dedup: bool = False,
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> Tuple[List[str], str]:
         temp_table_name = cls._new_temp_table_name(table_name, "insert", sql_client)
         if len(primary_keys) > 0:
@@ -349,7 +360,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         else:
             # don't deduplicate
             select_sql = f"SELECT {unique_column} FROM {staging_root_table_name} WHERE {condition}"
-        return [cls._to_temp_table(select_sql, temp_table_name, unique_column)], temp_table_name
+        return [cls._to_temp_table(select_sql, temp_table_name, unique_column,config)], temp_table_name
 
     @classmethod
     def gen_delete_from_sql(
@@ -363,7 +374,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return f"""DELETE FROM {table_name}
             WHERE {unique_column} IN (
                 SELECT * FROM {delete_temp_table_name}
-            );
+            )
+            SETTINGS allow_nondeterministic_mutations = 1
+            ;
         """
 
     @classmethod
@@ -384,7 +397,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return cls._shorten_table_name(f"{table_name}_{op}_{uniq_id()}", sql_client)
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        config: Optional[DestinationClientConfiguration] = None,
+    ) -> str:
         """Generate sql that creates temp table from select statement. May return several statements.
 
         Args:
@@ -395,6 +414,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         Returns:
             sql statement that inserts data from selects into temp table
         """
+        
         return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql}"
 
     @classmethod
@@ -520,8 +540,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                         merge_ex.dataset_name,
                         merge_ex.staging_dataset_name,
                         merge_ex.tables,
-                        merge_ex.reason
-                        + "No `parent_key` column (e.g. `_dlt_parent_id`) in table"
+                        merge_ex.reason + "No `parent_key` column (e.g. `_dlt_parent_id`) in table"
                         f" `{table['name']}`.",
                     ),
                 )
@@ -543,7 +562,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def gen_merge_sql(
-        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
 
@@ -612,7 +634,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
-                        root_table["name"], row_key_column, key_table_clauses, sql_client
+                        root_table["name"],
+                        row_key_column,
+                        key_table_clauses,
+                        sql_client,
+                        config,
                     )
                 )
                 sql.extend(create_delete_temp_table_sql)
@@ -672,6 +698,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     not_deleted_cond,
                     condition_columns,
                     skip_dedup=skip_dedup,
+                    config=config,
                 )
                 sql.extend(create_insert_temp_table_sql)
 
@@ -739,7 +766,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             "" if hard_delete_col is None else f"WHEN MATCHED AND s.{deleted_cond} THEN DELETE"
         )
 
-        sql.append(f"""
+        sql.append(
+            f"""
             MERGE INTO {root_table_name} d USING {staging_root_table_name} s
             ON {on_str}
             {delete_str}
@@ -747,7 +775,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 THEN UPDATE SET {update_str}
             WHEN NOT MATCHED
                 THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-        """)
+        """
+        )
 
         # generate statements for nested tables if they exist
         nested_tables = table_chain[1:]
@@ -780,35 +809,41 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
 
                 # delete records for elements no longer in the list
-                sql.append(f"""
+                sql.append(
+                    f"""
                     DELETE FROM {table_name}
                     WHERE {root_key_column} IN (SELECT {root_row_key_column} FROM {staging_root_table_name})
                     AND {nested_row_key_column} NOT IN (SELECT {nested_row_key_column} FROM {staging_table_name});
-                """)
+                """
+                )
 
                 # insert records for new elements in the list
                 table_column_names = list(map(escape_column_id, table["columns"]))
                 update_str = ", ".join([c + " = " + "s." + c for c in table_column_names])
                 col_str = ", ".join(["{alias}" + c for c in table_column_names])
-                sql.append(f"""
+                sql.append(
+                    f"""
                     MERGE INTO {table_name} d USING {staging_table_name} s
                     ON d.{nested_row_key_column} = s.{nested_row_key_column}
                     WHEN MATCHED
                         THEN UPDATE SET {update_str}
                     WHEN NOT MATCHED
                         THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-                """)
+                """
+                )
 
                 # delete hard-deleted records
                 if hard_delete_col is not None:
-                    sql.append(f"""
+                    sql.append(
+                        f"""
                         DELETE FROM {table_name}
                         WHERE {root_key_column} IN (
                             SELECT {root_row_key_column}
                             FROM {staging_root_table_name}
                             WHERE {deleted_cond}
                         );
-                    """)
+                    """
+                    )
         return sql
 
     @classmethod
@@ -892,12 +927,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         # insert new active records in root table
         columns = map(escape_column_id, list(root_table["columns"].keys()))
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
-        sql.append(f"""
+        sql.append(
+            f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
             WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active});
-        """)
+        """
+        )
 
         # insert list elements for new active records in nested tables
         nested_tables = table_chain[1:]
@@ -916,11 +953,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     )
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
-                sql.append(f"""
+                sql.append(
+                    f"""
                     INSERT INTO {table_name}
                     SELECT *
                     FROM {staging_table_name}
                     WHERE {row_key_column} NOT IN (SELECT {row_key_column} FROM {table_name});
-                """)
+                """
+                )
 
         return sql

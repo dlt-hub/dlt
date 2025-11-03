@@ -162,6 +162,7 @@ class DestinationClientConfiguration(BaseConfiguration):
        if self.cluster_name is None:
           return ""
        return f"ON CLUSTER {self.cluster_name} "
+       
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
         return ""

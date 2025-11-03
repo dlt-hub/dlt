@@ -53,7 +53,8 @@ class TJobQueryTags(TypedDict):
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
     dbapi: ClassVar[DBApi] = None
-
+    
+    """Database cluster name"""
     database_name: Optional[str]
     """Database or catalog name, optional"""
     dataset_name: str
@@ -67,6 +68,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self,
         database_name: str,
         dataset_name: str,
+        
         staging_dataset_name: str,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
@@ -75,7 +77,8 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self.database_name = database_name
         self.capabilities = capabilities
         self._query_tags: TJobQueryTags = None
-
+        
+   
     @abstractmethod
     def open_connection(self) -> TNativeConn:
         pass

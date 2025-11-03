@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common.destination.client import (
+    DestinationClientConfiguration,
     FollowupJobRequest,
     PreparedTableSchema,
 )
@@ -28,6 +29,7 @@ class MsSqlStagingReplaceJob(SqlStagingReplaceFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:

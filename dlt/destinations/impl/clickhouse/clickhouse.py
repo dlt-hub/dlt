@@ -14,6 +14,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
+    DestinationClientConfiguration,
     PreparedTableSchema,
     SupportsStagingDestination,
     HasFollowupJobs,
@@ -171,6 +172,12 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
+    def gen_on_cluster(cls, cluster_name: Optional[str] = None):
+        if cluster_name is None:
+            return ""
+        return f"ON CLUSTER {cluster_name} "
+
+    @classmethod
     def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
         # reproducible name so we know which table to drop
         with sql_client.with_staging_dataset():
@@ -181,10 +188,23 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        config: Optional[ClickHouseClientConfiguration] = None,
+    ) -> str:
+        ## KimTT
+        table_type = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get('merge_tree')
+        if config.table_engine_type is not None:
+            table_type = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(config.table_engine_type)
+        primary_key = f"PRIMARY KEY {unique_column}"
+        if config.table_engine_type == 'replicated_merge_tree':
+            primary_key = f"ORDER BY {unique_column}"
         return (
-            f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
-            f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
+            f"DROP TABLE IF EXISTS {temp_table_name} {config.gen_on_cluster()} SYNC; CREATE TABLE {temp_table_name} {config.gen_on_cluster()} ENGINE ="
+            f" {table_type} {primary_key} AS {select_sql}"
         )
 
     @classmethod
@@ -235,7 +255,12 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+
+        return [
+            ClickHouseMergeJob.from_table_chain(
+                table_chain, self.sql_client, self.config
+            )
+        ]
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Build column definition.
@@ -254,10 +279,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             else self.type_mapper.to_destination_type(c, table)
         )
 
-        return (
-            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_}"
-            .strip()
-        )
+        return f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_}".strip()
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -292,7 +314,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 self.config.table_engine_type,
             ),
         )
-        
+
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
         if primary_key_list := [

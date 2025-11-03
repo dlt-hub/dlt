@@ -7,6 +7,7 @@ from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
 )
 from dlt.common.destination.client import (
+    DestinationClientConfiguration,
     HasFollowupJobs,
     PreparedTableSchema,
     RunnableLoadJob,
@@ -33,6 +34,7 @@ class PostgresStagingReplaceJob(SqlStagingReplaceFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
+        config: Optional[DestinationClientConfiguration] = None,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
