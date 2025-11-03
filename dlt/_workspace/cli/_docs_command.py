@@ -4,6 +4,7 @@ import argparse
 import textwrap
 import os
 import re
+from typing import List
 
 import dlt._workspace.cli.echo as fmt
 
@@ -48,7 +49,10 @@ class _WidthFormatter(argparse.RawTextHelpFormatter):
 def render_argparse_markdown(
     name: str,
     parser: argparse.ArgumentParser,
+    /,
+    *,
     header: str = HEADER,
+    commands: List[str] = None,
 ) -> str:
     def get_parser_help_recursive(
         parser: argparse.ArgumentParser,
@@ -56,6 +60,7 @@ def render_argparse_markdown(
         parent: str = "",
         nesting: int = 0,
         help_string: str = None,
+        commands: List[str] = None,
     ) -> str:
         markdown = ""
 
@@ -145,13 +150,18 @@ def render_argparse_markdown(
                         f"Missing helpstring for argument '{arg_title}' in section '{header}' of"
                         f" command '{cmd}'."
                     )
+
+                quoted_title = ""
                 if is_subcommands_list:
-                    full_command = f"{cmd} {arg_title}"
-                    anchor_slug = full_command.lower().replace(" ", "-")
-                    arg_title = f"[`{arg_title}`](#{anchor_slug})"
+                    # skip unwanted commands
+                    if not commands or arg_title in commands:
+                        full_command = f"{cmd} {arg_title}"
+                        anchor_slug = full_command.lower().replace(" ", "-")
+                        quoted_title = f"[`{arg_title}`](#{anchor_slug})"
                 else:
-                    arg_title = f"`{arg_title}`"
-                section += f"* {arg_title} - {arg_help.capitalize()}\n"
+                    quoted_title = f"`{arg_title}`"
+                if quoted_title:
+                    section += f"* {quoted_title} - {arg_help.capitalize()}\n"
 
             extracted_sections.append({"header": header.capitalize(), "section": section})
 
@@ -181,10 +191,15 @@ def render_argparse_markdown(
         markdown += "</details>\n\n"
 
         # traverse the subparsers and forward help strings to the recursive function
+        commands_found = []
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
                 for subaction in action._get_subactions():
                     subparser = action._name_parser_map[subaction.dest]
+                    # skip unwanted commands
+                    if commands and subaction.dest not in commands:
+                        continue
+                    commands_found.append(subaction.dest)
                     assert (
                         subaction.help
                     ), f"Subparser help string of {subaction.dest} is empty, please provide one."
@@ -194,9 +209,17 @@ def render_argparse_markdown(
                         parent=cmd,
                         nesting=nesting + 1,
                         help_string=subaction.help,
+                        commands=None,
                     )
+        if commands and set(commands_found) != set(commands):
+            raise RuntimeError(
+                f"Following commands were expected:: {commands} but found only {commands_found}."
+                " Typically this means that dlthub was not installed or workspace context was "
+                " not found."
+            )
+
         return markdown
 
-    markdown = get_parser_help_recursive(parser, name)
+    markdown = get_parser_help_recursive(parser, name, commands=commands)
 
     return header + markdown
