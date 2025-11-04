@@ -186,6 +186,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
+
     expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
 
     # select each schema and see if the right tables are shown
@@ -193,7 +194,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     for section in ["schema", "data"]:
         _open_section(page, section)  # type: ignore[arg-type]
 
-        schema_selector = page.get_by_role("combobox")
+        schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
         schema_selector.select_option("fruitshop_customers")
         expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
