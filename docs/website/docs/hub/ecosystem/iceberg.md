@@ -48,7 +48,7 @@ To configure a SQL catalog, provide the following parameters:
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
@@ -120,7 +120,7 @@ To configure Lakekeeper, you need to specify both catalog and storage parameters
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
@@ -191,7 +191,7 @@ It supports two modes:
 [Polaris](https://polaris.apache.org/) - is an open-source, fully-featured catalog for Iceberg. Its configuration is similar to Lakekeeper, with some differences in credential scopes and URI.
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
@@ -256,7 +256,7 @@ To configure a `s3tables-rest` catalog, provide the following parameters and rep
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
@@ -319,7 +319,7 @@ To configure a `glue-rest` catalog, provide the following parameters and replace
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
@@ -375,7 +375,7 @@ Choose this when you simply want to use the Glue Catalog with a normal S3 bucket
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
@@ -436,7 +436,7 @@ For detailed setup instructions, see Databricks guide on [accessing tables from 
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
