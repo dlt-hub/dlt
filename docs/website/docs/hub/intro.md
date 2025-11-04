@@ -48,13 +48,9 @@ To get started quickly, follow the [installation instructions](getting-started/i
 ### Key capabilities
 
 1. **[LLM-native workflow](../dlt-ecosystem/llm-tooling/llm-native-workflow)**: accelerate pipeline authoring and maintenance with guided prompts and copilot experiences.
-
 2. **[Transformations](features/transformations/index.md)**: write Python or SQL transformations with `@dlt.hub.transformation`, orchestrated within your pipeline.
-
 3. **[Data quality](features/quality/data-quality.md)**: define correctness rules, run checks, and fail fast with actionable messages.
-
 4. **[Data apps & sharing](../general-usage/dataset-access/marimo)**: build lightweight, shareable data apps and notebooks for consumers.
-
 5. **[AI agentic support](features/mcp-server.md)**: use MCP servers to analyze pipelines and datasets.
 6. **Managed runtime**: deploy and run with a single command—no infra to provision or patch.
 7. **[Storage choice](ecosystem/iceberg.md)**: pick managed Iceberg-based lakehouse, DuckLake, or bring your own storage.
@@ -66,6 +62,9 @@ dltHub embraces the dlt library, not replaces it:
 * dltHub: Adds transformations, quality, agentic tooling, managed runtime, and storage choices, so you can move from local dev to production seamlessly.
 
 If you like the dlt developer experience, dltHub gives you everything around it to run in production with less toil.
+
+While dltHub is a paid product, we also offer a dltHub Free tier, distributed under the [Apache 2.0 license](https://github.com/dlt-hub/dlt?tab=Apache-2.0-1-ov-file#readme),
+which you can start using right away.
 
 ## dltHub products
 dltHub consists of three main products. You can use them together or compose them based on your needs.
@@ -80,9 +79,9 @@ dltHub consists of three main products. You can use them together or compose the
 * Notebook and data apps (e.g., Marimo) for sharing insights.
 * Visual dashboards for pipeline health and run history.
 
-### Runtime [Private preview]
+### Runtime
 
-**Runtime** - a managed cloud runtime operated by dltHub:
+**Runtime [Private preview]** - a managed cloud runtime operated by dltHub:
 
 * Scalable execution for pipelines and transformations.
 * APIs, web interfaces, and auxiliary services.
@@ -104,11 +103,12 @@ Prefer full control? See [Enterprise](#tiers--licensing) below for self-managed 
 Some of the features described in this documentation are free to use. Others require a paid plan. Latest pricing & full feature matrix can be found live on our website.
 Most features support a self-guided trial right after install, check the [installation instructions](getting-started/installation.md) for more information.
 
-| Tier                  | Best for                                                                                   | Runtime                        | Typical use case                                                             | Notes                                          | Availability    |
-| --------------------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------- | --------------- |
-| **dltHub Basic**      | Solo developers or small teams owning a **single pipeline + dataset + reports** end-to-end | Managed dltHub Runtime         | Set up a pipeline quickly, add tests and transformations, share a simple app | Optimized for velocity with minimal setup      | Private preview |
-| **dltHub Scale**      | Data teams building **composable data platforms** with governance and collaboration        | Managed dltHub Runtime         | Multiple pipelines, shared assets, team workflows, observability             | Team features and extended governance          | Alpha           |
-| **dltHub Enterprise** | Organizations needing **enterprise controls** or **self-managed runtime**                  | Managed or self-hosted Runtime | On-prem/VPC deployments, custom licensing, advanced security                 | Enterprise features and deployment flexibility | In developement |
+| Tier                  | Best for                                                                                        | Runtime                        | Typical use case                                                              | Notes                                           | Availability    |
+| --------------------- |-------------------------------------------------------------------------------------------------| ------------------------------ |-------------------------------------------------------------------------------|-------------------------------------------------|-----------------|
+| **dltHub Free**       | Developers running **dlt ingestion pipelines** in production on **self-managed infrastructure** | Local Runtime (self-managed)   | Run and maintain ingestion pipelines in production on your own infrastructure | Ideal for self-hosted and ingestion-only setups | Public preview  |
+| **dltHub Basic**      | Solo developers or small teams owning a **single pipeline + dataset + reports** end-to-end      | Managed dltHub Runtime         | Set up a pipeline quickly, add tests and transformations, share a simple app  | Optimized for velocity with minimal setup       | Private preview |
+| **dltHub Scale**      | Data teams building **composable data platforms** with governance and collaboration             | Managed dltHub Runtime         | Multiple pipelines, shared assets, team workflows, observability              | Team features and extended governance           | Alpha           |
+| **dltHub Enterprise** | Organizations needing **enterprise control** or **self-managed runtime**                        | Managed or self-hosted Runtime | On-prem/VPC deployments, custom licensing, advanced security                  | Enterprise features and deployment flexibility  | In development  |
 
 
 ### Who is dltHub for?

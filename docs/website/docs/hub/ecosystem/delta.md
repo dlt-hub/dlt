@@ -123,22 +123,9 @@ The `upsert` merge strategy for the Delta destination is **experimental**.
 
 The `merge` write disposition can be configured as follows on the source/resource level:
 
-<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
-  <TabItem value="yaml">
-
-```yaml
-sources:
-  my_source:
-    type: sources.my_source
-    with_args:
-      write_disposition:
-        disposition: merge
-        strategy: upsert
-```
-  </TabItem>
-  <TabItem value="python">
-
 ```py
+import dlt
+
 @dlt.resource(
     primary_key="id",  # merge_key also works; primary_key and merge_key may be used together
     write_disposition={"disposition": "merge", "strategy": "upsert"},
@@ -151,10 +138,7 @@ def my_resource():
 ...
 
 pipeline = dlt.pipeline("loads_delta", destination="delta")
-
 ```
-</TabItem>
-</Tabs>
 
 Or on the `pipeline.run` level: <!-- can this also be defined in the yaml??-->
 
@@ -166,34 +150,17 @@ pipeline.run(write_disposition={"disposition": "merge", "strategy": "upsert"})
 
 Delta tables can be partitioned (using [Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/)) by specifying one or more partition column hints on the source/resource level:
 
-<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
-  <TabItem value="yaml">
+```py
+import dlt
 
-  ```yaml
-  sources:
-    my_source:
-      type: sources.my_source
-      with_args:
-        columns:
-          foo:
-            partition: True
-  ```
+@dlt.resource(
+  columns={"_dlt_load_id": {"partition": True}}
+)
+def my_resource():
+    ...
 
-  </TabItem>
-  <TabItem value="python">
-
-  ```py
-  @dlt.resource(
-    columns={"_dlt_load_id": {"partition": True}}
-  )
-  def my_resource():
-      ...
-
-  pipeline = dlt.pipeline("loads_delta", destination="delta")
-  ```
-
-  </TabItem>
-</Tabs>
+pipeline = dlt.pipeline("loads_delta", destination="delta")
+```
 
 :::warning
 Partition evolution (changing partition columns after a table has been created) is currently not supported.
