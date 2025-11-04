@@ -48,7 +48,7 @@ Currently, a cache usage has specific constraints. Please keep the following lim
 You can configure input tables in the cache to specify which tables are cached locally. This allows you to run SQL queries on remote data lakes efficiently, eliminating complex data retrieval workflows.
 Outputs define how processed data in the cache is pushed back to a chosen destination.
 
-[Populating](../reference.md#dlt-cache-populate) and [flushing](../reference.md#dlt-cache-flush) the cache are discrete steps.
+Populating and flushing the cache are discrete steps.
 You can orchestrate these as part of your deployment or trigger them interactively using the cli, especially when analyzing data locally or working in a notebook.
 
 ## Why you should use it

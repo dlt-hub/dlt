@@ -29,15 +29,7 @@ For more information, please visit the [installation page](../getting-started/in
 
 ## CLI support
 
-Workspace includes powerful CLI commands that make it easy to interact with your projects.
-Some of the available commands include:
-
-* `dlt workspace show` will launch Workspace Dashboard
-* `dlt workspace mcp` will launch Workspace MCP (OSS MCP) in sse mode.
-* `dlt pipeline foo mcp` will launch pipeline MCP (old version of MCP, to be deprecated) in sse mode.
-* `dlt pipeline foo show` will launch Workspace Dashboard and open pipeline `foo`
-
-You can find more commands in the [CLI reference section](../reference.md).
+Workspace comes with additional [cli support](../command-line-interface.md) that is enabled after installation.
 
 ## Next steps
 

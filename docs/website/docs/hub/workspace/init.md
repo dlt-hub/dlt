@@ -8,6 +8,8 @@ keywords: [create a pipeline, verified source, workspace, rest client, how to, d
 
 This guide walks you through creating and initializing a `dlt` pipeline in dltHub Workspace — whether manually, with the LLM help, or from one of the **verified sources** maintained by dltHub team.
 
+
+
 ## Overview
 
 A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg). Initializing a pipeline is the first step in the data workflow.
@@ -22,15 +24,9 @@ You can create one in three CLI-based ways:
 
 ## Step 0: Install dlt with workspace support
 
-To use workspace functionality, install dlt with the workspace extra:
+Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-tier-features)
 
-```sh
-pip install "dlt[workspace]"
-```
-
-This adds support for AI-assisted workflows and the `dlt ai` command.
-
-**dlt Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
+**dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 
 [More about dlt Workspace](../workspace/overview.md)
 

@@ -568,7 +568,7 @@ Renders markdown version of cli docs.
 
 **Usage**
 ```sh
-dlt render-docs [-h] [--compare] file_name
+dlt render-docs [-h] [--commands [COMMANDS ...]] [--compare] file_name
 ```
 
 **Description**
@@ -587,6 +587,7 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--commands [COMMANDS ...]` - List of command names to render (optional)
 * `--compare` - Compare the changes and raise if output would be updated
 
 </details>

@@ -548,7 +548,7 @@ const sidebars = {
         'hub/ecosystem/snowflake_plus',
       ]
     },
-    'hub/reference',
+    'hub/command-line-interface',
     'hub/EULA',
     ],
 };
