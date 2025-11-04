@@ -31,6 +31,7 @@ from dlt.common.schema.typing import (
     VERSION_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
     ColumnPropInfos,
+    TColumnPropMergeType,
     TColumnName,
     TFileFormat,
     TPartialTableSchema,
@@ -152,6 +153,22 @@ def has_default_column_prop_value(prop: str, value: Any) -> bool:
         return value in ColumnPropInfos[prop].defaults
     # for any unknown hint ie. "x-" the defaults are
     return value in (None, False)
+
+
+def has_merge_type(prop: str, merge_type: TColumnPropMergeType = "remove_if_empty") -> bool:
+    if prop in ColumnPropInfos:
+        return ColumnPropInfos[prop].merge_type == merge_type
+    return False
+
+
+def remove_column_props_with_merge_type(
+    column_schema: TColumnSchema, merge_type: TColumnPropMergeType = "remove_if_empty"
+) -> TColumnSchema:
+    """Removes properties that have merge type remove if empty"""
+    for prop in list(column_schema.keys()):
+        if has_merge_type(prop, merge_type):
+            column_schema.pop(prop)  # type: ignore
+    return column_schema
 
 
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
@@ -420,15 +437,28 @@ def diff_table_references(
 
 
 def merge_column(
-    col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = True
+    col_a: TColumnSchema,
+    col_b: TColumnSchema,
+    merge_defaults: bool = True,
+    respect_merge_type: bool = False,
 ) -> TColumnSchema:
-    """Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
+    """Merges col_b into col_a in place. Returns col_a.
 
-    Modifies col_a in place and returns it
+    merge_defaults: If False, only merge non-default values from col_b
+    respect_merge_type: If True, apply "remove_if_empty" merge rules to col_a properties
     """
-    col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
-    for n, v in col_b_clean.items():
-        col_a[n] = v  # type: ignore
+
+    col_b_clean = copy(col_b) if merge_defaults else remove_column_defaults(copy(col_b))
+
+    for prop in list(col_a.keys()):
+        if prop in col_b_clean:
+            col_a[prop] = col_b_clean.pop(prop)  # type: ignore
+        else:
+            if respect_merge_type and has_merge_type(prop, "remove_if_empty"):
+                col_a.pop(prop)  # type: ignore
+
+    for prop, value in col_b_clean.items():
+        col_a[prop] = value  # type: ignore
 
     return col_a
 
@@ -438,6 +468,7 @@ def merge_columns(
     columns_b: TTableSchemaColumns,
     merge_columns: bool = False,
     columns_partial: bool = True,
+    respect_merge_type: bool = False,
 ) -> TTableSchemaColumns:
     """Merges `columns_a` with `columns_b`. `columns_a` is modified in place.
 
@@ -458,14 +489,19 @@ def merge_columns(
             if column_a and not is_complete_column(column_a):
                 columns_a.pop(col_name)
         if column_a and merge_columns:
-            column_b = merge_column(column_a, column_b)
+            column_b = merge_column(
+                column_a, column_b, merge_defaults=True, respect_merge_type=respect_merge_type
+            )
         # set new or updated column
         columns_a[col_name] = column_b
     return columns_a
 
 
 def diff_table(
-    schema_name: str, tab_a: TTableSchema, tab_b: TPartialTableSchema
+    schema_name: str,
+    tab_a: TTableSchema,
+    tab_b: TPartialTableSchema,
+    respect_merge_type: bool = False,
 ) -> TPartialTableSchema:
     """Creates a partial table that contains properties found in `tab_b` that are not present or different in `tab_a`.
     The name is always present in returned partial.
@@ -480,17 +516,21 @@ def diff_table(
     ensure_compatible_tables(schema_name, tab_a, tab_b, ensure_columns=False)
 
     # get new columns, changes in the column data type or other properties are not allowed
-    tab_a_columns = tab_a["columns"]
+    tab_a_columns = copy(tab_a["columns"])
     new_columns: List[TColumnSchema] = []
     for col_b_name, col_b in tab_b["columns"].items():
         if col_b_name in tab_a_columns:
-            col_a = tab_a_columns[col_b_name]
+            col_a = tab_a_columns.pop(col_b_name)
             # all other properties can change
-            merged_column = merge_column(copy(col_a), col_b)
+            merged_column = merge_column(copy(col_a), col_b, respect_merge_type=respect_merge_type)
             if merged_column != col_a:
                 new_columns.append(merged_column)
         else:
             new_columns.append(col_b)
+
+    if respect_merge_type:
+        for col_a in tab_a_columns.values():
+            remove_column_props_with_merge_type(col_a, "remove_if_empty")
 
     # return partial table containing only name and properties that differ (column, filters etc.)
     table_name = tab_a["name"]
