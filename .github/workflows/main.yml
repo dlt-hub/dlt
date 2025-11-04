@@ -40,16 +40,16 @@ jobs:
     name: lint on all python versions
     needs: get_docs_changes
     uses: ./.github/workflows/lint.yml
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
   test_common:
     name: run common tests on all python versions and OSes
-    needs: [lint, get_docs_changes]
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    needs: [lint]
     uses: ./.github/workflows/test_common.yml
 
   test_dashboard:
     name: run dashboard tests
-    needs: [lint, get_docs_changes]
+    needs: [lint]
     uses: ./.github/workflows/test_tools_dashboard.yml
 
   #
