@@ -16,7 +16,7 @@ Resources that can be loaded using this verified source are:
 | Name                 | Description                                     |
 | -------------------- | ----------------------------------------------- |
 | replication_resource | Load published messages from a replication slot |
-| init_replication     | Initialize replication and optionally return snapshot resources for initial data load  |
+| init_replication     | Initialize replication and optionally return snapshot resources for the initial data load  |
 
 
 :::info
@@ -26,29 +26,36 @@ The Postgres replication source currently **does not** support the [scd2 merge s
 ## Setup guide
 
 ### Set up user
-To set up a Postgres user, follow these steps:
 
-1. The Postgres user needs to have the `LOGIN` and `REPLICATION` attributes assigned:
+To set up a Postgres user for replication, follow these steps:
+
+1. Create a user with the `LOGIN` and `REPLICATION` attributes:
     
     ```sql
     CREATE ROLE replication_user WITH LOGIN REPLICATION;
     ```
-    
-2. It also needs `GRANT` privilege on the database:
+
+2. Grant the `CREATE` privilege on the database:
     
     ```sql
     GRANT CREATE ON DATABASE dlt_data TO replication_user;
     ```
 
-3. If not a superuser, the user must have ownership of the tables that need to be replicated:
+3. Grant ownership of the tables you want to replicate:
+    
     ```sql
-   ALTER TABLE your_table OWNER TO replication_user;  
+    ALTER TABLE your_table OWNER TO replication_user;  
     ```
+
+:::note
+The minimum required privileges may differ depending on your replication configuration. For example, replicating entire schemas requires superuser privileges. Check the [Sources and resources](#sources-and-resources) section for more detailed information.
+:::
+
 
 ### Set up RDS
 To set up a Postgres user on RDS, follow these steps:
 
-1. You must enable replication for the RDS Postgres instance via [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).
+1. Enable replication for your RDS Postgres instance via a [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).
 
 2. `WITH LOGIN REPLICATION;` does not work on RDS; instead, do:
     
@@ -56,7 +63,7 @@ To set up a Postgres user on RDS, follow these steps:
     GRANT rds_replication TO replication_user;
     ```
     
-3. Do not fallback to a non-SSL connection by setting connection parameters:
+3. Use the following connection parameters to enforce SSL:
     
    ```toml
    sources.pg_replication.credentials="postgresql://loader:password@host.rds.amazonaws.com:5432/dlt_data?sslmode=require&connect_timeout=300"
@@ -65,13 +72,13 @@ To set up a Postgres user on RDS, follow these steps:
 
 To get started with your data pipeline, follow these steps:
 
-1. Enter the following command:
+1. Run the following command:
     
    ```sh
    dlt init pg_replication duckdb
    ```
     
-   It will initialize [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
+   This command initializes [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
     
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations). For example:
    ```sh
@@ -137,7 +144,7 @@ For more information, read the [Configuration section.](../../general-usage/cred
 
 The `init_replication` function serves two main purposes:
 
-1. Sets up Postgres replication by creating the necessary replication slot and publication.
+1. Sets up Postgres replication by creating the necessary replication slot and publication if they don't already exist.
 2. Optionally captures an initial snapshot when `persist_snapshots=True` and returns snapshot resources for loading existing data.
 
 ```py
@@ -156,37 +163,21 @@ def init_replication(
     ...
 ```
 
-`slot_name`: Name of the replication slot to create if it does not exist yet.
+Depending on how you configure `init_replication`, the minimum required privileges for the Postgres user may differ:
 
-`pub_name`:  Name of the publication to create if it does not exist yet.
+| Configuration | Description | Minimum required privileges |
+|----------|---------------|----------------------------|
+| `table_names=None` | Replicates the entire schema. The publication includes all current and future tables in the schema. | Superuser |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=False` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table) |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=True` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table),<br />CREATE privilege in the schema (for snapshot tables) |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=False` | Replicates specific tables. Drops existing publication/slot before recreating. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=True` | Replicates specific tables. Drops existing publication/slot before recreating. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist,<br />CREATE privilege in the schema (for snapshot tables) |
 
-`schema_name`: Name of the schema to replicate tables from.
-
-`table_names`: Names of the tables to include in the publication. If not provided, the whole schema specified by `schema_name` will be replicated, including tables added to the schema after the publication was created. Superuser privileges are required for whole-schema replication. When specifying individual table names, the database role must own the tables if the role is not a superuser.
-
-`credentials`: Postgres credentials, automatically resolved from `.dlt/secrets.toml` or environment variables.
-
-`publish`: Comma-separated list of DML operations that controls which changes the publication includes. Allowed values are `insert`, `update`, and `delete`; `truncate` is not supported. For example, `publish="insert"` creates a publication that publishes only inserts.
-
-`persist_snapshots`: Whether to persist the snapshot of table states taken when the replication slot is created. If set to `True`, snapshot tables are created in Postgres for each included table, and corresponding `DltResource` objects are created and returned. These resources can be used to perform an initial load of all data present in the tables at the time the replication slot was created.
-
-`include_columns`: Maps table names to the columns to include in the snapshot tables; columns not listed are excluded. If omitted, all columns are included. This argument is used only when `persist_snapshots` is `True`.
-
-`columns`: Maps table names to column hints to apply to the snapshot table resources. For example:
-
-```py
-columns = {
-    "table_x": {"col_a": {"data_type": "json"}},
-    "table_y": {"col_y": {"precision": 32}},
-}
-```
-This argument is used only when `persist_snapshots` is `True`.
-
-`reset`: If set to `True`, the existing slot and publication are dropped and recreated. Has no effect if a slot and publication with the provided names do not yet exist.
+For detailed information about all arguments, see the [source code](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication/helpers.py).
 
 ### Resource `replication_resource`
 
-This resource yields data items for changes in one or more Postgres tables.
+This resource yields data items for changes in one or more Postgres tables. It consumes messages from an existing replication slot and publication that must be set up beforehand (e.g., using `init_replication`).
 
 ```py
 @dlt.resource(
@@ -204,19 +195,13 @@ def replication_resource(
     ...
 ```
 
-`slot_name`: Replication slot name to consume messages.
+The minimum required privileges for using `replication_resource` are straightforward:
 
-`pub_name`: Publication slot name to publish messages.
+- REPLICATION attribute (required for logical replication connections)
+- Slot ownership (required to consume messages from the replication slot)
+- Read access to publication metadata (to query the `pg_publication` system catalog)
 
-`credentials`: Postgres credentials, automatically resolved from `.dlt/secrets.toml` or environment variables.
-
-`include_columns`: Maps table names to the columns to include in the generated data items; columns not listed are excluded. If omitted, all columns are included.
-
-`columns`:  Maps table names to column hints to apply on the replicated tables.
-
-`target_batch_size`: Desired number of data items yielded in a batch. Can be used to limit the data items in memory.
-
-`flush_slot`:  Whether processed messages are discarded from the replication slot. The recommended value is `True`.
+For detailed information about the arguments, refer to the [source code](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication/__init__.py).
 
 ## Customization
 
