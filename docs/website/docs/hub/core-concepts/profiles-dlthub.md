@@ -24,7 +24,7 @@ Profiles let you:
 
 ## Enable the workspace and profiles
 
-Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-free-tier-features) (which also include Profiles)
+Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-tier-features) (which also include Profiles)
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 

@@ -24,7 +24,7 @@ You can create one in three CLI-based ways:
 
 ## Step 0: Install dlt with workspace support
 
-Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-free-tier-features)
+Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-tier-features)
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 
