@@ -7,9 +7,9 @@ keywords: [mcp, llm, agents, ai]
 ## Overview
 
 dltHub Workspace comes with an MCP server you can run locally and integrate with your preferred IDE. It provides a set of tools for interacting with pipelines and datasets:
-- It helps you explore and describe pipeline schemas
-- It helps you access and explore data in destination tables
-- It helps you write SQL queries, models, and transformations
+- Explore and describe pipeline schemas
+- Access and explore data in destination tables
+- Write SQL queries, models, and transformations
 - Combining all the above, it provides efficient help with writing reports, notebook code, and dlt pipelines themselves
 
 🚧 (in development) We are adding a set of tools that help drill down into pipeline run traces to find possible problems and root causes for incidents.

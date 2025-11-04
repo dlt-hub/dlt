@@ -16,15 +16,15 @@ To install the `dlt[workspace]` package, create a new [Python virtual environmen
 uv pip install "dlt[workspace]"
 ```
 This will install `dlt` with several additional dependencies you'll need for local development: `arrow`, `marimo`, `mcp`, and a few others.
-If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment)
+If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment).
 
-### Enable free tier features
+### Enable dltHub Free tier features
 
 :::info
-New [free tier features](../intro.md#tiers--licensing) like profiles are hidden behind a feature flag,
+The most recent [dltHub Free tier features](../intro.md#tiers--licensing) like profiles are hidden behind a feature flag,
 which means you need to manually enable them before use.
 
-To activate these features, create the `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the new Workspace mode.
+To activate these features, create an empty `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the Workspace mode.
 
 <Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
 <TabItem value="ubuntu">
@@ -104,7 +104,7 @@ source .venv/bin/activate
 
 To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License.
 
-1. Contact us if you want to purchase a license or get a trial license with unlimited use.
+1. [Contact us](https://info.dlthub.com/waiting-list) if you want to purchase a license or get a trial license with unlimited use.
 2. Issue a [limited trial license](#self-licensing) yourself.
 
 
@@ -125,11 +125,12 @@ export DLT_LICENSE_KEY="your-dlthub-license-key"
 #### Features requiring a license:
 
 - [@dlt.hub.transformation](../features/transformations/index.md) - a powerful Python decorator to build transformation pipelines and notebooks
-- [dbt transformations](../features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
-- [Iceberg support](../ecosystem/iceberg.md)
+- [dbt transformations](../features/transformations/dbt-transformations.md) - a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
+- [Iceberg support](../ecosystem/iceberg.md).
+- [MSSQL Change Tracking source](../ecosystem/ms-sql.md).
 
 For more information about the feature scopes, see [Scopes](#scopes).
-Please also review our End User License Agreement [(EULA)](../EULA.md)
+Please, also review our [End User License Agreement](../EULA.md)
 
 ### Self-licensing
 
@@ -151,8 +152,8 @@ dlt license issue dlthub.transformation
 ```
 This will do the following:
 * Issue a new license (or merge with existing scopes) for the [transformations](../features/transformations/index.md) feature.
-* Print your license key in the CLI output
-* Put the license key into your toml file
+* Print your license key in the CLI output.
+* Put the license key into your `toml` file.
 
 #### Scopes
 

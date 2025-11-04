@@ -5,11 +5,11 @@ keywords: [command line interface, cli, dlt init]
 ---
 
 
-# Command Line Interface Reference
+# Command line interface reference
 
 <!-- this page is fully generated from the argparse object of dlt, run make update-cli-docs to update it -->
 
-This page contains all commands available in the dlt CLI and is generated
+This page contains all commands available in the dltHub CLI and is generated
 automatically from the fully populated python argparse object of dlt.
 :::note
 Flags and positional commands are inherited from the parent command. Position within the command string
