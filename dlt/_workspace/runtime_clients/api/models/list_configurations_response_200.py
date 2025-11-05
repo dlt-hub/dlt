@@ -7,30 +7,30 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.profile_version_response import ProfileVersionResponse
+    from ..models.configuration_response import ConfigurationResponse
 
 
-T = TypeVar("T", bound="ListProfileVersionsResponse200")
+T = TypeVar("T", bound="ListConfigurationsResponse200")
 
 
 @_attrs_define
-class ListProfileVersionsResponse200:
+class ListConfigurationsResponse200:
     """
     Attributes:
-        items (Union[Unset, list['ProfileVersionResponse']]):
+        items (Union[Unset, list['ConfigurationResponse']]):
         limit (Union[Unset, int]): Maximal number of items to send.
         offset (Union[Unset, int]): Offset from the beginning of the query.
         total (Union[Unset, int]): Total number of items.
     """
 
-    items: Union[Unset, list["ProfileVersionResponse"]] = UNSET
+    items: Union[Unset, list["ConfigurationResponse"]] = UNSET
     limit: Union[Unset, int] = UNSET
     offset: Union[Unset, int] = UNSET
     total: Union[Unset, int] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.profile_version_response import ProfileVersionResponse
+        from ..models.configuration_response import ConfigurationResponse
 
         items: Union[Unset, list[dict[str, Any]]] = UNSET
         if not isinstance(self.items, Unset):
@@ -61,13 +61,13 @@ class ListProfileVersionsResponse200:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.profile_version_response import ProfileVersionResponse
+        from ..models.configuration_response import ConfigurationResponse
 
         d = dict(src_dict)
         items = []
         _items = d.pop("items", UNSET)
         for items_item_data in _items or []:
-            items_item = ProfileVersionResponse.from_dict(items_item_data)
+            items_item = ConfigurationResponse.from_dict(items_item_data)
 
             items.append(items_item)
 
@@ -77,15 +77,15 @@ class ListProfileVersionsResponse200:
 
         total = d.pop("total", UNSET)
 
-        list_profile_versions_response_200 = cls(
+        list_configurations_response_200 = cls(
             items=items,
             limit=limit,
             offset=offset,
             total=total,
         )
 
-        list_profile_versions_response_200.additional_properties = d
-        return list_profile_versions_response_200
+        list_configurations_response_200.additional_properties = d
+        return list_configurations_response_200
 
     @property
     def additional_keys(self) -> list[str]:

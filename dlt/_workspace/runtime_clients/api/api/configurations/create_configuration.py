@@ -6,36 +6,32 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.configuration_response import ConfigurationResponse
+from ...models.create_configuration_body import CreateConfigurationBody
 from ...models.error_response_400 import ErrorResponse400
 from ...models.error_response_401 import ErrorResponse401
 from ...models.error_response_403 import ErrorResponse403
 from ...models.error_response_404 import ErrorResponse404
-from ...models.list_profiles_response_200 import ListProfilesResponse200
-from ...types import UNSET, Response, Unset
+from ...types import UNSET, Response
 
 
 def _get_kwargs(
     workspace_id: UUID,
     *,
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    body: CreateConfigurationBody,
 ) -> dict[str, Any]:
-    params: dict[str, Any] = {}
-
-    params["limit"] = limit
-
-    params["offset"] = offset
-
-    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "get",
-        "url": "/v1/workspaces/{workspace_id}/profiles".format(
+        "method": "post",
+        "url": "/v1/workspaces/{workspace_id}/configurations".format(
             workspace_id=workspace_id,
         ),
-        "params": params,
     }
 
+    _kwargs["files"] = body.to_multipart()
+
+    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -43,17 +39,17 @@ def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Optional[
     Union[
+        ConfigurationResponse,
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ListProfilesResponse200,
     ]
 ]:
-    if response.status_code == 200:
-        response_200 = ListProfilesResponse200.from_dict(response.json())
+    if response.status_code == 201:
+        response_201 = ConfigurationResponse.from_dict(response.json())
 
-        return response_200
+        return response_201
 
     if response.status_code == 400:
         response_400 = ErrorResponse400.from_dict(response.json())
@@ -85,11 +81,11 @@ def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
     Union[
+        ConfigurationResponse,
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ListProfilesResponse200,
     ]
 ]:
     return Response(
@@ -104,41 +100,40 @@ def sync_detailed(
     workspace_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    body: CreateConfigurationBody,
 ) -> Response[
     Union[
+        ConfigurationResponse,
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ListProfilesResponse200,
     ]
 ]:
-    """ListProfiles
+    """CreateConfiguration
 
 
-    Gets all profiles for a workspace. Returns a paginated list of profiles ordered by name ascending.
+    Creates a new configuration for a workspace. This configuration will become the new active
+    configuration.
+    Requires upload of a tarball of files. Max tarball size is 1MB.
 
-    Requires READ permission on the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        body (CreateConfigurationBody):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListProfilesResponse200]]
+        Response[Union[ConfigurationResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
         workspace_id=workspace_id,
-        limit=limit,
-        offset=offset,
+        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -152,42 +147,41 @@ def sync(
     workspace_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    body: CreateConfigurationBody,
 ) -> Optional[
     Union[
+        ConfigurationResponse,
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ListProfilesResponse200,
     ]
 ]:
-    """ListProfiles
+    """CreateConfiguration
 
 
-    Gets all profiles for a workspace. Returns a paginated list of profiles ordered by name ascending.
+    Creates a new configuration for a workspace. This configuration will become the new active
+    configuration.
+    Requires upload of a tarball of files. Max tarball size is 1MB.
 
-    Requires READ permission on the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        body (CreateConfigurationBody):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListProfilesResponse200]
+        Union[ConfigurationResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return sync_detailed(
         workspace_id=workspace_id,
         client=client,
-        limit=limit,
-        offset=offset,
+        body=body,
     ).parsed
 
 
@@ -195,41 +189,40 @@ async def asyncio_detailed(
     workspace_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    body: CreateConfigurationBody,
 ) -> Response[
     Union[
+        ConfigurationResponse,
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ListProfilesResponse200,
     ]
 ]:
-    """ListProfiles
+    """CreateConfiguration
 
 
-    Gets all profiles for a workspace. Returns a paginated list of profiles ordered by name ascending.
+    Creates a new configuration for a workspace. This configuration will become the new active
+    configuration.
+    Requires upload of a tarball of files. Max tarball size is 1MB.
 
-    Requires READ permission on the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        body (CreateConfigurationBody):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListProfilesResponse200]]
+        Response[Union[ConfigurationResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
         workspace_id=workspace_id,
-        limit=limit,
-        offset=offset,
+        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -241,42 +234,41 @@ async def asyncio(
     workspace_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 100,
-    offset: Union[Unset, int] = 0,
+    body: CreateConfigurationBody,
 ) -> Optional[
     Union[
+        ConfigurationResponse,
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ListProfilesResponse200,
     ]
 ]:
-    """ListProfiles
+    """CreateConfiguration
 
 
-    Gets all profiles for a workspace. Returns a paginated list of profiles ordered by name ascending.
+    Creates a new configuration for a workspace. This configuration will become the new active
+    configuration.
+    Requires upload of a tarball of files. Max tarball size is 1MB.
 
-    Requires READ permission on the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        limit (Union[Unset, int]):  Default: 100.
-        offset (Union[Unset, int]):  Default: 0.
+        body (CreateConfigurationBody):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListProfilesResponse200]
+        Union[ConfigurationResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return (
         await asyncio_detailed(
             workspace_id=workspace_id,
             client=client,
-            limit=limit,
-            offset=offset,
+            body=body,
         )
     ).parsed

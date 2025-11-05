@@ -1,32 +1,65 @@
 components:
   schemas:
-    CreateProfileRequest:
+    ConfigurationResponse:
       properties:
-        config:
-          description: The config.toml of the profile
+        content_hash:
+          description: The hash of the file of the uploaded tarball
           type: string
-        description:
-          description: The description of the profile
-          oneOf:
-          - type: string
-          - type: 'null'
-        name:
-          description: The name of the profile
+        created_by:
+          description: The ID of the identity who created the entity
+          format: uuid
           type: string
-        secrets:
-          description: The secrets.toml of the profile
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        file_count:
+          description: The number of files in the uploaded tarball
+          type: integer
+        file_names:
+          description: The names of the files in the uploaded tarball
+          type: string
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        profiles:
+          description: The profiles found in the configuration files, comma separated
+          type: string
+        size:
+          description: The size of the uploaded tarball in bytes
+          type: integer
+        version:
+          description: The version of the deployment. Will increment for each new
+            version of the entity
+          type: integer
+        workspace_id:
+          description: The ID of the workspace the entity belongs to
+          format: uuid
           type: string
       required:
-      - config
-      - name
-      - secrets
-      title: CreateProfileRequest
+      - content_hash
+      - created_by
+      - date_added
+      - date_updated
+      - file_count
+      - file_names
+      - id
+      - profiles
+      - size
+      - version
+      - workspace_id
+      title: ConfigurationResponse
       type: object
     CreateRunRequest:
       properties:
-        profile_id_or_name:
-          description: The ID or name of the profile to use for the run, will default
-            to the default profile of the script
+        profile:
+          description: The name of the profile to use for the run, will default to
+            the default profile of the script
           oneOf:
           - type: string
           - type: 'null'
@@ -43,10 +76,6 @@ components:
           default: true
           description: Whether the script is active
           type: boolean
-        default_profile_id_or_name:
-          default: default
-          description: The ID or name of the profile to use for the script
-          type: string
         description:
           description: The description of the script
           type: string
@@ -57,6 +86,11 @@ components:
         name:
           description: The name of the script
           type: string
+        profile:
+          description: The name of the profile to use for the script
+          oneOf:
+          - type: string
+          - type: 'null'
         schedule:
           description: The schedule of the script. Use 'cron' format for cron jobs
           oneOf:
@@ -77,7 +111,7 @@ components:
           description: The hash of the file of the uploaded tarball
           type: string
         created_by:
-          description: The ID of the identity who created the deployment
+          description: The ID of the identity who created the entity
           format: uuid
           type: string
         date_added:
@@ -103,10 +137,10 @@ components:
           type: integer
         version:
           description: The version of the deployment. Will increment for each new
-            version of the deployment
+            version of the entity
           type: integer
         workspace_id:
-          description: The ID of the workspace the deployment belongs to
+          description: The ID of the workspace the entity belongs to
           format: uuid
           type: string
       required:
@@ -124,6 +158,11 @@ components:
       type: object
     DetailedRunResponse:
       properties:
+        configuration_id:
+          description: The ID of the configuration that will be used when running
+            the script
+          format: uuid
+          type: string
         date_added:
           description: The date the entity was added
           format: date-time
@@ -156,12 +195,10 @@ components:
             script
           type: integer
         profile:
-          $ref: '#/components/schemas/ProfileResponse'
-        profile_version_id:
-          description: The ID of the profile version that will be used when running
-            the script
-          format: uuid
-          type: string
+          description: The name of the profile that was used for the run
+          oneOf:
+          - type: string
+          - type: 'null'
         script:
           $ref: '#/components/schemas/ScriptResponse'
         script_version_id:
@@ -196,13 +233,12 @@ components:
           format: uuid
           type: string
       required:
+      - configuration_id
       - date_added
       - date_updated
       - deployment_id
       - id
       - number
-      - profile
-      - profile_version_id
       - script
       - script_version_id
       - status
@@ -289,12 +325,10 @@ components:
           oneOf:
           - type: string
           - type: 'null'
-        run_id:
-          description: The ID of the run the logs belong to
-          format: uuid
-          type: string
+        run:
+          $ref: '#/components/schemas/DetailedRunResponse'
       required:
-      - run_id
+      - run
       title: LogsResponse
       type: object
     MeResponse:
@@ -364,118 +398,13 @@ components:
       - service
       title: PingResponse
       type: object
-    ProfileResponse:
-      properties:
-        active:
-          description: Whether the profile is active and may be used to run scripts
-          type: boolean
-        config:
-          description: The config.toml of the profile
-          type: string
-        created_by:
-          description: The ID of the identity who created the profile
-          format: uuid
-          type: string
-        date_added:
-          description: The date the entity was added
-          format: date-time
-          type: string
-        date_updated:
-          description: The date the entity was updated
-          format: date-time
-          type: string
-        description:
-          description: The description of the profile
-          oneOf:
-          - type: string
-          - type: 'null'
-        id:
-          description: The uniqueID of the entity
-          format: uuid
-          type: string
-        name:
-          description: The name of the profile
-          type: string
-        secrets:
-          description: The secrets.toml of the profile
-          type: string
-        version:
-          description: The current version of the profile
-          type: integer
-        workspace_id:
-          description: The ID of the workspace the profile belongs to
-          format: uuid
-          type: string
-      required:
-      - active
-      - config
-      - created_by
-      - date_added
-      - date_updated
-      - id
-      - name
-      - secrets
-      - version
-      - workspace_id
-      title: ProfileResponse
-      type: object
-    ProfileVersionResponse:
-      properties:
-        active:
-          description: Whether the profile is active and may be used to run scripts
-          type: boolean
-        config:
-          description: The config.toml of the profile
-          type: string
-        created_by:
-          description: The ID of the identity who created the profile
-          format: uuid
-          type: string
-        date_added:
-          description: The date the entity was added
-          format: date-time
-          type: string
-        date_updated:
-          description: The date the entity was updated
-          format: date-time
-          type: string
-        description:
-          description: The description of the profile
-          oneOf:
-          - type: string
-          - type: 'null'
-        id:
-          description: The uniqueID of the entity
-          format: uuid
-          type: string
-        name:
-          description: The name of the profile
-          type: string
-        profile_id:
-          description: The ID of the profile this version belongs to
-          format: uuid
-          type: string
-        secrets:
-          description: The secrets.toml of the profile
-          type: string
-        version:
-          description: The current version of the profile
-          type: integer
-      required:
-      - active
-      - config
-      - created_by
-      - date_added
-      - date_updated
-      - id
-      - name
-      - profile_id
-      - secrets
-      - version
-      title: ProfileVersionResponse
-      type: object
     RunResponse:
       properties:
+        configuration_id:
+          description: The ID of the configuration that will be used when running
+            the script
+          format: uuid
+          type: string
         date_added:
           description: The date the entity was added
           format: date-time
@@ -507,11 +436,11 @@ components:
           description: The number of the run. Will increment for each new run of the
             script
           type: integer
-        profile_version_id:
-          description: The ID of the profile version that will be used when running
-            the script
-          format: uuid
-          type: string
+        profile:
+          description: The name of the profile that was used for the run
+          oneOf:
+          - type: string
+          - type: 'null'
         script_version_id:
           description: The ID of the script version that will be used when running
             the script
@@ -544,12 +473,12 @@ components:
           format: uuid
           type: string
       required:
+      - configuration_id
       - date_added
       - date_updated
       - deployment_id
       - id
       - number
-      - profile_version_id
       - script_version_id
       - status
       - trigger
@@ -589,10 +518,6 @@ components:
           description: The date the entity was updated
           format: date-time
           type: string
-        default_profile_id:
-          description: The ID of the profile to use for the script
-          format: uuid
-          type: string
         description:
           description: The description of the script
           type: string
@@ -607,6 +532,11 @@ components:
         name:
           description: The name of the script
           type: string
+        profile:
+          description: The name of the profile to use for the script
+          oneOf:
+          - type: string
+          - type: 'null'
         schedule:
           description: The schedule of the script. Use 'cron' format for cron jobs
           oneOf:
@@ -626,7 +556,6 @@ components:
       - created_by
       - date_added
       - date_updated
-      - default_profile_id
       - description
       - entry_point
       - id
@@ -659,10 +588,6 @@ components:
           description: The date the entity was updated
           format: date-time
           type: string
-        default_profile_id:
-          description: The ID of the profile to use for the script
-          format: uuid
-          type: string
         description:
           description: The description of the script
           type: string
@@ -677,6 +602,11 @@ components:
         name:
           description: The name of the script
           type: string
+        profile:
+          description: The name of the profile to use for the script
+          oneOf:
+          - type: string
+          - type: 'null'
         schedule:
           description: The schedule of the script. Use 'cron' format for cron jobs
           oneOf:
@@ -696,7 +626,6 @@ components:
       - created_by
       - date_added
       - date_updated
-      - default_profile_id
       - description
       - entry_point
       - id
@@ -920,6 +849,262 @@ paths:
       summary: GetWorkspace
       tags:
       - workspaces
+  /v1/workspaces/{workspace_id}/configurations:
+    get:
+      deprecated: false
+      description: '
+
+        Gets all history of configurations for a workspace. Returns a paginated list
+        of configurations ordered by version number descending.
+
+
+        Requires READ permission on the organization level.
+
+        '
+      operationId: list_configurations
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    items:
+                      $ref: '#/components/schemas/ConfigurationResponse'
+                    type: array
+                  limit:
+                    description: Maximal number of items to send.
+                    type: integer
+                  offset:
+                    description: Offset from the beginning of the query.
+                    type: integer
+                  total:
+                    description: Total number of items.
+                    type: integer
+                type: object
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse400'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+          description: Nothing matches the given URI
+      summary: ListConfigurations
+      tags:
+      - configurations
+    post:
+      deprecated: false
+      description: "\nCreates a new configuration for a workspace. This configuration\
+        \ will become the new active configuration. \nRequires upload of a tarball\
+        \ of files. Max tarball size is 1MB.\n\nRequires WRITE permission on the organization\
+        \ level.\n"
+      operationId: create_configuration
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  contentMediaType: application/octet-stream
+                  format: binary
+                  type: string
+              type: object
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse400'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+          description: Nothing matches the given URI
+      summary: CreateConfiguration
+      tags:
+      - configurations
+  /v1/workspaces/{workspace_id}/configurations/latest:
+    get:
+      deprecated: false
+      description: "\nGets the latest and therefore active configuration for a workspace.\
+        \ \n\nRequires READ permission. On the organization level.\n"
+      operationId: get_latest_configuration
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse400'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+          description: Nothing matches the given URI
+      summary: GetLatestConfiguration
+      tags:
+      - configurations
+  /v1/workspaces/{workspace_id}/configurations/{configuration_id_or_version}:
+    get:
+      deprecated: false
+      description: "\nGets a configuration for a workspace, either by ID or by version\
+        \ number. \n\nRequires READ permission. On the organization level.\n"
+      operationId: get_configuration
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: configuration_id_or_version
+        required: true
+        schema:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationResponse'
+          description: Request fulfilled, document follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse400'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+          description: Nothing matches the given URI
+      summary: GetConfiguration
+      tags:
+      - configurations
   /v1/workspaces/{workspace_id}/deployments:
     get:
       deprecated: false
@@ -1176,448 +1361,6 @@ paths:
       summary: GetDeployment
       tags:
       - deployments
-  /v1/workspaces/{workspace_id}/profiles:
-    get:
-      deprecated: false
-      description: '
-
-        Gets all profiles for a workspace. Returns a paginated list of profiles ordered
-        by name ascending.
-
-
-        Requires READ permission on the organization level.
-
-        '
-      operationId: list_profiles
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      - allowEmptyValue: false
-        allowReserved: false
-        deprecated: false
-        in: query
-        name: limit
-        required: false
-        schema:
-          default: 100
-          type: integer
-      - allowEmptyValue: false
-        allowReserved: false
-        deprecated: false
-        in: query
-        name: offset
-        required: false
-        schema:
-          default: 0
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  items:
-                    items:
-                      $ref: '#/components/schemas/ProfileResponse'
-                    type: array
-                  limit:
-                    description: Maximal number of items to send.
-                    type: integer
-                  offset:
-                    description: Offset from the beginning of the query.
-                    type: integer
-                  total:
-                    description: Total number of items.
-                    type: integer
-                type: object
-          description: Request fulfilled, document follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse400'
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-          description: Nothing matches the given URI
-      summary: ListProfiles
-      tags:
-      - profiles
-    post:
-      deprecated: false
-      description: '
-
-        Creates a new profile for a workspace, if provided profile name exists, updates
-        existing profile with name. A profile name in a workspace must be unique.
-        A profile also saves a verions history with
-
-        ascending version number. The highest version is equal tot he active profile
-        version. When running a script, the profile can be specified to use a specific
-        profile version.
-
-
-        Requires WRITE permission on the organization level.
-
-        '
-      operationId: create_or_update_profile
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateProfileRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfileResponse'
-          description: Document created, URL follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse400'
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-          description: Nothing matches the given URI
-      summary: CreateOrUpdateProfile
-      tags:
-      - profiles
-  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}:
-    get:
-      deprecated: false
-      description: '
-
-        Gets a profile for a workspace, either by ID or by profile name.
-
-
-        Requires READ permission. On the organization level.
-
-        '
-      operationId: get_profile
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      - deprecated: false
-        in: path
-        name: profile_id_or_name
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfileResponse'
-          description: Request fulfilled, document follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse400'
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-          description: Nothing matches the given URI
-      summary: GetProfile
-      tags:
-      - profiles
-  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/versions:
-    get:
-      deprecated: false
-      description: '
-
-        Gets the profile_version history for a profile. Returns a paginated list of
-        profile_versions ordered by version descending, latest first.
-
-
-        Requires READ permission on the organization level.
-
-        '
-      operationId: list_profile_versions
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      - deprecated: false
-        in: path
-        name: profile_id_or_name
-        required: true
-        schema:
-          type: string
-      - allowEmptyValue: false
-        allowReserved: false
-        deprecated: false
-        in: query
-        name: limit
-        required: false
-        schema:
-          default: 100
-          type: integer
-      - allowEmptyValue: false
-        allowReserved: false
-        deprecated: false
-        in: query
-        name: offset
-        required: false
-        schema:
-          default: 0
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  items:
-                    items:
-                      $ref: '#/components/schemas/ProfileVersionResponse'
-                    type: array
-                  limit:
-                    description: Maximal number of items to send.
-                    type: integer
-                  offset:
-                    description: Offset from the beginning of the query.
-                    type: integer
-                  total:
-                    description: Total number of items.
-                    type: integer
-                type: object
-          description: Request fulfilled, document follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse400'
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-          description: Nothing matches the given URI
-      summary: ListProfileVersions
-      tags:
-      - profiles
-  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/versions/latest:
-    get:
-      deprecated: false
-      description: '
-
-        Gets the latest and therefore active profile_version for a profile. If non
-        exists, a default profile_version is created and returned.
-
-
-        Requires READ permission. On the organization level.
-
-        '
-      operationId: get_latest_profile_version
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      - deprecated: false
-        in: path
-        name: profile_id_or_name
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfileVersionResponse'
-          description: Request fulfilled, document follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse400'
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-          description: Nothing matches the given URI
-      summary: GetLatestProfileVersion
-      tags:
-      - profiles
-  /v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/versions/{profile_version_id_or_version}:
-    get:
-      deprecated: false
-      description: '
-
-        Gets a historic profile_version for a profile, either by ID or by version
-        number.
-
-
-        Requires READ permission on the organization level.
-
-        '
-      operationId: get_profile_version
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      - deprecated: false
-        in: path
-        name: profile_version_id_or_version
-        required: true
-        schema:
-          oneOf:
-          - format: uuid
-            type: string
-          - type: integer
-      - deprecated: false
-        in: path
-        name: profile_id_or_name
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfileVersionResponse'
-          description: Request fulfilled, document follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse400'
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-          description: Nothing matches the given URI
-      summary: GetProfileVersion
-      tags:
-      - profiles
   /v1/workspaces/{workspace_id}/runs:
     get:
       deprecated: false
@@ -1727,6 +1470,71 @@ paths:
       summary: ListRuns
       tags:
       - runs
+    post:
+      deprecated: false
+      description: '
+
+        Triggers a new run for a script in a workspace. The latest script version
+        will be used. The profile associated with the script version will be used,
+        of which
+
+        the latest profile_version will be used. You may specify a specific profile
+        to use.
+
+
+        Requires WRITE permission on the organization level.
+
+        '
+      operationId: create_run
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse400'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+          description: Nothing matches the given URI
+      summary: CreateRun
+      tags:
+      - runs
   /v1/workspaces/{workspace_id}/runs/latest:
     get:
       deprecated: false
@@ -1791,72 +1599,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetLatestRun
-      tags:
-      - runs
-  /v1/workspaces/{workspace_id}/runs/runs:
-    post:
-      deprecated: false
-      description: '
-
-        Triggers a new run for a script in a workspace. The latest script version
-        will be used. The profile associated with the script version will be used,
-        of which
-
-        the latest profile_version will be used. You may specify a specific profile
-        to use.
-
-
-        Requires WRITE permission on the organization level.
-
-        '
-      operationId: create_run
-      parameters:
-      - deprecated: false
-        in: path
-        name: workspace_id
-        required: true
-        schema:
-          format: uuid
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateRunRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunResponse'
-          description: Document created, URL follows
-          headers: {}
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse400'
-          description: Bad request syntax or unsupported method
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-          description: No permission -- see authorization schemes
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-          description: Request forbidden -- authorization will not help
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-          description: Nothing matches the given URI
-      summary: CreateRun
       tags:
       - runs
   /v1/workspaces/{workspace_id}/runs/{run_id}:
@@ -1930,6 +1672,68 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse404'
           description: Nothing matches the given URI
       summary: GetRun
+      tags:
+      - runs
+  /v1/workspaces/{workspace_id}/runs/{run_id}/cancel:
+    post:
+      deprecated: false
+      description: '
+
+        Cancels a run for a workspace by ID.
+
+
+        Requires WRITE permission on the organization level.
+
+        '
+      operationId: cancel_run
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedRunResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse400'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+          description: No permission -- see authorization schemes
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+          description: Request forbidden -- authorization will not help
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+          description: Nothing matches the given URI
+      summary: CancelRun
       tags:
       - runs
   /v1/workspaces/{workspace_id}/runs/{run_id}/logs:

@@ -181,13 +181,12 @@ create-test-pipelines:
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
 
 ## Generates python clients for runtime api and auth services
-# Before running, adjust the URL or run `make up` in runtime first
 # Uses pinned version of openapi-python-client to support python3.9's Optional syntax, pinned version to be removed when support for python3.9 is dropped
-generate-python-clients:
-	curl http://localhost:30000/schema/openapi.yaml -o tools/runtime_clients/api.openapi.yaml
+generate-runtime-api-clients:
+	curl https://dlthub.dev/api/schema/openapi.yaml -o tools/runtime_clients/api.openapi.yaml
 	python tools/clean_openapi_spec.py tools/runtime_clients/api.openapi.yaml
 	uvx openapi-python-client@0.26.2 generate  --meta none --path tools/runtime_clients/api.openapi.yaml --output-path dlt/_workspace/runtime_clients/api --overwrite
 
-	curl http://localhost:30001/schema/openapi.yaml -o tools/runtime_clients/auth.openapi.yaml
+	curl https://dlthub.dev/auth/schema/openapi.yaml -o tools/runtime_clients/auth.openapi.yaml
 	python tools/clean_openapi_spec.py tools/runtime_clients/auth.openapi.yaml
 	uvx openapi-python-client@0.26.2 generate  --meta none --path tools/runtime_clients/auth.openapi.yaml --output-path dlt/_workspace/runtime_clients/auth --overwrite

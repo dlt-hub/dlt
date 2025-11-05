@@ -12,7 +12,6 @@ from ..models.run_trigger_type import RunTriggerType
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.profile_response import ProfileResponse
     from ..models.script_response import ScriptResponse
 
 
@@ -23,13 +22,12 @@ T = TypeVar("T", bound="DetailedRunResponse")
 class DetailedRunResponse:
     """
     Attributes:
+        configuration_id (UUID): The ID of the configuration that will be used when running the script
         date_added (datetime.datetime): The date the entity was added
         date_updated (datetime.datetime): The date the entity was updated
         deployment_id (UUID): The ID of the deployment that will be used when running the script
         id (UUID): The uniqueID of the entity
         number (int): The number of the run. Will increment for each new run of the script
-        profile (ProfileResponse):
-        profile_version_id (UUID): The ID of the profile version that will be used when running the script
         script (ScriptResponse):
         script_version_id (UUID): The ID of the script version that will be used when running the script
         status (RunStatus):
@@ -37,18 +35,18 @@ class DetailedRunResponse:
         workspace_id (UUID): The ID of the workspace the run belongs to
         duration (Union[None, Unset, int]): The time the run took in seconds
         logs (Union[None, Unset, str]): A link to the logs of the run
+        profile (Union[None, Unset, str]): The name of the profile that was used for the run
         time_ended (Union[None, Unset, datetime.datetime]): The time the run ended
         time_started (Union[None, Unset, datetime.datetime]): The time the run started
         triggered_by (Union[None, UUID, Unset]): The ID of the identity who triggered the run if triggered manually
     """
 
+    configuration_id: UUID
     date_added: datetime.datetime
     date_updated: datetime.datetime
     deployment_id: UUID
     id: UUID
     number: int
-    profile: "ProfileResponse"
-    profile_version_id: UUID
     script: "ScriptResponse"
     script_version_id: UUID
     status: RunStatus
@@ -56,14 +54,16 @@ class DetailedRunResponse:
     workspace_id: UUID
     duration: Union[None, Unset, int] = UNSET
     logs: Union[None, Unset, str] = UNSET
+    profile: Union[None, Unset, str] = UNSET
     time_ended: Union[None, Unset, datetime.datetime] = UNSET
     time_started: Union[None, Unset, datetime.datetime] = UNSET
     triggered_by: Union[None, UUID, Unset] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.profile_response import ProfileResponse
         from ..models.script_response import ScriptResponse
+
+        configuration_id = str(self.configuration_id)
 
         date_added = self.date_added.isoformat()
 
@@ -74,10 +74,6 @@ class DetailedRunResponse:
         id = str(self.id)
 
         number = self.number
-
-        profile = self.profile.to_dict()
-
-        profile_version_id = str(self.profile_version_id)
 
         script = self.script.to_dict()
 
@@ -100,6 +96,12 @@ class DetailedRunResponse:
             logs = UNSET
         else:
             logs = self.logs
+
+        profile: Union[None, Unset, str]
+        if isinstance(self.profile, Unset):
+            profile = UNSET
+        else:
+            profile = self.profile
 
         time_ended: Union[None, Unset, str]
         if isinstance(self.time_ended, Unset):
@@ -129,13 +131,12 @@ class DetailedRunResponse:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "configuration_id": configuration_id,
                 "date_added": date_added,
                 "date_updated": date_updated,
                 "deployment_id": deployment_id,
                 "id": id,
                 "number": number,
-                "profile": profile,
-                "profile_version_id": profile_version_id,
                 "script": script,
                 "script_version_id": script_version_id,
                 "status": status,
@@ -147,6 +148,8 @@ class DetailedRunResponse:
             field_dict["duration"] = duration
         if logs is not UNSET:
             field_dict["logs"] = logs
+        if profile is not UNSET:
+            field_dict["profile"] = profile
         if time_ended is not UNSET:
             field_dict["time_ended"] = time_ended
         if time_started is not UNSET:
@@ -158,10 +161,11 @@ class DetailedRunResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.profile_response import ProfileResponse
         from ..models.script_response import ScriptResponse
 
         d = dict(src_dict)
+        configuration_id = UUID(d.pop("configuration_id"))
+
         date_added = isoparse(d.pop("date_added"))
 
         date_updated = isoparse(d.pop("date_updated"))
@@ -171,10 +175,6 @@ class DetailedRunResponse:
         id = UUID(d.pop("id"))
 
         number = d.pop("number")
-
-        profile = ProfileResponse.from_dict(d.pop("profile"))
-
-        profile_version_id = UUID(d.pop("profile_version_id"))
 
         script = ScriptResponse.from_dict(d.pop("script"))
 
@@ -203,6 +203,15 @@ class DetailedRunResponse:
             return cast(Union[None, Unset, str], data)
 
         logs = _parse_logs(d.pop("logs", UNSET))
+
+        def _parse_profile(data: object) -> Union[None, Unset, str]:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(Union[None, Unset, str], data)
+
+        profile = _parse_profile(d.pop("profile", UNSET))
 
         def _parse_time_ended(data: object) -> Union[None, Unset, datetime.datetime]:
             if data is None:
@@ -256,13 +265,12 @@ class DetailedRunResponse:
         triggered_by = _parse_triggered_by(d.pop("triggered_by", UNSET))
 
         detailed_run_response = cls(
+            configuration_id=configuration_id,
             date_added=date_added,
             date_updated=date_updated,
             deployment_id=deployment_id,
             id=id,
             number=number,
-            profile=profile,
-            profile_version_id=profile_version_id,
             script=script,
             script_version_id=script_version_id,
             status=status,
@@ -270,6 +278,7 @@ class DetailedRunResponse:
             workspace_id=workspace_id,
             duration=duration,
             logs=logs,
+            profile=profile,
             time_ended=time_ended,
             time_started=time_started,
             triggered_by=triggered_by,

@@ -1,6 +1,6 @@
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, TextIO, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -9,43 +9,41 @@ from dateutil.parser import isoparse
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="ProfileResponse")
+T = TypeVar("T", bound="ConfigurationResponse")
 
 
 @_attrs_define
-class ProfileResponse:
+class ConfigurationResponse:
     """
     Attributes:
-        active (bool): Whether the profile is active and may be used to run scripts
-        config (str): The config.toml of the profile
-        created_by (UUID): The ID of the identity who created the profile
+        content_hash (str): The hash of the file of the uploaded tarball
+        created_by (UUID): The ID of the identity who created the entity
         date_added (datetime.datetime): The date the entity was added
         date_updated (datetime.datetime): The date the entity was updated
+        file_count (int): The number of files in the uploaded tarball
+        file_names (str): The names of the files in the uploaded tarball
         id (UUID): The uniqueID of the entity
-        name (str): The name of the profile
-        secrets (str): The secrets.toml of the profile
-        version (int): The current version of the profile
-        workspace_id (UUID): The ID of the workspace the profile belongs to
-        description (Union[None, Unset, str]): The description of the profile
+        profiles (str): The profiles found in the configuration files, comma separated
+        size (int): The size of the uploaded tarball in bytes
+        version (int): The version of the deployment. Will increment for each new version of the entity
+        workspace_id (UUID): The ID of the workspace the entity belongs to
     """
 
-    active: bool
-    config: str
+    content_hash: str
     created_by: UUID
     date_added: datetime.datetime
     date_updated: datetime.datetime
+    file_count: int
+    file_names: str
     id: UUID
-    name: str
-    secrets: str
+    profiles: str
+    size: int
     version: int
     workspace_id: UUID
-    description: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        active = self.active
-
-        config = self.config
+        content_hash = self.content_hash
 
         created_by = str(self.created_by)
 
@@ -53,49 +51,44 @@ class ProfileResponse:
 
         date_updated = self.date_updated.isoformat()
 
+        file_count = self.file_count
+
+        file_names = self.file_names
+
         id = str(self.id)
 
-        name = self.name
+        profiles = self.profiles
 
-        secrets = self.secrets
+        size = self.size
 
         version = self.version
 
         workspace_id = str(self.workspace_id)
 
-        description: Union[None, Unset, str]
-        if isinstance(self.description, Unset):
-            description = UNSET
-        else:
-            description = self.description
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "active": active,
-                "config": config,
+                "content_hash": content_hash,
                 "created_by": created_by,
                 "date_added": date_added,
                 "date_updated": date_updated,
+                "file_count": file_count,
+                "file_names": file_names,
                 "id": id,
-                "name": name,
-                "secrets": secrets,
+                "profiles": profiles,
+                "size": size,
                 "version": version,
                 "workspace_id": workspace_id,
             }
         )
-        if description is not UNSET:
-            field_dict["description"] = description
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        active = d.pop("active")
-
-        config = d.pop("config")
+        content_hash = d.pop("content_hash")
 
         created_by = UUID(d.pop("created_by"))
 
@@ -103,41 +96,36 @@ class ProfileResponse:
 
         date_updated = isoparse(d.pop("date_updated"))
 
+        file_count = d.pop("file_count")
+
+        file_names = d.pop("file_names")
+
         id = UUID(d.pop("id"))
 
-        name = d.pop("name")
+        profiles = d.pop("profiles")
 
-        secrets = d.pop("secrets")
+        size = d.pop("size")
 
         version = d.pop("version")
 
         workspace_id = UUID(d.pop("workspace_id"))
 
-        def _parse_description(data: object) -> Union[None, Unset, str]:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(Union[None, Unset, str], data)
-
-        description = _parse_description(d.pop("description", UNSET))
-
-        profile_response = cls(
-            active=active,
-            config=config,
+        configuration_response = cls(
+            content_hash=content_hash,
             created_by=created_by,
             date_added=date_added,
             date_updated=date_updated,
+            file_count=file_count,
+            file_names=file_names,
             id=id,
-            name=name,
-            secrets=secrets,
+            profiles=profiles,
+            size=size,
             version=version,
             workspace_id=workspace_id,
-            description=description,
         )
 
-        profile_response.additional_properties = d
-        return profile_response
+        configuration_response.additional_properties = d
+        return configuration_response
 
     @property
     def additional_keys(self) -> list[str]:

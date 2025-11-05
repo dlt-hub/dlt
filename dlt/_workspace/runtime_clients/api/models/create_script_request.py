@@ -20,8 +20,7 @@ class CreateScriptRequest:
         name (str): The name of the script
         script_type (ScriptType):
         active (Union[Unset, bool]): Whether the script is active Default: True.
-        default_profile_id_or_name (Union[Unset, str]): The ID or name of the profile to use for the script Default:
-            'default'.
+        profile (Union[None, Unset, str]): The name of the profile to use for the script
         schedule (Union[None, Unset, str]): The schedule of the script. Use 'cron' format for cron jobs
     """
 
@@ -30,7 +29,7 @@ class CreateScriptRequest:
     name: str
     script_type: ScriptType
     active: Union[Unset, bool] = True
-    default_profile_id_or_name: Union[Unset, str] = "default"
+    profile: Union[None, Unset, str] = UNSET
     schedule: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -45,7 +44,11 @@ class CreateScriptRequest:
 
         active = self.active
 
-        default_profile_id_or_name = self.default_profile_id_or_name
+        profile: Union[None, Unset, str]
+        if isinstance(self.profile, Unset):
+            profile = UNSET
+        else:
+            profile = self.profile
 
         schedule: Union[None, Unset, str]
         if isinstance(self.schedule, Unset):
@@ -65,8 +68,8 @@ class CreateScriptRequest:
         )
         if active is not UNSET:
             field_dict["active"] = active
-        if default_profile_id_or_name is not UNSET:
-            field_dict["default_profile_id_or_name"] = default_profile_id_or_name
+        if profile is not UNSET:
+            field_dict["profile"] = profile
         if schedule is not UNSET:
             field_dict["schedule"] = schedule
 
@@ -85,7 +88,14 @@ class CreateScriptRequest:
 
         active = d.pop("active", UNSET)
 
-        default_profile_id_or_name = d.pop("default_profile_id_or_name", UNSET)
+        def _parse_profile(data: object) -> Union[None, Unset, str]:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(Union[None, Unset, str], data)
+
+        profile = _parse_profile(d.pop("profile", UNSET))
 
         def _parse_schedule(data: object) -> Union[None, Unset, str]:
             if data is None:
@@ -102,7 +112,7 @@ class CreateScriptRequest:
             name=name,
             script_type=script_type,
             active=active,
-            default_profile_id_or_name=default_profile_id_or_name,
+            profile=profile,
             schedule=schedule,
         )
 

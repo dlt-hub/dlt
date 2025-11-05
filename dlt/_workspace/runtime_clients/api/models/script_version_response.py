@@ -21,7 +21,6 @@ class ScriptVersionResponse:
         created_by (UUID): The ID of the identity who created the profile
         date_added (datetime.datetime): The date the entity was added
         date_updated (datetime.datetime): The date the entity was updated
-        default_profile_id (UUID): The ID of the profile to use for the script
         description (str): The description of the script
         entry_point (str): The entry point of the script. Will usually be the path to a python file in the uploaded
             tarball
@@ -30,6 +29,7 @@ class ScriptVersionResponse:
         script_id (UUID): The ID of the script the script version belongs to
         script_type (ScriptType):
         version (int): The current version of the profile
+        profile (Union[None, Unset, str]): The name of the profile to use for the script
         schedule (Union[None, Unset, str]): The schedule of the script. Use 'cron' format for cron jobs
     """
 
@@ -37,7 +37,6 @@ class ScriptVersionResponse:
     created_by: UUID
     date_added: datetime.datetime
     date_updated: datetime.datetime
-    default_profile_id: UUID
     description: str
     entry_point: str
     id: UUID
@@ -45,6 +44,7 @@ class ScriptVersionResponse:
     script_id: UUID
     script_type: ScriptType
     version: int
+    profile: Union[None, Unset, str] = UNSET
     schedule: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -56,8 +56,6 @@ class ScriptVersionResponse:
         date_added = self.date_added.isoformat()
 
         date_updated = self.date_updated.isoformat()
-
-        default_profile_id = str(self.default_profile_id)
 
         description = self.description
 
@@ -73,6 +71,12 @@ class ScriptVersionResponse:
 
         version = self.version
 
+        profile: Union[None, Unset, str]
+        if isinstance(self.profile, Unset):
+            profile = UNSET
+        else:
+            profile = self.profile
+
         schedule: Union[None, Unset, str]
         if isinstance(self.schedule, Unset):
             schedule = UNSET
@@ -87,7 +91,6 @@ class ScriptVersionResponse:
                 "created_by": created_by,
                 "date_added": date_added,
                 "date_updated": date_updated,
-                "default_profile_id": default_profile_id,
                 "description": description,
                 "entry_point": entry_point,
                 "id": id,
@@ -97,6 +100,8 @@ class ScriptVersionResponse:
                 "version": version,
             }
         )
+        if profile is not UNSET:
+            field_dict["profile"] = profile
         if schedule is not UNSET:
             field_dict["schedule"] = schedule
 
@@ -113,8 +118,6 @@ class ScriptVersionResponse:
 
         date_updated = isoparse(d.pop("date_updated"))
 
-        default_profile_id = UUID(d.pop("default_profile_id"))
-
         description = d.pop("description")
 
         entry_point = d.pop("entry_point")
@@ -128,6 +131,15 @@ class ScriptVersionResponse:
         script_type = ScriptType(d.pop("script_type"))
 
         version = d.pop("version")
+
+        def _parse_profile(data: object) -> Union[None, Unset, str]:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(Union[None, Unset, str], data)
+
+        profile = _parse_profile(d.pop("profile", UNSET))
 
         def _parse_schedule(data: object) -> Union[None, Unset, str]:
             if data is None:
@@ -143,7 +155,6 @@ class ScriptVersionResponse:
             created_by=created_by,
             date_added=date_added,
             date_updated=date_updated,
-            default_profile_id=default_profile_id,
             description=description,
             entry_point=entry_point,
             id=id,
@@ -151,6 +162,7 @@ class ScriptVersionResponse:
             script_id=script_id,
             script_type=script_type,
             version=version,
+            profile=profile,
             schedule=schedule,
         )
 

@@ -10,22 +10,30 @@ from ...models.error_response_400 import ErrorResponse400
 from ...models.error_response_401 import ErrorResponse401
 from ...models.error_response_403 import ErrorResponse403
 from ...models.error_response_404 import ErrorResponse404
-from ...models.profile_version_response import ProfileVersionResponse
-from ...types import UNSET, Response
+from ...models.list_configurations_response_200 import ListConfigurationsResponse200
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     workspace_id: UUID,
-    profile_id_or_name: str,
-    profile_version_id_or_version: Union[UUID, int],
+    *,
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+
+    params["limit"] = limit
+
+    params["offset"] = offset
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}/versions/{profile_version_id_or_version}".format(
+        "url": "/v1/workspaces/{workspace_id}/configurations".format(
             workspace_id=workspace_id,
-            profile_id_or_name=profile_id_or_name,
-            profile_version_id_or_version=profile_version_id_or_version,
         ),
+        "params": params,
     }
 
     return _kwargs
@@ -39,11 +47,11 @@ def _parse_response(
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ProfileVersionResponse,
+        ListConfigurationsResponse200,
     ]
 ]:
     if response.status_code == 200:
-        response_200 = ProfileVersionResponse.from_dict(response.json())
+        response_200 = ListConfigurationsResponse200.from_dict(response.json())
 
         return response_200
 
@@ -81,7 +89,7 @@ def _build_response(
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ProfileVersionResponse,
+        ListConfigurationsResponse200,
     ]
 ]:
     return Response(
@@ -94,43 +102,44 @@ def _build_response(
 
 def sync_detailed(
     workspace_id: UUID,
-    profile_id_or_name: str,
-    profile_version_id_or_version: Union[UUID, int],
     *,
     client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> Response[
     Union[
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ProfileVersionResponse,
+        ListConfigurationsResponse200,
     ]
 ]:
-    """GetProfileVersion
+    """ListConfigurations
 
 
-    Gets a historic profile_version for a profile, either by ID or by version number.
+    Gets all history of configurations for a workspace. Returns a paginated list of configurations
+    ordered by version number descending.
 
     Requires READ permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
-        profile_version_id_or_version (Union[UUID, int]):
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListConfigurationsResponse200]]
     """
 
     kwargs = _get_kwargs(
         workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
-        profile_version_id_or_version=profile_version_id_or_version,
+        limit=limit,
+        offset=offset,
     )
 
     response = client.get_httpx_client().request(
@@ -142,86 +151,88 @@ def sync_detailed(
 
 def sync(
     workspace_id: UUID,
-    profile_id_or_name: str,
-    profile_version_id_or_version: Union[UUID, int],
     *,
     client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> Optional[
     Union[
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ProfileVersionResponse,
+        ListConfigurationsResponse200,
     ]
 ]:
-    """GetProfileVersion
+    """ListConfigurations
 
 
-    Gets a historic profile_version for a profile, either by ID or by version number.
+    Gets all history of configurations for a workspace. Returns a paginated list of configurations
+    ordered by version number descending.
 
     Requires READ permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
-        profile_version_id_or_version (Union[UUID, int]):
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListConfigurationsResponse200]
     """
 
     return sync_detailed(
         workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
-        profile_version_id_or_version=profile_version_id_or_version,
         client=client,
+        limit=limit,
+        offset=offset,
     ).parsed
 
 
 async def asyncio_detailed(
     workspace_id: UUID,
-    profile_id_or_name: str,
-    profile_version_id_or_version: Union[UUID, int],
     *,
     client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> Response[
     Union[
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ProfileVersionResponse,
+        ListConfigurationsResponse200,
     ]
 ]:
-    """GetProfileVersion
+    """ListConfigurations
 
 
-    Gets a historic profile_version for a profile, either by ID or by version number.
+    Gets all history of configurations for a workspace. Returns a paginated list of configurations
+    ordered by version number descending.
 
     Requires READ permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
-        profile_version_id_or_version (Union[UUID, int]):
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]]
+        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListConfigurationsResponse200]]
     """
 
     kwargs = _get_kwargs(
         workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
-        profile_version_id_or_version=profile_version_id_or_version,
+        limit=limit,
+        offset=offset,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -231,44 +242,45 @@ async def asyncio_detailed(
 
 async def asyncio(
     workspace_id: UUID,
-    profile_id_or_name: str,
-    profile_version_id_or_version: Union[UUID, int],
     *,
     client: Union[AuthenticatedClient, Client],
+    limit: Union[Unset, int] = 100,
+    offset: Union[Unset, int] = 0,
 ) -> Optional[
     Union[
         ErrorResponse400,
         ErrorResponse401,
         ErrorResponse403,
         ErrorResponse404,
-        ProfileVersionResponse,
+        ListConfigurationsResponse200,
     ]
 ]:
-    """GetProfileVersion
+    """ListConfigurations
 
 
-    Gets a historic profile_version for a profile, either by ID or by version number.
+    Gets all history of configurations for a workspace. Returns a paginated list of configurations
+    ordered by version number descending.
 
     Requires READ permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
-        profile_version_id_or_version (Union[UUID, int]):
+        limit (Union[Unset, int]):  Default: 100.
+        offset (Union[Unset, int]):  Default: 0.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileVersionResponse]
+        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ListConfigurationsResponse200]
     """
 
     return (
         await asyncio_detailed(
             workspace_id=workspace_id,
-            profile_id_or_name=profile_id_or_name,
-            profile_version_id_or_version=profile_version_id_or_version,
             client=client,
+            limit=limit,
+            offset=offset,
         )
     ).parsed

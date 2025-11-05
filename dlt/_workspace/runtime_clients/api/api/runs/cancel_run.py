@@ -6,23 +6,23 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.detailed_run_response import DetailedRunResponse
 from ...models.error_response_400 import ErrorResponse400
 from ...models.error_response_401 import ErrorResponse401
 from ...models.error_response_403 import ErrorResponse403
 from ...models.error_response_404 import ErrorResponse404
-from ...models.profile_response import ProfileResponse
 from ...types import UNSET, Response
 
 
 def _get_kwargs(
     workspace_id: UUID,
-    profile_id_or_name: str,
+    run_id: UUID,
 ) -> dict[str, Any]:
     _kwargs: dict[str, Any] = {
-        "method": "get",
-        "url": "/v1/workspaces/{workspace_id}/profiles/{profile_id_or_name}".format(
+        "method": "post",
+        "url": "/v1/workspaces/{workspace_id}/runs/{run_id}/cancel".format(
             workspace_id=workspace_id,
-            profile_id_or_name=profile_id_or_name,
+            run_id=run_id,
         ),
     }
 
@@ -32,12 +32,14 @@ def _get_kwargs(
 def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Optional[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
-    if response.status_code == 200:
-        response_200 = ProfileResponse.from_dict(response.json())
+    if response.status_code == 201:
+        response_201 = DetailedRunResponse.from_dict(response.json())
 
-        return response_200
+        return response_201
 
     if response.status_code == 400:
         response_400 = ErrorResponse400.from_dict(response.json())
@@ -68,7 +70,9 @@ def _parse_response(
 def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -80,34 +84,36 @@ def _build_response(
 
 def sync_detailed(
     workspace_id: UUID,
-    profile_id_or_name: str,
+    run_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
-    """GetProfile
+    """CancelRun
 
 
-    Gets a profile for a workspace, either by ID or by profile name.
+    Cancels a run for a workspace by ID.
 
-    Requires READ permission. On the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
+        run_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]]
+        Response[Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
         workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
+        run_id=run_id,
     )
 
     response = client.get_httpx_client().request(
@@ -119,68 +125,72 @@ def sync_detailed(
 
 def sync(
     workspace_id: UUID,
-    profile_id_or_name: str,
+    run_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Optional[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
-    """GetProfile
+    """CancelRun
 
 
-    Gets a profile for a workspace, either by ID or by profile name.
+    Cancels a run for a workspace by ID.
 
-    Requires READ permission. On the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
+        run_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+        Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return sync_detailed(
         workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
+        run_id=run_id,
         client=client,
     ).parsed
 
 
 async def asyncio_detailed(
     workspace_id: UUID,
-    profile_id_or_name: str,
+    run_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
-    """GetProfile
+    """CancelRun
 
 
-    Gets a profile for a workspace, either by ID or by profile name.
+    Cancels a run for a workspace by ID.
 
-    Requires READ permission. On the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
+        run_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]]
+        Response[Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
         workspace_id=workspace_id,
-        profile_id_or_name=profile_id_or_name,
+        run_id=run_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -190,35 +200,37 @@ async def asyncio_detailed(
 
 async def asyncio(
     workspace_id: UUID,
-    profile_id_or_name: str,
+    run_id: UUID,
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Optional[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+    Union[
+        DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404
+    ]
 ]:
-    """GetProfile
+    """CancelRun
 
 
-    Gets a profile for a workspace, either by ID or by profile name.
+    Cancels a run for a workspace by ID.
 
-    Requires READ permission. On the organization level.
+    Requires WRITE permission on the organization level.
 
     Args:
         workspace_id (UUID):
-        profile_id_or_name (str):
+        run_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ProfileResponse]
+        Union[DetailedRunResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return (
         await asyncio_detailed(
             workspace_id=workspace_id,
-            profile_id_or_name=profile_id_or_name,
+            run_id=run_id,
             client=client,
         )
     ).parsed

@@ -24,7 +24,7 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/v1/workspaces/{workspace_id}/runs/runs".format(
+        "url": "/v1/workspaces/{workspace_id}/runs".format(
             workspace_id=workspace_id,
         ),
     }

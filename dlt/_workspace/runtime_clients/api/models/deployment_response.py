@@ -17,15 +17,15 @@ class DeploymentResponse:
     """
     Attributes:
         content_hash (str): The hash of the file of the uploaded tarball
-        created_by (UUID): The ID of the identity who created the deployment
+        created_by (UUID): The ID of the identity who created the entity
         date_added (datetime.datetime): The date the entity was added
         date_updated (datetime.datetime): The date the entity was updated
         file_count (int): The number of files in the uploaded tarball
         file_names (str): The names of the files in the uploaded tarball
         id (UUID): The uniqueID of the entity
         size (int): The size of the uploaded tarball in bytes
-        version (int): The version of the deployment. Will increment for each new version of the deployment
-        workspace_id (UUID): The ID of the workspace the deployment belongs to
+        version (int): The version of the deployment. Will increment for each new version of the entity
+        workspace_id (UUID): The ID of the workspace the entity belongs to
     """
 
     content_hash: str

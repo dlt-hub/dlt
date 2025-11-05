@@ -150,7 +150,7 @@ class RuntimeAuthService:
 
         try:
             auth_info = AuthInfo(
-                jwt_token=token.decode("utf-8"), email=payload["email"], user_id=payload["user_id"]
+                jwt_token=token.decode("utf-8"), email=payload["email"], user_id=payload["sub"]
             )
         except (KeyError, TypeError) as e:
             raise RuntimeNotAuthenticated("Failed to validate JWT payload") from e
