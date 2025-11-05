@@ -38,6 +38,12 @@ class RuntimeConfiguration(BaseConfiguration):
     http_max_error_body_length: int = 8192
     """Maximum length of HTTP error response body to include in logs/exceptions"""
 
+    # NOTE: these are here temporarily,
+    workspace_pipeline_artifacts_url: Optional[str] = None
+    workspace_artifacts_host: Optional[str] = None
+    workspace_artifacts_access_key: Optional[str] = None
+    workspace_artifacts_secret_key: Optional[str] = None
+
     __section__: ClassVar[str] = "runtime"
 
     def on_resolved(self) -> None:

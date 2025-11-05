@@ -362,9 +362,9 @@ def run(
 
 
 # plug default tracking module
-from dlt.pipeline import trace, track, platform
+from dlt.pipeline import trace, track, platform, runtime_artifacts
 
-trace.TRACKING_MODULES = [track, platform]
+trace.TRACKING_MODULES = [track, platform, runtime_artifacts]
 
 # setup default pipeline in the container
 PipelineContext.cls__init__(pipeline)

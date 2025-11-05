@@ -39,6 +39,11 @@ def start_telemetry(config: RuntimeConfiguration) -> None:
 
         init_platform_tracker()
 
+    if config.workspace_pipeline_artifacts_url:
+        from dlt.pipeline.runtime_artifacts import init_runtime_artifacts
+
+        init_runtime_artifacts()
+
     global _TELEMETRY_STARTED
     _TELEMETRY_STARTED = True
 
@@ -60,6 +65,10 @@ def stop_telemetry() -> None:
     from dlt.pipeline.platform import disable_platform_tracker
 
     disable_platform_tracker()
+
+    from dlt.pipeline.runtime_artifacts import disable_runtime_artifacts
+
+    disable_runtime_artifacts()
 
     global _TELEMETRY_STARTED
     _TELEMETRY_STARTED = False
