@@ -2,7 +2,7 @@ name: dlt
 
 on:
   pull_request:
-    branches: [ master, devel ]
+    branches: [ master, devel, runtime-cli ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
