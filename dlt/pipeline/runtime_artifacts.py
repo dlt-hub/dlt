@@ -55,6 +55,10 @@ def _get_runtime_artifacts_fs(config: RuntimeConfiguration) -> fsspec.filesystem
         key=config.workspace_artifacts_access_key,
         secret=config.workspace_artifacts_secret_key,
         client_kwargs={"endpoint_url": config.workspace_artifacts_host},
+        config_kwargs={
+            "request_checksum_calculation": "when_required",
+            "response_checksum_validation": "when_required",
+        },
     )
     return fs
 
@@ -163,6 +167,7 @@ def on_end_trace_step(
 
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
     from dlt._workspace.cli import echo as fmt
+
     fmt.echo("Reporting pipeline results to runtime")
     _send_trace_to_bucket(trace, pipeline)
     _send_state_to_bucket(trace, pipeline)
