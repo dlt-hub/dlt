@@ -162,6 +162,9 @@ def on_end_trace_step(
 
 
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
+    from dlt._workspace.cli import echo as fmt
+    fmt.echo("Reporting pipeline results to runtime")
     _send_trace_to_bucket(trace, pipeline)
     _send_state_to_bucket(trace, pipeline)
     _send_schemas_to_bucket(pipeline)
+    fmt.echo("Pipeline results reported to runtime")
