@@ -33,6 +33,12 @@ class DashboardConfiguration(BaseConfiguration):
     datetime_format: str = "YYYY-MM-DD HH:mm:ss Z"
     """The format of the datetime strings"""
 
+    sync_from_runtime: bool = False
+    """
+    Whether to sync the pipeline states and traces from the runtime backup.
+    Needs to be run inside a dlt workspace with runtime artifacts credentials set.
+    """
+
     # this is needed for using this as a param in the cache
     def __hash__(self) -> int:
         return hash(
