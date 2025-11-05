@@ -144,7 +144,9 @@ class RuntimeAuthService:
         if isinstance(token, str):
             token = token.encode("utf-8")
         try:
-            payload = jose_jwt.decode(token, key="", options={"verify_signature": False})
+            payload = jose_jwt.decode(
+                token, key="", audience="cli", options={"verify_signature": False}
+            )
         except JOSEError as e:
             raise RuntimeNotAuthenticated("Failed to decode JWT") from e
 
