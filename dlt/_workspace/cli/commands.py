@@ -821,6 +821,21 @@ Commands to get info, cleanup local files and launch Workspace MCP
             default=None,
         )
 
+        subparsers.add_parser(
+            "login",
+            help=(
+                "Login to dltHub Runtime using Github OAuth and connect current workspace to the"
+                " remote one"
+            ),
+            description="Login to dltHub Runtime using Github OAuth",
+        )
+
+        subparsers.add_parser(
+            "logout",
+            help="Logout from dltHub Runtime",
+            description="Logout from dltHub Runtime",
+        )
+
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._workspace_command import (
@@ -829,6 +844,7 @@ Commands to get info, cleanup local files and launch Workspace MCP
             show_workspace,
             start_mcp,
         )
+        from dlt._workspace.cli._runtime_command import login, logout
 
         workspace_context = active()
 
@@ -840,6 +856,10 @@ Commands to get info, cleanup local files and launch Workspace MCP
             show_workspace(workspace_context, args.edit)
         elif args.workspace_command == "mcp":
             start_mcp(workspace_context, port=args.port, stdio=args.stdio)
+        elif args.runtime_command == "login":
+            login(minimal_logging=False)
+        elif args.runtime_command == "logout":
+            logout()
         else:
             self.parser.print_usage()
 

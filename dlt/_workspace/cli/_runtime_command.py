@@ -70,18 +70,6 @@ class RuntimeCommand(SupportsCliCommand):
             title="Available subcommands", dest="runtime_command", required=False
         )
 
-        subparsers.add_parser(
-            "login",
-            help="Login to the Runtime using Github OAuth",
-            description="Login to the Runtime using Github OAuth",
-        )
-
-        subparsers.add_parser(
-            "logout",
-            help="Logout from the Runtime",
-            description="Logout from the Runtime",
-        )
-
         # deployments
         deploy_cmd = subparsers.add_parser(
             "deploy",
@@ -180,11 +168,7 @@ class RuntimeCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        if args.runtime_command == "login":
-            login()
-        elif args.runtime_command == "logout":
-            logout()
-        elif args.runtime_command == "deploy":
+        if args.runtime_command == "deploy":
             if args.list:
                 get_deployments()
             else:
@@ -215,14 +199,15 @@ class RuntimeCommand(SupportsCliCommand):
             self.parser.print_usage()
 
 
-def login() -> None:
+def login(minimal_logging: bool = True) -> RuntimeAuthService:
     auth_service = RuntimeAuthService(run_context=active())
     try:
         auth_info = auth_service.authenticate()
-        fmt.echo("Already logged in as %s" % fmt.bold(auth_info.email))
+        if not minimal_logging:
+            fmt.echo("Already logged in as %s" % fmt.bold(auth_info.email))
         connect(auth_service=auth_service)
+        return auth_service
     except RuntimeNotAuthenticated:
-        fmt.echo("Logging in with Github OAuth")
         client = get_auth_client()
 
         # start device flow
@@ -230,7 +215,7 @@ def login() -> None:
         if not isinstance(login_request, github_oauth_start.GithubDeviceFlowStartResponse):
             raise RuntimeError("Failed to log in with Github OAuth")
         fmt.echo(
-            "Please go to %s and enter the code %s"
+            "Logging in with Github OAuth. Please go to %s and enter the code %s"
             % (fmt.bold(login_request.verification_uri), fmt.bold(login_request.user_code))
         )
         fmt.echo("Waiting for response from Github...")
@@ -247,7 +232,7 @@ def login() -> None:
                 auth_info = auth_service.login(token_response.jwt)
                 fmt.echo("Logged in as %s" % fmt.bold(auth_info.email))
                 connect(auth_service=auth_service)
-                break
+                return auth_service
             elif isinstance(token_response, github_oauth_complete.ErrorResponse400):
                 raise RuntimeError("Failed to complete authentication with Github")
 
@@ -258,7 +243,9 @@ def logout() -> None:
     fmt.echo("Logged out")
 
 
-def connect(auth_service: Optional[RuntimeAuthService] = None) -> None:
+def connect(
+    auth_service: Optional[RuntimeAuthService] = None, minimal_logging: bool = False
+) -> None:
     if auth_service is None:
         auth_service = RuntimeAuthService(run_context=active())
         auth_service.authenticate()
@@ -290,11 +277,12 @@ def connect(auth_service: Optional[RuntimeAuthService] = None) -> None:
             fmt.echo("Local workspace id overwritten with remote workspace id")
         else:
             raise RuntimeError("Unable to synchronise remote and local workspaces")
-    fmt.echo("Authorized to workspace %s" % fmt.bold(auth_service.workspace_id))
+    if not minimal_logging:
+        fmt.echo("Authorized to workspace %s" % fmt.bold(auth_service.workspace_id))
 
 
 def deploy() -> None:
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
 
     output_stream = BytesIO()
@@ -322,7 +310,7 @@ def deploy() -> None:
 
 
 def run(script_file_name: str) -> None:
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
 
     script_path = Path(active().run_dir) / script_file_name
@@ -360,7 +348,7 @@ def run(script_file_name: str) -> None:
 
 
 def check_status(run_id: Union[str, UUID] = None, script_id_or_name: str = None) -> None:
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
 
     assert run_id or script_id_or_name, "Either run_id or script_id_or_name must be provided"
@@ -394,7 +382,7 @@ def check_status(run_id: Union[str, UUID] = None, script_id_or_name: str = None)
 
 def get_script_logs(script_id_or_name: str) -> None:
     """Get the logs of the most recentscript run in the Runtime for this script"""
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
 
     script = get_script.sync_detailed(
@@ -472,7 +460,7 @@ def _get_latest_run(
 
 def get_logs(run_id: Union[str, UUID] = None, script_id_or_name: str = None) -> None:
     """Get logs for a run, for the latest run of a script or workspace if script is not provided"""
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
 
     if script_id_or_name:
@@ -503,7 +491,7 @@ def get_logs(run_id: Union[str, UUID] = None, script_id_or_name: str = None) -> 
 
 
 def get_runs(script_id_or_name: str = None) -> None:
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
     script_id = None
     if script_id_or_name:
@@ -538,7 +526,7 @@ def get_runs(script_id_or_name: str = None) -> None:
 
 
 def get_deployments() -> None:
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
 
     list_deployments_result = list_deployments.sync_detailed(
@@ -561,7 +549,7 @@ def get_deployments() -> None:
 
 def request_run_cancel(run_id: Union[str, UUID] = None, script_id_or_name: str = None) -> None:
     """Request the cancellation of a run, for a script or workspace if script is not provided"""
-    auth_service = RuntimeAuthService(run_context=active())
+    auth_service = login()
     api_client = get_api_client(auth_service)
     if script_id_or_name:
         run = _get_latest_run(api_client, auth_service, script_id_or_name)
