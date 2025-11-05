@@ -45,6 +45,7 @@ from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import DictStrAny, TypedDict
 from dlt.common.utils import map_nested_keys_in_place
+from dlt.common.pipeline import get_dlt_pipelines_dir
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
@@ -73,6 +74,41 @@ def _exception_to_string(exception: Exception) -> str:
             " destination."
         )
     return str(exception)
+
+
+def sync_from_runtime(only_pipeline_name: str = None) -> None:
+    """Sync the pipeline states and traces from the runtime backup"""
+    from dlt.pipeline.runtime_artifacts import _get_runtime_artifacts_fs
+
+    runtime_config = dlt.current.run_context().runtime_config
+    fs = _get_runtime_artifacts_fs(runtime_config)
+    if not fs:
+        return
+    path = dlt.current.run_context().runtime_config.workspace_pipeline_artifacts_url
+    pipeline_folders = fs.ls(path)
+
+    local_pipelines_dir = get_dlt_pipelines_dir()
+
+    # sync pipelines
+    for pipeline_folder in pipeline_folders:
+        pipeline_name = os.path.basename(pipeline_folder)
+        if only_pipeline_name and pipeline_name != only_pipeline_name:
+            continue
+        os.makedirs(os.path.join(local_pipelines_dir, pipeline_name), exist_ok=True)
+        os.makedirs(os.path.join(local_pipelines_dir, pipeline_name, "schemas"), exist_ok=True)
+        with fs.open(os.path.join(pipeline_folder, "state.json"), "rb") as bf:
+            with open(os.path.join(local_pipelines_dir, pipeline_name, "state.json"), "wb") as f:
+                f.write(bf.read())
+        with fs.open(os.path.join(pipeline_folder, "trace.pickle"), "rb") as bf:
+            with open(os.path.join(local_pipelines_dir, pipeline_name, "trace.pickle"), "wb") as f:
+                f.write(bf.read())
+        for schema_file in fs.ls(os.path.join(pipeline_folder, "schemas")):
+            base_name = os.path.basename(schema_file)
+            with fs.open(schema_file, "rb") as bf:
+                with open(
+                    os.path.join(local_pipelines_dir, pipeline_name, "schemas", base_name), "wb"
+                ) as f:
+                    f.write(bf.read())
 
 
 def get_dashboard_config_sections(p: Optional[dlt.Pipeline]) -> Tuple[str, ...]:
@@ -667,7 +703,7 @@ def build_pipeline_link_list(
 ) -> str:
     """Build a list of links to the pipeline."""
     if not pipelines:
-        return "No local pipelines found."
+        return "No pipelines found."
 
     count = 0
     link_list: str = ""

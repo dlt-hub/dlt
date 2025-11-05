@@ -5,13 +5,14 @@ import fsspec
 import pickle
 import time
 import threading
+import os
 
 from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
 from dlt.common.versioned_state import json_encode_state
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
 from dlt.common.configuration.specs import RuntimeConfiguration
-
+from dlt.common.schema import Schema
 
 _THREAD_POOL: ManagedThreadPool = None
 requests: Session = None
@@ -41,6 +42,22 @@ def disable_runtime_artifacts() -> None:
     _THREAD_POOL = None
 
 
+def _get_runtime_artifacts_fs(config: RuntimeConfiguration) -> fsspec.filesystem:
+    if (
+        not config.workspace_pipeline_artifacts_url
+        or not config.workspace_artifacts_access_key
+        or not config.workspace_artifacts_secret_key
+        or not config.workspace_artifacts_host
+    ):
+        return None
+    fs = fsspec.filesystem(
+        "s3",
+        key=config.workspace_artifacts_access_key,
+        secret=config.workspace_artifacts_secret_key,
+        client_kwargs={"endpoint_url": config.workspace_artifacts_host},
+    )
+    return fs
+
 
 # write to bucket using the config, same object may be written to multiple paths
 def _write_to_bucket(
@@ -50,21 +67,11 @@ def _write_to_bucket(
     data: Union[str, bytes],
     mode: str = "w",
 ) -> None:
-    if (
-        not config.workspace_pipeline_artifacts_url
-        or not config.workspace_artifacts_access_key
-        or not config.workspace_artifacts_secret_key
-        or not config.workspace_artifacts_host
-    ):
-        return
-
     # NOTE: needs to migrate to some kind of signed urls
-    fs = fsspec.filesystem(
-        "s3",
-        key=config.workspace_artifacts_access_key,
-        secret=config.workspace_artifacts_secret_key,
-        client_kwargs={"endpoint_url": config.workspace_artifacts_host},
-    )
+    fs = _get_runtime_artifacts_fs(config)
+
+    if not fs:
+        return
 
     for path in paths:
         with fs.open(
@@ -108,8 +115,8 @@ def _send_state_to_bucket(trace: PipelineTrace, pipeline: SupportsPipeline) -> N
                 pipeline.run_context.runtime_config,
                 pipeline.pipeline_name,
                 [
-                    "state.typed_json",
-                    f"{tl_store.start_time}.state.typed_json",
+                    "state.json",
+                    f"{tl_store.start_time}.state.json",
                 ],  # save current and by start time
                 encoded_state,
                 mode="w",
@@ -120,6 +127,18 @@ def _send_state_to_bucket(trace: PipelineTrace, pipeline: SupportsPipeline) -> N
     # _THREAD_POOL.thread_pool.submit(_future_send)
     # NOTE f3fs and futures somehow don't work here, need to investigate
     _future_send()
+
+
+def _send_schemas_to_bucket(pipeline: SupportsPipeline) -> None:
+    schema_dir = os.path.join(pipeline.working_dir, "schemas")
+    for schema_file in os.listdir(schema_dir):
+        _write_to_bucket(
+            pipeline.run_context.runtime_config,
+            pipeline.pipeline_name,
+            [f"schemas/{schema_file}"],
+            open(os.path.join(schema_dir, schema_file), "rb").read(),
+            mode="wb",
+        )
 
 
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
@@ -145,3 +164,4 @@ def on_end_trace_step(
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
     _send_trace_to_bucket(trace, pipeline)
     _send_state_to_bucket(trace, pipeline)
+    _send_schemas_to_bucket(pipeline)
