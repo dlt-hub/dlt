@@ -1,4 +1,4 @@
-from typing import Iterator, Optional, List
+from typing import Iterable, Iterator, Optional, List
 from pathlib import Path
 from pathspec import PathSpec
 from pathspec.util import iter_tree_files
@@ -6,7 +6,11 @@ from pathspec.util import iter_tree_files
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
 
-class WorkspaceFileSelector:
+class BaseFileSelector(Iterable[Path]):
+    ...
+
+
+class WorkspaceFileSelector(BaseFileSelector):
     """Iterates files in workspace respecting ignore patterns and excluding workspace internals.
 
     Uses gitignore-style patterns from a configurable ignore file (default .gitignore). Additional
@@ -22,7 +26,7 @@ class WorkspaceFileSelector:
         self.root_path: Path = Path(context.run_dir).resolve()
         self.settings_dir: Path = Path(context.settings_dir).resolve()
         self.ignore_file: str = ignore_file
-        self.spec: PathSpec = self._build_pathspec(additional_excludes or [])
+        self.ignore_spec: PathSpec = self._build_pathspec(additional_excludes or [])
 
     def _build_pathspec(self, additional_excludes: List[str]) -> PathSpec:
         """Build PathSpec from ignore file + defaults + additional excludes"""
@@ -42,5 +46,20 @@ class WorkspaceFileSelector:
     def __iter__(self) -> Iterator[Path]:
         """Yield paths of files eligible for deployment"""
         for file_path in iter_tree_files(self.root_path):
-            if not self.spec.match_file(file_path):
+            if not self.ignore_spec.match_file(file_path):
                 yield Path(file_path)
+
+
+class ConfigurationFileSelector(BaseFileSelector):
+    """Iterates config and secrets files in workspace"""
+    def __init__(
+        self,
+        context: WorkspaceRunContext,
+    ) -> None:
+        self.settings_dir: Path = Path(context.settings_dir).resolve()
+
+    def __iter__(self) -> Iterator[Path]:
+        """Yield paths of config and secrets paths"""
+        for file_path in iter_tree_files(self.settings_dir):
+            if file_path.endswith("config.toml") or file_path.endswith("secrets.toml"):
+                yield self.settings_dir / file_path

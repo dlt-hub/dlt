@@ -7,7 +7,7 @@ import yaml
 from dlt.common.time import precise_time
 from dlt.common.utils import digest256_tar_stream
 
-from dlt._workspace.deployment.file_selector import WorkspaceFileSelector
+from dlt._workspace.deployment.file_selector import BaseFileSelector, WorkspaceFileSelector
 from dlt._workspace.deployment.manifest import (
     TDeploymentFileItem,
     TDeploymentManifest,
@@ -22,7 +22,7 @@ DEFAULT_MANIFEST_FILE_NAME = "manifest.yaml"
 DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT = "deployment-{timestamp}.tar.gz"
 
 
-class DeploymentPackageBuilder:
+class PackageBuilder:
     """Builds gzipped deployment package from file selectors"""
 
     def __init__(self, context: WorkspaceRunContext):
@@ -67,7 +67,7 @@ class DeploymentPackageBuilder:
 
         return digest256_tar_stream(output_stream)
 
-    def build_package(self, file_selector: WorkspaceFileSelector) -> Tuple[Path, str]:
+    def build_package(self, file_selector: BaseFileSelector) -> Tuple[Path, str]:
         """Create deployment package file, return (path, content_hash)"""
         package_name = DEFAULT_DEPLOYMENT_PACKAGE_LAYOUT.format(timestamp=str(precise_time()))
         package_path = Path(self.run_context.get_data_entity(package_name))

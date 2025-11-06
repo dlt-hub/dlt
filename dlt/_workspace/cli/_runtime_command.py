@@ -8,8 +8,8 @@ from uuid import UUID
 from dlt._workspace._workspace_context import active
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.cli.exceptions import CliCommandInnerException
-from dlt._workspace.deployment.file_selector import WorkspaceFileSelector
-from dlt._workspace.deployment.package_builder import DeploymentPackageBuilder
+from dlt._workspace.deployment.file_selector import ConfigurationFileSelector, WorkspaceFileSelector
+from dlt._workspace.deployment.package_builder import PackageBuilder
 from dlt._workspace.exceptions import (
     LocalWorkspaceIdNotSet,
     RuntimeNotAuthenticated,
@@ -32,6 +32,10 @@ from dlt._workspace.runtime_clients.api.api.scripts import (
     create_or_update_script, 
     get_script,
     get_latest_script_version
+)
+from dlt._workspace.runtime_clients.api.api.configurations import (
+    create_configuration,
+    get_latest_configuration,
 )
 from dlt._workspace.runtime_clients.api.client import Client as ApiClient
 from dlt._workspace.runtime_clients.api.models.create_deployment_body import CreateDeploymentBody
@@ -204,7 +208,7 @@ class RuntimeCommand(SupportsCliCommand):
             elif args.operation == "info":
                 ... # get_deployment_info(deployment_id=args.deployment_id)
             elif args.operation == "sync":
-                ... # sync_deployment(deployment_id=args.deployment_id)
+                sync_configuration()
         else:
             self.parser.print_usage()
 
@@ -300,14 +304,16 @@ def deploy(script_file_name: str, is_interactive: bool = False) -> None:
         raise RuntimeError(f"Script file {script_file_name} not found")
 
     sync_deployment(auth_service, api_client)
-    # sync_configuration
+    sync_configuration(auth_service, api_client)
     run_script(script_file_name, is_interactive)
 
 
 def sync_deployment(auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
-    package_builder = DeploymentPackageBuilder(context=active())
-    package_path, package_hash = package_builder.build_package(
-        file_selector=WorkspaceFileSelector(active())
+    content_stream = BytesIO()
+    package_builder = PackageBuilder(context=active())
+    package_hash = package_builder.write_package_to_stream(
+        file_selector=WorkspaceFileSelector(active()),
+        output_stream=content_stream
     )
 
     latest_deployment = get_latest_deployment.sync_detailed(
@@ -317,21 +323,22 @@ def sync_deployment(auth_service: RuntimeAuthService, api_client: ApiClient) -> 
     if isinstance(latest_deployment.parsed, get_latest_deployment.DeploymentResponse):
         if latest_deployment.parsed.content_hash == package_hash:
             fmt.echo("No changes detected in the deployment, skipping file upload")
+            content_stream.close()
             return
     elif isinstance(latest_deployment.parsed, get_latest_deployment.ErrorResponse404):
         fmt.echo("No deployment found in this workspace, creating new deployment")
     else:
+        content_stream.close()
         raise _exception_from_response("Failed to get latest deployment", latest_deployment)
 
-    with open(package_path, "rb") as content_stream:
-        create_deployment_result = create_deployment.sync_detailed(
-            workspace_id=_to_uuid(auth_service.workspace_id),
-            client=api_client,
-            body=CreateDeploymentBody(
-                file=File(
-                    payload=content_stream, file_name="workspace.tar.gz", mime_type="application/x-tar"
-                )
-            ),
+    create_deployment_result = create_deployment.sync_detailed(
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        client=api_client,
+        body=CreateDeploymentBody(
+            file=File(
+                payload=content_stream, file_name="workspace.tar.gz", mime_type="application/x-tar"
+            )
+        ),
         )
     if isinstance(create_deployment_result.parsed, create_deployment.DeploymentResponse):
         fmt.echo(f"Deployment # {create_deployment_result.parsed.version} created successfully")
@@ -340,6 +347,44 @@ def sync_deployment(auth_service: RuntimeAuthService, api_client: ApiClient) -> 
         fmt.echo(f"Content hash: {create_deployment_result.parsed.content_hash}")
     else:
         raise _exception_from_response("Failed to create deployment", create_deployment_result)
+
+
+def sync_configuration(auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+    content_stream = BytesIO()
+    package_builder = PackageBuilder(context=active())
+    package_hash = package_builder.write_package_to_stream(
+        file_selector=ConfigurationFileSelector(active()),
+        output_stream=content_stream
+    )
+
+    latest_configuration = get_latest_configuration.sync_detailed(
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        client=api_client,
+    )
+    if isinstance(latest_configuration.parsed, get_latest_configuration.ConfigurationResponse):
+        if latest_configuration.parsed.content_hash == package_hash:
+            fmt.echo("No changes detected in the configuration, skipping file upload")
+            content_stream.close()
+            return
+    elif isinstance(latest_configuration.parsed, get_latest_configuration.ErrorResponse404):
+        fmt.echo("No configuration found in this workspace, creating new configuration")
+    else:
+        content_stream.close()
+        raise _exception_from_response("Failed to get latest configuration", latest_configuration)
+    
+    create_configuration_result = create_configuration.sync_detailed(
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        client=api_client,
+        body=create_configuration.CreateConfigurationBody(
+            file=File(
+                payload=content_stream, file_name="configurations.tar.gz", mime_type="application/x-tar"
+            )
+        ),
+    )
+    if isinstance(create_configuration_result.parsed, create_configuration.ConfigurationResponse):
+        fmt.echo(f"configuration # {create_configuration_result.parsed.version} created successfully")
+    else:
+        raise _exception_from_response("Failed to create configuration", create_configuration_result)
 
 
 def run_script(script_file_name: str, is_interactive: bool = False) -> None:
