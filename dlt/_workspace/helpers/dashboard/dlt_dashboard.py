@@ -878,8 +878,12 @@ def utils_discover_profiles():
 
     options, current = _profiles_from_run_context()
 
-    mo_query_var_profile = mo.query_params().get("profile") or None
-    mo_cli_arg_profile = mo.cli_args().get("profile") or None
+    mo_query_var_profile = (
+        mo.query_params().get("profile") if isinstance(run_context, ProfilesRunContext) else None
+    )
+    mo_cli_arg_profile = (
+        mo.cli_args().get("profile") if isinstance(run_context, ProfilesRunContext) else None
+    )
 
     selected_profile = current
     if mo_query_var_profile and mo_query_var_profile in options:
@@ -901,8 +905,6 @@ def utils_discover_profiles():
         on_change=_on_profile_change,
         searchable=True,
     )
-
-    return dlt_profile_select
 
 
 @app.cell(hide_code=True)

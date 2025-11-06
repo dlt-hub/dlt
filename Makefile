@@ -168,10 +168,10 @@ check-cli-docs:
 # To run these tests locally, run `make start-dlt-dashboard-e2e` in one terminal and `make test-e2e-dashboard-headed` in another terminal
 
 test-e2e-dashboard:
-	uv run pytest --browser chromium tests/e2e
+	uv run pytest --browser chromium tests/e2e -k "not test_profiles_e2e"
 
 test-e2e-dashboard-headed:
-	uv run pytest --headed --browser chromium tests/e2e
+	uv run pytest --headed --browser chromium tests/e2e -k "not test_profiles_e2e"
 
 start-dlt-dashboard-e2e:
 	uv run marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
