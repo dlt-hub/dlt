@@ -836,6 +836,20 @@ Commands to get info, cleanup local files and launch Workspace MCP
             description="Logout from dltHub Runtime",
         )
 
+        deploy_cmd = subparsers.add_parser(
+            "deploy",
+            help="Create, run and inspect scripts in runtime",
+            description="Manipulate scripts in workspace",
+        )
+        deploy_cmd.add_argument("script_name", help="Local path to the script")
+        deploy_cmd.add_argument(
+            "-i", 
+            "--interactive", 
+            action="store_true", 
+            help="Whether the script should be deployed as interactive (e.g. a notebook). False by default"
+        )
+
+
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._workspace_command import (
@@ -844,7 +858,7 @@ Commands to get info, cleanup local files and launch Workspace MCP
             show_workspace,
             start_mcp,
         )
-        from dlt._workspace.cli._runtime_command import login, logout
+        from dlt._workspace.cli._runtime_command import login, logout, deploy
 
         workspace_context = active()
 
@@ -856,10 +870,12 @@ Commands to get info, cleanup local files and launch Workspace MCP
             show_workspace(workspace_context, args.edit)
         elif args.workspace_command == "mcp":
             start_mcp(workspace_context, port=args.port, stdio=args.stdio)
-        elif args.runtime_command == "login":
+        elif args.workspace_command == "login":
             login(minimal_logging=False)
-        elif args.runtime_command == "logout":
+        elif args.workspace_command == "logout":
             logout()
+        elif args.workspace_command == "deploy":
+            deploy(args.script_name, bool(args.interactive))
         else:
             self.parser.print_usage()
 
