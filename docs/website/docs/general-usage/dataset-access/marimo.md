@@ -12,6 +12,11 @@ This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich envi
 
 ## Prerequisites
 
+First, you need to install dlt workspace:
+
+```sh
+pip install "dlt[workspace]"
+```
 To install marimo and ibis with the duckdb extras, run the following command: 
 
 ```sh
@@ -33,6 +38,10 @@ Here's a screenshot of the interface you should see:
 
 ![](./static/marimo_notebook.png)
 
+To run an existing local marimo notebook:
+```sh
+marimo run my_notebook.py
+```
 
 ## Features
 
