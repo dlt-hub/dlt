@@ -6,8 +6,7 @@ from pathspec.util import iter_tree_files
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
 
-class BaseFileSelector(Iterable[Path]):
-    ...
+class BaseFileSelector(Iterable[Path]): ...
 
 
 class WorkspaceFileSelector(BaseFileSelector):
@@ -52,6 +51,7 @@ class WorkspaceFileSelector(BaseFileSelector):
 
 class ConfigurationFileSelector(BaseFileSelector):
     """Iterates config and secrets files in workspace"""
+
     def __init__(
         self,
         context: WorkspaceRunContext,
