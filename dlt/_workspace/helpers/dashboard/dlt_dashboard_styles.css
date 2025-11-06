@@ -101,3 +101,78 @@ marimo-callout-output .border {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
 }
+
+/* Pipeline execution visualization styles */
+.pipeline-execution-container {
+  padding-top: 16px;
+  padding-bottom: 10px;
+}
+
+.pipeline-execution-layout {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.pipeline-execution-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pipeline-execution-timeline {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 0 0 40%;
+}
+
+.pipeline-execution-timeline-bar {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  height: 16px;
+}
+
+/* Note: .pipeline-execution-timeline-segment uses inline styles for dynamic width, color, and border-radius */
+
+.pipeline-execution-labels {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.pipeline-execution-badges {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Status badge styles */
+.status-badge {
+  padding: 6px 16px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.status-badge-yellow {
+  background-color: var(--yellow-bg);
+  color: var(--yellow-text);
+}
+
+.status-badge-green {
+  background-color: var(--green-bg);
+  color: var(--green-text);
+}
+
+.status-badge-red {
+  background-color: var(--red-bg);
+  color: var(--red-text);
+}
+
+.status-badge-grey {
+  background-color: var(--grey-bg);
+  color: var(--grey-text);
+}

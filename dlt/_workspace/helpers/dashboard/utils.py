@@ -710,10 +710,13 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
     if not exception_step:
         return []
 
+    last_exception = exception_step.exception_traces[-1]
+    title = f"{last_exception['exception_type']}: {last_exception['message']}"
+
     _result = []
     _result.append(
         ui.build_title_and_subtitle(
-            f"Exception encountered during last pipeline run in step '{step.step}'",
+            title,
             title_level=2,
         )
     )
@@ -857,6 +860,23 @@ def _format_duration(ms: float) -> str:
         return f"{round(ms / 6000) / 10}"
 
 
+def _build_migration_badge(count: int) -> str:
+    """Build migration badge HTML using CSS classes"""
+    if count == 0:
+        return ""
+    return (
+        '<div class="status-badge status-badge-yellow">'
+        f"<strong>{count} dataset migration(s)</strong>"
+        "</div>"
+    )
+
+
+def _build_status_badge(status: TPipelineRunStatus) -> str:
+    """Build status badge HTML using CSS classes"""
+    badge_class = "status-badge-green" if status == "succeeded" else "status-badge-red"
+    return f'<div class="status-badge {badge_class}"><strong>{status}</strong></div>'
+
+
 def _build_pipeline_execution_html(
     transaction_id: str,
     status: TPipelineRunStatus,
@@ -864,12 +884,12 @@ def _build_pipeline_execution_html(
     migrations_count: int = 0,
 ) -> mo.Html:
     """
-    Build an HTML visualization for a pipeline execution
+    Build an HTML visualization for a pipeline execution using CSS classes
     """
     total_ms = sum(step.duration_ms for step in steps_data)
     last = len(steps_data) - 1
 
-    # Build the general info of the exection
+    # Build the general info of the execution
     general_info = f"""
     <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
     <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
@@ -880,98 +900,45 @@ def _build_pipeline_execution_html(
     for i, step in enumerate(steps_data):
         percentage = step.duration_ms / total_ms * 100
         color = PIPELINE_RUN_STEP_COLORS.get(step.step)
-        radius = "6px 0 0 6px" if i == 0 else ("0 6px 6px 0" if i == last else "0")
-
+        radius = (
+            "6px"
+            if i == 0 and i == last
+            else "6px 0 0 6px" if i == 0 else "0 6px 6px 0" if i == last else "0"
+        )
         segments.append(
-            "<div"
-            f' style="width:{percentage}%;background-color:{color};border-radius:{radius};"></div>'
+            '<div class="pipeline-execution-timeline-segment" '
+            f'style="width:{percentage}%;background-color:{color};border-radius:{radius};"></div>'
         )
         labels.append(
             f'<span><span style="color:{color};">●</span> '
             f"{step.step.capitalize()} {_format_duration(step.duration_ms)}</span>"
         )
-    segments_bar = f"""
-    <div style="
-        display: flex;
-        flex-direction: row;
-        justify-content: center;
-        height: 16px;
-    ">{''.join(segments)}</div>
-    """
-    segment_labels = f"""
-    <div style="
-        display: flex;
-        flex-direction: row;
-        justify-content: space-between;
-    ">{''.join(labels)}</div>
-    """
 
-    # Build the migration badge if applicable
-    migration_badge = f"""
-    <div style="
-        background-color: var(--yellow-bg);
-        color: var(--yellow-text);
-        padding: 6px 16px;
-        border-radius: 6px;
-    ">
-        <strong>{migrations_count} dataset migration(s)</strong>
-    </div>
-    """ if migrations_count > 0 else ""
-
-    # Build the status badge if applicable
-    status_badge = f"""
-    <div style="
-        background-color: var(--{'green' if status == "succeeded" else 'red'}-bg);
-        color: var(--{'green' if status == "succeeded" else 'red'}-text);
-        padding: 6px 16px;
-        border-radius: 6px;
-    ">
-        <strong>{status}</strong>
-    </div>
-    """
-
-    # Build the whole html
+    # Build the whole html using CSS classes
     html = f"""
-    <div style="
-        padding-top: 16px;
-        padding-bottom: 10px;
-    ">
+    <div class="pipeline-execution-container">
         <!-- Main 3-column flex container -->
-        <div style="
-            display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-        ">
+        <div class="pipeline-execution-layout">
+
             <!-- LEFT COLUMN: Run ID, Total time -->
-            <div style="
-                display: flex;
-                flex-direction: column;
-            ">
+            <div class="pipeline-execution-info">
                 {general_info}
             </div>
 
             <!-- CENTER COLUMN: Timeline bar and legend -->
-            <div style="
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
-                flex: 0 0 40%;
-            ">
-                {segments_bar}
-                {segment_labels}
+            <div class="pipeline-execution-timeline">
+                <div class="pipeline-execution-timeline-bar">
+                    {''.join(segments)}
+                </div>
+                <div class="pipeline-execution-labels">
+                    {''.join(labels)}
+                </div>
             </div>
 
             <!-- RIGHT COLUMN: Status badges -->
-            <div style="
-                display: flex;
-                flex-direction: row;
-                justify-content: space-between;
-                gap: 16px;
-            ">
-                {migration_badge}
-                {status_badge}
+            <div class="pipeline-execution-badges">
+                {_build_migration_badge(migrations_count)}
+                {_build_status_badge(status)}
             </div>
         </div>
     </div>
@@ -1038,7 +1005,10 @@ def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.
 #
 
 
-PENDING_LOAD_STATUSES: Set[TLoadPackageStatus] = {"extracted", "normalized"}
+PENDING_LOAD_STATUSES: Dict[TLoadPackageStatus, str] = {
+    "extracted": "pending to normalize",
+    "normalized": "pending to load",
+}
 
 LOAD_PACKAGE_STATUS_COLORS: Dict[TLoadPackageStatus, str] = {
     "new": "grey",
@@ -1047,17 +1017,6 @@ LOAD_PACKAGE_STATUS_COLORS: Dict[TLoadPackageStatus, str] = {
     "loaded": "green",
     "aborted": "red",
 }
-
-LOAD_PACKAGE_STATUS_BADGE_HTML = (
-    '<div style="'
-    "   background-color: var(--{k}-bg);"
-    "   color: var(--{k}-text);"
-    "   padding: 6px 16px;"
-    "   display: inline-block;"
-    "   border-radius: 6px;"
-    '">'
-    "<strong>{t}</strong></div>"
-)
 
 
 def _collect_load_packages_from_trace(
@@ -1086,14 +1045,20 @@ def load_package_status_labels(trace: PipelineTrace) -> mo.ui.table:
 
     for package in packages:
         is_partial = PackageStorage.is_package_partially_loaded(package)
-
         badge_color_key = "red" if is_partial else LOAD_PACKAGE_STATUS_COLORS.get(package.state)
-        badge_text = (
-            f"partially {package.state}"
-            if is_partial
-            else "pending" if package.state in PENDING_LOAD_STATUSES else package.state
+        if is_partial:
+            badge_text = f"partially {package.state}"
+        elif package.state in PENDING_LOAD_STATUSES:
+            badge_text = PENDING_LOAD_STATUSES.get(package.state)
+        elif package.state == "new":
+            badge_text = "discarded"
+        else:
+            badge_text = package.state
+
+        status_html = (
+            '<div class="status-badge'
+            f' status-badge-{badge_color_key}"><strong>{badge_text}</strong></div>'
         )
-        status_html = LOAD_PACKAGE_STATUS_BADGE_HTML.format(k=badge_color_key, t=badge_text)
         result.append(
             {
                 "load_id": package.load_id,

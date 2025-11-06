@@ -148,13 +148,11 @@ def test_page_overview(page: Page):
 def test_exception_pipeline(page: Page, failed_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="failed_pipeline").click()
+    expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # overview page
     _open_section(page, "overview")
     expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/failed_pipeline"))).to_be_visible()
-    expect(
-        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
-    ).to_be_visible()
 
     _open_section(page, "schema")
     expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
@@ -168,9 +166,7 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
-    expect(
-        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
-    ).to_be_visible()
+    expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")

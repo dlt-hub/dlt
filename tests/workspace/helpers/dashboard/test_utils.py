@@ -832,34 +832,33 @@ def test_build_pipeline_execution_visualization(
     html = build_pipeline_execution_visualization(trace)
     html_str = str(html.text)
 
+    # Check for CSS class structure
+    assert 'class="pipeline-execution-container"' in html_str
+    assert 'class="pipeline-execution-layout"' in html_str
+    assert 'class="pipeline-execution-timeline"' in html_str
+    assert 'class="pipeline-execution-badges"' in html_str
+
     assert f"Last execution ID: <strong>{trace.transaction_id[:8]}</strong>" in html_str
     total_time_match = re.search(
         r"<div>Total time: <strong>([\d.]+)(ms|s)?</strong></div>", html_str
     )
     assert total_time_match is not None
 
-    status_badge = f"""
-    <div style="
-        background-color: var(--{'green' if expected_status == "succeeded" else 'red'}-bg);
-        color: var(--{'green' if expected_status == "succeeded" else 'red'}-text);
-        padding: 6px 16px;
-        border-radius: 6px;
-    ">
-        <strong>{expected_status}</strong>
-    </div>
-    """
-    assert status_badge in html_str
+    # Check for status badge using CSS classes (not inline styles)
+    status_badge_class = (
+        "status-badge-green" if expected_status == "succeeded" else "status-badge-red"
+    )
+    assert (
+        f'<div class="status-badge {status_badge_class}"><strong>{expected_status}</strong></div>'
+        in html_str
+    )
 
+    # Check for migration badge using CSS classes (not inline styles)
     migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
-    migration_badge = f"""
-    <div style="
-        background-color: var(--yellow-bg);
-        color: var(--yellow-text);
-        padding: 6px 16px;
-        border-radius: 6px;
-    ">
-        <strong>{migrations_count} dataset migration(s)</strong>
-    </div>"""
+    migration_badge = (
+        f'<div class="status-badge status-badge-yellow"><strong>{migrations_count} dataset'
+        " migration(s)</strong></div>"
+    )
     if migrations_count != 0:
         assert migration_badge in html_str
     else:
@@ -908,7 +907,7 @@ def test_collect_load_packages_from_trace(
 
     elif pipeline.pipeline_name == "extract_exception_pipeline":
         assert len(list_of_load_package_info) == 1
-        assert "new" in str(list_of_load_package_info[0]["status"].text)
+        assert "discarded" in str(list_of_load_package_info[0]["status"].text)
 
     elif pipeline.pipeline_name == "load_exception_pipeline":
         assert len(list_of_load_package_info) == 1
