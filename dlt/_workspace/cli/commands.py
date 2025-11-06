@@ -4,30 +4,29 @@ from typing import Optional
 
 import yaml
 
+from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO, SupportsCliCommand
+from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli import utils
+from dlt._workspace.cli._ai_command import SUPPORTED_IDES
+from dlt._workspace.cli._deploy_command import (
+    COMMAND_DEPLOY_REPO_LOCATION,
+    DLT_DEPLOY_DOCS_URL,
+    DeploymentMethods,
+    SecretFormats,
+)
+from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
+from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
+from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
+from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.utils import add_mcp_arg_parser
 from dlt.common import json
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
 from dlt.common.typing import DictStrAny
 
-from dlt._workspace.cli import echo as fmt, utils
-from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
-from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli.utils import add_mcp_arg_parser
-from dlt._workspace.cli._ai_command import SUPPORTED_IDES
-from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
-from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
-from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
-
-from dlt._workspace.cli._deploy_command import (
-    DeploymentMethods,
-    COMMAND_DEPLOY_REPO_LOCATION,
-    SecretFormats,
-    DLT_DEPLOY_DOCS_URL,
-)
-
 try:
-    import pipdeptree
     import cron_descriptor
+    import pipdeptree
 
     deploy_command_available = True
 except ImportError:
@@ -113,9 +112,9 @@ version if run again with an existing `source` name. You will be warned if files
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._init_command import (
+            init_command_wrapper,
             list_destinations_command_wrapper,
             list_sources_command_wrapper,
-            init_command_wrapper,
         )
 
         if args.list_sources:
@@ -843,22 +842,24 @@ Commands to get info, cleanup local files and launch Workspace MCP
         )
         deploy_cmd.add_argument("script_name", help="Local path to the script")
         deploy_cmd.add_argument(
-            "-i", 
-            "--interactive", 
-            action="store_true", 
-            help="Whether the script should be deployed as interactive (e.g. a notebook). False by default"
+            "-i",
+            "--interactive",
+            action="store_true",
+            help=(
+                "Whether the script should be deployed as interactive (e.g. a notebook). False by"
+                " default"
+            ),
         )
-
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
+        from dlt._workspace.cli._runtime_command import deploy, login, logout
         from dlt._workspace.cli._workspace_command import (
             print_workspace_info,
             clean_workspace,
             show_workspace,
             start_mcp,
         )
-        from dlt._workspace.cli._runtime_command import login, logout, deploy
 
         workspace_context = active()
 
@@ -921,9 +922,9 @@ Pin a profile to the Workspace, this will be the new default profile while it is
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._profile_command import (
-            print_profile_info,
             list_profiles,
             pin_profile,
+            print_profile_info,
         )
 
         workspace_context = active()

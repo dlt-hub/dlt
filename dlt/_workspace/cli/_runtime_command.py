@@ -16,10 +16,14 @@ from dlt._workspace.exceptions import (
     WorkspaceIdMismatch,
 )
 from dlt._workspace.runtime import RuntimeAuthService, get_api_client, get_auth_client
+from dlt._workspace.runtime_clients.api.api.configurations import (
+    create_configuration,
+    get_latest_configuration,
+)
 from dlt._workspace.runtime_clients.api.api.deployments import (
-    create_deployment, 
+    create_deployment,
+    get_latest_deployment,
     list_deployments,
-    get_latest_deployment
 )
 from dlt._workspace.runtime_clients.api.api.runs import (
     cancel_run,
@@ -29,20 +33,15 @@ from dlt._workspace.runtime_clients.api.api.runs import (
     list_runs,
 )
 from dlt._workspace.runtime_clients.api.api.scripts import (
-    create_or_update_script, 
+    create_or_update_script,
+    get_latest_script_version,
     get_script,
-    get_latest_script_version
-)
-from dlt._workspace.runtime_clients.api.api.configurations import (
-    create_configuration,
-    get_latest_configuration,
 )
 from dlt._workspace.runtime_clients.api.client import Client as ApiClient
 from dlt._workspace.runtime_clients.api.models.create_deployment_body import CreateDeploymentBody
 from dlt._workspace.runtime_clients.api.models.detailed_run_response import DetailedRunResponse
 from dlt._workspace.runtime_clients.api.models.script_type import ScriptType
-from dlt._workspace.runtime_clients.api.types import UNSET
-from dlt._workspace.runtime_clients.api.types import File, Response
+from dlt._workspace.runtime_clients.api.types import UNSET, File, Response
 from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete, github_oauth_start
 from dlt.common.configuration.plugins import SupportsCliCommand
 from dlt.common.json import json
@@ -116,29 +115,14 @@ class RuntimeCommand(SupportsCliCommand):
             title="Available subcommands", dest="operation", required=False
         )
         script_subparsers.add_parser(
-            "run",
-            help="Run a script in the Runtime",
-            description="Run a script in the Runtime",
-        )
-        script_subparsers.add_parser(
-            "logs",
-            help="Get the logs of a script run in the Runtime",
-            description="Get the logs of a script run in the Runtime",
-        )
-        script_subparsers.add_parser(
             "list-runs",
             help="List all runs of a script in the Runtime",
             description="List all runs of a script in the Runtime",
         )
         script_subparsers.add_parser(
-            "status",
-            help="Check the status of a script run in the Runtime",
-            description="Check the status of a script run in the Runtime",
-        )
-        script_subparsers.add_parser(
-            "cancel",
-            help="Cancel a script run in the Runtime",
-            description="Cancel a script run in the Runtime",
+            "info",
+            help="Get detailed information about a script",
+            description="Get detailed information about a script",
         )
 
         runs_cmd = subparsers.add_parser(
@@ -150,9 +134,9 @@ class RuntimeCommand(SupportsCliCommand):
 
     def _configure_runs_parser(self, runs_cmd: argparse.ArgumentParser) -> None:
         runs_cmd.add_argument(
-            "script_name_or_run_id", 
-            nargs="?", 
-            help="The name of the script we're working with or the id of the run of this script"
+            "script_name_or_run_id",
+            nargs="?",
+            help="The name of the script we're working with or the id of the run of this script",
         )
         runs_cmd.add_argument(
             "--list", "-l", action=argparse.BooleanOptionalAction, help="List all runs in workspace"
@@ -179,36 +163,56 @@ class RuntimeCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
+        auth_service = login()
+        api_client = get_api_client(auth_service)
+
         if args.runtime_command == "run":
-            run_script(args.script_name_or_id)
+            run_script(
+                args.script_name_or_id,
+                auth_service=auth_service,
+                api_client=api_client,
+            )
         elif args.runtime_command == "runs":
             if args.list:
-                get_runs()
+                get_runs(auth_service=auth_service, api_client=api_client)
             elif args.operation == "info":
-                get_run_info(script_name_or_run_id=args.script_name_or_run_id)
+                get_run_info(
+                    script_name_or_run_id=args.script_name_or_run_id,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
             elif args.operation == "logs":
-                fetch_run_logs(script_name_or_run_id=args.script_name_or_run_id)
+                fetch_run_logs(
+                    script_name_or_run_id=args.script_name_or_run_id,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
             elif args.operation == "cancel":
-                request_run_cancel(script_name_or_run_id=args.script_name_or_run_id)
+                request_run_cancel(
+                    script_id_or_name=args.script_name_or_run_id,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
         elif args.runtime_command == "deployment":
             if args.list:
-                get_deployments()
-            elif args.operation == "info":
-                ... # get_deployment_info(deployment_id=args.deployment_id)
+                get_deployments(auth_service=auth_service, api_client=api_client)
+            elif (
+                args.operation == "info"
+            ): ...  # get_deployment_info(deployment_id=args.deployment_id)
             elif args.operation == "sync":
-                sync_deployment()
+                sync_deployment(auth_service=auth_service, api_client=api_client)
         elif args.runtime_command == "script":
-            if args.list:
-                ... # get_scripts()
-            elif args.operation == "info":
-                ... # get_script_info(script_id_or_name=args.script_name_or_id)
+            if args.list: ...  # get_scripts()
+            elif (
+                args.operation == "info"
+            ): ...  # get_script_info(script_id_or_name=args.script_name_or_id)
         elif args.runtime_command == "configuration":
-            if args.list:
-                ... # get_configurations()
-            elif args.operation == "info":
-                ... # get_deployment_info(deployment_id=args.deployment_id)
+            if args.list: ...  # get_configurations()
+            elif (
+                args.operation == "info"
+            ): ...  # get_deployment_info(deployment_id=args.deployment_id)
             elif args.operation == "sync":
-                sync_configuration()
+                sync_configuration(auth_service=auth_service, api_client=api_client)
         else:
             self.parser.print_usage()
 
@@ -303,17 +307,21 @@ def deploy(script_file_name: str, is_interactive: bool = False) -> None:
     if not script_path.exists():
         raise RuntimeError(f"Script file {script_file_name} not found")
 
-    sync_deployment(auth_service, api_client)
-    sync_configuration(auth_service, api_client)
-    run_script(script_file_name, is_interactive)
+    sync_deployment(auth_service=auth_service, api_client=api_client)
+    sync_configuration(auth_service=auth_service, api_client=api_client)
+    run_script(
+        script_file_name,
+        is_interactive,
+        auth_service=auth_service,
+        api_client=api_client,
+    )
 
 
-def sync_deployment(auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+def sync_deployment(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
     content_stream = BytesIO()
     package_builder = PackageBuilder(context=active())
     package_hash = package_builder.write_package_to_stream(
-        file_selector=WorkspaceFileSelector(active()),
-        output_stream=content_stream
+        file_selector=WorkspaceFileSelector(active()), output_stream=content_stream
     )
 
     latest_deployment = get_latest_deployment.sync_detailed(
@@ -339,7 +347,7 @@ def sync_deployment(auth_service: RuntimeAuthService, api_client: ApiClient) -> 
                 payload=content_stream, file_name="workspace.tar.gz", mime_type="application/x-tar"
             )
         ),
-        )
+    )
     if isinstance(create_deployment_result.parsed, create_deployment.DeploymentResponse):
         fmt.echo(f"Deployment # {create_deployment_result.parsed.version} created successfully")
         fmt.echo(f"Deployment id: {create_deployment_result.parsed.id}")
@@ -349,12 +357,11 @@ def sync_deployment(auth_service: RuntimeAuthService, api_client: ApiClient) -> 
         raise _exception_from_response("Failed to create deployment", create_deployment_result)
 
 
-def sync_configuration(auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+def sync_configuration(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
     content_stream = BytesIO()
     package_builder = PackageBuilder(context=active())
     package_hash = package_builder.write_package_to_stream(
-        file_selector=ConfigurationFileSelector(active()),
-        output_stream=content_stream
+        file_selector=ConfigurationFileSelector(active()), output_stream=content_stream
     )
 
     latest_configuration = get_latest_configuration.sync_detailed(
@@ -371,60 +378,56 @@ def sync_configuration(auth_service: RuntimeAuthService, api_client: ApiClient) 
     else:
         content_stream.close()
         raise _exception_from_response("Failed to get latest configuration", latest_configuration)
-    
+
     create_configuration_result = create_configuration.sync_detailed(
         workspace_id=_to_uuid(auth_service.workspace_id),
         client=api_client,
         body=create_configuration.CreateConfigurationBody(
             file=File(
-                payload=content_stream, file_name="configurations.tar.gz", mime_type="application/x-tar"
+                payload=content_stream,
+                file_name="configurations.tar.gz",
+                mime_type="application/x-tar",
             )
         ),
     )
     if isinstance(create_configuration_result.parsed, create_configuration.ConfigurationResponse):
-        fmt.echo(f"configuration # {create_configuration_result.parsed.version} created successfully")
+        fmt.echo(
+            f"configuration # {create_configuration_result.parsed.version} created successfully"
+        )
     else:
-        raise _exception_from_response("Failed to create configuration", create_configuration_result)
+        raise _exception_from_response(
+            "Failed to create configuration", create_configuration_result
+        )
 
 
-def run_script(script_file_name: str, is_interactive: bool = False) -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-
+def run_script(
+    script_file_name: str,
+    is_interactive: bool = False,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
     script_path = Path(active().run_dir) / script_file_name
     if not script_path.exists():
         raise RuntimeError(f"Script file {script_file_name} not found")
-    
-    latest_script_version_response = get_latest_script_version.sync_detailed(
+
+    create_script_result = create_or_update_script.sync_detailed(
         client=api_client,
         workspace_id=_to_uuid(auth_service.workspace_id),
-        script_id_or_name=script_file_name,
+        body=create_or_update_script.CreateScriptRequest(
+            name=script_file_name,
+            description=f"The {script_file_name} script",
+            entry_point=script_file_name,
+            script_type=ScriptType.INTERACTIVE if is_interactive else ScriptType.BATCH,
+        ),
     )
-    latest_script_version: Optional[get_latest_script_version.ScriptVersionResponse] = None
-    if isinstance(latest_script_version_response.parsed, get_latest_script_version.ScriptVersionResponse):
-        latest_script_version = latest_script_version_response.parsed
-    elif isinstance(latest_script_version_response.parsed, get_latest_script_version.ErrorResponse404):
-        latest_script_version = None
+    if not isinstance(create_script_result.parsed, create_or_update_script.ScriptResponse):
+        raise _exception_from_response("Failed to create script", create_script_result)
     else:
-        raise _exception_from_response("Failed to get latest script version", latest_script_version_response)
-
-    if latest_script_version is not None: 
-        if (latest_script_version.script_type == ScriptType.INTERACTIVE) != is_interactive:
-            raise RuntimeError(f"Script {script_file_name} is already deployed as {'interactive' if is_interactive else 'batch'}")
-
-    if latest_script_version is None:
-        create_script_result = create_or_update_script.sync_detailed(
-            client=api_client,
-            workspace_id=_to_uuid(auth_service.workspace_id),
-            body=create_or_update_script.CreateScriptRequest(
-                name=script_file_name,
-                description=f"The {script_file_name} script",
-                entry_point=script_file_name,
-                script_type=ScriptType.INTERACTIVE if is_interactive else ScriptType.BATCH,
-            ),
+        fmt.echo(
+            f"Script {script_file_name} created or updated successfully, id:"
+            f" {create_script_result.parsed.id}"
         )
-        if not isinstance(create_script_result.parsed, create_or_update_script.ScriptResponse):
-            raise _exception_from_response("Failed to create script", create_script_result)
 
     create_run_result = create_run.sync_detailed(
         client=api_client,
@@ -434,18 +437,17 @@ def run_script(script_file_name: str, is_interactive: bool = False) -> None:
         ),
     )
     if isinstance(create_run_result.parsed, create_run.RunResponse):
-        fmt.echo(
-            "Script %s run for script id %s successfully created"
-            % (fmt.bold(str(script_file_name)), fmt.bold(str(create_run_result.parsed.id)))
-        )
+        fmt.echo("Script %s run successfully run" % (fmt.bold(str(script_file_name))))
     else:
         raise _exception_from_response("Failed to run script", create_run_result)
 
 
-def get_run_info(script_name_or_run_id: str) -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-
+def get_run_info(
+    script_name_or_run_id: str,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
     try:
         run_id = _to_uuid(script_name_or_run_id)
     except RuntimeError:
@@ -473,7 +475,12 @@ def get_run_info(script_name_or_run_id: str) -> None:
         raise _exception_from_response("Failed to get run status", get_run_result)
 
 
-def fetch_run_logs(script_name_or_run_id: str) -> None:
+def fetch_run_logs(
+    script_name_or_run_id: str,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
     """Get logs for a run, for the latest run of a script or workspace if script is not provided"""
     auth_service = login()
     api_client = get_api_client(auth_service)
@@ -502,9 +509,12 @@ def fetch_run_logs(script_name_or_run_id: str) -> None:
         raise _exception_from_response("Failed to get run logs.", get_run_logs_result)
 
 
-def get_runs(script_id_or_name: str = None) -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
+def get_runs(
+    script_id_or_name: str = None,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
     script_id = None
     if script_id_or_name:
         script = get_script.sync_detailed(
@@ -537,10 +547,7 @@ def get_runs(script_id_or_name: str = None) -> None:
         raise _exception_from_response("Failed to list workspace runs", list_runs_result)
 
 
-def get_deployments() -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-
+def get_deployments(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
     list_deployments_result = list_deployments.sync_detailed(
         client=api_client,
         workspace_id=_to_uuid(auth_service.workspace_id),
@@ -559,7 +566,13 @@ def get_deployments() -> None:
         raise _exception_from_response("Failed to list deployments", list_deployments_result)
 
 
-def request_run_cancel(run_id: Union[str, UUID] = None, script_id_or_name: str = None) -> None:
+def request_run_cancel(
+    run_id: Union[str, UUID] = None,
+    script_id_or_name: str = None,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
     """Request the cancellation of a run, for a script or workspace if script is not provided"""
     auth_service = login()
     api_client = get_api_client(auth_service)
