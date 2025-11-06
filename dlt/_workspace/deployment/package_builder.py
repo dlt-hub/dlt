@@ -29,7 +29,7 @@ class PackageBuilder:
         self.run_context: WorkspaceRunContext = context
 
     def write_package_to_stream(
-        self, file_selector: WorkspaceFileSelector, output_stream: BinaryIO
+        self, file_selector: BaseFileSelector, output_stream: BinaryIO
     ) -> str:
         """Write deployment package to output stream, return content hash"""
         manifest_files: List[TDeploymentFileItem] = []

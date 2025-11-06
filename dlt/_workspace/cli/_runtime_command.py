@@ -18,10 +18,13 @@ from dlt._workspace.exceptions import (
 from dlt._workspace.runtime import RuntimeAuthService, get_api_client, get_auth_client
 from dlt._workspace.runtime_clients.api.api.configurations import (
     create_configuration,
+    get_configuration,
     get_latest_configuration,
+    list_configurations,
 )
 from dlt._workspace.runtime_clients.api.api.deployments import (
     create_deployment,
+    get_deployment,
     get_latest_deployment,
     list_deployments,
 )
@@ -34,8 +37,8 @@ from dlt._workspace.runtime_clients.api.api.runs import (
 )
 from dlt._workspace.runtime_clients.api.api.scripts import (
     create_or_update_script,
-    get_latest_script_version,
     get_script,
+    list_scripts,
 )
 from dlt._workspace.runtime_clients.api.client import Client as ApiClient
 from dlt._workspace.runtime_clients.api.models.create_deployment_body import CreateDeploymentBody
@@ -81,56 +84,45 @@ class RuntimeCommand(SupportsCliCommand):
             title="Available subcommands", dest="runtime_command", required=False
         )
 
-        # deployments
-        deployment_cmd = subparsers.add_parser(
-            "deployment",
-            help="Manipulate deployments in workspace",
-            description="Manipulate deployments in workspace",
+        # run a script
+        run_cmd = subparsers.add_parser(
+            "run",
+            help="Run a script in the Runtime",
+            description="Create or update a script and trigger a run",
         )
-        deployment_cmd.add_argument(
-            "--list",
-            "-l",
-            action=argparse.BooleanOptionalAction,
-            help="List all deployments in workspace",
-        )
+        self._configure_run_parser(run_cmd)
 
-        # logs
-        subparsers.add_parser(
-            "logs",
-            help="Convenience command to get the logs of the latest run of a script",
-            description="Convenience command to get the logs of the latest run of a script",
-        )
-
-        # scripts
-        script_cmd = subparsers.add_parser(
-            "script",
-            help="Create, run and inspect scripts in runtime",
-            description="Manipulate scripts in workspace",
-        )
-        script_cmd.add_argument(
-            "script_name_or_id", nargs="?", help="Local path to the script or id of deployed script"
-        )
-
-        script_subparsers = script_cmd.add_subparsers(
-            title="Available subcommands", dest="operation", required=False
-        )
-        script_subparsers.add_parser(
-            "list-runs",
-            help="List all runs of a script in the Runtime",
-            description="List all runs of a script in the Runtime",
-        )
-        script_subparsers.add_parser(
-            "info",
-            help="Get detailed information about a script",
-            description="Get detailed information about a script",
-        )
-
+        # runs management
         runs_cmd = subparsers.add_parser(
             "runs",
             help="Manipulate runs in workspace",
             description="Manipulate runs in workspace",
         )
         self._configure_runs_parser(runs_cmd)
+
+        # deployments
+        deployment_cmd = subparsers.add_parser(
+            "deployment",
+            help="Manipulate deployments in workspace",
+            description="Manipulate deployments in workspace",
+        )
+        self._configure_deployments_parser(deployment_cmd)
+
+        # scripts
+        script_cmd = subparsers.add_parser(
+            "script",
+            help="Create, list and inspect scripts in runtime",
+            description="Manipulate scripts in workspace",
+        )
+        self._configure_scripts_parser(script_cmd)
+
+        # configurations
+        configuration_cmd = subparsers.add_parser(
+            "configuration",
+            help="Manipulate configurations in workspace",
+            description="Manipulate configurations in workspace",
+        )
+        self._configure_configurations_parser(configuration_cmd)
 
     def _configure_runs_parser(self, runs_cmd: argparse.ArgumentParser) -> None:
         runs_cmd.add_argument(
@@ -160,6 +152,84 @@ class RuntimeCommand(SupportsCliCommand):
             "cancel",
             help="Cancel a run in the Runtime",
             description="Cancel a run in the Runtime",
+        )
+
+    def _configure_run_parser(self, run_cmd: argparse.ArgumentParser) -> None:
+        run_cmd.add_argument(
+            "script_name_or_id",
+            help="Local path to the script or id/name of deployed script",
+        )
+
+    def _configure_deployments_parser(self, deployment_cmd: argparse.ArgumentParser) -> None:
+        deployment_cmd.add_argument(
+            "--list",
+            "-l",
+            action=argparse.BooleanOptionalAction,
+            help="List all deployments in workspace",
+        )
+        deployment_cmd.add_argument("deployment_id", nargs="?", help="Deployment id (UUID)")
+        deployment_subparsers = deployment_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        deployment_subparsers.add_parser(
+            "info",
+            help="Get detailed information about a deployment",
+            description="Get detailed information about a deployment",
+        )
+        deployment_subparsers.add_parser(
+            "sync",
+            help="Create new deployment if local workspace content changed",
+            description="Create new deployment if local workspace content changed",
+        )
+
+    def _configure_scripts_parser(self, script_cmd: argparse.ArgumentParser) -> None:
+        script_cmd.add_argument(
+            "script_name_or_id",
+            nargs="?",
+            help="Local path to the script or id/name of deployed script",
+        )
+        script_cmd.add_argument(
+            "--list",
+            "-l",
+            action=argparse.BooleanOptionalAction,
+            help="List all scripts in workspace",
+        )
+        script_subparsers = script_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        script_subparsers.add_parser(
+            "info",
+            help="Get detailed information about a script",
+            description="Get detailed information about a script",
+        )
+        script_subparsers.add_parser(
+            "sync",
+            help="Create or update the script",
+            description="Create or update the script",
+        )
+
+    def _configure_configurations_parser(self, configuration_cmd: argparse.ArgumentParser) -> None:
+        configuration_cmd.add_argument(
+            "--list",
+            "-l",
+            action=argparse.BooleanOptionalAction,
+            help="List all configurations in workspace",
+        )
+        configuration_cmd.add_argument(
+            "configuration_id", nargs="?", help="Configuration id (UUID)"
+        )
+        configuration_subparsers = configuration_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        configuration_subparsers.add_parser(
+            "info",
+            help="Get detailed information about a configuration",
+            description="Get detailed information about a configuration",
+        )
+        configuration_subparsers.add_parser(
+            "sync",
+            help="Create new configuration if local config content changed",
+            description="Create new configuration if local config content changed",
         )
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -196,21 +266,32 @@ class RuntimeCommand(SupportsCliCommand):
         elif args.runtime_command == "deployment":
             if args.list:
                 get_deployments(auth_service=auth_service, api_client=api_client)
-            elif (
-                args.operation == "info"
-            ): ...  # get_deployment_info(deployment_id=args.deployment_id)
+            elif args.operation == "info":
+                get_deployment_info(
+                    deployment_id=args.deployment_id,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
             elif args.operation == "sync":
                 sync_deployment(auth_service=auth_service, api_client=api_client)
         elif args.runtime_command == "script":
-            if args.list: ...  # get_scripts()
-            elif (
-                args.operation == "info"
-            ): ...  # get_script_info(script_id_or_name=args.script_name_or_id)
+            if args.list:
+                get_scripts(auth_service=auth_service, api_client=api_client)
+            elif args.operation == "info":
+                get_script_info(
+                    script_id_or_name=args.script_name_or_id,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
         elif args.runtime_command == "configuration":
-            if args.list: ...  # get_configurations()
-            elif (
-                args.operation == "info"
-            ): ...  # get_deployment_info(deployment_id=args.deployment_id)
+            if args.list:
+                get_configurations(auth_service=auth_service, api_client=api_client)
+            elif args.operation == "info":
+                get_configuration_info(
+                    configuration_id=args.configuration_id,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
             elif args.operation == "sync":
                 sync_configuration(auth_service=auth_service, api_client=api_client)
         else:
@@ -424,10 +505,8 @@ def run_script(
     if not isinstance(create_script_result.parsed, create_or_update_script.ScriptResponse):
         raise _exception_from_response("Failed to create script", create_script_result)
     else:
-        fmt.echo(
-            f"Script {script_file_name} created or updated successfully, id:"
-            f" {create_script_result.parsed.id}"
-        )
+        script_id = create_script_result.parsed.id
+        fmt.echo(f"Script {script_file_name} created or updated successfully, id: {script_id}")
 
     create_run_result = create_run.sync_detailed(
         client=api_client,
@@ -438,6 +517,9 @@ def run_script(
     )
     if isinstance(create_run_result.parsed, create_run.RunResponse):
         fmt.echo("Script %s run successfully run" % (fmt.bold(str(script_file_name))))
+        if is_interactive:
+            url = f"https://{script_id}.apps.tower.dev"
+            fmt.echo(f"Script is accessible on {url}")
     else:
         raise _exception_from_response("Failed to run script", create_run_result)
 
@@ -566,6 +648,24 @@ def get_deployments(*, auth_service: RuntimeAuthService, api_client: ApiClient) 
         raise _exception_from_response("Failed to list deployments", list_deployments_result)
 
 
+def get_deployment_info(
+    deployment_id: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
+    get_deployment_result = get_deployment.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        deployment_id_or_version=_to_uuid(deployment_id),
+    )
+    if isinstance(get_deployment_result.parsed, get_deployment.DeploymentResponse):
+        fmt.echo(f"Deployment # {get_deployment_result.parsed.version}")
+        fmt.echo(f"Created at: {get_deployment_result.parsed.date_added}")
+        fmt.echo(f"Deployment id: {get_deployment_result.parsed.id}")
+        fmt.echo(f"File count: {get_deployment_result.parsed.file_count}")
+        fmt.echo(f"Content hash: {get_deployment_result.parsed.content_hash}")
+    else:
+        raise _exception_from_response("Failed to get deployment info", get_deployment_result)
+
+
 def request_run_cancel(
     run_id: Union[str, UUID] = None,
     script_id_or_name: str = None,
@@ -595,6 +695,42 @@ def request_run_cancel(
         fmt.echo(f"Successfully requested cancellation of run {run_id}")
     else:
         raise _exception_from_response("Failed to request cancellation of run", cancel_run_result)
+
+
+def get_scripts(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+    list_scripts_result = list_scripts.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    if isinstance(list_scripts_result.parsed, list_scripts.ListScriptsResponse200) and isinstance(
+        list_scripts_result.parsed.items, list
+    ):
+        for script in reversed(list_scripts_result.parsed.items):
+            fmt.echo(
+                f"Script {script.name}, created at: {script.date_added}, id: {script.id}, version"
+                f" #: {script.version}"
+            )
+    else:
+        raise _exception_from_response("Failed to list scripts", list_scripts_result)
+
+
+def get_script_info(
+    script_id_or_name: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
+    get_script_result = get_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        script_id_or_name=script_id_or_name,
+    )
+
+    if isinstance(get_script_result.parsed, get_script.ScriptResponse):
+        fmt.echo(
+            f"Script {get_script_result.parsed.name}, created at:"
+            f" {get_script_result.parsed.date_added}, id: {get_script_result.parsed.id}, version #:"
+            f" {get_script_result.parsed.version}"
+        )
+    else:
+        raise _exception_from_response("Failed to get script info", get_script_result)
 
 
 def _get_latest_run(
@@ -640,3 +776,38 @@ def _get_latest_run(
             else:
                 return runs.parsed.items[0]
         raise _exception_from_response("Failed to get runs for workspace", runs)
+
+
+def get_configurations(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+    list_configurations_result = list_configurations.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    if isinstance(
+        list_configurations_result.parsed, list_configurations.ListConfigurationsResponse200
+    ) and isinstance(list_configurations_result.parsed.items, list):
+        for configuration in reversed(list_configurations_result.parsed.items):
+            fmt.echo(
+                f"Configuration # {configuration.version}, created at: {configuration.date_added},"
+                f" version id: {configuration.id}"
+            )
+    else:
+        raise _exception_from_response("Failed to list configurations", list_configurations_result)
+
+
+def get_configuration_info(
+    configuration_id: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
+    get_configuration_result = get_configuration.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        configuration_id_or_version=_to_uuid(configuration_id),
+    )
+    if isinstance(get_configuration_result.parsed, get_configuration.ConfigurationResponse):
+        fmt.echo(
+            f"Configuration # {get_configuration_result.parsed.version}, created at:"
+            f" {get_configuration_result.parsed.date_added}, version id:"
+            f" {get_configuration_result.parsed.id}"
+        )
+    else:
+        raise _exception_from_response("Failed to get configuration info", get_configuration_result)

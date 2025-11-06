@@ -6,7 +6,8 @@ from pathspec.util import iter_tree_files
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
 
-class BaseFileSelector(Iterable[Path]): ...
+class BaseFileSelector(Iterable[Path]):
+    pass
 
 
 class WorkspaceFileSelector(BaseFileSelector):
