@@ -1,4 +1,5 @@
 from typing import Any
+from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 
 import dlt
 
@@ -54,6 +55,44 @@ def build_title_and_subtitle(title: str, subtitle: str = None, title_level: int 
     if subtitle:
         _result.append(mo.md(f"<small>{subtitle}</small>"))
     return mo.vstack(_result)
+
+
+def build_run_context_inline_label() -> Any:
+    """Inline, small-font label with profile/workspace info to place near controls."""
+    run_context = dlt.current.run_context()
+    if isinstance(run_context, ProfilesRunContext):
+        label = (
+            run_context.profile
+            if run_context.default_profile != run_context.profile
+            else run_context.default_profile
+        )
+        return mo.md(f"<small>Profile: {label}</small>")
+    # Non-profile-aware context
+    return mo.md("<small>Profile: _</small>")
+
+
+def build_workspace_label() -> Any:
+    """Show workspace name, or '_' if not set/available."""
+    run_context = dlt.current.run_context()
+    text = getattr(run_context, "name", None)
+    return mo.md(f"<small>{text}</small>")
+
+
+def build_labeled_inline(label_text: str, content: Any) -> Any:
+    """Inline label + content, matching selector header design."""
+    return mo.hstack([mo.md(f"<small>{label_text}:</small>"), content], align="center").style(
+        gap="0.5rem"
+    )
+
+
+def build_tabs_spacer(num_tabs: int = 2) -> Any:
+    """Creates an inline spacer approximating tabs using non-breaking spaces."""
+    try:
+        count = int(num_tabs)
+    except Exception:
+        count = 2
+    spaces = "&nbsp;" * (count * 4)  # approx 4 spaces per tab
+    return mo.md(spaces)
 
 
 def build_page_header(

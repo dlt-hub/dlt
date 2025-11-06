@@ -179,3 +179,7 @@ start-dlt-dashboard-e2e:
 # creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
+
+# Run only the profiles e2e tests (assumes server already running)
+dashboard-test-profiles:
+	uv run pytest -s -v --headed $(CURDIR)/tests/e2e/helpers/dashboard/test_profiles_e2e.py

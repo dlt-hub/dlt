@@ -17,11 +17,14 @@ with app.setup:
     import pyarrow
     from dlt._workspace.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+    from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
+    from dlt._workspace.run_context import switch_profile
 
 
 @app.cell(hide_code=True)
 def home(
     dlt_all_pipelines: List[Dict[str, Any]],
+    dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
@@ -49,8 +52,19 @@ def home(
                     mo.image(
                         "https://dlthub.com/docs/img/dlthub-logo.png", width=100, alt="dltHub logo"
                     ),
-                    dlt_pipeline_select,
+                    mo.hstack(
+                        [
+                            ui.build_labeled_inline("Profile", dlt_profile_select),
+                            ui.build_tabs_spacer(2),
+                            ui.build_labeled_inline("Workspace", ui.build_workspace_label()),
+                            ui.build_tabs_spacer(2),
+                            ui.build_labeled_inline("Pipeline", dlt_pipeline_select),
+                        ],
+                        align="center",
+                    ),
                 ],
+                align="center",
+                justify="space-between",
             ),
             mo.md(strings.app_title).center(),
             mo.md(strings.app_intro).center(),
@@ -91,14 +105,44 @@ def home(
                 [
                     mo.hstack(
                         [
-                            mo.image(
-                                "https://dlthub.com/docs/img/dlthub-logo.png",
-                                width=100,
-                                alt="dltHub logo",
-                            ).style(padding_bottom="1em"),
-                            mo.center(mo.md(strings.app_title_pipeline.format(dlt_pipeline_name))),
-                            dlt_pipeline_select,
+                            mo.vstack(
+                                [
+                                    mo.hstack(
+                                        [
+                                            ui.build_labeled_inline("Profile", dlt_profile_select),
+                                            ui.build_tabs_spacer(2),
+                                            ui.build_labeled_inline(
+                                                "Workspace", ui.build_workspace_label()
+                                            ),
+                                            ui.build_tabs_spacer(2),
+                                            ui.build_labeled_inline(
+                                                "Pipeline", dlt_pipeline_select
+                                            ),
+                                        ],
+                                        align="center",
+                                    ),
+                                    mo.center(
+                                        mo.hstack(
+                                            [
+                                                mo.image(
+                                                    "https://dlthub.com/docs/img/dlthub-logo.png",
+                                                    width=100,
+                                                    alt="dltHub logo",
+                                                ).style(padding_bottom="0.5em"),
+                                                mo.md(
+                                                    strings.app_title_pipeline.format(
+                                                        dlt_pipeline_name
+                                                    )
+                                                ),
+                                            ],
+                                            align="center",
+                                        ),
+                                    ),
+                                ]
+                            ),
                         ],
+                        align="center",
+                        justify="space-between",
                     ),
                     mo.hstack(_buttons, justify="start"),
                 ]
@@ -788,17 +832,21 @@ def utils_discover_pipelines(
     mo_cli_arg_pipelines_dir: str,
     mo_cli_arg_pipeline: str,
     mo_query_var_pipeline_name: str,
+    dlt_profile_select: mo.ui.dropdown,
 ):
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
 
-    # discover pipelines and build selector
-    dlt_pipelines_dir: str = ""
+    # Make this cell reactive to profile changes
+    _selected_profile = dlt_profile_select.value
+
+    # Resolve pipelines dir for the active profile
+    dlt_pipelines_dir: str = dlt.current.run_context().get_data_entity("pipelines")
     dlt_all_pipelines: List[Dict[str, Any]] = []
     dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
-        mo_cli_arg_pipelines_dir,
-        addtional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
+        dlt_pipelines_dir,
+        addtional_pipelines=None,
     )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
@@ -809,11 +857,52 @@ def utils_discover_pipelines(
             else ([mo_cli_arg_pipeline] if mo_cli_arg_pipeline else None)
         ),
         max_selections=1,
-        label=strings.app_pipeline_select_label,
+        label="",
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
     )
 
     return dlt_all_pipelines, dlt_pipeline_select, dlt_pipelines_dir
+
+
+@app.cell(hide_code=True)
+def utils_discover_profiles():
+    """Discover profiles and return a single-select multiselect, similar to pipelines."""
+    run_context = dlt.current.run_context()
+
+    def _profiles_from_run_context():
+        if not isinstance(run_context, ProfilesRunContext):
+            return [], None
+        options = run_context.available_profiles() or []
+        current = run_context.profile if options and run_context.profile in options else None
+        return options, current
+
+    options, current = _profiles_from_run_context()
+
+    mo_query_var_profile = mo.query_params().get("profile") or None
+    mo_cli_arg_profile = mo.cli_args().get("profile") or None
+
+    selected_profile = current
+    if mo_query_var_profile and mo_query_var_profile in options:
+        selected_profile = mo_query_var_profile
+        switch_profile(selected_profile)
+    elif mo_cli_arg_profile and mo_cli_arg_profile in options:
+        selected_profile = mo_cli_arg_profile
+        switch_profile(selected_profile)
+
+    def _on_profile_change(v: str) -> None:
+        mo.query_params().set("profile", v)
+        if v:
+            switch_profile(v)
+
+    dlt_profile_select: mo.ui.dropdown = mo.ui.dropdown(
+        options=options,
+        value=selected_profile,
+        label="",
+        on_change=_on_profile_change,
+        searchable=True,
+    )
+
+    return dlt_profile_select
 
 
 @app.cell(hide_code=True)
