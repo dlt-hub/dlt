@@ -61,3 +61,4 @@ def test_rows_to_range_basic():
     assert out[0]["a"] == pytest.approx(0.0, abs=1e-9)
     assert out[1]["a"] == pytest.approx(0.5, abs=1e-9)
     assert out[2]["a"] == pytest.approx(1.0, abs=1e-9)
+    
