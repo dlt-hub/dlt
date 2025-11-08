@@ -6,10 +6,8 @@ from dlt.helpers.robust import (
 def test_values_basic():
     x = [10, 20, 30, 40, 50]
     y = robust_scale_values(x)
-    assert len(y) == 5
-    assert pytest.approx(y[2], abs=1e-9) == 0.0
-    assert pytest.approx(y[0], rel=1e-2) == -2/3
-    assert pytest.approx(y[-1], rel=1e-2) ==  2/3
+    # with (x - median)/IQR, this maps to [-1, -0.5, 0, 0.5, 1]
+    assert y == pytest.approx([-1.0, -0.5, 0.0, 0.5, 1.0], abs=1e-9)
 
 def test_values_constant_returns_zeros():
     x = [5, 5, 5]
@@ -24,5 +22,9 @@ def test_values_clip_range():
 def test_rows_basic_and_non_numeric_untouched():
     rows = [{"a": 10, "b": "x"}, {"a": 30, "b": 15}, {"a": 50, "b": None}]
     out = list(robust_scale_rows(rows, columns=["a"]))
+    # non-numeric column remains unchanged
     assert [r["b"] for r in out] == ["x", 15, None]
-    assert pytest.approx(out[1]["a"], abs=1e-9) == 0.0
+    # numeric column scaled; median row ~0.0; ends ±1.0
+    assert out[0]["a"] == pytest.approx(-1.0, abs=1e-9)
+    assert out[1]["a"] == pytest.approx( 0.0, abs=1e-9)
+    assert out[2]["a"] == pytest.approx( 1.0, abs=1e-9)
