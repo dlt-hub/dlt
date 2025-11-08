@@ -157,3 +157,4 @@ def robust_scale_rows_to_range(rows: Iterable[Mapping[str, Any]],
             out[c] = scaled_cols[c][idx[c]]
             idx[c] += 1
         yield out
+        
