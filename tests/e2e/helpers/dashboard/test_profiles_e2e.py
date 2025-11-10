@@ -163,6 +163,7 @@ def test_dev_workspace(page: Page, kill_server_after, prepare_workspaces, seed_p
     kill_server_after(proc)
 
     page.goto("http://localhost:2718/?profile=tests")
+    time.sleep(500)
     expect(page.get_by_role("link", name="fruitshop")).to_have_count(0)
     expect(page.get_by_role("link", name="rest_api_pokemon")).to_have_count(0)
 

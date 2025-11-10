@@ -44,24 +44,39 @@ def home(
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
-
+    _header_controls = (
+        [
+            dlt_profile_select,
+            mo.md(f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"),
+        ]
+        if isinstance(dlt.current.run_context(), ProfilesRunContext)
+        else None
+    )
     if not dlt_pipeline and not dlt_pipeline_name:
         _stack = [
             mo.hstack(
                 [
-                    mo.image(
-                        "https://dlthub.com/docs/img/dlthub-logo.png", width=100, alt="dltHub logo"
+                    mo.hstack(
+                        [
+                            mo.image(
+                                "https://dlthub.com/docs/img/dlthub-logo.png",
+                                width=100,
+                                alt="dltHub logo",
+                            ),
+                            _header_controls[0] if _header_controls else "",
+                        ],
+                        justify="start",
+                        gap=10,
                     ),
                     mo.hstack(
                         [
-                            ui.build_labeled_inline("Profile", dlt_profile_select),
-                            ui.build_labeled_inline("Workspace", ui.build_workspace_label()),
-                            ui.build_labeled_inline("Pipeline", dlt_pipeline_select),
+                            _header_controls[1] if _header_controls else "",
+                            dlt_pipeline_select,
                         ],
-                        align="center",
+                        justify="start",
+                        gap=10,
                     ),
                 ],
-                align="center",
                 justify="space-between",
             ),
             mo.md(strings.app_title).center(),
@@ -107,24 +122,40 @@ def home(
                                 [
                                     mo.hstack(
                                         [
-                                            ui.build_labeled_inline("Profile", dlt_profile_select),
-                                            ui.build_labeled_inline(
-                                                "Workspace", ui.build_workspace_label()
+                                            mo.hstack(
+                                                [
+                                                    mo.image(
+                                                        "https://dlthub.com/docs/img/dlthub-logo.png",
+                                                        width=100,
+                                                        alt="dltHub logo",
+                                                    ),
+                                                    (
+                                                        _header_controls[0]
+                                                        if _header_controls
+                                                        else ""
+                                                    ),
+                                                ],
+                                                justify="start",
+                                                gap=10,
                                             ),
-                                            ui.build_labeled_inline(
-                                                "Pipeline", dlt_pipeline_select
+                                            mo.hstack(
+                                                [
+                                                    (
+                                                        _header_controls[1]
+                                                        if _header_controls
+                                                        else ""
+                                                    ),
+                                                    dlt_pipeline_select,
+                                                ],
+                                                justify="start",
+                                                gap=10,
                                             ),
                                         ],
-                                        align="center",
+                                        justify="space-between",
                                     ),
                                     mo.center(
                                         mo.hstack(
                                             [
-                                                mo.image(
-                                                    "https://dlthub.com/docs/img/dlthub-logo.png",
-                                                    width=100,
-                                                    alt="dltHub logo",
-                                                ).style(padding_bottom="0.5em"),
                                                 mo.md(
                                                     strings.app_title_pipeline.format(
                                                         dlt_pipeline_name
@@ -137,7 +168,6 @@ def home(
                                 ]
                             ),
                         ],
-                        align="center",
                         justify="space-between",
                     ),
                     mo.hstack(_buttons, justify="start"),
@@ -853,7 +883,7 @@ def utils_discover_pipelines(
             else ([mo_cli_arg_pipeline] if mo_cli_arg_pipeline else None)
         ),
         max_selections=1,
-        label="",
+        label="Pipeline: ",
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
     )
 
@@ -865,14 +895,10 @@ def utils_discover_profiles():
     """Discover profiles and return a single-select multiselect, similar to pipelines."""
     run_context = dlt.current.run_context()
 
-    def _profiles_from_run_context():
-        if not isinstance(run_context, ProfilesRunContext):
-            return [], None
-        options = run_context.available_profiles() or []
-        current = run_context.profile if options and run_context.profile in options else None
-        return options, current
-
-    options, current = _profiles_from_run_context()
+    if not isinstance(run_context, ProfilesRunContext):
+        return [], None
+    options = run_context.available_profiles() or []
+    current = run_context.profile if options and run_context.profile in options else None
 
     mo_query_var_profile = (
         mo.query_params().get("profile") if isinstance(run_context, ProfilesRunContext) else None
@@ -897,7 +923,7 @@ def utils_discover_profiles():
     dlt_profile_select: mo.ui.dropdown = mo.ui.dropdown(
         options=options,
         value=selected_profile,
-        label="",
+        label="Profile: ",
         on_change=_on_profile_change,
         searchable=True,
     )
