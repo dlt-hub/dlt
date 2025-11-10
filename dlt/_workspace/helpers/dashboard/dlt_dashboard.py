@@ -858,21 +858,17 @@ def utils_discover_pipelines(
     mo_cli_arg_pipelines_dir: str,
     mo_cli_arg_pipeline: str,
     mo_query_var_pipeline_name: str,
-    dlt_profile_select: mo.ui.dropdown,
 ):
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
 
-    # Make this cell reactive to profile changes
-    _selected_profile = dlt_profile_select.value
-
-    # Resolve pipelines dir for the active profile
-    dlt_pipelines_dir: str = dlt.current.run_context().get_data_entity("pipelines")
+    # discover pipelines and build selector
+    dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
     dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
-        dlt_pipelines_dir,
-        addtional_pipelines=None,
+        mo_cli_arg_pipelines_dir,
+        addtional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
@@ -883,7 +879,7 @@ def utils_discover_pipelines(
             else ([mo_cli_arg_pipeline] if mo_cli_arg_pipeline else None)
         ),
         max_selections=1,
-        label="Pipeline: ",
+        label=strings.app_pipeline_select_label,
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
     )
 
