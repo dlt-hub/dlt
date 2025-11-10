@@ -55,9 +55,7 @@ def home(
                     mo.hstack(
                         [
                             ui.build_labeled_inline("Profile", dlt_profile_select),
-                            ui.build_tabs_spacer(2),
                             ui.build_labeled_inline("Workspace", ui.build_workspace_label()),
-                            ui.build_tabs_spacer(2),
                             ui.build_labeled_inline("Pipeline", dlt_pipeline_select),
                         ],
                         align="center",
@@ -110,11 +108,9 @@ def home(
                                     mo.hstack(
                                         [
                                             ui.build_labeled_inline("Profile", dlt_profile_select),
-                                            ui.build_tabs_spacer(2),
                                             ui.build_labeled_inline(
                                                 "Workspace", ui.build_workspace_label()
                                             ),
-                                            ui.build_tabs_spacer(2),
                                             ui.build_labeled_inline(
                                                 "Pipeline", dlt_pipeline_select
                                             ),

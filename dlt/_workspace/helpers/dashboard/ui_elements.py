@@ -80,19 +80,8 @@ def build_workspace_label() -> Any:
 
 def build_labeled_inline(label_text: str, content: Any) -> Any:
     """Inline label + content, matching selector header design."""
-    return mo.hstack([mo.md(f"<small>{label_text}:</small>"), content], align="center").style(
-        gap="0.5rem"
-    )
+    return mo.hstack([mo.md(f"<small>{label_text}:</small>"), content], align="center")
 
-
-def build_tabs_spacer(num_tabs: int = 2) -> Any:
-    """Creates an inline spacer approximating tabs using non-breaking spaces."""
-    try:
-        count = int(num_tabs)
-    except Exception:
-        count = 2
-    spaces = "&nbsp;" * (count * 4)  # approx 4 spaces per tab
-    return mo.md(spaces)
 
 
 def build_page_header(
