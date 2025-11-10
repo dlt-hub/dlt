@@ -159,6 +159,21 @@ class RuntimeCommand(SupportsCliCommand):
             "script_name_or_id",
             help="Local path to the script or id/name of deployed script",
         )
+        run_cmd.add_argument(
+            "--profile",
+            "-p",
+            nargs="?",
+            help="Profile to use for the run",
+        )
+        run_cmd.add_argument(
+            "-i",
+            "--interactive",
+            action="store_true",
+            help=(
+                "Whether the script should be deployed as interactive (e.g. a notebook). False by"
+                " default"
+            ),
+        )
 
     def _configure_deployments_parser(self, deployment_cmd: argparse.ArgumentParser) -> None:
         deployment_cmd.add_argument(
@@ -239,6 +254,8 @@ class RuntimeCommand(SupportsCliCommand):
         if args.runtime_command == "run":
             run_script(
                 args.script_name_or_id,
+                bool(args.interactive),
+                args.profile,
                 auth_service=auth_service,
                 api_client=api_client,
             )
@@ -380,7 +397,9 @@ def connect(
         fmt.echo("Authorized to workspace %s" % fmt.bold(auth_service.workspace_id))
 
 
-def deploy(script_file_name: str, is_interactive: bool = False) -> None:
+def deploy(
+    script_file_name: str, is_interactive: bool = False, profile: Optional[str] = None
+) -> None:
     auth_service = login()
     api_client = get_api_client(auth_service)
 
@@ -393,6 +412,7 @@ def deploy(script_file_name: str, is_interactive: bool = False) -> None:
     run_script(
         script_file_name,
         is_interactive,
+        profile=profile,
         auth_service=auth_service,
         api_client=api_client,
     )
@@ -484,6 +504,7 @@ def sync_configuration(*, auth_service: RuntimeAuthService, api_client: ApiClien
 def run_script(
     script_file_name: str,
     is_interactive: bool = False,
+    profile: Optional[str] = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
@@ -500,6 +521,8 @@ def run_script(
             description=f"The {script_file_name} script",
             entry_point=script_file_name,
             script_type=ScriptType.INTERACTIVE if is_interactive else ScriptType.BATCH,
+            profile=profile,
+            schedule=None,
         ),
     )
     if not isinstance(create_script_result.parsed, create_or_update_script.ScriptResponse):
@@ -513,10 +536,11 @@ def run_script(
         workspace_id=_to_uuid(auth_service.workspace_id),
         body=create_run.CreateRunRequest(
             script_id_or_name=script_file_name,
+            profile=None,
         ),
     )
     if isinstance(create_run_result.parsed, create_run.RunResponse):
-        fmt.echo("Script %s run successfully run" % (fmt.bold(str(script_file_name))))
+        fmt.echo("Script %s run successfully" % (fmt.bold(str(script_file_name))))
         if is_interactive:
             url = f"https://{script_id}.apps.tower.dev"
             fmt.echo(f"Script is accessible on {url}")

@@ -842,6 +842,12 @@ Commands to get info, cleanup local files and launch Workspace MCP
         )
         deploy_cmd.add_argument("script_name", help="Local path to the script")
         deploy_cmd.add_argument(
+            "--profile",
+            "-p",
+            nargs="?",
+            help="Profile to use for the run",
+        )
+        deploy_cmd.add_argument(
             "-i",
             "--interactive",
             action="store_true",
@@ -876,7 +882,7 @@ Commands to get info, cleanup local files and launch Workspace MCP
         elif args.workspace_command == "logout":
             logout()
         elif args.workspace_command == "deploy":
-            deploy(args.script_name, bool(args.interactive))
+            deploy(args.script_name, bool(args.interactive), args.profile)
         else:
             self.parser.print_usage()
 

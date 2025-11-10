@@ -1,4 +1,4 @@
-from typing import Iterable, Iterator, Optional, List
+from typing import Iterable, Iterator, Optional, List, Tuple
 from pathlib import Path
 from pathspec import PathSpec
 from pathspec.util import iter_tree_files
@@ -6,7 +6,7 @@ from pathspec.util import iter_tree_files
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
 
-class BaseFileSelector(Iterable[Path]):
+class BaseFileSelector(Iterable[Tuple[Path, Path]]):
     pass
 
 
@@ -43,11 +43,12 @@ class WorkspaceFileSelector(BaseFileSelector):
 
         return PathSpec.from_lines("gitwildmatch", patterns)
 
-    def __iter__(self) -> Iterator[Path]:
+    def __iter__(self) -> Iterator[Tuple[Path, Path]]:
         """Yield paths of files eligible for deployment"""
+        root_path = Path(self.root_path)
         for file_path in iter_tree_files(self.root_path):
             if not self.ignore_spec.match_file(file_path):
-                yield Path(file_path)
+                yield root_path / file_path, Path(file_path)
 
 
 class ConfigurationFileSelector(BaseFileSelector):
@@ -59,8 +60,8 @@ class ConfigurationFileSelector(BaseFileSelector):
     ) -> None:
         self.settings_dir: Path = Path(context.settings_dir).resolve()
 
-    def __iter__(self) -> Iterator[Path]:
+    def __iter__(self) -> Iterator[Tuple[Path, Path]]:
         """Yield paths of config and secrets paths"""
         for file_path in iter_tree_files(self.settings_dir):
             if file_path.endswith("config.toml") or file_path.endswith("secrets.toml"):
-                yield self.settings_dir / file_path
+                yield self.settings_dir / file_path, Path(file_path)

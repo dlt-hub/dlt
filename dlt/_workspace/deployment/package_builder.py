@@ -36,19 +36,18 @@ class PackageBuilder:
 
         # Add files to the archive
         with tarfile.open(fileobj=output_stream, mode="w|gz") as tar:
-            for file_path in file_selector:
-                full_path = self.run_context.run_dir / file_path
+            for abs_path, rel_path in file_selector:
                 # Use POSIX paths for tar archives (cross-platform compatibility)
-                posix_path = file_path.as_posix()
+                posix_path = rel_path.as_posix()
                 tar.add(
-                    full_path,
+                    abs_path,
                     arcname=f"{DEFAULT_DEPLOYMENT_FILES_FOLDER}/{posix_path}",
                     recursive=False,
                 )
                 manifest_files.append(
                     {
                         "relative_path": posix_path,
-                        "size_in_bytes": full_path.stat().st_size,
+                        "size_in_bytes": abs_path.stat().st_size,
                     }
                 )
             # Create and add manifest with file metadata at the end
