@@ -132,7 +132,6 @@ def test_load_sql_schema_loads_all_tables_parallel(
 def test_load_sql_schema_loads_all_tables_parallel_connectorx_arrow_stream(
     postgres_db: PostgresSourceDB,
     destination_config: DestinationTestConfiguration,
-    connectorx_return_type: str,
 ) -> None:
     pipeline = destination_config.setup_pipeline(
         "test_load_sql_schema_loads_all_tables_parallel_connectorx", dev_mode=True
