@@ -139,6 +139,11 @@ class RuntimeCommand(SupportsCliCommand):
 
         # manage runs
         runs_subparsers.add_parser(
+            "list",
+            help="List all runs of the script, only works if script name is provided",
+            description="List all runs of the script, only works if script name is provided",
+        )
+        runs_subparsers.add_parser(
             "info",
             help="Get detailed information about a run",
             description="Get detailed information about a run",
@@ -277,6 +282,12 @@ class RuntimeCommand(SupportsCliCommand):
             elif args.operation == "cancel":
                 request_run_cancel(
                     script_id_or_name=args.script_name_or_run_id,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
+            elif args.operation == "list":
+                get_runs(
+                    script_name=args.script_name_or_run_id,  # raising downstream if run_id is passed
                     auth_service=auth_service,
                     api_client=api_client,
                 )
@@ -616,24 +627,37 @@ def fetch_run_logs(
 
 
 def get_runs(
-    script_id_or_name: str = None,
+    script_name: str = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
+    if script_name:
+        try:
+            _to_uuid(script_name)
+            raise CliCommandInnerException(
+                cmd="runtime",
+                msg=(
+                    "UUID run id provided instead of script name for dlt runtime runs <SCRIPT_NAME>"
+                    " list command"
+                ),
+                inner_exc=None,
+            )
+        except RuntimeError:
+            pass
+
     script_id = None
-    if script_id_or_name:
+    if script_name:
         script = get_script.sync_detailed(
             client=api_client,
             workspace_id=_to_uuid(auth_service.workspace_id),
-            script_id_or_name=script_id_or_name,
+            script_id_or_name=script_name,
         )
         if isinstance(script.parsed, get_script.ScriptResponse):
             script_id = script.parsed.id
         else:
             raise _exception_from_response(
-                f"Failed to get script with name or id {script_id_or_name} from runtime. Did you"
-                " create one?",
+                f"Failed to get script with name {script_name} from runtime. Did you create one?",
                 script,
             )
 

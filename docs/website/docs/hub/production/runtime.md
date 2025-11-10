@@ -123,19 +123,25 @@ As the script has been launched, `dlt workspace deploy` or `dlt runtime run` ret
 - Show the status and metadata of a specific run (identified by run ID) or latest script run (identified by script path):
 
   ```sh
-  dlt runtime runs <run_id|script_id_or_name> info
+  dlt runtime runs <run_id|script_name> info
   ```
 
 - Show the logs of a specific run (identified by run ID) or latest script run (identified by script path):
 
   ```sh
-  dlt runtime runs <run_id|script_id_or_name> logs
+  dlt runtime runs <run_id|script_name> logs
   ```
 
 - List the run history of a specific script:
 
   ```sh
-  dlt runtime runs <script_id_or_name> --list
+  dlt runtime runs <script_name> list
+  ```
+
+- List the run history of all scripts in the workspace:
+
+  ```sh
+  dlt runtime runs --list
   ```
 
 
@@ -204,7 +210,7 @@ All `dlt runtime ...` subcommands can be used to inspect resources. To list reso
 - **Deployments**: `dlt runtime deployment --list`, `dlt runtime deployment info <deployment_id>`
 - **Configurations**: `dlt runtime configuration --list`, `dlt runtime configuration info <configuration_id>`
 - **Scripts**: `dlt runtime script --list`, `dlt runtime script info <script_id_or_name>`
-- **Runs**: `dlt runtime runs --list`, `dlt runtime runs info|logs|cancel <run_id|script_id_or_name>`
+- **Runs**: `dlt runtime runs --list`, `dlt runtime runs <run_id|script_name> list|info|logs|cancel `
 
 ## Best practices
 
