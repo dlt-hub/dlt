@@ -154,7 +154,7 @@ All `dlt runtime ...` subcommands can be used to inspect resources. To list reso
 - Show the metadata of a specific deployment:
 
   ```sh
-  dlt runtime deployment info <deployment_id>
+  dlt runtime deployment <deployment_id> info
   ```
 
 ### Configurations
