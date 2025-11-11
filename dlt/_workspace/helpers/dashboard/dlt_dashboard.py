@@ -891,38 +891,39 @@ def utils_discover_profiles():
     """Discover profiles and return a single-select multiselect, similar to pipelines."""
     run_context = dlt.current.run_context()
 
-    if not isinstance(run_context, ProfilesRunContext):
-        return [], None
-    options = run_context.available_profiles() or []
-    current = run_context.profile if options and run_context.profile in options else None
+    # Default (non-profile-aware) output
+    dlt_profile_select = mo.ui.dropdown(options=[], value=None, label="Profile: ")
+    selected_profile = None
 
-    mo_query_var_profile = (
-        mo.query_params().get("profile") if isinstance(run_context, ProfilesRunContext) else None
-    )
-    mo_cli_arg_profile = (
-        mo.cli_args().get("profile") if isinstance(run_context, ProfilesRunContext) else None
-    )
+    if isinstance(run_context, ProfilesRunContext):
+        options = run_context.available_profiles() or []
+        current = run_context.profile if options and run_context.profile in options else None
 
-    selected_profile = current
-    if mo_query_var_profile and mo_query_var_profile in options:
-        selected_profile = mo_query_var_profile
-        switch_profile(selected_profile)
-    elif mo_cli_arg_profile and mo_cli_arg_profile in options:
-        selected_profile = mo_cli_arg_profile
-        switch_profile(selected_profile)
+        mo_query_var_profile = mo.query_params().get("profile")
+        mo_cli_arg_profile = mo.cli_args().get("profile")
 
-    def _on_profile_change(v: str) -> None:
-        mo.query_params().set("profile", v)
-        if v:
-            switch_profile(v)
+        selected_profile = current
+        if mo_query_var_profile and mo_query_var_profile in options:
+            selected_profile = mo_query_var_profile
+            switch_profile(selected_profile)
+        elif mo_cli_arg_profile and mo_cli_arg_profile in options:
+            selected_profile = mo_cli_arg_profile
+            switch_profile(selected_profile)
 
-    dlt_profile_select: mo.ui.dropdown = mo.ui.dropdown(
-        options=options,
-        value=selected_profile,
-        label="Profile: ",
-        on_change=_on_profile_change,
-        searchable=True,
-    )
+        def _on_profile_change(v: str) -> None:
+            mo.query_params().set("profile", v)
+            if v:
+                switch_profile(v)
+
+        dlt_profile_select = mo.ui.dropdown(
+            options=options,
+            value=selected_profile,
+            label="Profile: ",
+            on_change=_on_profile_change,
+            searchable=True,
+        )
+
+    return dlt_profile_select, selected_profile
 
 
 @app.cell(hide_code=True)
