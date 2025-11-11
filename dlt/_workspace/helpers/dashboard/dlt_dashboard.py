@@ -66,15 +66,19 @@ def home(
                             _header_controls[0] if _header_controls else "",
                         ],
                         justify="start",
-                        gap=10,
+                        gap=2,
                     ),
                     mo.hstack(
                         [
                             _header_controls[1] if _header_controls else "",
+                        ],
+                        justify="center",
+                    ),
+                    mo.hstack(
+                        [
                             dlt_pipeline_select,
                         ],
-                        justify="start",
-                        gap=10,
+                        justify="end",
                     ),
                 ],
                 justify="space-between",
@@ -124,34 +128,42 @@ def home(
                                         [
                                             mo.hstack(
                                                 [
-                                                    mo.image(
-                                                        "https://dlthub.com/docs/img/dlthub-logo.png",
-                                                        width=100,
-                                                        alt="dltHub logo",
+                                                    mo.hstack(
+                                                        [
+                                                            mo.image(
+                                                                "https://dlthub.com/docs/img/dlthub-logo.png",
+                                                                width=100,
+                                                                alt="dltHub logo",
+                                                            ),
+                                                            (
+                                                                _header_controls[0]
+                                                                if _header_controls
+                                                                else ""
+                                                            ),
+                                                        ],
+                                                        justify="start",
+                                                        gap=2,
                                                     ),
-                                                    (
-                                                        _header_controls[0]
-                                                        if _header_controls
-                                                        else ""
+                                                    mo.hstack(
+                                                        [
+                                                            (
+                                                                _header_controls[1]
+                                                                if _header_controls
+                                                                else ""
+                                                            ),
+                                                        ],
+                                                        justify="center",
+                                                    ),
+                                                    mo.hstack(
+                                                        [
+                                                            dlt_pipeline_select,
+                                                        ],
+                                                        justify="end",
                                                     ),
                                                 ],
-                                                justify="start",
-                                                gap=10,
-                                            ),
-                                            mo.hstack(
-                                                [
-                                                    (
-                                                        _header_controls[1]
-                                                        if _header_controls
-                                                        else ""
-                                                    ),
-                                                    dlt_pipeline_select,
-                                                ],
-                                                justify="start",
-                                                gap=10,
+                                                justify="center",
                                             ),
                                         ],
-                                        justify="space-between",
                                     ),
                                     mo.center(
                                         mo.hstack(
