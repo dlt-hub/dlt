@@ -35,7 +35,6 @@ from dlt.destinations.impl.redshift.configuration import RedshiftClientConfigura
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
 
-
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     "cluster": "DISTKEY",
     # it is better to not enforce constraints in redshift
@@ -93,10 +92,17 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         ):
             aws_access_key = self._staging_credentials.aws_access_key_id
             aws_secret_key = self._staging_credentials.aws_secret_access_key
-            credentials = (
-                "CREDENTIALS"
-                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
-            )
+            aws_session_token = getattr(self._staging_credentials, "aws_session_token", None)
+            if aws_session_token:
+                credentials = (
+                    "CREDENTIALS"
+                    f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key};token={aws_session_token}'"
+                )
+            else:
+                credentials = (
+                    "CREDENTIALS"
+                    f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
+                )
         # get format
         file_format, is_compressed = get_file_format_and_compression(self._bucket_path)
         file_type = ""
@@ -126,14 +132,16 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY
-            self._sql_client.execute_sql(f"""
+            self._sql_client.execute_sql(
+                f"""
                 COPY {self._sql_client.make_qualified_table_name(self.load_table_name)}
                 FROM '{self._bucket_path}'
                 {file_type}
                 {dateformat}
                 {compression}
                 {credentials}
-                {region} MAXERROR 0;""")
+                {region} MAXERROR 0;"""
+            )
 
 
 class RedshiftMergeJob(SqlMergeFollowupJob):
