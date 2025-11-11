@@ -281,7 +281,7 @@ class RuntimeCommand(SupportsCliCommand):
                 )
             elif args.operation == "cancel":
                 request_run_cancel(
-                    script_id_or_name=args.script_name_or_run_id,
+                    script_name_or_run_id=args.script_name_or_run_id,
                     auth_service=auth_service,
                     api_client=api_client,
                 )
@@ -599,9 +599,6 @@ def fetch_run_logs(
     api_client: ApiClient,
 ) -> None:
     """Get logs for a run, for the latest run of a script or workspace if script is not provided"""
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-
     try:
         run_id = _to_uuid(script_name_or_run_id)
     except RuntimeError:
@@ -715,24 +712,17 @@ def get_deployment_info(
 
 
 def request_run_cancel(
-    run_id: Union[str, UUID] = None,
-    script_id_or_name: str = None,
+    script_name_or_run_id: str = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
     """Request the cancellation of a run, for a script or workspace if script is not provided"""
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-    if script_id_or_name:
-        run = _get_latest_run(api_client, auth_service, script_id_or_name)
+    try:
+        run_id = _to_uuid(script_name_or_run_id)
+    except RuntimeError:
+        run = _get_latest_run(api_client, auth_service, script_name_or_run_id)
         run_id = run.id
-    elif run_id:
-        run_id = _to_uuid(run_id)
-    else:
-        raise CliCommandInnerException(
-            cmd="runtime", msg="Either run_id or script_id_or_name must be provided", inner_exc=None
-        )
 
     cancel_run_result = cancel_run.sync_detailed(
         client=api_client,
