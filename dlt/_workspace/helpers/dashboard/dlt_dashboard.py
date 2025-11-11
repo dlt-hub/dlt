@@ -23,8 +23,8 @@ with app.setup:
 
 @app.cell(hide_code=True)
 def home(
-    dlt_all_pipelines: List[Dict[str, Any]],
     dlt_profile_select: mo.ui.dropdown,
+    dlt_all_pipelines: List[Dict[str, Any]],
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
@@ -867,6 +867,7 @@ def section_ibis_backend(
 
 @app.cell(hide_code=True)
 def utils_discover_pipelines(
+    dlt_profile_select: mo.ui.dropdown,
     mo_cli_arg_pipelines_dir: str,
     mo_cli_arg_pipeline: str,
     mo_query_var_pipeline_name: str,
@@ -874,6 +875,13 @@ def utils_discover_pipelines(
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
+
+    _run_context = dlt.current.run_context()
+    if (
+        isinstance(_run_context, ProfilesRunContext)
+        and not _run_context.profile == dlt_profile_select.value
+    ):
+        switch_profile(dlt_profile_select.value)
 
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
@@ -899,7 +907,7 @@ def utils_discover_pipelines(
 
 
 @app.cell(hide_code=True)
-def utils_discover_profiles():
+def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
     """Discover profiles and return a single-select multiselect, similar to pipelines."""
     run_context = dlt.current.run_context()
 
@@ -911,21 +919,14 @@ def utils_discover_profiles():
         options = run_context.available_profiles() or []
         current = run_context.profile if options and run_context.profile in options else None
 
-        mo_query_var_profile = mo.query_params().get("profile")
-        mo_cli_arg_profile = mo.cli_args().get("profile")
-
         selected_profile = current
         if mo_query_var_profile and mo_query_var_profile in options:
             selected_profile = mo_query_var_profile
-            switch_profile(selected_profile)
         elif mo_cli_arg_profile and mo_cli_arg_profile in options:
             selected_profile = mo_cli_arg_profile
-            switch_profile(selected_profile)
 
         def _on_profile_change(v: str) -> None:
             mo.query_params().set("profile", v)
-            if v:
-                switch_profile(v)
 
         dlt_profile_select = mo.ui.dropdown(
             options=options,
@@ -1162,7 +1163,13 @@ def utils_cli_args_and_query_vars_config():
     """
     Prepare cli args  as globals for the following cells
     """
-
+    _run_context = dlt.current.run_context()
+    mo_query_var_pipeline_name = None
+    mo_cli_arg_pipelines_dir = None
+    mo_cli_arg_with_test_identifiers = False
+    mo_cli_arg_pipeline = None
+    mo_query_var_profile = None
+    mo_cli_arg_profile = None
     try:
         mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
         mo_cli_arg_pipeline: str = cast(str, mo.cli_args().get("pipeline")) or None
@@ -1170,17 +1177,24 @@ def utils_cli_args_and_query_vars_config():
         mo_cli_arg_with_test_identifiers: bool = (
             cast(bool, mo.cli_args().get("with_test_identifiers")) or False
         )
+        mo_query_var_profile = (
+            mo.query_params().get("profile")
+            if isinstance(_run_context, ProfilesRunContext)
+            else None
+        )
+        mo_cli_arg_profile = (
+            mo.cli_args().get("profile") if isinstance(_run_context, ProfilesRunContext) else None
+        )
     except Exception:
-        mo_query_var_pipeline_name = None
-        mo_cli_arg_pipelines_dir = None
-        mo_cli_arg_with_test_identifiers = False
-        mo_cli_arg_pipeline = None
+        pass
 
     return (
         mo_cli_arg_pipelines_dir,
         mo_cli_arg_with_test_identifiers,
         mo_query_var_pipeline_name,
         mo_cli_arg_pipeline,
+        mo_query_var_profile,
+        mo_cli_arg_profile,
     )
 
 
