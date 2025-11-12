@@ -30,7 +30,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 **Usage**
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
-    [--non-interactive] [--debug]
+    [--non-interactive] [--debug] [--no-pwd]
     {telemetry,schema,pipeline,init,render-docs,deploy,dashboard,ai} ...
 ```
 
@@ -45,6 +45,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * `--enable-telemetry` - Enables telemetry before command is executed
 * `--non-interactive` - Non interactive mode. default choices are automatically made for confirmations and prompts.
 * `--debug` - Displays full stack traces on exceptions. useful for debugging if the output is not clear enough.
+* `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 
 **Available subcommands**
 * [`telemetry`](#dlt-telemetry) - Shows telemetry status
@@ -53,7 +54,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
 * [`render-docs`](#dlt-render-docs) - Renders markdown version of cli docs
 * [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
-* [`dashboard`](#dlt-dashboard) - Starts the dlt pipeline dashboard
+* [`dashboard`](#dlt-dashboard) - Starts the dlt workspace dashboard
 * [`ai`](#dlt-ai) - Use ai-powered development tools and utilities
 
 </details>
@@ -69,7 +70,7 @@ dlt telemetry [-h]
 
 **Description**
 
-The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
+The `dlt telemetry` command shows the current status of dlt telemetry. Learn more about telemetry and what we send in our telemetry docs.
 
 <details>
 
@@ -119,7 +120,7 @@ Operations on pipelines that were ran locally.
 ```sh
 dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR] [--verbose]
     [pipeline_name]
-    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
+    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package,mcp}
     ...
 ```
 
@@ -144,7 +145,7 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Available subcommands**
 * [`info`](#dlt-pipeline-info) - Displays state of the pipeline, use -v or -vv for more info
-* [`show`](#dlt-pipeline-show) - Generates and launches streamlit app with the loading status and dataset explorer
+* [`show`](#dlt-pipeline-show) - Generates and launches workspace dashboard with the loading status and dataset explorer
 * [`failed-jobs`](#dlt-pipeline-failed-jobs) - Displays information on all the failed loads in all completed packages, failed jobs and associated error messages
 * [`drop-pending-packages`](#dlt-pipeline-drop-pending-packages) - Deletes all extracted and normalized packages including those that are partially loaded.
 * [`sync`](#dlt-pipeline-sync) - Drops the local state of the pipeline and resets all the schemas and restores it from destination. the destination state, data and schemas are left intact.
@@ -152,6 +153,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`schema`](#dlt-pipeline-schema) - Displays default schema
 * [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
 * [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
+* [`mcp`](#dlt-pipeline-mcp) - Launch mcp server attached to this pipeline in sse transport mode
 
 </details>
 
@@ -183,7 +185,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 ### `dlt pipeline show`
 
-Generates and launches Streamlit app with the loading status and dataset explorer.
+Generates and launches workspace dashboard with the loading status and dataset explorer.
 
 **Usage**
 ```sh
@@ -192,11 +194,11 @@ dlt pipeline [pipeline_name] show [-h] [--streamlit] [--edit]
 
 **Description**
 
-Launches the pipeline dashboard app with a comprehensive interface to inspect the pipeline state, schemas, and data in the destination.
+Launches the workspace dashboard with a comprehensive interface to inspect the pipeline state, schemas, and data in the destination.
 
-This app should be executed from the same folder from which you ran the pipeline script to be able access destination credentials.
+This dashboard should be executed from the same folder from which you ran the pipeline script to be able access destination credentials.
 
-If the --edit flag is used, will launch the editable version of the app if it exists in the current directory, or create this version and launch it in edit mode.
+If the --edit flag is used, will launch the editable version of the dashboard if it exists in the current directory, or create this version and launch it in edit mode.
 
 Requires `marimo` to be installed in the current environment: `pip install marimo`. Use the --streamlit flag to launch the legacy streamlit app.
 
@@ -208,8 +210,8 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--streamlit` - Launch the legacy streamlit dashboard instead of the new pipeline dashboard.
-* `--edit` - Creates editable version of pipeline dashboard in current directory if it does not exist there yet and launches it in edit mode. will have no effect when using the streamlit flag.
+* `--streamlit` - Launch the legacy streamlit dashboard instead of the new workspace dashboard.
+* `--edit` - Creates editable version of workspace dashboard in current directory if it does not exist there yet and launches it in edit mode. will have no effect when using the streamlit flag.
 
 </details>
 
@@ -490,6 +492,32 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 </details>
 
+### `dlt pipeline mcp`
+
+Launch MCP server attached to this pipeline in SSE transport mode.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--port PORT]
+```
+
+**Description**
+
+This MCP facilitates schema and data exploration for the dataset created with this pipeline.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--stdio` - Use stdio transport mode
+* `--port PORT` - Sse port to use (default: 43656)
+
+</details>
+
 ## `dlt init`
 
 Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
@@ -540,7 +568,7 @@ Renders markdown version of cli docs.
 
 **Usage**
 ```sh
-dlt render-docs [-h] [--compare] file_name
+dlt render-docs [-h] [--commands [COMMANDS ...]] [--compare] file_name
 ```
 
 **Description**
@@ -559,6 +587,7 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--commands [COMMANDS ...]` - List of command names to render (optional)
 * `--compare` - Compare the changes and raise if output would be updated
 
 </details>
@@ -672,7 +701,7 @@ Inherits arguments from [`dlt deploy`](#dlt-deploy).
 
 ## `dlt dashboard`
 
-Starts the dlt pipeline dashboard.
+Starts the dlt workspace dashboard.
 
 **Usage**
 ```sh
@@ -681,7 +710,7 @@ dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
 
 **Description**
 
-The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the dashboard:
+The `dlt dashboard` command starts the dlt workspace dashboard. You can use the dashboard:
 
 * to list and inspect local pipelines
 * browse the full pipeline schema and all hints

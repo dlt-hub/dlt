@@ -1,6 +1,16 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import Generic, ClassVar, Any, Optional, Type, Dict, Union, Literal, Tuple
+from typing import (
+    Generic,
+    ClassVar,
+    Any,
+    Optional,
+    Type,
+    Dict,
+    Union,
+    Literal,
+    Tuple,
+)
 
 import inspect
 from functools import wraps
@@ -20,6 +30,7 @@ from dlt.common.typing import (
     is_optional_type,
     is_subclass,
     TColumnNames,
+    TypedDict,
 )
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
@@ -28,7 +39,7 @@ from dlt.common.data_types.type_helpers import (
     coerce_value,
     py_type_to_sc_type,
 )
-
+from dlt.common.data_writers.writers import count_rows_in_items
 from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
@@ -63,8 +74,17 @@ except MissingDependencyException:
     pandas = None
 
 
+class IncrementalCustomMetrics(TypedDict, total=False):
+    unfiltered_items_count: int
+    unfiltered_batches_count: int
+    initial_unique_hashes_count: int
+    final_unique_hashes_count: int
+
+
 @configspec
-class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorValue]):
+class Incremental(
+    ItemTransform[TDataItem, IncrementalCustomMetrics], BaseConfiguration, Generic[TCursorValue]
+):
     """Adds incremental extraction for a resource by storing a cursor value in persistent state.
 
     The cursor could for example be a timestamp for when the record was created and you can use this to load only
@@ -191,6 +211,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Bound pipe"""
         self.range_start = range_start
         self.range_end = range_end
+        self._custom_metrics: IncrementalCustomMetrics = {
+            "unfiltered_items_count": 0,
+            "unfiltered_batches_count": 0,
+            "initial_unique_hashes_count": 0,
+            "final_unique_hashes_count": 0,
+        }
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -567,6 +593,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if rows is None or (isinstance(rows, list) and len(rows) == 0):
             return rows
 
+        # collect metrics
+        self.custom_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
+        self.custom_metrics["unfiltered_batches_count"] += 1
+
         transformer = self._get_transform(rows)
         if isinstance(rows, list):
             rows = [
@@ -596,13 +626,19 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 transformer.compute_unique_value(row, self.primary_key)
                 for row in transformer.last_rows
             )
-            initial_hash_count = len(self._cached_state.get("unique_hashes", []))
+            initial_hash_list = self._cached_state.get("unique_hashes")
+            initial_hash_count = len(initial_hash_list) if initial_hash_list else 0
+            self.custom_metrics["initial_unique_hashes_count"] = initial_hash_count
+
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
             final_hash_count = len(self._cached_state["unique_hashes"])
+            self.custom_metrics["final_unique_hashes_count"] = final_hash_count
 
             self._check_duplicate_cursor_threshold(initial_hash_count, final_hash_count)
+        else:
+            self._cached_state["unique_hashes"] = []
         return rows
 
     def _check_duplicate_cursor_threshold(
@@ -610,12 +646,11 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     ) -> None:
         if initial_hash_count <= Incremental.duplicate_cursor_warning_threshold < final_hash_count:
             logger.warning(
-                f"Large number of records ({final_hash_count}) sharing the same value of "
-                f"cursor field '{self.cursor_path}'. This can happen if the cursor "
-                "field has a low resolution (e.g., only stores dates without times), "
-                "causing many records to share the same cursor value. "
-                "Consider using a cursor column with higher resolution to reduce "
-                "the deduplication state size."
+                f"Large number of records ({final_hash_count}) sharing the same value of cursor"
+                f" field '{self.cursor_path}' on resource '{self.resource_name}'. This can happen"
+                " if the cursor field has a low resolution (e.g., only stores dates without"
+                " times), causing many records to share the same cursor value. Consider using a"
+                " cursor column with higher resolution to reduce the deduplication state size."
             )
 
 
@@ -625,7 +660,7 @@ Incremental.EMPTY.__is_resolved__ = True
 TIncrementalConfig = Union[Incremental[Any], IncrementalArgs]
 
 
-class IncrementalResourceWrapper(ItemTransform[TDataItem]):
+class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetrics]):
     placement_affinity: ClassVar[float] = 1  # stick to end
 
     _incremental: Optional[Incremental[Any]] = None
@@ -644,7 +679,6 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         Args:
             primary_key (TTableHintTemplate[TColumnKey], optional): A primary key to be passed to Incremental Instance at execution. Defaults to None.
         """
-        BaseItemTransform.__init__(self)
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
         self._allow_external_schedulers: bool = None
@@ -786,6 +820,13 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         self._allow_external_schedulers = value
         if self._incremental:
             self._incremental.allow_external_schedulers = value
+
+    @property
+    def custom_metrics(self) -> IncrementalCustomMetrics:
+        """Returns custom metrics of the Incremental object itself if exists"""
+        if self._incremental:
+            return self._incremental.custom_metrics
+        return {}
 
     def bind(self, pipe: SupportsPipe) -> "IncrementalResourceWrapper":
         # if pipe is None we are re-binding internal incremental

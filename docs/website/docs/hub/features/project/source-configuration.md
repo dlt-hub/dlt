@@ -5,6 +5,10 @@ description: How to setup sources in YAML file
 
 # Source configuration
 
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
 
 The `dlt.yml` file enables a fully declarative setup of your data source and its parameters. It supports built-in sources such as REST APIs, SQL databases, and cloud storage, as well as any custom source you define.
 
@@ -126,6 +130,6 @@ always use a full path to a function name in a Python module, but we also suppor
 * `github.source` will be expanded to `sources.github.sources` in the current project.
 * `filesystem.readers` will be expanded to `dlt.sources.filesystem.readers`
 
-If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
+If the **type** cannot be resolved, dltHub will provide you with a detailed list of all candidate types that were looked up
 so you can make required corrections.
 :::

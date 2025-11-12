@@ -1,7 +1,7 @@
 # from __future__ import annotations
 
 import dataclasses
-from typing import Any, ClassVar, Dict, Final, List, Optional, TYPE_CHECKING, Union
+from typing import ClassVar, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -18,6 +18,7 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbConnectionPool, Duc
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 
 
+DEFAULT_DUCKLAKE_NAME = "ducklake"
 DUCKLAKE_STORAGE_PATTERN = "%s.files"
 
 
@@ -33,16 +34,16 @@ def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
 
 @configspec(init=False)
 class DuckLakeCredentials(DuckDbBaseCredentials):
-    catalog_name: str = "ducklake_catalog"
+    ducklake_name: str = DEFAULT_DUCKLAKE_NAME
     catalog: ConnectionStringCredentials = None
     # NOTE: consider moving to DuckLakeClientConfiguration so bucket_url is not a secret
     storage: FilesystemConfiguration = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["catalog_name", "catalog", "storage"]
+    __config_gen_annotations__: ClassVar[list[str]] = ["ducklake_name", "catalog", "storage"]
 
     def __init__(
         self,
-        catalog_name: str = "ducklake_catalog",
+        ducklake_name: str = DEFAULT_DUCKLAKE_NAME,
         catalog: Union[str, ConnectionStringCredentials] = None,
         storage: Union[str, FilesystemConfiguration] = None,
     ) -> None:
@@ -50,7 +51,7 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
         configuration.
 
         Args:
-            catalog_name: str
+            ducklake_name: str
                 This value is mainly used as ATTACH name for the ducklake database and
                 as names for catalog and storage files if not configured explicitly.
                 If omitted, ducklake name is derived from destination name or pipeline name.
@@ -66,7 +67,7 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
                 derived from the name_or_conn_str argument.
 
         """
-        self.catalog_name = catalog_name
+        self.ducklake_name = ducklake_name
         if isinstance(catalog, str):
             catalog = ConnectionStringCredentials(catalog)
         self.catalog = catalog
@@ -86,13 +87,13 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
         if self.catalog is None and not config_exception.was_partially_resolved("catalog"):
             # use sqllite as default catalog
             self.catalog = ConnectionStringCredentials(
-                {"drivername": "sqlite", "database": self.catalog_name + ".sqlite"}
+                {"drivername": "sqlite", "database": self.ducklake_name + ".sqlite"}
             ).resolve()
             config_exception.drop_traces_for_field("catalog")
 
         if self.storage is None and "bucket_url" in config_exception.traces["storage"][0].traces:  # type: ignore
             self.storage = FilesystemConfigurationWithLocalFiles(
-                bucket_url=DUCKLAKE_STORAGE_PATTERN % self.catalog_name, local_dir="."
+                bucket_url=DUCKLAKE_STORAGE_PATTERN % self.ducklake_name, local_dir="."
             ).resolve()
 
         if not self.is_partial():
@@ -137,7 +138,7 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
             # name is <pipeline|dest name>.<duckdb|sqlite>
             local_db = self.make_location(
                 self.credentials.catalog.database
-                or self.credentials.catalog_name + "." + self.credentials.catalog.drivername,
+                or self.credentials.ducklake_name + "." + self.credentials.catalog.drivername,
                 "%s",
             )
             self.credentials.catalog.database = local_db
@@ -154,6 +155,4 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
         """Return ducklake displayable location that contains catalog and storage locations"""
         if not self.credentials or not self.credentials.catalog or not self.credentials.storage:
             return ""
-        return (
-            f"{self.credentials.catalog_name}@{self.credentials.catalog}@{self.credentials.storage}"
-        )
+        return f"{self.credentials.ducklake_name}@{self.credentials.catalog}@{self.credentials.storage}"

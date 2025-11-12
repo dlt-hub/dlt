@@ -391,6 +391,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._full_ident_path_tracker: Dict[str, Tuple[str, ...]] = {}
         self._shorten_fragments = lru_cache(maxsize=None)(self.schema.naming.shorten_fragments)
         self._check_table_exists = lru_cache(maxsize=None)(self._check_if_table_exists_impl)
+        self._check_flattened_to_cols = lru_cache(maxsize=None)(self._check_if_flattened_impl)
 
     def _filter_columns(
         self, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny
@@ -517,6 +518,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         )
             except StopIteration:
                 pass
+            # kill job if signalled
             signals.raise_if_signalled()
         return schema_update
 
@@ -620,16 +622,44 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         possible_table_name = self._shorten_fragments(*ident_path, col_name)
         return possible_table_name in self.schema._schema_tables
 
+    def _check_if_flattened_impl(self, table_name: str, col_name: str) -> bool:
+        """Check if col_name was flattened into compound columns in the table.
+
+        This method performs the expensive operations of:
+        1. Iterating through all columns to check for compound column prefixes
+
+        Results are cached via _check_flattened_to_cols to avoid repeated computation
+        for the same table_name + col_name combinations during normalization.
+
+        Note: This check doesn't properly handle the edge case where very long column names
+        are shortened during normalization. When compound columns are created from a shortened
+        name, they use the shortened prefix, but this method checks against the current col_name
+        which may differ. The normalizer doesn't maintain a mapping between original and
+        shortened column names, so it can't match them correctly.
+
+        Args:
+            table_name (str): Name of the table to check
+            col_name (str): Name of the column to check if it was flattened
+
+        Returns:
+            bool: True if compound columns exist with col_name as prefix, False otherwise
+        """
+        table_columns = self.schema.get_table_columns(table_name, include_incomplete=True)
+        prefix = col_name + self.naming.PATH_SEPARATOR
+        return any(col.startswith(prefix) for col in table_columns)
+
     def _coerce_null_value(
         self, table_columns: TTableSchemaColumns, table_name: str, col_name: str
     ) -> Optional[TColumnSchema]:
         """Raises when column is explicitly not nullable or creates unbounded column"""
         existing_column = table_columns.get(col_name)
-        # If it exists as a direct child table, don't infer
+        # If it exists as a direct child table or compound column(s) in the schema, don't infer
         if not existing_column:
-            # Use cached table existence check to avoid expensive repeated lookups
+            # Use cached checks to avoid expensive repeated lookups
             full_ident_path = self._full_ident_path_tracker.get(table_name)
             if full_ident_path and self._check_table_exists(full_ident_path, col_name):
+                return None
+            if table_columns and self._check_flattened_to_cols(table_name, col_name):
                 return None
         if existing_column and utils.is_complete_column(existing_column):
             if not utils.is_nullable_column(existing_column):

@@ -73,6 +73,7 @@ __all__ = [
     "attach",
     "Pipeline",
     "dbt",
+    "hub",
     "progress",
     "current",
     "mark",

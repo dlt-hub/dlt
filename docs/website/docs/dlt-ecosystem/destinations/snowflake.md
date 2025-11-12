@@ -6,11 +6,14 @@ keywords: [Snowflake, destination, data warehouse]
 
 # Snowflake
 
+
 ## Install `dlt` with Snowflake
 **To install the `dlt` library with Snowflake dependencies, run:**
 ```sh
 pip install "dlt[snowflake]"
 ```
+
+<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->
 
 ## Setup guide
 
@@ -253,7 +256,7 @@ Alternatively to Parquet files, you can also specify jsonl as the staging file f
 
 ### Snowflake and Amazon S3
 
-Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For S3, the `dlt` Redshift loader will use the AWS credentials provided for S3 to access the S3 bucket if not specified otherwise (see config options below). Alternatively, you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
+Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For S3, the `dlt` loader will use the AWS credentials provided for S3 to access the S3 bucket if not specified otherwise (see config options below). Alternatively, you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
 The basic steps are as follows:
 
 * Create a storage integration linked to GCS and the right bucket.
@@ -268,6 +271,16 @@ To prevent `dlt` from forwarding the S3 bucket credentials on every command, and
 [destination]
 stage_name="PUBLIC.my_s3_stage"
 ```
+
+:::important Stage URL Path Matching
+When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+- Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
+- If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
+
+For example:
+- If your `bucket_url` is `s3://bucket` your Snowflake stage must also point to `s3://bucket`.
+- If your `bucket_url` is `s3://bucket/my_dlt_staging/` your Snowflake stage should be the same path exactly: `s3://bucket/my_dlt_staging/`.
+:::
 
 To run Snowflake with S3 as the staging destination:
 
@@ -298,6 +311,16 @@ Please refer to the [Google Storage filesystem documentation](./filesystem.md#go
 stage_name="PUBLIC.my_gcs_stage"
 ```
 
+:::important Stage URL Path Matching
+When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+- Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
+- If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
+
+For example:
+- If your `bucket_url` is `gs://bucket` your Snowflake stage must also point to `gs://bucket`.
+- If your `bucket_url` is `gs://bucket/my_dlt_staging/` your Snowflake stage should be the same path exactly: `gs://bucket/my_dlt_staging/`.
+:::
+
 To run Snowflake with GCS as the staging destination:
 
 ```py
@@ -326,6 +349,17 @@ Please refer to the [Azure Blob Storage filesystem documentation](./filesystem.m
 [destination]
 stage_name="PUBLIC.my_azure_stage"
 ```
+
+:::important Stage URL Path Matching
+When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+- Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
+- If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
+- Snowflake does not normalize paths, so exact matching is required
+
+For example:
+- If your `bucket_url` is `az://container` your Snowflake stage must also point to `az://container`.
+- If your `bucket_url` is `az://container/my_dlt_staging/` your Snowflake stage should be the same path exactly: `az://container/my_dlt_staging/`.
+:::
 
 To run Snowflake with Azure as the staging destination:
 

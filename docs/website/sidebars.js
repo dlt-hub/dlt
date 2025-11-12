@@ -37,6 +37,7 @@ const sidebars = {
       },
       items: [
         'reference/installation',
+        "dlt-ecosystem/llm-tooling/llm-native-workflow",
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
@@ -127,6 +128,12 @@ const sidebars = {
                 'general-usage/http/rest-client',
                 'general-usage/http/requests',
               ]
+            },
+            {
+              type: 'link',
+              label: '5k+ REST APIs with LLMs',
+              description: 'Pick one of 5k+ REST APIs from LLM context',
+              href: 'https://dlthub.com/workspace',
             },
           ]
         },
@@ -238,7 +245,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
-        {
+        /*{
           type: "category",
           label: "Build with LLMs",
           link: {
@@ -250,7 +257,7 @@ const sidebars = {
           items: [
             "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
-        },
+        },*/
         {
           type: 'category',
           label: 'Load data incrementally',
@@ -274,6 +281,7 @@ const sidebars = {
           items: [
             'general-usage/credentials/setup',
             'general-usage/credentials/advanced',
+            'general-usage/credentials/vaults',
             'general-usage/credentials/complex_types',
             // Unsure item
             'walkthroughs/add_credentials'
@@ -388,11 +396,8 @@ const sidebars = {
       type: 'category',
       label: 'Code examples',
       link: {
-        type: 'generated-index',
-        title: 'Code examples',
-        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
-        slug: 'examples',
-        keywords: ['examples'],
+        type: 'doc',
+        id: 'examples/index',
       },
       items: [
         'walkthroughs/dispatch-to-multiple-tables',
@@ -475,115 +480,93 @@ const sidebars = {
   hubSidebar: [
     {
       type: 'category',
-      label: 'dltHub Features',
-      link: {
-        type: 'doc',
-        id: 'hub/intro',
-      },
+      label: 'Getting started',
       items: [
-        {
-          type: 'category',
-          label: 'Getting started',
-          items: [
-            'hub/getting-started/installation',
-            'hub/getting-started/tutorial',
-            'hub/getting-started/advanced_tutorial',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Core concepts',
-          items: [
-            'hub/core-concepts/project',
-            'hub/core-concepts/cache',
-            'hub/core-concepts/datasets',
-            'hub/core-concepts/profiles',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Sources & Destinations',
-          items: [
-            'hub/ecosystem/ms-sql',
-            'hub/ecosystem/iceberg',
-            'hub/ecosystem/delta',
-            'hub/ecosystem/snowflake_plus',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Features',
-          items: [
-            {
-              type: 'category',
-              label: 'Transformations',
-              link: {
-                type: 'doc',
-                id: 'hub/features/transformations/index',
-              },
-              items: [
-                'hub/features/transformations/index',
-              ]
-            },
-            'hub/features/data-access',
-            {
-              type: 'category',
-              label: 'Project',
-              link: {
-                type: 'doc',
-                id: 'hub/features/project/index',
-              },
-              items: [
-                'hub/features/project/overview',
-                'hub/features/project/source-configuration',
-                'hub/features/project/python-api',
-              ]
-            },
-            {
-              type: 'category',
-              label: 'dbt generator',
-              link: {
-                type: 'doc',
-                id: 'hub/features/transformations/index',
-              },
-              items: [
-                'hub/features/transformations/setup',
-                'hub/features/transformations/dbt-transformations',
-              ]
-            },
-            'hub/features/ai',
-            "hub/features/mcp-server",
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Going to production',
-          items: [
-            'hub/production/pipeline-runner',
-            'hub/production/observability',
-          ]
-        },
-        'hub/reference',
-        'hub/EULA'
+        'hub/intro',
+        'hub/getting-started/installation',
+        { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
       ]
     },
-  ],
+    {
+      type: 'category',
+      label: 'Workspace',
+       link: {
+         type: 'doc',
+         id: 'hub/workspace/overview',
+       },
+      items: [
+         'hub/workspace/overview',
+        {
+          type: 'category',
+          label: 'Create pipeline',
+          items: [
+          'hub/workspace/init',
+          'hub/ecosystem/ms-sql',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Ensure data quality',
+          items: [
+            { type: 'ref', id: 'general-usage/dashboard' },
+            'hub/features/mcp-server',
+            'hub/features/quality/data-quality',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Create reports and transformations',
+          items: [
+            { type: 'ref', id: 'general-usage/dataset-access/marimo' },
+            { type: 'ref', id: 'general-usage/dataset-access/dataset' },
+            'hub/features/transformations/index',
+            'hub/features/transformations/dbt-transformations',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Deploy workspace',
+          items: [
+            'hub/core-concepts/profiles-dlthub',
+          ]
+        },
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Runtime',
+      items: [
+        'hub/production/observability',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Storage',
+      items: [
+        'hub/ecosystem/delta',
+        'hub/ecosystem/iceberg',
+        'hub/ecosystem/snowflake_plus',
+      ]
+    },
+    'hub/command-line-interface',
+    'hub/EULA',
+    ],
 };
 
-// insert examples
+ // insert examples
 for (const item of sidebars.docsSidebar) {
-  if (item.label === 'Code examples') {
-    for (let examplePath of walkSync("./docs_processed/examples")) {
-      examplePath = examplePath.replace("docs_processed/", "");
-      examplePath = examplePath.replace(".mdx", "");
-      examplePath = examplePath.replace(".md", "");
-      item.items.push(examplePath);
+    if (item.label === 'Code examples') {
+      for (let examplePath of walkSync("./docs_processed/examples")) {
+        examplePath = examplePath.replace("docs_processed/", "");
+        examplePath = examplePath.replace(".mdx", "");
+        examplePath = examplePath.replace(".md", "");
+        item.items.push(examplePath);
     }
   }
 }
 
 
-// inject api reference if it exists
+ // inject api reference if it exists
 if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
   for (const item of sidebars.docsSidebar) {
     if (item.label === 'Reference') {

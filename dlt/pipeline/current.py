@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 """Easy access to active pipelines, state, sources and schemas"""
+
+from typing import TYPE_CHECKING
 
 from dlt.common.storages.load_package import (
     load_package_state,
@@ -19,6 +23,8 @@ from dlt.extract.state import (
     get_current_pipe as _get_current_pipe,
 )
 
+if TYPE_CHECKING:
+    from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt.pipeline.pipeline import Pipeline as _Pipeline
 
 
@@ -27,6 +33,12 @@ def pipeline() -> _Pipeline:
     from dlt import _pipeline
 
     return _pipeline()
+
+
+def workspace() -> WorkspaceRunContext:
+    from dlt._workspace._workspace_context import active
+
+    return active()
 
 
 state = source_state

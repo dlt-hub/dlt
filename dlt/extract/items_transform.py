@@ -8,17 +8,15 @@ from typing import (
     ClassVar,
     Generic,
     Iterator,
+    Mapping,
     Optional,
     Union,
     Dict,
+    cast,
 )
 
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.common.typing import (
-    TAny,
-    TDataItem,
-    TDataItems,
-)
+from dlt.common.typing import TAny, TDataItem, TDataItems, TypeVar
 
 from dlt.extract.utils import (
     wrap_iterator,
@@ -31,17 +29,23 @@ ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]
 ItemTransformFunctionNoMeta = Callable[[TDataItem], TAny]
 ItemTransformFunc = Union[ItemTransformFunctionWithMeta[TAny], ItemTransformFunctionNoMeta[TAny]]
 
+MetricsFunctionWithMeta = Callable[[TDataItems, Any, Dict[str, Any]], None]
 
-class BaseItemTransform:
+TCustomMetrics = TypeVar(
+    "TCustomMetrics", covariant=True, bound=Mapping[str, Any], default=Dict[str, Any]
+)
+
+
+class BaseItemTransform(Generic[TCustomMetrics]):
     def __init__(self) -> None:
-        self._custom_metrics: Dict[str, Any] = {}
+        self._custom_metrics: TCustomMetrics = cast(TCustomMetrics, {})
 
     @property
-    def custom_metrics(self) -> Dict[str, Any]:
+    def custom_metrics(self) -> TCustomMetrics:
         return self._custom_metrics
 
 
-class ItemTransform(BaseItemTransform, ABC, Generic[TAny]):
+class ItemTransform(BaseItemTransform[TCustomMetrics], ABC, Generic[TAny, TCustomMetrics]):
     _f_meta: ItemTransformFunctionWithMeta[TAny] = None
     _f: ItemTransformFunctionNoMeta[TAny] = None
 
@@ -58,7 +62,9 @@ class ItemTransform(BaseItemTransform, ABC, Generic[TAny]):
         else:  # TODO: do better check
             self._f_meta = transform_f  # type: ignore
 
-    def bind(self: "ItemTransform[TAny]", pipe: SupportsPipe) -> "ItemTransform[TAny]":
+    def bind(
+        self: "ItemTransform[TAny, TCustomMetrics]", pipe: SupportsPipe
+    ) -> "ItemTransform[TAny, TCustomMetrics]":
         return self
 
     @abstractmethod
@@ -149,7 +155,7 @@ class ValidateItem(ItemTransform[TDataItem]):
 
     table_name: str
 
-    def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem]:
+    def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem, Dict[str, Any]]:
         self.table_name = pipe.name
         return self
 
@@ -218,4 +224,22 @@ class LimitItem(ItemTransform[TDataItem]):
         if self.exhausted:
             return None
 
+        return item
+
+
+class MetricsItem(ItemTransform[None]):
+    """Collects custom metrics from data flowing through the pipe without modifying items.
+
+    The metrics function receives items, optionally meta, and a metrics dictionary that it can
+    update in-place. The items are passed through unchanged.
+    """
+
+    _metrics_f: MetricsFunctionWithMeta = None
+
+    def __init__(self, metrics_f: MetricsFunctionWithMeta) -> None:
+        BaseItemTransform.__init__(self)
+        self._metrics_f = metrics_f
+
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        self._metrics_f(item, meta, self._custom_metrics)
         return item

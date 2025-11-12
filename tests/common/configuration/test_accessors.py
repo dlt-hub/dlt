@@ -6,11 +6,7 @@ import dlt
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 
-from dlt.common.configuration.providers import (
-    EnvironProvider,
-    ConfigTomlProvider,
-    SecretsTomlProvider,
-)
+from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import (
     CONFIG_TOML,
     SECRETS_TOML,

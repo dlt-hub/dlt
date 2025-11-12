@@ -6,6 +6,10 @@ keywords: [Iceberg, pyiceberg]
 
 # Iceberg
 
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
 Apache Iceberg is an open table format designed for high-performance analytics on large datasets. It supports ACID transactions, schema evolution, and time travel.
 
 The Iceberg destination in dlt allows you to load data into Iceberg tables using the [pyiceberg](https://py.iceberg.apache.org/) library. It supports multiple catalog types and both local and cloud storage backends.
@@ -23,7 +27,7 @@ The Iceberg destination in dlt allows you to load data into Iceberg tables using
 Make sure you have installed the necessary dependencies:
 ```sh
 pip install dlt[filesystem,pyiceberg]>=1.9.1
-pip install dlt-plus>=0.9.1
+pip install dlthub>=0.9.1
 ```
 
 ## Configuration
@@ -48,35 +52,11 @@ To configure a SQL catalog, provide the following parameters:
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
-    {"label": "dlt.yml", "value": "yml"},
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
 ]}>
-
-<TabItem value="yml">
-
-```yaml
-# we recommend to put sensitive parameters to secrets.toml
-destinations:
-  iceberg_lake:
-    type: iceberg
-    catalog_type: sql
-    credentials: "sqlite:///catalog.db"  # connection string for accessing the database
-    filesystem:
-      bucket_url: "path_to_data" # table location
-      # credentials section below is only needed if you're using the cloud storage (not local disk)
-      # we recommend to put sensitive parameters to secrets.toml
-      credentials:
-        aws_access_key_id: "please set me up!" # only if needed
-        aws_secret_access_key: "please set me up!" # only if needed
-    capabilities:
-      # will register tables if found in storage but not found in the catalog (backward compatibility)
-      register_new_tables: True
-      table_location_layout: "{dataset_name}/{table_name}"
-```
-</TabItem>
 
 <TabItem value="toml">
 
@@ -114,7 +94,6 @@ export DESTINATION__ICEBERG__CAPABILITIES__REGISTER_NEW_TABLE=True
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
 </TabItem>
-
 </Tabs>
 
 * `catalog_type=sql` - this indicates, that you will use SQL-based catalog.
@@ -145,36 +124,11 @@ To configure Lakekeeper, you need to specify both catalog and storage parameters
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
-    {"label": "dlt.yml", "value": "yml"},
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
 ]}>
-
-<TabItem value="yml">
-
-```yaml
-# we recommend to put sensitive configurations to secrets.toml
-destinations:
-  iceberg_lake:
-    type: iceberg
-    catalog_type: rest
-    credentials:
-      # we recommend to put sensitive configurations to secrets.toml
-      credential: my_lakekeeper_key
-      uri: https://lakekeeper.path.to.host/catalog
-      warehouse: warehouse
-      properties:
-        scope: lakekeeper
-        oauth2-server-uri: https://keycloak.path.to.host/realms/master/protocol/openid-connect/token
-    filesystem:
-      # bucket for s3 tables - must match Lakekeeper warehouse if defined
-      bucket_url: "s3://warehouse/"
-    capabilities:
-      table_root_layout: "lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}"
-```
-</TabItem>
 
 <TabItem value="toml">
 
@@ -195,7 +149,7 @@ oauth2-server-uri="https://keycloak.path.to.host/realms/master/protocol/openid-c
 bucket_url="s3://warehouse/"
 
 [destination.iceberg.capabilities]
-table_location_layout="lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}"
+table_location_layout="lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}"
 ```
 </TabItem>
 
@@ -209,7 +163,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=warehouse
 export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__SCOPE=lakekeeper
 export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__OAUTH2-SERVER-URI=https://keycloak.path.to.host/realms/master/protocol/openid-connect/token
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
-export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}
+export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}
 ```
 </TabItem>
 
@@ -220,7 +174,7 @@ export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-ware
 * `credentials.uri` - the URL of your Lakekeeper catalog endpoint.
 * `credentials.warehouse` - the name of the warehouse configured in Lakekeeper, which defines the root location for all data tables.
 * `credentials.properties.scope=lakekeeper` - the scope required for authentication.
-* `credentials.properties.oauth2-server-uri` -- he URL of your OAuth2 token endpoint used for Lakekeeper authentication.
+* `credentials.properties.oauth2-server-uri` - he URL of your OAuth2 token endpoint used for Lakekeeper authentication.
 * `filesystem.bucket_url` - the physical storage location for Iceberg table files. This can be any supported cloud storage backend listed in the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md).
 
 :::warning
@@ -231,45 +185,21 @@ Currently, the following buckets and credentials combinations are well-tested:
 * google storage
 :::
 
-* `capabilities.table_location_layout` -- controls the directory structure for Iceberg table files.
+* `capabilities.table_location_layout` - controls the directory structure for Iceberg table files.
 It supports two modes:
   * absolute - you provide a full URI that matches the catalog’s warehouse path, optionally including deeper subpaths.
   * relative - a path that’s appended to the catalog’s warehouse root. This is especially useful with catalogs like Lakekeeper.
 
 ### Polaris catalog
 
-[Polaris](https://polaris.apache.org/) -- is an open-source, fully-featured catalog for Iceberg. Its configuration is similar to Lakekeeper, with some differences in credential scopes and URI.
+[Polaris](https://polaris.apache.org/) - is an open-source, fully-featured catalog for Iceberg. Its configuration is similar to Lakekeeper, with some differences in credential scopes and URI.
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
-    {"label": "dlt.yml", "value": "yml"},
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
 ]}>
-
-<TabItem value="yml">
-
-```yaml
-# we recommend to put sensitive configurations to secrets.toml
-destinations:
-  iceberg_lake:
-    type: iceberg
-    catalog_type: rest
-    credentials:
-      # we recommend to put sensitive configurations to secrets.toml
-      credential: my_polaris_key
-      uri: https://account.snowflakecomputing.com/polaris/api/catalog
-      warehouse: warehouse
-      properties:
-        scope: PRINCIPAL_ROLE:ALL
-    filesystem:
-      # bucket for s3 tables - must match Lakekeeper warehouse if defined
-      bucket_url: "s3://warehouse"
-    capabilities:
-      table_root_layout: "{dataset_name}/{table_name}"
-```
-</TabItem>
 
 <TabItem value="toml">
 
@@ -330,35 +260,11 @@ To configure a `s3tables-rest` catalog, provide the following parameters and rep
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
-    {"label": "dlt.yml", "value": "yml"},
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
 ]}>
-
-<TabItem value="yml">
-
-```yaml
-# we recommend to put sensitive parameters to secrets.toml
-destinations:
-  iceberg_lake:
-    type: iceberg
-    catalog_type: s3tables-rest
-    catalog_name: iceberg_lake
-    credentials:
-        warehouse: "arn:aws:s3tables:<region>:<account-id>:bucket/<s3-table-bucket-name>"
-        uri: "https://s3tables.<region>.amazonaws.com/iceberg"
-        aws_access_key_id: "<aws_access_key_id>"
-        aws_secret_access_key: "<aws_secret_access_key>"
-        region_name: "<region>"
-        properties:
-            rest.sigv4-enabled: "true"
-            rest.signing-name: "s3tables"
-            rest.signing-region: "<region>"
-
-```
-</TabItem>
 
 <TabItem value="toml">
 
@@ -417,34 +323,14 @@ To configure a `glue-rest` catalog, provide the following parameters and replace
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
-    {"label": "dlt.yml", "value": "yml"},
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
 ]}>
 
-<TabItem value="yml">
-```yaml
-# we recommend to put sensitive parameters to secrets.toml
-destinations:
-  iceberg_lake:
-    type: iceberg
-    catalog_type: glue-rest
-    catalog_name: iceberg_lake
-    credentials:
-        warehouse: "<account-id>:s3tablescatalog/<s3-table-bucket-name>"
-        uri: "https://glue.<region>.amazonaws.com/iceberg"
-        aws_access_key_id: "<aws_access_key_id>"
-        aws_secret_access_key: "<aws_secret_access_key>"
-        region_name: "<region>"
-        properties:
-            rest.sigv4-enabled: "true"
-            rest.signing-name: "glue"
-            rest.signing-region: "<region>"
-```
-</TabItem>
 <TabItem value="toml">
+
 ```toml
 [destination.iceberg]
 catalog_type = "glue-rest"
@@ -464,6 +350,7 @@ region_name           = "<region>"
 ```
 </TabItem>
 <TabItem value="env">
+
 ```sh
 export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE="<account-id>:s3tablescatalog/<s3-table-bucket-name>"
 export DESTINATION__ICEBERG__CREDENTIALS__URI="https://glue.<region>.amazonaws.com/iceberg"
@@ -476,6 +363,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
   "rest.signing-region": "<region>"
 }'
 ```
+
 </TabItem>
 </Tabs>
 
@@ -491,29 +379,14 @@ Choose this when you simply want to use the Glue Catalog with a normal S3 bucket
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
-    {"label": "dlt.yml", "value": "yml"},
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
 ]}>
-<TabItem value="yml">
-```yaml
-# we recommend to put sensitive parameters to secrets.toml
-destinations:
-  iceberg_lake:
-    type: iceberg
-    catalog_type: glue
-    catalog_name: iceberg_lake
-    filesystem:
-        bucket_url: "<s3-bucket-url>"
-    credentials:
-        aws_access_key_id: "<aws_access_key_id>"
-        aws_secret_access_key: "<aws_secret_access_key>"
-        region_name: "<region>"
-```
-</TabItem>
+
 <TabItem value="toml">
+
 ```toml
 [destination.iceberg]
 catalog_type = "glue"
@@ -528,12 +401,14 @@ aws_secret_access_key = "<aws_secret_access_key>"
 region_name           = "<region>"
 ```
 </TabItem> <TabItem value="env">
+
 ```sh
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL="<s3-bucket-url>"
 export DESTINATION__ICEBERG__CREDENTIALS__AWS_ACCESS_KEY_ID="<aws_access_key_id>"
 export DESTINATION__ICEBERG__CREDENTIALS__AWS_SECRET_ACCESS_KEY="<aws_secret_access_key>"
 export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
 ```
+
 </TabItem>
 </Tabs>
 
@@ -565,29 +440,11 @@ For detailed setup instructions, see Databricks guide on [accessing tables from 
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="yml"
+  defaultValue="toml"
   values={[
-    {"label": "dlt.yml", "value": "yml"},
     {"label": "TOML files", "value": "toml"},
     {"label": "Environment variables", "value": "env"}
 ]}>
-
-<TabItem value="yml">
-
-```yaml
-# we recommend to put sensitive configurations to secrets.toml
-destinations:
-  iceberg_unity_catalog:
-    type: iceberg
-    catalog_type: rest
-    credentials:
-      # we recommend to put sensitive configurations to secrets.toml
-      uri: https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest
-      warehouse: dlt_ci
-      properties:
-        token: please set me up!
-```
-</TabItem>
 
 <TabItem value="toml">
 
@@ -672,7 +529,7 @@ def my_upsert_resource():
 ```
 
 :::note
-dlt+ is not using PyIceberg's `Table.upsert` but implements its own method using delete and insert operations in a single transaction.
+dltHub is not using PyIceberg's `Table.upsert` but implements its own method using delete and insert operations in a single transaction.
 :::
 
 :::info Performance Testing
@@ -691,7 +548,7 @@ The created views reflect the latest available snapshot. To ensure fresh data du
 
 ## Credentials for data access
 By default, credentials for accessing data are vended by the catalog, and per-table secrets are created automatically. This works best with cloud storage providers like AWS S3 using STS credentials.
-However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dlt+ transformations.
+However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dltHub transformations.
 This approach allows for native DuckDB filesystem access, persistent secrets, and faster data access. For example, when using AWS S3 as the storage location
 for your Iceberg tables, you can provide explicit credentials in the destination configuration in `filesystem` section:
 
@@ -705,7 +562,7 @@ aws_secret_access_key = "please set me up!"
 
 Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance.
 
-There are two ways to configure partitioning in dlt+ Iceberg destination:
+There are two ways to configure partitioning in dltHub Iceberg destination:
 * Using the [`iceberg_adapter`](#using-the-iceberg_adapter-function) function
 * Using column-level [`partition`](#using-column-level-partition-property) property
 
@@ -716,7 +573,7 @@ The `iceberg_adapter` function allows you to configure partitioning for your Ice
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def my_data():
@@ -752,7 +609,7 @@ Extract time components from date/datetime columns:
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def events():
@@ -791,7 +648,7 @@ Combine multiple partition strategies:
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def sales_data():
@@ -830,7 +687,7 @@ Specify custom names for partition fields to make them more descriptive:
 
 ```py
 import dlt
-from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+from dlthub.destinations.adapters import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def user_activity():

@@ -464,7 +464,7 @@ def test_write_dispositions(
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
     # Note that we also explicitly select "_dlt_id" because its addition is disabled by default
-    example_table_2 = dataset.table("example_table_2", table_type="ibis")
+    example_table_2 = dataset.table("example_table_2").to_ibis()
     expression = (
         example_table_2.filter(example_table_2.a >= 3).order_by("a").limit(7)[["a", "_dlt_id"]]
     )

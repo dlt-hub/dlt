@@ -5,16 +5,9 @@ keywords: [transformation, dataset, sql, pipeline, ibis, arrow]
 ---
 # Transformations: Reshape data after loading
 
-import Admonition from "@theme/Admonition";
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
 
-<Admonition type="note" title={<span style={{ textTransform: "lowercase" }}>dltHub</span>}>
-    <p>
-    Transformations are part of **dltHub**. This module is currently available in 🧪 preview to selected users and projects.
-    Contact us to get your [trial license](https://dlthub.com/legal/dlt-plus-eula)
-    <br/>
-    <em>[Copyright © 2025 dltHub Inc. All rights reserved.](https://dlthub.com/legal/dlt-plus-eula)</em>
-    </p>
-</Admonition>
+<DltHubFeatureAdmonition />
 
 `dlt transformations` let you build new tables or full datasets from datasets that have _already_ been ingested with `dlt`. `dlt transformations` are written and run in a very similar fashion to dlt source and resources. `dlt transformations` require you to have loaded data to a location, for example a local duckdb database, a bucket or a warehouse on which the transformations may be executed. `dlt transformations` are fully supported for all of our sql destinations including all filesystem and bucket formats.
 
@@ -25,14 +18,14 @@ column schema. dlt transformations support the same write_dispositions per desti
 
 A few real-world scenarios where dlt transformations can be useful:
 
-- **Build one-stop reporting tables** – Flatten and enrich raw data into a wide table that analysts can pivot, slice, and dice without writing SQL each time.  
+- **Build one-stop reporting tables** – Flatten and enrich raw data into a wide table that analysts can pivot, slice, and dice without writing SQL each time.
 - **Clean data** – Remove irrelevant columns or anonymize sensitive information before sending it to a layer with lower privacy protections.
-- **Normalize JSON into 3-NF** – Break out repeating attributes from nested JSON so updates are consistent and storage isn't wasted.  
-- **Create dimensional (star-schema) models** – Produce fact and dimension tables so BI users can drag-and-drop metrics and break them down by any dimension.  
-- **Generate task-specific feature sets** – Deliver slim tables tailored for personalization, forecasting, or other ML workflows.  
-- **Apply shared business definitions** – Encode rules such as "a *sale* is a transaction whose status became *paid* this month," ensuring every metric is counted the same way.  
-- **Merge heterogeneous sources** – Combine Shopify, Amazon, WooCommerce (etc.) into one canonical *orders* feed for unified inventory and revenue reporting.  
-- **Run transformations during ingestion pre-warehouse** – Pre-aggregate or pre-filter data before it hits the warehouse to cut compute and storage costs.  
+- **Normalize JSON into 3-NF** – Break out repeating attributes from nested JSON so updates are consistent and storage isn't wasted.
+- **Create dimensional (star-schema) models** – Produce fact and dimension tables so BI users can drag-and-drop metrics and break them down by any dimension.
+- **Generate task-specific feature sets** – Deliver slim tables tailored for personalization, forecasting, or other ML workflows.
+- **Apply shared business definitions** – Encode rules such as "a *sale* is a transaction whose status became *paid* this month," ensuring every metric is counted the same way.
+- **Merge heterogeneous sources** – Combine Shopify, Amazon, WooCommerce (etc.) into one canonical *orders* feed for unified inventory and revenue reporting.
+- **Run transformations during ingestion pre-warehouse** – Pre-aggregate or pre-filter data before it hits the warehouse to cut compute and storage costs.
 - **…and more** – Any scenario where reshaping, enriching, or aggregating existing data unlocks faster insight or cleaner downstream pipelines.
 
 
@@ -64,7 +57,7 @@ dlt init fruitshop duckdb
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::basic_transformation-->
 
 
-### 3.1 Alternatively use pure SQL for the transformation 
+### 3.1 Alternatively use pure SQL for the transformation
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries_short-->
 
@@ -128,7 +121,7 @@ If you prefer to write your queries in SQL, you can omit ibis expressions by sim
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries-->
 
-The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema. 
+The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema.
 
 ## Using pandas dataframes or arrow tables
 
@@ -147,7 +140,7 @@ When executing transformations, dlt computes the resulting schema before the tra
 
 ### Schema evolution
 
-For example, if your transformation joins two tables and creates new columns, dlt will automatically update the destination schema to accommodate these changes. If your transformation would result in incompatible schema changes (like changing a column's data type in a way that could lose data), dlt will fail before executing the transformation, protecting your data and saving execution and debug time. 
+For example, if your transformation joins two tables and creates new columns, dlt will automatically update the destination schema to accommodate these changes. If your transformation would result in incompatible schema changes (like changing a column's data type in a way that could lose data), dlt will fail before executing the transformation, protecting your data and saving execution and debug time.
 
 You can inspect the computed result schema during development by looking at the result of `compute_columns_schema` on your `Relation`:
 
@@ -219,19 +212,19 @@ SELECT id, value FROM table
 Will be translated to
 
 ```sql
-INSERT INTO 
-    "my_pipeline_dataset"."my_transformation" ("id", "value", "_dlt_load_id", "_dlt_id") 
-SELECT 
-    _dlt_subquery."id" AS "id", 
-    _dlt_subquery."value" AS "value", 
-    '1749134128.17655' AS "_dlt_load_id", 
-    UUID() AS "_dlt_id" 
+INSERT INTO
+    "my_pipeline_dataset"."my_transformation" ("id", "value", "_dlt_load_id", "_dlt_id")
+SELECT
+    _dlt_subquery."id" AS "id",
+    _dlt_subquery."value" AS "value",
+    '1749134128.17655' AS "_dlt_load_id",
+    UUID() AS "_dlt_id"
 FROM (
-    SELECT 
-        "my_table"."id" AS "id", 
-        "my_table"."value" AS "value" 
+    SELECT
+        "my_table"."id" AS "id",
+        "my_table"."value" AS "value"
     FROM "my_pipeline_dataset"."my_table" AS "my_table"
-    ) 
+    )
 AS _dlt_subquery
 ```
 

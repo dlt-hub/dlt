@@ -64,6 +64,12 @@ MTIME_DISPATCH = {
     "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
     "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
     "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
+    "https": lambda f: cast(
+        pendulum.DateTime, pendulum.parse(f["Last-Modified"], exact=True, strict=False)
+    ),
+    "http": lambda f: cast(
+        pendulum.DateTime, pendulum.parse(f["Last-Modified"], exact=True, strict=False)
+    ),
     "file": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime_utc(f["created"]),
     "gdrive": lambda f: ensure_pendulum_datetime_utc(f["modifiedTime"]),
@@ -157,7 +163,7 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
     fs_kwargs.update(DEFAULT_KWARGS.get(protocol, {}))
 
-    if protocol == "sftp":
+    if protocol in ("https", "http", "sftp"):
         fs_kwargs.clear()
 
     if config.kwargs is not None:
@@ -298,6 +304,8 @@ class FileItemDict(DictStrAny):
                 bytes_io,
                 **text_kwargs,
             )
+        # `FileItemDict` kwarg `fsspec` is `Optional`. If `fsspec=None` this code branch
+        # will fail.
         else:
             if "file" in self.fsspec.protocol:
                 # use native local file path to open file:// uris

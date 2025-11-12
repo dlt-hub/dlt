@@ -3,6 +3,7 @@ import base64
 import hashlib
 import warnings
 import yaml
+from argparse import Namespace
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
@@ -21,6 +22,9 @@ from dlt.common.schema.typing import (
     C_DLT_ID,
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
+    C_CHILD_PARENT_REF_LABEL,
+    C_DESCENDANT_ROOT_REF_LABEL,
+    C_ROOT_LOAD_REF_LABEL,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
@@ -980,10 +984,33 @@ def create_root_child_reference(tables: TSchemaTables, table_name: str) -> TTabl
     root_row_key: str = get_first_column_name_with_prop(root_table, "row_key")
 
     return TTableReference(
+        label=C_DESCENDANT_ROOT_REF_LABEL,
+        cardinality="many_to_one",
+        table=table_name,
         columns=[child_root_key],
         referenced_table=root_table["name"],
         referenced_columns=[root_row_key],
     )
+
+
+def get_all_root_child_references_from_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    root_table = tables.get(table_name)
+    if is_nested_table(root_table) is True:
+        raise ValueError(f"Table `{table_name}` is not a root table.")
+
+    children_refs = []
+    # skip the first table in chain, which is the root; i.e., the current one
+    for child_table in get_nested_tables(tables, table_name)[1:]:
+        # try/except because a root table may or may not have child with `root_key` enabled
+        try:
+            child_ref = create_root_child_reference(tables, child_table["name"])
+            children_refs.append(child_ref)
+        except ValueError:
+            pass
+
+    return children_refs
 
 
 def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTableReference:
@@ -996,62 +1023,115 @@ def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTa
 
     parent_table_name = child_table.get("parent")
     if parent_table_name is None:
-        raise ValueError(f"No parent table found for `{table_name=:}`")
+        raise ValueError(f"Table `{table_name}` is a root table and has no parent.")
     parent_table = tables.get(parent_table_name)
 
     child_parent_key: str = get_first_column_name_with_prop(child_table, "parent_key")
     parent_row_key: str = get_first_column_name_with_prop(parent_table, "row_key")
 
     return TTableReference(
+        label=C_CHILD_PARENT_REF_LABEL,
+        cardinality="many_to_one",
+        table=table_name,
         columns=[child_parent_key],
         referenced_table=parent_table_name,
         referenced_columns=[parent_row_key],
     )
 
 
-def create_load_table_reference(table: TTableSchema) -> TTableReference:
-    """Create a Reference between `{table}._dlt_oad_id` and `_dlt_loads.load_id`"""
-    if table["columns"].get(C_DLT_LOAD_ID) is None:
-        raise ValueError(f"Column `{C_DLT_LOAD_ID}` not found for `table_name={table['name']}`")
+def get_all_parent_child_references_from_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    root_table = tables.get(table_name)
+    if is_nested_table(root_table) is True:
+        raise ValueError(f"Table `{table_name}` is not a root table.")
 
-    return TTableReference(
-        columns=[C_DLT_LOAD_ID],
-        referenced_table=LOADS_TABLE_NAME,
-        referenced_columns=[C_DLT_LOADS_TABLE_LOAD_ID],
-    )
+    children_refs = []
+    # skip the first table in chain, which is the root; i.e., the current one
+    for child_table in get_nested_tables(tables, table_name)[1:]:
+        # try/except because a root table may or may not have child with `root_key` enabled
+        try:
+            child_ref = create_parent_child_reference(tables, child_table["name"])
+            children_refs.append(child_ref)
+        except ValueError:
+            pass
+
+    return children_refs
 
 
-def create_version_and_loads_hash_reference(tables: TSchemaTables) -> TTableReference:
-    if VERSION_TABLE_NAME not in tables:
+def create_load_table_reference(
+    table: TTableSchema, *, naming: NamingConvention = None
+) -> TTableReference:
+    """Create a Reference between `{table}._dlt_load_id` and `_dlt_loads.load_id`"""
+    # TODO temporary solution; refactor caller to always explicitly pass `naming`
+    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
+
+    load_id_column = naming.normalize_identifier(C_DLT_LOAD_ID)
+    if table["columns"].get(load_id_column) is None:
         raise ValueError(
-            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+            f"Table `{table['name']}` is not a root table and has no `{load_id_column}` column."
         )
 
-    if LOADS_TABLE_NAME not in tables:
-        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
-
     return TTableReference(
-        columns=["version_hash"],
-        referenced_table=LOADS_TABLE_NAME,
-        referenced_columns=["schema_version_hash"],
+        label=C_ROOT_LOAD_REF_LABEL,
+        cardinality="many_to_one",
+        table=table["name"],
+        columns=[load_id_column],
+        referenced_table=naming.normalize_identifier(LOADS_TABLE_NAME),
+        referenced_columns=[naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)],
     )
 
 
-def create_version_and_loads_schema_name_reference(tables: TSchemaTables) -> TTableReference:
-    if VERSION_TABLE_NAME not in tables:
+def create_version_and_loads_hash_reference(
+    tables: TSchemaTables, *, naming: NamingConvention = None
+) -> TTableReference:
+    # TODO temporary solution; refactor caller to always explicitly pass `naming`
+    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
+
+    version_table_name = naming.normalize_identifier(VERSION_TABLE_NAME)
+    if version_table_name not in tables:
         raise ValueError(
-            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+            f"Table `{version_table_name}` not found in tables: `{list(tables.keys())}`"
         )
 
-    if LOADS_TABLE_NAME not in tables:
-        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
+    load_table_name = naming.normalize_identifier(LOADS_TABLE_NAME)
+    if load_table_name not in tables:
+        raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
 
-    loads_and_version_hash_schema_name_ref = TTableReference(
-        columns=["schema_name"],
-        referenced_table=LOADS_TABLE_NAME,
-        referenced_columns=["schema_name"],
+    return TTableReference(
+        label="_dlt_schema_version",
+        cardinality="one_to_many",
+        table=version_table_name,
+        columns=[naming.normalize_identifier("version_hash")],
+        referenced_table=load_table_name,
+        referenced_columns=[naming.normalize_identifier("schema_version_hash")],
     )
-    return loads_and_version_hash_schema_name_ref
+
+
+def create_version_and_loads_schema_name_reference(
+    tables: TSchemaTables, *, naming: NamingConvention = None
+) -> TTableReference:
+    # TODO temporary solution; refactor caller to always explicitly pass `naming`
+    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
+
+    version_table_name = naming.normalize_identifier(VERSION_TABLE_NAME)
+    if version_table_name not in tables:
+        raise ValueError(
+            f"Table `{version_table_name}` not found in tables: `{list(tables.keys())}`"
+        )
+
+    load_table_name = naming.normalize_identifier(LOADS_TABLE_NAME)
+    if load_table_name not in tables:
+        raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
+
+    return TTableReference(
+        label="_dlt_schema_name",
+        cardinality="many_to_many",
+        table=version_table_name,
+        columns=[naming.normalize_identifier("schema_name")],
+        referenced_table=load_table_name,
+        referenced_columns=[naming.normalize_identifier("schema_name")],
+    )
 
 
 def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:

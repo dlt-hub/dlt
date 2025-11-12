@@ -1,5 +1,4 @@
 from typing import Any, Optional, List
-import pytest
 from itertools import zip_longest
 
 from dlt.common.storages import PackageStorage, ParsedLoadJobFileName

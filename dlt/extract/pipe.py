@@ -12,6 +12,7 @@ from typing import (
     Iterator,
     List,
     Tuple,
+    Dict,
 )
 
 from dlt.common.reflection.inspect import isasyncgenfunction, isgeneratorfunction
@@ -42,7 +43,7 @@ from dlt.extract.utils import (
 )
 
 
-class ForkPipe(ItemTransform[ResolvablePipeItem]):
+class ForkPipe(ItemTransform[ResolvablePipeItem, Dict[str, Any]]):
     placement_affinity: ClassVar[float] = 2
 
     def __init__(self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False) -> None:

@@ -321,6 +321,11 @@ Read more about [incremental loading](../dlt-ecosystem/verified-sources/rest_api
 
 Congratulations on completing the tutorial! You've learned how to set up a REST API source in dlt and run a data pipeline to load the data into DuckDB.
 
+With your pipeline code ready, we recommend the following next steps:
+- Inspect your pipeline and data in [workspace dashboard](../general-usage/dashboard.md)
+- [Access your data](../general-usage/dataset-access/) using `dataset` interface
+- [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
+
 Interested in learning more about dlt? Here are some suggestions:
 
 - Learn more about the REST API source configuration in the [REST API source documentation](../dlt-ecosystem/verified-sources/rest_api/)

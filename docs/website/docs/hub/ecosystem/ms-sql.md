@@ -6,7 +6,11 @@ keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 
 # MS SQL replication
 
-dlt+ provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
+dltHub provides a comprehensive solution for syncing an MS SQL Server table using [Change Tracking](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-tracking-sql-server), a solution similar to CDC. By leveraging SQL Server's native Change Tracking feature, you can efficiently load incremental data changes — including inserts, updates, and deletes — into your destination.
 
 ## Prerequisites
 
@@ -39,9 +43,9 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 - `[YourSchemaName].[YourTableName]`: Replace with your schema and table names.
 - `TRACK_COLUMNS_UPDATED`: When set to ON, allows you to see which columns were updated in a row. Set to OFF if you don’t need this level of detail.
 
-### Set up dlt+ and drivers
+### Set up dlthub and drivers
 
-* Make sure dlt+ is installed according to the [installation guide](../getting-started/installation.md).
+* Make sure dltHub is installed according to the [installation guide](../getting-started/installation.md).
 
 * Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). If you prefer, there is also a [Python library alternative](https://www.pymssql.org/).
 
@@ -113,7 +117,7 @@ initial_resource.apply_hints(
 Next, configure the incremental resource for the first run with the `create_change_tracking_table` function and run it **once**:
 
 ```py
-from dlt_plus.sources.mssql import create_change_tracking_table
+from dlthub.sources.mssql import create_change_tracking_table
 
 # Optional: Configure engine isolation level
 # use it if you create an Engine implicitly
@@ -138,7 +142,7 @@ After the initial load, you can run the `create_change_tracking_table` resource 
 You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the dlt state.
 
 ```py
-from dlt_plus.sources.mssql import create_change_tracking_table
+from dlthub.sources.mssql import create_change_tracking_table
 
 incremental_resource = create_change_tracking_table(
     credentials=engine,
@@ -164,7 +168,7 @@ import dlt
 from sqlalchemy import create_engine
 
 from dlt.sources.sql_database import sql_table
-from dlt_plus.sources.mssql import (
+from dlthub.sources.mssql import (
     create_change_tracking_table,
     get_current_change_tracking_version,
 )
@@ -310,7 +314,7 @@ pipeline.run(initial_resource, refresh="drop_resources")
 There is an optional parameter that can be passed to `create_change_tracking_table` for configuring how to handle deletes:
 
 ```py
-from dlt_plus.sources.mssql import create_change_tracking_table
+from dlthub.sources.mssql import create_change_tracking_table
 
 incremental_resource = create_change_tracking_table(
     credentials=engine,
@@ -334,7 +338,7 @@ If `hard_delete` is set to `False`, soft deletes are performed, i.e., rows delet
 In this case, the destination schema must accept NULLs for the replicated columns, so make sure you pass the `remove_nullability_adapter` adapter to the `sql_table` resource:
 
 ```py
-from dlt_plus.sources.mssql import remove_nullability_adapter
+from dlthub.sources.mssql import remove_nullability_adapter
 
 table = sql_table(
     table_adapter_callback=remove_nullability_adapter,

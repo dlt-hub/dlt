@@ -1,7 +1,11 @@
 ---
-title: dbt generator
+title: dbt model generator
 description: Generate dbt models automatically
 ---
+
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
 
 The **dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both the ingestion and transformation layers.
 
@@ -34,7 +38,7 @@ To add relationship hints, use the relationship adapter:
 
 ```py
 import dlt
-from dlt_plus.dbt_generator.utils import table_reference_adapter
+from dlthub.dbt_generator.utils import table_reference_adapter
 
 
 # Example countries table

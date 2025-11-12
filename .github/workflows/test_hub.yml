@@ -1,7 +1,7 @@
 name: hub | dlthub features
 
 #
-# dlt-plus smoke tests against the nightly build.
+# dlthub smoke tests against the nightly build.
 #
 
 on:
@@ -18,18 +18,22 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python-version: ["3.10", "3.11", "3.12"]
-        plus_dep: ["dlt-plus", "https://dlt-packages.fra1.digitaloceanspaces.com/dlt-plus/dlt_plus-0.0.0+nightly-py3-none-any.whl"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        dlthub_dep: ["dlthub", "https://dlt-packages.fra1.digitaloceanspaces.com/dlthub/dlthub-0.0.0+nightly-py3-none-any.whl"]
         # Test all python versions on ubuntu only
         exclude:
         - os: "macos-latest"
-          python-version: "3.11"
+          python-version: "3.10"
         - os: "macos-latest"
           python-version: "3.12"
+        - os: "macos-latest"
+          python-version: "3.13"
         - os: "windows-latest"
-          python-version: "3.11"
+          python-version: "3.10"
         - os: "windows-latest"
           python-version: "3.12"
+        - os: "windows-latest"
+          python-version: "3.13"
 
     defaults:
       run:
@@ -58,19 +62,30 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
         if: matrix.os == 'ubuntu-latest'
 
+      # still does not work in mac
+      # - name: Install ODBC driver for SQL Server (macOS)
+      #   if: matrix.os == 'macos-latest'
+      #   env:
+      #     HOMEBREW_NONINTERACTIVE: 1
+      #     HOMEBREW_NO_AUTO_UPDATE: 1
+      #     HOMEBREW_NO_ANALYTICS: 1
+      #     HOMEBREW_NO_INSTALL_CLEANUP: 1
+      #   run: |
+      #     brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
+      #     printf "YES\n" | brew install msodbcsql18
+      #     # quick diagnostics (do not fail the build if unavailable)
+      #     odbcinst -j || true
+      #     odbcinst -q -d || true
+
       - name: Install all dependencies
         run: make dev
 
-      - name: Install dlt-plus nightly devel build without cache
-        run: uv run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.plus_dep }}
+      - name: Install dlthub
+        run: uv run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.dlthub_dep }}
 
       - name: Run tests
         run: pytest tests/hub
-        if: matrix.os == 'ubuntu-latest'
-
-      - name: Run tests on mac on win without mssql driver
-        run: pytest tests/hub -m "not mssql"
-        if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
+        # if: matrix.os != 'macos-latest'
 
   matrix_job_required_check:
     name: hub | dlthub features tests

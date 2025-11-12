@@ -2,6 +2,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
     Literal,
     Optional,
@@ -250,6 +251,7 @@ class Endpoint(TypedDict, total=False):
     method: Optional[HTTPMethodBasic]
     params: Optional[Dict[str, Union[ResolveParamConfig, IncrementalParamConfig, Any]]]
     json: Optional[Dict[str, Any]]
+    data: Optional[Any]
     paginator: Optional[PaginatorConfig]
     data_selector: Optional[jsonpath.TJsonPath]
     response_actions: Optional[List[ResponseAction]]
@@ -261,6 +263,7 @@ class Endpoint(TypedDict, total=False):
 class ProcessingSteps(TypedDict, total=False):
     filter: Optional[Callable[[Any], bool]]  # noqa: A003
     map: Optional[Callable[[Any], Any]]  # noqa: A003
+    yield_map: Optional[Callable[[Any], Iterator[Any]]]  # noqa: A003
 
 
 class ResourceBase(TResourceHintsBase, total=False):

@@ -364,6 +364,7 @@ used as-is and `base_url` will be ignored.
 - `headers`: Additional headers specific to this endpoint. See the [headers configuration](./advanced#headers-configuration) section for more details.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also may be used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
+- `data`: The data payload to be sent with the request body. Can be a dictionary (form-encoded) or string. Mutually exclusive with `json` parameter. Use this for APIs that expect form-encoded data or raw payloads instead of JSON.
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
 - `response_actions`: A list of actions that define how to process the response data. See the [response actions](./advanced#response-actions) section for more details.
@@ -485,7 +486,7 @@ To change this behavior for a specific endpoint, explicitly set the `paginator` 
 {
     "name": "user_details",
     "endpoint": {
-        "path": "user/{id}/comments",
+        "path": "user/{resources.users.id}/comments",
         "paginator": {"type": "json_link", "next_url_path": "next"}
     }
 }
@@ -971,7 +972,7 @@ def repositories() -> Generator[Dict[str, Any], Any, Any]:
 
 The `processing_steps` field in the resource configuration allows you to apply transformations to the data fetched from the API before it is loaded into your destination. This is useful when you need to filter out certain records, modify the data structure, or anonymize sensitive information.
 
-Each processing step is a dictionary specifying the type of operation (`filter` or `map`) and the function to apply. Steps apply in the order they are listed.
+Each processing step is a dictionary specifying the type of operation (`filter`, `map` or `yield_map`) and the function to apply. Steps apply in the order they are listed.
 
 #### Quick example
 
@@ -979,6 +980,12 @@ Each processing step is a dictionary specifying the type of operation (`filter` 
 def lower_title(record):
     record["title"] = record["title"].lower()
     return record
+
+def flatten_reactions(post):
+    post_without_reactions = copy.deepcopy(post)
+    post_without_reactions.pop("reactions")
+    for reaction in post["reactions"]:
+        yield {"reaction": reaction, **post_without_reactions}
 
 config: RESTAPIConfig = {
     "client": {
@@ -990,6 +997,7 @@ config: RESTAPIConfig = {
             "processing_steps": [
                 {"filter": lambda x: x["id"] < 10},
                 {"map": lower_title},
+                {"yield_map": flatten_reactions},
             ],
         },
     ],
@@ -999,7 +1007,9 @@ config: RESTAPIConfig = {
 In the example above:
 
 - First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
-- Thereafter, the `map` step applies the `lower_title` function to each remaining record.
+- Then, the `map` step applies the `lower_title` function to each remaining record.
+- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record, 
+yielding a set of records, one for each reaction for the given post.
 
 #### Using `filter`
 
@@ -1041,6 +1051,31 @@ config: RESTAPIConfig = {
 }
 ```
 
+#### Using `yield_map`
+
+The `yield_map` step allows you to transform a record into multiple records. The provided function should take a record as an argument and return an iterator of records. For example, to flatten the `reactions` field:
+
+```py
+def flatten_reactions(post):
+    post_without_reactions = copy.deepcopy(post)
+    post_without_reactions.pop("reactions")
+    for reaction in post["reactions"]:
+        yield {"reaction": reaction, **post_without_reactions}
+
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com",
+    },
+    "resources": [
+        {
+            "name": "posts",
+            "processing_steps": [
+                {"yield_map": flatten_reactions},
+            ],
+        },
+    ],
+}
+```
 #### Combining `filter` and `map`
 
 You can combine multiple processing steps to achieve complex transformations:

@@ -78,7 +78,7 @@ from dlt.common.configuration.utils import (
     add_config_to_env,
 )
 from dlt.common.pipeline import TRefreshMode, PipelineContext
-from dlt.cli.config_toml_writer import TYPE_EXAMPLES
+from dlt._workspace.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from tests.utils import preserve_environ, TEST_STORAGE_ROOT
@@ -96,7 +96,7 @@ from tests.common.configuration.utils import (
     toml_providers,
     mock_provider,
     env_provider,
-    reset_resolved_traces,
+    auto_reset_resolved_traces,
 )
 import dlt
 
@@ -717,12 +717,10 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
             assert not c.instrumented.is_partial()
 
 
-def test_run_configuration_gen_name(environment: Any) -> None:
-    C = resolve.resolve_configuration(RuntimeConfiguration())
-    assert C.pipeline_name.startswith("dlt_")
-
-
-def test_runtime_configuration_telemetry_disabled_on_non_threading_platform(monkeypatch) -> None:
+def test_runtime_configuration_telemetry_disabled_on_non_threading_platform(
+    monkeypatch, toml_providers: ConfigProvidersContainer
+) -> None:
+    # inject toml_providers - the default context is disabling telemetry
     c = resolve.resolve_configuration(RuntimeConfiguration())
     assert c.dlthub_telemetry
 
@@ -1425,36 +1423,39 @@ def test_resolved_trace(environment: Any) -> None:
 @pytest.mark.parametrize("enable_logging", (True, False))
 def test_unresolved_trace(environment: Any, enable_logging: bool) -> None:
     tracer = get_resolved_traces()
-    tracer.logging_enabled = enable_logging
+    try:
+        tracer.logging_enabled = enable_logging
 
-    @configspec
-    class OptEmbeddedConfiguration(BaseConfiguration):
-        default: Optional[str] = None
-        instrumented: InstrumentedConfiguration = None
-        sectioned: SectionedConfiguration = None
+        @configspec
+        class OptEmbeddedConfiguration(BaseConfiguration):
+            default: Optional[str] = None
+            instrumented: InstrumentedConfiguration = None
+            sectioned: SectionedConfiguration = None
 
-    with custom_environ(
-        {
-            "INSTRUMENTED__HEAD": "h",
-            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
-            "INSTRUMENTED__HEELS": "xhe",
-        }
-    ):
-        resolve.resolve_configuration(
-            OptEmbeddedConfiguration(default="_DEFF"),
-            sections=("wrapper", "spec"),
-            explicit_value={"default": None, "sectioned": {"password": "$pwd"}},
-        )
+        with custom_environ(
+            {
+                "INSTRUMENTED__HEAD": "h",
+                "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+                "INSTRUMENTED__HEELS": "xhe",
+            }
+        ):
+            resolve.resolve_configuration(
+                OptEmbeddedConfiguration(default="_DEFF"),
+                sections=("wrapper", "spec"),
+                explicit_value={"default": None, "sectioned": {"password": "$pwd"}},
+            )
 
-    if enable_logging:
-        # we try in ("wrapper", "spec") so there are 3 read attempts per resolved value
-        assert len(tracer.all_traces) == 3 * len(tracer.resolved_traces)
-        # there are 3 resolved values, explicit values are not included
-        assert len(tracer.resolved_traces) == 3
-        # first resolved value sections are full depth
-        assert tracer.all_traces[0].sections == ["wrapper", "spec", "instrumented"]
-    else:
-        assert len(tracer.all_traces) == len(tracer.resolved_traces) == 0
+        if enable_logging:
+            # we try in ("wrapper", "spec") so there are 3 read attempts per resolved value
+            assert len(tracer.all_traces) == 3 * len(tracer.resolved_traces)
+            # there are 3 resolved values, explicit values are not included
+            assert len(tracer.resolved_traces) == 3
+            # first resolved value sections are full depth
+            assert tracer.all_traces[0].sections == ["wrapper", "spec", "instrumented"]
+        else:
+            assert len(tracer.all_traces) == len(tracer.resolved_traces) == 0
+    finally:
+        tracer.logging_enabled = True
 
 
 def test_extract_inner_hint() -> None:

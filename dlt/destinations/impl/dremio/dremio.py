@@ -5,16 +5,14 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     HasFollowupJobs,
     PreparedTableSchema,
-    TLoadJobState,
     RunnableLoadJob,
     SupportsStagingDestination,
     FollowupJobRequest,
     LoadJob,
 )
 from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnType
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration
 from dlt.destinations.impl.dremio.sql_client import DremioSqlClient

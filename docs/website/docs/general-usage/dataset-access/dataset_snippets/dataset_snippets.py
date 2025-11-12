@@ -2,7 +2,7 @@
 import dlt
 import pytest
 
-from dlt.sources._single_file_templates.fruitshop_pipeline import (
+from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 
@@ -42,7 +42,7 @@ def quick_start_example_snippet(pipeline: dlt.Pipeline) -> None:
     dataset = pipeline.dataset()
 
     # Step 2: Access a table as a ReadableRelation
-    customers_relation = dataset.customers  # Or dataset["customers"]
+    customers_relation = dataset.table("customers")
 
     # Step 3: Fetch the entire table as a Pandas DataFrame
     df = customers_relation.df()  # or customers_relation.df(chunk_size=50)
@@ -64,8 +64,8 @@ def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
 
 def accessing_tables_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START accessing_tables
-    # Using attribute access
-    customers_relation = dataset.customers
+    # Using `table` method`
+    customers_relation = dataset.table("customers")
 
     # Using item access
     customers_relation = dataset["customers"]
@@ -73,7 +73,7 @@ def accessing_tables_snippet(dataset: dlt.Dataset) -> None:
 
 
 def fetch_entire_table_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
 
     # @@@DLT_SNIPPET_START fetch_entire_table_df
     df = customers_relation.df()
@@ -89,7 +89,7 @@ def fetch_entire_table_snippet(dataset: dlt.Dataset) -> None:
 
 
 def iterating_chunks_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START iterating_df_chunks
     for df_chunk in customers_relation.iter_df(chunk_size=5):
         # Process each DataFrame chunk
@@ -124,15 +124,15 @@ def context_manager_snippet(dataset: dlt.Dataset) -> None:
 
     # the dataset context manager will keep the connection open
     # and close it after the with block is exited
-    with dataset as dataset_:
-        print(dataset.customers.limit(50).arrow())
-        print(dataset.purchases.arrow())
+    with dataset:
+        print(dataset.table("customers").limit(50).arrow())
+        print(dataset.table("purchases").arrow())
 
     # @@@DLT_SNIPPET_END context_manager
 
 
 def limiting_records_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START limiting_records
     # Get the first 50 items as a PyArrow table
     arrow_table = customers_relation.limit(50).arrow()
@@ -144,7 +144,7 @@ def limiting_records_snippet(dataset: dlt.Dataset) -> None:
 
 
 def select_columns_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START select_columns
     # Select only 'id' and 'name' columns
     items_list = customers_relation.select("id", "name").fetchall()
@@ -158,7 +158,7 @@ def select_columns_snippet(dataset: dlt.Dataset) -> None:
 
 
 def order_by_snippet(default_dataset: dlt.Dataset) -> None:
-    customers_relation = default_dataset.customers
+    customers_relation = default_dataset.table("customers")
     # @@@DLT_SNIPPET_START order_by
     # Order by 'id'
     ordered_list = customers_relation.order_by("id").fetchall()
@@ -166,7 +166,7 @@ def order_by_snippet(default_dataset: dlt.Dataset) -> None:
 
 
 def filter_snippet(default_dataset: dlt.Dataset) -> None:
-    customers_relation = default_dataset.customers
+    customers_relation = default_dataset.table("customers")
     # @@@DLT_SNIPPET_START filter
     # Filter by 'id'
     filtered = customers_relation.where("id", "in", [3, 1, 7]).fetchall()
@@ -186,7 +186,7 @@ def filter_snippet(default_dataset: dlt.Dataset) -> None:
 
 
 def aggregate_snippet(default_dataset: dlt.Dataset) -> None:
-    customers_relation = default_dataset.customers
+    customers_relation = default_dataset.table("customers")
     # @@@DLT_SNIPPET_START aggregate
 
     # Get max 'id'
@@ -199,7 +199,7 @@ def aggregate_snippet(default_dataset: dlt.Dataset) -> None:
 
 
 def chain_operations_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
 
     # @@@DLT_SNIPPET_START chain_operations
     # Select columns and limit the number of records
@@ -213,8 +213,8 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     dataset = pipeline.dataset()
 
     # get two table expressions
-    customers_expression = dataset.table("customers", table_type="ibis")
-    purchases_expression = dataset.table("purchases", table_type="ibis")
+    customers_expression = dataset.table("customers").to_ibis()
+    purchases_expression = dataset.table("purchases").to_ibis()
 
     # join them using an ibis expression
     join_expression = customers_expression.join(
@@ -267,21 +267,21 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
 
 
 def fetch_one_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START fetch_one
     record = customers_relation.fetchone()
     # @@@DLT_SNIPPET_END fetch_one
 
 
 def fetch_many_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START fetch_many
     records = customers_relation.fetchmany(10)
     # @@@DLT_SNIPPET_END fetch_many
 
 
 def iterating_with_limit_and_select_snippet(dataset: dlt.Dataset) -> None:
-    customers_relation = dataset.customers
+    customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START iterating_with_limit_and_select
     # Dataframes
     for df_chunk in customers_relation.select("id", "name").limit(100).iter_df(chunk_size=20): ...

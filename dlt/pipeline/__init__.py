@@ -16,7 +16,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir, TRefreshMode
-from dlt.common.runtime import apply_runtime_config, init_telemetry
+
+# from dlt.common.runtime import apply_runtime_config, init_telemetry
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
@@ -141,11 +142,6 @@ def pipeline(
         else:
             pass
 
-    # modifies run_context and must go first
-    runtime_config = injection_kwargs["runtime"]
-    apply_runtime_config(runtime_config)
-    init_telemetry(runtime_config)
-
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
@@ -174,7 +170,6 @@ def pipeline(
         progress,
         False,
         last_config(**injection_kwargs),
-        runtime_config,
         refresh=refresh,
     )
     # set it as current pipeline
@@ -204,10 +199,6 @@ def attach(
     """
     ensure_correct_pipeline_kwargs(attach, **injection_kwargs)
 
-    runtime_config = injection_kwargs["runtime"]
-    apply_runtime_config(runtime_config)
-    init_telemetry(runtime_config)
-
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
@@ -235,7 +226,6 @@ def attach(
             progress,
             True,
             last_config(**injection_kwargs),
-            runtime_config,
         )
         # set it as current pipeline
         p.activate()

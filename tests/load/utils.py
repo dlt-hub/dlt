@@ -85,6 +85,7 @@ GDRIVE_BUCKET = dlt.config.get("tests.bucket_url_gdrive", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 SFTP_BUCKET = dlt.config.get("tests.bucket_url_sftp", str)
+HTTP_BUCKET = dlt.config.get("tests.bucket_url_http", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
 ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
@@ -95,6 +96,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "gdrive",
     "file",
     "memory",
+    "https",
     "r2",
     "sftp",
 ]
@@ -763,7 +765,7 @@ def destinations_configs(
 
 
 @pytest.fixture(autouse=True)
-def drop_pipeline(request, preserve_environ, patch_home_dir) -> Iterator[None]:
+def drop_pipeline(request, preserve_environ, auto_test_run_context) -> Iterator[None]:
     # NOTE: keep `preserve_environ` to make sure fixtures are executed in order``
     # enable activation history (for the main thread) to be able to drop pipelines active during test
     Container()[PipelineContext].enable_activation_history = True
@@ -885,7 +887,7 @@ def expect_load_file(
 
         if isinstance(job, RunnableLoadJob):
             job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
-            job.run_managed(client)
+            job.run_managed(client, None)
         # TODO: use semaphore
         while job.state() == "running":
             sleep(0.1)

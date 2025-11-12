@@ -470,6 +470,7 @@ def test_to_and_from_dbml_reference() -> None:
         col2=[tables[1].columns[0]],  # refers to `orders.customer_id`
     )
     expected_dlt_reference = TTableReference(
+        table="customers",
         columns=["id"],
         referenced_columns=["customer_id"],
         referenced_table="orders",

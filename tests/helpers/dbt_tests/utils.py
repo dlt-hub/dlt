@@ -2,7 +2,7 @@ import os
 from typing import List, Sequence
 
 from dlt.common.storages import FileStorage
-from dlt.common.git import clone_repo
+from dlt.common.libs.git import clone_repo
 from dlt.helpers.dbt.exceptions import DBTNodeResult
 
 JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"

@@ -9,19 +9,17 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.utils import (
-    patch_home_dir,
+    auto_test_run_context,
     autouse_test_storage,
     preserve_environ,
-    wipe_pipeline,
-)
-
-from dlt.sources._single_file_templates.fruitshop_pipeline import (
-    fruitshop as fruitshop_source,
+    deactivate_pipeline,
 )
 
 from dlt import Schema
-
-from dlt.helpers.dashboard import strings as app_strings
+from dlt._workspace.helpers.dashboard import strings as app_strings
+from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
+    fruitshop as fruitshop_source,
+)
 
 # NOTE: The line below is needed for playwright to work on windows
 if sys.platform.startswith("win"):
@@ -133,13 +131,13 @@ def test_page_overview(page: Page):
     _go_home(page)
 
     # check title
-    expect(page).to_have_title("dlt pipeline dashboard")
+    expect(page).to_have_title("dlt workspace dashboard")
 
     # check top heading
     expect(
-        page.get_by_role("heading", name="Welcome to the dltHub pipeline dashboard...")
+        page.get_by_role("heading", name="Welcome to the dltHub workspace dashboard...")
     ).to_contain_text(
-        "Welcome to the dltHub pipeline dashboard..."
+        "Welcome to the dltHub workspace dashboard..."
     )  #
 
     #
