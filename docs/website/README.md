@@ -21,6 +21,20 @@ $ npm install
 
 That command installs our Node.js package defined in `package.json`.
 
+### Python Dependencies
+
+The website build process requires Python dependencies, including `pydoc-markdown` for generating API documentation. Install them with:
+
+```
+$ uv pip install -r requirements.txt
+```
+
+Or if you're using the project's `uv` environment from the root directory:
+
+```
+$ uv pip install -e ".[docs]"
+```
+
 ### Are you new to Node?
 
 `npm` is a package manager bundled with Node.js. If `npm install` complained that you have an old version, try:
