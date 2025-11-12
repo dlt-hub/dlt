@@ -686,6 +686,13 @@ class SupportsStagingDestination(ABC):
         """
         pass
 
+    def should_drop_table_on_staging_destination(self, table_name: str) -> bool:
+        """Tells if table should be dropped on staging destination (regular dataset) in addition to dropping the table on
+        final destination. This stays False for all the destinations except Athena, non-iceberg where staging destination
+        holds actual data which needs to be deleted.
+        """
+        return False
+
 
 class SupportsOpenTables(ABC):
     """Provides access to data stored in one of open table formats (iceberg or delta) and intended to

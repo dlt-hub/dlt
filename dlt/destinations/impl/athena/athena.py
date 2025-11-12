@@ -406,6 +406,11 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             return True
         return False
 
+    def should_drop_table_on_staging_destination(self, table_name: str) -> bool:
+        # in Athena we must drop table in glue and then we must drop data in staging if table is not iceberg
+        table = self.prepare_load_table(table_name)
+        return not self._is_iceberg_table(table)
+
     def should_load_data_to_staging_dataset_on_staging_destination(self, table_name: str) -> bool:
         """iceberg table data goes into staging on staging destination"""
         table = self.prepare_load_table(table_name)
