@@ -10,11 +10,11 @@ import dlt
 from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.utils import uniq_id
+from dlt.common.utils import assert_min_pkg_version, uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
@@ -1528,9 +1528,11 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
         if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
-            if version("connectorx") >= "0.4.4":
-                # very rough version check, but should work with semver
+            try:
+                assert_min_pkg_version(pkg_name="connectorx", version="0.4.4")
                 add_default_decimal_precision([column], is_connectorx=True)
+            except DependencyVersionException:
+                pass
     return columns
 
 

@@ -2538,7 +2538,7 @@ providers = [{ name = "google-api-python-client", specifier = ">=2.86.0,<3" }]
 sentry-sdk = [{ name = "sentry-sdk", specifier = ">=2.0.0,<3" }]
 sources = [
     { name = "connectorx", marker = "python_full_version < '3.10'", specifier = "<0.4.2" },
-    { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.4" },
+    { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.2" },
     { name = "mimesis", specifier = ">=7.0.0,<8" },
     { name = "openpyxl", specifier = ">=3,<4" },
     { name = "pymysql", specifier = ">=1.1.0,<2" },
