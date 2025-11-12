@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 from typing import Any, Callable, cast, List, Optional, Set
+from importlib.metadata import version
 
 import pytest
 from pytest_mock import MockerFixture
@@ -1443,6 +1444,7 @@ def assert_precision_columns(
     elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
         del actual[0]["precision"]
+        expected = add_default_decimal_precision(expected, is_connectorx=True)
     assert actual == expected
 
 
@@ -1525,14 +1527,21 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
                 column["precision"] = 16  # only int and bigint in connectorx
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
+        if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
+            if version("connectorx") >= "0.4.4":
+                # very rough version check, but should work with semver
+                add_default_decimal_precision([column], is_connectorx=True)
     return columns
 
 
-def add_default_decimal_precision(columns: List[TColumnSchema]) -> List[TColumnSchema]:
+def add_default_decimal_precision(
+    columns: List[TColumnSchema], is_connectorx: bool = False
+) -> List[TColumnSchema]:
+    scale = 9 if not is_connectorx else 10
     for column in columns:
         if column["data_type"] == "decimal" and not column.get("precision"):
             column["precision"] = 38
-            column["scale"] = 9
+            column["scale"] = scale
     return columns
 
 
