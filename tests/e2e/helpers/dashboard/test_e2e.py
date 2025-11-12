@@ -8,7 +8,7 @@ import pathlib
 import dlt
 from dlt._workspace.helpers.dashboard.runner import kill_dashboard
 from dlt._workspace.run_context import switch_profile
-from tests.e2e.helpers.dashboard.conftest import fruitshop_source, start_dashboard
+from tests.e2e.helpers.dashboard.conftest import fruitshop_source, start_dashboard, _normpath
 from tests.workspace.utils import isolated_workspace
 from playwright.sync_api import Page, expect
 
@@ -27,11 +27,6 @@ if sys.platform.startswith("win"):
 #
 # helpers
 #
-
-
-def _normpath(path: str) -> str:
-    """normalize path to unix style and lowercase for windows tests"""
-    return str(pathlib.Path(path)) if sys.platform.startswith("win") else path
 
 
 def _go_home(page: Page) -> None:

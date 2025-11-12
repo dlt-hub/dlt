@@ -1,3 +1,5 @@
+import pathlib
+import sys
 from typing import Any
 import time
 import urllib.request
@@ -11,6 +13,11 @@ import dlt
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
+
+
+def _normpath(path: str) -> str:
+    """normalize path to unix style and lowercase for windows tests"""
+    return str(pathlib.Path(path)) if sys.platform.startswith("win") else path
 
 
 @pytest.fixture()
@@ -104,7 +111,7 @@ def dashboard_child(pipelines_dir: str, port: int = 2718, test_identifiers: bool
 
 @pytest.fixture(scope="module", autouse=True)
 def start_dashboard_server():
-    start_dashboard(pipelines_dir="_storage/.dlt/pipelines")
+    start_dashboard(pipelines_dir=_normpath("_storage/.dlt/pipelines"))
     yield
     kill_dashboard()
 
