@@ -2,8 +2,11 @@ import os
 import sys
 import subprocess
 from importlib.resources import files
+import time
 from typing import Any
 from pathlib import Path
+
+import psutil
 from dlt.common.exceptions import MissingDependencyException
 
 
@@ -39,6 +42,7 @@ def run_dashboard(
     pipelines_dir: str = None,
     port: int = None,
     host: str = None,
+    with_test_identifiers: bool = False,
 ) -> None:
     from dlt._workspace.helpers.dashboard import dlt_dashboard
 
@@ -85,8 +89,28 @@ def run_dashboard(
         dashboard_cmd.append("--")
         dashboard_cmd.append("--pipelines-dir")
         dashboard_cmd.append(pipelines_dir)
+    if with_test_identifiers:
+        dashboard_cmd.append("--")
+        dashboard_cmd.append("--with_test_identifiers")
+        dashboard_cmd.append("true")
 
     try:
         subprocess.run(dashboard_cmd)
     except KeyboardInterrupt:
         pass
+
+
+def kill_dashboard(port: int = 2718) -> None:
+    """
+    Best-effort: terminate any process listening on the given port using lsof.
+    """
+    pids_out = subprocess.run(
+        ["lsof", "-nP", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.splitlines()
+    pids = [pid for pid in pids_out if pid.strip().isdigit()]
+    if pids:
+        subprocess.run(["kill"] + pids)
+        time.sleep(0.3)
