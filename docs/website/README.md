@@ -32,7 +32,7 @@ $ uv pip install -r requirements.txt
 Or if you're using the project's `uv` environment from the root directory:
 
 ```
-$ uv pip install -e ".[docs]"
+$ uv sync --group docs
 ```
 
 ### Are you new to Node?
