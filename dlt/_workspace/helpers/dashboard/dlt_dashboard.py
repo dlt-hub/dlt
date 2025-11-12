@@ -1164,26 +1164,28 @@ def utils_cli_args_and_query_vars_config():
     Prepare cli args  as globals for the following cells
     """
     _run_context = dlt.current.run_context()
-    mo_query_var_pipeline_name = None
-    mo_cli_arg_pipelines_dir = None
-    mo_cli_arg_with_test_identifiers = False
-    mo_cli_arg_pipeline = None
-    mo_query_var_profile = None
-    mo_cli_arg_profile = None
+    mo_query_var_pipeline_name: str = None
+    mo_cli_arg_pipelines_dir: str = None
+    mo_cli_arg_with_test_identifiers: bool = False
+    mo_cli_arg_pipeline: str = None
+    mo_query_var_profile: str = None
+    mo_cli_arg_profile: str = None
     try:
-        mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
-        mo_cli_arg_pipeline: str = cast(str, mo.cli_args().get("pipeline")) or None
-        mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines-dir")) or None
-        mo_cli_arg_with_test_identifiers: bool = (
+        mo_query_var_pipeline_name = cast(str, mo.query_params().get("pipeline")) or None
+        mo_cli_arg_pipeline = cast(str, mo.cli_args().get("pipeline")) or None
+        mo_cli_arg_pipelines_dir = cast(str, mo.cli_args().get("pipelines-dir")) or None
+        mo_cli_arg_with_test_identifiers = (
             cast(bool, mo.cli_args().get("with_test_identifiers")) or False
         )
         mo_query_var_profile = (
-            mo.query_params().get("profile")
+            cast(str, mo.query_params().get("profile")) or None
             if isinstance(_run_context, ProfilesRunContext)
             else None
         )
         mo_cli_arg_profile = (
-            mo.cli_args().get("profile") if isinstance(_run_context, ProfilesRunContext) else None
+            cast(str, mo.cli_args().get("profile")) or None
+            if isinstance(_run_context, ProfilesRunContext)
+            else None
         )
     except Exception:
         pass
