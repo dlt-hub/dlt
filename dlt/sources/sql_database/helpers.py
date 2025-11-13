@@ -22,6 +22,7 @@ from dlt.common.configuration.specs import (
     configspec,
 )
 from dlt.common.exceptions import DltException, MissingDependencyException
+from dlt.common.libs.pyarrow import cast_date64_columns_to_timestamp
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
 from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
@@ -263,7 +264,7 @@ class TableLoader:
             record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
             for record_batch in record_reader:
                 table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
-                yield self._maybe_fix_0000_timezone(table)
+                yield cast_date64_columns_to_timestamp(self._maybe_fix_0000_timezone(table))
         else:
             df = cx.read_sql(conn, query_str, **backend_kwargs)
             if len(df) > self.chunk_size:

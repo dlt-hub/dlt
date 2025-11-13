@@ -463,7 +463,7 @@ print(info)
 The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend completely skips `SQLALchemy` when reading table rows, in favor of doing that in Rust. This is claimed to be significantly faster than any other method (validated only on PostgreSQL). With the default settings, it will emit `PyArrow` tables, but you can configure this by specifying the `return_type` in `backend_kwargs`. (See the [`ConnectorX` docs](https://sfu-db.github.io/connector-x/api.html) for a full list of configurable parameters.)
 
 There are certain limitations when using this backend:
-* Unless `return_type` is set to `arrow_stream` in `backend_kwargs`, it will ignore `chunk_size`. Please note that certain data types such as arrays and high-precision time types are not supported in streaming mode by `ConnectorX`.
+* Unless `return_type` is set to `arrow_stream` in `backend_kwargs`, it will ignore `chunk_size`. Please note that certain data types such as arrays and high-precision time types are not supported in streaming mode by `ConnectorX`. We also observer that timestamps are not properly returned: tz-aware timestamps are passed without timezone, naive timestamps are passed as date64 which we internally cast back to naive timestamps.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
 * For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
     * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
