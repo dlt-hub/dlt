@@ -93,7 +93,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         ):
             aws_access_key = self._staging_credentials.aws_access_key_id
             aws_secret_key = self._staging_credentials.aws_secret_access_key
-            aws_session_token = getattr(self._staging_credentials, "aws_session_token", None)
+            aws_secret_key = self._staging_credentials.aws_session_token
             credentials = (
                     "CREDENTIALS"
                     f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
