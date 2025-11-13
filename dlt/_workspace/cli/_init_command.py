@@ -340,7 +340,7 @@ def init_pipeline_at_destination(
     transformed_nodes = source_detection.find_call_arguments_to_replace(
         visitor,
         [
-            ("destination", destination_type or "duckdb"),
+            ("destination", destination_type or "duckdb", True),
         ],
         source_configuration.src_pipeline_script,
     )
@@ -372,9 +372,9 @@ def init_pipeline_at_destination(
             transformed_nodes = source_detection.find_call_arguments_to_replace(
                 visitor,
                 [
-                    ("destination", destination_type),
-                    ("pipeline_name", display_source_name + "_pipeline"),
-                    ("dataset_name", display_source_name + "_data"),
+                    ("destination", destination_type, True),
+                    ("pipeline_name", display_source_name + "_pipeline", True),
+                    ("dataset_name", display_source_name + "_data", False),
                 ],
                 source_configuration.src_pipeline_script,
             )
