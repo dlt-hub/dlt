@@ -96,7 +96,7 @@ jobs:
         if: matrix.python-version != '3.14.0-beta.4'
 
       - name: Install playwright & deps
-        run: playwright install && playwright install-deps
+        run: playwright install chromium && playwright install-deps
         if: matrix.python-version != '3.14.0-beta.4'
 
       # Run workspace dashboard unit tests
@@ -108,13 +108,7 @@ jobs:
       - name: Run dashboard e2e
         run: |
           pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4' && matrix.os != 'windows-latest'
-
-      # note that this test will pass only when running from cmd shell (_storage\.dlt\pipelines\ must stay)
-      - name: Run dashboard e2e windows
-        run: |
-          pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4' && matrix.os == 'windows-latest'
+        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4'
   
   matrix_job_required_check:
     name: common | common tests
