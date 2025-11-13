@@ -35,6 +35,7 @@ from dlt.destinations.impl.redshift.configuration import RedshiftClientConfigura
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
 
+
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     "cluster": "DISTKEY",
     # it is better to not enforce constraints in redshift
