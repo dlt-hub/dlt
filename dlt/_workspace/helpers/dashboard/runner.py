@@ -75,7 +75,7 @@ def start_dashboard(
     port: int = 2718,
     test_identifiers: bool = True,
     headless: bool = True,
-    wait_on_ok: float = 5.0,
+    wait_on_ok: float = 1.0,
 ) -> Iterator[subprocess.Popen[bytes]]:
     """Launches dashboard in context manager that will kill it after use"""
     command = run_dashboard_command(

@@ -321,14 +321,11 @@ def test_workspace_profiles(page: Page):
         pf.run(fruitshop_source())
 
         with start_dashboard(port=test_port):
-            page.goto(f"http://localhost:{test_port}/?profile=tests", wait_until="networkidle")
+            page.goto(f"http://localhost:{test_port}/?profile=tests")
             expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=tests$"))
             expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
 
-            page.goto(
-                f"http://localhost:{test_port}/?profile=prod&pipeline=fruit_pipeline",
-                wait_until="networkidle",
-            )
+            page.goto(f"http://localhost:{test_port}/?profile=prod&pipeline=fruit_pipeline")
             expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
@@ -342,14 +339,12 @@ def test_workspace_profiles(page: Page):
         pf.run(fruitshop_source())
 
         with start_dashboard(port=test_port):
-            page.goto(f"http://localhost:{test_port}/?profile=prod", wait_until="networkidle")
+            page.goto(f"http://localhost:{test_port}/?profile=prod")
             expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=prod$"))
             expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
 
-            page.goto(
-                f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline",
-                wait_until="networkidle",
-            )
+            page.goto(f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline")
+
             expect(page.get_by_role("switch", name="overview")).to_be_visible()
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
