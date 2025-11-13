@@ -94,16 +94,12 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             aws_access_key = self._staging_credentials.aws_access_key_id
             aws_secret_key = self._staging_credentials.aws_secret_access_key
             aws_session_token = getattr(self._staging_credentials, "aws_session_token", None)
-            if aws_session_token:
-                credentials = (
-                    "CREDENTIALS"
-                    f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key};token={aws_session_token}'"
-                )
-            else:
-                credentials = (
+            credentials = (
                     "CREDENTIALS"
                     f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
                 )
+            if aws_session_token:
+                credentials += credentials[:-1] + ";token={aws_session_token}'"
         # get format
         file_format, is_compressed = get_file_format_and_compression(self._bucket_path)
         file_type = ""
