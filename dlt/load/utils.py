@@ -69,7 +69,7 @@ def init_client(
     expected_update: TSchemaTables,
     truncate_filter: Callable[[str], bool],
     load_staging_filter: Callable[[str], bool],
-    drop_staging_filter: Callable[[str], bool],
+    drop_staging_filter: Callable[[TTableSchema], bool],
     drop_tables: Optional[List[TTableSchema]] = None,
     truncate_tables: Optional[List[TTableSchema]] = None,
 ) -> TSchemaTables:
@@ -113,9 +113,10 @@ def init_client(
         )
     )
 
-    # get tables to drop
+    # get tables to drop, note that drop_tables are not in schema and come from the package
+    # state
     drop_table_names = (
-        {table["name"] for table in drop_tables if drop_staging_filter(table["name"])}
+        {table["name"] for table in drop_tables if drop_staging_filter(table)}
         if drop_tables
         else set()
     )

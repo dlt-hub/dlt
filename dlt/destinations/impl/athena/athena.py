@@ -11,6 +11,8 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from dlt.common.schema.exceptions import TableNotFound
+
 if TYPE_CHECKING:
     from mypy_boto3_lakeformation import LakeFormationClient
     from mypy_boto3_lakeformation.type_defs import (
@@ -35,6 +37,7 @@ from dlt.common.schema.typing import (
     TColumnType,
     TSchemaTables,
     TSortOrder,
+    TTableSchema,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
@@ -406,10 +409,15 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             return True
         return False
 
-    def should_drop_table_on_staging_destination(self, table_name: str) -> bool:
+    def should_drop_table_on_staging_destination(self, dropped_table: TTableSchema) -> bool:
         # in Athena we must drop table in glue and then we must drop data in staging if table is not iceberg
-        table = self.prepare_load_table(table_name)
-        return not self._is_iceberg_table(table)
+        try:
+            existing_table = self.prepare_load_table(dropped_table["name"])
+            # do not drop data if new iceberg table got created - storage is handled by Athena
+            return not self._is_iceberg_table(existing_table)
+        except TableNotFound:
+            # table got dropped and is not recreated - drop staging destination
+            return True
 
     def should_load_data_to_staging_dataset_on_staging_destination(self, table_name: str) -> bool:
         """iceberg table data goes into staging on staging destination"""

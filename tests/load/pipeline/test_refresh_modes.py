@@ -118,11 +118,12 @@ def test_refresh_drop_sources(
     if not in_source:
         data = list(data.selected_resources.values())
 
-    # First run pipeline so destination so tables are created
+    # first run pipeline so destination so tables are created
     info = pipeline.run(data, refresh="drop_sources", **destination_config.run_kwargs)
     assert_load_info(info)
+    assert table_exists(pipeline, "some_data_3")
 
-    # Second run of pipeline with only selected resources
+    # second run of pipeline with only selected resources
     if with_wipe:
         pipeline._wipe_working_folder()
         pipeline = destination_config.setup_pipeline(pipeline_name, dataset_name=dataset_name)
@@ -144,16 +145,16 @@ def test_refresh_drop_sources(
         "some_data_2",
     }
 
-    # No "name" column should exist as table was dropped and re-created without it
+    # no "name" column should exist as table was dropped and re-created without it
     assert_only_table_columns(pipeline, "some_data_1", ["id"])
     data = load_tables_to_dicts(pipeline, "some_data_1")["some_data_1"]
     result = sorted([row["id"] for row in data])
-    # Only rows from second run should exist
+    # only rows from second run should exist
     assert result == [3, 4]
 
-    # Confirm resource tables not selected on second run got dropped
+    # confirm resource tables not selected on second run got dropped
     assert not table_exists(pipeline, "some_data_3")
-    # Loaded state is wiped
+    # loaded state is wiped
     with pipeline.destination_client() as dest_client:
         destination_state = load_pipeline_state_from_destination(
             pipeline.pipeline_name, dest_client  # type: ignore[arg-type]
