@@ -6,9 +6,10 @@ import sys
 import pathlib
 
 import dlt
-from dlt._workspace.helpers.dashboard.runner import kill_dashboard
+
+from dlt._workspace.helpers.dashboard.runner import start_dashboard
 from dlt._workspace.run_context import switch_profile
-from tests.e2e.helpers.dashboard.conftest import fruitshop_source, start_dashboard, _normpath
+from tests.e2e.helpers.dashboard.conftest import fruitshop_source, _normpath
 from tests.workspace.utils import isolated_workspace
 from playwright.sync_api import Page, expect
 
@@ -312,41 +313,40 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
-def test_workspace_profiles(page: Page, kill_dashboard_for_test):
+def test_workspace_profiles(page: Page):
     test_port = 2719
     with isolated_workspace("pipelines"):
         switch_profile("prod")
         pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
         pf.run(fruitshop_source())
 
-        start_dashboard(port=test_port)
-        page.goto(f"http://localhost:{test_port}/?profile=tests", wait_until="networkidle")
-        expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=tests$"))
-        expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?profile=tests", wait_until="networkidle")
+            expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=tests$"))
+            expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
 
-        page.goto(
-            f"http://localhost:{test_port}/?profile=prod&pipeline=fruit_pipeline",
-            wait_until="networkidle",
-        )
-        expect(page.get_by_role("switch", name="overview")).to_be_visible()
-        page.get_by_role("switch", name="loads").check()
-        expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
-        kill_dashboard(test_port)
+            page.goto(
+                f"http://localhost:{test_port}/?profile=prod&pipeline=fruit_pipeline",
+                wait_until="networkidle",
+            )
+            expect(page.get_by_role("switch", name="overview")).to_be_visible()
+            page.get_by_role("switch", name="loads").check()
+            expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
 
     with isolated_workspace("default"):
         switch_profile("dev")
         pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
         pf.run(fruitshop_source())
 
-        start_dashboard(port=test_port)
-        page.goto(f"http://localhost:{test_port}/?profile=prod", wait_until="networkidle")
-        expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=prod$"))
-        expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?profile=prod", wait_until="networkidle")
+            expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=prod$"))
+            expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
 
-        page.goto(
-            f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline",
-            wait_until="networkidle",
-        )
-        expect(page.get_by_role("switch", name="overview")).to_be_visible()
-        page.get_by_role("switch", name="loads").check()
-        expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
+            page.goto(
+                f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline",
+                wait_until="networkidle",
+            )
+            expect(page.get_by_role("switch", name="overview")).to_be_visible()
+            page.get_by_role("switch", name="loads").check()
+            expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()

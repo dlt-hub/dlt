@@ -1,15 +1,11 @@
 import pathlib
 import sys
 from typing import Any
-import time
-import urllib.request
-import multiprocessing as mp
-
-import psutil
-from dlt._workspace.helpers.dashboard.runner import kill_dashboard, run_dashboard
 import pytest
 
+
 import dlt
+from dlt._workspace.helpers.dashboard.runner import start_dashboard
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
@@ -87,47 +83,7 @@ def failed_pipeline() -> Any:
     return fp
 
 
-def _wait_http_up(url: str, timeout_s: float = 15.0) -> None:
-    start = time.time()
-    while time.time() - start < timeout_s:
-        try:
-            with urllib.request.urlopen(url, timeout=0.2):
-                return
-        except Exception:
-            time.sleep(0.1)
-    raise TimeoutError(f"Server did not become ready: {url}")
-
-
-def dashboard_child(pipelines_dir: str, port: int = 2718, test_identifiers: bool = True) -> None:
-    run_dashboard(
-        pipeline_name=None,
-        edit=False,
-        pipelines_dir=pipelines_dir,
-        port=port,
-        host="127.0.0.1",
-        with_test_identifiers=test_identifiers,
-    )
-
-
 @pytest.fixture(scope="module", autouse=True)
 def start_dashboard_server():
-    start_dashboard(pipelines_dir=_normpath("_storage/.dlt/pipelines"))
-    yield
-    kill_dashboard()
-
-
-@pytest.fixture()
-def kill_dashboard_for_test():
-    yield
-    kill_dashboard(port=2719)
-
-
-def start_dashboard(
-    pipelines_dir: str = None, port: int = 2718, test_identifiers: bool = True
-) -> None:
-    ctx = mp.get_context("spawn")
-    proc = ctx.Process(
-        target=dashboard_child, args=(pipelines_dir, port, test_identifiers), daemon=True
-    )
-    proc.start()
-    _wait_http_up(f"http://127.0.0.1:{port}", timeout_s=20.0)
+    with start_dashboard(pipelines_dir=_normpath("_storage/.dlt/pipelines")) as proc:
+        yield proc
