@@ -2,7 +2,6 @@ import platform
 import os
 from dlt.common import logger
 
-
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
 
