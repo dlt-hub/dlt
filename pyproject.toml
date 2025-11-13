@@ -173,6 +173,7 @@ sqlalchemy = [
 ]
 pyiceberg = [
     "pyiceberg>=0.9.1",
+    "pyiceberg-core>=0.6.0",
     "pyarrow>=16.0.0",
     "sqlalchemy>=1.4",
 ]
