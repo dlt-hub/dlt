@@ -169,6 +169,9 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     # check first table
     page.get_by_role("checkbox").nth(0).check()
 
+    # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
+    time.sleep(2.0)
+
     # check state (we check some info from the incremental state here)
     page.get_by_text("Show source and resource state").click()
     expect(
@@ -313,7 +316,7 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
 
 
-def test_workspace_profiles(page: Page):
+def test_workspace_profile_prod(page: Page):
     test_port = 2719
     with isolated_workspace("pipelines"):
         switch_profile("prod")
@@ -330,6 +333,8 @@ def test_workspace_profiles(page: Page):
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
 
+
+def test_workspace_profile_dev(page: Page):
     # NOTE: we must use different port otherwise some leftovers from previous session (cookies?)
     # persist in chromium which fails.
     test_port = 2720
