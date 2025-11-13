@@ -329,10 +329,13 @@ def test_workspace_profiles(page: Page):
                 f"http://localhost:{test_port}/?profile=prod&pipeline=fruit_pipeline",
                 wait_until="networkidle",
             )
-            expect(page.get_by_role("switch", name="overview")).to_be_visible()
+            expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
 
+    # NOTE: we must use different port otherwise some leftovers from previous session (cookies?)
+    # persist in chromium which fails.
+    test_port = 2720
     with isolated_workspace("default"):
         switch_profile("dev")
         pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")

@@ -57,11 +57,12 @@ def run_dashboard(
         pass
 
 
-def _wait_http_up(url: str, timeout_s: float = 15.0) -> None:
+def _wait_http_up(url: str, timeout_s: float = 15.0, wait_on_ok: float = 0.1) -> None:
     start = time.time()
     while time.time() - start < timeout_s:
         try:
             with urllib.request.urlopen(url, timeout=1.0):
+                time.sleep(wait_on_ok)
                 return
         except Exception:
             time.sleep(0.1)
@@ -74,6 +75,7 @@ def start_dashboard(
     port: int = 2718,
     test_identifiers: bool = True,
     headless: bool = True,
+    wait_on_ok: float = 5.0,
 ) -> Iterator[subprocess.Popen[bytes]]:
     """Launches dashboard in context manager that will kill it after use"""
     command = run_dashboard_command(
@@ -87,7 +89,7 @@ def start_dashboard(
     # start the dashboard process using subprocess.Popen
     proc = subprocess.Popen(command)
     try:
-        _wait_http_up(f"http://localhost:{port}", timeout_s=60.0)
+        _wait_http_up(f"http://localhost:{port}", timeout_s=60.0, wait_on_ok=wait_on_ok)
         yield proc
     finally:
         proc.terminate()
