@@ -31,7 +31,7 @@ You instantiate a pipeline by calling the `dlt.pipeline` function with the follo
   events and to restore its state and data schemas on subsequent runs. If not provided, `dlt` will
   create a pipeline name from the file name of the currently executing Python module.
 - `destination`: a name of the [destination](../dlt-ecosystem/destinations) to which dlt
-  will load the data. It may also be provided to the `run` method of the `pipeline`.
+  will load the data. It may also be provided to the `run` method of the `pipeline` and can be declared in [various ways](destination.md). 
 - `dataset_name`: a name of the dataset to which the data will be loaded. A dataset is a logical
   group of tables, i.e., `schema` in relational databases or a folder grouping many files. It may also be
   provided later to the `run` or `load` methods of the pipeline. If not provided, then

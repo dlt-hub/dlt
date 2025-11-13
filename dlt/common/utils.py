@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Any, Literal
+import re
+from typing import TYPE_CHECKING, Any, BinaryIO, Literal
 import os
 from pathlib import Path
 import sys
@@ -11,6 +12,7 @@ from os import environ
 from types import ModuleType
 import traceback
 import zlib
+import tarfile
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
 
@@ -116,6 +118,45 @@ def digest128b(v: bytes, len_: int = 15) -> str:
 
 def digest256(v: str) -> str:
     digest = hashlib.sha3_256(v.encode("utf-8")).digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+def digest256_file_stream(stream: BinaryIO, chunk_size: int = 4096) -> str:
+    """Returns a base64 encoded sha3_256 hash of a binary stream"""
+    stream.seek(0)
+    hash_obj = hashlib.sha3_256()
+    while chunk := stream.read(chunk_size):
+        hash_obj.update(chunk)
+    digest = hash_obj.digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+def digest256_tar_stream(stream: BinaryIO, chunk_size: int = 8192) -> str:
+    """Returns a base64 encoded sha3_256 hash of tar archive contents.
+
+    Hashes only filenames and file contents, ignoring timestamps and other metadata.
+    Members are sorted by name before hashing, so tar member order doesn't affect
+    the hash.
+
+    Note: This function operates entirely in-memory using tar.extractfile() which reads
+    from the archive stream. No files are written to disk, preventing leakage of sensitive
+    data that may be contained in the archive.
+    """
+    stream.seek(0)
+    hash_obj = hashlib.sha3_256()
+
+    with tarfile.open(fileobj=stream, mode="r:*") as tar:
+        members = sorted(tar.getmembers(), key=lambda m: m.name)
+
+        for member in members:
+            hash_obj.update(member.name.encode())
+            if member.isfile():
+                f = tar.extractfile(member)
+                if f:
+                    while chunk := f.read(chunk_size):
+                        hash_obj.update(chunk)
+
+    digest = hash_obj.digest()
     return base64.b64encode(digest).decode("ascii")
 
 

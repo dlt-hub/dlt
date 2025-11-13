@@ -22,7 +22,7 @@ Artifacts are one of Prefect's ways to visualize outputs or side effects that yo
 Simply pass the `PrefectCollector` to your pipeline's `progress` parameter.
 
 ```py
-from dlt_plus._runner.prefect_collector import PrefectCollector
+from dlthub._runner.prefect_collector import PrefectCollector
 
 @task
 def my_dlt_task():
@@ -104,7 +104,7 @@ If you use the dlt+ Runner the retry will pick up from where the previous run le
 To do so, [define a retry policy](../production/pipeline-runner#retry-policies) and run your pipelines with the dlt+ runner inside your prefect tasks or flows.
 
 ```py
-from dlt_plus import runner
+from dlthub import runner
 from tenacity import Retrying, stop_after_attempt
 from dlt.sources.sql_database import sql_database
 
@@ -133,7 +133,7 @@ Detailed error artifacts with full tracebacks are automatically created for each
 The `PrefectCollector` is a subclass of the `PlusLogCollector` class, which allows you to implement [custom callbacks](../production/observability.md).
 
 ```py
-from dlt_plus._runner.prefect_collector import PrefectCollector
+from dlthub._runner.prefect_collector import PrefectCollector
 from prefect.logging import get_run_logger
 from tenacity import Retrying, stop_after_attempt
 from dlt.sources.sql_database import sql_database
@@ -164,9 +164,9 @@ def my_task():
         destination="dummy", # use dummy destination to trigger failed load
         progress=my_collector
     )
-    # run your pipeline with the source in the dlt_plus.runner()
+    # run your pipeline with the source in the dlthub.runner()
     source = sql_database(table_names=["items"])
-    load_info = dlt_plus.runner(pipeline, retry_policy=MY_RETRY_POLICY).run(source)
+    load_info = dlthub.runner(pipeline, retry_policy=MY_RETRY_POLICY).run(source)
     return load_info
 ```
 
@@ -178,8 +178,8 @@ in parallel tasks.
 
 ```py
 import dlt
-import dlt_plus
-from dlt_plus._runner.prefect_helpers import create_run_pipeline_flow
+import dlthub
+from dlthub._runner.prefect_helpers import create_run_pipeline_flow
 from prefect.task_runners import ThreadPoolTaskRunner
 from prefect import flow, task
 
@@ -267,7 +267,7 @@ file_max_bytes=1000000  # max 1MB per file
 </TabItem>
 <TabItem value="python">
 ```py
-from dlt_plus._runner.prefect_helpers import create_run_pipeline_flow
+from dlthub._runner.prefect_helpers import create_run_pipeline_flow
 from prefect.task_runners import ThreadPoolTaskRunner
 from prefect import flow, task
 

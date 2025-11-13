@@ -3,7 +3,6 @@ from copy import copy
 from typing import Any, Dict, Type
 from unittest.mock import Mock, patch
 import pytest
-import pyarrow.csv as acsv
 import pyarrow.parquet as pq
 
 from dlt.common import json
@@ -17,6 +16,7 @@ from dlt.common.data_writers.writers import (
 )
 from dlt.common.libs.pyarrow import remove_columns
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.utils import custom_environ
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
@@ -24,7 +24,7 @@ from tests.cases import (
     arrow_table_all_data_types,
     table_update_and_row,
 )
-from tests.utils import TestDataItemFormat, custom_environ
+from tests.utils import TestDataItemFormat
 
 
 def test_csv_arrow_writer_all_data_fields() -> None:
@@ -255,12 +255,12 @@ def test_arrow_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
         writer.write_header(mock_schema)
         writer.write_data([test_data])
 
-        mock_csv_writer.assert_called_once()
+        mock_csv_writer.assert_called()
         call_args = mock_csv_writer.call_args
         write_options = call_args.kwargs["write_options"]
         assert write_options.quoting_style == expected_quoting_mapping[quoting]
 
-        mock_writer_instance.write.assert_called_once_with(test_data)
+        mock_writer_instance.write.assert_called_with(test_data)
 
 
 def test_arrow_csv_writer_quote_none_with_special_characters() -> None:
@@ -339,3 +339,154 @@ def test_csv_lineterminator(test_case: Dict[str, str]) -> None:
         with open(writer.closed_files[0].file_path, "rb") as f:
             content = f.read()
             assert content == expected
+
+
+@pytest.mark.parametrize(
+    "quoting,delimiter,schema,test_data_dict,expected_header,expected_data_rows",
+    [
+        pytest.param(
+            "quote_none",
+            ",",
+            {
+                "col1": {"name": "col1", "data_type": "text"},
+                "col2": {"name": "col2", "data_type": "bigint"},
+            },
+            {
+                "col1": ["test_value", "another_value"],
+                "col2": [123, 456],
+            },
+            "col1,col2",
+            ["test_value,123", "another_value,456"],
+            id="quote_none_with_data",
+        ),
+        pytest.param(
+            "quote_all",
+            ",",
+            {
+                "col1": {"name": "col1", "data_type": "text"},
+                "col2": {"name": "col2", "data_type": "bigint"},
+            },
+            {"col1": ["value1"], "col2": [123]},
+            '"col1","col2"',
+            ['"value1","123"'],
+            id="quote_all_with_data",
+        ),
+        pytest.param(
+            "quote_needed",
+            ",",
+            {
+                "col1": {"name": "col1", "data_type": "text"},
+                "2": {"name": "2", "data_type": "bigint"},
+            },
+            {"col1": ["value1"], "col2": [123]},
+            '"col1","2"',
+            ['"value1",123'],
+            id="quote_needed_with_data",
+        ),
+        pytest.param(
+            "quote_none",
+            ",",
+            {
+                "col1": {"name": "col1", "data_type": "text"},
+                "col2": {"name": "col2", "data_type": "bigint"},
+            },
+            None,
+            "col1,col2",
+            [],
+            id="quote_none_empty_file",
+        ),
+        pytest.param(
+            "quote_none",
+            "|",
+            {
+                "col1": {"name": "col1", "data_type": "text"},
+                "col2": {"name": "col2", "data_type": "bigint"},
+            },
+            {"col1": ["value1"], "col2": [123]},
+            "col1|col2",
+            ["value1|123"],
+            id="quote_none_custom_delimiter",
+        ),
+    ],
+)
+def test_arrow_csv_writer(
+    quoting: CsvQuoting,
+    delimiter: str,
+    schema: TTableSchemaColumns,
+    test_data_dict,
+    expected_header: str,
+    expected_data_rows,
+) -> None:
+    # Test ArrowToCsvWriter header generation with various quoting styles for both header and data rows
+    import tempfile
+    import pyarrow as pa
+
+    with tempfile.NamedTemporaryFile(mode="w+b", suffix=".csv") as f:
+        writer = ArrowToCsvWriter(f, quoting=quoting, include_header=True, delimiter=delimiter)
+        writer.write_header(schema)
+
+        if test_data_dict is not None:
+            test_data = pa.table(test_data_dict)
+            writer.write_data([test_data])
+        else:
+            writer.write_footer()
+
+        f.flush()
+        f.seek(0)
+        lines = f.read().decode("utf-8").splitlines()
+
+        assert lines[0].strip() == expected_header
+
+        if expected_data_rows is not None and len(expected_data_rows) > 0:
+            for i, expected_row in enumerate(expected_data_rows):
+                assert lines[i + 1].strip() == expected_row
+
+
+def test_arrow_csv_writer_special_chars_in_column_names_quote_none() -> None:
+    import tempfile
+    import pyarrow as pa
+    from pyarrow.lib import ArrowInvalid
+
+    # Column names with commas should fail with quote_none
+    mock_schema: TTableSchemaColumns = {
+        "col,with,comma": {"name": "col,with,comma", "data_type": "text"},
+    }
+
+    test_data = pa.table({"col,with,comma": ["value1"]})
+
+    with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv") as f:
+        writer = ArrowToCsvWriter(f, quoting="quote_none", include_header=True)
+        writer.write_header(mock_schema)
+        with pytest.raises(ArrowInvalid, match="CSV values may not contain structural characters"):
+            writer.write_data([test_data])
+
+
+def test_arrow_csv_writer_empty_schema() -> None:
+    import tempfile
+
+    mock_schema: TTableSchemaColumns = {}
+
+    with tempfile.NamedTemporaryFile(mode="w+b", suffix=".csv") as f:
+        writer = ArrowToCsvWriter(f, quoting="quote_none", include_header=True)
+        writer.write_header(mock_schema)
+        # this triggers _make_csv_header() with an empty schema
+        writer.write_footer()
+        f.flush()
+        f.seek(0)
+        assert f.read() == b""
+
+
+def test_arrow_csv_writer_invalid_quoting_parameter() -> None:
+    import tempfile
+
+    mock_schema: TTableSchemaColumns = {
+        "col1": {"name": "col1", "data_type": "text"},
+    }
+
+    with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv") as f:
+        writer = ArrowToCsvWriter(f, quoting="quote_none", include_header=True)
+        writer.write_header(mock_schema)
+        # Manually set invalid quoting to trigger the error in _make_csv_header
+        writer.quoting = "invalid_quoting_style"  # type: ignore[assignment]
+        with pytest.raises(ValueError, match="invalid_quoting_style"):
+            writer.write_footer()

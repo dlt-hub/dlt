@@ -1,0 +1,56 @@
+FROM python:3.11.11-alpine
+
+# Metadata
+LABEL org.label-schema.vendor="dltHub" \
+    org.label-schema.url="https://dlthub.com" \
+    org.label-schema.name="dlt" \
+    org.label-schema.description="**data load tool (dlt)** is a simple, open source Python library that makes data loading easy."
+
+# prepare dirs to install dlt
+RUN mkdir -p /tmp/pydlt
+
+WORKDIR /tmp/pydlt
+
+# install alpine deps
+RUN apk update &&\
+    apk add --no-cache ca-certificates curl &&\
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py &&\
+    rm get-pip.py &&\
+    pip install --upgrade setuptools wheel pip
+
+
+# add build labels and envs
+ARG COMMIT_SHA=""
+ARG IMAGE_VERSION=""
+LABEL commit_sha=${COMMIT_SHA}
+LABEL version=${IMAGE_VERSION}
+ENV COMMIT_SHA=${COMMIT_SHA}
+ENV IMAGE_VERSION=${IMAGE_VERSION}
+
+# install exactly the same version of the library we used to build
+COPY dist/dlt-${IMAGE_VERSION}.tar.gz .
+RUN pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz
+
+# create app dir to run simple test
+RUN mkdir -p /app
+WORKDIR /app
+RUN rm -r /tmp/pydlt
+
+# make sure dlt can be actually imported
+RUN python -c 'import dlt;import pendulum;'
+
+# check excluded imports
+COPY deploy/dlt/restrict_imports.py .
+RUN python restrict_imports.py
+
+# run simple pipeline
+COPY deploy/dlt/minimal_pipeline.py .
+RUN python minimal_pipeline.py
+RUN dlt pipeline fruit_pipeline info
+
+# enable workspace
+RUN mkdir -p .dlt && touch .dlt/.workspace
+# RUN dlt pipeline fruit_pipeline info
+RUN dlt workspace info
+RUN python minimal_pipeline.py
+RUN dlt pipeline fruit_pipeline info

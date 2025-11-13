@@ -1,27 +1,31 @@
 ---
 title: Project overview
-description: Define dlt+ Projects in YAML
+description: Define dltHub Projects in YAML
 ---
 
 # Project
 
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
-[dlt+ Project](../../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other.
+[dltHub Project](../../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dltHub Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other.
 
-With dlt+ Project, you can efficiently manage your data workflows by:
+With dltHub Project, you can efficiently manage your data workflows by:
 
 1. [Using a declarative `dlt.yml` file](#the-dlt-manifest-file-dltyml) to define sources, destinations, pipelines, and transformations.
 2. Configuring [different profiles](../../core-concepts/profiles.md) for various use cases and environments.
-3. Ensuring data quality by defining tests with [dlt+ tests utils](../quality/tests.md).
+3. Ensuring data quality by defining tests with [dltHub tests utils](../quality/tests.md).
 4. Packaging your project as a [Python package](../../getting-started/advanced_tutorial.md) and distributing it via PyPI or a git repository.
 
 This structured approach allows teams to work efficiently while maintaining flexibility and control over their data workflows.
 
 ## Project structure
 
-A dlt+ Project has the following general structure:
+A dltHub Project has the following general structure:
 ```text
 ├── .dlt/                 # folder containing dlt configurations and profile settings
 │   ├── config.toml
@@ -37,7 +41,7 @@ A dlt+ Project has the following general structure:
 
 ## The dlt manifest file (dlt.yml)
 
-The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It marks the root of your project and contains the main configurations. Here you can declare all of your data platform entities in a YAML format. It contains the following sections:
+The main component of a dltHub Project is the dlt manifest file (`dlt.yml`). It marks the root of your project and contains the main configurations. Here you can declare all of your data platform entities in a YAML format. It contains the following sections:
 
 ### Sources
 
@@ -45,7 +49,7 @@ The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It ma
 1. a dlt REST API source whose parameters are passed within the manifest
 2. a GitHub source defined in a function `source` whose source code inside `sources/github.py` is referenced
 
-For more detailed documentation on the core sources in dlt+, visit the [source configuration](../project/source-configuration.md) page. 
+For more detailed documentation on the core sources in dltHub, visit the [source configuration](../project/source-configuration.md) page. 
 
 ```yaml
 sources:
@@ -91,7 +95,7 @@ You can declare all arguments of `dlt.pipeline` in this section. For a full list
 
 ### Datasets
 
-The datasets section defines datasets that live on a destination (defined in the destinations section). Any datasets declared in the [pipeline section](#pipelines) are automatically created if not declared here. Read more about datasets in dlt+ [here](../../core-concepts/datasets.md).
+The datasets section defines datasets that live on a destination (defined in the destinations section). Any datasets declared in the [pipeline section](#pipelines) are automatically created if not declared here. Read more about datasets in dltHub [here](../../core-concepts/datasets.md).
 
 ```yaml
 datasets:
@@ -120,7 +124,7 @@ caches:
           events_aggregated: events_aggregated
 ```
 :::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub waiting list](https://info.dlthub.com/waiting-list)
 :::
 
 ### Transformations 🧪
@@ -134,12 +138,12 @@ transformations:
     cache: github_events_cache
 ```
 :::note
-🚧 This feature is under development. Interested in becoming an early tester? [Join dlt+ early access](https://info.dlthub.com/waiting-list)
+🚧 This feature is under development. Interested in becoming an early tester? [Join dltHub waiting list](https://info.dlthub.com/waiting-list)
 :::
 
 ### Profiles
 
-You can use the profiles section to define different environments (example: dev, staging, prod, tests). One package may have multiple profiles which can be specified using dlt+ cli commands. The default profile name is `dev`. It's created automatically alongside the `tests` profile.
+You can use the profiles section to define different environments (example: dev, staging, prod, tests). One package may have multiple profiles which can be specified using dltHub cli commands. The default profile name is `dev`. It's created automatically alongside the `tests` profile.
 
 ```yaml
 profiles:
@@ -162,7 +166,7 @@ You can override default project settings using the `project` section:
 * `data_dir` and `local_dir` - [files created by pipelines and destinations](#local-and-temporary-files-data_dir), separated by the current profile name.
 * `name` - the name of the project.
 * `default_profile` - the name of the default profile, which can be configured in the project section as seen above.
-* `allow_undefined_entities` - by default, dlt+ will create entities like destinations, sources, and datasets ad hoc. This flag disables such behavior.
+* `allow_undefined_entities` - by default, dltHub will create entities like destinations, sources, and datasets ad hoc. This flag disables such behavior.
 
 In the example below:
 ```yaml
@@ -184,7 +188,7 @@ As you may guess from the example above, you can use Python-style formatters to 
 * Any of the project settings can be substituted as well.
 
 ### Implicit entities
-By default, dlt+ will automatically create entities such as datasets or destinations when they are requested by the user or the executed code.
+By default, dltHub will automatically create entities such as datasets or destinations when they are requested by the user or the executed code.
 For example, a minimal `dlt.yml` configuration might look like this:
 ```yaml
 sources:
@@ -205,7 +209,7 @@ Running the following command executes the pipeline:
 ```sh
 dlt pipeline my_pipeline run
 ```
-In this case, the `my_pipeline_dataset` dataset is not declared explicitly, so dlt+ creates it automatically. The `duckdb` destination and the `arrow` source are explicitly defined, so they do not need to be created implicitly. However, if any entity (such as a source or destination) is referenced only in the pipeline and not defined under the corresponding section, dlt+ will create it implicitly.
+In this case, the `my_pipeline_dataset` dataset is not declared explicitly, so dltHub creates it automatically. The `duckdb` destination and the `arrow` source are explicitly defined, so they do not need to be created implicitly. However, if any entity (such as a source or destination) is referenced only in the pipeline and not defined under the corresponding section, dltHub will create it implicitly.
 
 Implicit creation of entities can be controlled using the `allow_undefined_entities` setting in the project configuration:
 
@@ -213,7 +217,7 @@ Implicit creation of entities can be controlled using the `allow_undefined_entit
 project:
   allow_undefined_entities: false
 ```
-If `allow_undefined_entities` is set to `false`, dlt+ will no longer create missing entities automatically.
+If `allow_undefined_entities` is set to `false`, dltHub will no longer create missing entities automatically.
 Datasets and destinations must be declared explicitly in the `dlt.yml` file:
 ```yaml
 datasets:
@@ -225,7 +229,7 @@ datasets:
 ### Managing datasets and destinations
 
 When datasets are explicitly declared in the `dlt.yml` file, the `destination` field must list all destinations where the dataset is allowed to be materialized. This applies even if `allow_undefined_entities` is set to `true`.
-Each pipeline that references a dataset must use a destination that is included in the dataset’s `destination` list. If the pipeline specifies a destination not listed, dlt+ will raise a configuration error.
+Each pipeline that references a dataset must use a destination that is included in the dataset’s `destination` list. If the pipeline specifies a destination not listed, dltHub will raise a configuration error.
 
 ```yaml
 datasets:
@@ -255,7 +259,7 @@ or any of the settings we mention in the [performance](../../../reference/perfor
 
 ## Local and temporary files (`data_dir`)
 
-The dlt+ project has a dedicated location (`data_dir`), where all working files are stored. By default, it is the `_data` folder in the root of the project.
+The dltHub project has a dedicated location (`data_dir`), where all working files are stored. By default, it is the `_data` folder in the root of the project.
 Working files for each profile are stored separately. For example, files for the `dev` profile are stored in `_data/dev`.
 
 Working files include:

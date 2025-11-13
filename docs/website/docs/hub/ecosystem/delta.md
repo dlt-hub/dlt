@@ -6,10 +6,14 @@ keywords: [delta, delta lake]
 
 # Delta
 
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
 The Delta destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
 
 :::warning
-Under the hood, dlt+ uses the [deltalake library](https://pypi.org/project/deltalake/) to write Delta tables. Beware that when loading a large amount of data for one table, the underlying Rust implementation will consume a lot of memory. This is a known issue, and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
+Under the hood, dltHub uses the [deltalake library](https://pypi.org/project/deltalake/) to write Delta tables. Beware that when loading a large amount of data for one table, the underlying Rust implementation will consume a lot of memory. This is a known issue, and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
 :::
 
 ## Setup
@@ -20,7 +24,7 @@ pip install deltalake
 pip install pyarrow>=2.0.18
 ```
 
-Initialize a dlt+ project in the current working directory with the following command:
+Initialize a dltHub project in the current working directory with the following command:
 
 ```sh
 # replace sql_database with the source of your choice
@@ -119,22 +123,9 @@ The `upsert` merge strategy for the Delta destination is **experimental**.
 
 The `merge` write disposition can be configured as follows on the source/resource level:
 
-<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
-  <TabItem value="yaml">
-
-```yaml
-sources:
-  my_source:
-    type: sources.my_source
-    with_args:
-      write_disposition:
-        disposition: merge
-        strategy: upsert
-```
-  </TabItem>
-  <TabItem value="python">
-
 ```py
+import dlt
+
 @dlt.resource(
     primary_key="id",  # merge_key also works; primary_key and merge_key may be used together
     write_disposition={"disposition": "merge", "strategy": "upsert"},
@@ -147,10 +138,7 @@ def my_resource():
 ...
 
 pipeline = dlt.pipeline("loads_delta", destination="delta")
-
 ```
-</TabItem>
-</Tabs>
 
 Or on the `pipeline.run` level: <!-- can this also be defined in the yaml??-->
 
@@ -162,34 +150,17 @@ pipeline.run(write_disposition={"disposition": "merge", "strategy": "upsert"})
 
 Delta tables can be partitioned (using [Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/)) by specifying one or more partition column hints on the source/resource level:
 
-<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
-  <TabItem value="yaml">
+```py
+import dlt
 
-  ```yaml
-  sources:
-    my_source:
-      type: sources.my_source
-      with_args:
-        columns:
-          foo:
-            partition: True
-  ```
+@dlt.resource(
+  columns={"_dlt_load_id": {"partition": True}}
+)
+def my_resource():
+    ...
 
-  </TabItem>
-  <TabItem value="python">
-
-  ```py
-  @dlt.resource(
-    columns={"_dlt_load_id": {"partition": True}}
-  )
-  def my_resource():
-      ...
-
-  pipeline = dlt.pipeline("loads_delta", destination="delta")
-  ```
-
-  </TabItem>
-</Tabs>
+pipeline = dlt.pipeline("loads_delta", destination="delta")
+```
 
 :::warning
 Partition evolution (changing partition columns after a table has been created) is currently not supported.

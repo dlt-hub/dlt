@@ -1,13 +1,26 @@
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, ClassVar, Optional, Sequence
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import RuntimeConfiguration, BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.typing import AnyFun, TSecretStrValue
-from dlt.common.utils import digest256
+from dlt.common.utils import digest256, main_module_file_path
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.pipeline import TRefreshMode
 from dlt.common.configuration.exceptions import ConfigurationValueError
+
+
+@configspec
+class PipelineRuntimeConfiguration(BaseConfiguration):
+    slack_incoming_hook: Optional[TSecretStrValue] = None
+    # mcp_config: McpConfiguration
+    pluggable_run_context: PluggableRunContext = None
+    """Pluggable run context with current run context"""
+    intercept_signals: bool = True
+    """Enable/disable signal handlers in normalize and load steps"""
+
+    __section__: ClassVar[str] = "runtime"
 
 
 @configspec
@@ -39,17 +52,14 @@ class PipelineConfiguration(BaseConfiguration):
     dev_mode: bool = False
     """When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
     progress: Optional[str] = None
-    runtime: RuntimeConfiguration = None
+    runtime: PipelineRuntimeConfiguration = None
     refresh: Optional[TRefreshMode] = None
     """Refresh mode for the pipeline to fully or partially reset a source during run. See docstring of `dlt.pipeline` for more details."""
-    pluggable_run_context: PluggableRunContext = None
-    """Pluggable run context with current run context"""
 
     def on_resolved(self) -> None:
+        # generate pipeline name from the entry point script name
         if not self.pipeline_name:
-            self.pipeline_name = self.runtime.pipeline_name
-        else:
-            self.runtime.pipeline_name = self.pipeline_name
+            self.pipeline_name = get_default_pipeline_name(main_module_file_path())
         if not self.pipeline_salt:
             self.pipeline_salt = digest256(self.pipeline_name)
         if self.dataset_name_layout and "%s" not in self.dataset_name_layout:
@@ -58,8 +68,20 @@ class PipelineConfiguration(BaseConfiguration):
                 " example: 'prefix_%s'"
             )
 
+    # recommended layout is pipelines.<name>
+    __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.PIPELINES, "")
+
 
 def ensure_correct_pipeline_kwargs(f: AnyFun, **kwargs: Any) -> None:
     for arg_name in kwargs:
         if not hasattr(PipelineConfiguration, arg_name) and not arg_name.startswith("_dlt"):
             raise TypeError(f"`{f.__name__}` got an unexpected keyword argument `{arg_name}`")
+
+
+def get_default_pipeline_name(entry_point_file: str) -> str:
+    """Generates default pipeline name based on an entry point of the current Python script
+    prefixed with "dlt_"
+    """
+    if entry_point_file:
+        entry_point_file = Path(entry_point_file).stem
+    return "dlt_" + (entry_point_file or "pipeline")

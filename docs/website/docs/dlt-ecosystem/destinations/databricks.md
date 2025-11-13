@@ -16,9 +16,7 @@ There are two options to run dlt pipelines and load data:
 * Run dlt pipelines in any environment by providing credentials for both Databricks and your cloud storage.
 * Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
 
-:::note
-If you'd like to load data to Databricks Managed Iceberg tables, use [dltHub Iceberg destination](https://info.dlthub.com/waiting-list)
-:::
+Databricks supports both **Delta** (default) and **Apache Iceberg** table formats. See the [table_format](#apache-iceberg-tables) section for details on using Iceberg tables.
 
 ## Install dlt with Databricks
 
@@ -27,6 +25,8 @@ If you'd like to load data to Databricks Managed Iceberg tables, use [dltHub Ice
 ```sh
 pip install "dlt[databricks]"
 ```
+
+<!--@@@DLT_DESTINATION_CAPABILITIES databricks-->
 
 ## Set up your Databricks workspace
 
@@ -136,11 +136,11 @@ client_secret = "XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_ID="XXX"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_SECRET="XXX"
+export DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
+export DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
+export DESTINATION__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
+export DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID="XXX"
+export DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET="XXX"
 ```
   </TabItem>
 
@@ -151,11 +151,11 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID")
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET")
 ```
 </TabItem>
 </Tabs>
@@ -192,10 +192,10 @@ access_token = "XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
-export DESTINATIONS__DATABRICKS__CREDENTIALS__ACCESS_TOKEN="XXX"
+export DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME="MY_DATABRICKS.azuredatabricks.net"
+export DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/12345"
+export DESTINATION__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
+export DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN="XXX"
 ```
   </TabItem>
 
@@ -206,10 +206,10 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
-os.environ["DESTINATIONS__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN")
 ```
 </TabItem>
 </Tabs>
@@ -394,9 +394,9 @@ aws_secret_access_key="XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__FILESYSTEM__BUCKET_URL="s3://your-bucket-name"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="XXX"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="XXX"
+export DESTINATION__FILESYSTEM__BUCKET_URL="s3://your-bucket-name"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="XXX"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="XXX"
 ```
   </TabItem>
 
@@ -407,9 +407,9 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__FILESYSTEM__BUCKET_URL"] = "s3://your-bucket-name"
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://your-bucket-name"
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
 ```
 </TabItem>
 </Tabs>
@@ -456,9 +456,9 @@ azure_storage_account_key="XXX"
 <TabItem value="env">
 
 ```sh
-export DESTINATIONS__FILESYSTEM__BUCKET_URL="abfss://container_name@storage_account_name.dfs.core.windows.net/path"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME="XXX"
-export DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="XXX"
+export DESTINATION__FILESYSTEM__BUCKET_URL="abfss://container_name@storage_account_name.dfs.core.windows.net/path"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME="XXX"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="XXX"
 ```
   </TabItem>
 
@@ -469,9 +469,9 @@ import os
 
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
-os.environ["DESTINATIONS__FILESYSTEM__BUCKET_URL"] = "abfss://container_name@storage_account_name.dfs.core.windows.net/path"
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
-os.environ["DESTINATIONS__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
+os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "abfss://container_name@storage_account_name.dfs.core.windows.net/path"
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
 ```
 </TabItem>
 </Tabs>
@@ -522,11 +522,18 @@ The adapter updates the DltResource with metadata about the destination column a
 
 ### Supported hints
 
-- `table_comment`: adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
-- `table_tags`: adds tags to the table. Supports a list of strings and/or key-value pairs.
-- `column_hints`
-  - `column_comment`: adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
-  - `column_tags`: adds tags to the column. Supports a list of strings and/or key-value pairs.
+**Table-level hints:**
+- `cluster`: Column name(s) to cluster the table by, or `"AUTO"` for automatic clustering
+- `partition`: Column name(s) to partition the table by (Note: Cannot be used together with `cluster`)
+- `table_format`: Table format - `"DELTA"` (default) or `"ICEBERG"` for Apache Iceberg tables
+- `table_comment`: Adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax)
+- `table_tags`: Adds tags to the table. Supports a list of strings and/or key-value pairs
+- `table_properties`: Dictionary of table properties for Delta Lake optimization (TBLPROPERTIES)
+
+**Column-level hints:**
+- `column_hints`: Dictionary of column-specific hints
+  - `column_comment`: Adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax)
+  - `column_tags`: Adds tags to the column. Supports a list of strings and/or key-value pairs
 
 ### Use an adapter to apply hints to a resource
 
@@ -567,10 +574,192 @@ databricks_adapter(
 )
 ```
 
+### Advanced examples
+
+#### Clustering and partitioning
+
+```py
+import dlt
+from dlt.destinations.adapters import databricks_adapter
+
+@dlt.resource
+def sales_data():
+    yield from [
+        {"sale_date": "2024-01-01", "region": "US", "product_id": 1, "amount": 100.50},
+        {"sale_date": "2024-01-02", "region": "EU", "product_id": 2, "amount": 200.75},
+        # More data...
+    ]
+
+# Use AUTO clustering for automatic optimization
+databricks_adapter(
+    sales_data,
+    cluster="AUTO",  # Let Databricks automatically choose optimal clustering
+    table_comment="Sales data with automatic clustering"
+)
+
+# Or specify manual clustering and partitioning
+@dlt.resource
+def partitioned_sales():
+    yield from sales_data()
+
+databricks_adapter(
+    partitioned_sales,
+    partition=["year", "month"],  # Partition by year and month columns
+    # Note: Cannot use cluster with partition in Databricks
+    table_comment="Partitioned sales data"
+)
+```
+
+#### Table properties for Delta Lake optimization
+
+```py
+import dlt
+from dlt.destinations.adapters import databricks_adapter
+
+@dlt.resource
+def high_volume_events():
+    yield from generate_events()  # Your event generator
+
+databricks_adapter(
+    high_volume_events,
+    table_properties={
+        # Delta Lake optimization properties
+        "delta.appendOnly": True,  # Table is append-only
+        "delta.logRetentionDuration": "30 days",  # Keep logs for 30 days
+        "delta.dataSkippingStatsColumns": "event_date,user_id,event_type",  # Columns for data skipping
+        "delta.autoOptimize.optimizeWrite": True,  # Enable optimize write
+        "delta.autoOptimize.autoCompact": True,  # Enable auto compaction
+
+        # Custom properties for metadata
+        "custom.team": "data-engineering",
+        "custom.sla": "tier-1",
+        "custom.refresh_frequency": "hourly"
+    },
+    cluster="event_date",
+    table_comment="High-volume event stream with Delta optimizations"
+)
+```
+
+#### Apache Iceberg tables
+
+Databricks supports Apache Iceberg table format, which provides benefits like better schema evolution and time travel capabilities.
+
+**Important notes:**
+- ICEBERG tables support the same data types as Delta tables
+- Delta Lake-specific table properties (e.g., `delta.dataSkippingStatsColumns`, `delta.appendOnly`) cannot be used with ICEBERG tables - validation occurs at load time to prevent incompatible configurations
+
+```py
+import dlt
+from dlt.destinations.adapters import databricks_adapter
+
+@dlt.resource
+def customer_data():
+    yield from load_customers()  # Your customer data source
+
+# Create an Iceberg table for better schema evolution
+databricks_adapter(
+    customer_data,
+    table_format="ICEBERG",  # Use Apache Iceberg format
+    table_properties={
+        # Iceberg-specific properties (note: Delta properties are not supported)
+        "write.format.default": "parquet",
+        "write.parquet.compression-codec": "snappy"
+    },
+    table_comment="Customer data in Iceberg format for schema evolution"
+)
+```
+
+#### Complete example with all features
+
+```py
+import dlt
+from dlt.destinations.adapters import databricks_adapter
+
+@dlt.resource(
+    columns=[
+        {"name": "transaction_date", "data_type": "date"},
+        {"name": "customer_id", "data_type": "bigint"},
+        {"name": "amount", "data_type": "decimal"},
+        {"name": "region", "data_type": "text"},
+        {"name": "year", "data_type": "bigint"},
+        {"name": "month", "data_type": "bigint"}
+    ]
+)
+def transactions():
+    yield from load_transactions()
+
+# Apply comprehensive Databricks optimizations
+databricks_adapter(
+    transactions,
+
+    # Partitioning for efficient data organization
+    partition=["year", "month"],
+
+    # Note: Cannot use both partition and cluster together in Databricks
+    # cluster=["region", "customer_id"],  # Would need separate table without partitioning
+
+    # Table format (DELTA is default)
+    table_format="DELTA",
+
+    # Table properties for performance tuning
+    table_properties={
+        "delta.appendOnly": False,
+        "delta.dataSkippingStatsColumns": "transaction_date,amount,customer_id",
+        "delta.autoOptimize.optimizeWrite": True,
+        "delta.targetFileSize": "128mb",
+        "custom.owner": "finance-team"
+    },
+
+    # Table documentation
+    table_comment="Financial transactions with optimized storage",
+    table_tags=["financial", {"compliance": "sox"}],
+
+    # Column documentation
+    column_hints={
+        "customer_id": {
+            "column_comment": "Unique customer identifier",
+            "column_tags": ["pii"]
+        },
+        "amount": {
+            "column_comment": "Transaction amount in USD"
+        }
+    }
+)
+```
+
 ## Troubleshooting
 Use the following steps to avoid conflicts with Databricks' built-in Delta Live Tables (DLT) module and enable dltHub integration.
 
-### 1. Add an `init` script
+### Enable dlt on serverless (16.x)
+Live Tables (DLT) are not available on serverless but the import machinery that is patching DLT is still there in form of import hooks. You
+can temporarily disable this machinery to import `dlt` and use it afterwards. In a notebook cell (assuming that `dlt` is already installed):
+
+```sh
+%restart_python
+```
+
+```py
+import sys
+
+# dlt patching hook is the first one on the list
+metas = list(sys.meta_path)
+sys.meta_path = metas[1:]
+
+# remove RUNTIME - uncomment on dlt before 1.18.0
+# import os
+# del os.environ["RUNTIME"]
+
+import dlt
+sys.meta_path = metas  # restore post import hooks
+
+# use dlt
+info = dlt.run([1, 2, 3], destination=dlt.destinations.filesystem("_data"), table_name="digits")
+print(info)
+```
+
+### Enable dlt on a cluster
+
+#### 1. Add an `init` script
 To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
 
 1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:
@@ -599,7 +788,15 @@ pip install dlt
 
 4. Click Confirm to apply the change. The cluster will restart automatically.
 
-### 2. Remove preloaded databricks modules in the notebook
+:::warning
+The location of `DeltaLiveTablesHook.py` might change when a new Databricks runtime version is released.
+
+The following locations have been confirmed for the two latest LTS runtime versions:
+- 16.4 LTS: /databricks/python_shell/lib/dbruntime/dlt/hook.py
+- 15.4 LTS: /databricks/python_shell/lib/dbruntime/DeltaLiveTablesHook.py
+:::
+
+#### 2. Remove preloaded databricks modules in the notebook
 After the cluster starts, Databricks may partially import its built-in Delta Live Tables (DLT) modules, which can interfere with the dlt package from dltHub.
 
 To ensure a clean environment, add the following code at the top of your notebook:

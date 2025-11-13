@@ -30,21 +30,26 @@ jobs:
   test_docs_snippets:
     name: test snippets in docs
     uses: ./.github/workflows/test_docs_snippets.yml
+
+  # NOTE: we build docs the same way as on cloudflare, so we can catch problems early
+  build_docs:
+    name: build docs
+    uses: ./.github/workflows/build_docs.yml
   
   lint:
     name: lint on all python versions
     needs: get_docs_changes
     uses: ./.github/workflows/lint.yml
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
   test_common:
     name: run common tests on all python versions and OSes
-    needs: [lint, get_docs_changes]
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    needs: [lint]
     uses: ./.github/workflows/test_common.yml
 
   test_dashboard:
     name: run dashboard tests
-    needs: [lint, get_docs_changes]
+    needs: [lint]
     uses: ./.github/workflows/test_tools_dashboard.yml
 
   #

@@ -1,6 +1,6 @@
 import contextlib
 import os
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
 from typing import (
@@ -36,7 +36,7 @@ from dlt.common.destination.exceptions import (
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
 )
-from dlt.common.runtime import signals, apply_runtime_config
+from dlt.common.runtime import signals
 from dlt.common.schema.typing import (
     TSchemaTables,
     TTableFormat,
@@ -112,7 +112,7 @@ from dlt.destinations.dataset import get_destination_clients
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
-from dlt.pipeline.configuration import PipelineConfiguration
+from dlt.pipeline.configuration import PipelineConfiguration, PipelineRuntimeConfiguration
 from dlt.pipeline.progress import _Collector, _NULL_COLLECTOR
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
@@ -321,7 +321,6 @@ class Pipeline(SupportsPipeline):
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
-        runtime: RuntimeConfiguration,
         refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
@@ -334,8 +333,7 @@ class Pipeline(SupportsPipeline):
 
         self.pipeline_salt = pipeline_salt
         self.config = config
-        self.runtime_config = runtime
-        self.run_context = config.pluggable_run_context.context
+        self.run_context = config.runtime.pluggable_run_context.context
         self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self._destination = None
@@ -394,7 +392,6 @@ class Pipeline(SupportsPipeline):
             self.collector,
             False,
             self.config,
-            self.runtime_config,
         )
         if pipeline_name is not None and pipeline_name != self.pipeline_name:
             self = self.__class__(
@@ -410,7 +407,6 @@ class Pipeline(SupportsPipeline):
                 deepcopy(self.collector),
                 False,
                 self.config,
-                self.runtime_config,
             )
         # activate (possibly new) self
         self.activate()
@@ -490,7 +486,7 @@ class Pipeline(SupportsPipeline):
                 # commit load packages with state
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
-        except Exception as exc:
+        except (Exception, KeyboardInterrupt) as exc:
             # emit step info
             step_info = self._get_step_info(extract_step)
             current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
@@ -535,10 +531,14 @@ class Pipeline(SupportsPipeline):
                 schema_storage=self._schema_storage,
             )
             try:
-                with signals.delayed_signals():
+                with (
+                    signals.intercepted_signals()
+                    if self.runtime_config.intercept_signals
+                    else nullcontext()
+                ):
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
-            except Exception as n_ex:
+            except (Exception, KeyboardInterrupt) as n_ex:
                 step_info = self._get_step_info(normalize_step)
                 raise PipelineStepFailed(
                     self,
@@ -590,12 +590,16 @@ class Pipeline(SupportsPipeline):
             initial_staging_client_config=staging_client.config if staging_client else None,
         )
         try:
-            with signals.delayed_signals():
+            with (
+                signals.intercepted_signals()
+                if self.runtime_config.intercept_signals
+                else nullcontext()
+            ):
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
             self._update_last_run_context()
             return info
-        except Exception as l_ex:
+        except (Exception, KeyboardInterrupt) as l_ex:
             step_info = self._get_step_info(load_step)
             raise PipelineStepFailed(
                 self, "load", load_step.current_load_id, l_ex, step_info
@@ -688,8 +692,6 @@ class Pipeline(SupportsPipeline):
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
-
-        signals.raise_if_signalled()
         self.activate()
         self._set_destinations(
             destination=destination, destination_credentials=credentials, staging=staging
@@ -870,7 +872,7 @@ class Pipeline(SupportsPipeline):
                     state["default_schema_name"] = new_default_schema_name
             bump_pipeline_state_version_if_modified(state)
             self._save_state(state)
-        except Exception as ex:
+        except (Exception, KeyboardInterrupt) as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
 
     def activate(self) -> None:
@@ -944,6 +946,10 @@ class Pipeline(SupportsPipeline):
         if self._last_trace:
             return self._last_trace
         return load_trace(self.working_dir)
+
+    @property
+    def runtime_config(self) -> PipelineRuntimeConfiguration:
+        return self.config.runtime
 
     def __repr__(self) -> str:
         kwargs = {
@@ -1398,8 +1404,7 @@ class Pipeline(SupportsPipeline):
 
     def _set_context(self, is_active: bool) -> None:
         if not self.is_active and is_active:
-            # initialize runtime if not active previously
-            apply_runtime_config(self.runtime_config)
+            pass
 
         self.is_active = is_active
         if is_active:

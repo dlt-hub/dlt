@@ -224,7 +224,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.normalize_storage.extracted_packages.delete_package(load_id)
         # log and update metrics
         logger.info(f"Extracted package {load_id} processed")
-        self._step_info_complete_load_id(
+        self._step_info_update_metrics(
             load_id,
             {
                 "started_at": None,
@@ -233,6 +233,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 "table_metrics": table_metrics,
             },
         )
+        self._step_info_complete_load_id(load_id)
 
     def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
         # delete existing folder for the case that this is a retry

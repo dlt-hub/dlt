@@ -1,10 +1,10 @@
 ---
-title: LLM-native workflow
+title: Build pipelines and reports with LLMs
 description: How to extract and explore data from REST API with AI editors/agents
 keywords: [cursor, llm, restapi, ai]
 ---
 
-# LLM-native workflow
+# Build dlt pipelines and reports with LLMs
 
 ## Overview
 
@@ -13,7 +13,7 @@ This guide walks you through a collaborative AI-human workflow for extracting an
 You will learn:
 1. How to initialize a dltHub workspace for your source using dltHub’s [LLM-context database](https://dlthub.com/workspace).
 2. How to build a REST API source in minutes with AI assistance.
-3. How to debug a pipeline and explore data using the pipeline dashboard.
+3. How to debug a pipeline and explore data using the workspace dashboard.
 4. How to start a new notebook and work with the pipeline’s dataset in it.
 
 ## Prerequisites
@@ -76,7 +76,7 @@ pip install "dlt[workspace]"
 
 ### Initialize workspace
 
-dltHub provides prepared contexts for 1000+ sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace). To get started, search for your API and follow the tailored instructions.
+We provide LLM context from over 5,000 sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace). To get started, search for your API and follow the tailored instructions.
 
 <div style={{textAlign: 'center'}}>
 ![search for your source](https://storage.googleapis.com/dlt-blog-images/llm_workflows_search.png)
@@ -154,7 +154,7 @@ Load package 1749667187.541553 is LOADED and contains no failed jobs
 If the pipeline fails, pass error messages to the LLM. Restart after 4-8 failed attempts.
 :::
 
-### Validate with pipeline dashboard
+### Validate with workspace dashboard
 
 Launch the dashboard to validate your pipeline:
 
@@ -188,7 +188,7 @@ import dlt
 
 my_data = dlt.pipeline("{source}_pipeline").dataset()
 # get any table as Pandas frame
-# my_data.{table_name}.df().head()
+my_data.table("table_name").df().head()
 ```
 
 For more, see the [dataset access guide](../../general-usage/dataset-access).

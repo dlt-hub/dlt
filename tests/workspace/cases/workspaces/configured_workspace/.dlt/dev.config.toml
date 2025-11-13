@@ -1,0 +1,2 @@
+[workspace.settings]
+local_dir="."  # relative to run dir

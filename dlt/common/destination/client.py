@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
 import dataclasses
-
+import contextlib
+from threading import BoundedSemaphore
 from types import TracebackType
 from typing import (
+    ClassVar,
     Optional,
     NamedTuple,
     Literal,
@@ -22,7 +24,11 @@ import datetime  # noqa: 251
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.configuration import configspec, NotResolved
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+    known_sections,
+)
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
     resolve_replace_strategy,
@@ -150,6 +156,8 @@ class DestinationClientConfiguration(BaseConfiguration):
     credentials: Optional[CredentialsConfiguration] = None
     destination_name: Optional[str] = None  # name of the destination
     environment: Optional[str] = None
+
+    __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
@@ -342,6 +350,7 @@ class LoadJob(ABC):
             self._finished_at,
             self.state(),
             None,
+            self._parsed_file_name.retry_count,
         )
 
 
@@ -364,13 +373,16 @@ class RunnableLoadJob(LoadJob, ABC):
         # ensure file name
         super().__init__(file_path)
         self._state: TLoadJobState = "ready"
+        self._started_at = pendulum.now()
         self._exception: BaseException = None
 
         # variables needed by most jobs, set by the loader in set_run_vars
         self._schema: Schema = None
         self._load_table: PreparedTableSchema = None
         self._load_id: str = None
+        # set by run_managed method
         self._job_client: "JobClientBase" = None
+        self._done_event: BoundedSemaphore = None
 
     def set_run_vars(self, load_id: str, schema: Schema, load_table: PreparedTableSchema) -> None:
         """
@@ -387,21 +399,21 @@ class RunnableLoadJob(LoadJob, ABC):
     def run_managed(
         self,
         job_client: "JobClientBase",
+        done_event: BoundedSemaphore,
+        /,
     ) -> None:
         """
         wrapper around the user implemented run method
         """
-        from dlt.common.runtime import signals
-
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
         self._job_client = job_client
+        self._done_event = done_event
 
         # filepath is now moved to running
         try:
             self._state = "running"
-            self._started_at = pendulum.now()
             self._job_client.prepare_load_job_execution(self)
             self.run()
             self._state = "completed"
@@ -416,12 +428,14 @@ class RunnableLoadJob(LoadJob, ABC):
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
             if self._state != "retry":
+                self._finished_at = pendulum.now()
                 # wake up waiting threads
-                signals.wake_all()
+                if self._done_event:
+                    with contextlib.suppress(ValueError):
+                        self._done_event.release()
 
     @abstractmethod
     def run(self) -> None:

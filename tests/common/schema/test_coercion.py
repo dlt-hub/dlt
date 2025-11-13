@@ -3,7 +3,7 @@ from copy import copy
 from typing import Any, Type
 import pytest
 import datetime  # noqa: I251
-from hexbytes import HexBytes
+from dlt.common.libs.hexbytes import HexBytes
 from enum import Enum
 
 from pendulum.tz import UTC
@@ -32,10 +32,9 @@ def test_coerce_type_to_text() -> None:
     # bytes to text (base64)
     assert coerce_value("text", "binary", b"binary string") == "YmluYXJ5IHN0cmluZw=="
     # HexBytes to text (hex with prefix)
-    assert coerce_value("text", "binary", HexBytes(b"binary string")) in [
-        "0x62696e61727920737472696e67",
-        "62696e61727920737472696e67",
-    ]
+    assert (
+        coerce_value("text", "binary", HexBytes(b"binary string")) == "0x62696e61727920737472696e67"
+    )
 
     # Str enum value
     class StrEnum(Enum):

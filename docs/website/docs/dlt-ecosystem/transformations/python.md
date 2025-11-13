@@ -25,15 +25,20 @@ pipeline = dlt.pipeline(
     dev_mode=True
 )
 
-# get a dataframe of all reactions from the dataset
-reactions = pipeline.dataset().issues.select("reactions__+1", "reactions__-1", "reactions__laugh", "reactions__hooray", "reactions__rocket").df()
+# get a data frame of all reactions from the dataset
+github_issues = pipeline.dataset().table("issues")
+reactions = github_issues.select(
+    "reactions__+1", "reactions__-1", "reactions__laugh", "reactions__hooray", "reactions__rocket"
+).df()
 
 # calculate and print out the sum of all reactions
 counts = reactions.sum(0).sort_values(0, ascending=False)
 print(counts)
 
 # alternatively, you can fetch the data as an arrow table
-reactions = pipeline.dataset().issues.select("reactions__+1", "reactions__-1", "reactions__laugh", "reactions__hooray", "reactions__rocket").arrow()
+reactions = github_issues.select(
+    "reactions__+1", "reactions__-1", "reactions__laugh", "reactions__hooray", "reactions__rocket"
+).arrow()
 # ... do transformations on the arrow table
 ```
 
@@ -55,7 +60,7 @@ pipeline = dlt.pipeline(
 )
 
 # get user relation with only a few columns selected, but omitting email and name
-users = pipeline.dataset().users.select("age", "amount_spent", "country")
+users = pipeline.dataset().table("users").select("age", "amount_spent", "country")
 
 # load the data into a new table called users_clean in the same dataset
 pipeline.run(users.iter_arrow(chunk_size=1000), table_name="users_clean")
@@ -79,7 +84,7 @@ pipeline = dlt.pipeline(
 # NOTE: For selecting only users above 18, we could also use the filter method on the relation with ibis expressions
 @dlt.resource(table_name="users_clean")
 def users_clean():
-    users = pipeline.dataset().users
+    users = pipeline.dataset().table("users")
     for arrow_table in users.iter_arrow(chunk_size=1000):
 
         # we want to filter out users under 18

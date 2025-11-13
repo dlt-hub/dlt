@@ -2,7 +2,6 @@ import datetime  # noqa: I251
 import hashlib
 from typing import Dict, List, Any, Sequence, Tuple, Literal, Union
 import base64
-from hexbytes import HexBytes
 from copy import deepcopy
 from string import ascii_lowercase
 import random
@@ -22,6 +21,7 @@ from dlt.common.time import (
     ensure_pendulum_time,
     ensure_pendulum_date,
 )
+from dlt.common.libs.hexbytes import HexBytes
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 
 from tests.utils import TPythonTableFormat, TestDataItemFormat, arrow_item_from_pandas

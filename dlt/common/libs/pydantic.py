@@ -385,7 +385,7 @@ def validate_and_filter_items(
                     deleted.add(err_idx)
                 else:
                     raise NotImplementedError(
-                        f"`{column_mode=:}` not implemented for Pydantic validation"
+                        f"`{data_mode=:}` not implemented for Pydantic validation"
                     )
 
         # validate again with error items removed

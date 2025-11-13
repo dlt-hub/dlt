@@ -1,4 +1,4 @@
-import os
+import pytest
 from tests.pipeline.utils import assert_load_info
 
 
@@ -91,6 +91,7 @@ def api_snippet() -> None:
     assert_load_info(load_info)
 
 
+@pytest.mark.rfam
 def db_snippet() -> None:
     # @@@DLT_SNIPPET_START db
     import dlt

@@ -204,9 +204,9 @@ You can see the GitHub actions setup for remote destinations in `.github/workflo
 
 ### E2E Tests
 
-`dlt` ships with the Pipeline Dashboard (https://dlthub.com/docs/general-usage/dashboard). To ensure that the dashboard works correctly in the Browser on all Platforms, we have e2e tests with Playwright as part of our test suite. To run the e2e tests locally, please:
+`dlt` ships with the Workspace Dashboard (https://dlthub.com/docs/general-usage/dashboard). To ensure that the dashboard works correctly in the Browser on all Platforms, we have e2e tests with Playwright as part of our test suite. To run the e2e tests locally, please:
 
-1. Install all dependenices with `make dev`
+1. Install all dependencies with `make dev`
 2. Install the dashboard testing dependencies with `uv sync --group dashboard-tests`
 3. Install playwright dependencies with `playwright install`
 4. Start the dashboard in silent mode from one terminal window: `make start-dlt-dashboard-e2e`

@@ -12,22 +12,26 @@ import snippets from '!!raw-loader!./intro-snippets.py';
 
 ## What is dlt?
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured, live datasets. It offers a lightweight interface for extracting data from [REST APIs](./tutorial/rest-api), [SQL databases](./tutorial/sql-database), [cloud storage](./tutorial/filesystem), [Python data structures](./tutorial/load-data-from-an-api), and [many more](./dlt-ecosystem/verified-sources).
+dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built ground up to be used with LLMs: [LLM-native workflow](dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take you pipeline code to data in a notebook for over [5,000 sources](https://dlthub.com/workspace).
 
 dlt is designed to be easy to use, flexible, and scalable:
 
+- dlt extracts data from [REST APIs](./tutorial/rest-api), [SQL databases](./tutorial/sql-database), [cloud storage](./tutorial/filesystem), [Python data structures](./tutorial/load-data-from-an-api), and [many more](./dlt-ecosystem/verified-sources)
 - dlt infers [schemas](./general-usage/schema) and [data types](./general-usage/schema/#data-types), [normalizes the data](./general-usage/schema/#data-normalizer), and handles nested data structures.
 - dlt supports a variety of [popular destinations](./dlt-ecosystem/destinations/) and has an interface to add [custom destinations](./dlt-ecosystem/destinations/destination) to create reverse ETL pipelines.
-- dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud deployment of your choice.
 - dlt automates pipeline maintenance with [incremental loading](./general-usage/incremental-loading), [schema evolution](./general-usage/schema-evolution), and [schema and data contracts](./general-usage/schema-contracts).
+- dlt supports [Python and SQL data access](general-usage/dataset-access/), [transformations](dlt-ecosystem/transformations) and supports [pipeline inspection](general-usage/dashboard.md) and [visualizing data in Marimo Notebooks](general-usage/dataset-access/marimo).
+- dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud deployment of your choice.
 
-To get started with dlt, install the library using pip:
+To get started with dlt, install the library using pip (use [clean virtual environment](reference/installation) for your experiments!):
 
 ```sh
 pip install dlt
 ```
+
 :::tip
-We recommend using a clean virtual environment for your experiments! Read the [detailed instructions](./reference/installation) on how to set up one.
+If you'd like to try out dlt without installing it on your machine, check out the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing) or 
+use our simple [marimo / wasm based playground](./tutorial/playground) on this docs page.
 :::
 
 ## Load data with dlt from …
@@ -71,12 +75,16 @@ pipeline = dlt.pipeline(
 
 load_info = pipeline.run(source)
 
-# print load info and posts table as dataframe
+# print load info and posts table as data frame
 print(load_info)
 print(pipeline.dataset().posts.df())
 ```
+:::tip
+LLMs are great at generating REST API pipelines!
+* [Follow LLM tutorial](dlt-ecosystem/llm-tooling/llm-native-workflow.md) and start with one of [5,000+ sources](https://dlthub.com/workspace)
+* Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
+:::
 
-Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
   </TabItem>
   <TabItem value="sql-database">
 
@@ -97,7 +105,7 @@ pipeline = dlt.pipeline(
 
 load_info = pipeline.run(source)
 
-# print load info and the "family" table as dataframe
+# print load info and the "family" table as data frame
 print(load_info)
 print(pipeline.dataset().family.df())
 ```
@@ -125,7 +133,7 @@ pipeline = dlt.pipeline(
 
 load_info = pipeline.run(resource)
 
-# print load info and the "example" table as dataframe
+# print load info and the "example" table as data frame
 print(load_info)
 print(pipeline.dataset().example.df())
 ```
@@ -135,7 +143,7 @@ Follow the [filesystem source tutorial](./tutorial/filesystem) to learn more abo
   </TabItem>
   <TabItem value="python-data">
 
-dlt is able to load data from Python generators or directly from Python data structures:
+dlt can load data from Python generators or directly from Python data structures:
 
 ```py
 import dlt
@@ -152,7 +160,7 @@ pipeline = dlt.pipeline(
 
 load_info = pipeline.run(foo)
 
-# print load info and the "foo_data" table as dataframe
+# print load info and the "foo_data" table as data frame
 print(load_info)
 print(pipeline.dataset().foo_data.df())
 ```
@@ -163,14 +171,8 @@ Check out the [Python data structures tutorial](./tutorial/load-data-from-an-api
 
 </Tabs>
 
-:::tip
-If you'd like to try out dlt without installing it on your machine, check out the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing) or 
-use our simple [marimo / wasm based playground](./tutorial/playground) on this docs page.
-:::
-
 ## Join the dlt community
 
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
 1. Ask questions and share how you use the library on [Slack](https://dlthub.com/community).
 1. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new/choose).
-
