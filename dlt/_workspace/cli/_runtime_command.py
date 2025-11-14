@@ -76,6 +76,7 @@ class RuntimeCommand(SupportsCliCommand):
     description = """
     Allows to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
     """
+    # todo: refactor the structure to conform to the rest of CLI
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
