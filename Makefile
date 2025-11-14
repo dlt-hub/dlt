@@ -173,9 +173,6 @@ test-e2e-dashboard:
 test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
-start-dlt-dashboard-e2e:
-	uv run marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
-
 # creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
