@@ -94,7 +94,7 @@ def plug_cli_ai() -> Type[plugins.SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_runtime() -> Type[plugins.SupportsCliCommand]:
     if is_workspace_active():
-        from dlt._workspace.cli._runtime_command import RuntimeCommand
+        from dlt._workspace.cli.commands import RuntimeCommand
 
         return RuntimeCommand
     else:

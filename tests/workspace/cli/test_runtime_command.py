@@ -170,7 +170,7 @@ def test_runtime_login_happy_path_inserts_token_and_workspace_id(
     workspace_id = uuid.uuid4()
 
     with me_response_ctx(workspace_id), oauth_success_ctx(token):
-        result = script_runner.run(["dlt", "workspace", "login"])
+        result = script_runner.run(["dlt", "runtime", "login"])
 
     assert result.returncode == 0
     assert "Logged in as" in result.stdout
@@ -182,7 +182,7 @@ def test_runtime_login_happy_path_inserts_token_and_workspace_id(
 
 def test_runtime_login_api_exception_oauth_complete_400(script_runner: ScriptRunner) -> None:
     with me_response_ctx(uuid.uuid4()), oauth_failure_400_ctx():
-        result = script_runner.run(["dlt", "workspace", "login"])
+        result = script_runner.run(["dlt", "runtime", "login"])
 
     assert result.returncode == -1
     assert "Failed to complete authentication with Github" in result.stderr
@@ -192,7 +192,7 @@ def test_runtime_login_api_exception_me_failure(script_runner: ScriptRunner) -> 
     token = make_valid_jwt()
     # me returns unexpected value -> authorize raises
     with patch("dlt._workspace.runtime.me.sync", return_value=None), oauth_success_ctx(token):
-        result = script_runner.run(["dlt", "workspace", "login"])
+        result = script_runner.run(["dlt", "runtime", "login"])
 
     assert result.returncode == -1
     assert "Failed to get me response" in result.stderr
@@ -214,7 +214,7 @@ def test_runtime_login_with_valid_existing_token_skips_oauth(script_runner: Scri
                 "dlt._workspace.cli._runtime_command.github_oauth_complete.sync"
             ) as complete_mock,
         ):
-            result = script_runner.run(["dlt", "workspace", "login"])
+            result = script_runner.run(["dlt", "runtime", "login"])
 
     assert result.returncode == 0
     assert "Already logged in as" in result.stdout
@@ -231,7 +231,7 @@ def test_runtime_login_with_invalid_existing_token_triggers_oauth(
     new_token = make_valid_jwt()
 
     with me_response_ctx(workspace_id), oauth_success_ctx(new_token):
-        result = script_runner.run(["dlt", "workspace", "login"])
+        result = script_runner.run(["dlt", "runtime", "login"])
 
     assert result.returncode == 0
     assert get_token_from_secrets() == new_token
@@ -251,7 +251,7 @@ def test_runtime_login_overwrites_mismatched_workspace_id(script_runner: ScriptR
     reload_config_providers()
 
     with me_response_ctx(remote_ws):
-        result = script_runner.run(["dlt", "workspace", "login"])
+        result = script_runner.run(["dlt", "runtime", "login"])
 
     assert result.returncode == 0
     assert get_workspace_id_from_config() == str(remote_ws)
@@ -272,7 +272,7 @@ def test_runtime_login_overwrites_absent_workspace_id(script_runner: ScriptRunne
 
     remote_ws = uuid.uuid4()
     with me_response_ctx(remote_ws):
-        result = script_runner.run(["dlt", "workspace", "login"])
+        result = script_runner.run(["dlt", "runtime", "login"])
 
     assert result.returncode == 0
     assert get_workspace_id_from_config() == str(remote_ws)
@@ -284,14 +284,14 @@ def test_runtime_logout_deletes_token_but_keeps_workspace_id(script_runner: Scri
     token = make_valid_jwt()
     workspace_id = uuid.uuid4()
     with me_response_ctx(workspace_id), oauth_success_ctx(token):
-        login_res = script_runner.run(["dlt", "workspace", "login"])
+        login_res = script_runner.run(["dlt", "runtime", "login"])
         assert login_res.returncode == 0
 
     assert get_token_from_secrets() == token
     assert get_workspace_id_from_config() == str(workspace_id)
 
     # now logout
-    result = script_runner.run(["dlt", "workspace", "logout"])
+    result = script_runner.run(["dlt", "runtime", "logout"])
     reload_config_providers()
     assert result.returncode == 0
     assert get_token_from_secrets() == ""
