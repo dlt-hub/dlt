@@ -15,7 +15,7 @@ This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich envi
 To install marimo and ibis with the duckdb extras, run the following command: 
 
 ```sh
-pip install marimo ibis-framework[duckdb]
+pip install marimo "ibis-framework[duckdb]"
 ```
 
 ## Launch marimo

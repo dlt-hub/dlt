@@ -24,32 +24,19 @@ Profiles let you:
 
 ## Enable the workspace and profiles
 
-:::info
-Currently, some Workspace features (including Profiles) are experimental and disabled by default.
-They are hidden behind a feature flag, which means you need to manually enable them before use.
+Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-tier-features) (which also include Profiles)
 
-To activate these features, create the `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the new Workspace mode.
-:::
+**dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 
-Profiles are part of the [dltHub Workspace](../workspace/overview.md) feature.
-To use them, first install `dlt` with Workspace support:
+[More about dlt Workspace ->](../workspace/overview.md)
 
-```sh
-pip install "dlt[workspace]"
-```
 [Initialize](../workspace/init) a project:
 
 ```sh
 dlt init dlthub:pokemon_api duckdb
 ```
 
-Then, enable the Workspace feature by creating a flag file:
-
-```sh
-touch .dlt/.workspace
-```
-
-Once enabled, the Workspace automatically activates **profile support** and adds new commands such as:
+Once initialized, the Workspace automatically activates **profile support** and adds new commands such as:
 
 ```sh
 dlt profile

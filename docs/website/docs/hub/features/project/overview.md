@@ -5,6 +5,10 @@ description: Define dltHub Projects in YAML
 
 # Project
 
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 

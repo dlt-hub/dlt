@@ -16,6 +16,8 @@ Resources that can be loaded using this verified source are:
 | Name                 | Description                                     |
 | -------------------- | ----------------------------------------------- |
 | replication_resource | Load published messages from a replication slot |
+| init_replication     | Initialize replication and optionally return snapshot resources for the initial data load  |
+
 
 :::info
 The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/merge-loading.md#scd2-strategy). 
@@ -23,26 +25,37 @@ The Postgres replication source currently **does not** support the [scd2 merge s
 
 ## Setup guide
 
-### Setup user
-To set up a Postgres user, follow these steps:
+### Set up user
 
-1. The Postgres user needs to have the `LOGIN` and `REPLICATION` attributes assigned:
+To set up a Postgres user for replication, follow these steps:
+
+1. Create a user with the `LOGIN` and `REPLICATION` attributes:
     
     ```sql
     CREATE ROLE replication_user WITH LOGIN REPLICATION;
     ```
-    
-2. It also needs `GRANT` privilege on the database:
+
+2. Grant the `CREATE` privilege on the database:
     
     ```sql
     GRANT CREATE ON DATABASE dlt_data TO replication_user;
     ```
+
+3. Grant ownership of the tables you want to replicate:
     
+    ```sql
+    ALTER TABLE your_table OWNER TO replication_user;  
+    ```
+
+:::note
+The minimum required privileges may differ depending on your replication configuration. For example, replicating entire schemas requires superuser privileges. Check the [Sources and resources](#sources-and-resources) section for more detailed information.
+:::
+
 
 ### Set up RDS
 To set up a Postgres user on RDS, follow these steps:
 
-1. You must enable replication for the RDS Postgres instance via [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).
+1. Enable replication for your RDS Postgres instance via a [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).
 
 2. `WITH LOGIN REPLICATION;` does not work on RDS; instead, do:
     
@@ -50,7 +63,7 @@ To set up a Postgres user on RDS, follow these steps:
     GRANT rds_replication TO replication_user;
     ```
     
-3. Do not fallback to a non-SSL connection by setting connection parameters:
+3. Use the following connection parameters to enforce SSL:
     
    ```toml
    sources.pg_replication.credentials="postgresql://loader:password@host.rds.amazonaws.com:5432/dlt_data?sslmode=require&connect_timeout=300"
@@ -59,33 +72,22 @@ To set up a Postgres user on RDS, follow these steps:
 
 To get started with your data pipeline, follow these steps:
 
-1. Enter the following command:
+1. Run the following command:
     
    ```sh
    dlt init pg_replication duckdb
    ```
     
-   It will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with a Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
+   This command initializes [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
     
-    
-2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations).
-    
-3. This source uses the `sql_database` source; you can initialize it as follows:
-    
+2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations). For example:
    ```sh
-   dlt init sql_database duckdb
+   dlt init pg_replication bigquery
    ```
-   :::note
-   It is important to note that it is now only required if a user performs an initial load, specifically when `persist_snapshots` is set to `True`.
-   :::
-    
-4. After running these two commands, a new directory will be created with the necessary files and configuration settings to get started.
+       
+3. After running the command, a new directory will be created with the necessary files and configuration settings to get started.
    
    For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
-
-   :::note
-   You can omit the `[sql.sources.credentials]` section in `secrets.toml` as it is not required.
-   :::
 
 
 ### Add credentials
@@ -110,21 +112,22 @@ To get started with your data pipeline, follow these steps:
    sources.pg_replication.credentials="postgresql://username@password.host:port/database"
    ```
 
-3. Finally, follow the instructions in [Destinations](../../dlt-ecosystem/destinations/) to add credentials for your chosen destination. This will ensure that your data is properly routed.
+3. Finally, follow the instructions in the [Destinations section](../../dlt-ecosystem/destinations/) to add credentials for your chosen destination.
+
 
 For more information, read the [Configuration section.](../../general-usage/credentials)
 
 ## Run the pipeline
 
-1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+1. Ensure that you have installed all the necessary dependencies by running:
    ```sh
    pip install -r requirements.txt
    ```
-2. You're now ready to run the pipeline! To get started, run the following command:
+2. After carrying out the necessary customization to your pipeline script, you can run the pipeline with the following command:
    ```sh
    python pg_replication_pipeline.py
    ```
-3. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+3. Once the pipeline has finished running, you can verify that everything loaded correctly with:
    ```sh
    dlt pipeline <pipeline_name> show
    ```
@@ -136,11 +139,45 @@ For more information, read the [Configuration section.](../../general-usage/cred
 
 ## Sources and resources
 
-`dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
+
+### Snapshot resources from `init_replication`
+
+The `init_replication` function serves two main purposes:
+
+1. Sets up Postgres replication by creating the necessary replication slot and publication if they don't already exist.
+2. Optionally captures an initial snapshot when `persist_snapshots=True` and returns snapshot resources for loading existing data.
+
+```py
+def init_replication(
+    slot_name: str = dlt.config.value,
+    pub_name: str = dlt.config.value,
+    schema_name: str = dlt.config.value,
+    table_names: Optional[Union[str, Sequence[str]]] = dlt.config.value,
+    credentials: ConnectionStringCredentials = dlt.secrets.value,
+    publish: str = "insert, update, delete",
+    persist_snapshots: bool = False,
+    include_columns: Optional[Mapping[str, Sequence[str]]] = None,
+    columns: Optional[Mapping[str, TTableSchemaColumns]] = None,
+    reset: bool = False,
+) -> Optional[Union[DltResource, List[DltResource]]]:
+    ...
+```
+
+Depending on how you configure `init_replication`, the minimum required privileges for the Postgres user may differ:
+
+| Configuration | Description | Minimum required privileges |
+|----------|---------------|----------------------------|
+| `table_names=None` | Replicates the entire schema. The publication includes all current and future tables in the schema. | Superuser |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=False` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table) |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=True` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table),<br />CREATE privilege in the schema (for snapshot tables) |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=False` | Replicates specific tables. Drops existing publication/slot before recreating. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=True` | Replicates specific tables. Drops existing publication/slot before recreating. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist,<br />CREATE privilege in the schema (for snapshot tables) |
+
+For detailed information about all arguments, see the [source code](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication/helpers.py).
 
 ### Resource `replication_resource`
 
-This resource yields data items for changes in one or more Postgres tables.
+This resource yields data items for changes in one or more Postgres tables. It consumes messages from an existing replication slot and publication that must be set up beforehand (e.g., using `init_replication`).
 
 ```py
 @dlt.resource(
@@ -158,45 +195,40 @@ def replication_resource(
     ...
 ```
 
-`slot_name`: Replication slot name to consume messages.
+The minimum required privileges for using `replication_resource` are straightforward:
 
-`pub_name`: Publication slot name to publish messages.
+- REPLICATION attribute (required for logical replication connections)
+- Slot ownership (required to consume messages from the replication slot)
+- Read access to publication metadata (to query the `pg_publication` system catalog)
 
-`include_columns`: Maps table name(s) to a sequence of names of columns to include in the generated data items. Any column not in the sequence is excluded. If not provided, all columns are included.
-
-`columns`:  Maps table name(s) to column hints to apply on the replicated table(s).
-
-`target_batch_size`: Desired number of data items yielded in a batch. Can be used to limit the data items in memory.
-
-`flush_slot`:  Whether processed messages are discarded from the replication slot. The recommended value is "True".
+For detailed information about the arguments, refer to the [source code](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication/__init__.py).
 
 ## Customization
 
-If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
+The [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) include demos that simulate changes in a Postgres source to demonstrate replication. The simulation uses a simple pipeline defined as:
 
-1. Define the source pipeline as:
-    
    ```py
-   # Defining source pipeline
-   src_pl = dlt.pipeline(
-       pipeline_name="source_pipeline",
+   # Simulation pipeline
+   sim_pl = dlt.pipeline(
+       pipeline_name="simulation_pipeline",
        destination="postgres",
        dataset_name="source_dataset",
        dev_mode=True,
    )
    ```
+This pipeline is configured in the `get_postgres_pipeline()` function.
+It’s meant for local testing, so you can freely modify it to simulate different replication scenarios.
 
-   You can configure and use the `get_postgres_pipeline()` function available in the `pg_replication_pipeline.py` file to achieve the same functionality. 
+:::note
+In production, you don’t need a simulation pipeline. Replication runs against an actual Postgres database that changes independently.
+:::
 
-   :::note IMPORTANT
-    When working with large datasets from a Postgres database, it's important to consider the relevance of the source pipeline. For testing purposes, using the source pipeline can be beneficial to try out the data flow. However, in production use cases, there will likely be another process that mutates the Postgres database. In such cases, the user generally only needs to define a destination pipeline.
-   :::
+The general workflow for setting up replication is:
 
-    
-2. Similarly, define the destination pipeline.
+1. Define the replication pipeline that will load replicated data in your chosen destination:
     
    ```py
-   dest_pl = dlt.pipeline(
+   repl_pl = dlt.pipeline(
        pipeline_name="pg_replication_pipeline",
        destination='duckdb',
        dataset_name="replicate_single_table",
@@ -204,79 +236,37 @@ If you wish to create your own pipelines, you can leverage source and resource m
    )
    ```
     
-3. Define the slot and publication names as:
-    
-   ```py
-   slot_name = "example_slot"
-   pub_name = "example_pub"
-   ```
-    
-4. To initialize replication, you can use the `init_replication` function. A user can use this function to let `dlt` configure Postgres and make it ready for replication.
-    
-   ```py
-   # requires the Postgres user to have the REPLICATION attribute assigned
-   init_replication(  
-       slot_name=slot_name,
-       pub_name=pub_name,
-       schema_name=src_pl.dataset_name,
-       table_names="my_source_table",
-       reset=True,
-   )
-   ```
-    
-   :::note
-   To replicate the entire schema, you can omit the `table_names` argument from the `init_replication` function.
-   :::
+2. Initialize replication (if needed) with `init_replication`, and capture a snapshot of the source:
+      
+      ```py
+      snapshot = init_replication(  
+         slot_name="my_slot",
+         pub_name="my_pub",
+         schema_name="my_schema",
+         table_names="my_source_table",
+         persist_snapshots=True,
+         reset=True,
+      )
+      ```
 
-5. To snapshot the data to the destination during the initial load, you can use the `persist_snapshots=True` argument as follows:
-   ```py
-   snapshot = init_replication(  # requires the Postgres user to have the REPLICATION attribute assigned
-        slot_name=slot_name,
-        pub_name=pub_name,
-        schema_name=src_pl.dataset_name,
-        table_names="my_source_table",
-        persist_snapshots=True,  # persist snapshot table(s) and let function return resource(s) for initial load
-        reset=True,
-    )
-   ```
-
-6. To load this snapshot to the destination, run the destination pipeline as:
+3. Load the initial snapshot, so the destination contains all existing data before replication begins:
     
    ```py
-   dest_pl.run(snapshot)
+   repl_pl.run(snapshot)
    ```
     
-7. After changes are made to the source, you can replicate the changes to the destination using the `replication_resource`, and run the pipeline as:
-    
+4. Apply ongoing changes by creating a `replication_resource` to capture updates and keep the destination in sync:
+      
    ```py
    # Create a resource that generates items for each change in the source table
-   changes = replication_resource(slot_name, pub_name)
+   changes = replication_resource("my_slot", "my_pub")
  
-   # Run the pipeline as
-   dest_pl.run(changes)
+   repl_pl.run(changes)
    ```
-    
-8. To replicate tables with selected columns, you can use the `include_columns` argument as follows:
-    
-   ```py
-   # requires the Postgres user to have the REPLICATION attribute assigned
-   initial_load = init_replication(  
-       slot_name=slot_name,
-       pub_name=pub_name,
-       schema_name=src_pl.dataset_name,
-       table_names="my_source_table",
-       include_columns={
-           "my_source_table": ("column1", "column2")
-       },
-       reset=True,
-   )
-   ```
-    
-   Similarly, to replicate changes from selected columns, you can use the `table_names` and `include_columns` arguments in the `replication_resource` function.
 
-## Optional: Using `xmin` for Change Data Capture (CDC)
+## Alternative: Using `xmin` for Change Data Capture (CDC)
 
-PostgreSQL internally uses the `xmin` system column to track row versions. You can use `xmin` to enable an efficient CDC mechanism when working with the `sql_database` source.
+If logical replication doesn't fit your needs, you can use the built-in `xmin` system column of Postgres for change tracking with dlt's `sql_database` source instead of the `pg_replication` source.
 
 To do this, define a `query_adapter_callback` that extracts the `xmin` value from the source table and filters based on an incremental cursor:
 

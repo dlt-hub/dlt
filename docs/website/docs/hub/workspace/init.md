@@ -8,6 +8,8 @@ keywords: [create a pipeline, verified source, workspace, rest client, how to, d
 
 This guide walks you through creating and initializing a `dlt` pipeline in dltHub Workspace — whether manually, with the LLM help, or from one of the **verified sources** maintained by dltHub team.
 
+
+
 ## Overview
 
 A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg). Initializing a pipeline is the first step in the data workflow.
@@ -22,17 +24,11 @@ You can create one in three CLI-based ways:
 
 ## Step 0: Install dlt with workspace support
 
-To use workspace functionality, install dlt with the workspace extra:
+Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-tier-features)
 
-```sh
-pip install "dlt[workspace]"
-```
+**dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 
-This adds support for AI-assisted workflows and the `dlt ai` command.
-
-**dlt Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
-
-[More about dlt Workspace ->](../workspace/overview.md)
+[More about dlt Workspace](../workspace/overview.md)
 
 
 ## Step 1: Initialize a custom pipeline
@@ -69,7 +65,7 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 - **Cursor**,
 - **Continue**,
 - **Copilot**,
-- [the full list ->](../../dlt-ecosystem/llm-tooling/llm-native-workflow#prerequisites)
+- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#prerequisites)
 
 
 **Initialize your first workspace pipeline**
@@ -129,7 +125,7 @@ For example, see [Cursor’s guide](https://docs.cursor.com/context/@-symbols/ov
 * `@{source}-docs.yaml` contains the source specification and describes the source with endpoints, parameters, and other details.
 * `@dlt_rest_api` contains the documentation for dlt's REST API source.
 
-For more on the workspace concept, [see LLM-native workflow ->](../../dlt-ecosystem/llm-tooling/llm-native-workflow)
+For more on the workspace concept, [see LLM-native workflow](../../dlt-ecosystem/llm-tooling/llm-native-workflow)
 
 
 ### Verified source setup (community connectors)
@@ -205,7 +201,7 @@ You can modify an existing verified source in place.
 Together, these sources cover the most common data ingestion scenarios — from APIs and databases to files.
 :::
 
-[Read more about verified sources ->](../../walkthroughs/add-a-verified-source)
+[Read more about verified sources](../../walkthroughs/add-a-verified-source)
 
 ## Step 2: Add credentials
 
@@ -252,7 +248,7 @@ def github_api_source(api_secret_key: str = dlt.secrets.value):
 You don’t need to load secrets manually — `dlt` resolves them from any of the above providers.
 
 
-[Read more about setting credentials ->](../../general-usage/credentials)
+[Read more about setting credentials](../../general-usage/credentials)
 
 ## Step 3: Run a pipeline
 
@@ -287,7 +283,7 @@ PROGRESS=enlighten python {source_name}_pipeline.py
 
 Alternatives: `tqdm`, `alive_progress`, or `PROGRESS=log`.
 
-[See monitor loading progress->](../../general-usage/pipeline#monitor-the-loading-progress)
+[See monitor loading progress](../../general-usage/pipeline#monitor-the-loading-progress)
 
 **Inspect loads & trace**
 
@@ -298,13 +294,11 @@ dlt pipeline -v {pipeline_name} load-package # with schema changes
 dlt pipeline {pipeline_name} trace           # last run trace & errors
 ```
 
-[Read more about running a pipeline ->](../../walkthroughs/run-a-pipeline)
+[Read more about running a pipeline](../../walkthroughs/run-a-pipeline)
 
 ## Next steps: Deploy and scale
 
 Once your pipeline runs locally:
 * [Monitor via the workspace dashboard](../../general-usage/dataset-access/data-quality-dashboard)
-* Set up Profiles to manage separate dev, prod, and test environments
+* Set up [Profiles](../core-concepts/profiles-dlthub.md) to manage separate dev, prod, and test environments
 * [Deploy a pipeline](../../walkthroughs/deploy-a-pipeline/)
-
-

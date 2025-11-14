@@ -1,6 +1,6 @@
 ---
-title: "Build a dlt pipeline"
-description: Build a data pipeline with dlt
+title: Build advanced dlt pipeline from scratch
+description: Build custom, production grade pipeline just by writing code
 keywords: [getting started, quick start, basic examples]
 ---
 

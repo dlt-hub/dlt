@@ -21,7 +21,7 @@ To follow this tutorial, make sure:
 - you're familiar with the [core concepts of dlt](../../reference/explainers/how-dlt-works.md)
 
 :::tip
-You can find the full list of available cli commands under [cli reference](../reference.md)
+You can find the full list of available cli commands under cli reference
 :::
 
 ## Creating a new dltHub Project
@@ -46,7 +46,7 @@ This command generates a project named `tutorial` with:
 - one dataset on the DuckDB destination
 
 :::warning
-Currently, `dlt project init` only supports a limited number of sources (for example, [REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md), etc.). To list all available sources, please use the [cli command](../reference.md#dlt-source-list):
+Currently, `dlt project init` only supports a limited number of sources (for example, [REST API](../../dlt-ecosystem/verified-sources/rest_api/index.md), [SQL database](../../dlt-ecosystem/verified-sources/sql_database/index.md), [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md), etc.). To list all available sources, please use the cli command:
 
 ```sh
 dlt source list-available
@@ -133,7 +133,7 @@ Take a look at the [Projects context](../features/project/overview.md#project-co
 
 ### Inspecting the results
 
-Use the [`dlt dataset` command](../reference.md#dlt-dataset) to interact with the dataset stored in the DuckDB destination. For example:
+Use the `dlt dataset` command to interact with the dataset stored in the DuckDB destination. For example:
 
 ### Counting the loaded rows
 To count rows in the dataset, run:
@@ -187,7 +187,7 @@ dlt <entity_type> <entity_name> add
 ```
 
 Depending on the entity you are adding, different options are available.
-To explore all commands, refer to the [cli command reference](../reference.md). You can also use the `--help` option to see available settings for a specific entity. For example: `dlt destination add --help`. Let's individually add a source, destination, and pipeline to a new project, replicating the default project we created in the previous chapter.
+To explore all commands, refer to the cli command reference. You can also use the `--help` option to see available settings for a specific entity. For example: `dlt destination add --help`. Let's individually add a source, destination, and pipeline to a new project, replicating the default project we created in the previous chapter.
 
 ### Create an empty project
 
