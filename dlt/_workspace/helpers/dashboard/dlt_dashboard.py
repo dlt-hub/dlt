@@ -5,7 +5,7 @@ import marimo
 
 __generated_with = "0.13.9"
 app = marimo.App(
-    width="medium", app_title="dlt pipeline dashboard", css_file="dlt_dashboard_styles.css"
+    width="medium", app_title="dlt workspace dashboard", css_file="dlt_dashboard_styles.css"
 )
 
 with app.setup:

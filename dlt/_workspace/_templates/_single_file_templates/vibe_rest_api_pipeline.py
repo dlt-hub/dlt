@@ -1,46 +1,40 @@
-"""A template that is a good start for vibe coding REST API Source. Works best with `dlt ai` command cursor rules"""
+"""Template for building a `dlt` pipeline to ingest data from a REST API."""
 
 import dlt
-from dlt.sources.rest_api import (
-    RESTAPIConfig,
-    rest_api_resources,
-)
+from dlt.sources.rest_api import rest_api_resources
+from dlt.sources.rest_api.typing import RESTAPIConfig
 
 
+# if no argument is provided, `access_token` is read from `.dlt/secrets.toml`
 @dlt.source
-def source(access_token=dlt.secrets.value):
+def rest_api_source(access_token: str = dlt.secrets.value):
+    """Define dlt resources from REST API endpoints."""
     config: RESTAPIConfig = {
         "client": {
-            # TODO: place valid base url here
+            # TODO set base URL for the REST API
             "base_url": "https://example.com/v1/",
-            # TODO: configure the right auth or remove if api does not need authentication
-            # NOTE: pass secrets and other configuration in source function signature
-            "auth": {
-                "type": "bearer",
-                "token": access_token,
-            },
+            # TODO configure the right authentication method or remove
+            "auth": {"type": "bearer", "token": access_token},
         },
         "resources": [
-            # TODO: add resource definitions here
+            # TODO define resources per endpoint
         ],
+        # set `resource_defaults` to apply configuration to all endpoints
     }
 
     yield from rest_api_resources(config)
 
 
-def get_data() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="rest_api_github",
-        destination="duckdb",
-        dataset_name="rest_api_data",
-    )
-
-    # TODO: during debugging feel free to pass access token explicitly
-    # NOTE: use `secrets.toml` or env variables to pass configuration in production
-    access_token = "my_access_token"
-    load_info = pipeline.run(source(access_token))
-    print(load_info)  # noqa
+pipeline = dlt.pipeline(
+    pipeline_name="rest_api_ingest",
+    destination="duckdb",
+    # `refresh="drop_sources"` ensures the data and the state is cleaned
+    # on each `pipeline.run()`; remove the argument once you have a
+    # working pipeline.
+    refresh="drop_sources",
+)
 
 
 if __name__ == "__main__":
-    get_data()
+    load_info = pipeline.run(rest_api_source())
+    print(load_info)  # noqa: T201

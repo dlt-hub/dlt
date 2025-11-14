@@ -5,6 +5,10 @@ description: How to setup sources in YAML file
 
 # Source configuration
 
+import { DltHubFeatureAdmonition } from '@theme/DltHubFeatureAdmonition';
+
+<DltHubFeatureAdmonition />
+
 
 The `dlt.yml` file enables a fully declarative setup of your data source and its parameters. It supports built-in sources such as REST APIs, SQL databases, and cloud storage, as well as any custom source you define.
 

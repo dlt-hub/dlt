@@ -14,7 +14,9 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 
 def find_call_arguments_to_replace(
-    visitor: PipelineScriptVisitor, replace_nodes: List[Tuple[str, str]], init_script_name: str
+    visitor: PipelineScriptVisitor,
+    replace_nodes: List[Tuple[str, str, bool]],
+    init_script_name: str,
 ) -> List[Tuple[ast.AST, ast.AST]]:
     # the input tuple (call argument name, replacement value)
     # the returned tuple (node, replacement value, node type)
@@ -23,7 +25,7 @@ def find_call_arguments_to_replace(
     known_calls: Dict[str, List[inspect.BoundArguments]] = visitor.known_calls
     for arg_name, calls in known_calls.items():
         for args in calls:
-            for t_arg_name, t_value in replace_nodes:
+            for t_arg_name, t_value, _ in replace_nodes:
                 dn_node: ast.AST = args.arguments.get(t_arg_name)
                 if dn_node is not None:
                     if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
@@ -36,8 +38,8 @@ def find_call_arguments_to_replace(
                         replaced_args.add(t_arg_name)
 
     # there was at least one replacement
-    for t_arg_name, _ in replace_nodes:
-        if t_arg_name not in replaced_args:
+    for t_arg_name, _, required in replace_nodes:
+        if t_arg_name not in replaced_args and required:
             raise CliCommandInnerException(
                 "init",
                 f"The pipeline script {init_script_name} is not explicitly passing the"
