@@ -25,7 +25,7 @@ test-examples: ## Tests the examples in the examples folder
 	cd examples && uv run pytest
 
 test-snippets: ## Tests the snippets in the snippets folder
-	cd website/docs && uv run pytest --ignore=node_modules --ignore hub/features/transformations/transformation-snippets.py
+	cd website/docs && uv run pytest --ignore=node_modules
 
 format: ## Formats the docs tooling, notebooks, and examples
 	uv run black docs_tools website examples
