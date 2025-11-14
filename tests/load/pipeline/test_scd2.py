@@ -1,5 +1,6 @@
 # timezone is removed from all datetime objects in these tests to simplify comparison
 
+from unittest import mock
 import pytest
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timezone  # noqa: I251
@@ -645,6 +646,7 @@ def test_boundary_timestamp(
     ts2 = "2024-08-22"
     ts3 = date(2024, 8, 20)  # earlier than ts1 and ts2
     ts4 = "i_am_not_a_timestamp"
+    ts5 = pendulum.datetime(2025, 8, 21, 12, 15, tz="UTC").timestamp()
 
     @dlt.resource(
         table_name="dim_test",
@@ -726,6 +728,37 @@ def test_boundary_timestamp(
                 "boundary_timestamp": ts4,
             }
         )
+    with mock.patch(
+        "dlt.common.storages.load_package.precise_time",
+        return_value=pendulum.datetime(2025, 8, 21, 12, 15, tz="UTC").timestamp(),
+    ):
+        # run the resource without setting boundary timestamp
+        dim_snap = [
+            l3_1 := {"nk": 1, "foo": "foobar"},  # updated
+        ]
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+            }
+        )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 5
+        expected = [
+            {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # unchanged
+            {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # unchanged
+            {
+                **{FROM: strip_timezone(ts2), TO: strip_timezone(ts5)},
+                **l2_1,
+            },  # retired in this run
+            {
+                **{FROM: strip_timezone(ts2), TO: strip_timezone(ts3)},
+                **l2_3,
+            },  # unchanged (already retired in load 3)
+            {**{FROM: strip_timezone(ts5), TO: None}, **l3_1},  # new current version
+        ]
+        assert_records_as_set(get_table(p, "dim_test"), expected)
 
 
 @pytest.mark.essential
