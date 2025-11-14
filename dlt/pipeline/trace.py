@@ -257,7 +257,6 @@ def end_trace_step(
             step_exception += "caused by: " + str(step_info.__context__)
         step_info = None
     else:
-        step_info = step_info
         exception_traces = None
         step_exception = None
 

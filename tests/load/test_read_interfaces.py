@@ -1128,7 +1128,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     )
 
     # selecting all columns (star schema expanded, columns aliased)
-    # TODO: fixe tests
+    # TODO: fix tests
     assert sql_from_expr(items_table) == (
         (
             'SELECT "items"."id" AS "id", "items"."decimal" AS "decimal", "items"."other_decimal"'
