@@ -376,6 +376,7 @@ class TPartialTableSchema(TTableSchema):
 
 TSchemaTables = Dict[str, TTableSchema]
 TSchemaUpdate = Dict[str, List[TPartialTableSchema]]
+TSchemaDrop = Dict[str, TPartialTableSchema]
 TColumnDefaultHint = Literal["not_null", TColumnHint]
 """Allows using not_null in default hints setting section"""
 

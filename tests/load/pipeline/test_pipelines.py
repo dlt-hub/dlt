@@ -348,7 +348,7 @@ def test_skip_sync_schema_for_tables_without_columns(
     assert "data_table" in schema.tables
     assert schema.tables["data_table"]["columns"] == {}
 
-    p.sync_schema()
+    p.sync_schema_to_destination()
 
     with p._get_destination_clients(schema)[0] as job_client:
         # there's some data at all
