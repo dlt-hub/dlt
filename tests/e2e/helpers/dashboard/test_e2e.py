@@ -166,9 +166,6 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     # check first table
     page.get_by_role("checkbox").nth(0).check()
 
-    # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
-    time.sleep(2.0)
-
     # check state (we check some info from the incremental state here)
     page.get_by_text("Show source and resource state").click()
     expect(
@@ -199,6 +196,9 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     expect(
         page.get_by_role("row", name="one_two_three").nth(0)
     ).to_be_visible()  #  this is in the loads table
+
+    # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
+    time.sleep(2.0)
 
     # ibis page
     # _open_section(page, "ibis")
