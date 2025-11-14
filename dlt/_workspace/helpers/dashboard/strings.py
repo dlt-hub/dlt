@@ -90,6 +90,9 @@ app_title_pipeline = """
 ## Pipeline `{}`
 """
 
+view_load_packages_text = "Status of load packages from last execution"
+
+
 #
 # Overview section
 #

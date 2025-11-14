@@ -1,11 +1,16 @@
+import re
+import time
 from typing import Any, Literal
 import asyncio
 import sys
 import pathlib
 
 import dlt
-import pytest
 
+from dlt._workspace.helpers.dashboard.runner import start_dashboard
+from dlt._workspace.run_context import switch_profile
+from tests.e2e.helpers.dashboard.conftest import fruitshop_source, _normpath
+from tests.workspace.utils import isolated_workspace
 from playwright.sync_api import Page, expect
 
 from tests.utils import (
@@ -14,90 +19,15 @@ from tests.utils import (
     preserve_environ,
     deactivate_pipeline,
 )
-
-from dlt import Schema
-from dlt._workspace.helpers.dashboard import strings as app_strings
-from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
-    fruitshop as fruitshop_source,
-)
+from dlt._workspace.helpers.dashboard import strings as app_strings, utils
 
 # NOTE: The line below is needed for playwright to work on windows
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-
-@pytest.fixture()
-def simple_incremental_pipeline() -> Any:
-    po = dlt.pipeline(pipeline_name="one_two_three", destination="duckdb")
-
-    @dlt.resource(table_name="one_two_three")
-    def resource(inc_id=dlt.sources.incremental("id")):
-        yield [{"id": 1, "name": "one"}, {"id": 2, "name": "two"}, {"id": 3, "name": "three"}]
-        yield [{"id": 4, "name": "four"}, {"id": 5, "name": "five"}, {"id": 6, "name": "six"}]
-        yield [{"id": 7, "name": "seven"}, {"id": 8, "name": "eight"}, {"id": 9, "name": "nine"}]
-
-    po.run(resource())
-    return po
-
-
-@pytest.fixture()
-def fruit_pipeline() -> Any:
-    pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
-    pf.run(fruitshop_source())
-    return pf
-
-
-@pytest.fixture()
-def never_run_pipeline() -> Any:
-    return dlt.pipeline(pipeline_name="never_run_pipeline", destination="duckdb")
-
-
-@pytest.fixture()
-def no_destination_pipeline() -> Any:
-    pnd = dlt.pipeline(pipeline_name="no_destination_pipeline")
-    pnd.extract(fruitshop_source())
-    return pnd
-
-
-@pytest.fixture()
-def multi_schema_pipeline() -> Any:
-    pms = dlt.pipeline(pipeline_name="multi_schema_pipeline", destination="duckdb")
-    pms.run(
-        fruitshop_source().with_resources("customers"), schema=Schema(name="fruitshop_customers")
-    )
-    pms.run(
-        fruitshop_source().with_resources("inventory"), schema=Schema(name="fruitshop_inventory")
-    )
-    pms.run(
-        fruitshop_source().with_resources("purchases"), schema=Schema(name="fruitshop_purchases")
-    )
-    return pms
-
-
-@pytest.fixture()
-def failed_pipeline() -> Any:
-    fp = dlt.pipeline(
-        pipeline_name="failed_pipeline",
-        destination="duckdb",
-    )
-
-    @dlt.resource
-    def broken_resource():
-        raise AssertionError("I am broken")
-
-    with pytest.raises(Exception):
-        fp.run(broken_resource())
-    return fp
-
-
 #
 # helpers
 #
-
-
-def _normpath(path: str) -> str:
-    """normalize path to unix style and lowercase for windows tests"""
-    return str(pathlib.Path(path)) if sys.platform.startswith("win") else path
 
 
 def _go_home(page: Page) -> None:
@@ -148,13 +78,11 @@ def test_page_overview(page: Page):
 def test_exception_pipeline(page: Page, failed_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="failed_pipeline").click()
+    expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # overview page
     _open_section(page, "overview")
     expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/failed_pipeline"))).to_be_visible()
-    expect(
-        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
-    ).to_be_visible()
 
     _open_section(page, "schema")
     expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
@@ -168,9 +96,7 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
-    expect(
-        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
-    ).to_be_visible()
+    expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
@@ -186,6 +112,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
+
     expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
 
     # select each schema and see if the right tables are shown
@@ -193,7 +120,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     for section in ["schema", "data"]:
         _open_section(page, section)  # type: ignore[arg-type]
 
-        schema_selector = page.get_by_role("combobox")
+        schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
         schema_selector.select_option("fruitshop_customers")
         expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
@@ -238,6 +165,9 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
 
     # check first table
     page.get_by_role("checkbox").nth(0).check()
+
+    # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
+    time.sleep(2.0)
 
     # check state (we check some info from the incremental state here)
     page.get_by_text("Show source and resource state").click()
@@ -381,3 +311,42 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
 
     # _open_section(page, "ibis")
     # expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
+
+
+def test_workspace_profile_prod(page: Page):
+    test_port = 2719
+    with isolated_workspace("pipelines"):
+        switch_profile("prod")
+        pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
+        pf.run(fruitshop_source())
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?profile=tests")
+            expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=tests$"))
+            expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
+
+            page.goto(f"http://localhost:{test_port}/?profile=prod&pipeline=fruit_pipeline")
+            expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
+            page.get_by_role("switch", name="loads").check()
+            expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
+
+
+def test_workspace_profile_dev(page: Page):
+    # NOTE: we must use different port otherwise some leftovers from previous session (cookies?)
+    # persist in chromium which fails.
+    test_port = 2720
+    with isolated_workspace("default"):
+        switch_profile("dev")
+        pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
+        pf.run(fruitshop_source())
+
+        with start_dashboard(port=test_port):
+            page.goto(f"http://localhost:{test_port}/?profile=prod")
+            expect(page).to_have_url(re.compile(rf":{test_port}/\?profile=prod$"))
+            expect(page.get_by_role("row", name="fruitshop").first).not_to_be_visible()
+
+            page.goto(f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline")
+
+            expect(page.get_by_role("switch", name="overview")).to_be_visible()
+            page.get_by_role("switch", name="loads").check()
+            expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
