@@ -173,6 +173,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if inject_config:
                 r_._inject_config()
         else:
+            # wrap additional types
+            data = wrap_additional_type(data)
+
             if callable(data):
                 name = name or get_callable_name(data)
 
@@ -183,9 +186,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             # name is mandatory
             if not name:
                 raise ResourceNameMissing()
-
-            # wrap additional types
-            data = wrap_additional_type(data)
 
             # several iterable types are not allowed and must be excluded right away
             if isinstance(data, (str, dict)):

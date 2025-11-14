@@ -2601,9 +2601,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    r = test_type_3(
-        dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True)  # type: ignore[arg-type]
-    )
+    r = test_type_3(dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True))
     list(r)
     assert r.incremental.incremental.get_incremental_value_type() is float
 

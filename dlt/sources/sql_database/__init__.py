@@ -25,6 +25,7 @@ from .schema_types import (
     table_to_resource_hints,
     ReflectionLevel,
     TTypeAdapter,
+    TReflectedHints,
 )
 
 
@@ -262,6 +263,7 @@ def sql_table(
     if table_obj is None and not defer_table_reflect:
         table_obj = Table(table, metadata, autoload_with=engine, resolve_fks=resolve_foreign_keys)
 
+    hints: TReflectedHints
     if table_obj is not None:
         if not defer_table_reflect:
             table_obj = _execute_table_adapter(
@@ -282,7 +284,7 @@ def sql_table(
         # may be from what is found in the reflection, so it is set explicitly
         hints["primary_key"] = [primary_key] if isinstance(primary_key, str) else list(primary_key)
 
-    return decorators.resource(
+    return decorators.resource(  # type: ignore[no-any-return]
         table_rows,
         name=str(table),
         write_disposition=write_disposition,

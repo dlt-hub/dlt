@@ -7,9 +7,9 @@ from typing import (
     Sequence,
     Mapping,
     List,
-    NamedTuple,
 )
 from typing_extensions import Self
+import sqlglot
 
 from dlt.common import logger
 from dlt.common.schema.typing import (
@@ -40,7 +40,6 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
-    merge_table,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -56,8 +55,6 @@ from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMet
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
-
-import sqlglot
 
 
 DLT_HINTS_METADATA_KEY = "dlt_resource_hints"
