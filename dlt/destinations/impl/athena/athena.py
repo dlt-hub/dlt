@@ -348,6 +348,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         if (
             self.config.lakeformation_config is not None
             and self.config.lakeformation_config.enabled
+            is not None  # both True and False are actionable
         ):
             self.manage_lf_tags()
         return applied_update
