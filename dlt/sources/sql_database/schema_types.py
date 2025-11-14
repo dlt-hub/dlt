@@ -12,6 +12,7 @@ from typing import (
 from typing_extensions import TypeAlias
 
 from sqlalchemy.exc import NoReferencedTableError
+from sqlalchemy.dialects.oracle import NUMBER
 
 from dlt.common.typing import TypedDict
 from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
@@ -112,21 +113,23 @@ def sqla_col_to_column_schema(
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
     elif isinstance(sql_t, sqltypes.Numeric):
-        # check for Numeric type first and integer later, some numeric types (ie. Oracle)
-        # derive from both
-        # all Numeric types that are returned as floats will assume "double" type
-        # and returned as decimals will assume "decimal" type
-        if sql_t.asdecimal is False:
+        # Oracle NUMBER(p, 0) or NUMBER(p) represents integers but uses decimal arithmetic
+        is_oracle_integer = isinstance(sql_t, NUMBER) and (sql_t.scale is None or sql_t.scale == 0)
+        # "double" for float-returning types, except Oracle integers
+        # "decimal" for all decimal-returning types and Oracle integers
+        if sql_t.asdecimal is False and not is_oracle_integer:
             col["data_type"] = "double"
         else:
             col["data_type"] = "decimal"
             if sql_t.precision is not None:
                 col["precision"] = sql_t.precision
-                # must have a precision for any meaningful scale
-                if sql_t.scale is not None:
-                    col["scale"] = sql_t.scale
-                elif sql_t.decimal_return_scale is not None:
-                    col["scale"] = sql_t.decimal_return_scale
+            # Scale is explicitly 0 for Oracle integers, otherwise from database type
+            if is_oracle_integer:
+                col["scale"] = 0
+            elif sql_t.scale is not None:
+                col["scale"] = sql_t.scale
+            elif sql_t.decimal_return_scale is not None:
+                col["scale"] = sql_t.decimal_return_scale
     elif isinstance(sql_t, sqltypes.SmallInteger):
         col["data_type"] = "bigint"
         if add_precision:
