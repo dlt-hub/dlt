@@ -103,6 +103,9 @@ def home(
     else:
         _buttons: List[Any] = []
         _buttons.append(dlt_refresh_button)
+        _pipeline_execution_exception: List[Any] = []
+        _pipeline_execution_summary: mo.Html = None
+        _last_load_packages_info: mo.Html = None
         if dlt_pipeline:
             _buttons.append(
                 mo.ui.button(
@@ -110,13 +113,22 @@ def home(
                     on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
                 )
             )
-        if dlt_pipeline and (local_dir := utils.get_local_data_path(dlt_pipeline)):
-            _buttons.append(
-                mo.ui.button(
-                    label="<small>Open local data location</small>",
-                    on_click=lambda _: utils.open_local_folder(local_dir),
+            if local_dir := utils.get_local_data_path(dlt_pipeline):
+                _buttons.append(
+                    mo.ui.button(
+                        label="<small>Open local data location</small>",
+                        on_click=lambda _: utils.open_local_folder(local_dir),
+                    )
                 )
-            )
+            if trace := dlt_pipeline.last_trace:
+                _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
+                _last_load_packages_info = mo.vstack(
+                    [
+                        mo.md(f"<small>{strings.view_load_packages_text}</small>"),
+                        utils.load_package_status_labels(trace),
+                    ]
+                )
+            _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
         _stack = [
             mo.vstack(
                 [
@@ -182,10 +194,16 @@ def home(
                         ],
                         justify="space-between",
                     ),
-                    mo.hstack(_buttons, justify="start"),
                 ]
-            )
+            ),
+            mo.hstack(_buttons, justify="start"),
         ]
+        if _pipeline_execution_summary:
+            _stack.append(_pipeline_execution_summary)
+        if _last_load_packages_info:
+            _stack.append(_last_load_packages_info)
+        if _pipeline_execution_exception:
+            _stack.extend(_pipeline_execution_exception)
         if not dlt_pipeline and dlt_pipeline_name:
             _stack.append(
                 mo.callout(
@@ -195,7 +213,6 @@ def home(
                     kind="warn",
                 )
             )
-
     mo.vstack(_stack)
     return (dlt_pipeline,)
 
@@ -221,8 +238,6 @@ def section_overview(
     )
 
     if dlt_pipeline and dlt_section_overview_switch.value:
-        if _exception_section := utils.build_exception_section(dlt_pipeline):
-            _result.extend(_exception_section)
         _result += [
             mo.ui.table(
                 utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
