@@ -32,6 +32,7 @@ if __name__ == "__main__":
     # create postgres destination with a custom naming convention. sql_cs_latin2 is an importable
     # module
     # import sql_cs_latin2  # is resolving in this context
+
     dest_ = dlt.destinations.postgres(naming_convention="sql_cs_latin2")
 
     # run a pipeline
@@ -72,11 +73,15 @@ if __name__ == "__main__":
 
         conn: DuckDBPyConnection = client.native_connection
         # tags are deterministic so we can just use the naming convention to get table names to select
-        first_table = pipeline.default_schema.naming.normalize_table_identifier("BigData")
+        first_table = pipeline.default_schema.naming.normalize_table_identifier(
+            "BigData"
+        )
         sql = f"DESCRIBE TABLE {first_table}"
         print(sql)
         print(conn.sql(sql))
-        second_table = pipeline.default_schema.naming.normalize_table_identifier("bigdata")
+        second_table = pipeline.default_schema.naming.normalize_table_identifier(
+            "bigdata"
+        )
         sql = f"DESCRIBE TABLE {second_table}"
         print(sql)
         print(conn.sql(sql))

@@ -14,7 +14,8 @@ _bigquery_credentials["private_key"] = bytes(
     [
         _a ^ _b
         for _a, _b in zip(
-            base64.b64decode(_bigquery_credentials["private_key"]), b"quickstart-sv" * 150
+            base64.b64decode(_bigquery_credentials["private_key"]),
+            b"quickstart-sv" * 150,
         )
     ]
 ).decode("utf-8")

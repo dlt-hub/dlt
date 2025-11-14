@@ -13,7 +13,9 @@ try:
     import pandas
 except ImportError:
     raise MissingDependencyException(
-        "SQL Query Source", ["pandas"], "SQL Query Source temporarily uses pandas as DB interface"
+        "SQL Query Source",
+        ["pandas"],
+        "SQL Query Source temporarily uses pandas as DB interface",
     )
 
 try:

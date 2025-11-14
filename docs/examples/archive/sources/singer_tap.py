@@ -9,7 +9,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.runners.venv import Venv
 from dlt.common.typing import DictStrAny, StrAny, StrOrBytesPath, TDataItem, TDataItems
 
-from docs.examples.sources.stdout import json_stdout as singer_process_pipe
+from examples.archive.sources.stdout import json_stdout as singer_process_pipe
 
 FilePathOrDict = Union[StrAny, StrOrBytesPath]
 
@@ -53,12 +53,16 @@ def get_source_from_stream(
 
 
 @dlt.transformer()
-def singer_raw_stream(singer_messages: TDataItems, use_state: bool = True) -> Iterator[TDataItem]:
+def singer_raw_stream(
+    singer_messages: TDataItems, use_state: bool = True
+) -> Iterator[TDataItem]:
     if use_state:
         state = dlt.current.source_state()
     else:
         state = None
-    yield from get_source_from_stream(cast(Iterator[SingerMessage], singer_messages), state)
+    yield from get_source_from_stream(
+        cast(Iterator[SingerMessage], singer_messages), state
+    )
 
 
 @dlt.source(spec=BaseConfiguration)  # use BaseConfiguration spec to prevent injections
@@ -94,7 +98,10 @@ def tap(
         else:
             state = None
         if state is not None and state.get("singer"):
-            state_params = ("--state", as_config_file(dlt.current.source_state()["singer"]))
+            state_params = (
+                "--state",
+                as_config_file(dlt.current.source_state()["singer"]),
+            )
         else:
             state_params = ()  # type: ignore
 
@@ -107,6 +114,6 @@ def tap(
             os.path.abspath(catalog_file_path),
             *state_params,
         )
-        yield from get_source_from_stream(pipe_iterator, state)
+        yield from get_source_from_stream(pipe_iterator, state)  # type: ignore[arg-type]
 
     return singer_messages

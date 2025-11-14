@@ -1,7 +1,10 @@
 from typing import Any, Iterator, Sequence, Union, cast
 
 import dlt
-from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpOAuthCredentials
+from dlt.common.configuration.specs import (
+    GcpServiceAccountCredentials,
+    GcpOAuthCredentials,
+)
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.exceptions import MissingDependencyException
 
@@ -17,7 +20,7 @@ except ModuleNotFoundError:
 
 
 def _initialize_sheets(
-    credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials]
+    credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials],
 ) -> Any:
     # Build the service object.
     service = build("sheets", "v4", credentials=credentials.to_native_credentials())

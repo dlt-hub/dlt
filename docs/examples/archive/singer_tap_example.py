@@ -4,7 +4,7 @@ from tempfile import mkdtemp
 import dlt
 from dlt.common.runners import Venv
 
-from docs.examples.sources.singer_tap import tap
+from examples.archive.sources.singer_tap import tap
 
 # create Venv with desired dependencies, in this case csv tap
 # venv creation costs time so it should be created only once and reused
@@ -22,13 +22,17 @@ with Venv.create(mkdtemp(), ["git+https://github.com/MeltanoLabs/tap-csv.git"]) 
         "files": [
             {
                 "entity": "annotations_202205",
-                "path": os.path.abspath("examples/data/singer_taps/model_annotations.csv"),
+                "path": os.path.abspath(
+                    "examples/data/singer_taps/model_annotations.csv"
+                ),
                 "keys": ["message id"],
             }
         ]
     }
     print("running tap-csv")
-    tap_source = tap(venv, "tap-csv", csv_tap_config, "examples/data/singer_taps/csv_catalog.json")
+    tap_source = tap(
+        venv, "tap-csv", csv_tap_config, "examples/data/singer_taps/csv_catalog.json"
+    )
     info = dlt.pipeline("meltano_csv", destination="postgres").run(
         tap_source, credentials="postgres://loader@localhost:5432/dlt_data"
     )

@@ -28,7 +28,8 @@ if destination_name == "bigquery":
         [
             _a ^ _b
             for _a, _b in zip(
-                base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv" * 150
+                base64.b64decode(gcp_credentials_json["private_key"]),
+                b"quickstart-sv" * 150,
             )
         ]
     ).decode("utf-8")

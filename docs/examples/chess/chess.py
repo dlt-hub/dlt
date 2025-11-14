@@ -33,7 +33,9 @@ def chess(
     @dlt.transformer(data_from=players, write_disposition="replace")
     @dlt.defer
     def players_profiles(username: Any) -> TDataItems:
-        print(f"getting {username} profile via thread {threading.current_thread().name}")
+        print(
+            f"getting {username} profile via thread {threading.current_thread().name}"
+        )
         sleep(1)  # add some latency to show parallel runs
         return _get_data_with_retry(f"player/{username}")
 
@@ -58,7 +60,10 @@ if __name__ == "__main__":
     # look for parallel run configuration in `config.toml`!
     # mind the dev_mode: it makes the pipeline to load to a distinct dataset each time it is run and always is resetting the schema and state
     load_info = dlt.pipeline(
-        pipeline_name="chess_games", destination="postgres", dataset_name="chess", dev_mode=True
+        pipeline_name="chess_games",
+        destination="postgres",
+        dataset_name="chess",
+        dev_mode=True,
     ).run(chess(max_players=5, month=9))
     # display where the data went
     print(load_info)

@@ -9,6 +9,7 @@ from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
 import dlt
+from dlt.common import logger
 from dlt.common.libs.sqlglot import (
     to_sqlglot_type,
     from_sqlglot_type,
@@ -20,10 +21,8 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TColumnSchema,
 )
+
 from dlt.dataset.exceptions import LineageFailedException
-
-
-logger = logging.getLogger(__file__)
 
 
 def create_sqlglot_schema(

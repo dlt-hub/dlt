@@ -26,7 +26,7 @@ Look how we pipe data from `list_files` resource (note that resource is deselect
 import os
 import dlt
 from dlt.destinations.adapters import weaviate_adapter
-from PyPDF2 import PdfReader
+from PyPDF2 import PdfReader  # ]
 
 
 @dlt.resource(selected=False)
@@ -79,4 +79,6 @@ if __name__ == "__main__":
 
     client = weaviate.Client("http://localhost:8080")
     # get text of all the invoices in InvoiceText class we just created above
-    print(client.query.get("InvoiceText", ["text", "file_name", "mtime", "page_id"]).do())
+    print(
+        client.query.get("InvoiceText", ["text", "file_name", "mtime", "page_id"]).do()
+    )

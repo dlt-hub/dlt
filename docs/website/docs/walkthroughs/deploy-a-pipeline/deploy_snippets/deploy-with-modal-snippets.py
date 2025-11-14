@@ -21,18 +21,22 @@ def test_modal_snippet() -> None:
     # @@@DLT_SNIPPET_END modal_image
 
     # @@@DLT_SNIPPET_START modal_function
-    @app.function(volumes={"/data/": vol}, schedule=modal.Period(days=1), serialized=True)
+    @app.function(
+        volumes={"/data/": vol}, schedule=modal.Period(days=1), serialized=True
+    )
     def load_tables() -> None:
         import dlt
         import os
         from dlt.sources.sql_database import sql_database
 
         # Define the source database credentials; in production, you would save this as a Modal Secret which can be referenced here as an environment variable
-        os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = (
-            "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
-        )
+        os.environ[
+            "SOURCES__SQL_DATABASE__CREDENTIALS"
+        ] = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
         # Load tables "family" and "genome" with minimal reflection to avoid column constraint error
-        source = sql_database(reflection_level="minimal").with_resources("family", "genome")
+        source = sql_database(reflection_level="minimal").with_resources(
+            "family", "genome"
+        )
 
         # Create dlt pipeline object
         pipeline = dlt.pipeline(
