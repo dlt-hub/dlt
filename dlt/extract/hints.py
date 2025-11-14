@@ -58,6 +58,7 @@ from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_c
 from dlt.extract.validation import create_item_validator
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.storages.load_package import load_package_state as current_load_package
+from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
 
 import sqlglot
 
@@ -732,7 +733,7 @@ class DltResourceHints:
                     dict_["x-boundary-timestamp"] = ensure_pendulum_datetime_utc(
                         current_load_package()["state"]["created_at"]
                     )
-                except:
+                except CurrentLoadPackageStateNotAvailable:
                     dict_.pop("x-boundary-timestamp", None)
 
             if md_dict.get("validity_column_names") is None:
