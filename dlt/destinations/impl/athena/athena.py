@@ -342,7 +342,10 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         applied_update = super().update_stored_schema(only_tables, expected_update=expected_update)
         # here we could apply tags only if any migration happened, right now we do it on each run
         # NOTE: tags are applied before any data is loaded
-        if self.config.lakeformation_config is not None:
+        if (
+            self.config.lakeformation_config is not None
+            and self.config.lakeformation_config.enabled
+        ):
             self.manage_lf_tags()
         return applied_update
 

@@ -112,7 +112,21 @@ html[data-theme='dark'] .markdown a.card {
 }
 
 .footer__copyright {
-  color: #191937;
+  color: #6b7280;
+  text-align: left !important;
+}
+
+.footer__bottom {
+  text-align: left !important;
+}
+
+.footer .container .row:last-child {
+  justify-content: flex-start !important;
+}
+
+.footer .container .row:last-child .col {
+  text-align: left !important;
+  padding-left: 0;
 }
 
 .details_node_modules-\@docusaurus-theme-classic-lib-theme-Details-styles-module {
@@ -144,7 +158,7 @@ html[data-theme='dark'] .navbar__items.navbar__items--right  .clean-btn svg > pa
 
 }
 html[data-theme='dark'] .footer__copyright {
-  color: #fff
+  color: #9ca3af;
 }
 
 html[data-theme='dark'] .footer__title {
@@ -161,6 +175,10 @@ html[data-theme='dark'] .footer--dark {
 
 .footer__link-item {
   color: #191937 !important;
+}
+
+html[data-theme='dark'] .footer__link-item {
+  color: #ffffff !important;
 }
 
 .footer__link-item:hover {
@@ -196,6 +214,14 @@ html[data-theme='dark'] .DocSearch-Reset svg > path {
 html[data-theme='dark'] .DocSearch-MagnifierLabel>svg {
   color: #191937 !important;
 }
+.footer__item a {
+  color: #191937 !important;
+}
+
+html[data-theme='dark'] .footer__item a {
+  color: #ffffff !important;
+}
+
 .footer__item a:hover{
   color:#4C4898;
   text-decoration: none;

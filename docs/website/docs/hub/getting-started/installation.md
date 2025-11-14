@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Installation information of dlthub package
+description: Installation information for the dlthub package
 ---
 
 :::info Supported Python versions
@@ -11,165 +11,126 @@ dltHub currently supports Python versions 3.9-3.13.
 
 ## Quickstart
 
-To install the `dlt[workspace]` package, run:
+To install the `dlt[workspace]` package, create a new [Python virtual environment](#setting-up-your-environment) and run:
+```sh
+uv pip install "dlt[workspace]"
+```
+This will install `dlt` with several additional dependencies you'll need for local development: `arrow`, `marimo`, `mcp`, and a few others.
+If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment).
+
+### Enable dltHub Free tier features
+
+:::info
+The most recent [dltHub Free tier features](../intro.md#tiers--licensing) like profiles are hidden behind a feature flag,
+which means you need to manually enable them before use.
+
+To activate these features, create an empty `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the Workspace mode.
+
+<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
+<TabItem value="ubuntu">
 
 ```sh
-pip install "dlt[workspace]"
+mkdir -p .dlt && touch .dlt/.workspace
 ```
 
+  </TabItem>
+  <TabItem value="macos">
 
-This comes with the dlthub package. To use the features of dlthub, please get a valid license key before proceeding, as described under [licensing](#self-licensing).
+```sh
+mkdir -p .dlt && touch .dlt/.workspace
+```
 
+  </TabItem>
+  <TabItem value="windows">
+
+```sh
+mkdir .dlt
+type nul > .dlt\.workspace
+```
+
+  </TabItem>
+</Tabs>
+
+:::
+
+### Enable features that require a license
+
+Licensed features come with a commercial Python `dlthub` package:
+
+```sh
+uv pip install -U dlthub
+```
+
+Please install a valid license before proceeding, as described under [licensing](#self-licensing).
 
 ## Setting up your environment
 
 ### Configuration of the Python environment
 
-Check if your Python environment is configured:
+In this documentation, we use `uv` (a modern package manager) to install Python versions, manage virtual environments, and manage project dependencies.
+To install `uv`, you can use `pip` or follow [the OS-specific installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
+
+Once you have `uv` installed you can pick any Python version supported by it:
 
 ```sh
-python --version
-pip --version
+uv python install 3.13
 ```
 
-If you have a different Python version installed or are missing pip, follow the instructions below to update your Python version and/or install `pip`.
-
-<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
-<TabItem value="ubuntu">
-
-You can install Python 3.10 with `apt`.
-
-```sh
-sudo apt update
-sudo apt install python3.10
-pip install uv
-```
-
-  </TabItem>
-  <TabItem value="macos">
-
-On macOS, you can use [Homebrew](https://brew.sh) to install Python 3.10.
-
-```sh
-brew update
-brew install python@3.10
-pip install uv
-```
-
-  </TabItem>
-  <TabItem value="windows">
-
-After installing [Python 3.10 (64-bit version) for Windows](https://www.python.org/downloads/windows/), you can install `pip`.
-
-```sh
-C:\> pip3 install -U pip
-C:\> pip3 install uv
-```
-
-  </TabItem>
-</Tabs>
+or use any Python version you have installed on your system.
 
 ### Virtual environment
 
 We recommend working within a [virtual environment](https://docs.python.org/3/library/venv.html) when creating Python projects.
-This way, all the dependencies for your current project will be isolated from packages in other projects.
-
-<Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]} groupId="operating-systems" defaultValue="ubuntu">
-
-  <TabItem value="ubuntu">
-
-Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
+This way, all the dependencies for your current project will be isolated from packages in other projects. With `uv`, run:
+```sh
+uv venv
+```
+This will create a virtual environment in the `.venv` folder using the default system Python version.
 
 ```sh
-uv venv --python 3.10
+uv venv --python 3.13
 ```
+This will use `Python 3.13` for your virtual environment.
 
-Activate the virtual environment:
 
-```sh
-source .venv/bin/activate
-```
-
-  </TabItem>
-  <TabItem value="macos">
-
-Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
-
-```sh
-uv venv --python 3.10
-```
-
-Activate the virtual environment:
+Activate the virtual environment using the instructions displayed by `uv`, i.e.:
 
 ```sh
 source .venv/bin/activate
 ```
-
-  </TabItem>
-  <TabItem value="windows">
-
-Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
-
-```bat
-C:\> uv venv --python 3.10
-```
-
-Activate the virtual environment:
-
-```bat
-C:\> .\venv\Scripts\activate
-```
-
-  </TabItem>
-</Tabs>
-
-### Install dlthub
-
-`dlthub` will be automatically installed with workspace extra:
-
-```sh
-# install the newest dlt[workspace] version or upgrade the existing version to the newest one
-uv pip install -U "dlt[workspace]"
-```
-
-Please install a valid license before proceeding, as described under [licensing](#self-licensing).
-
 
 
 ## Licensing 
 
 To access dltHub’s paid features, such as Iceberg support or Python-based transformations, you need a dltHub Software License.
 
-
-When you purchase a paid dltHub offering, the required license will be issued and managed automatically for your account.
-
-You can also manually configure a license for local development or CI environments as shown below.
+1. [Contact us](https://info.dlthub.com/waiting-list) if you want to purchase a license or get a trial license with unlimited use.
+2. Issue a [limited trial license](#self-licensing) yourself.
 
 
-#### Applying your license
+#### Install your license
 
-You can provide your license key in one of two ways:
+If you've received your license from us, you can install it in one of two ways:
 
 In the `secrets.toml` file:
 ```toml
 license = "your-dlthub-license-key"
 ```
 
-As an environment variable
+As an environment variable:
 ```sh
 export DLT_LICENSE_KEY="your-dlthub-license-key"
 ```
 
 #### Features requiring a license:
 
-- [@dlt.hub.transformation](../features/transformations/index.md) - powerful Python decorator to build transformation pipelines and notebooks
-- [dbt transformations](../features/transformations/dbt-transformations.md): a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
-- [Iceberg support](../ecosystem/iceberg.md)
-- [Secure data access and sharing](../features/data-access.md)
-- [AI workflows](../features/ai.md): agents to augment your data engineering team.
+- [@dlt.hub.transformation](../features/transformations/index.md) - a powerful Python decorator to build transformation pipelines and notebooks
+- [dbt transformations](../features/transformations/dbt-transformations.md) - a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
+- [Iceberg support](../ecosystem/iceberg.md).
+- [MSSQL Change Tracking source](../ecosystem/ms-sql.md).
 
 For more information about the feature scopes, see [Scopes](#scopes).
-Please also review our End User License Agreement [(EULA)](../EULA.md)
+Please, also review our [End User License Agreement](../EULA.md)
 
 ### Self-licensing
 
@@ -184,21 +145,23 @@ Choose a scope for the feature you want to test, then issue a license with:
 ```sh
 dlt license issue <scope>
 ```
-This command will:
-* Print your license key in the cli output
-* License key will be put into your toml file
 
-#### Scopes:
+for example:
+```sh
+dlt license issue dlthub.transformation
+```
+This will do the following:
+* Issue a new license (or merge with existing scopes) for the [transformations](../features/transformations/index.md) feature.
+* Print your license key in the CLI output.
+* Put the license key into your `toml` file.
 
-* `*`: All features 
-* `dlthub`: All dltHub features 
-* `dlthub.dbt_generator`: [Generate dbt packages from dlt pipelines](../features/transformations/dbt-transformations)
-* `dlthub.sources.mssql`: [Change tracking for MSSQL](../ecosystem/ms-sql)
-* `dlthub.project`: [Declarative yaml interface for dlt](../features/project/)
-* `dlthub.transformation`: [Python-first query-agnostic data transformations](../features/transformations/)
-* `dlthub.destinations.iceberg`: [Iceberg destination with full catalog support](../ecosystem/iceberg)
-* `dlthub.destinations.snowflake_plus`: [Snowflake iceberg extension with Open Catalog](../ecosystem/snowflake_plus)
-* `dlthub.runner`: Production pipeline runner and orchestrator support
+#### Scopes
+
+Display available scopes by running the following command:
+
+```sh
+dlt license scopes
+```
 
 You can self-issue multiple licenses; newly issued licenses will automatically include previously granted features.
 

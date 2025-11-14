@@ -116,7 +116,7 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/verified-sources/rest_api/basic',
-            'dlt-ecosystem/verified-sources/rest_api/advanced',            
+            'dlt-ecosystem/verified-sources/rest_api/advanced',
             {
               type: 'category',
               label: 'REST API helpers',
@@ -528,7 +528,6 @@ const sidebars = {
           label: 'Deploy workspace',
           items: [
             'hub/core-concepts/profiles-dlthub',
-            'hub/production/pipeline-runner',
           ]
         },
       ]
@@ -537,13 +536,7 @@ const sidebars = {
       type: 'category',
       label: 'Runtime',
       items: [
-        {
-          type: 'category',
-          label: 'Maintain data workflows',
-          items: [
-            'hub/production/observability',
-          ]
-        },
+        'hub/production/observability',
       ]
     },
     {
@@ -555,7 +548,7 @@ const sidebars = {
         'hub/ecosystem/snowflake_plus',
       ]
     },
-    'hub/reference',
+    'hub/command-line-interface',
     'hub/EULA',
     ],
 };

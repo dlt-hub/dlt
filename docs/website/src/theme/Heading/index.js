@@ -5,7 +5,7 @@ import { DltHubFeatureAdmonition } from "../DltHubFeatureAdmonition";
 
 export default function HeadingWrapper(props) {
   const location = useLocation();
-  const showHub = location.pathname.includes("/hub/");
+  const showHub = false; //location.pathname.includes("/hub/");
   const { as } = props;
 
   if (as === "h1" && showHub) {

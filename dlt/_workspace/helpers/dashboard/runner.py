@@ -1,9 +1,13 @@
+import contextlib
 import os
 import sys
 import subprocess
 from importlib.resources import files
-from typing import Any
+import time
+from typing import Any, Iterator, List
 from pathlib import Path
+import urllib
+
 from dlt.common.exceptions import MissingDependencyException
 
 
@@ -39,7 +43,73 @@ def run_dashboard(
     pipelines_dir: str = None,
     port: int = None,
     host: str = None,
+    with_test_identifiers: bool = False,
+    headless: bool = False,
 ) -> None:
+    """Run dashboard blocked"""
+    try:
+        subprocess.run(
+            run_dashboard_command(
+                pipeline_name, edit, pipelines_dir, port, host, with_test_identifiers, headless
+            )
+        )
+    except KeyboardInterrupt:
+        pass
+
+
+def _wait_http_up(url: str, timeout_s: float = 15.0, wait_on_ok: float = 0.1) -> None:
+    start = time.time()
+    while time.time() - start < timeout_s:
+        try:
+            with urllib.request.urlopen(url, timeout=1.0):
+                time.sleep(wait_on_ok)
+                return
+        except Exception:
+            time.sleep(0.1)
+    raise TimeoutError(f"Server did not become ready: {url}")
+
+
+@contextlib.contextmanager
+def start_dashboard(
+    pipelines_dir: str = None,
+    port: int = 2718,
+    test_identifiers: bool = True,
+    headless: bool = True,
+    wait_on_ok: float = 1.0,
+) -> Iterator[subprocess.Popen[bytes]]:
+    """Launches dashboard in context manager that will kill it after use"""
+    command = run_dashboard_command(
+        pipeline_name=None,
+        edit=False,
+        pipelines_dir=pipelines_dir,
+        port=port,
+        with_test_identifiers=test_identifiers,
+        headless=headless,
+    )
+    # start the dashboard process using subprocess.Popen
+    proc = subprocess.Popen(command)
+    try:
+        _wait_http_up(f"http://localhost:{port}", timeout_s=60.0, wait_on_ok=wait_on_ok)
+        yield proc
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+
+
+def run_dashboard_command(
+    pipeline_name: str = None,
+    edit: bool = False,
+    pipelines_dir: str = None,
+    port: int = None,
+    host: str = None,
+    with_test_identifiers: bool = False,
+    headless: bool = False,
+) -> List[str]:
+    """Creates cli command to run workspace dashboard"""
     from dlt._workspace.helpers.dashboard import dlt_dashboard
 
     ejected_app_path = os.path.join(os.getcwd(), EJECTED_APP_FILE_NAME)
@@ -77,6 +147,9 @@ def run_dashboard(
         dashboard_cmd.append("--host")
         dashboard_cmd.append(host)
 
+    if headless:
+        dashboard_cmd.append("--headless")
+
     if pipeline_name:
         dashboard_cmd.append("--")
         dashboard_cmd.append("--pipeline")
@@ -85,8 +158,9 @@ def run_dashboard(
         dashboard_cmd.append("--")
         dashboard_cmd.append("--pipelines-dir")
         dashboard_cmd.append(pipelines_dir)
+    if with_test_identifiers:
+        dashboard_cmd.append("--")
+        dashboard_cmd.append("--with_test_identifiers")
+        dashboard_cmd.append("true")
 
-    try:
-        subprocess.run(dashboard_cmd)
-    except KeyboardInterrupt:
-        pass
+    return dashboard_cmd
