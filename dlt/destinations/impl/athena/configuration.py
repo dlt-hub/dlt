@@ -8,7 +8,7 @@ from dlt.common.configuration.specs import AwsCredentials
 
 @configspec
 class LakeformationConfig:
-    enabled: bool = False
+    enabled: Optional[bool] = None
     tags: Optional[Dict[str, str]] = None
 
 

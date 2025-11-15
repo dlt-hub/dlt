@@ -148,6 +148,9 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
     def drop_storage(self) -> None:
         pass
 
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        pass
+
     def update_stored_schema(
         self,
         only_tables: Iterable[str] = None,

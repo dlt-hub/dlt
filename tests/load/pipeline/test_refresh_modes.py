@@ -99,7 +99,7 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        subset=["duckdb", "filesystem", "iceberg"],
+        subset=["duckdb", "filesystem", "iceberg", "athena"],
         local_filesystem_configs=True,
         table_format_local_configs=True,
     ),
@@ -110,20 +110,23 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
 def test_refresh_drop_sources(
     destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
 ):
-    pipeline = destination_config.setup_pipeline("refresh_source")
+    pipeline_name = "refresh_source"
+    dataset_name = pipeline_name + uniq_id()
+    pipeline = destination_config.setup_pipeline(pipeline_name, dataset_name=dataset_name)
 
     data: Any = refresh_source(first_run=True, drop_sources=True)
     if not in_source:
         data = list(data.selected_resources.values())
 
-    # First run pipeline so destination so tables are created
+    # first run pipeline so destination so tables are created
     info = pipeline.run(data, refresh="drop_sources", **destination_config.run_kwargs)
     assert_load_info(info)
+    assert table_exists(pipeline, "some_data_3")
 
-    # Second run of pipeline with only selected resources
+    # second run of pipeline with only selected resources
     if with_wipe:
         pipeline._wipe_working_folder()
-        pipeline = destination_config.setup_pipeline("refresh_source")
+        pipeline = destination_config.setup_pipeline(pipeline_name, dataset_name=dataset_name)
 
     data = refresh_source(first_run=False, drop_sources=True).with_resources(
         "some_data_1", "some_data_2"
@@ -142,16 +145,16 @@ def test_refresh_drop_sources(
         "some_data_2",
     }
 
-    # No "name" column should exist as table was dropped and re-created without it
+    # no "name" column should exist as table was dropped and re-created without it
     assert_only_table_columns(pipeline, "some_data_1", ["id"])
     data = load_tables_to_dicts(pipeline, "some_data_1")["some_data_1"]
     result = sorted([row["id"] for row in data])
-    # Only rows from second run should exist
+    # only rows from second run should exist
     assert result == [3, 4]
 
-    # Confirm resource tables not selected on second run got dropped
+    # confirm resource tables not selected on second run got dropped
     assert not table_exists(pipeline, "some_data_3")
-    # Loaded state is wiped
+    # loaded state is wiped
     with pipeline.destination_client() as dest_client:
         destination_state = load_pipeline_state_from_destination(
             pipeline.pipeline_name, dest_client  # type: ignore[arg-type]
@@ -173,7 +176,9 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
     """Test when new schema is identical to a previously stored schema after dropping and re-creating tables.
     The change should be detected regardless and tables are created again in destination db
     """
-    pipeline = destination_config.setup_pipeline("refresh_full_test", refresh="drop_sources")
+    pipeline = destination_config.setup_pipeline(
+        "refresh_full_test", refresh="drop_sources", dev_mode=True
+    )
 
     info = pipeline.run(
         refresh_source(first_run=True, drop_sources=True), **destination_config.run_kwargs
@@ -210,15 +215,13 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
     assert new_schema_hash == first_schema_hash
 
 
-pytest.mark.essential
-
-
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        subset=["duckdb", "filesystem", "iceberg"],
+        subset=["duckdb", "filesystem", "iceberg", "athena"],
         table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
@@ -232,19 +235,21 @@ def test_refresh_drop_resources(
         pytest.skip("not needed")
 
     # First run pipeline with load to destination so tables are created
-    pipeline = destination_config.setup_pipeline("refresh_source")
+    pipeline_name = "refresh_source"
+    dataset_name = pipeline_name + uniq_id()
+    pipeline = destination_config.setup_pipeline(pipeline_name, dataset_name=dataset_name)
 
     data: Any = refresh_source(first_run=True)
     if not in_source:
         data = list(data.selected_resources.values())
 
-    info = pipeline.run(data, refresh="drop_resources", **destination_config.run_kwargs)
+    info = pipeline.run(data, **destination_config.run_kwargs)
     assert_load_info(info)
 
     # Second run of pipeline with only selected resources
     if with_wipe:
         pipeline._wipe_working_folder()
-        pipeline = destination_config.setup_pipeline("refresh_source")
+        pipeline = destination_config.setup_pipeline(pipeline_name, dataset_name=dataset_name)
 
     data = refresh_source(first_run=False).with_resources("some_data_1", "some_data_2")
     if not in_source:
@@ -298,7 +303,9 @@ def test_refresh_drop_resources(
 def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration):
     """Refresh drop_data should truncate all selected tables before load"""
     # First run pipeline with load to destination so tables are created
-    pipeline = destination_config.setup_pipeline("refresh_full_test", refresh="drop_data")
+    pipeline = destination_config.setup_pipeline(
+        "refresh_full_test", refresh="drop_data", dev_mode=True
+    )
 
     info = pipeline.run(
         refresh_source(first_run=True), write_disposition="append", **destination_config.run_kwargs
@@ -408,7 +415,9 @@ def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTe
         yield source_2_data_1
         yield source_2_data_2
 
-    pipeline = destination_config.setup_pipeline("refresh_full_test", refresh="drop_sources")
+    pipeline = destination_config.setup_pipeline(
+        "refresh_full_test", refresh="drop_sources", dev_mode=True
+    )
 
     # Run both sources
     info = pipeline.run(
@@ -459,7 +468,7 @@ def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTe
     ids=lambda x: x.name,
 )
 def test_refresh_argument_to_run(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline("refresh_full_test")
+    pipeline = destination_config.setup_pipeline("refresh_full_test", dev_mode=True)
 
     info = pipeline.run(refresh_source(first_run=True), **destination_config.run_kwargs)
     assert_load_info(info)
@@ -495,7 +504,7 @@ def test_refresh_argument_to_run(destination_config: DestinationTestConfiguratio
     ids=lambda x: x.name,
 )
 def test_refresh_argument_to_extract(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline("refresh_full_test")
+    pipeline = destination_config.setup_pipeline("refresh_full_test", dev_mode=True)
 
     info = pipeline.run(refresh_source(first_run=True), **destination_config.run_kwargs)
     assert_load_info(info)
