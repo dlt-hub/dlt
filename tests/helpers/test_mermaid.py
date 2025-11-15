@@ -192,8 +192,13 @@ def example_schema() -> dlt.Schema:
                 "purchases__items": {
                     "name": "purchases__items",
                     "columns": {
-                        "name": {"name": "name", "data_type": "text", "nullable": True},
-                        "price": {"name": "price", "data_type": "bigint", "nullable": True},
+                        "purchase_id": {
+                            "name": "purchase_id",
+                            "data_type": "bigint",
+                            "nullable": False,
+                        },
+                        "name": {"name": "name", "data_type": "text", "nullable": False},
+                        "price": {"name": "price", "data_type": "bigint", "nullable": False},
                         "_dlt_root_id": {
                             "name": "_dlt_root_id",
                             "data_type": "text",
@@ -269,6 +274,71 @@ def test_schema_to_mermaid_generates_paritcular_table(example_schema):
     """
 
     mermaid_str = schema_to_mermaid(example_schema, table_names=["customers"])
+
+    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
+
+
+def test_schema_to_mermaid_generates_valid_mermaid_str(example_schema):
+    expected_mermaid_str = """
+    erDiagram
+        customers {
+            bigint id PK
+            text name
+            text city
+            text _dlt_load_id
+            text _dlt_id UK  
+        }
+        purchases {
+            bigint id PK
+            bigint customer_id
+            bigint inventory_id
+            bigint quantity
+            text date
+            text _dlt_load_id
+            text _dlt_id UK
+        }
+        purchases__items {
+            bigint purchase_id
+            text name
+            bigint price
+            text _dlt_root_id
+            text _dlt_parent_id
+            bigint _dlt_list_idx
+            text _dlt_id UK
+        }
+        purchases |{--|| customers : contains
+        purchases__items |{--|| purchases : _dlt_parent
+        purchases__items |{--|| purchases : _dlt_root
+    """
+    mermaid_str = schema_to_mermaid(
+        example_schema,
+    )
+
+    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
+
+
+def test_schema_to_mermaid_generates_valid_schema_for_two_related_tables(example_schema):
+    expected_mermaid_str = """
+    erDiagram
+        customers {
+            bigint id PK
+            text name
+            text city
+            text _dlt_load_id
+            text _dlt_id UK  
+        }
+        purchases {
+            bigint id PK
+            bigint customer_id
+            bigint inventory_id
+            bigint quantity
+            text date
+            text _dlt_load_id
+            text _dlt_id UK
+        }
+        purchases |{--|| customers : contains
+    """
+    mermaid_str = schema_to_mermaid(example_schema, table_names=["customers", "purchases"])
 
     assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
 
