@@ -6,20 +6,24 @@ skip_if_not_active("snowflake")
 import os
 import pytest
 from pathlib import Path
+from unittest.mock import patch
 
 from dlt.common.configuration.utils import add_config_to_env
-from tests.utils import TEST_DICT_CONFIG_PROVIDER
+from tests.utils import TEST_DICT_CONFIG_PROVIDER, TEST_STORAGE_ROOT, test_storage
 
 from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.utils import digest128
+from dlt.common.storages.file_storage import FileStorage
+from dlt.common.utils import custom_environ, digest128
 
+from dlt.destinations.impl.snowflake import utils as snowflake_utils
 from dlt.destinations.impl.snowflake.configuration import (
     SNOWFLAKE_APPLICATION_ID,
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
+from dlt.destinations.impl.snowflake.utils import snowflake_session_token_available
 
 from tests.common.configuration.utils import environment
 
@@ -337,6 +341,76 @@ def test_snowflake_credentials_key_via_env(environment, private_key: str) -> Non
 
     conn_params = c.to_connector_params()
     assert isinstance(conn_params["private_key"], bytes)
+
+
+def test_snowflake_provided_oauth_token(test_storage: FileStorage) -> None:
+    # create mocked token file
+    token_file_name = "token"
+    test_storage.save(token_file_name, "TOK1")
+
+    # define context managers constants
+    SNOWFLAKE_SESSION_TOKEN_PATH_ATTR = "SNOWFLAKE_SESSION_TOKEN_PATH"
+    PATCHED_TOKEN_PATH = os.path.join(TEST_STORAGE_ROOT, token_file_name)
+    SNOWFLAKE_ENV_VARS = {
+        "SNOWFLAKE_ACCOUNT": "host1",
+        "SNOWFLAKE_HOST": "host1.snowflakecomputing.com",
+    }
+
+    # URL without user and host should trigger attempt to use Snowflake-provided OAuth token
+    urls_without_user_and_host = ("snowflake:///db1", "snowflake:///db1?warehouse=warehouse1")
+
+    # when env vars and token present, should resolve correctly
+    with patch.object(snowflake_utils, SNOWFLAKE_SESSION_TOKEN_PATH_ATTR, PATCHED_TOKEN_PATH):
+        with custom_environ(SNOWFLAKE_ENV_VARS):
+            for url in urls_without_user_and_host:
+                creds = SnowflakeCredentials(url)
+                assert snowflake_session_token_available()
+                creds = resolve_configuration(creds)
+                assert creds.is_resolved()
+                assert creds.host == "host1"
+                assert creds.authenticator == "oauth"
+                conn_params = creds.to_connector_params()
+                assert conn_params["account"] == "host1"
+                assert conn_params["host"] == "host1.snowflakecomputing.com"
+                assert conn_params["database"] == "db1"
+                assert conn_params["authenticator"] == "oauth"
+                assert conn_params["token"] == "TOK1"
+                assert "user" not in conn_params
+                assert "password" not in conn_params
+                if "warehouse=warehouse1" in url:
+                    assert conn_params["warehouse"] == "warehouse1"
+
+                creds = resolve_configuration(creds)
+
+    # missing token should raise
+    with custom_environ(SNOWFLAKE_ENV_VARS):
+        for url in urls_without_user_and_host:
+            creds = SnowflakeCredentials(url)
+            assert not snowflake_session_token_available()
+            with pytest.raises(ConfigurationValueError):
+                creds = resolve_configuration(creds)
+
+    # missing env vars should raise
+    with patch.object(snowflake_utils, SNOWFLAKE_SESSION_TOKEN_PATH_ATTR, PATCHED_TOKEN_PATH):
+        for url in urls_without_user_and_host:
+            creds = SnowflakeCredentials(url)
+            assert not snowflake_session_token_available()
+            with pytest.raises(ConfigurationValueError):
+                creds = resolve_configuration(creds)
+
+    # URL with user or host should not trigger attempt to use Snowflake-provided OAuth token, even
+    # if it's available
+    urls_with_user_or_host = (
+        "snowflake://user1@/db1",  # missing host (required if user is provided)
+        "snowflake://host1/db1",  # missing user (required if host is provided)
+    )
+    with patch.object(snowflake_utils, SNOWFLAKE_SESSION_TOKEN_PATH_ATTR, PATCHED_TOKEN_PATH):
+        with custom_environ(SNOWFLAKE_ENV_VARS):
+            for url in urls_with_user_or_host:
+                creds = SnowflakeCredentials(url)
+                assert snowflake_session_token_available()
+                with pytest.raises(ConfigurationValueError):
+                    creds = resolve_configuration(creds)
 
 
 def test_snowflake_configuration() -> None:
