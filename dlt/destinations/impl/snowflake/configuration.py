@@ -41,7 +41,13 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
     _use_snowflake_session_token: bool = False
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
+    __config_gen_annotations__: ClassVar[List[str]] = [
+        "host",
+        "username",
+        "password",
+        "warehouse",
+        "role",
+    ]
     __query_params__: ClassVar[List[str]] = [
         "warehouse",
         "role",
