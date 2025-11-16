@@ -30,7 +30,9 @@ from dlt.sources.rest_api import RESTAPIConfig, rest_api_resources
 
 
 @dlt.source
-def chess_com_source(username: str, months: List[Dict[str, str]]) -> Iterator[DltResource]:
+def chess_com_source(
+    username: str, months: List[Dict[str, str]]
+) -> Iterator[DltResource]:
     """
     Configures and yields resources to fetch chess game data for a given user across specified months.
 
@@ -122,7 +124,9 @@ def delete_old_backfills(load_info: LoadInfo, p: dlt.Pipeline, table_name: str) 
                 # If the file does not match the current load ID, delete it
                 if not pattern.search(file_path):
                     try:
-                        fs_client.fs_client.rm(file_path)  # Remove the old backfill file
+                        fs_client.fs_client.rm(
+                            file_path
+                        )  # Remove the old backfill file
                         print(f"Deleted old backfill file: {file_path}")
                     except Exception as e:
                         print(f"Error deleting file {file_path}: {e}")
