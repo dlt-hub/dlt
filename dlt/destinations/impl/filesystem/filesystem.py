@@ -990,7 +990,7 @@ class FilesystemClient(
             )
 
     def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
-        """Gets a native catalog for a table `table_name` with format `table_format`
+        """Gets a native catalog for a table with format `table_format`
 
         Returns: currently pyiceberg Catalog is supported
         """
@@ -1000,16 +1000,47 @@ class FilesystemClient(
         if self._catalog:
             return self._catalog
 
-        from dlt.common.libs.pyiceberg import get_sql_catalog, IcebergCatalog
+        from dlt.common.libs.pyiceberg import get_catalog, IcebergCatalog
 
-        # create in-memory catalog
         catalog: IcebergCatalog
-        catalog = self._catalog = get_sql_catalog(
-            catalog_name or "default", "sqlite:///:memory:", self.config.credentials
-        )
 
-        # create namespace
-        catalog.create_namespace(self.dataset_name)
+        # Use catalog name from config or parameter
+        catalog_name = catalog_name or self.config.iceberg_catalog_name or "default"
+
+        logger.info(f"Loading Iceberg catalog: {catalog_name}")
+
+        try:
+            # Try to load catalog using new function
+            catalog = self._catalog = get_catalog(
+                catalog_name=catalog_name,
+                catalog_type=self.config.iceberg_catalog_type,
+                catalog_uri=self.config.iceberg_catalog_uri,
+                catalog_config=self.config.iceberg_catalog_config,
+                credentials=self.config.credentials,
+            )
+
+            logger.info(
+                f"Successfully loaded catalog '{catalog_name}' "
+                f"of type '{self.config.iceberg_catalog_type}'"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to load catalog '{catalog_name}': {e}")
+            logger.info("Falling back to default in-memory SQLite catalog")
+
+            # Fall back to original behavior (in-memory SQLite)
+            from dlt.common.libs.pyiceberg import get_sql_catalog
+
+            catalog = self._catalog = get_sql_catalog(
+                catalog_name, "sqlite:///:memory:", self.config.credentials
+            )
+
+        # Create namespace
+        try:
+            catalog.create_namespace(self.dataset_name)
+            logger.info(f"Created Iceberg namespace: {self.dataset_name}")
+        except Exception as e:
+            logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")
 
         return catalog
 
