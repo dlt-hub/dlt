@@ -150,7 +150,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.supports_clone_table = True
         caps.supports_naive_datetime = False
         caps.schema_supports_numeric_precision = False  # no precision information in BigQuery
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",

@@ -169,7 +169,7 @@ def _set_duckdb_raw_capabilities(
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = False
     caps.supports_truncate_command = False
-    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
     caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
     caps.merge_strategies_selector = duckdb_merge_strategies_selector
     caps.sqlglot_dialect = "duckdb"

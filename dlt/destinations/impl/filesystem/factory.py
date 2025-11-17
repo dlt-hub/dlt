@@ -58,7 +58,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             preferred_loader_file_format="jsonl",
             loader_file_format_selector=filesystem_loader_file_format_selector,
             supported_table_formats=["delta", "iceberg"],
-            supported_merge_strategies=["upsert"],
+            supported_merge_strategies=["upsert", "insert-only"],
             merge_strategies_selector=filesystem_merge_strategies_selector,
         )
         caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [

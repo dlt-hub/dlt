@@ -242,7 +242,7 @@ TTableProcessingHints = TypedDict(
 
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert", "insert-only"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 

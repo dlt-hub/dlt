@@ -1750,3 +1750,67 @@ def test_merge_arrow(
             {"id": 2, "name": "updated bar"},
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_insert_only_strategy(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only merge strategy: inserts new records but does not update existing ones"""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_test", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ]
+
+    # First load
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ],
+    )
+
+    # Second load with updates to existing records and new record
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items_updated():
+        yield [
+            {"id": 1, "name": "Alice Updated", "value": 999},  # Existing - should NOT update
+            {"id": 2, "name": "Bob Updated", "value": 888},  # Existing - should NOT update
+            {"id": 3, "name": "Charlie", "value": 300},  # New - should insert
+        ]
+
+    info = p.run(items_updated(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    # Verify existing records were NOT updated (original values remain)
+    # and new record was inserted
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "value": 100},  # Original values
+            {"id": 2, "name": "Bob", "value": 200},  # Original values
+            {"id": 3, "name": "Charlie", "value": 300},  # New record
+        ],
+    )

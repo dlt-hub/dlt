@@ -47,7 +47,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
         caps.recommended_file_size = 128_000_000
 
-        caps.supported_merge_strategies = ["upsert"]
+        caps.supported_merge_strategies = ["upsert", "insert-only"]
 
         # enable creation of nested types to support own vectors
         caps.supports_nested_types = True

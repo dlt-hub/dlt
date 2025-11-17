@@ -1,7 +1,7 @@
 ---
 title: Merge loading
 description: Merge loading with dlt
-keywords: [merge, incremental loading, delete-insert, scd2, upsert]
+keywords: [merge, incremental loading, delete-insert, scd2, upsert, insert-only]
 ---
 # Merge loading
 
@@ -9,13 +9,14 @@ Merge loading allows you to update existing data in your destination tables, rat
 
 To perform a merge load, you need to specify the `write_disposition` as `merge` on your resource and provide a `primary_key` or `merge_key`.
 
-Depending on your use case, you can choose from three different merge strategies.
+Depending on your use case, you can choose from four different merge strategies.
 
 ## Merge strategies
 
 1. [`delete-insert` (default strategy)](#delete-insert-strategy)
 2. [`scd2` strategy](#scd2-strategy)
 3. [`upsert` strategy](#upsert-strategy)
+4. [`insert-only` strategy](#insert-only-strategy)
 
 ## `delete-insert` strategy
 
@@ -653,3 +654,91 @@ def my_upsert_resource():
     ...
 ...
 ```
+
+## `insert-only` strategy
+
+:::warning
+The `insert-only` merge strategy is currently supported for these destinations:
+- `athena`
+- `bigquery`
+- `clickhouse`
+- `databricks`
+- `dremio`
+- `duckdb` (including `motherduck` and `ducklake`)
+- `mssql`
+- `postgres`
+- `redshift`
+- `snowflake`
+- `synapse`
+- `sqlalchemy`
+- `filesystem` with `delta` and `iceberg` table formats
+- `lancedb`
+:::
+
+The `insert-only` merge strategy performs primary-key based *inserts* without updating existing records:
+- *insert* a record if the key does not exist in the target table
+- *skip* a record if the key already exists in the target table (no update happens)
+
+This strategy is ideal for append-only scenarios where:
+- You want to ensure idempotent loads (re-running a load only adds missing records)
+- Existing records should never be modified
+- You need better performance than `upsert` by avoiding unnecessary UPDATE operations
+
+### `insert-only` versus `upsert` and `delete-insert`
+
+Unlike the `upsert` strategy, the `insert-only` strategy:
+1. **does not update** existing records (only inserts new ones)
+2. provides better **performance** by skipping UPDATE operations entirely
+
+Unlike the `delete-insert` strategy, the `insert-only` strategy:
+1. needs a `primary_key` (like `upsert`)
+2. does not support `merge_key`
+3. does not delete existing records before inserting
+
+### Example: `insert-only` merge strategy
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "insert-only"},
+    primary_key="id"
+)
+def append_only_events():
+    """
+    Loads events from an API. Re-running this will only insert new events
+    and will not modify existing ones, ensuring data immutability.
+    """
+    yield from get_events()
+```
+
+### Use cases for `insert-only`
+
+1. **Immutable event logs**: When loading events or logs that should never change once recorded
+   ```py
+   @dlt.resource(
+       write_disposition={"disposition": "merge", "strategy": "insert-only"},
+       primary_key="event_id"
+   )
+   def audit_logs():
+       yield from fetch_audit_events()
+   ```
+
+2. **Idempotent pipeline runs**: When you want to safely re-run pipelines without worrying about data corruption
+   ```py
+   # Running this multiple times will only add missing records
+   @dlt.resource(
+       write_disposition={"disposition": "merge", "strategy": "insert-only"},
+       primary_key="transaction_id"
+   )
+   def daily_transactions(date):
+       yield from get_transactions(date)
+   ```
+
+3. **Performance optimization**: When you know records won't change and want faster loads
+   ```py
+   # Faster than upsert since it skips UPDATE checks
+   @dlt.resource(
+       write_disposition={"disposition": "merge", "strategy": "insert-only"},
+       primary_key="id"
+   )
+   def historical_data():
+       yield from fetch_historical_records()
+   ```

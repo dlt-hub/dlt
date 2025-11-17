@@ -181,6 +181,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             merge_sql = cls.gen_merge_sql(table_chain, sql_client)
         elif merge_strategy == "upsert":
             merge_sql = cls.gen_upsert_sql(table_chain, sql_client)
+        elif merge_strategy == "insert-only":
+            merge_sql = cls.gen_insert_only_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
             merge_sql = cls.gen_scd2_sql(table_chain, sql_client)
 
@@ -809,6 +811,75 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                             WHERE {deleted_cond}
                         );
                     """)
+        return sql
+
+    @classmethod
+    def gen_insert_only_sql(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """Generates SQL statements for the `insert-only` merge strategy.
+
+        This strategy inserts new records based on primary_key but does not update existing records.
+        It's useful for append-only scenarios where updates should never happen, providing better
+        performance by skipping the UPDATE clause in the MERGE statement.
+        """
+        sql: List[str] = []
+        root_table = table_chain[0]
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
+        escape_column_id = sql_client.escape_column_name
+
+        # process table hints
+        primary_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "primary_key"),
+            escape_column_id,
+        )
+
+        # generate merge statement for root table
+        on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
+        root_table_column_names = list(map(escape_column_id, root_table["columns"]))
+        col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
+
+        sql.append(f"""
+            MERGE INTO {root_table_name} d USING {staging_root_table_name} s
+            ON {on_str}
+            WHEN NOT MATCHED
+                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+        """)
+
+        # generate statements for nested tables if they exist
+        nested_tables = table_chain[1:]
+        if nested_tables:
+            root_row_key_column = escape_column_id(
+                cls.get_row_key_col(
+                    table_chain,
+                    root_table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
+            )
+            for table in nested_tables:
+                nested_row_key_column = escape_column_id(
+                    cls.get_row_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
+                )
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+
+                # insert records for new elements only (no update, no delete)
+                table_column_names = list(map(escape_column_id, table["columns"]))
+                col_str = ", ".join(["{alias}" + c for c in table_column_names])
+                sql.append(f"""
+                    MERGE INTO {table_name} d USING {staging_table_name} s
+                    ON d.{nested_row_key_column} = s.{nested_row_key_column}
+                    WHEN NOT MATCHED
+                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                """)
+
         return sql
 
     @classmethod
