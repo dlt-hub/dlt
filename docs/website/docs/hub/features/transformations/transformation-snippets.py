@@ -14,6 +14,7 @@ def fruitshop_pipeline() -> dlt.Pipeline:
 
     # @@@DLT_SNIPPET_START quick_start_example
 
+    import dlt
     from dlt.destinations import duckdb
     from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
         fruitshop as fruitshop_source,
@@ -30,6 +31,7 @@ def fruitshop_pipeline() -> dlt.Pipeline:
 
 def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START basic_transformation
+    from typing import Any
 
     @dlt.hub.transformation
     def copied_customers(dataset: dlt.Dataset) -> Any:
@@ -176,7 +178,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     # @@@DLT_SNIPPET_END sql_queries_short
 
-    # Joins and other more complex queries are also possible of course
+    # Joins and other more complex queries are also possible
     @dlt.hub.transformation
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset(
