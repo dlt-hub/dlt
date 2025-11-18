@@ -1256,7 +1256,11 @@ requires-dist = [
 provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml"]
 
 [package.metadata.requires-dev]
-adbc = [{ name = "adbc-driver-postgresql", specifier = ">=1.6.0" }]
+adbc = [
+    { name = "adbc-driver-manager", specifier = ">=1.8.0" },
+    { name = "adbc-driver-postgresql", specifier = ">=1.8.0" },
+    { name = "dbc", specifier = ">=0.1.0" },
+]
 airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.12'", specifier = ">=2.8.0,<3" }]
 dashboard-tests = [
     { name = "playwright", specifier = ">=1.52.0,<2" },
