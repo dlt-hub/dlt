@@ -2000,4 +2000,3 @@ def test_insert_only_with_nested_tables(destination_config: DestinationTestConfi
     # Original: Child1, Child2
     # New: Child3, Child4 should be added
     assert len(parent_tables["parent_items__children"]) >= 3
-
