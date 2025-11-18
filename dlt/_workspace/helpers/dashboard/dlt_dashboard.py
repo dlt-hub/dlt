@@ -12,6 +12,8 @@ with app.setup:
     from typing import Any, Dict, List, cast
 
     import marimo as mo
+    import subprocess
+    import os
 
     import dlt
     import pyarrow
@@ -411,6 +413,64 @@ def section_browse_data_table_list(
 
 
 @app.cell(hide_code=True)
+def section_chartdb(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_chartdb_switch: mo.ui.switch,
+):
+    """
+    Show embedded chart at localhost:8080
+    """
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.chartdb_title,
+        strings.chartdb_subtitle,
+        "",
+        dlt_section_chartdb_switch,
+    )
+
+    container_name = "my_chartdb"
+
+    if dlt_section_chartdb_switch.value:
+        chartdb_schema = utils.create_chartb_json(dlt_pipeline.default_schema)
+        schema_path = utils.save_chartdb_json(chartdb_schema)
+
+        from pathlib import Path
+
+        print(Path(schema_path).exists())
+
+        # Check if container is already running
+        check = subprocess.run(
+            ["docker", "ps", "q", "--filter", f"name={container_name}"],
+            capture_output=True,
+            text=True,
+        )
+
+        if not check.stdout.strip():
+            docker_cmd = [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "-p",
+                "8080:80",
+                "-v",
+                f"{os.path.abspath(schema_path)}:/usr/share/nginx/html/default-schema.json",
+                "chartdb-local",
+            ]
+            subprocess.run(docker_cmd)
+
+        _result.append(
+            mo.Html(
+                '<iframe src="http://localhost:8080/" width="100%" height="600"'
+                ' frameborder="0"></iframe>'
+            )
+        )
+    mo.vstack(_result) if _result else None
+    return
+
+
+@app.cell(hide_code=True)
 def section_browse_data_query_result(
     dlt_data_table_list: mo.ui.table,
     dlt_pipeline: dlt.Pipeline,
@@ -428,10 +488,8 @@ def section_browse_data_query_result(
     """
 
     _result = []
-
     dlt_query_history_table: mo.ui.table = None
     dlt_query: str = None
-
     if (
         dlt_pipeline
         and dlt_section_browse_data_switch.value
@@ -871,6 +929,9 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(
         value=True, label="overview" if mo_cli_arg_with_test_identifiers else ""
     )
+    dlt_section_chartdb_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="dbchart" if mo_cli_arg_with_test_identifiers else ""
+    )
     dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="schema" if mo_cli_arg_with_test_identifiers else ""
     )
@@ -932,6 +993,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
         dlt_section_overview_switch,
+        dlt_section_chartdb_switch,
         dlt_section_schema_switch,
         dlt_section_state_switch,
         dlt_section_sync_switch,

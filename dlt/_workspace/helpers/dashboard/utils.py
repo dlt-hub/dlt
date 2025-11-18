@@ -809,3 +809,57 @@ def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> D
 def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Convert a dict to a list of dicts with name and value keys"""
     return [{"name": k, "value": v} for k, v in d.items()]
+
+
+def create_chartb_json(schema: Schema) -> Dict[str, Any]:
+    chartdb_schema = {
+        "id": schema.version_hash,
+        "name": schema.name,
+        "databaseType": "generic",
+    }
+
+    chartdb_schema["tables"] = []
+    for table_name, table in schema.tables.items():
+        chartdb_table = {
+            "id": table_name,
+            "name": table_name,
+            "x": 100,
+            "y": 100,
+            "indexes": [],
+            "color": "#175e7a",
+            "isView": False,
+            "createdAt": 1700000000000,
+        }
+
+        chartdb_table["fields"] = []
+        for column_name, column in table["columns"].items():
+            chartdb_table["fields"].append(
+                {
+                    "id": f"{table_name}_{column_name}",
+                    "name": column_name,
+                    "type": {
+                        "id": str(column.get("data_type")),
+                        "name": str(column.get("data_type")),
+                    },
+                    "primaryKey": True if column.get("primary_key") else False,
+                    "unique": True if column.get("unique") else False,
+                    "createdAt": 1700000000000,
+                    "nullable": column.get("nullable"),
+                }
+            )
+
+        chartdb_schema["tables"].append(chartdb_table)
+
+    return chartdb_schema
+
+
+def save_chartdb_json(chartdb_schema: Dict[str, Any]) -> str:
+    schema_dir = "./chartdb-data"
+    os.makedirs(schema_dir, exist_ok=True)
+
+    schema_path = f"{schema_dir}/default-schema.json"
+
+    with open(schema_path, "wb") as f:
+        json.dump(chartdb_schema, f, pretty=True)
+
+    return schema_path

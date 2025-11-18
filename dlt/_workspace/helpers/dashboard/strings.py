@@ -167,6 +167,12 @@ browse_data_run_query_tooltip = "Run the query in the editor"
 browse_data_loading_spinner_text = "Loading data from destination..."
 
 #
+# dbchart page
+#
+chartdb_title = "ChartDB Browser"
+chartdb_subtitle = "Browse schema with ChartDB"
+
+#
 # State page
 #
 state_title = "Pipeline State"

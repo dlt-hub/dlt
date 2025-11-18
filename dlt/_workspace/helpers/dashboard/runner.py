@@ -39,6 +39,7 @@ def run_dashboard(
     pipelines_dir: str = None,
     port: int = None,
     host: str = None,
+    with_chartdb: bool = False,
 ) -> None:
     from dlt._workspace.helpers.dashboard import dlt_dashboard
 
@@ -89,4 +90,6 @@ def run_dashboard(
     try:
         subprocess.run(dashboard_cmd)
     except KeyboardInterrupt:
+        subprocess.run(["docker", "stop", "my_chartdb"])
+        subprocess.run(["docker", "rm", "my_chartdb"])
         pass
