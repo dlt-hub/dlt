@@ -489,6 +489,8 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
                 schema_str = s.to_dbml()
             elif format_ == "dot":
                 schema_str = s.to_dot()
+            elif format == "mermaid":
+                schema_str = s.to_mermaid()
             else:
                 schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
 
