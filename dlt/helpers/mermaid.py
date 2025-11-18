@@ -3,9 +3,11 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableReferenceStandalone, TTableSchema, TTableSchemaColumns
 
 
-def schema_to_mermaid(schema: Schema, table_names: list[str] = []) -> str:
+def schema_to_mermaid(schema: Schema, table_names: list[str] = [], include_dlt_talbes: bool = True) -> str:
     if len(table_names) == 0:
         table_names = schema.data_table_names()
+    if include_dlt_talbes:
+        table_names += schema.dlt_table_names()
     references = filter(
         _relevant_references(table_names),
         schema.references,
@@ -29,7 +31,7 @@ def _relevant_references(table_names):
 
 
 def _table_to_text(table: TTableSchema) -> str:
-    items = [table.get("name", ""), "{", _columns_to_text(table.get("columns")), "}\n"]
+    items = [table.get("name", ""), "{", _columns_to_text(table.get("columns", {})), "}\n"]
     return "".join(items)
 
 
