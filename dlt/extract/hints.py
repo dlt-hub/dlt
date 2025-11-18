@@ -823,22 +823,24 @@ class DltResourceHints:
 
             if wd.get("strategy") == "scd2":
                 wd = cast(TScd2StrategyDict, wd)
-                for ts in ("active_record_timestamp", "boundary_timestamp"):
-                    # if (
-                    #     ts == "active_record_timestamp"
-                    #     and wd.get("active_record_timestamp") is None
-                    # ):
-                    #     continue  # None is allowed for active_record_timestamp
-                    if ts in wd:
-                        if wd[ts] is None:
-                            continue
-                        else:
-                            try:
-                                ensure_pendulum_datetime_utc(wd[ts])  # type: ignore[literal-required]
-                            except Exception:
-                                raise ValueError(
-                                    f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]
-                                )
+
+                art = wd.get("active_record_timestamp")
+                if art is not None:
+                    try:
+                        ensure_pendulum_datetime_utc(art)
+                    except (ValueError, TypeError) as exc:
+                        raise ValueError(
+                            f"could not parse `active_record_timestamp` value `{art}`"
+                        ) from exc
+
+                bt = wd.get("boundary_timestamp")
+                if bt is not None:
+                    try:
+                        ensure_pendulum_datetime_utc(bt)
+                    except (ValueError, TypeError) as exc:
+                        raise ValueError(
+                            f"could not parse `boundary_timestamp` value `{bt}`"
+                        ) from exc
 
     @staticmethod
     def validate_reference_hint(template: TResourceHints) -> None:
