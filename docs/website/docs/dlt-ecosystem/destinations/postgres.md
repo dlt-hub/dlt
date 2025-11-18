@@ -128,7 +128,7 @@ Not all `postgres` types are supported, see driver docs for more details:
 * We observed problems with some decimal precision/scale ie. `decimal128(6, 2)` is not properly decoded.
 * large decimals are not supported. `postgres` is the only destination that fully supports `wei` (256 bit) decimal precision, this does not work with ADBC.
 
-We copy parquet files with batches of size of 1 row group. One files is copied in a single transaction.
+We copy parquet files with batches of size of 1 row group. Each file is copied in a single transaction.
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
