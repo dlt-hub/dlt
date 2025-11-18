@@ -10,6 +10,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableSchema
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.wei import EVM_DECIMAL_PRECISION
+from dlt.destinations._adbc_jobs import make_adbc_parquet_file_format_selector
 from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
     PostgresClientConfiguration,
@@ -137,6 +138,11 @@ def postgres_loader_file_format_selector(
 ) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
     try:
         # supports adbc for direct parquet loading
+        # from adbc_driver_manager import _dbapi_backend, dbapi
+
+        # _dbapi_backend._ALL_BACKENDS
+        # dbapi.connect()
+
         import adbc_driver_postgresql.dbapi
     except ImportError:
         supported_loader_file_formats = list(supported_loader_file_formats)
@@ -161,7 +167,11 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
-        caps.loader_file_format_selector = postgres_loader_file_format_selector
+        caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(
+            "postgresql",
+            "https://dlthub.com/docs/dlt-ecosystem/destinations/postgres#fast-loading-with-arrow-tables-and-parquet",
+            prefer_parquet=False,
+        )
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.type_mapper = PostgresTypeMapper
