@@ -4,30 +4,29 @@ from typing import Optional
 
 import yaml
 
+from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO, SupportsCliCommand
+from dlt._workspace.cli import echo as fmt
+from dlt._workspace.cli import utils
+from dlt._workspace.cli._ai_command import SUPPORTED_IDES
+from dlt._workspace.cli._deploy_command import (
+    COMMAND_DEPLOY_REPO_LOCATION,
+    DLT_DEPLOY_DOCS_URL,
+    DeploymentMethods,
+    SecretFormats,
+)
+from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
+from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
+from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
+from dlt._workspace.cli.exceptions import CliCommandException
+from dlt._workspace.cli.utils import add_mcp_arg_parser
 from dlt.common import json
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
 from dlt.common.typing import DictStrAny
 
-from dlt._workspace.cli import echo as fmt, utils
-from dlt._workspace.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
-from dlt._workspace.cli.exceptions import CliCommandException
-from dlt._workspace.cli.utils import add_mcp_arg_parser
-from dlt._workspace.cli._ai_command import SUPPORTED_IDES
-from dlt._workspace.cli._pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
-from dlt._workspace.cli._init_command import DLT_INIT_DOCS_URL
-from dlt._workspace.cli._telemetry_command import DLT_TELEMETRY_DOCS_URL
-
-from dlt._workspace.cli._deploy_command import (
-    DeploymentMethods,
-    COMMAND_DEPLOY_REPO_LOCATION,
-    SecretFormats,
-    DLT_DEPLOY_DOCS_URL,
-)
-
 try:
-    import pipdeptree
     import cron_descriptor
+    import pipdeptree
 
     deploy_command_available = True
 except ImportError:
@@ -113,9 +112,9 @@ version if run again with an existing `source` name. You will be warned if files
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._init_command import (
+            init_command_wrapper,
             list_destinations_command_wrapper,
             list_sources_command_wrapper,
-            init_command_wrapper,
         )
 
         if args.list_sources:
@@ -833,8 +832,8 @@ workspace info.
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._workspace_command import (
-            print_workspace_info,
             clean_workspace,
+            print_workspace_info,
             show_workspace,
             start_mcp,
         )
@@ -894,9 +893,9 @@ Pin a profile to the Workspace, this will be the new default profile while it is
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace._workspace_context import active
         from dlt._workspace.cli._profile_command import (
-            print_profile_info,
             list_profiles,
             pin_profile,
+            print_profile_info,
         )
 
         workspace_context = active()
@@ -909,3 +908,325 @@ Pin a profile to the Workspace, this will be the new default profile while it is
             pin_profile(workspace_context, args.profile_name)
         else:
             self.parser.print_usage()
+
+
+class RuntimeCommand(SupportsCliCommand):
+    command = "runtime"
+    help_string = "Connect to dltHub Runtime and run your code remotely"
+    description = """
+    Allows to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
+    """
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+
+        subparsers = parser.add_subparsers(
+            title="Available subcommands", dest="runtime_command", required=False
+        )
+
+        subparsers.add_parser(
+            "login",
+            help=(
+                "Login to dltHub Runtime using Github OAuth and connect current workspace to the"
+                " remote one"
+            ),
+            description="Login to dltHub Runtime using Github OAuth",
+        )
+
+        subparsers.add_parser(
+            "logout",
+            help="Logout from dltHub Runtime",
+            description="Logout from dltHub Runtime",
+        )
+
+        deploy_cmd = subparsers.add_parser(
+            "deploy",
+            help="Create, run and inspect scripts in runtime",
+            description="Manipulate scripts in workspace",
+        )
+        self._configure_deploy_parser(deploy_cmd)
+
+        # run a script
+        run_cmd = subparsers.add_parser(
+            "run",
+            help="Run a script in the Runtime",
+            description="Create or update a script and trigger a run",
+        )
+        self._configure_run_parser(run_cmd)
+
+        # runs management
+        runs_cmd = subparsers.add_parser(
+            "runs",
+            help="Manipulate runs in workspace",
+            description="Manipulate runs in workspace",
+        )
+        self._configure_runs_parser(runs_cmd)
+
+        # deployments
+        deployment_cmd = subparsers.add_parser(
+            "deployment",
+            help="Manipulate deployments in workspace",
+            description="Manipulate deployments in workspace",
+        )
+        self._configure_deployments_parser(deployment_cmd)
+
+        # scripts
+        script_cmd = subparsers.add_parser(
+            "script",
+            help="Create, list and inspect scripts in runtime",
+            description="Manipulate scripts in workspace",
+        )
+        self._configure_scripts_parser(script_cmd)
+
+        # configurations
+        configuration_cmd = subparsers.add_parser(
+            "configuration",
+            help="Manipulate configurations in workspace",
+            description="Manipulate configurations in workspace",
+        )
+        self._configure_configurations_parser(configuration_cmd)
+
+    def _configure_deploy_parser(self, deploy_cmd: argparse.ArgumentParser) -> None:
+        deploy_cmd.add_argument("script_name", help="Local path to the script")
+        deploy_cmd.add_argument(
+            "--profile",
+            "-p",
+            nargs="?",
+            help="Profile to use for the run",
+        )
+        deploy_cmd.add_argument(
+            "-i",
+            "--interactive",
+            action="store_true",
+            help=(
+                "Whether the script should be deployed as interactive (e.g. a notebook). False by"
+                " default"
+            ),
+        )
+
+    def _configure_runs_parser(self, runs_cmd: argparse.ArgumentParser) -> None:
+        runs_cmd.add_argument(
+            "script_name_or_run_id",
+            nargs="?",
+            help="The name of the script we're working with or the id of the run of this script",
+        )
+        runs_cmd.add_argument(
+            "--list", "-l", action=argparse.BooleanOptionalAction, help="List all runs in workspace"
+        )
+        runs_subparsers = runs_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+
+        # manage runs
+        runs_subparsers.add_parser(
+            "list",
+            help="List all runs of the script, only works if script name is provided",
+            description="List all runs of the script, only works if script name is provided",
+        )
+        runs_subparsers.add_parser(
+            "info",
+            help="Get detailed information about a run",
+            description="Get detailed information about a run",
+        )
+        runs_subparsers.add_parser(
+            "logs",
+            help="Get the logs of a run",
+            description="Get the logs of a run",
+        )
+        runs_subparsers.add_parser(
+            "cancel",
+            help="Cancel a run in the Runtime",
+            description="Cancel a run in the Runtime",
+        )
+
+    def _configure_run_parser(self, run_cmd: argparse.ArgumentParser) -> None:
+        run_cmd.add_argument(
+            "script_name_or_id",
+            help="Local path to the script or id/name of deployed script",
+        )
+        run_cmd.add_argument(
+            "--profile",
+            "-p",
+            nargs="?",
+            help="Profile to use for the run",
+        )
+        run_cmd.add_argument(
+            "-i",
+            "--interactive",
+            action="store_true",
+            help=(
+                "Whether the script should be deployed as interactive (e.g. a notebook). False by"
+                " default"
+            ),
+        )
+
+    def _configure_deployments_parser(self, deployment_cmd: argparse.ArgumentParser) -> None:
+        deployment_cmd.add_argument(
+            "--list",
+            "-l",
+            action=argparse.BooleanOptionalAction,
+            help="List all deployments in workspace",
+        )
+        deployment_cmd.add_argument("deployment_id", nargs="?", help="Deployment id (UUID)")
+        deployment_subparsers = deployment_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        deployment_subparsers.add_parser(
+            "info",
+            help="Get detailed information about a deployment",
+            description="Get detailed information about a deployment",
+        )
+        deployment_subparsers.add_parser(
+            "sync",
+            help="Create new deployment if local workspace content changed",
+            description="Create new deployment if local workspace content changed",
+        )
+
+    def _configure_scripts_parser(self, script_cmd: argparse.ArgumentParser) -> None:
+        script_cmd.add_argument(
+            "script_name_or_id",
+            nargs="?",
+            help="Local path to the script or id/name of deployed script",
+        )
+        script_cmd.add_argument(
+            "--list",
+            "-l",
+            action=argparse.BooleanOptionalAction,
+            help="List all scripts in workspace",
+        )
+        script_subparsers = script_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        script_subparsers.add_parser(
+            "info",
+            help="Get detailed information about a script",
+            description="Get detailed information about a script",
+        )
+        script_subparsers.add_parser(
+            "sync",
+            help="Create or update the script",
+            description="Create or update the script",
+        )
+
+    def _configure_configurations_parser(self, configuration_cmd: argparse.ArgumentParser) -> None:
+        configuration_cmd.add_argument(
+            "--list",
+            "-l",
+            action=argparse.BooleanOptionalAction,
+            help="List all configurations in workspace",
+        )
+        configuration_cmd.add_argument(
+            "configuration_id", nargs="?", help="Configuration id (UUID)"
+        )
+        configuration_subparsers = configuration_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        configuration_subparsers.add_parser(
+            "info",
+            help="Get detailed information about a configuration",
+            description="Get detailed information about a configuration",
+        )
+        configuration_subparsers.add_parser(
+            "sync",
+            help="Create new configuration if local config content changed",
+            description="Create new configuration if local config content changed",
+        )
+
+    def execute(self, args: argparse.Namespace) -> None:
+        from dlt._workspace.cli._runtime_command import (
+            deploy,
+            fetch_run_logs,
+            get_api_client,
+            get_configuration_info,
+            get_configurations,
+            get_deployment_info,
+            get_deployments,
+            get_run_info,
+            get_runs,
+            get_script_info,
+            get_scripts,
+            login,
+            logout,
+            request_run_cancel,
+            run_script,
+            sync_configuration,
+            sync_deployment,
+        )
+
+        if args.runtime_command == "login":
+            login(minimal_logging=False)
+        elif args.runtime_command == "logout":
+            logout()
+        elif args.runtime_command == "deploy":
+            deploy(args.script_name, bool(args.interactive), args.profile)
+        else:
+            auth_service = login()
+            api_client = get_api_client(auth_service)
+            if args.runtime_command == "run":
+                run_script(
+                    args.script_name_or_id,
+                    bool(args.interactive),
+                    args.profile,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
+            elif args.runtime_command == "runs":
+                if args.list:
+                    get_runs(auth_service=auth_service, api_client=api_client)
+                elif args.operation == "info":
+                    get_run_info(
+                        script_name_or_run_id=args.script_name_or_run_id,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "logs":
+                    fetch_run_logs(
+                        script_name_or_run_id=args.script_name_or_run_id,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "cancel":
+                    request_run_cancel(
+                        script_name_or_run_id=args.script_name_or_run_id,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "list":
+                    get_runs(
+                        script_name=args.script_name_or_run_id,  # raising downstream if run_id is passed
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+            elif args.runtime_command == "deployment":
+                if args.list:
+                    get_deployments(auth_service=auth_service, api_client=api_client)
+                elif args.operation == "info":
+                    get_deployment_info(
+                        deployment_id=args.deployment_id,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "sync":
+                    sync_deployment(auth_service=auth_service, api_client=api_client)
+            elif args.runtime_command == "script":
+                if args.list:
+                    get_scripts(auth_service=auth_service, api_client=api_client)
+                elif args.operation == "info":
+                    get_script_info(
+                        script_id_or_name=args.script_name_or_id,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+            elif args.runtime_command == "configuration":
+                if args.list:
+                    get_configurations(auth_service=auth_service, api_client=api_client)
+                elif args.operation == "info":
+                    get_configuration_info(
+                        configuration_id=args.configuration_id,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "sync":
+                    sync_configuration(auth_service=auth_service, api_client=api_client)
+            else:
+                self.parser.print_usage()
