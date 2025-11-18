@@ -634,7 +634,7 @@ def test_active_record_timestamp(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(default_sql_configs=True, subset=["sqlalchemy"]),
     ids=lambda x: x.name,
 )
 def test_boundary_timestamp(
@@ -664,75 +664,81 @@ def test_boundary_timestamp(
         l1_1 := {"nk": 1, "foo": "foo"},
         l1_2 := {"nk": 2, "foo": "foo"},
     ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 2
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: None}, **l1_1},
-        {**{FROM: strip_timezone(ts1), TO: None}, **l1_2},
-    ]
-    assert get_table(p, "dim_test", "nk") == expected
+    current_time = {"ts": None}
+    with mock.patch(
+        "dlt.common.storages.load_package.precise_time",
+        side_effect=lambda: current_time["ts"],
+    ):
+        # load 1 — initial load
+        current_time["ts"] = pendulum.parse(ts1).timestamp()
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 2
+        expected = [
+            {**{FROM: strip_timezone(ts1), TO: None}, **l1_1},
+            {**{FROM: strip_timezone(ts1), TO: None}, **l1_2},
+        ]
+        assert get_table(p, "dim_test", "nk", ts_columns=[FROM, TO]) == expected
 
-    # load 2 — different source records, different boundary timestamp
-    r.apply_hints(
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "boundary_timestamp": ts2,
-        }
-    )
-    dim_snap = [
-        l2_1 := {"nk": 1, "foo": "bar"},  # natural key 1 updated
-        # l1_2,  # natural key 2 no longer present
-        l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
-    ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 4
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # retired
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # retired
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # new
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_3},  # new
-    ]
-    assert_records_as_set(get_table(p, "dim_test"), expected)
-
-    # load 3 — earlier boundary timestamp
-    # we naively apply any valid timestamp
-    # may lead to "valid from" > "valid to", as in this test case
-    r.apply_hints(
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "boundary_timestamp": ts3,
-        }
-    )
-    dim_snap = [l2_1]  # natural key 3 no longer present
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 4
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # unchanged
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # unchanged
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # unchanged
-        {**{FROM: strip_timezone(ts2), TO: strip_timezone(ts3)}, **l2_3},  # retired
-    ]
-    assert_records_as_set(get_table(p, "dim_test"), expected)
-
-    # invalid boundary timestamp should raise error
-    with pytest.raises(ValueError):
+        # load 2 — different source records, different boundary timestamp
+        current_time["ts"] = pendulum.parse(ts2).timestamp()
         r.apply_hints(
             write_disposition={
                 "disposition": "merge",
                 "strategy": "scd2",
-                "boundary_timestamp": ts4,
+                "boundary_timestamp": ts2,
             }
         )
-    with mock.patch(
-        "dlt.common.storages.load_package.precise_time",
-        return_value=pendulum.datetime(2025, 8, 21, 12, 15, tz="UTC").timestamp(),
-    ):
-        # run the resource without setting boundary timestamp
+        dim_snap = [
+            l2_1 := {"nk": 1, "foo": "bar"},  # natural key 1 updated
+            # l1_2,  # natural key 2 no longer present
+            l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
+        ]
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 4
+        expected = [
+            {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # retired
+            {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # retired
+            {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # new
+            {**{FROM: strip_timezone(ts2), TO: None}, **l2_3},  # new
+        ]
+        assert_records_as_set(get_table(p, "dim_test"), expected)
+
+        # load 3 — earlier boundary timestamp
+        # we naively apply any valid timestamp
+        # may lead to "valid from" > "valid to", as in this test case
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": ts3,
+            }
+        )
+        dim_snap = [l2_1]  # natural key 3 no longer present
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 4
+        expected = [
+            {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # unchanged
+            {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # unchanged
+            {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # unchanged
+            {**{FROM: strip_timezone(ts2), TO: strip_timezone(ts3)}, **l2_3},  # retired
+        ]
+        assert_records_as_set(get_table(p, "dim_test"), expected)
+
+        # invalid boundary timestamp should raise error
+        with pytest.raises(ValueError):
+            r.apply_hints(
+                write_disposition={
+                    "disposition": "merge",
+                    "strategy": "scd2",
+                    "boundary_timestamp": ts4,
+                }
+            )
+
+        # run 4 — no boundary timestamp (use current precise_time)
+        current_time["ts"] = pendulum.parse(ts5).timestamp()
         dim_snap = [
             l3_1 := {"nk": 1, "foo": "foobar"},  # updated
         ]
@@ -740,6 +746,7 @@ def test_boundary_timestamp(
             write_disposition={
                 "disposition": "merge",
                 "strategy": "scd2",
+                "boundary_timestamp": None,
             }
         )
         info = p.run(r(dim_snap), **destination_config.run_kwargs)

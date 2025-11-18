@@ -56,9 +56,6 @@ from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMet
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
-from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.storages.load_package import load_package_state as current_load_package
-from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
 
 import sqlglot
 
@@ -725,17 +722,8 @@ class DltResourceHints:
 
         if merge_strategy == "scd2":
             md_dict = cast(TScd2StrategyDict, md_dict)
-            boundary = md_dict.get("boundary_timestamp")
-            if boundary is not None:
+            if "boundary_timestamp" in md_dict:
                 dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
-            else:
-                try:
-                    dict_["x-boundary-timestamp"] = ensure_pendulum_datetime_utc(
-                        current_load_package()["state"]["created_at"]
-                    )
-                except CurrentLoadPackageStateNotAvailable:
-                    dict_.pop("x-boundary-timestamp", None)
-
             if md_dict.get("validity_column_names") is None:
                 from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
             else:
@@ -836,18 +824,21 @@ class DltResourceHints:
             if wd.get("strategy") == "scd2":
                 wd = cast(TScd2StrategyDict, wd)
                 for ts in ("active_record_timestamp", "boundary_timestamp"):
-                    if (
-                        ts == "active_record_timestamp"
-                        and wd.get("active_record_timestamp") is None
-                    ):
-                        continue  # None is allowed for active_record_timestamp
+                    # if (
+                    #     ts == "active_record_timestamp"
+                    #     and wd.get("active_record_timestamp") is None
+                    # ):
+                    #     continue  # None is allowed for active_record_timestamp
                     if ts in wd:
-                        try:
-                            ensure_pendulum_datetime_utc(wd[ts])  # type: ignore[literal-required]
-                        except Exception:
-                            raise ValueError(
-                                f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]
-                            )
+                        if wd[ts] is None:
+                            continue
+                        else:
+                            try:
+                                ensure_pendulum_datetime_utc(wd[ts])  # type: ignore[literal-required]
+                            except Exception:
+                                raise ValueError(
+                                    f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]
+                                )
 
     @staticmethod
     def validate_reference_hint(template: TResourceHints) -> None:

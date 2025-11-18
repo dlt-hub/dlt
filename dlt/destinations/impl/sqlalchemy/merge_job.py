@@ -376,7 +376,11 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             )
 
         boundary_ts = ensure_pendulum_datetime_utc(
-            root_table.get("x-boundary-timestamp", current_load_package()["state"]["created_at"])  # type: ignore[arg-type]
+            current_load_package()["state"]["created_at"]
+            or root_table.get(  # type: ignore[arg-type]
+                "x-boundary-timestamp",
+                current_load_package()["state"]["created_at"],
+            )
         )
 
         boundary_literal = format_datetime_literal(boundary_ts, caps.timestamp_precision)
