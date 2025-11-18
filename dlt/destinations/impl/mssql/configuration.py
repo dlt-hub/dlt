@@ -71,7 +71,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
             f" how to install the `{self.SUPPORTED_DRIVERS[0]}` on your platform."
         )
 
-    def _get_odbc_dsn_dict(self) -> Dict[str, Any]:
+    def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         params = {
             "DRIVER": self.driver,
             "SERVER": f"{self.host},{self.port}",
@@ -84,7 +84,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
         return params
 
     def to_odbc_dsn(self) -> str:
-        params = self._get_odbc_dsn_dict()
+        params = self.get_odbc_dsn_dict()
         return ";".join([f"{k}={v}" for k, v in params.items()])
 
 
