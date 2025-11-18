@@ -136,8 +136,13 @@ def duckdb_merge_strategies_selector(
         import duckdb as _duckdb
 
         if Version(_duckdb.__version__) < Version("1.4.0"):
+            # MERGE statement was added in DuckDB 1.4.0
+            # Remove strategies that require MERGE for older versions
             legacy_strategies = list(supported_merge_strategies)
-            legacy_strategies.remove("upsert")
+            if "upsert" in legacy_strategies:
+                legacy_strategies.remove("upsert")
+            if "insert-only" in legacy_strategies:
+                legacy_strategies.remove("insert-only")
             supported_merge_strategies = legacy_strategies
     except ImportError:
         # return default if duckdb not installed
