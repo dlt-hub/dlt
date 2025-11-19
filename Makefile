@@ -125,9 +125,11 @@ start-test-containers:
 
 update-cli-docs:
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md
+	cd docs/tools/dlthub_cli && make update-cli-docs
 
 check-cli-docs:
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
+	cd docs/tools/dlthub_cli && make check-cli-docs
 
 # Commands for running dashboard e2e tests
 # To run these tests locally, run `make start-dlt-dashboard-e2e` in one terminal and `make test-e2e-dashboard-headed` in another terminal
