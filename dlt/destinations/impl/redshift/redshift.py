@@ -95,9 +95,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             aws_secret_key = self._staging_credentials.aws_secret_access_key
             aws_session_token = self._staging_credentials.aws_session_token
             credentials = (
-                    "CREDENTIALS"
-                    f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
-                )
+                "CREDENTIALS"
+                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
+            )
             if aws_session_token:
                 credentials = credentials[:-1] + f";token={aws_session_token}'"
         # get format
