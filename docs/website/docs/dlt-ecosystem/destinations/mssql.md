@@ -166,7 +166,7 @@ dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dl
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
-* [parquet]() is used if mssql ADBC driver is installed
+* [parquet](../file-formats/parquet.md) is used if mssql ADBC driver is installed
 
 ## Supported column hints
 **mssql** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.
