@@ -7,6 +7,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Dict,
     List,
     Iterator,
     Optional,
@@ -849,6 +850,10 @@ class Pipeline(SupportsPipeline):
                         )
             # write the state back
             self._props_to_state(state)
+            # persist current dev_mode in local state so future inits can detect toggles
+            if state.get("_local") is None:
+                state.setdefault("_local", {})
+            state["_local"]["_last_dev_mode"] = self.dev_mode
             # verify state
             if state_default_schema_name := state.get("default_schema_name"):
                 # at least empty list is present
@@ -1582,6 +1587,11 @@ class Pipeline(SupportsPipeline):
             _local = migrated_state["_local"]
             if "initial_cwd" not in _local:
                 _local["initial_cwd"] = os.path.abspath(dlt.current.run_context().local_dir)
+            # if previous run used dev_mode=True and current instance uses dev_mode=False,
+            # reset pipeline by returning an empty state
+            _last_dev_mode = _local.get("_last_dev_mode")
+            if _last_dev_mode and not self.dev_mode:
+                return default_pipeline_state()
             return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
@@ -1689,9 +1699,11 @@ class Pipeline(SupportsPipeline):
         for prop in Pipeline.STATE_PROPS:
             if prop in state and not prop.startswith("_"):
                 setattr(self, prop, state[prop])  # type: ignore
+        # access local state via a casted mapping to allow dynamic keys
+        local_state = cast("Dict[str, Any]", state["_local"])
         for prop in Pipeline.LOCAL_STATE_PROPS:
-            if prop in state["_local"] and not prop.startswith("_"):
-                setattr(self, prop, state["_local"][prop])  # type: ignore
+            if prop in local_state and not prop.startswith("_"):
+                setattr(self, prop, local_state[prop])  # type: ignore
         # staging and destination are taken from state only if not yet set in the pipeline
         if not self._destination:
             self._set_destinations(
@@ -1725,7 +1737,7 @@ class Pipeline(SupportsPipeline):
                 state[prop] = getattr(self, prop)  # type: ignore
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if not prop.startswith("_"):
-                state["_local"][prop] = getattr(self, prop)  # type: ignore
+                state["_local"][prop] = getattr(self, prop)
         if self._destination:
             state["destination_type"] = self._destination.destination_type
             state["destination_name"] = self._destination.configured_name
@@ -1771,7 +1783,12 @@ class Pipeline(SupportsPipeline):
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.
         """
-        _, hash_, _ = bump_pipeline_state_version_if_modified(self._props_to_state(state))
+        # Write pipeline props into state and persist the current dev_mode value in local state
+        self._props_to_state(state)
+        if state.get("_local") is None:
+            state.setdefault("_local", {})
+        state["_local"]["_last_dev_mode"] = self.dev_mode
+        _, hash_, _ = bump_pipeline_state_version_if_modified(state)
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
         if should_extract and extract_state:
             extract_ = extract or Extract(self._schema_storage, self._normalize_storage_config())
