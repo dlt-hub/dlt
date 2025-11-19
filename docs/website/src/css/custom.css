@@ -260,6 +260,32 @@ html[data-theme='dark'] .footer__link-item {
   color: #ffffff !important;
 }
 
+/* Fix search results input background and borders */
+input[type="search"][name="q"],
+input[type="search"][aria-label="Search"] {
+  background: #ffffff !important;
+  color: #1c1e21 !important;
+  border: 1px solid #d6d6e7 !important;
+}
+
+input[type="search"][name="q"]::placeholder,
+input[type="search"][aria-label="Search"]::placeholder {
+  color: #969faf !important;
+}
+
+/* Search results page - dark mode */
+html[data-theme='dark'] input[type="search"][name="q"],
+html[data-theme='dark'] input[type="search"][aria-label="Search"] {
+  background: #191937 !important;
+  color: #ffffff !important;
+  border: 1px solid #2c2e40 !important;
+}
+
+html[data-theme='dark'] input[type="search"][name="q"]::placeholder,
+html[data-theme='dark'] input[type="search"][aria-label="Search"]::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
 html[data-theme='dark'] .DocSearch-Form .DocSearch-Reset svg > path {
   stroke: #191937 !important;
 }
