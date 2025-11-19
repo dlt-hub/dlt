@@ -376,7 +376,7 @@ def _diff_between_actual_and_dlt_schema(
     return partial_table if partial_table["columns"] else {}
 
 
-def update_dlt_schema(
+def sync_schema_from_storage_schema(
     client: WithTableReflectionAndSql,
     schema: Schema,
     table_names: Iterable[str] = None,
