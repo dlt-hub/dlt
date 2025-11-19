@@ -5,11 +5,11 @@ keywords: [command line interface, cli, dlt init]
 ---
 
 
-# Command line interface reference
+# Command Line Interface Reference
 
 <!-- this page is fully generated from the argparse object of dlt, run make update-cli-docs to update it -->
 
-This page contains all commands available in the dltHub CLI and is generated
+This page contains all commands available in the dlt CLI and is generated
 automatically from the fully populated python argparse object of dlt.
 :::note
 Flags and positional commands are inherited from the parent command. Position within the command string
@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug] [--no-pwd]
-    {pipeline,workspace,telemetry,schema,profile,init,render-docs,deploy,dashboard,ai,transformation,source,project,license,destination,dbt,dataset,cache}
+    {workspace,telemetry,schema,runtime,profile,pipeline,init,render-docs,deploy,dashboard,ai}
     ...
 ```
 
@@ -50,8 +50,8 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 
 **Available subcommands**
 * [`workspace`](#dlt-workspace) - Manage current workspace
+* [`runtime`](#dlt-runtime) - Connect to dlthub runtime and run your code remotely
 * [`profile`](#dlt-profile) - Manage workspace built-in profiles
-* [`license`](#dlt-license) - View dlthub license status
 
 </details>
 
@@ -186,6 +186,521 @@ Inherits arguments from [`dlt workspace`](#dlt-workspace).
 
 </details>
 
+## `dlt runtime`
+
+Connect to dltHub Runtime and run your code remotely.
+
+**Usage**
+```sh
+dlt runtime [-h] {login,logout,deploy,run,runs,deployment,script,configuration}
+    ...
+```
+
+**Description**
+
+Allows to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`login`](#dlt-runtime-login) - Login to dlthub runtime using github oauth and connect current workspace to the remote one
+* [`logout`](#dlt-runtime-logout) - Logout from dlthub runtime
+* [`deploy`](#dlt-runtime-deploy) - Create, run and inspect scripts in runtime
+* [`run`](#dlt-runtime-run) - Run a script in the runtime
+* [`runs`](#dlt-runtime-runs) - Manipulate runs in workspace
+* [`deployment`](#dlt-runtime-deployment) - Manipulate deployments in workspace
+* [`script`](#dlt-runtime-script) - Create, list and inspect scripts in runtime
+* [`configuration`](#dlt-runtime-configuration) - Manipulate configurations in workspace
+
+</details>
+
+### `dlt runtime login`
+
+Login to dltHub Runtime using Github OAuth and connect current workspace to the remote one.
+
+**Usage**
+```sh
+dlt runtime login [-h]
+```
+
+**Description**
+
+Login to dltHub Runtime using Github OAuth.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime logout`
+
+Logout from dltHub Runtime.
+
+**Usage**
+```sh
+dlt runtime logout [-h]
+```
+
+**Description**
+
+Logout from dltHub Runtime.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime deploy`
+
+Create, run and inspect scripts in runtime.
+
+**Usage**
+```sh
+dlt runtime deploy [-h] [--profile [PROFILE]] [-i] script_name
+```
+
+**Description**
+
+Manipulate scripts in workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `script_name` - Local path to the script
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--profile [PROFILE], -p [PROFILE]` - Profile to use for the run
+* `-i, --interactive` - Whether the script should be deployed as interactive (e.g. a notebook). false by default
+
+</details>
+
+### `dlt runtime run`
+
+Run a script in the Runtime.
+
+**Usage**
+```sh
+dlt runtime run [-h] [--profile [PROFILE]] [-i] script_name_or_id
+```
+
+**Description**
+
+Create or update a script and trigger a run.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `script_name_or_id` - Local path to the script or id/name of deployed script
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--profile [PROFILE], -p [PROFILE]` - Profile to use for the run
+* `-i, --interactive` - Whether the script should be deployed as interactive (e.g. a notebook). false by default
+
+</details>
+
+### `dlt runtime runs`
+
+Manipulate runs in workspace.
+
+**Usage**
+```sh
+dlt runtime runs [-h] [--list | --no-list | -l] [script_name_or_run_id]
+    {list,info,logs,cancel} ...
+```
+
+**Description**
+
+Manipulate runs in workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `script_name_or_run_id` - The name of the script we're working with or the id of the run of this script
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list, --no-list, -l` - List all runs in workspace
+
+**Available subcommands**
+* [`list`](#dlt-runtime-runs-list) - List all runs of the script, only works if script name is provided
+* [`info`](#dlt-runtime-runs-info) - Get detailed information about a run
+* [`logs`](#dlt-runtime-runs-logs) - Get the logs of a run
+* [`cancel`](#dlt-runtime-runs-cancel) - Cancel a run in the runtime
+
+</details>
+
+### `dlt runtime runs list`
+
+List all runs of the script, only works if script name is provided.
+
+**Usage**
+```sh
+dlt runtime runs [script_name_or_run_id] list [-h]
+```
+
+**Description**
+
+List all runs of the script, only works if script name is provided.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime runs`](#dlt-runtime-runs).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime runs info`
+
+Get detailed information about a run.
+
+**Usage**
+```sh
+dlt runtime runs [script_name_or_run_id] info [-h]
+```
+
+**Description**
+
+Get detailed information about a run.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime runs`](#dlt-runtime-runs).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime runs logs`
+
+Get the logs of a run.
+
+**Usage**
+```sh
+dlt runtime runs [script_name_or_run_id] logs [-h]
+```
+
+**Description**
+
+Get the logs of a run.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime runs`](#dlt-runtime-runs).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime runs cancel`
+
+Cancel a run in the Runtime.
+
+**Usage**
+```sh
+dlt runtime runs [script_name_or_run_id] cancel [-h]
+```
+
+**Description**
+
+Cancel a run in the Runtime.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime runs`](#dlt-runtime-runs).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime deployment`
+
+Manipulate deployments in workspace.
+
+**Usage**
+```sh
+dlt runtime deployment [-h] [--list | --no-list | -l] [deployment_id]
+    {info,sync} ...
+```
+
+**Description**
+
+Manipulate deployments in workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `deployment_id` - Deployment id (uuid)
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list, --no-list, -l` - List all deployments in workspace
+
+**Available subcommands**
+* [`info`](#dlt-runtime-deployment-info) - Get detailed information about a deployment
+* [`sync`](#dlt-runtime-deployment-sync) - Create new deployment if local workspace content changed
+
+</details>
+
+### `dlt runtime deployment info`
+
+Get detailed information about a deployment.
+
+**Usage**
+```sh
+dlt runtime deployment [deployment_id] info [-h]
+```
+
+**Description**
+
+Get detailed information about a deployment.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime deployment`](#dlt-runtime-deployment).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime deployment sync`
+
+Create new deployment if local workspace content changed.
+
+**Usage**
+```sh
+dlt runtime deployment [deployment_id] sync [-h]
+```
+
+**Description**
+
+Create new deployment if local workspace content changed.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime deployment`](#dlt-runtime-deployment).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime script`
+
+Create, list and inspect scripts in runtime.
+
+**Usage**
+```sh
+dlt runtime script [-h] [--list | --no-list | -l] [script_name_or_id]
+    {info,sync} ...
+```
+
+**Description**
+
+Manipulate scripts in workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `script_name_or_id` - Local path to the script or id/name of deployed script
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list, --no-list, -l` - List all scripts in workspace
+
+**Available subcommands**
+* [`info`](#dlt-runtime-script-info) - Get detailed information about a script
+* [`sync`](#dlt-runtime-script-sync) - Create or update the script
+
+</details>
+
+### `dlt runtime script info`
+
+Get detailed information about a script.
+
+**Usage**
+```sh
+dlt runtime script [script_name_or_id] info [-h]
+```
+
+**Description**
+
+Get detailed information about a script.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime script`](#dlt-runtime-script).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime script sync`
+
+Create or update the script.
+
+**Usage**
+```sh
+dlt runtime script [script_name_or_id] sync [-h]
+```
+
+**Description**
+
+Create or update the script.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime script`](#dlt-runtime-script).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime configuration`
+
+Manipulate configurations in workspace.
+
+**Usage**
+```sh
+dlt runtime configuration [-h] [--list | --no-list | -l] [configuration_id]
+    {info,sync} ...
+```
+
+**Description**
+
+Manipulate configurations in workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `configuration_id` - Configuration id (uuid)
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--list, --no-list, -l` - List all configurations in workspace
+
+**Available subcommands**
+* [`info`](#dlt-runtime-configuration-info) - Get detailed information about a configuration
+* [`sync`](#dlt-runtime-configuration-sync) - Create new configuration if local config content changed
+
+</details>
+
+### `dlt runtime configuration info`
+
+Get detailed information about a configuration.
+
+**Usage**
+```sh
+dlt runtime configuration [configuration_id] info [-h]
+```
+
+**Description**
+
+Get detailed information about a configuration.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime configuration`](#dlt-runtime-configuration).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime configuration sync`
+
+Create new configuration if local config content changed.
+
+**Usage**
+```sh
+dlt runtime configuration [configuration_id] sync [-h]
+```
+
+**Description**
+
+Create new configuration if local config content changed.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime configuration`](#dlt-runtime-configuration).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
 ## `dlt profile`
 
 Manage Workspace built-in profiles.
@@ -286,110 +801,6 @@ Pin a profile to the Workspace, this will be the new default profile while it is
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt profile`](#dlt-profile).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-## `dlt license`
-
-View dlthub license status.
-
-**Usage**
-```sh
-dlt license [-h] {info,scopes,issue} ...
-```
-
-**Description**
-
-View dlthub license status.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`info`](#dlt-license-info) - Show the installed license
-* [`scopes`](#dlt-license-scopes) - Show available scopes
-* [`issue`](#dlt-license-issue) - Issues a self-signed trial license that may be used for development, testing and for ci ops.
-
-</details>
-
-### `dlt license info`
-
-Show the installed license.
-
-**Usage**
-```sh
-dlt license info [-h]
-```
-
-**Description**
-
-Show the installed license.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt license`](#dlt-license).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt license scopes`
-
-Show available scopes.
-
-**Usage**
-```sh
-dlt license scopes [-h]
-```
-
-**Description**
-
-Show available scopes.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt license`](#dlt-license).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt license issue`
-
-Issues a self-signed trial license that may be used for development, testing and for ci ops.
-
-**Usage**
-```sh
-dlt license issue [-h] scope
-```
-
-**Description**
-
-Issue a new self-signed trial license.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt license`](#dlt-license).
-
-**Positional arguments**
-* `scope` - Scope of the license, a comma separated list of the scopes: ['dlthub.dbt_generator', 'dlthub.sources.mssql', 'dlthub.project', 'dlthub.transformation', 'dlthub.destinations.iceberg', 'dlthub.destinations.snowflake_plus', 'dlthub.runner']
 
 **Options**
 * `-h, --help` - Show this help message and exit
