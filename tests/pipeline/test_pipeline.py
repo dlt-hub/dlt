@@ -9,8 +9,9 @@ import os, sys
 import random
 import shutil
 import threading
+import yaml
 from time import sleep
-from typing import Any, List, Tuple, cast
+from typing import Any, List, Tuple, cast, Union
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -1835,6 +1836,77 @@ def test_apply_hints_infer_hints() -> None:
         "primary_key": False,
     }
     # print(pipeline.default_schema.to_pretty_yaml())
+
+
+@pytest.mark.parametrize(
+    "empty_value",
+    ["", []],
+    ids=["empty_string", "empty_list"],
+)
+def test_apply_hints_with_empty_values(empty_value: Union[str, List[Any]]) -> None:
+    @dlt.resource
+    def some_data():
+        yield {"id": 1, "val": "some_data"}
+
+    s = some_data()
+    pipeline = dlt.pipeline(pipeline_name="empty_value_hints", destination=DUMMY_COMPLETE)
+
+    # check initial schema
+    pipeline.run(s)
+    table = pipeline.default_schema.get_table("some_data")
+    assert table["columns"]["id"] == {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": True,
+    }
+
+    # check schema after setting primary key
+    s.apply_hints(primary_key=["id"])
+    pipeline.run(s)
+    table = pipeline.default_schema.get_table("some_data")
+    assert table["columns"]["id"] == {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": False,
+        "primary_key": True,
+    }
+
+    # check schema after passing an empty value as hints, which should remove primary
+    s.apply_hints(primary_key=empty_value)
+    pipeline.run(s)
+    table = pipeline.default_schema.get_table("some_data")
+    assert table["columns"]["id"] == {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": False,
+    }
+
+
+def test_apply_hints_with_empty_values_with_schema() -> None:
+    pipeline = dlt.pipeline(pipeline_name="empty_value_hints_with_schema", destination=DUMMY_COMPLETE)
+
+    with open("tests/common/cases/schemas/eth/ethereum_schema_v11.yml", "r", encoding="utf-8") as f:
+        schema = dlt.Schema.from_dict(yaml.safe_load(f))
+
+    @dlt.source(schema=schema)
+    def ethereum():
+        @dlt.resource  # type: ignore[call-overload]
+        def blocks():
+            with open(
+                "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
+                "r",
+                encoding="utf-8",
+            ) as f:
+                yield json.load(f)
+
+        return blocks()
+
+    source = ethereum()
+    source.blocks.apply_hints(write_disposition="replace")
+
+    pipeline.run(source)
+    table = pipeline.default_schema.get_table("blocks")
+    assert table["columns"]["number"].get("primary_key") is True
 
 
 def test_invalid_data_edge_cases() -> None:

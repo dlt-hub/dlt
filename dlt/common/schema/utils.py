@@ -528,9 +528,9 @@ def diff_table(
         else:
             new_columns.append(col_b)
 
-    if respect_merge_type:
-        for col_a in tab_a_columns.values():
-            remove_column_props_with_merge_type(col_a, "remove_if_empty")
+    #    if respect_merge_type:
+    #        for col_a in tab_a_columns.values():
+    #            remove_column_props_with_merge_type(col_a, "remove_if_empty")
 
     # return partial table containing only name and properties that differ (column, filters etc.)
     table_name = tab_a["name"]
