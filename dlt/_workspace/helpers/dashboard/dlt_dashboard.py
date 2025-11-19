@@ -1,3 +1,7 @@
+# /// script
+# [tool.marimo.display]
+# theme = "light"
+# ///
 # flake8: noqa: F841
 # mypy: disable-error-code=no-untyped-def
 
