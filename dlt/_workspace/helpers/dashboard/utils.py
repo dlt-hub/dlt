@@ -2,7 +2,6 @@ import shutil
 import functools
 from itertools import chain
 from pathlib import Path
-from this import d
 from typing import (
     Any,
     Dict,
@@ -10,7 +9,6 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Set,
     Tuple,
     Union,
     cast,
