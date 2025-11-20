@@ -142,6 +142,8 @@ def clone_repo(
         repo.git.sparse_checkout("set", path)
     if branch:
         repo.git.checkout(branch)
+    elif path is not None:
+        repo.git.checkout()
     return repo
 
 
