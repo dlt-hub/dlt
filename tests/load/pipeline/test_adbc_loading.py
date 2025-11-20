@@ -1,6 +1,7 @@
 import pytest
 
 import dlt
+from dlt.common import Decimal
 
 from tests.cases import table_update_and_row
 from tests.load.pipeline.utils import get_load_package_jobs
@@ -10,41 +11,54 @@ from tests.load.utils import (
 )
 
 
-# def test_adbc_detection() -> None:
-#     from adbc_driver_manager import dbapi, ProgrammingError
-#     import adbc_driver_manager as dm
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres", "mssql", "sqlalchemy"]),
+    ids=lambda x: x.name,
+)
+def test_adbc_detection(destination_config: DestinationTestConfiguration) -> None:
+    from dlt.destinations._adbc_jobs import has_driver
 
-#     try:
-#         db = dm.AdbcDatabase(driver="mssqll")
-#         db.close()
-#     # try:
-#     #     dbapi.connect(driver="postgresql", db_kwargs={"uri": "server"})
-#     except ProgrammingError as pr_ex:
-#         print(str(pr_ex))
-#         print(pr_ex.sqlstate)
+    driver = destination_config.destination_name or destination_config.destination_type
+    if driver == "postgres":
+        driver = "postgresql"
+    elif driver == "sqlalchemy_sqlite":
+        driver = "sqlite"
+    elif driver == "sqlalchemy_mysql":
+        driver = "mysql"
+
+    assert has_driver(driver)[0] is True
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres", "mssql"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres", "mssql", "sqlalchemy"]),
     ids=lambda x: x.name,
 )
 def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
-    column_schemas, data_types = table_update_and_row()
+    # if destination_config.destination_name == "sqlalchemy_sqlite":
+    #     pytest.skip("skip generic ADBC test for sqlite because just a few data types are supported")
+    column_schemas, data_ = table_update_and_row()
 
     pipeline = destination_config.setup_pipeline("pipeline_adbc", dev_mode=True)
 
-    # postgres
-    del column_schemas["col6_precision"]  # adbc cannot process decimal(6,2)
-    # mssql
-    del column_schemas["col7_precision"]  # adbc cannot process fixed binary
+    if destination_config.destination_type in ("postgres", "mssql"):
+        del column_schemas["col11_precision"]  # TIME(3) not supported
+        if destination_config.destination_type == "postgres":
+            del column_schemas["col6_precision"]  # adbc cannot process decimal(6,2)
+        else:
+            del column_schemas["col7_precision"]  # adbc cannot process fixed binary
 
-    # both
-    del column_schemas["col11_precision"]  # TIME(3) not supported
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        for k, v in column_schemas.items():
+            # decimals not supported
+            if v["data_type"] in ("decimal", "wei", "time"):
+                data_[k] = str(data_[k])
+                column_schemas[k]["data_type"] = "text"
 
     @dlt.resource(file_format="parquet", columns=column_schemas, max_table_nesting=0)
     def complex_resource():
-        yield data_types
+        yield data_
 
     info = pipeline.run(complex_resource())
     jobs = get_load_package_jobs(
@@ -52,4 +66,6 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
     )
     # there must be a parquet job or adbc is not installed so we fall back to other job type
     assert len(jobs) == 1
-    print(pipeline.dataset().table("complex_resource").fetchall())
+    # make sure we can read data back. TODO: verify data types
+    rows = pipeline.dataset().table("complex_resource").fetchall()
+    assert len(rows) == 1
