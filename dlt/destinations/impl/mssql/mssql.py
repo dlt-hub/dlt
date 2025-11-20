@@ -94,7 +94,7 @@ class MssqlParquetCopyJob(AdbcParquetCopyJob):
         self._config = self._job_client.config  # type: ignore[assignment]
         conn_dsn = self.odbc_to_go_mssql_dsn(self._config.credentials.get_odbc_dsn_dict())
         conn_str = ";".join([f"{k}={v}" for k, v in conn_dsn.items()])
-        logger.warning(f"ADBC connecting to {conn_str}")
+        logger.info(f"ADBC connect to {conn_str}")
         return dbapi.connect(driver="mssql", db_kwargs={"uri": conn_str})
 
     @staticmethod
