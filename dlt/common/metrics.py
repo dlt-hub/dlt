@@ -88,10 +88,10 @@ class LoadJobMetrics(NamedTuple):
     file_path: str
     table_name: str
     started_at: datetime.datetime
-    finished_at: datetime.datetime
+    finished_at: Optional[datetime.datetime]
     state: Optional[str]
     remote_url: Optional[str]
-    retry_count: Optional[int]
+    retry_count: Optional[int] = 0
 
 
 class LoadMetrics(StepMetrics):
