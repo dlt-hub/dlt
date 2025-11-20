@@ -112,7 +112,7 @@ jobs:
             - name: mssql
               destinations: "[\"mssql\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet --extra adbc"
+              extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet --group adbc"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
               post_install_commands: "uv run dbc install mssql"
               always_run_all_tests: true

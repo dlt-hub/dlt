@@ -8,6 +8,7 @@ from dlt.common import logger
 from dlt.common.destination.capabilities import LoaderFileFormatSelector
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import TLoaderFileFormat
+from dlt.common.utils import without_none
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 if TYPE_CHECKING:
@@ -20,10 +21,32 @@ class AdbcParquetCopyJob(RunnableLoadJob, ABC):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path)
         self._job_client: SqlJobClientBase = None
+        # override default schema handling
+        self._connect_catalog_name: str = None
+        self._connect_schema_name: str = None
 
     @abstractmethod
     def _connect(self) -> Connection:
         pass
+
+    def _set_catalog_and_schema(self) -> Tuple[str, str]:
+        catalog_name = self._connect_catalog_name
+        if catalog_name is None:
+            catalog_name = self._job_client.sql_client.catalog_name(quote=False)
+        elif catalog_name == "":
+            # empty string disables catalog
+            catalog_name = None
+
+        schema_name = self._connect_schema_name
+        if schema_name is None:
+            schema_name = self._job_client.sql_client.escape_column_name(
+                self._job_client.sql_client.dataset_name, quote=False, casefold=True
+            )
+        elif schema_name == "":
+            # empty string disables schema
+            schema_name = None
+
+        return catalog_name, schema_name
 
     def run(self) -> None:
         from dlt.common.libs.pyarrow import pq_stream_with_new_columns
@@ -36,18 +59,18 @@ class AdbcParquetCopyJob(RunnableLoadJob, ABC):
         with self._connect() as conn, conn.cursor() as cur:
             import time
 
+            catalog_name, schema_name = self._set_catalog_and_schema()
+            kwargs = dict(catalog_name=catalog_name, db_schema_name=schema_name)
+
             t_ = time.time()
             rows = cur.adbc_ingest(
                 self.load_table_name,
                 _iter_batches(self._file_path),
                 mode="append",
-                catalog_name=self._job_client.sql_client.catalog_name(quote=False),
-                db_schema_name=self._job_client.sql_client.fully_qualified_dataset_name(
-                    quote=False
-                ),
+                **without_none(kwargs),  # type: ignore[arg-type,unused-ignore]
             )
             conn.commit()
-            logger.warning(
+            logger.info(
                 f"{rows} rows copied from {self._file_name} to {self.load_table_name} in"
                 f" {time.time()-t_} s"
             )
