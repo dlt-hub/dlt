@@ -9,6 +9,8 @@ import pytest
 import requests_mock
 import yaml
 
+import pendulum
+
 import dlt
 
 from dlt.common import json
@@ -29,6 +31,7 @@ from dlt.pipeline.trace import (
     PipelineTrace,
     SerializableResolvedValueTrace,
     load_trace,
+    save_trace,
 )
 from dlt.pipeline.track import slack_notify_load_success
 from dlt.extract import DltResource, DltSource
@@ -57,15 +60,15 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
 
         return data()
 
-    p = dlt.pipeline(destination="dummy")
+    pipeline = dlt.pipeline(destination="dummy")
 
     # read from secrets and configs directly
     databricks_creds = "databricks+connector://token:<databricks_token>@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a,b,c"
     s = dlt.secrets["databricks.credentials"]
     assert s == databricks_creds
 
-    extract_info = p.extract(inject_tomls())
-    trace = p.last_trace
+    extract_info = pipeline.extract(inject_tomls())
+    trace = pipeline.last_trace
     assert trace is not None
     # assert p._trace is None
     assert len(trace.steps) == 1
@@ -76,7 +79,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert isinstance(step.step_info, ExtractInfo)
     assert step.step_info.extract_data_info == [{"name": "inject_tomls", "data_type": "source"}]
     # check infos
-    extract_info = p.last_trace.last_extract_info
+    extract_info = pipeline.last_trace.last_extract_info
     assert isinstance(extract_info, ExtractInfo)
     # should have single job and single load id
     assert len(extract_info.loads_ids) == 1
@@ -132,7 +135,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert_trace_serializable(trace)
 
     # activate pipeline because other was running in assert trace
-    p.activate()
+    pipeline.activate()
 
     # extract with exception
     @dlt.source
@@ -150,10 +153,10 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
         return data()
 
     with pytest.raises(PipelineStepFailed):
-        p.extract(async_exception())
+        pipeline.extract(async_exception())
 
-    trace = p.last_trace
-    assert p._trace is None
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 2
     step = trace.steps[1]
     assert step.step == "extract"
@@ -175,16 +178,19 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert len(extract_info.metrics[load_id]) == 1
 
     # normalize
-    norm_info = p.normalize()
-    trace = p.last_trace
-    assert p._trace is None
+    norm_info = pipeline.normalize()
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 3
     step = trace.steps[2]
     assert step.step == "normalize"
     assert step.step_info is norm_info
     assert_trace_serializable(trace)
-    assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
-    assert p.last_trace.last_normalize_info.row_counts == {"_dlt_pipeline_state": 1, "data": 3}
+    assert isinstance(pipeline.last_trace.last_normalize_info, NormalizeInfo)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "data": 3,
+    }
 
     assert len(norm_info.loads_ids) == 1
     load_id = norm_info.loads_ids[0]
@@ -205,9 +211,9 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
 
     # load
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
-    load_info = p.load()
-    trace = p.last_trace
-    assert p._trace is None
+    load_info = pipeline.load()
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 4
     step = trace.steps[3]
     assert step.step == "load"
@@ -225,13 +231,18 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
     assert_trace_serializable(trace)
-    assert isinstance(p.last_trace.last_load_info, LoadInfo)
-    p.activate()
+    assert isinstance(pipeline.last_trace.last_load_info, LoadInfo)
+    pipeline.activate()
+
+    # copy trace to well known location so it can be used as fixture
+    trace_dir = os.path.join(TEST_STORAGE_ROOT, f"dlt.{dlt.__version__}")
+    os.makedirs(trace_dir)
+    save_trace(trace_dir, pipeline._last_trace)
 
     # run resets the trace
     load_info = inject_tomls().run()
-    trace = p.last_trace
-    assert p._trace is None
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 4  # extract, normalize, load, run
     step = trace.steps[-1]  # the last one should be run
     assert step.step == "run"
@@ -243,9 +254,9 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert step.step_info is load_info  # same load info
     assert trace.steps[0].step_info is not extract_info
     assert_trace_serializable(trace)
-    assert isinstance(p.last_trace.last_load_info, LoadInfo)
-    assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
-    assert isinstance(p.last_trace.last_extract_info, ExtractInfo)
+    assert isinstance(pipeline.last_trace.last_load_info, LoadInfo)
+    assert isinstance(pipeline.last_trace.last_normalize_info, NormalizeInfo)
+    assert isinstance(pipeline.last_trace.last_extract_info, ExtractInfo)
 
 
 def test_trace_schema() -> None:
@@ -714,6 +725,10 @@ def test_last_pipeline_step_trace_returns_latest() -> None:
     assert len(p.last_trace.steps) == 7
     assert p.last_trace.last_load_info.loads_ids == second_load_info.loads_ids
 
+    # check if still 7 steps after pickle
+    unpickled_trace = load_trace(p.working_dir)
+    assert len(unpickled_trace.steps) == 7
+
     # next run should reset everything
     third_load_info = p.run([7, 8, 9], table_name="third_data")
     assert len(p.last_trace.steps) == 4
@@ -769,6 +784,53 @@ def test_trace_custom_metrics_schema() -> None:
         "trace__steps__extract_info__resource_metrics__custom_metrics__list_metric"
         in inferred_schema.tables
     )
+
+
+@pytest.mark.skipif(
+    int(pendulum.__version__.split(".")[0]) < 3,
+    reason="Skipping backward compatibility test for pendulum version < 3",
+)
+def test_trace_backward_compat() -> None:
+    # this test checks if past traces can be unpickled. if this test fails - backward incompatible
+    # changes were introduced. there's no guarantee from our side that traces are backward compat
+    # but if we can easily prevent this form happening - we should.
+    # NOTE: if this test failed and you make it work again, add new trace fixture to tests/pipeline/cases/traces
+    # `test_create_trace` will create fixture for you in `_storage` folder after it is run. see end of the test code
+    # copy that fixture to cases folder above
+
+    traces_dir = os.path.join(PIPELINE_TEST_CASES_PATH, "traces")
+    traces = os.listdir(traces_dir)
+    assert len(traces) > 0  # sanity check
+    for folder in traces:
+        # skip botched traces in this test
+        if "botched" in folder:
+            continue
+        trace_dir = os.path.join(traces_dir, folder)
+        if os.path.isdir(trace_dir):
+            # use standard pickle
+            trace = load_trace(trace_dir, ignore_errors=False)
+            # trace must be found
+            assert trace is not None
+            # use trace loading which ignores all errors
+            trace = load_trace(trace_dir)
+            assert_trace_serializable(trace)
+
+
+def test_ignore_load_broken_trace() -> None:
+    traces_dir = os.path.join(PIPELINE_TEST_CASES_PATH, "traces")
+    traces = os.listdir(traces_dir)
+    assert len(traces) > 0  # sanity check
+    for folder in traces:
+        # skip botched traces in this test
+        if "botched" not in folder:
+            continue
+        trace_dir = os.path.join(traces_dir, folder)
+        # must fail
+        with pytest.raises(Exception):
+            load_trace(trace_dir, ignore_errors=False)
+
+        # can't fail but must be None
+        assert load_trace(trace_dir) is None
 
 
 def _find_resolved_value(
