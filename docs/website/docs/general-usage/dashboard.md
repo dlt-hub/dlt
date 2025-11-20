@@ -168,7 +168,7 @@ This will copy the dashboard code to the local folder and start Marimo in edit m
 Below is an example of a custom cell created to verify unique number of rows vs total rows to ensure there are no duplicates in each table after a new run. You can also use the Generate with AI feature to easily add custom cells for your own use cases.  
 
 
------ADD SCREENSHOT----
+![Adding custom cell in dashboard](https://storage.googleapis.com/dlt-blog-images/dashboards-custom-cell.png)
 
 Once you have the local version, you can also use the regular Marimo commands to run or edit this notebook. This way, you can maintain multiple versions of your dashboard or other Marimo apps in your project:
 
@@ -176,7 +176,7 @@ Once you have the local version, you can also use the regular Marimo commands to
 # this will run a local dashboard
 marimo run dlt_dashboard.py
 
-# this will run the marimo edit mode
+# this will run the marimo in edit mode
 marimo edit dlt_dashboard.py
 ```
 

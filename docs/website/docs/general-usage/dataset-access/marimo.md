@@ -96,7 +96,14 @@ The **Datasources** displays a limited range of data types.
 
 ### Create a dashboard and data apps
 
-marimo notebooks can be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
+Marimo notebooks can also be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. 
+
+For example, here is a small app for Github actions dataset. After loading your data, you can run this UI based app which lets you select your date ranges and see plots and data based on your selections. 
+
+![Example marimo data app](https://storage.googleapis.com/dlt-blog-images/marimo-data-app.png)
+
+
+Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
 
 
 ## Further reading
