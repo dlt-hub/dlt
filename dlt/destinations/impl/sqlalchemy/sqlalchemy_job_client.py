@@ -14,7 +14,6 @@ from dlt.common.destination.client import (
     PreparedTableSchema,
     FollowupJobRequest,
 )
-from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlLoadJob
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
 from dlt.common.schema.typing import (
@@ -30,11 +29,15 @@ from dlt.common.schema.utils import (
     get_columns_names_with_prop,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
+from dlt.destinations._adbc_jobs import has_driver as adbc_has_driver
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
 from dlt.destinations.impl.sqlalchemy.load_jobs import (
     SqlalchemyJsonLInsertJob,
+    SqlalchemyParquetADBCJob,
     SqlalchemyParquetInsertJob,
     SqlalchemyReplaceJob,
     SqlalchemyMergeFollowupJob,
@@ -138,7 +141,11 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             return SqlalchemyJsonLInsertJob(file_path, table_obj)
         elif parsed_file.file_format == "parquet":
             table_obj = self._to_table_object(table)
-            return SqlalchemyParquetInsertJob(file_path, table_obj)
+            # if driver for a given dialect is installed
+            if adbc_has_driver(self.config.credentials.engine.dialect.name):
+                return SqlalchemyParquetADBCJob(file_path, table_obj)
+            else:
+                return SqlalchemyParquetInsertJob(file_path, table_obj)
         return None
 
     def complete_load(self, load_id: str) -> None:

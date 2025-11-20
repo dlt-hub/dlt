@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 from typing import IO, Any, Dict, Iterator, List, Sequence, TYPE_CHECKING, Optional
 import math
 
 import sqlalchemy as sa
 
+from dlt.common import logger
 from dlt.common.destination.client import (
     RunnableLoadJob,
     HasFollowupJobs,
@@ -10,8 +13,9 @@ from dlt.common.destination.client import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.json import json, PY_DATETIME_DECODERS
-from dlt.destinations.sql_jobs import SqlFollowupJob
 
+from dlt.destinations._adbc_jobs import AdbcParquetCopyJob
+from dlt.destinations.sql_jobs import SqlFollowupJob
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.merge_job import SqlalchemyMergeFollowupJob
 
@@ -72,6 +76,90 @@ class SqlalchemyJsonLInsertJob(RunnableLoadJob, HasFollowupJobs):
         with _sql_client.begin_transaction():
             for chunk in self._iter_data_item_chunks():
                 _sql_client.execute_sql(table.insert(), chunk)
+
+
+class SqlalchemyParquetADBCJob(AdbcParquetCopyJob):
+    """ADBC Parquet copy job for SQLAlchemy (sqlite, mysql) with query param handling."""
+
+    def __init__(self, file_path: str, table: sa.Table) -> None:
+        super().__init__(file_path)
+        self._job_client: "SqlalchemyJobClient" = None
+        self.table = table
+
+    if TYPE_CHECKING:
+        from adbc_driver_manager.dbapi import Connection
+
+    def _connect(self) -> Connection:
+        from adbc_driver_manager import dbapi
+
+        engine = self._job_client.config.credentials.engine
+        dialect = engine.dialect.name.lower()
+        url = engine.url
+
+        query = dict(url.query or {})
+
+        if dialect == "sqlite":
+            # disable schema and catalog when ingest
+            self._connect_schema_name = ""
+            self._connect_catalog_name = ""
+
+            # attach directly to dataset sqlite file as "main"
+            if self._job_client.sql_client.dataset_name == "main":
+                db_path = url.database
+            else:
+                db_path = self._job_client.sql_client._sqlite_dataset_filename(
+                    self._job_client.sql_client.dataset_name
+                )
+            conn_str = f"file:{db_path}"
+
+            if query:
+                qs = "&".join(f"{k}={v}" for k, v in query.items())
+                conn_str = f"{conn_str}?{qs}"
+
+            logger.info(f"ADBC connect to {conn_str}")
+            return dbapi.connect(driver="sqlite", db_kwargs={"uri": conn_str})
+
+        elif dialect == "mysql":
+            # disable schema and catalog when ingest
+            self._connect_schema_name = ""
+            self._connect_catalog_name = ""
+
+            # mysql: convert SSL params into go-mysql ADBC parameters
+            mapped = {}
+            for k, v in query.items():
+                lk = k.lower()
+                if lk == "ssl_ca":
+                    mapped["tls-ca"] = v
+                elif lk == "ssl_cert":
+                    mapped["tls-cert"] = v
+                elif lk == "ssl_key":
+                    mapped["tls-key"] = v
+                elif lk == "ssl_mode":
+                    mapped["tls"] = v
+                else:
+                    mapped[k] = v
+
+            username = url.username or ""
+            password = url.password or ""
+            auth = f"{username}:{password}@" if username or password else ""
+
+            host = url.host or "localhost"
+            port = url.port or 3306
+            # dataset name is schema name is database name. each database is a schema in mysql
+            database = self._job_client.sql_client.dataset_name  # url.database or ""
+
+            base = f"{auth}tcp({host}:{port})/{database}"
+            if mapped:
+                qs = "&".join(f"{k}={v}" for k, v in mapped.items())
+                conn_str = f"{base}?{qs}"
+            else:
+                conn_str = base
+
+            logger.info(f"ADBC connect to {conn_str}")
+            return dbapi.connect(driver="mysql", db_kwargs={"uri": conn_str})
+
+        else:
+            raise NotImplementedError(f"ADBC not supported for sqlalchemy dialect {dialect}")
 
 
 class SqlalchemyParquetInsertJob(SqlalchemyJsonLInsertJob):
