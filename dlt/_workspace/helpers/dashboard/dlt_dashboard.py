@@ -39,6 +39,44 @@ def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> List[Any] | Non
 
 
 @app.function
+def build_home_header_row(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline_select: mo.ui.multiselect,
+) -> Any:
+    """Shared header row with logo, profile/workspace info and pipeline select."""
+    _header_controls = build_header_controls(dlt_profile_select)
+    return mo.hstack(
+        [
+            mo.hstack(
+                [
+                    mo.image(
+                        "https://dlthub.com/docs/img/dlthub-logo.png",
+                        width=100,
+                        alt="dltHub logo",
+                    ),
+                    _header_controls[0] if _header_controls else "",
+                ],
+                justify="start",
+                gap=2,
+            ),
+            mo.hstack(
+                [
+                    _header_controls[1] if _header_controls else "",
+                ],
+                justify="center",
+            ),
+            mo.hstack(
+                [
+                    dlt_pipeline_select,
+                ],
+                justify="end",
+            ),
+        ],
+        justify="space-between",
+    )
+
+
+@app.function
 def render_workspace_home(
     dlt_profile_select: mo.ui.dropdown,
     dlt_all_pipelines: List[Dict[str, Any]],
@@ -47,37 +85,8 @@ def render_workspace_home(
     dlt_config: DashboardConfiguration,
 ) -> List[Any]:
     """Render the workspace-level home view (no pipeline selected)."""
-    _header_controls = build_header_controls(dlt_profile_select)
     return [
-        mo.hstack(
-            [
-                mo.hstack(
-                    [
-                        mo.image(
-                            "https://dlthub.com/docs/img/dlthub-logo.png",
-                            width=100,
-                            alt="dltHub logo",
-                        ),
-                        _header_controls[0] if _header_controls else "",
-                    ],
-                    justify="start",
-                    gap=2,
-                ),
-                mo.hstack(
-                    [
-                        _header_controls[1] if _header_controls else "",
-                    ],
-                    justify="center",
-                ),
-                mo.hstack(
-                    [
-                        dlt_pipeline_select,
-                    ],
-                    justify="end",
-                ),
-            ],
-            justify="space-between",
-        ),
+        build_home_header_row(dlt_profile_select, dlt_pipeline_select),
         mo.md(strings.app_title).center(),
         mo.md(strings.app_intro).center(),
         mo.callout(
@@ -108,8 +117,6 @@ def render_pipeline_home(
     dlt_config: DashboardConfiguration,
 ) -> List[Any]:
     """Render the pipeline-level home view (pipeline selected or requested)."""
-    _header_controls = build_header_controls(dlt_profile_select)
-
     _buttons: List[Any] = [dlt_refresh_button]
     _pipeline_execution_exception: List[Any] = []
     _pipeline_execution_summary: Any = None
@@ -139,6 +146,20 @@ def render_pipeline_home(
             )
         _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
 
+    header_row = build_home_header_row(dlt_profile_select, dlt_pipeline_select)
+    pipeline_title = mo.center(
+        mo.hstack(
+            [
+                mo.md(
+                    strings.app_title_pipeline.format(
+                        dlt_pipeline_name
+                    )
+                ),
+            ],
+            align="center",
+        ),
+    )
+
     _stack: List[Any] = [
         mo.vstack(
             [
@@ -146,59 +167,8 @@ def render_pipeline_home(
                     [
                         mo.vstack(
                             [
-                                mo.hstack(
-                                    [
-                                        mo.hstack(
-                                            [
-                                                mo.hstack(
-                                                    [
-                                                        mo.image(
-                                                            "https://dlthub.com/docs/img/dlthub-logo.png",
-                                                            width=100,
-                                                            alt="dltHub logo",
-                                                        ),
-                                                        (
-                                                            _header_controls[0]
-                                                            if _header_controls
-                                                            else ""
-                                                        ),
-                                                    ],
-                                                    justify="start",
-                                                    gap=2,
-                                                ),
-                                                mo.hstack(
-                                                    [
-                                                        (
-                                                            _header_controls[1]
-                                                            if _header_controls
-                                                            else ""
-                                                        ),
-                                                    ],
-                                                    justify="center",
-                                                ),
-                                                mo.hstack(
-                                                    [
-                                                        dlt_pipeline_select,
-                                                    ],
-                                                    justify="end",
-                                                ),
-                                            ],
-                                            justify="center",
-                                        ),
-                                    ],
-                                ),
-                                mo.center(
-                                    mo.hstack(
-                                        [
-                                            mo.md(
-                                                strings.app_title_pipeline.format(
-                                                    dlt_pipeline_name
-                                                )
-                                            ),
-                                        ],
-                                        align="center",
-                                    ),
-                                ),
+                                header_row,
+                                pipeline_title,
                             ]
                         ),
                     ],
