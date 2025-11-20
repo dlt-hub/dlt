@@ -2,7 +2,7 @@ name: dlt
 
 on:
   pull_request:
-    branches: [ master, devel ]
+    branches: [ master, devel, runtime ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -27,9 +27,10 @@ jobs:
 
   # testing and linting of docs snippets is always run to catch problems in the docs
   # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
-  test_docs_snippets:
-    name: test snippets in docs
-    uses: ./.github/workflows/test_docs_snippets.yml
+  test_docs:
+    name: lint and test snippets, examples and notebooks in docs, lints tools
+    uses: ./.github/workflows/test_docs.yml
+    secrets: inherit
 
   # NOTE: we build docs the same way as on cloudflare, so we can catch problems early
   build_docs:
@@ -85,12 +86,6 @@ jobs:
   # Remote destination tests and docs examples, needs secrets, 
   # so we depend on authorize and forward secrets
   #
-
-  test_examples:
-    name: test examples
-    needs: [lint, authorize_run_from_fork]
-    uses: ./.github/workflows/test_examples.yml
-    secrets: inherit
 
   test_destinations_remote:
     name: test remote destinations with secrets
