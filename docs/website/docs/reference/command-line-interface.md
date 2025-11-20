@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug] [--no-pwd]
-    {telemetry,schema,pipeline,init,render-docs,deploy,dashboard,ai} ...
+    {telemetry,schema,pipeline,init,render-docs,deploy,dashboard,ai,license} ...
 ```
 
 <details>
@@ -56,6 +56,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
 * [`dashboard`](#dlt-dashboard) - Starts the dlt workspace dashboard
 * [`ai`](#dlt-ai) - Use ai-powered development tools and utilities
+* [`license`](#dlt-license) - View dlthub license status
 
 </details>
 
@@ -784,6 +785,110 @@ Inherits arguments from [`dlt ai`](#dlt-ai).
 * `-h, --help` - Show this help message and exit
 * `--location LOCATION` - Advanced. specify git url or local path to rules files and config.
 * `--branch BRANCH` - Advanced. specify git branch to fetch rules files and config.
+
+</details>
+
+## `dlt license`
+
+View dlthub license status.
+
+**Usage**
+```sh
+dlt license [-h] {info,scopes,issue} ...
+```
+
+**Description**
+
+View dlthub license status.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`info`](#dlt-license-info) - Show the installed license
+* [`scopes`](#dlt-license-scopes) - Show available scopes
+* [`issue`](#dlt-license-issue) - Issues a self-signed trial license that may be used for development, testing and for ci ops.
+
+</details>
+
+### `dlt license info`
+
+Show the installed license.
+
+**Usage**
+```sh
+dlt license info [-h]
+```
+
+**Description**
+
+Show the installed license.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt license scopes`
+
+Show available scopes.
+
+**Usage**
+```sh
+dlt license scopes [-h]
+```
+
+**Description**
+
+Show available scopes.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt license issue`
+
+Issues a self-signed trial license that may be used for development, testing and for ci ops.
+
+**Usage**
+```sh
+dlt license issue [-h] scope
+```
+
+**Description**
+
+Issue a new self-signed trial license.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt license`](#dlt-license).
+
+**Positional arguments**
+* `scope` - Scope of the license, a comma separated list of the scopes: ['dlthub.dbt_generator', 'dlthub.sources.mssql', 'dlthub.project', 'dlthub.transformation', 'dlthub.destinations.iceberg', 'dlthub.destinations.snowflake_plus', 'dlthub.runner']
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 
