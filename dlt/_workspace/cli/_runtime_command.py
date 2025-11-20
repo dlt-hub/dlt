@@ -283,7 +283,7 @@ def run_script(
         raise _exception_from_response("Failed to create script", create_script_result)
     else:
         script_id = create_script_result.parsed.id
-        fmt.echo(f"Script {script_file_name} created or updated successfully, id: {script_id}")
+        fmt.echo(f"Job {script_file_name} created or updated successfully, id: {script_id}")
 
     create_run_result = create_run.sync_detailed(
         client=api_client,
@@ -294,25 +294,34 @@ def run_script(
         ),
     )
     if isinstance(create_run_result.parsed, create_run.RunResponse):
-        fmt.echo("Script %s run successfully" % (fmt.bold(str(script_file_name))))
+        fmt.echo("Job %s run successfully" % (fmt.bold(str(script_file_name))))
         if is_interactive:
             url = f"https://{script_id}.apps.tower.dev"
-            fmt.echo(f"Script is accessible on {url}")
+            fmt.echo(f"Job is accessible on {url}")
     else:
         raise _exception_from_response("Failed to run script", create_run_result)
 
 
 def get_run_info(
-    script_name_or_run_id: str,
+    script_path_or_job: str,
+    run_number: Optional[int] = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
-    try:
-        run_id = _to_uuid(script_name_or_run_id)
-    except RuntimeError:
-        run = _get_latest_run(api_client, auth_service, script_name_or_run_id)
-        run_id = run.id
+    if run_number is None:
+        try:
+            run_id = _to_uuid(script_path_or_job)
+        except RuntimeError:
+            run = _get_latest_run(api_client, auth_service, script_path_or_job)
+            run_id = run.id
+    else:
+        run_id = _resolve_run_id_by_number(
+            api_client=api_client,
+            auth_service=auth_service,
+            script_name_or_id=script_path_or_job,
+            run_number=run_number,
+        )
 
     get_run_result = get_run.sync_detailed(
         client=api_client,
@@ -321,7 +330,7 @@ def get_run_info(
     )
     if isinstance(get_run_result.parsed, get_run.DetailedRunResponse):
         fmt.echo("Status of run %s" % fmt.bold(str(run_id)))
-        fmt.echo(f"Script: {get_run_result.parsed.script.name}")
+        fmt.echo(f"Job: {get_run_result.parsed.script.name}")
         fmt.echo(f"Run #: {get_run_result.parsed.number}")
         fmt.echo("Status: %s" % fmt.bold(get_run_result.parsed.status))
         fmt.echo("Started at: %s" % fmt.bold(get_run_result.parsed.time_started))  # type: ignore[arg-type]
@@ -336,17 +345,26 @@ def get_run_info(
 
 
 def fetch_run_logs(
-    script_name_or_run_id: str,
+    script_path_or_job: str,
+    run_number: Optional[int] = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
-    """Get logs for a run, for the latest run of a script or workspace if script is not provided"""
-    try:
-        run_id = _to_uuid(script_name_or_run_id)
-    except RuntimeError:
-        run = _get_latest_run(api_client, auth_service, script_name_or_run_id)
-        run_id = run.id
+    """Get logs for a run of job (latest if run number not provided)."""
+    if run_number is None:
+        try:
+            run_id = _to_uuid(script_path_or_job)
+        except RuntimeError:
+            run = _get_latest_run(api_client, auth_service, script_path_or_job)
+            run_id = run.id
+    else:
+        run_id = _resolve_run_id_by_number(
+            api_client=api_client,
+            auth_service=auth_service,
+            script_name_or_id=script_path_or_job,
+            run_number=run_number,
+        )
 
     get_run_logs_result = get_run_logs.sync_detailed(
         client=api_client,
@@ -356,8 +374,7 @@ def fetch_run_logs(
     if isinstance(get_run_logs_result.parsed, get_run_logs.LogsResponse):
         run = get_run_logs_result.parsed.run
         run_info = (
-            f"Run # {run.number} of script {run.script.name}, status: {run.status}, run id:"
-            f" {run.id}"
+            f"Run # {run.number} of job {run.script.name}, status: {run.status}, run id: {run.id}"
         )
         fmt.echo(f"========== Run logs for {run_info} ==========")
         fmt.echo(get_run_logs_result.parsed.logs)
@@ -409,7 +426,7 @@ def get_runs(
     if isinstance(list_runs_result.parsed, list_runs.ListRunsResponse200):
         for run in reversed(list_runs_result.parsed.items or []):
             fmt.echo(
-                f"Run # {run.number} of script {run.script.name}, status: {run.status}, profile:"
+                f"Run # {run.number} of job {run.script.name}, status: {run.status}, profile:"
                 f" {run.profile}, started at {run.time_started}, ended at {run.time_ended},"
                 f" run id: {run.id}"
             )
@@ -525,7 +542,7 @@ def _get_latest_run(
             script_id_or_name=script_id_or_name,
         )
         if isinstance(script.parsed, get_script.ScriptResponse):
-            fmt.echo(f"Script {script.parsed.name} found on runtime.")
+            fmt.echo(f"Job {script.parsed.name} found on runtime.")
             runs = list_runs.sync_detailed(
                 client=api_client,
                 workspace_id=_to_uuid(auth_service.workspace_id),
@@ -534,7 +551,7 @@ def _get_latest_run(
             )
             if isinstance(runs.parsed, list_runs.ListRunsResponse200):
                 if not runs.parsed.items:
-                    raise _exception_from_response("No runs executed in for this script", runs)
+                    raise _exception_from_response("No runs executed in for this job", runs)
                 else:
                     return runs.parsed.items[0]
             raise _exception_from_response(
@@ -592,3 +609,325 @@ def get_configuration_info(
         )
     else:
         raise _exception_from_response("Failed to get configuration info", get_configuration_result)
+
+
+# =========================
+# Runtime v2 helper methods
+# =========================
+
+
+def _ensure_profile_warning(required_profile: str) -> None:
+    """Warn if recommended profile is not set up."""
+    try:
+        ctx = active()
+        available = set(ctx.available_profiles())
+        if required_profile not in available:
+            if required_profile == "access":
+                fmt.warning(
+                    "No 'access' profile detected. Only default config/secrets will be used. "
+                    "Dashboard/notebook sharing may be limited."
+                )
+            elif required_profile == "prod":
+                fmt.warning("No 'prod' profile detected. Only default config/secrets will be used.")
+    except Exception:
+        # Fallback silent; lack of profiles is non-fatal
+        pass
+
+
+def _resolve_run_id_by_number(
+    *,
+    api_client: ApiClient,
+    auth_service: RuntimeAuthService,
+    script_name_or_id: str,
+    run_number: int,
+) -> UUID:
+    script = get_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        script_id_or_name=script_name_or_id,
+    )
+    if not isinstance(script.parsed, get_script.ScriptResponse):
+        raise _exception_from_response(
+            f"Failed to get script with name or id {script_name_or_id}", script
+        )
+    runs = list_runs.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        script_id=script.parsed.id,
+    )
+    if not isinstance(runs.parsed, list_runs.ListRunsResponse200) or not runs.parsed.items:
+        raise _exception_from_response("Failed to get runs for script", runs)
+    for r in runs.parsed.items:
+        if r.number == run_number:
+            return r.id
+    raise CliCommandInnerException(
+        cmd="runtime",
+        msg=f"Run number {run_number} not found for script/job {script_name_or_id}",
+        inner_exc=None,
+    )
+
+
+# Convenience commands
+
+
+def runtime_launch(script_path: str, *, detach: bool = False) -> None:
+    auth_service = login()
+    api_client = get_api_client(auth_service)
+    _ensure_profile_warning("prod")
+    # Sync and run
+    sync_deployment(auth_service=auth_service, api_client=api_client)
+    sync_configuration(auth_service=auth_service, api_client=api_client)
+    run_script(
+        script_path,
+        is_interactive=False,
+        profile="prod",
+        auth_service=auth_service,
+        api_client=api_client,
+    )
+    if not detach:
+        # Show status and then logs for latest run
+        get_run_info(script_path, None, auth_service=auth_service, api_client=api_client)
+        fetch_run_logs(script_path, None, auth_service=auth_service, api_client=api_client)
+
+
+def runtime_serve(script_path: str) -> None:
+    auth_service = login()
+    api_client = get_api_client(auth_service)
+    _ensure_profile_warning("access")
+    # Sync and run interactive
+    sync_deployment(auth_service=auth_service, api_client=api_client)
+    sync_configuration(auth_service=auth_service, api_client=api_client)
+    run_script(
+        script_path,
+        is_interactive=True,
+        profile="access",
+        auth_service=auth_service,
+        api_client=api_client,
+    )
+    # Follow until ready: show status then logs
+    get_run_info(script_path, None, auth_service=auth_service, api_client=api_client)
+    fetch_run_logs(script_path, None, auth_service=auth_service, api_client=api_client)
+
+
+def runtime_schedule(script_path: str, cron: Optional[str]) -> None:
+    if not cron:
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg=(
+                "Cron schedule must be provided: dlt runtime schedule <SCRIPT_PATH> <SCHEDULE_CRON>"
+            ),
+            inner_exc=None,
+        )
+    auth_service = login()
+    api_client = get_api_client(auth_service)
+    _ensure_profile_warning("prod")
+    script_path_obj = Path(active().run_dir) / script_path
+    if not script_path_obj.exists():
+        raise RuntimeError(f"Script file {script_path} not found")
+    # Ensure deployment/configuration in place
+    sync_deployment(auth_service=auth_service, api_client=api_client)
+    sync_configuration(auth_service=auth_service, api_client=api_client)
+    # Upsert script with schedule
+    upsert = create_or_update_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        body=create_or_update_script.CreateScriptRequest(
+            name=script_path,
+            description=f"The {script_path} job",
+            entry_point=script_path,
+            script_type=ScriptType.BATCH,
+            profile="prod",
+            schedule=cron,
+        ),
+    )
+    if isinstance(upsert.parsed, create_or_update_script.ScriptResponse):
+        fmt.echo(
+            f"Scheduled {fmt.bold(script_path)} with cron {fmt.bold(cron)}. Job id:"
+            f" {upsert.parsed.id}"
+        )
+    else:
+        raise _exception_from_response("Failed to schedule script", upsert)
+
+
+def runtime_schedule_cancel(script_path: str, *, cancel_current: bool = False) -> None:
+    auth_service = login()
+    api_client = get_api_client(auth_service)
+    # Unset schedule
+    upsert = create_or_update_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        body=create_or_update_script.CreateScriptRequest(
+            name=script_path,
+            description=f"The {script_path} job",
+            entry_point=script_path,
+            script_type=ScriptType.BATCH,
+            schedule=None,
+        ),
+    )
+    if isinstance(upsert.parsed, create_or_update_script.ScriptResponse):
+        fmt.echo(f"Cancelled schedule for {fmt.bold(script_path)}")
+    else:
+        raise _exception_from_response("Failed to cancel schedule", upsert)
+    if cancel_current:
+        request_run_cancel(script_path, auth_service=auth_service, api_client=api_client)
+
+
+def runtime_logs_by_ref(script_path_or_job: str, run_number: Optional[int]) -> None:
+    auth_service = login()
+    api_client = get_api_client(auth_service)
+    fetch_run_logs(script_path_or_job, run_number, auth_service=auth_service, api_client=api_client)
+
+
+def runtime_cancel_by_ref(script_path_or_job: str, run_number: Optional[int]) -> None:
+    auth_service = login()
+    api_client = get_api_client(auth_service)
+    if run_number is None:
+        request_run_cancel(script_path_or_job, auth_service=auth_service, api_client=api_client)
+    else:
+        run_id = _resolve_run_id_by_number(
+            api_client=api_client,
+            auth_service=auth_service,
+            script_name_or_id=script_path_or_job,
+            run_number=run_number,
+        )
+        request_run_cancel(str(run_id), auth_service=auth_service, api_client=api_client)
+
+
+def runtime_run_info_by_ref(
+    script_path_or_job: str,
+    run_number: Optional[int],
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
+    get_run_info(script_path_or_job, run_number, auth_service=auth_service, api_client=api_client)
+
+
+def runtime_dashboard() -> None:
+    auth_service = login()
+    # just echo link for now
+    fmt.echo(
+        "Open Runtime dashboard: %s"
+        % fmt.bold(f"https://console.tower.dev/workspaces/{auth_service.workspace_id}")
+    )
+
+
+def runtime_info() -> None:
+    auth_service = login()
+    api_client = get_api_client(auth_service)
+    fmt.echo("Remote workspace id: %s" % fmt.bold(auth_service.workspace_id))
+    # deployments
+    dep = list_deployments.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    dep_count = (
+        len(dep.parsed.items)
+        if isinstance(dep.parsed, list_deployments.ListDeploymentsResponse200) and dep.parsed.items
+        else 0
+    )
+    fmt.echo(f"Deployments: {dep_count}")
+    # configurations
+    cfg = list_configurations.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    cfg_count = (
+        len(cfg.parsed.items)
+        if isinstance(cfg.parsed, list_configurations.ListConfigurationsResponse200)
+        and cfg.parsed.items
+        else 0
+    )
+    fmt.echo(f"Configurations: {cfg_count}")
+    # jobs
+    scr = list_scripts.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    job_count = (
+        len(scr.parsed.items)
+        if isinstance(scr.parsed, list_scripts.ListScriptsResponse200) and scr.parsed.items
+        else 0
+    )
+    fmt.echo(f"Jobs: {job_count}")
+
+
+# Power user: jobs and job-runs
+
+
+def jobs_list(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+    res = list_scripts.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    if isinstance(res.parsed, list_scripts.ListScriptsResponse200) and isinstance(
+        res.parsed.items, list
+    ):
+        for s in reversed(res.parsed.items):
+            fmt.echo(
+                f"Job {s.name}, created at: {s.date_added}, id: {s.id}, version #: {s.version}"
+            )
+    else:
+        raise _exception_from_response("Failed to list jobs", res)
+
+
+def job_info(
+    script_path_or_job: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
+    res = get_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        script_id_or_name=script_path_or_job,
+    )
+    if isinstance(res.parsed, get_script.ScriptResponse):
+        fmt.echo(
+            f"Job {res.parsed.name}, created at: {res.parsed.date_added}, id: {res.parsed.id},"
+            f" version #: {res.parsed.version}"
+        )
+    else:
+        raise _exception_from_response("Failed to get job info", res)
+
+
+def job_create(
+    script_path: str, name: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
+    script_path_obj = Path(active().run_dir) / script_path
+    if not script_path_obj.exists():
+        raise RuntimeError(f"Script file {script_path} not found")
+    upsert = create_or_update_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        body=create_or_update_script.CreateScriptRequest(
+            name=name,
+            description=f"The {name} job",
+            entry_point=script_path,
+            script_type=ScriptType.BATCH,
+        ),
+    )
+    if isinstance(upsert.parsed, create_or_update_script.ScriptResponse):
+        fmt.echo(f"Job {fmt.bold(name)} created, id: {upsert.parsed.id}")
+    else:
+        raise _exception_from_response("Failed to create job", upsert)
+
+
+def job_run_create(
+    script_path: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
+    res = create_run.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        body=create_run.CreateRunRequest(
+            script_id_or_name=script_path,
+            profile=None,
+        ),
+    )
+    if isinstance(res.parsed, create_run.RunResponse):
+        fmt.echo(f"Run started for {fmt.bold(script_path)}")
+    else:
+        raise _exception_from_response("Failed to start run", res)
+
+
+def job_runs_list(
+    script_name: Optional[str], *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
+    get_runs(script_name=script_name or "", auth_service=auth_service, api_client=api_client)

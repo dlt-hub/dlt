@@ -43,6 +43,14 @@ components:
       - verification_uri
       title: GithubDeviceFlowStartResponse
       type: object
+    GithubOauthExchangeRequest:
+      properties:
+        access_token:
+          type: string
+      required:
+      - access_token
+      title: GithubOauthExchangeRequest
+      type: object
     LoginResponse:
       properties:
         email:
@@ -115,6 +123,33 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse400'
           description: Bad request syntax or unsupported method
       summary: GithubOauthComplete
+      tags:
+      - github
+  /v1/github/token-exchange:
+    post:
+      deprecated: false
+      operationId: github_oauth_exchange
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GithubOauthExchangeRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          description: Document created, URL follows
+          headers: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse400'
+          description: Bad request syntax or unsupported method
+      summary: GithubOauthExchange
       tags:
       - github
   /v1/ping:
