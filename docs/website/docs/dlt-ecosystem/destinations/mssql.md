@@ -118,7 +118,7 @@ We recommend using ADBC + parquet to load data. We observed 10x - 100x increase 
 will activate automatically if the right driver is present in the system. 
 :::
 
-### Fast loading with Arrow tables and parquet
+### Fast loading with parquet
 
 [parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/). **mssql** driver is provided by
 [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
@@ -131,21 +131,26 @@ with `uv` you can run `dbc` directly:
 ```sh
 uv tool run dbc search
 ```
-`dlt` will make **parquet** the preferred file format once driver is detected at runtime. You can go back to `insert_values` by passing
-`loader_file_format` to a resource or pipeline
-```py
-pipeline.run(data_iter, dataset_name="speed_test_2", write_disposition="replace", table_name="unsw_flow", loader_file_format="insert_values")
-```
+`dlt` will make **parquet** the preferred file format once driver is detected at runtime. This method is 10x-70x faster than INSERT and
+we make it a default for all input data types.
 
-Not all `mssql` types are supported, see driver docs for more details:
+Not all arrow data types are supported by the driver, see driver docs for more details:
+* fixed length binary
+* time with precision different than microseconds
 
-We copy parquet files with batches of size of 1 row group. Each file is copied in a single transaction.
+We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
 
 :::caution
 It looks like ADBC driver is based on [go-mssqldb](https://github.com/denisenkom/go-mssqldb?tab=readme-ov-file)
 
-DSN is different. We translate a few overlapping keys. `pyodbc` and `adbc` ignore unknown keys so you can specify keys for both in the same string.
+DSN format is different. We translate a few overlapping keys. `pyodbc` and `adbc` ignore unknown keys so you can specify keys for both in the same string.
 :::
+
+You can go back to `insert_values` by passing `loader_file_format` to a resource or pipeline
+```py
+# revert to INSERT statements
+pipeline.run(data_iter, dataset_name="speed_test_2", write_disposition="replace", table_name="unsw_flow", loader_file_format="insert_values")
+```
 
 ### Loading with INSERT statements
 
