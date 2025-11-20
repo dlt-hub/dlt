@@ -25,6 +25,208 @@ with app.setup:
     from dlt._workspace.run_context import switch_profile
 
 
+@app.function
+def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> List[Any] | None:
+    """Build profile-related header controls if profiles are enabled."""
+    if isinstance(dlt.current.run_context(), ProfilesRunContext):
+        return [
+            dlt_profile_select,
+            mo.md(
+                f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"
+            ),
+        ]
+    return None
+
+
+@app.function
+def render_workspace_home(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_all_pipelines: List[Dict[str, Any]],
+    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_pipelines_dir: str,
+    dlt_config: DashboardConfiguration,
+) -> List[Any]:
+    """Render the workspace-level home view (no pipeline selected)."""
+    _header_controls = build_header_controls(dlt_profile_select)
+    return [
+        mo.hstack(
+            [
+                mo.hstack(
+                    [
+                        mo.image(
+                            "https://dlthub.com/docs/img/dlthub-logo.png",
+                            width=100,
+                            alt="dltHub logo",
+                        ),
+                        _header_controls[0] if _header_controls else "",
+                    ],
+                    justify="start",
+                    gap=2,
+                ),
+                mo.hstack(
+                    [
+                        _header_controls[1] if _header_controls else "",
+                    ],
+                    justify="center",
+                ),
+                mo.hstack(
+                    [
+                        dlt_pipeline_select,
+                    ],
+                    justify="end",
+                ),
+            ],
+            justify="space-between",
+        ),
+        mo.md(strings.app_title).center(),
+        mo.md(strings.app_intro).center(),
+        mo.callout(
+            mo.vstack(
+                [
+                    mo.md(
+                        strings.home_quick_start_title.format(
+                            utils.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
+                        )
+                    ),
+                    dlt_pipeline_select,
+                ]
+            ),
+            kind="info",
+        ),
+        mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
+    ]
+
+
+@app.function
+def render_pipeline_home(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline: dlt.Pipeline,
+    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_pipelines_dir: str,
+    dlt_refresh_button: mo.ui.run_button,
+    dlt_pipeline_name: str,
+    dlt_config: DashboardConfiguration,
+) -> List[Any]:
+    """Render the pipeline-level home view (pipeline selected or requested)."""
+    _header_controls = build_header_controls(dlt_profile_select)
+
+    _buttons: List[Any] = [dlt_refresh_button]
+    _pipeline_execution_exception: List[Any] = []
+    _pipeline_execution_summary: Any = None
+    _last_load_packages_info: Any = None
+
+    if dlt_pipeline:
+        _buttons.append(
+            mo.ui.button(
+                label="<small>Open pipeline working dir</small>",
+                on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
+            )
+        )
+        if local_dir := utils.get_local_data_path(dlt_pipeline):
+            _buttons.append(
+                mo.ui.button(
+                    label="<small>Open local data location</small>",
+                    on_click=lambda _: utils.open_local_folder(local_dir),
+                )
+            )
+        if trace := dlt_pipeline.last_trace:
+            _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
+            _last_load_packages_info = mo.vstack(
+                [
+                    mo.md(f"<small>{strings.view_load_packages_text}</small>"),
+                    utils.load_package_status_labels(trace),
+                ]
+            )
+        _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
+
+    _stack: List[Any] = [
+        mo.vstack(
+            [
+                mo.hstack(
+                    [
+                        mo.vstack(
+                            [
+                                mo.hstack(
+                                    [
+                                        mo.hstack(
+                                            [
+                                                mo.hstack(
+                                                    [
+                                                        mo.image(
+                                                            "https://dlthub.com/docs/img/dlthub-logo.png",
+                                                            width=100,
+                                                            alt="dltHub logo",
+                                                        ),
+                                                        (
+                                                            _header_controls[0]
+                                                            if _header_controls
+                                                            else ""
+                                                        ),
+                                                    ],
+                                                    justify="start",
+                                                    gap=2,
+                                                ),
+                                                mo.hstack(
+                                                    [
+                                                        (
+                                                            _header_controls[1]
+                                                            if _header_controls
+                                                            else ""
+                                                        ),
+                                                    ],
+                                                    justify="center",
+                                                ),
+                                                mo.hstack(
+                                                    [
+                                                        dlt_pipeline_select,
+                                                    ],
+                                                    justify="end",
+                                                ),
+                                            ],
+                                            justify="center",
+                                        ),
+                                    ],
+                                ),
+                                mo.center(
+                                    mo.hstack(
+                                        [
+                                            mo.md(
+                                                strings.app_title_pipeline.format(
+                                                    dlt_pipeline_name
+                                                )
+                                            ),
+                                        ],
+                                        align="center",
+                                    ),
+                                ),
+                            ]
+                        ),
+                    ],
+                    justify="space-between",
+                ),
+            ]
+        ),
+        mo.hstack(_buttons, justify="start"),
+    ]
+
+    if _pipeline_execution_summary:
+        _stack.append(_pipeline_execution_summary)
+    if _last_load_packages_info:
+        _stack.append(_last_load_packages_info)
+    if _pipeline_execution_exception:
+        _stack.extend(_pipeline_execution_exception)
+
+    if not dlt_pipeline and dlt_pipeline_name:
+        _stack.append(
+            mo.callout(
+                mo.md(strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)),
+                kind="warn",
+            )
+        )
+
+    return _stack
+
+
 @app.cell(hide_code=True)
 def home(
     dlt_profile_select: mo.ui.dropdown,
@@ -48,175 +250,27 @@ def home(
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
-    _header_controls = (
-        [
+
+    is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
+    if is_workspace_dashboard:
+        _stack = render_workspace_home(
             dlt_profile_select,
-            mo.md(f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"),
-        ]
-        if isinstance(dlt.current.run_context(), ProfilesRunContext)
-        else None
-    )
-    if not dlt_pipeline and not dlt_pipeline_name:
-        _stack = [
-            mo.hstack(
-                [
-                    mo.hstack(
-                        [
-                            mo.image(
-                                "https://dlthub.com/docs/img/dlthub-logo.png",
-                                width=100,
-                                alt="dltHub logo",
-                            ),
-                            _header_controls[0] if _header_controls else "",
-                        ],
-                        justify="start",
-                        gap=2,
-                    ),
-                    mo.hstack(
-                        [
-                            _header_controls[1] if _header_controls else "",
-                        ],
-                        justify="center",
-                    ),
-                    mo.hstack(
-                        [
-                            dlt_pipeline_select,
-                        ],
-                        justify="end",
-                    ),
-                ],
-                justify="space-between",
-            ),
-            mo.md(strings.app_title).center(),
-            mo.md(strings.app_intro).center(),
-            mo.callout(
-                mo.vstack(
-                    [
-                        mo.md(
-                            strings.home_quick_start_title.format(
-                                utils.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
-                            )
-                        ),
-                        dlt_pipeline_select,
-                    ]
-                ),
-                kind="info",
-            ),
-            mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
-        ]
+            dlt_all_pipelines,
+            dlt_pipeline_select,
+            dlt_pipelines_dir,
+            dlt_config,
+        )
     else:
-        _buttons: List[Any] = []
-        _buttons.append(dlt_refresh_button)
-        _pipeline_execution_exception: List[Any] = []
-        _pipeline_execution_summary: mo.Html = None
-        _last_load_packages_info: mo.Html = None
-        if dlt_pipeline:
-            _buttons.append(
-                mo.ui.button(
-                    label="<small>Open pipeline working dir</small>",
-                    on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
-                )
-            )
-            if local_dir := utils.get_local_data_path(dlt_pipeline):
-                _buttons.append(
-                    mo.ui.button(
-                        label="<small>Open local data location</small>",
-                        on_click=lambda _: utils.open_local_folder(local_dir),
-                    )
-                )
-            if trace := dlt_pipeline.last_trace:
-                _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
-                _last_load_packages_info = mo.vstack(
-                    [
-                        mo.md(f"<small>{strings.view_load_packages_text}</small>"),
-                        utils.load_package_status_labels(trace),
-                    ]
-                )
-            _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
-        _stack = [
-            mo.vstack(
-                [
-                    mo.hstack(
-                        [
-                            mo.vstack(
-                                [
-                                    mo.hstack(
-                                        [
-                                            mo.hstack(
-                                                [
-                                                    mo.hstack(
-                                                        [
-                                                            mo.image(
-                                                                "https://dlthub.com/docs/img/dlthub-logo.png",
-                                                                width=100,
-                                                                alt="dltHub logo",
-                                                            ),
-                                                            (
-                                                                _header_controls[0]
-                                                                if _header_controls
-                                                                else ""
-                                                            ),
-                                                        ],
-                                                        justify="start",
-                                                        gap=2,
-                                                    ),
-                                                    mo.hstack(
-                                                        [
-                                                            (
-                                                                _header_controls[1]
-                                                                if _header_controls
-                                                                else ""
-                                                            ),
-                                                        ],
-                                                        justify="center",
-                                                    ),
-                                                    mo.hstack(
-                                                        [
-                                                            dlt_pipeline_select,
-                                                        ],
-                                                        justify="end",
-                                                    ),
-                                                ],
-                                                justify="center",
-                                            ),
-                                        ],
-                                    ),
-                                    mo.center(
-                                        mo.hstack(
-                                            [
-                                                mo.md(
-                                                    strings.app_title_pipeline.format(
-                                                        dlt_pipeline_name
-                                                    )
-                                                ),
-                                            ],
-                                            align="center",
-                                        ),
-                                    ),
-                                ]
-                            ),
-                        ],
-                        justify="space-between",
-                    ),
-                ]
-            ),
-            mo.hstack(_buttons, justify="start"),
-        ]
-        if _pipeline_execution_summary:
-            _stack.append(_pipeline_execution_summary)
-        if _last_load_packages_info:
-            _stack.append(_last_load_packages_info)
-        if _pipeline_execution_exception:
-            _stack.extend(_pipeline_execution_exception)
-        if not dlt_pipeline and dlt_pipeline_name:
-            _stack.append(
-                mo.callout(
-                    mo.md(
-                        strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)
-                    ),
-                    kind="warn",
-                )
-            )
+        _stack = render_pipeline_home(
+            dlt_profile_select,
+            dlt_pipeline,
+            dlt_pipeline_select,
+            dlt_pipelines_dir,
+            dlt_refresh_button,
+            dlt_pipeline_name,
+            dlt_config,
+        )
+
     mo.vstack(_stack)
     return (dlt_pipeline,)
 
