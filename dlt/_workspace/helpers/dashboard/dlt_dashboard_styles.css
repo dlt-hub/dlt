@@ -2,6 +2,8 @@
 :root {
   --marimo-heading-font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell;
   --marimo-monospace-font: monospace;
+  color-scheme: light;
+  forced-color-adjust: none;
 
   /* dlt colors */
   --dlt-color-lime: #c6d300;
@@ -9,10 +11,22 @@
   --dlt-color-purple: #191937;
   --dlt-color-pink: #EE746D;
 
+  /* surfaces & text */
+  --dlt-surface: #ffffff;
+  --dlt-surface-alt: #f6f7fb;
+  --dlt-text-primary: #191937;
+  --dlt-text-secondary: #4b4b66;
+  --dlt-border-strong: #191937;
+  --dlt-border-muted: #d9dae8;
+
+  --dlt-table-row-even-bg: var(--dlt-surface-alt);
+  --dlt-table-row-odd-bg: #eceff7;
+  --dlt-table-border-color: #cfd1e2;
+
   /* background colors */
-  --dlt-color-lime-background: #c6d30006;
-  --dlt-color-aqua-background: #59c1d503;
-  --dlt-color-purple-background: #19193706;
+  --dlt-color-lime-background: #c6d3000a;
+  --dlt-color-aqua-background: #59c1d508;
+  --dlt-color-purple-background: #1919370a;
 
   /* badge colors */
   --grey-bg: #E0E0E0;
@@ -23,6 +37,92 @@
   --green-text: #468A47;
   --red-bg: #D47672;
   --red-text: #FBE8E8;
+
+  /* shadcn / marimo ui tokens */
+  --secondary: var(--dlt-surface-alt);
+  --secondary-foreground: var(--dlt-text-primary);
+  --muted: var(--dlt-surface-alt);
+  --muted-foreground: var(--dlt-text-secondary);
+  --border: var(--dlt-border-muted);
+  --input: var(--dlt-border-muted);
+  --ring: var(--dlt-border-strong);
+}
+
+body.light,
+body.light-theme {
+  color-scheme: light;
+}
+
+body.dark,
+body.dark-theme {
+  color-scheme: dark;
+  --dlt-color-purple: #f3f3ff;
+  --dlt-surface: #070911;
+  --dlt-surface-alt: #0f1220;
+  --dlt-text-primary: #f2f4ff;
+  --dlt-text-secondary: #c1c4da;
+  --dlt-border-strong: rgba(255, 255, 255, 0.4);
+  --dlt-border-muted: rgba(255, 255, 255, 0.16);
+  --dlt-color-lime-background: rgba(198, 211, 0, 0.15);
+  --dlt-color-aqua-background: rgba(89, 193, 213, 0.12);
+  --dlt-color-purple-background: rgba(255, 255, 255, 0.04);
+  --dlt-table-row-even-bg: rgba(255, 255, 255, 0.04);
+  --dlt-table-row-odd-bg: rgba(255, 255, 255, 0.02);
+  --dlt-table-border-color: rgba(255, 255, 255, 0.1);
+  --grey-bg: #2a2c38;
+  --grey-text: #d6d7de;
+  --yellow-bg: #4a3a1b;
+  --yellow-text: #f3d8a1;
+  --green-bg: #1b3c25;
+  --green-text: #b4f5b7;
+  --red-bg: #4a1a1b;
+  --red-text: #f5c7c7;
+  --secondary: var(--dlt-surface-alt);
+  --secondary-foreground: var(--dlt-text-primary);
+  --muted: var(--dlt-surface-alt);
+  --muted-foreground: var(--dlt-text-secondary);
+  --border: var(--dlt-border-muted);
+  --input: var(--dlt-border-muted);
+  --ring: var(--dlt-border-strong);
+}
+
+html,
+body,
+#App {
+  background-color: var(--dlt-surface);
+  color: var(--dlt-text-primary);
+}
+
+#App button {
+  color: var(--dlt-text-primary);
+  background-color: var(--dlt-surface-alt);
+  border: 1px solid var(--dlt-border-muted);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#App button:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--dlt-surface-alt) 70%, var(--dlt-surface) 30%);
+  border-color: var(--dlt-border-strong);
+}
+
+#App button:disabled {
+  color: var(--dlt-text-secondary);
+  background-color: color-mix(in srgb, var(--dlt-surface-alt) 85%, var(--dlt-surface) 15%);
+}
+
+#App .text-secondary-foreground {
+  color: var(--dlt-text-primary);
+}
+
+marimo-table {
+  --background: var(--dlt-table-row-even-bg);
+  --muted: var(--dlt-table-row-odd-bg);
+  --muted-foreground: var(--dlt-text-secondary);
+  --border: var(--dlt-table-border-color);
+  --input: var(--dlt-table-border-color);
+  --slate-2: color-mix(in srgb, var(--dlt-table-row-even-bg) 85%, var(--dlt-surface) 15%);
+  --slate-3: color-mix(in srgb, var(--dlt-table-row-even-bg) 75%, var(--dlt-surface) 25%);
+  color: var(--dlt-text-primary);
 }
 
 /* Make headings bold */
@@ -47,6 +147,7 @@
 /* Increase paragraph font size and change color */
 .paragraph {
   font-size: 1.2rem;
+  color: var(--dlt-text-secondary);
 }
 
 .prose {
@@ -57,9 +158,8 @@
 /* add colors to cells */
 
 #App .marimo-cell .output-area{
-  border: 1px dashed var(--dlt-color-purple);
+  border: 1px dashed var(--dlt-border-strong);
   background-color: var(--dlt-color-purple-background);
-
 }
 
 /**
@@ -75,15 +175,14 @@
 #App .marimo-cell:nth-child(6) .output-area,
 #App .marimo-cell:nth-child(7) .output-area,
 #App .marimo-cell:nth-child(9) .output-area,
-#App .marimo-cell:nth-child(12) .output-area
- {
+#App .marimo-cell:nth-child(12) .output-area {
   background-color: var(--dlt-color-aqua-background);
   border: 1px dashed var(--dlt-color-aqua);
 }
 
 #App .marimo-cell:nth-child(0) .output-area,
 #App .marimo-cell:nth-child(1) .output-area {
-  background-color: white;
+  background-color: var(--dlt-surface);
   border: none;
 }
 

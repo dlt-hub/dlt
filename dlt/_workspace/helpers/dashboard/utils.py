@@ -628,7 +628,15 @@ def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
     Returns:
         Dict[str, str]: The css style of the cell.
     """
-    style = {"background-color": "white" if (int(row_id) % 2 == 0) else "#f4f4f9"}
+    style: Dict[str, str] = {
+        "background-color": (
+            "var(--dlt-table-row-even-bg)"
+            if (int(row_id) % 2 == 0)
+            else "var(--dlt-table-row-odd-bg)"
+        ),
+        "color": "var(--dlt-text-primary)",
+        "border-bottom": "1px solid var(--dlt-table-border-color)",
+    }
     if name.lower() == "name":
         style["font-weight"] = "bold"
     return style
