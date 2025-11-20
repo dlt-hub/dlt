@@ -238,7 +238,7 @@ class Schema:
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
-            if column_name.startswith(self._dlt_tables_prefix):
+            if self.is_dlt_entity(column_name):
                 continue
             is_variant = column.get("variant", False)
             # new column and contract prohibits that
@@ -300,7 +300,7 @@ class Schema:
         """Resolve the exact applicable schema contract settings for the table `table_name`. `new_table_schema` is added to the tree during the resolution."""
 
         settings: TSchemaContract = {}
-        if not table_name.startswith(self._dlt_tables_prefix):
+        if not self.is_dlt_entity(table_name):
             if new_table_schema:
                 tables = copy(self._schema_tables)
                 tables[table_name] = new_table_schema
@@ -544,7 +544,7 @@ class Schema:
         return [
             t
             for t in self._schema_tables.values()
-            if not t["name"].startswith(self._dlt_tables_prefix)
+            if not self.is_dlt_entity(t["name"])
             and (
                 (
                     include_incomplete
@@ -567,9 +567,7 @@ class Schema:
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
-        return [
-            t for t in self._schema_tables.values() if t["name"].startswith(self._dlt_tables_prefix)
-        ]
+        return [t for t in self._schema_tables.values() if self.is_dlt_entity(t["name"])]
 
     def dlt_table_names(self) -> List[str]:
         """Returns list of dlt table names."""
@@ -918,6 +916,10 @@ class Schema:
         else:
             self._settings["schema_contract"] = settings
 
+    def is_dlt_entity(self, entity_name: str) -> bool:
+        """Checks if the requested entity is a dlt entity"""
+        return entity_name.startswith(self._dlt_tables_prefix)
+
     def _infer_hint(self, hint_type: TColumnDefaultHint, col_name: str) -> bool:
         if hint_type in self._compiled_hints:
             return any(h.search(col_name) for h in self._compiled_hints[hint_type])
@@ -1148,7 +1150,7 @@ class Schema:
         self.state_table_name = to_naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)
         # do a sanity check - dlt tables must start with dlt prefix
         for table_name in [self.version_table_name, self.loads_table_name, self.state_table_name]:
-            if not table_name.startswith(self._dlt_tables_prefix):
+            if not self.is_dlt_entity(table_name):
                 raise SchemaCorruptedException(
                     self.name,
                     f"A naming convention `{self.naming.name()}` mangles `_dlt` table prefix to"

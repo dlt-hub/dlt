@@ -359,7 +359,7 @@ def _diff_between_actual_and_dlt_schema(
     for esc_name in possibly_dropped_col_names:
         name_in_dlt = escaped_to_dlt[esc_name]
 
-        if disregard_dlt_columns and name_in_dlt in [C_DLT_ID, C_DLT_LOAD_ID]:
+        if disregard_dlt_columns and schema.is_dlt_entity(name_in_dlt):
             continue
 
         col_schema = col_schemas[name_in_dlt]

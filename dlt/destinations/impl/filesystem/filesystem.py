@@ -656,7 +656,7 @@ class FilesystemClient(
         )
 
     def is_dlt_table(self, table_name: str) -> bool:
-        return table_name.startswith(self.schema._dlt_tables_prefix)
+        return self.schema.is_dlt_entity(table_name)
 
     def get_table_dirs(self, table_names: Iterable[str], remote: bool = False) -> List[str]:
         """Gets directories where table data is stored."""
