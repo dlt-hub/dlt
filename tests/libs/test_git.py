@@ -21,6 +21,7 @@ AWESOME_REPO = "https://github.com/sindresorhus/awesome.git"
 JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"
 PRIVATE_REPO = "git@github.com:scale-vector/rasa_bot_experiments.git"
 PRIVATE_REPO_WITH_ACCESS = "git@github.com:scale-vector/test_private_repo.git"
+CONTEXT_REPO = "https://github.com/dlt-hub/vibe-hub.git"
 
 
 def test_ssh_key_context() -> None:
@@ -114,6 +115,31 @@ def test_fresh_repo_files_branch_change(test_storage: FileStorage) -> None:
         assert repo.active_branch.name == "main"
         assert not is_dirty(repo)
         assert is_clean_and_synced(repo)
+
+
+def test_sparse_checkout(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="abbyy")
+    assert repo_storage.has_folder("abbyy")
+    # only abbyy present
+    assert len(repo_storage.list_folder_dirs(".")) == 2  # .git abbyy
+    # two files inside
+    assert len(repo_storage.list_folder_files("abbyy")) == 2
+
+    # checkout the other one
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="stripe")
+    assert repo_storage.has_folder("stripe")
+    assert len(repo_storage.list_folder_dirs(".")) == 2  # .git stripe
+
+    # unknown path
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")
+    assert not repo_storage.has_folder("__unknown")
+    assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
+
+
+def test_sparse_checkout_path_not_exist(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")
+    assert not repo_storage.has_folder("__unknown")
+    assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
 
 
 def test_fresh_repo_files_branch_change_to_default(test_storage: FileStorage) -> None:
