@@ -19,6 +19,7 @@ with app.setup:
 
     import dlt
     import pyarrow
+    import traceback
     from dlt._workspace.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
     from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
@@ -216,30 +217,40 @@ def home(
     dlt_file_watcher
 
     dlt_pipeline: dlt.Pipeline = None
-    if dlt_pipeline_name:
-        dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
-    dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+    try:
+        if dlt_pipeline_name:
+            dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
-    is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
-    if is_workspace_dashboard:
-        _stack = render_workspace_home(
-            dlt_profile_select,
-            dlt_all_pipelines,
-            dlt_pipeline_select,
-            dlt_pipelines_dir,
-            dlt_config,
-        )
-    else:
-        _stack = render_pipeline_home(
-            dlt_profile_select,
-            dlt_pipeline,
-            dlt_pipeline_select,
-            dlt_pipelines_dir,
-            dlt_refresh_button,
-            dlt_pipeline_name,
-            dlt_config,
-        )
+        dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+
+        is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
+        if is_workspace_dashboard:
+            _stack = render_workspace_home(
+                dlt_profile_select,
+                dlt_all_pipelines,
+                dlt_pipeline_select,
+                dlt_pipelines_dir,
+                dlt_config,
+            )
+        else:
+            _stack = render_pipeline_home(
+                dlt_profile_select,
+                dlt_pipeline,
+                dlt_pipeline_select,
+                dlt_pipelines_dir,
+                dlt_refresh_button,
+                dlt_pipeline_name,
+                dlt_config,
+            )
+    except Exception:
+        _stack = [
+            ui.build_error_callout(
+                "Error while rendering the home dashboard.",
+                "Some sections may work, but not all functionality may be available.",
+                traceback_string=traceback.format_exc(),
+            )
+        ]
 
     mo.vstack(_stack)
     return (dlt_pipeline,)
