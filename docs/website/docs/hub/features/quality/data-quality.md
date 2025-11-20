@@ -30,7 +30,7 @@ For example, the check `is_in(column_name, accepted_values)` verifies that the c
 
 This snippet shows a single `is_in()` check being ran against the `orders` table in the `point_of_sale` dataset.
 
-```python
+```py
 import dlt
 from dlt.hub import data_quality as dq
 
@@ -66,7 +66,7 @@ The library `dlthub` includes many built-in checks: `is_in()`, `is_unique()`, `i
 
 For example, the following are equivalent:
 
-```python
+```py
 from dlt.hub import data_quality as dq
 
 dq.checks.is_unique("foo")
