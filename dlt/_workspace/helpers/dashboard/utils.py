@@ -76,39 +76,39 @@ def _exception_to_string(exception: Exception) -> str:
     return str(exception)
 
 
-def sync_from_runtime(only_pipeline_name: str = None) -> None:
-    """Sync the pipeline states and traces from the runtime backup"""
+def sync_from_runtime() -> None:
+    """Sync the pipeline states and traces from the runtime backup, recursively."""
     from dlt.pipeline.runtime_artifacts import _get_runtime_artifacts_fs
+    import fsspec
 
+    def sync_dir(fs: fsspec.filesystem, src_root: str, dst_root: str) -> None:
+        """Recursively sync src_root on fs into dst_root locally, always using fs.walk."""
+        os.makedirs(dst_root, exist_ok=True)
+
+        for dirpath, _dirs, files in fs.walk(src_root):
+            # Compute local directory path
+            relative = os.path.relpath(dirpath, src_root)
+            local_dir = dst_root if relative == "." else os.path.join(dst_root, relative)
+            os.makedirs(local_dir, exist_ok=True)
+
+            # Copy all files in this directory
+            for filename in files:
+                remote_file = fs.sep.join([dirpath, filename])
+                local_file = os.path.join(local_dir, filename)
+                with fs.open(remote_file, "rb") as bf, open(local_file, "wb") as lf:
+                    lf.write(bf.read())
+
+    # --- main sync logic ---
     runtime_config = dlt.current.run_context().runtime_config
     fs = _get_runtime_artifacts_fs(runtime_config)
     if not fs:
         return
-    path = dlt.current.run_context().runtime_config.workspace_pipeline_artifacts_url
-    pipeline_folders = fs.ls(path)
 
-    local_pipelines_dir = get_dlt_pipelines_dir()
+    src_base = runtime_config.workspace_pipeline_artifacts_url  # the pipelines folder on fs
+    local_pipelines_dir = get_dlt_pipelines_dir()  # local root for pipelines
 
-    # sync pipelines
-    for pipeline_folder in pipeline_folders:
-        pipeline_name = os.path.basename(pipeline_folder)
-        if only_pipeline_name and pipeline_name != only_pipeline_name:
-            continue
-        os.makedirs(os.path.join(local_pipelines_dir, pipeline_name), exist_ok=True)
-        os.makedirs(os.path.join(local_pipelines_dir, pipeline_name, "schemas"), exist_ok=True)
-        with fs.open(os.path.join(pipeline_folder, "state.json"), "rb") as bf:
-            with open(os.path.join(local_pipelines_dir, pipeline_name, "state.json"), "wb") as f:
-                f.write(bf.read())
-        with fs.open(os.path.join(pipeline_folder, "trace.pickle"), "rb") as bf:
-            with open(os.path.join(local_pipelines_dir, pipeline_name, "trace.pickle"), "wb") as f:
-                f.write(bf.read())
-        for schema_file in fs.ls(os.path.join(pipeline_folder, "schemas")):
-            base_name = os.path.basename(schema_file)
-            with fs.open(schema_file, "rb") as bf:
-                with open(
-                    os.path.join(local_pipelines_dir, pipeline_name, "schemas", base_name), "wb"
-                ) as f:
-                    f.write(bf.read())
+    # Just sync the whole base folder into the local pipelines dir
+    sync_dir(fs, src_base, local_pipelines_dir)
 
 
 def get_dashboard_config_sections(p: Optional[dlt.Pipeline]) -> Tuple[str, ...]:

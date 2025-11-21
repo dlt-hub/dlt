@@ -98,7 +98,6 @@ def _send_trace_to_bucket(trace: PipelineTrace, pipeline: SupportsPipeline) -> N
                 pipeline.pipeline_name,
                 [
                     "trace.pickle",
-                    f"{tl_store.start_time}.trace.pickle",
                 ],  # save current and by start time
                 pickled_trace,
                 mode="wb",
@@ -120,7 +119,6 @@ def _send_state_to_bucket(trace: PipelineTrace, pipeline: SupportsPipeline) -> N
                 pipeline.pipeline_name,
                 [
                     "state.json",
-                    f"{tl_store.start_time}.state.json",
                 ],  # save current and by start time
                 encoded_state,
                 mode="w",
