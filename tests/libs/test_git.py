@@ -130,13 +130,14 @@ def test_sparse_checkout(test_storage: FileStorage) -> None:
     assert repo_storage.has_folder("stripe")
     assert len(repo_storage.list_folder_dirs(".")) == 2  # .git stripe
 
-    # unknown path
+    # unknown path in case repo is already cloned and checkout was done
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")
     assert not repo_storage.has_folder("__unknown")
     assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
 
 
-def test_sparse_checkout_path_not_exist(test_storage: FileStorage) -> None:
+def test_sparse_checkout_path_not_exist_on_clone(test_storage: FileStorage) -> None:
+    # unknown path before first checkout
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")
     assert not repo_storage.has_folder("__unknown")
     assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
