@@ -1282,7 +1282,7 @@ _dlt_version:f4:_ -> _dlt_loads:f2:_ [dir=both, penwidth=1, color="#1c1c34", arr
 
 ## Export to Mermaid
 
-[Mermaid](https://www.graphviz.org/) is a widely-supported diagramming language. dlt allows you to export your `dlt.Schema` as Mermaid string. This can natively rendered by many tools (GitHub markdown, Notion, marimo notebooks).
+[Mermaid](https://www.mermaidchart.com/) is a widely-supported diagramming language. dlt allows you to export your `dlt.Schema` as Mermaid string. This can natively rendered by many tools (GitHub markdown, Notion, marimo notebooks).
 
 Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a Mermaid string.
 
