@@ -13,13 +13,14 @@ app = marimo.App(
 )
 
 with app.setup:
-    from typing import Any, Dict, List, cast
+    from typing import Any, Dict, List, cast, Union
 
     import marimo as mo
 
     import dlt
     import pyarrow
     import traceback
+    from dlt.common import logger
     from dlt._workspace.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
     from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
@@ -27,14 +28,12 @@ with app.setup:
 
 
 @app.function
-def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> List[Any] | None:
+def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any], None]:
     """Build profile-related header controls if profiles are enabled."""
     if isinstance(dlt.current.run_context(), ProfilesRunContext):
         return [
             dlt_profile_select,
-            mo.md(
-                f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"
-            ),
+            mo.md(f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"),
         ]
     return None
 
@@ -122,6 +121,7 @@ def render_pipeline_home(
     _pipeline_execution_exception: List[Any] = []
     _pipeline_execution_summary: Any = None
     _last_load_packages_info: Any = None
+    _errors: List[Any] = []
 
     if dlt_pipeline:
         _buttons.append(
@@ -137,25 +137,29 @@ def render_pipeline_home(
                     on_click=lambda _: utils.open_local_folder(local_dir),
                 )
             )
-        if trace := dlt_pipeline.last_trace:
-            _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
-            _last_load_packages_info = mo.vstack(
-                [
-                    mo.md(f"<small>{strings.view_load_packages_text}</small>"),
-                    utils.load_package_status_labels(trace),
-                ]
+        try:
+            if trace := dlt_pipeline.last_trace:
+                _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
+                _last_load_packages_info = mo.vstack(
+                    [
+                        mo.md(f"<small>{strings.view_load_packages_text}</small>"),
+                        utils.load_package_status_labels(trace),
+                    ]
+                )
+            _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
+        except Exception as exc:
+            _errors.append(
+                ui.build_error_callout(
+                    "Error while reading pipeline trace. Some sections may not work.",
+                    traceback_string=traceback.format_exc(),
+                )
             )
-        _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
 
     header_row = build_home_header_row(dlt_profile_select, dlt_pipeline_select)
     pipeline_title = mo.center(
         mo.hstack(
             [
-                mo.md(
-                    strings.app_title_pipeline.format(
-                        dlt_pipeline_name
-                    )
-                ),
+                mo.md(strings.app_title_pipeline.format(dlt_pipeline_name)),
             ],
             align="center",
         ),
@@ -186,6 +190,8 @@ def render_pipeline_home(
         _stack.append(_last_load_packages_info)
     if _pipeline_execution_exception:
         _stack.extend(_pipeline_execution_exception)
+    if _errors:
+        _stack.extend(_errors)
 
     if not dlt_pipeline and dlt_pipeline_name:
         _stack.append(
@@ -698,78 +704,90 @@ def section_trace(
     )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
-        if _exception_section := utils.build_exception_section(dlt_pipeline):
-            _result.extend(_exception_section)
-        dlt_trace = dlt_pipeline.last_trace
-        if not dlt_trace:
-            _result.append(
-                mo.callout(
-                    mo.md(strings.trace_no_trace_text),
-                    kind="warn",
+        try:
+            if _exception_section := utils.build_exception_section(dlt_pipeline):
+                _result.extend(_exception_section)
+            dlt_trace = dlt_pipeline.last_trace
+            if not dlt_trace:
+                _result.append(
+                    mo.callout(
+                        mo.md(strings.trace_no_trace_text),
+                        kind="warn",
+                    )
                 )
-            )
-        else:
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_overview_title,
-                    title_level=3,
-                )
-            )
-            _result.append(mo.ui.table(utils.trace_overview(dlt_config, dlt_trace), selection=None))
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_execution_context_title,
-                    strings.trace_execution_context_subtitle,
-                    title_level=3,
-                )
-            )
-            _result.append(
-                mo.ui.table(utils.trace_execution_context(dlt_config, dlt_trace), selection=None)
-            )
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_steps_overview_title,
-                    strings.trace_steps_overview_subtitle,
-                    title_level=3,
-                )
-            )
-            _result.append(dlt_trace_steps_table)
-            for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
-                step_id = item["step"]  # type: ignore[unused-ignore,index]
+            else:
                 _result.append(
                     ui.build_title_and_subtitle(
-                        strings.trace_step_details_title.format(step_id.capitalize()),
+                        strings.trace_overview_title,
                         title_level=3,
                     )
                 )
-                _result += utils.trace_step_details(dlt_config, dlt_trace, step_id)
-
-            # config values
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_resolved_config_title,
-                    strings.trace_resolved_config_subtitle,
-                    title_level=3,
+                _result.append(
+                    mo.ui.table(utils.trace_overview(dlt_config, dlt_trace), selection=None)
                 )
-            )
-            _result.append(
-                mo.ui.table(
-                    utils.trace_resolved_config_values(dlt_config, dlt_trace), selection=None
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_execution_context_title,
+                        strings.trace_execution_context_subtitle,
+                        title_level=3,
+                    )
                 )
-            )
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_raw_trace_title,
-                    title_level=3,
+                _result.append(
+                    mo.ui.table(
+                        utils.trace_execution_context(dlt_config, dlt_trace), selection=None
+                    )
                 )
-            )
-            _result.append(
-                mo.accordion(
-                    {
-                        strings.trace_show_raw_trace_text: mo.json(
-                            utils.sanitize_trace_for_display(dlt_trace)
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_steps_overview_title,
+                        strings.trace_steps_overview_subtitle,
+                        title_level=3,
+                    )
+                )
+                _result.append(dlt_trace_steps_table)
+                for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
+                    step_id = item["step"]  # type: ignore[unused-ignore,index]
+                    _result.append(
+                        ui.build_title_and_subtitle(
+                            strings.trace_step_details_title.format(step_id.capitalize()),
+                            title_level=3,
                         )
-                    }
+                    )
+                    _result += utils.trace_step_details(dlt_config, dlt_trace, step_id)
+
+                # config values
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_resolved_config_title,
+                        strings.trace_resolved_config_subtitle,
+                        title_level=3,
+                    )
+                )
+                _result.append(
+                    mo.ui.table(
+                        utils.trace_resolved_config_values(dlt_config, dlt_trace), selection=None
+                    )
+                )
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_raw_trace_title,
+                        title_level=3,
+                    )
+                )
+                _result.append(
+                    mo.accordion(
+                        {
+                            strings.trace_show_raw_trace_text: mo.json(
+                                utils.sanitize_trace_for_display(dlt_trace)
+                            )
+                        }
+                    )
+                )
+        except Exception as exc:
+            _result.append(
+                ui.build_error_callout(
+                    f"Error while building trace section: {exc}",
+                    traceback_string=traceback.format_exc(),
                 )
             )
     mo.vstack(_result) if _result else None
@@ -1200,10 +1218,13 @@ def ui_primary_controls(
     # Trace steps table
     #
     dlt_trace_steps_table: mo.ui.table = None
-    if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
-        dlt_trace_steps_table = mo.ui.table(
-            utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace)
-        )
+    try:
+        if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
+            dlt_trace_steps_table = mo.ui.table(
+                utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace)
+            )
+    except Exception as exc:
+        logger.error(f"Error while building trace steps table: {exc}")
     return (
         dlt_data_table_list,
         dlt_schema_table_list,
