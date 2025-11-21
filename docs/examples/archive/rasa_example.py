@@ -17,7 +17,9 @@ credentials = "postgres://loader@localhost:5432/dlt_data"
 # in case of rasa the base source can be a file, database table (see sql_query.py), kafka topic, rabbitmq queue etc. corresponding to store or broker type
 
 # for the simplicity let's use jsonl source to read all files with events in a directory
-event_files = jsonl_files([file for file in os.scandir("docs/examples/data/rasa_trackers")])
+event_files = jsonl_files(
+    [file for file in os.scandir("docs/examples/data/rasa_trackers")]
+)
 
 info = dlt.pipeline(
     dev_mode=True,

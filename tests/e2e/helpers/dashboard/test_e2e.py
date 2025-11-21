@@ -78,13 +78,11 @@ def test_page_overview(page: Page):
 def test_exception_pipeline(page: Page, failed_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="failed_pipeline").click()
+    expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # overview page
     _open_section(page, "overview")
     expect(page.get_by_text(_normpath("_storage/.dlt/pipelines/failed_pipeline"))).to_be_visible()
-    expect(
-        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
-    ).to_be_visible()
 
     _open_section(page, "schema")
     expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
@@ -98,9 +96,7 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
-    expect(
-        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
-    ).to_be_visible()
+    expect(page.get_by_text("AssertionError: I am broken").nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
@@ -116,6 +112,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
     _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
+
     expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
 
     # select each schema and see if the right tables are shown
@@ -123,7 +120,7 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     for section in ["schema", "data"]:
         _open_section(page, section)  # type: ignore[arg-type]
 
-        schema_selector = page.get_by_role("combobox")
+        schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
         schema_selector.select_option("fruitshop_customers")
         expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
@@ -169,9 +166,6 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     # check first table
     page.get_by_role("checkbox").nth(0).check()
 
-    # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
-    time.sleep(2.0)
-
     # check state (we check some info from the incremental state here)
     page.get_by_text("Show source and resource state").click()
     expect(
@@ -202,6 +196,9 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     expect(
         page.get_by_role("row", name="one_two_three").nth(0)
     ).to_be_visible()  #  this is in the loads table
+
+    # since we are not waiting for the result but clicking ahead, pause to avoid locked duckdb
+    time.sleep(2.0)
 
     # ibis page
     # _open_section(page, "ibis")

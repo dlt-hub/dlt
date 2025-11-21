@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 from typing import Any, Callable, cast, List, Optional, Set
+from importlib.metadata import version
 
 import pytest
 from pytest_mock import MockerFixture
@@ -9,11 +10,11 @@ import dlt
 from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.utils import uniq_id
+from dlt.common.utils import assert_min_pkg_version, uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
@@ -1443,6 +1444,7 @@ def assert_precision_columns(
     elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
         del actual[0]["precision"]
+        expected = add_default_decimal_precision(expected, is_connectorx=True)
     assert actual == expected
 
 
@@ -1525,14 +1527,23 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
                 column["precision"] = 16  # only int and bigint in connectorx
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
+        if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
+            try:
+                assert_min_pkg_version(pkg_name="connectorx", version="0.4.4")
+                add_default_decimal_precision([column], is_connectorx=True)
+            except DependencyVersionException:
+                pass
     return columns
 
 
-def add_default_decimal_precision(columns: List[TColumnSchema]) -> List[TColumnSchema]:
+def add_default_decimal_precision(
+    columns: List[TColumnSchema], is_connectorx: bool = False
+) -> List[TColumnSchema]:
+    scale = 9 if not is_connectorx else 10
     for column in columns:
         if column["data_type"] == "decimal" and not column.get("precision"):
             column["precision"] = 38
-            column["scale"] = 9
+            column["scale"] = scale
     return columns
 
 
