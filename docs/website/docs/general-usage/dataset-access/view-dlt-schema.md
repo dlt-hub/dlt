@@ -837,7 +837,7 @@ TableGroup "_dlt" {
 
 
 ## Export to Graphviz
-[Graphviz](https://www.graphviz.org/) is an open soruce graph visualization engine which uses the [DOT language](https://graphviz.org/doc/info/lang.html). dlt allows you to export your `dlt.Schema` as DOT string, which can be rendered using the Python `graphviz` library, lightweight JS libraries (e.g., [d3-graphviz](https://github.com/magjac/d3-graphviz)), or IDE extensions.
+[Graphviz](https://www.graphviz.org/) is an open source graph visualization engine which uses the [DOT language](https://graphviz.org/doc/info/lang.html). dlt allows you to export your `dlt.Schema` as DOT string, which can be rendered using the Python `graphviz` library, lightweight JS libraries (e.g., [d3-graphviz](https://github.com/magjac/d3-graphviz)), or IDE extensions.
 
 Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a DOT string.
 
@@ -1278,3 +1278,74 @@ _dlt_version:f4:_ -> _dlt_loads:f2:_ [dir=both, penwidth=1, color="#1c1c34", arr
 </details>
 
 ![graphviz dot render](https://storage.googleapis.com/dlt-blog-images/schema_dot_export.svg)
+
+
+## Export to Mermaid
+
+[Mermaid](https://www.graphviz.org/) is a widely-supported diagramming language. dlt allows you to export your `dlt.Schema` as Mermaid string. This can natively rendered by many tools (GitHub markdown, Notion, marimo notebooks).
+
+Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a Mermaid string.
+
+```py
+schema_mermaid = pipeline.default_schema.to_mermaid()
+```
+
+```sh
+# `chess_pipeline` is the name of the pipeline
+dlt pipeline chess_pipeline schema --format mermaid
+```
+
+<details>
+  <summary>See Mermaid</summary>
+
+  ```mermaid
+    erDiagram
+      _dlt_version{
+      bigint version
+      bigint engine_version
+      timestamp inserted_at
+      text schema_name
+      text version_hash
+      text schema
+  }
+      _dlt_loads{
+      text load_id
+      text schema_name
+      bigint status
+      timestamp inserted_at
+      text schema_version_hash
+  }
+      customers{
+      bigint id PK
+      text name
+      text city
+      text _dlt_load_id
+      text _dlt_id UK
+  }
+      purchases{
+      bigint id PK
+      bigint customer_id
+      bigint inventory_id
+      bigint quantity
+      text date
+      text _dlt_load_id
+      text _dlt_id UK
+  }
+      _dlt_pipeline_state{
+      bigint version
+      bigint engine_version
+      text pipeline_name
+      text state
+      timestamp created_at
+      text version_hash
+      text _dlt_load_id
+      text _dlt_id UK
+  }
+      customers }|--|| _dlt_loads : _dlt_load
+      purchases }|--|| _dlt_loads : _dlt_load
+      purchases ||--|{ customers : ""
+      _dlt_pipeline_state }|--|| _dlt_loads : _dlt_load
+  ```
+</details>
+
+![mermaid render](https://storage.googleapis.com/dlt-blog-images/schema_mermaid_export.png)
