@@ -35,7 +35,7 @@ External Access Integrations allow the application to connect to external system
       object_type: EXTERNAL_ACCESS_INTEGRATION
       register_callback: app_core.register_reference
       configuration_callback: app_core.get_external_access_config
-  - EXTERNAL_STAGE_ACCESS:
+ EXTERNAL_STAGE_ACCESS:
       label: "External stage"
       description: "This External Access Integration is required to access the external stage (S3)"
       privileges:
@@ -463,7 +463,7 @@ Base Image: `FROM python:3.13-slim`
 
 Dockerfile:
 
-```docker
+```sh
 FROM python:3.13-slim
 
 ARG USERNAME=jobuser
