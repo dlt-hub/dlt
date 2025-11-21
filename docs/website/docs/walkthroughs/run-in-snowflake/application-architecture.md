@@ -50,15 +50,15 @@ External Access Integrations allow the application to connect to external system
 The app only connects to S3 endpoints defined by the user; no wildcard 0.0.0.0 egress.
 
 Egress URLs:
-`{bucket_name}.s3.{bucket_region_name}.amazonaws.com:443`, where 'bucket_name' and 'bucket_region_name' are configured by the app user.
+`{bucket_name}.s3.{bucket_region_name}.amazonaws.com:443`, where `bucket_name`and `bucket_region_name` are configured by the app user.
 
-### UDFs and Stored Procedures (Core Logic)
+### UDFs and Stored Procedures 
 
 Functions and procedures provide configuration lookup, ID generation, secret handling, job execution, compute management, and task scheduling.
 
 #### Configuration UDFs and Helper Function
 
-`get_pipeline_job_config`: looks up pipeline-specific job configuration stored in `config.jobs`
+`get_pipeline_job_config`: Looks up pipeline-specific job configuration stored in `config.jobs`.
 
 ```sql
 CREATE OR REPLACE FUNCTION code.get_pipeline_job_config(pipeline_name STRING)
@@ -70,7 +70,7 @@ $$
 $$;
 ```
 
-`get_pipeline_integrations_config`: looks up integration configuration (e.g. references, staging type) in `config.integrations`
+`get_pipeline_integrations_config`: Looks up integration configuration (e.g. references, staging type) in `config.integrations`.
 
 ```sql
 CREATE OR REPLACE FUNCTION code.get_pipeline_integrations_config(pipeline_name STRING)
@@ -82,7 +82,8 @@ $$
 $$;
 ```
 
-`get_task_id`: helper function that namespaces task names in `task`.
+`get_task_id`: Helper function that namespaces task names in `task`.
+
 ```sql
 CREATE OR REPLACE FUNCTION code.get_task_id(task_name STRING)
 RETURNS STRING
@@ -184,9 +185,9 @@ END;
 
 #### External Access Configuration Procedures
 
-`configure_external_access`: writes/stores config for a ref (pipeline, host/port, secret reference)
+`configure_external_access`: Writes/stores config for a ref (pipeline, host/port, secret reference).
 
-`get_external_access_config`: returns configuration for a given reference to Snowflake
+`get_external_access_config`: Returns configuration for a given reference to Snowflake.
 
 
 ```sql
@@ -226,8 +227,8 @@ HANDLER = 'external_access.get_external_access_config';
 
 
 `init_job_run`:
-- Generates `job_id` and records a row in `jobs.run`
-- Captures who triggered the job and when
+- Generates `job_id` and records a row in `jobs.run`.
+- Captures who triggered the job and when.
 
 
 ```sql
@@ -309,11 +310,11 @@ $$;
 #### Executing the Job Service
 
 `execute_job_services`:
-- Drops any existing jobs.dlt_pipeline_run service to ensure a clean start.
+- Drops any existing `jobs.dlt_pipeline_run` service to ensure a clean start.
 - Determines whether to use an external stage based on staging.
-- Builds a list of EXTERNAL_ACCESS_INTEGRATIONS references.
-- Executes EXECUTE JOB SERVICE using job_service/job_spec.yaml, passing job_id and pipeline_name.
-- Grants MONITOR privilege on the service to the app role.
+- Builds a list of `EXTERNAL_ACCESS_INTEGRATIONS` references.
+- Executes `EXECUTE JOB SERVICE` using `job_service/job_spec.yaml`, passing `job_id` and `pipeline_name`.
+- Grants `MONITOR` privilege on the service to the app role.
 
 ```sql
 CREATE OR REPLACE PROCEDURE code.execute_job_service(
@@ -390,7 +391,7 @@ END;
 
 #### Task Management
 
-`create_or_alter_task`: Creates or alters Snowflake task, which call `code.run_job`to execute pipeline. 
+`create_or_alter_task`: Creates or alters Snowflake task, which calls `code.run_job`to execute pipeline. 
 
 ```sql
 CREATE OR REPLACE PROCEDURE code.create_or_alter_task(
@@ -416,7 +417,7 @@ BEGIN
 END;
 $$;
 ```
-Other task procedures (`resume_task`, `suspend_task`, `drop_task`) simply compute the `task_id` and run the corresponding `ALTER` or `DROP` statements.
+Other task procedures (`resume_task`, `suspend_task`, `drop_task`) compute the `task_id` and run the corresponding `ALTER` or `DROP` statements.
 
 ### Security Controls
 User-provided credentials are stored in the consumer account using Snowflake secrets.
@@ -435,7 +436,7 @@ The app does not access consumer data in Snowflake beyond what it itself writes 
 
 ### Consumer Data Stored Outside Consumer Account
 
-Error ans warning logs are shared. Debug logs are shared optionally.
+Error and warning logs are shared. Debug logs are shared optionally.
 
 ```yaml
 configuration:
@@ -458,9 +459,9 @@ SDLC security activities include:
 
 ### Container Images
 
-Base Image: `FROM python:3.13-slim``
+Base Image: `FROM python:3.13-slim`
 
-Dockerfil:
+Dockerfile:
 
 ```docker
 FROM python:3.13-slim
@@ -504,7 +505,8 @@ Security measures applied to the container image:
 
 ### Application Objects in Consumer Account
 
-#### `setup.sql``
+#### `setup.sql`:
+
 ```sql
 EXECUTE IMMEDIATE FROM 'create_schemas.sql';
 
@@ -518,7 +520,7 @@ EXECUTE IMMEDIATE FROM 'create_procs.sql';
 EXECUTE IMMEDIATE FROM 'grant_privs.sql';
 ```
 
-#### `create_schemas.sql``
+#### `create_schemas.sql`:
 ```sql
 CREATE SCHEMA IF NOT EXISTS config;
 CREATE SCHEMA IF NOT EXISTS jobs;
@@ -528,7 +530,7 @@ CREATE SCHEMA IF NOT EXISTS unversioned_code;
 CREATE OR ALTER VERSIONED SCHEMA code;
 ```
 
-#### `create_tables.sql``
+#### `create_tables.sql`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS config.jobs (
@@ -560,7 +562,7 @@ CREATE TABLE IF NOT EXISTS jobs.logs (
 );
 ``` 
 
-#### `create_funcs.sql``
+#### `create_funcs.sql`:
 
 ```sql 
 CREATE OR REPLACE FUNCTION code.get_pipeline_job_config(pipeline_name STRING)
@@ -580,9 +582,9 @@ $$
 $$;
 ``` 
 
-#### `create_procs.sql``
+#### `create_procs.sql`:
 
-Contains all the procedures described in section 1.7, including `init_job_run`, `create_or_alter_compute`, `execute_job_service`, `run_job`, `register_reference`, `create_get_secret_proc`, `configure_external_access`, `get_external_access_config`, `get_secret_config`, and `task-management` procedures.
+Contains all the procedures described in section [UDFs and Stored Procedures](#udfs-and-stored-procedures), including `init_job_run`, `create_or_alter_compute`, `execute_job_service`, `run_job`, `register_reference`, `create_get_secret_proc`, `configure_external_access`, `get_external_access_config`, `get_secret_config`, and `task-management` procedures.
 
 Implements the full lifecycle:
 - Storing and retrieving secrets.
@@ -591,7 +593,7 @@ Implements the full lifecycle:
 - Managing scheduled tasks.
 
 
-#### `grant_privs.sql``
+#### `grant_privs.sql`:
 
 ```sql
 CREATE APPLICATION ROLE IF NOT EXISTS app_user;
@@ -615,7 +617,7 @@ GRANT USAGE ON PROCEDURE code.get_secret_config(STRING) TO APPLICATION ROLE app_
 GRANT USAGE ON PROCEDURE code.run_job(STRING, STRING) TO APPLICATION ROLE app_user;
 ``` 
 
-#### priviliges in `manifest.yml``
+#### priviliges in `manifest.yml`:
 
 ```yaml
 privileges:
