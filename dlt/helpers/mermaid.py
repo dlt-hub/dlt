@@ -1,13 +1,23 @@
 """Build a mermaid graph representation using raw strings without additional dependencies"""
 from enum import Enum
 from typing import Literal
-from dlt.common.schema.typing import TReferenceCardinality, TStoredSchema, TTableReferenceStandalone, TTableSchema, TTableSchemaColumns
+from dlt.common.schema.typing import (
+    TReferenceCardinality,
+    TStoredSchema,
+    TTableReferenceStandalone,
+    TTableSchema,
+    TTableSchemaColumns,
+)
 
 
-def schema_to_mermaid(schema: TStoredSchema, references: list[TTableReferenceStandalone], include_dlt_tables: bool = True) -> str:
+def schema_to_mermaid(
+    schema: TStoredSchema,
+    references: list[TTableReferenceStandalone],
+    include_dlt_tables: bool = True,
+) -> str:
     mermaid_er_diagram = "erDiagram\n"
 
-    for table_name, table_schema in schema['tables'].items():
+    for table_name, table_schema in schema["tables"].items():
         if not include_dlt_tables and table_name.startswith("_dlt"):
             continue
         mermaid_table = _to_mermaid_table(table_schema)
@@ -22,8 +32,7 @@ def schema_to_mermaid(schema: TStoredSchema, references: list[TTableReferenceSta
 
 
 def _is_dlt_table_reference(ref: TTableReferenceStandalone) -> bool:
-    """returns True if reference table or table is a _dlt_table
-    """
+    """returns True if reference table or table is a _dlt_table"""
     if ref["table"].startswith("_dlt") or ref["referenced_table"].startswith("_dlt"):
         return True
     return False
@@ -67,7 +76,7 @@ _CARDINALITY_ARROW: dict[Literal["default"] | TReferenceCardinality, TMermaidArr
     "many_to_many": TMermaidArrows.MANY_TO_MANY,
     "zero_to_one": TMermaidArrows.ZERO_TO_ONE,
     "one_to_zero": TMermaidArrows.ZERO_TO_ONE,
-    "default": TMermaidArrows.ZERO_TO_ONE
+    "default": TMermaidArrows.ZERO_TO_ONE,
 }
 
 
