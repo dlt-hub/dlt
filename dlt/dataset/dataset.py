@@ -19,7 +19,7 @@ from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
-from dlt.destinations.queries import build_row_counts_expr
+from dlt.dataset.queries import build_row_counts_expr
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 
 if TYPE_CHECKING:

@@ -9,7 +9,7 @@ from sqlglot.schema import MappingSchema as SQLGlotSchema
 import dlt
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.dataset.lineage import compute_columns_schema
-from dlt.destinations.queries import build_row_counts_expr, build_select_expr, _normalize_query
+from dlt.dataset.queries import build_row_counts_expr, build_select_expr, _normalize_query
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
 

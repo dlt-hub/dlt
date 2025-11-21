@@ -20,7 +20,7 @@ from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.queries import _normalize_query, build_select_expr
+from dlt.dataset.queries import _normalize_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import SupportsDataAccess
 
