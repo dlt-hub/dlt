@@ -290,8 +290,8 @@ def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(exampl
             text _dlt_id UK
         }
         purchases |o--o| customers : contains
-        purchases__items |{--|| purchases : _dlt_parent
-        purchases__items |{--|| purchases : _dlt_root
+        purchases__items }|--|| purchases : _dlt_parent
+        purchases__items }|--|| purchases : _dlt_root
     """
     mermaid_str = schema_to_mermaid(
         example_schema.to_dict(), example_schema.references, include_dlt_tables=False
