@@ -93,10 +93,14 @@ def sync_from_runtime() -> None:
 
             # Copy all files in this directory
             for filename in files:
+
                 remote_file = fs.sep.join([dirpath, filename])
                 local_file = os.path.join(local_dir, filename)
+
+                print(f"Synching {remote_file} to {local_file}")
                 with fs.open(remote_file, "rb") as bf, open(local_file, "wb") as lf:
                     lf.write(bf.read())
+                    
 
                 # Try to preserve LastModified as mtime
                 # needed for correct ordering of pipelines in pipeline list
