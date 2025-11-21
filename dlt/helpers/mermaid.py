@@ -1,5 +1,7 @@
 """Build a mermaid graph representation using raw strings without additional dependencies"""
-from dlt.common.schema.typing import TStoredSchema, TTableReferenceStandalone, TTableSchema, TTableSchemaColumns
+from enum import Enum
+from typing import Literal
+from dlt.common.schema.typing import TReferenceCardinality, TStoredSchema, TTableReferenceStandalone, TTableSchema, TTableSchemaColumns
 
 
 def schema_to_mermaid(schema: TStoredSchema, references: list[TTableReferenceStandalone], include_dlt_tables: bool = True) -> str:
@@ -44,12 +46,28 @@ def _to_mermaid_column(columns: TTableSchemaColumns) -> str:
     return rows
 
 
-_CARDINALITY_ARROW = {
-    "one_to_many": "||--|{",
-    "many_to_one": "|{--||",
-    "zero_to_many": "||--o{",
-    "one_to_more": "||--o{",
-    "default": "|{--||"
+class TMermaidArrows(str, Enum):
+    ONE_TO_MANY = "||--|{"
+    MANY_TO_ONE = "}|--||"
+    ZERO_TO_MANY = "|o--|{"
+    MANY_TO_ZERO = "}|--o|"
+    ONE_TO_MORE = "||--o{"
+    MORE_TO_ONE = "}o--||"
+    ONE_TO_ONE = "||--||"
+    MANY_TO_MANY = "}|--|{"
+    ZERO_TO_ONE = "|o--o|"
+
+
+_CARDINALITY_ARROW: dict[Literal["default"] | TReferenceCardinality, TMermaidArrows] = {
+    "one_to_many": TMermaidArrows.ONE_TO_MANY,
+    "many_to_one": TMermaidArrows.MANY_TO_ONE,
+    "zero_to_many": TMermaidArrows.ZERO_TO_MANY,
+    "many_to_zero": TMermaidArrows.MANY_TO_ZERO,
+    "one_to_one": TMermaidArrows.ONE_TO_ONE,
+    "many_to_many": TMermaidArrows.MANY_TO_MANY,
+    "zero_to_one": TMermaidArrows.ZERO_TO_ONE,
+    "one_to_zero": TMermaidArrows.ZERO_TO_ONE,
+    "default": TMermaidArrows.ZERO_TO_ONE
 }
 
 
