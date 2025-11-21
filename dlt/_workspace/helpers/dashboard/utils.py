@@ -10,7 +10,6 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Set,
     Tuple,
     Union,
     cast,
@@ -28,6 +27,7 @@ import dlt
 import marimo as mo
 import pyarrow
 import traceback
+import datetime  # noqa: I251
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
@@ -255,7 +255,7 @@ def pipeline_details(
         credentials = "Could not resolve credentials."
 
     # find the pipeline in all_pipelines and get the timestamp
-    pipeline_timestamp = get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir)
+    trace = pipeline.last_trace
 
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,
@@ -264,7 +264,9 @@ def pipeline_details(
             if pipeline.destination
             else "No destination set"
         ),
-        "last executed": _date_from_timestamp_with_ago(c, pipeline_timestamp),
+        "last executed": (
+            _date_from_timestamp_with_ago(c, trace.started_at) if trace else "No trace found"
+        ),
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
@@ -786,12 +788,15 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
 
 def _date_from_timestamp_with_ago(
-    config: DashboardConfiguration, timestamp: Union[int, float]
+    config: DashboardConfiguration, timestamp: Union[int, float, datetime.datetime]
 ) -> str:
     """Return a date with ago section"""
     if not timestamp or timestamp == 0:
         return "never"
-    p_ts = pendulum.from_timestamp(timestamp)
+    if isinstance(timestamp, datetime.datetime):
+        p_ts = pendulum.instance(timestamp)
+    else:
+        p_ts = pendulum.from_timestamp(timestamp)
     time_formatted = p_ts.format(config.datetime_format)
     ago = p_ts.diff_for_humans()
     return f"{ago} ({time_formatted})"
