@@ -795,23 +795,33 @@ class Schema:
         )
         return dot
 
-    def to_mermaid(self, include_dlt_tables: bool = True, table_names: list[str] = []) -> str:
+    def to_mermaid(
+            self,
+            remove_processing_hints : bool = False,
+            include_dlt_tables: bool = True, 
+        ) -> str:
         """Convert schema to a Mermaid diagram string.
         Args:
+            remove_processing_hints: If True, remove hints used for data processing and redundant information.
+                This reduces the size of the schema and improves readability.
             include_dlt_tables: If ``True`` (the default), include the data tables
                 as well as the internal DLT tables (``_dlt_version``,
                 ``_dlt_loads``, ``_dlt_pipeline_state``).  If ``False``, these tables
                 are omitted from the diagram.
-            table_names: Optional list of table names to include.  If an empty list
-                (the default) all tables are shown. This can be used to focus the
-                diagram on a subset of the schema.
 
         Returns:
             A string containing a Mermaid ERdiagram of the schema.
         """
         from dlt.helpers.mermaid import schema_to_mermaid
+        
+        stored_schema = self.to_dict(
+            # setting this to `True` removes `name` fields that are used in `schema_to_dbml()`
+            # if required, we can refactor `dlt.helpers.dbml` to support this
+            remove_defaults=False,
+            remove_processing_hints=remove_processing_hints,
+        )
 
-        return schema_to_mermaid(self, table_names, include_dlt_tables)
+        return schema_to_mermaid(stored_schema, self.references, include_dlt_tables)
 
     def clone(
         self,
