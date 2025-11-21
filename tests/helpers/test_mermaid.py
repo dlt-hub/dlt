@@ -256,13 +256,122 @@ def example_schema() -> dlt.Schema:
     )
 
 
-def test_schema_to_mermaid_generates_an_er_diagram(example_schema):
+def test_schema_to_mermaid_generates_an_er_diagram(example_schema: dlt.Schema):
     mermaid_str = schema_to_mermaid(example_schema.to_dict(), example_schema.references)
     assert mermaid_str.startswith("erDiagram")
 
 
-def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(example_schema):
-    expected_mermaid_str = """
+def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(example_schema: dlt.Schema):
+    expected_mermaid_str = _expected_mermaid_str()
+    mermaid_str = schema_to_mermaid(
+        example_schema.to_dict(), example_schema.references, include_dlt_tables=False
+    )
+
+    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
+
+
+@pytest.mark.parametrize("remove_process_hints", [False, True])
+def test_schema_to_mermaid_with_processing_hints(
+    example_schema: dlt.Schema, remove_process_hints: bool
+):
+    """Test that schema_to_mermaid produces the expected Mermaid string
+    both when hints are present and when they are removed.
+    """
+    expected_mermaid_str = _expected_mermaid_str()
+
+    schema_dict = example_schema.to_dict(remove_processing_hints=remove_process_hints)
+
+    mermaid_str = schema_to_mermaid(
+        schema_dict,
+        example_schema.references,
+        include_dlt_tables=False,
+    )
+
+    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
+
+
+@pytest.mark.parametrize("include_dlt_tables", [False, True])
+def test_schema_to_mermaid_with_dlt_tables_included(
+    example_schema: dlt.Schema, include_dlt_tables: bool
+):
+    """Test that schema_to_mermaid produces the expected Mermaid string
+    both when hints are present and when they are removed.
+    """
+    expected_mermaid_str = _expected_mermaid_str(with_dlt_tables=include_dlt_tables)
+
+    schema_dict = example_schema.to_dict()
+
+    mermaid_str = schema_to_mermaid(
+        schema_dict,
+        example_schema.references,
+        include_dlt_tables=include_dlt_tables,
+    )
+
+    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
+
+
+def _expected_mermaid_str(with_dlt_tables: bool = False):
+    if with_dlt_tables:
+        return """
+        erDiagram
+            _dlt_version{
+                bigint version 
+                bigint engine_version 
+                timestamp inserted_at 
+                text schema_name 
+                text version_hash 
+                text schema 
+            }
+            _dlt_loads{
+                text load_id 
+                text schema_name 
+                bigint status 
+                timestamp inserted_at 
+                text schema_version_hash 
+            }
+            customers{
+                bigint id PK 
+                text name 
+                text city 
+                text _dlt_load_id 
+                text _dlt_id UK 
+            }
+            purchases{
+                bigint id PK 
+                bigint customer_id 
+                bigint inventory_id 
+                bigint quantity 
+                text date 
+                text _dlt_load_id 
+                text _dlt_id UK 
+            }
+            _dlt_pipeline_state{
+                bigint version 
+                bigint engine_version 
+                text pipeline_name 
+                text state 
+                timestamp created_at 
+                text version_hash 
+                text _dlt_load_id 
+                text _dlt_id UK 
+            }
+            purchases__items{
+                bigint purchase_id 
+                text name 
+                bigint price 
+                text _dlt_root_id 
+                text _dlt_parent_id 
+                bigint _dlt_list_idx 
+                text _dlt_id UK 
+            }
+            customers }|--|| _dlt_loads : _dlt_load 
+            purchases }|--|| _dlt_loads : _dlt_load 
+            purchases |o--o| customers : contains 
+            _dlt_pipeline_state }|--|| _dlt_loads : _dlt_load 
+            purchases__items }|--|| purchases : _dlt_parent 
+            purchases__items }|--|| purchases : _dlt_root 
+        """
+    return """
     erDiagram
         customers {
             bigint id PK
@@ -293,12 +402,7 @@ def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(exampl
         purchases__items }|--|| purchases : _dlt_parent
         purchases__items }|--|| purchases : _dlt_root
     """
-    mermaid_str = schema_to_mermaid(
-        example_schema.to_dict(), example_schema.references, include_dlt_tables=False
-    )
-
-    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
-
+    
 
 def _normalize_whitespace(text):
     """Normalize whitespace in a string by replacing all whitespace sequences with single spaces."""
