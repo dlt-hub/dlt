@@ -289,7 +289,7 @@ def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(exampl
             bigint _dlt_list_idx
             text _dlt_id UK
         }
-        purchases |{--|| customers : contains
+        purchases |o--o| customers : contains
         purchases__items |{--|| purchases : _dlt_parent
         purchases__items |{--|| purchases : _dlt_root
     """
