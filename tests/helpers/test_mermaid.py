@@ -261,7 +261,9 @@ def test_schema_to_mermaid_generates_an_er_diagram(example_schema: dlt.Schema):
     assert mermaid_str.startswith("erDiagram")
 
 
-def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(example_schema: dlt.Schema):
+def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(
+    example_schema: dlt.Schema,
+):
     expected_mermaid_str = _expected_mermaid_str()
     mermaid_str = schema_to_mermaid(
         example_schema.to_dict(), example_schema.references, include_dlt_tables=False
@@ -402,7 +404,7 @@ def _expected_mermaid_str(with_dlt_tables: bool = False):
         purchases__items }|--|| purchases : _dlt_parent
         purchases__items }|--|| purchases : _dlt_root
     """
-    
+
 
 def _normalize_whitespace(text):
     """Normalize whitespace in a string by replacing all whitespace sequences with single spaces."""
