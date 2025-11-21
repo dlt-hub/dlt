@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
+from typing import overload, Literal, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
 from textwrap import indent
 from contextlib import contextmanager
 from dlt.common.utils import simple_repr, without_none
@@ -15,12 +15,19 @@ import dlt
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.libs.utils import is_instance_lib
-from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
+from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TTableSchema, TTableSchemaColumns
 from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.dataset.queries import _normalize_query, build_select_expr
+from dlt.dataset.queries import (
+    _create_column_alias,
+    _create_join_condition,
+    _create_join_condition_from_reference,
+    _get_valid_reference,
+    _normalize_query,
+    build_select_expr,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import SupportsDataAccess
 
@@ -485,6 +492,76 @@ class Relation(WithSqlClient):
             return self.where(column_or_expr=column_or_expr)
         assert isinstance(column_or_expr, str)
         return self.where(column_or_expr=column_or_expr, operator=operator, value=value)
+
+    def join(
+        self,
+        other: Union[Relation, str],
+        how: Optional[Literal["left", "right", "inner", "outer"]] = None,
+    ) -> Self:
+        """Join two tables based on Reference"""
+        rel = self.__copy__()
+        other_rel: Relation
+        if isinstance(other, str):
+            if "." in other:
+                other, *_ = other.split(".")
+            other_rel = self._dataset.table(other)
+        elif isinstance(other, dlt.Relation):
+            other_rel = other
+        else:
+            raise TypeError
+
+        current_table_name = rel.sqlglot_expression.find(sge.From).name
+        # NOTE this is currently required because `self.schema != self._dataset.schema.tables[NAME]`
+        # `Relation.schema` is inferred and doesn't carry all the hints
+        current_table_schema = self._dataset.schema.tables[current_table_name]
+        references = current_table_schema.get("references")
+        if references is None:
+            raise KeyError(f"Not references found on schema for table `{current_table_name}`")
+
+        other_table_name = other_rel.sqlglot_expression.find(sge.From).name
+        other_table_schema = self._dataset.schema.tables[other_table_name]
+
+        reference = _get_valid_reference(
+            other_table_name=other_table_name,
+            # other_col_name=other_col_name,
+            references=references,
+        )
+        join_condition = _create_join_condition_from_reference(current_table_name, reference)
+
+        meta_cols_aliases = []
+        current_cols_aliases = []
+        other_cols_aliases = []
+
+        for col in current_table_schema["columns"]:
+            if col in [C_DLT_LOAD_ID]:
+                continue
+
+            alias = _create_column_alias(current_table_name, col)
+            if col in [C_DLT_ID]:
+                meta_cols_aliases.append(alias)
+            else:
+                current_cols_aliases.append(alias)
+
+        for col in other_table_schema["columns"]:
+            if col in [C_DLT_LOAD_ID]:
+                continue
+
+            alias = _create_column_alias(other_table_name, col)
+            if col in [C_DLT_ID]:
+                meta_cols_aliases.append(alias)
+            else:
+                other_cols_aliases.append(alias)
+
+        rel._sqlglot_expression = (
+            sge.select(
+                *meta_cols_aliases,
+                *current_cols_aliases,
+                *other_cols_aliases,
+            )
+            .from_(current_table_name)
+            .join(other_table_name, on=join_condition, join_type=how)
+        )
+        return rel
 
     # TODO move this to the WithSqlClient / data accessor mixin.
     def fetchscalar(self) -> Any:
