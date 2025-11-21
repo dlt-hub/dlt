@@ -127,6 +127,7 @@ from dlt.pipeline.trace import (
     PipelineStepTrace,
     load_trace,
     merge_traces,
+    save_trace,
     start_trace,
     start_trace_step,
     end_trace_step,
@@ -237,9 +238,7 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
                             f"Messed up trace reference {self._trace.transaction_id} vs"
                             f" {trace.transaction_id}"
                         )
-                        trace = end_trace(
-                            trace, self, self._pipeline_storage.storage_path, send_state
-                        )
+                        trace = end_trace(trace, self, send_state)
                 finally:
                     # always end trace
                     if is_new_trace:
@@ -250,6 +249,7 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
                         # this way we combine several separate calls to extract, normalize, load as single trace
                         # the trace of "run" has many steps and will not be merged
                         self._last_trace = merge_traces(self._last_trace, trace)
+                        save_trace(self.working_dir, self._last_trace)
                         self._trace = None
 
         return _wrap  # type: ignore
