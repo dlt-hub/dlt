@@ -107,54 +107,12 @@ def render_workspace_home(
 
 
 @app.function
-def render_pipeline_home(
-    dlt_profile_select: mo.ui.dropdown,
-    dlt_pipeline: dlt.Pipeline,
-    dlt_pipeline_select: mo.ui.multiselect,
-    dlt_pipelines_dir: str,
-    dlt_refresh_button: mo.ui.run_button,
+def render_pipeline_header_row(
     dlt_pipeline_name: str,
-    dlt_config: DashboardConfiguration,
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline_select: mo.ui.multiselect,
+    buttons: List[Any],
 ) -> List[Any]:
-    """Render the pipeline-level home view (pipeline selected or requested)."""
-    _buttons: List[Any] = [dlt_refresh_button]
-    _pipeline_execution_exception: List[Any] = []
-    _pipeline_execution_summary: Any = None
-    _last_load_packages_info: Any = None
-    _errors: List[Any] = []
-
-    if dlt_pipeline:
-        _buttons.append(
-            mo.ui.button(
-                label="<small>Open pipeline working dir</small>",
-                on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
-            )
-        )
-        if local_dir := utils.get_local_data_path(dlt_pipeline):
-            _buttons.append(
-                mo.ui.button(
-                    label="<small>Open local data location</small>",
-                    on_click=lambda _: utils.open_local_folder(local_dir),
-                )
-            )
-        try:
-            if trace := dlt_pipeline.last_trace:
-                _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
-                _last_load_packages_info = mo.vstack(
-                    [
-                        mo.md(f"<small>{strings.view_load_packages_text}</small>"),
-                        utils.load_package_status_labels(trace),
-                    ]
-                )
-            _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
-        except Exception as exc:
-            _errors.append(
-                ui.build_error_callout(
-                    "Error while reading pipeline trace. Some sections may not work.",
-                    traceback_string=traceback.format_exc(),
-                )
-            )
-
     header_row = build_home_header_row(dlt_profile_select, dlt_pipeline_select)
     pipeline_title = mo.center(
         mo.hstack(
@@ -165,7 +123,7 @@ def render_pipeline_home(
         ),
     )
 
-    _stack: List[Any] = [
+    return [
         mo.vstack(
             [
                 mo.hstack(
@@ -181,8 +139,55 @@ def render_pipeline_home(
                 ),
             ]
         ),
-        mo.hstack(_buttons, justify="start"),
+        mo.hstack(buttons, justify="start"),
     ]
+
+
+@app.function
+def render_pipeline_home(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline: dlt.Pipeline,
+    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_pipelines_dir: str,
+    dlt_refresh_button: mo.ui.run_button,
+    dlt_pipeline_name: str,
+) -> List[Any]:
+    """Render the pipeline-level home view (pipeline selected or requested)."""
+    _buttons: List[Any] = [dlt_refresh_button]
+    _pipeline_execution_exception: List[Any] = []
+    _pipeline_execution_summary: Any = None
+    _last_load_packages_info: Any = None
+    _errors: List[Any] = []
+
+    _buttons.append(
+        mo.ui.button(
+            label="<small>Open pipeline working dir</small>",
+            on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
+        )
+    )
+    if local_dir := utils.get_local_data_path(dlt_pipeline):
+        _buttons.append(
+            mo.ui.button(
+                label="<small>Open local data location</small>",
+                on_click=lambda _: utils.open_local_folder(local_dir),
+            )
+        )
+
+    # NOTE: last_trace does not raise on broken traces
+    if trace := dlt_pipeline.last_trace:
+        # trace viz and run exception require last trace
+        _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
+        _last_load_packages_info = mo.vstack(
+            [
+                mo.md(f"<small>{strings.view_load_packages_text}</small>"),
+                utils.load_package_status_labels(trace),
+            ]
+        )
+        _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
+
+    _stack = render_pipeline_header_row(
+        dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
+    )
 
     if _pipeline_execution_summary:
         _stack.append(_pipeline_execution_summary)
@@ -222,50 +227,72 @@ def home(
     dlt_refresh_button
     dlt_file_watcher
 
+    # returned by cell
     dlt_pipeline: dlt.Pipeline = None
+    dlt_config: DashboardConfiguration = None
 
-    try:
-        if dlt_pipeline_name:
+    if dlt_pipeline_name:
+        try:
             dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
-
-        dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
-
-        is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
-        if is_workspace_dashboard:
-            _stack = render_workspace_home(
-                dlt_profile_select,
-                dlt_all_pipelines,
-                dlt_pipeline_select,
-                dlt_pipelines_dir,
-                dlt_config,
+            dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+        except Exception:
+            # render navigation and display error
+            _stack = render_pipeline_header_row(
+                dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, [dlt_refresh_button]
+            )
+            _stack.append(
+                ui.build_error_callout(
+                    f"Could not attach to pipeline {dlt_pipeline_name}.",
+                    traceback_string=traceback.format_exc(),
+                )
             )
         else:
-            _stack = render_pipeline_home(
-                dlt_profile_select,
-                dlt_pipeline,
-                dlt_pipeline_select,
-                dlt_pipelines_dir,
-                dlt_refresh_button,
-                dlt_pipeline_name,
-                dlt_config,
-            )
-    except Exception:
-        _stack = [
-            ui.build_error_callout(
-                "Error while rendering the home dashboard.",
-                "Some sections may work, but not all functionality may be available.",
-                traceback_string=traceback.format_exc(),
-            )
-        ]
+            # pipeline exists, render full dashboard
+            try:
+                _stack = render_pipeline_home(
+                    dlt_profile_select,
+                    dlt_pipeline,
+                    dlt_pipeline_select,
+                    dlt_pipelines_dir,
+                    dlt_refresh_button,
+                    dlt_pipeline_name,
+                )
+            except Exception:
+                _stack = [
+                    ui.build_error_callout(
+                        "Error while rendering the pipeline dashboard.",
+                        "Some sections may work, but not all functionality may be available.",
+                        traceback_string=traceback.format_exc(),
+                    )
+                ]
+    else:
+        try:
+            dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+            is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
+            if is_workspace_dashboard:
+                _stack = render_workspace_home(
+                    dlt_profile_select,
+                    dlt_all_pipelines,
+                    dlt_pipeline_select,
+                    dlt_pipelines_dir,
+                    dlt_config,
+                )
+        except Exception:
+            _stack = [
+                ui.build_error_callout(
+                    "Error while rendering the home dashboard.",
+                    traceback_string=traceback.format_exc(),
+                )
+            ]
 
     mo.vstack(_stack)
-    return (dlt_pipeline,)
+    return (dlt_pipeline, dlt_config)
 
 
 @app.cell(hide_code=True)
-def section_overview(
+def section_info(
     dlt_pipeline: dlt.Pipeline,
-    dlt_section_overview_switch: mo.ui.switch,
+    dlt_section_info_switch: mo.ui.switch,
     dlt_all_pipelines: List[Dict[str, Any]],
     dlt_config: DashboardConfiguration,
     dlt_pipelines_dir: str,
@@ -279,10 +306,10 @@ def section_overview(
         strings.overview_title,
         strings.overview_subtitle,
         strings.overview_subtitle,
-        dlt_section_overview_switch,
+        dlt_section_info_switch,
     )
 
-    if dlt_pipeline and dlt_section_overview_switch.value:
+    if dlt_pipeline and dlt_section_info_switch.value:
         _result += [
             mo.ui.table(
                 utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
@@ -307,7 +334,7 @@ def section_overview(
                 lazy=True,
             )
         )
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 
@@ -1063,8 +1090,8 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(
         value=True, label="sync" if mo_cli_arg_with_test_identifiers else ""
     )
-    dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(
-        value=True, label="overview" if mo_cli_arg_with_test_identifiers else ""
+    dlt_section_info_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="overview" if mo_cli_arg_with_test_identifiers else ""
     )
     dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="schema" if mo_cli_arg_with_test_identifiers else ""
@@ -1126,7 +1153,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_section_browse_data_switch,
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
-        dlt_section_overview_switch,
+        dlt_section_info_switch,
         dlt_section_schema_switch,
         dlt_section_state_switch,
         dlt_section_sync_switch,
