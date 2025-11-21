@@ -98,10 +98,17 @@ def sync_from_runtime() -> None:
                 with fs.open(remote_file, "rb") as bf, open(local_file, "wb") as lf:
                     lf.write(bf.read())
 
-    # --- main sync logic ---
+                # Try to preserve LastModified as mtime
+                # needed for correct ordering of pipelines in pipeline list
+                # TODO: this is a hack and probably should be done better...
+                info = fs.info(remote_file)
+                last_modified = info.get("LastModified") or info.get("last_modified")
+                if isinstance(last_modified, datetime.datetime):
+                    ts = last_modified.timestamp()
+                    os.utime(local_file, (ts, ts))  # (atime, mtime)
+
     runtime_config = dlt.current.run_context().runtime_config
-    fs = _get_runtime_artifacts_fs(runtime_config)
-    if not fs:
+    if not (fs := _get_runtime_artifacts_fs(runtime_config)):
         return
 
     src_base = runtime_config.workspace_pipeline_artifacts_url  # the pipelines folder on fs
