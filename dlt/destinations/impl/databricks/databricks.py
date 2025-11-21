@@ -392,7 +392,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         table_name: str,
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
-        separate_alters: bool = False,
+        storage_columns: Optional[Sequence[TColumnSchema]] = None,
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
 

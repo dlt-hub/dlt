@@ -4,11 +4,12 @@ skip_if_not_active("snowflake")
 
 from copy import deepcopy
 import os
-from typing import Iterator
+from typing import Iterator, Sequence
 from pytest_mock import MockerFixture
 import pytest
 
 from dlt.common.schema.schema import Schema
+from dlt.common.schema.typing import TColumnSchema
 from dlt.destinations.impl.snowflake.snowflake import SUPPORTED_HINTS, SnowflakeClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -52,22 +53,42 @@ def test_create_table_with_hints(client: SnowflakeClient, empty_schema: Schema) 
 
     mod_update[0]["sort"] = True
     mod_update[4]["parent_key"] = True
+    mod_update[1]["cluster"] = True
 
     # unique constraints are always single columns
     mod_update[1]["unique"] = True
     mod_update[7]["unique"] = True
 
-    sql = ";".join(client._get_table_update_sql("event_test_table", mod_update, False))
+    # generate create table
+    new_columns = mod_update
+    storage_columns: Sequence[TColumnSchema] = []
+    sql = ";\n".join(
+        client._get_table_update_sql("event_test_table", new_columns, False, storage_columns)
+    )
 
     print(sql)
     client.sql_client.execute_sql(sql)
 
     # generate alter table
-    mod_update = deepcopy(TABLE_UPDATE[11:])
+    mod_update = deepcopy(TABLE_UPDATE[11:-1])
     mod_update[0]["primary_key"] = True
     mod_update[1]["unique"] = True
+    mod_update[4]["cluster"] = True
 
-    sql = ";".join(client._get_table_update_sql("event_test_table", mod_update, True))
+    storage_columns = deepcopy(new_columns)
+    new_columns = mod_update
+    sql = ";\n".join(
+        client._get_table_update_sql("event_test_table", new_columns, True, storage_columns)
+    )
+    print(sql)
+    client.sql_client.execute_sql(sql)
+
+    # trigger DROP CLUSTERING KEY statement by providing no clustering keys in both new and storage columns
+    new_columns = deepcopy(TABLE_UPDATE[-1:])
+    storage_columns = []  # empty storage columns to simulate no clustering keys in storage
+    sql = ";\n".join(
+        client._get_table_update_sql("event_test_table", new_columns, True, storage_columns)
+    )
 
     print(sql)
     client.sql_client.execute_sql(sql)

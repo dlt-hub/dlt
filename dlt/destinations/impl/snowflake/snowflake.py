@@ -196,23 +196,61 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
                     return f",\nCONSTRAINT {pk_constraint_name} PRIMARY KEY ({quoted_pk_cols})"
         return ""
 
+    def _get_cluster_sql(self, cluster_column_names: Sequence[str]) -> str:
+        if cluster_column_names:
+            cluster_column_names_str = ",".join(
+                [self.sql_client.escape_column_name(col) for col in cluster_column_names]
+            )
+            return f"CLUSTER BY ({cluster_column_names_str})"
+        else:
+            return "DROP CLUSTERING KEY"
+
+    def _get_alter_cluster_sql(self, table_name: str, cluster_column_names: Sequence[str]) -> str:
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
+        return self._make_alter_table(qualified_name) + self._get_cluster_sql(cluster_column_names)
+
+    def _add_cluster_sql(
+        self,
+        sql: List[str],
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
+        storage_columns: Optional[Sequence[TColumnSchema]] = None,
+    ) -> List[str]:
+        """Adds CLUSTER BY / DROP CLUSTERING KEY clause to SQL statements based on cluster hints.
+
+        This method modifies the input `sql` list in place and also returns it.
+        """
+
+        if generate_alter and storage_columns is None:
+            logger.warning(
+                "SnowflakeClient._add_cluster_sql called without storage_columns parameter. This"
+                " may lead to incorrect handling of cluster hints. Pass storage_columns to ensure"
+                " correct behavior."
+            )
+
+        all_columns = list(storage_columns or []) + list(new_columns)
+        cluster_column_names = [c["name"] for c in all_columns if c.get("cluster")]
+
+        if generate_alter:
+            # altering -> need to issue separate ALTER TABLE statement for cluster operations
+            stmt = self._get_alter_cluster_sql(table_name, cluster_column_names)
+            sql.append(stmt)
+        elif not generate_alter and cluster_column_names:
+            # creating -> can append CLUSTER BY clause to CREATE TABLE statement
+            sql[0] = sql[0] + self._get_cluster_sql(cluster_column_names)
+
+        return sql
+
     def _get_table_update_sql(
         self,
         table_name: str,
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
-        separate_alters: bool = False,
+        storage_columns: Optional[Sequence[TColumnSchema]] = None,
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
-
-        cluster_list = [
-            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster")
-        ]
-
-        if cluster_list:
-            sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
-
-        return sql
+        return self._add_cluster_sql(sql, table_name, new_columns, generate_alter, storage_columns)
 
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]

@@ -277,7 +277,11 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         )
 
     def _get_table_update_sql(
-        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
+        storage_columns: Optional[Sequence[TColumnSchema]] = None,
     ) -> List[str]:
         # Return empty columns which will skip table CREATE or ALTER to let BigQuery
         # auto-detect table from data.

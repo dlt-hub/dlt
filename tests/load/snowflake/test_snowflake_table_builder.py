@@ -64,7 +64,7 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
             ).upper()
         )
 
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False, [])
     assert len(statements) == 1
     sql = statements[0]
     sqlfluff.parse(sql, dialect="snowflake")
@@ -100,7 +100,9 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
 
     mod_update[4]["parent_key"] = True
 
-    sql = ";".join(snowflake_client._get_table_update_sql("event_test_table", mod_update, False))
+    sql = ";".join(
+        snowflake_client._get_table_update_sql("event_test_table", mod_update, False, [])
+    )
 
     assert sql.strip().startswith("CREATE TABLE")
     assert "EVENT_TEST_TABLE" in sql
@@ -119,46 +121,91 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     assert 'CONSTRAINT "PK_EVENT_TEST_TABLE_' in sql
     assert 'PRIMARY KEY ("COL1", "COL6")' in sql
 
-    # generate alter
-    mod_update = deepcopy(TABLE_UPDATE[11:])
-    mod_update[0]["primary_key"] = True
-    mod_update[1]["unique"] = True
-
-    sql = ";".join(snowflake_client._get_table_update_sql("event_test_table", mod_update, True))
-    # PK constraint ignored for alter
-    assert "PRIMARY KEY" not in sql
-    assert '"COL2_NULL" FLOAT UNIQUE' in sql
-
 
 def test_alter_table(snowflake_client: SnowflakeClient) -> None:
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
-    assert len(statements) == 1
-    sql = statements[0]
+    storage_columns = deepcopy(TABLE_UPDATE[:1])
+    new_columns = deepcopy(TABLE_UPDATE[1:10])
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", new_columns, True, storage_columns
+    )
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one DROP CLUSTERING KEY statement"
+    add_column_sql = statements[0]
 
     # TODO: sqlfluff doesn't parse snowflake multi ADD COLUMN clause correctly
-    # sqlfluff.parse(sql, dialect='snowflake')
+    # sqlfluff.parse(add_column_sql, dialect='snowflake')
 
-    assert sql.startswith("ALTER TABLE")
-    assert sql.count("ALTER TABLE") == 1
-    assert sql.count("ADD COLUMN") == 1
-    assert '"EVENT_TEST_TABLE"' in sql
-    assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
-    assert '"COL3" BOOLEAN  NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
-    assert '"COL5" VARCHAR' in sql
-    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
-    assert '"COL7" BINARY' in sql
-    assert '"COL8" NUMBER(38,0)' in sql
-    assert '"COL9" VARIANT  NOT NULL' in sql
-    assert '"COL10" DATE' in sql
+    assert add_column_sql.startswith("ALTER TABLE")
+    assert add_column_sql.count("ALTER TABLE") == 1
+    assert add_column_sql.count("ADD COLUMN") == 1
+    assert '"EVENT_TEST_TABLE"' in add_column_sql
+    assert '"COL1"' not in add_column_sql
+    assert '"COL2" FLOAT  NOT NULL' in add_column_sql
+    assert '"COL3" BOOLEAN  NOT NULL' in add_column_sql
+    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in add_column_sql
+    assert '"COL5" VARCHAR' in add_column_sql
+    assert '"COL6" NUMBER(38,9)  NOT NULL' in add_column_sql
+    assert '"COL7" BINARY' in add_column_sql
+    assert '"COL8" NUMBER(38,0)' in add_column_sql
+    assert '"COL9" VARIANT  NOT NULL' in add_column_sql
+    assert '"COL10" DATE' in add_column_sql
 
-    mod_table = deepcopy(TABLE_UPDATE)
-    mod_table.pop(0)
-    sql = snowflake_client._get_table_update_sql("event_test_table", mod_table, True)[0]
 
-    assert '"COL1"' not in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
+def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
+    # mock hints
+    snowflake_client.active_hints = SUPPORTED_HINTS
+
+    # test primary key and unique hints
+    new_columns = deepcopy(TABLE_UPDATE[11:])
+    new_columns[0]["primary_key"] = True
+    new_columns[1]["unique"] = True
+    storage_columns = deepcopy(TABLE_UPDATE[:11])
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", new_columns, True, storage_columns
+    )
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one DROP CLUSTERING KEY statement"
+    add_column_sql = statements[0]
+    assert "PRIMARY KEY" not in add_column_sql  # PK constraint ignored for alter
+    assert '"COL2_NULL" FLOAT UNIQUE' in add_column_sql
+
+    # test cluster hint
+
+    # case: drop clustering (always run if no cluster hints in new_columns and storage_columns)
+    cluster_by_sql = statements[1]
+
+    assert cluster_by_sql.startswith("ALTER TABLE")
+    assert '"EVENT_TEST_TABLE"' in cluster_by_sql
+    assert cluster_by_sql.endswith("DROP CLUSTERING KEY")
+
+    # case: add clustering
+    storage_columns_without_clustering = deepcopy(TABLE_UPDATE[:1])
+    new_columns_with_clustering = deepcopy(TABLE_UPDATE[1:2])
+    new_columns_with_clustering[0]["cluster"] = True  # COL2
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", new_columns_with_clustering, True, storage_columns_without_clustering
+    )
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
+    cluster_by_sql = statements[1]
+    assert cluster_by_sql.startswith("ALTER TABLE")
+    assert '"EVENT_TEST_TABLE"' in cluster_by_sql
+    assert 'CLUSTER BY ("COL2")' in cluster_by_sql
+
+    # case: modify clustering
+    storage_columns_with_clustering = deepcopy(TABLE_UPDATE[:2])
+    storage_columns_with_clustering[1]["cluster"] = True  # COL2
+    new_columns_with_clustering = deepcopy(TABLE_UPDATE[2:5])
+    new_columns_with_clustering[2]["cluster"] = True  # COL5
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", new_columns_with_clustering, True, storage_columns_with_clustering
+    )
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
+    cluster_by_sql = statements[1]
+    assert cluster_by_sql.count("ALTER TABLE") == 1
+    assert cluster_by_sql.count("CLUSTER BY") == 1
+    assert 'CLUSTER BY ("COL2","COL5")' in cluster_by_sql
 
 
 def test_create_table_case_sensitive(cs_client: SnowflakeClient) -> None:

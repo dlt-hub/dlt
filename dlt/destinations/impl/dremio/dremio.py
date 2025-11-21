@@ -133,7 +133,7 @@ class DremioClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         table_name: str,
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
-        separate_alters: bool = False,
+        storage_columns: Optional[Sequence[TColumnSchema]] = None,
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
