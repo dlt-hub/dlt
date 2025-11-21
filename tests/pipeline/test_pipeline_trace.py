@@ -9,11 +9,9 @@ import pytest
 import requests_mock
 import yaml
 
-import pendulum
-
 import dlt
 
-from dlt.common import json
+from dlt.common import json, pendulum
 from dlt.common.configuration.specs import CredentialsConfiguration, RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.utils import get_resolved_traces
@@ -235,9 +233,10 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     pipeline.activate()
 
     # copy trace to well known location so it can be used as fixture
-    trace_dir = os.path.join(TEST_STORAGE_ROOT, f"dlt.{dlt.__version__}")
-    os.makedirs(trace_dir)
-    save_trace(trace_dir, pipeline._last_trace)
+    # NOTE: uncomment block below to generate fixture for test_trace_backward_compat
+    # trace_dir = os.path.join(TEST_STORAGE_ROOT, f"dlt.{dlt.__version__}")
+    # os.makedirs(trace_dir)
+    # save_trace(trace_dir, pipeline._last_trace)
 
     # run resets the trace
     load_info = inject_tomls().run()
