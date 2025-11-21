@@ -796,10 +796,10 @@ class Schema:
         return dot
 
     def to_mermaid(
-            self,
-            remove_processing_hints : bool = False,
-            include_dlt_tables: bool = True, 
-        ) -> str:
+        self,
+        remove_processing_hints: bool = False,
+        include_dlt_tables: bool = True,
+    ) -> str:
         """Convert schema to a Mermaid diagram string.
         Args:
             remove_processing_hints: If True, remove hints used for data processing and redundant information.
@@ -813,7 +813,7 @@ class Schema:
             A string containing a Mermaid ERdiagram of the schema.
         """
         from dlt.helpers.mermaid import schema_to_mermaid
-        
+
         stored_schema = self.to_dict(
             # setting this to `True` removes `name` fields that are used in `schema_to_dbml()`
             # if required, we can refactor `dlt.helpers.dbml` to support this

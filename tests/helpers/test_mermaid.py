@@ -294,9 +294,7 @@ def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(exampl
         purchases__items |{--|| purchases : _dlt_root
     """
     mermaid_str = schema_to_mermaid(
-        example_schema.to_dict(),
-        example_schema.references,
-        include_dlt_tables=False
+        example_schema.to_dict(), example_schema.references, include_dlt_tables=False
     )
 
     assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
