@@ -96,8 +96,8 @@ view_load_packages_text = "Status of load packages from last execution"
 #
 # Overview section
 #
-overview_title = "Pipeline Overview"
-overview_subtitle = "An overview of the selected pipeline"
+overview_title = "Pipeline Info"
+overview_subtitle = "Basic properties of the selected pipeline"
 overview_remote_state_title = "Remote state"
 overview_remote_state_subtitle = (
     "The remote state and schemas of the pipeline as discovered on the destination"

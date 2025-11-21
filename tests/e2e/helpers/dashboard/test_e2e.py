@@ -249,6 +249,8 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
+    # info closed by default
+    _open_section(page, "overview")
     expect(
         page.get_by_text(_normpath("_storage/.dlt/pipelines/never_run_pipeline"))
     ).to_be_visible()
@@ -281,6 +283,8 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
 
+    # info closed by default
+    _open_section(page, "overview")
     expect(
         page.get_by_text(_normpath("_storage/.dlt/pipelines/no_destination_pipeline"))
     ).to_be_visible()
@@ -350,3 +354,18 @@ def test_workspace_profile_dev(page: Page):
             expect(page.get_by_role("switch", name="overview")).to_be_visible()
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
+
+
+def test_broken_trace_pipeline(page: Page, broken_trace_pipeline: Any):
+    """Dashboard should still render overview even if the last trace file is corrupted."""
+    _go_home(page)
+    page.get_by_role("link", name="broken_trace_pipeline").click()
+
+    # overview page should still be accessible and show the working dir path
+    _open_section(page, "overview")
+    expect(
+        page.get_by_text(_normpath("_storage/.dlt/pipelines/broken_trace_pipeline"))
+    ).to_be_visible()
+    # should also render the trace section, but there should be an error message
+    _open_section(page, "trace")
+    expect(page.get_by_text("Error while building trace section:")).to_be_visible()
