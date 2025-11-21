@@ -257,28 +257,11 @@ def example_schema() -> dlt.Schema:
 
 
 def test_schema_to_mermaid_generates_an_er_diagram(example_schema):
-    mermaid_str = schema_to_mermaid(example_schema)
+    mermaid_str = schema_to_mermaid(example_schema.to_dict(), example_schema.references)
     assert mermaid_str.startswith("erDiagram")
 
 
-def test_schema_to_mermaid_generates_paritcular_table(example_schema):
-    expected_mermaid_str = """
-    erDiagram
-        customers {
-            bigint id PK
-            text name
-            text city
-            text _dlt_load_id
-            text _dlt_id UK  
-        }
-    """
-
-    mermaid_str = schema_to_mermaid(example_schema, table_names=["customers"])
-
-    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
-
-
-def test_schema_to_mermaid_generates_valid_mermaid_str(example_schema):
+def test_schema_to_mermaid_generates_valid_mermaid_str_without_dlt_tables(example_schema):
     expected_mermaid_str = """
     erDiagram
         customers {
@@ -311,34 +294,10 @@ def test_schema_to_mermaid_generates_valid_mermaid_str(example_schema):
         purchases__items |{--|| purchases : _dlt_root
     """
     mermaid_str = schema_to_mermaid(
-        example_schema,
+        example_schema.to_dict(),
+        example_schema.references,
+        include_dlt_tables=False
     )
-
-    assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
-
-
-def test_schema_to_mermaid_generates_valid_schema_for_two_related_tables(example_schema):
-    expected_mermaid_str = """
-    erDiagram
-        customers {
-            bigint id PK
-            text name
-            text city
-            text _dlt_load_id
-            text _dlt_id UK  
-        }
-        purchases {
-            bigint id PK
-            bigint customer_id
-            bigint inventory_id
-            bigint quantity
-            text date
-            text _dlt_load_id
-            text _dlt_id UK
-        }
-        purchases |{--|| customers : contains
-    """
-    mermaid_str = schema_to_mermaid(example_schema, table_names=["customers", "purchases"])
 
     assert _normalize_whitespace(mermaid_str) == _normalize_whitespace(expected_mermaid_str)
 
