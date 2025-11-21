@@ -12,7 +12,9 @@ from dlthub.common.license import (
 
 
 def issue_ephemeral_license() -> Iterator[LicenseContext]:
-    license_ = create_self_signed_license("dlthub.transformation dlthub.project dlthub.runner")
+    license_ = create_self_signed_license(
+        "dlthub.transformation dlthub.project dlthub.runner dlthub.data_quality"
+    )
     try:
         ctx = LicenseContext(decode_license(license_))
         Container()[LicenseContext] = ctx

@@ -2,7 +2,6 @@ import logging
 from typing import Optional, Tuple, cast
 
 import sqlglot.expressions as sge
-
 from sqlglot.errors import OptimizeError
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
@@ -16,6 +15,7 @@ from dlt.common.libs.sqlglot import (
     set_metadata,
     get_metadata,
     TSqlGlotDialect,
+    wrap_identifiers_in_columns,
 )
 from dlt.common.schema.typing import (
     TTableSchemaColumns,
@@ -111,6 +111,8 @@ def compute_columns_schema(
     else:
         select_expression = expression
 
+    select_expression = wrap_identifiers_in_columns(select_expression)
+
     # prevent normalization
     select_expression.meta["case_sensitive"] = True
 
@@ -132,7 +134,7 @@ def compute_columns_schema(
             f"Failed to resolve SQL query against the schema received: {e}"
         ) from e
 
-    expression = annotate_types(expression, schema=sqlglot_schema)
+    select_expression = annotate_types(select_expression, schema=sqlglot_schema)
 
     # NOTE: this has to be fixed
     if allow_anonymous_columns is False:
@@ -173,4 +175,4 @@ def compute_columns_schema(
         if propagated_name and col.output_name != propagated_name:
             dlt_table_schema[col.output_name]["x-original-name"] = propagated_name  # type: ignore[typeddict-unknown-key]
 
-    return dlt_table_schema, expression
+    return dlt_table_schema, select_expression

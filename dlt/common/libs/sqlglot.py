@@ -1,4 +1,4 @@
-from typing import Optional, Union, Set, Any, Iterable, Literal
+from typing import Optional, Union, Set, Any, Iterable, Literal, cast
 
 from dlt.common.utils import without_none
 from dlt.common.exceptions import TerminalValueError
@@ -632,3 +632,14 @@ def build_typed_literal(
         return sge.Tuple(expressions=[_literal(v) for v in value])
     else:
         return _literal(value)
+
+
+def wrap_identifiers_in_columns(expression: sge.Query) -> sge.Query:
+    """Wrap bare Identifier nodes inside Alias with Column nodes"""
+
+    def transform(node: sge.Expression) -> sge.Expression:
+        if isinstance(node, sge.Alias) and isinstance(node.this, sge.Identifier):
+            return sge.Alias(this=sge.Column(this=node.this.copy()), alias=node.alias)
+        return node
+
+    return cast(sge.Query, expression.transform(transform))
