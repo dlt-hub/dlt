@@ -384,18 +384,16 @@ const sidebars = {
           ],
         },
         {
-          "type": "category",
-          "label": "Run in Snowflake",
-          "link": {
-            "type": "generated-index",
-            "title": "Run in Snwoflake",
-            "description": "How to run dlt in Snowflake.",
-            "slug": "running-in-snowflake",
-            "keywords": [
-              "snowflake"
-            ]
+          type: "category",
+          label: "Run in Snowflake",
+          link: {
+            type: "generated-index",
+            title: "Run in Snwoflake",
+            description: "How to run dlt in Snowflake.",
+            slug: "walkthroughs/run-in-snowflake",
+            keywords: ["snowflake"]
           },
-          "items": [
+          items: [
             "walkthroughs/run-in-snowflake/run-in-snowflake",
             "walkthroughs/run-in-snowflake/application-architecture"
           ]
