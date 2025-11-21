@@ -197,7 +197,7 @@ const sidebars = {
         'dlt-ecosystem/verified-sources/strapi',
         'dlt-ecosystem/verified-sources/stripe',
         'dlt-ecosystem/verified-sources/workable',
-        'dlt-ecosystem/verified-sources/zendesk',        
+        'dlt-ecosystem/verified-sources/zendesk',
         'walkthroughs/add-a-verified-source',
       ]
     },

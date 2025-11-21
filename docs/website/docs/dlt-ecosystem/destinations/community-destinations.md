@@ -51,7 +51,7 @@ https://github.com/dlt-hub/dlt/pull/2573
 
 ## CrateDB
 
-by: [amotl](https://github.com/amotl)
+by: [CrateDB](https://github.com/crate)
 
 CrateDB is a distributed SQL database built on top of Lucene, designed for real-time analytics on large datasets. This destination adapter wraps the PostgreSQL adapter with CrateDB-specific adjustments:
 - Compatibility with CrateDB's PostgreSQL wire protocol
@@ -59,10 +59,8 @@ CrateDB is a distributed SQL database built on top of Lucene, designed for real-
 - Support for CrateDB's **REFRESH TABLE** statements for consistency
 - Adjusted transaction handling for CrateDB's limited transaction support
 
-Note: This PR is in draft status and under active development.
-
 Code:
-https://github.com/crate-workbench/dlt/tree/cratedb
+https://github.com/crate/dlt-cratedb
 
-PR with discussion:
+Original PR with discussion (currently on hiatus):
 https://github.com/dlt-hub/dlt/pull/2733
