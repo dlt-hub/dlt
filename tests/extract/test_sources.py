@@ -1767,12 +1767,17 @@ def test_apply_hints() -> None:
         "validator": None,
         "write_disposition": "append",
         "original_columns": {},
+        "merge_key": "",
+        "primary_key": [],
     }
     table = empty_r.compute_table_schema()
     assert table["name"] == "empty_gen"
     assert "parent" not in table
     assert table["columns"] == {}
-    assert empty_r.compute_table_schema() == empty_table_schema
+    assert empty_r.compute_table_schema() == {
+        **empty_table_schema,
+        "x-extractor": {"empty_prop_hints": {"merge_key": "", "primary_key": []}},
+    }
 
     # combine columns with primary key
     empty_r = empty()

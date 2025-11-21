@@ -554,3 +554,26 @@ def test_merge_tables_references() -> None:
 #         },
 #         **column,
 #     }
+
+
+def test_remove_props_from_column() -> None:
+    """Test removing properties from column schema with empty value remove hints"""
+    # non-removable property not allowed
+    col = utils.new_column("test_col", data_type="text")
+    with pytest.raises(ValueError) as exc_info:
+        utils.remove_props_with_empty_hint(col, {"data_type": None})
+    assert "not a removable property" in str(exc_info.value)
+
+    # non empty remove hint not allowed
+    col = utils.new_column("test_col", data_type="text", nullable=True)
+    col["primary_key"] = False
+    with pytest.raises(ValueError) as exc_info:
+        utils.remove_props_with_empty_hint(col, {"primary_key": False})
+
+    # multiple empty value remove hints allowed
+    col = utils.new_column("test_col", data_type="text", nullable=True)
+    col["primary_key"] = False
+    col["merge_key"] = True
+    result = utils.remove_props_with_empty_hint(col, {"primary_key": "", "merge_key": []})
+    assert "primary_key" not in result
+    assert "merge_key" not in result

@@ -5,7 +5,7 @@ import warnings
 import yaml
 from argparse import Namespace
 from copy import deepcopy, copy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
+from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union, Set
 
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -55,6 +55,7 @@ from dlt.common.schema.typing import (
     TSchemaContract,
     TSortOrder,
     TTableReference,
+    RemovablePropInfos,
 )
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
@@ -119,6 +120,43 @@ def apply_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
             if table.get("resource") is None:
                 table["resource"] = table_name
     return stored_schema
+
+
+def remove_props_with_empty_hint(
+    column_schema: TColumnSchema, empty_prop_hints: Dict[str, Any]
+) -> TColumnSchema:
+    """Removes properties that have non-None empty hint values from the provided column schema in place.
+
+    Used when a hint is explicitly cleared/unset with an empty value.
+
+    Args:
+        column_schema (TColumnSchema): The column schema to modify (modified in place)
+        empty_prop_hints (Dict[str, Any]): Dict of property names and their non-None empty values to verify
+
+    Returns:
+        TColumnSchema: The modified column schema
+    """
+    for prop, value in empty_prop_hints.items():
+        if prop in RemovablePropInfos:
+            if value is False or value:
+                # This should not happen
+                raise ValueError(
+                    f"Cannot remove property '{prop}' from column '{column_schema['name']}' because"
+                    f" it has a non-empty value: {value}. This property's value should be replaced"
+                    " instead."
+                )
+            else:
+                if prop in ("primary_key", "merge_key") and not is_nullable_column(column_schema):
+                    logger.warning(
+                        f"Removing '{prop}' from column '{column_schema['name']}', "
+                        "but 'unique' constraint remains set to True."
+                    )
+                column_schema.pop(prop, None)  # type: ignore
+        else:
+            raise ValueError(
+                f"""'{prop}' cannot be removed from column '{column_schema["name"]}' because it is not a removable property."""
+            )
+    return column_schema
 
 
 def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
@@ -472,6 +510,10 @@ def diff_table(
     It returns new columns (not present in tab_a) and merges columns from tab_b into tab_a (overriding non-default hint values).
     If any columns are returned they contain full data (not diffs of columns)
 
+    Additionally, processes `x-extractor.empty_prop_hints` metadata from `tab_b` to remove
+    properties that have been explicitly unset with a non-None empty value. These removals are applied to
+    both new columns and existing columns in tab_a.
+
     Raises SchemaException if tables cannot be merged
     * when columns with the same name have different data types
     * when table links to different parent tables
@@ -491,6 +533,12 @@ def diff_table(
                 new_columns.append(merged_column)
         else:
             new_columns.append(col_b)
+
+    # remove column properties that were unset
+    empty_prop_hints = tab_b.get("x-extractor", {}).get("empty_prop_hints", {})
+    if empty_prop_hints:
+        for col in new_columns + list(tab_a_columns.values()):
+            remove_props_with_empty_hint(col, empty_prop_hints)
 
     # return partial table containing only name and properties that differ (column, filters etc.)
     table_name = tab_a["name"]
