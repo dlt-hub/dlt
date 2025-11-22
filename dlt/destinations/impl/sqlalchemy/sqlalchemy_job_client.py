@@ -31,7 +31,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
-from dlt.destinations._adbc_jobs import has_driver as adbc_has_driver
+from dlt.destinations._adbc_jobs import has_adbc_driver as adbc_has_driver
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration

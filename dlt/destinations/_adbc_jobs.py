@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Iterator, TYPE_CHECKING, Sequence, Tuple
 
 from dlt.common import logger
+from dlt.common.configuration.inject import with_config
 from dlt.common.destination.capabilities import LoaderFileFormatSelector
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.typing import TLoaderFileFormat
@@ -15,6 +16,29 @@ if TYPE_CHECKING:
     from adbc_driver_manager.dbapi import Connection
 
 from dlt.common.destination.client import RunnableLoadJob
+
+
+@with_config
+def has_adbc_driver(driver: str, disable_adbc_detection: bool = False) -> Tuple[bool, str]:
+    """Figures out if given driver is available without actually connecting to destination.
+    Allows to disable via `disable_adbc_detection` setting in dlt config
+    """
+    if disable_adbc_detection:
+        return False, None
+    try:
+        import adbc_driver_manager as dm
+
+        try:
+            db = dm.AdbcDatabase(driver=driver, uri="")
+            db.close()
+            return True, None
+        except dm.Error as pex:
+            # NOT_FOUND returned when driver library can't be found
+            if pex.status_code in (dm.AdbcStatusCode.NOT_FOUND, dm.AdbcStatusCode.NOT_IMPLEMENTED):
+                return False, str(pex)
+            return True, str(pex)
+    except ImportError as import_ex:
+        return False, str(import_ex)
 
 
 class AdbcParquetCopyJob(RunnableLoadJob, ABC):
@@ -76,24 +100,6 @@ class AdbcParquetCopyJob(RunnableLoadJob, ABC):
             )
 
 
-def has_driver(driver: str) -> Tuple[bool, str]:
-    """Figures out if given driver is available without actually connecting to destination"""
-    try:
-        import adbc_driver_manager as dm
-
-        try:
-            db = dm.AdbcDatabase(driver=driver, uri="")
-            db.close()
-            return True, None
-        except dm.Error as pex:
-            # NOT_FOUND returned when driver library can't be found
-            if pex.status_code in (dm.AdbcStatusCode.NOT_FOUND, dm.AdbcStatusCode.NOT_IMPLEMENTED):
-                return False, str(pex)
-            return True, str(pex)
-    except ImportError as import_ex:
-        return False, str(import_ex)
-
-
 def _loader_file_format_selector(
     driver: str,
     docs_url: str,
@@ -104,7 +110,7 @@ def _loader_file_format_selector(
     *,
     table_schema: TTableSchema,
 ) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
-    found, err_str = has_driver(driver)
+    found, err_str = has_adbc_driver(driver)
     if not found:
         supported_loader_file_formats = list(supported_loader_file_formats)
         supported_loader_file_formats.remove("parquet")
