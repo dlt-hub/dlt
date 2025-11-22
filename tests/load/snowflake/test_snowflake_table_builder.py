@@ -178,7 +178,7 @@ def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     assert '"EVENT_TEST_TABLE"' in cluster_by_sql
     assert cluster_by_sql.endswith("DROP CLUSTERING KEY")
 
-    # case: add clustering
+    # case: add clustering (without clustering -> with clustering)
     storage_columns_without_clustering = deepcopy(TABLE_UPDATE[:1])
     new_columns_with_clustering = deepcopy(TABLE_UPDATE[1:2])
     new_columns_with_clustering[0]["cluster"] = True  # COL2
@@ -192,7 +192,7 @@ def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     assert '"EVENT_TEST_TABLE"' in cluster_by_sql
     assert 'CLUSTER BY ("COL2")' in cluster_by_sql
 
-    # case: modify clustering
+    # case: modify clustering (extend cluster columns)
     storage_columns_with_clustering = deepcopy(TABLE_UPDATE[:2])
     storage_columns_with_clustering[1]["cluster"] = True  # COL2
     new_columns_with_clustering = deepcopy(TABLE_UPDATE[2:5])
@@ -206,6 +206,23 @@ def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     assert cluster_by_sql.count("ALTER TABLE") == 1
     assert cluster_by_sql.count("CLUSTER BY") == 1
     assert 'CLUSTER BY ("COL2","COL5")' in cluster_by_sql
+
+    # case: modify clustering (reorder cluster columns)
+    storage_columns_reordered = deepcopy(TABLE_UPDATE[:5])
+    storage_columns_reordered[1]["cluster"] = True  # COL2
+    storage_columns_reordered[4]["cluster"] = True  # COL5
+    storage_columns_reordered[1], storage_columns_reordered[4] = (  # swap order
+        storage_columns_reordered[4],
+        storage_columns_reordered[1],
+    )
+    new_columns = deepcopy(TABLE_UPDATE[5:6])
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", new_columns, True, storage_columns_reordered
+    )
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
+    cluster_by_sql = statements[1]
+    assert 'CLUSTER BY ("COL5","COL2")' in cluster_by_sql  # reordered (COL5 first)
 
 
 def test_create_table_case_sensitive(cs_client: SnowflakeClient) -> None:
