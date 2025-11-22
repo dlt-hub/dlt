@@ -1,8 +1,9 @@
+import os
 import pytest
 
 import dlt
-from dlt.common import Decimal
 
+from tests.utils import preserve_environ
 from tests.cases import table_update_and_row
 from tests.load.pipeline.utils import get_load_package_jobs
 from tests.load.utils import (
@@ -11,13 +12,18 @@ from tests.load.utils import (
 )
 
 
+@pytest.fixture(autouse=True)
+def enable_adbc(preserve_environ) -> None:
+    os.environ["DISABLE_ADBC_DETECTION"] = "0"
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["postgres", "mssql", "sqlalchemy"]),
     ids=lambda x: x.name,
 )
 def test_adbc_detection(destination_config: DestinationTestConfiguration) -> None:
-    from dlt.destinations._adbc_jobs import has_driver
+    from dlt.destinations._adbc_jobs import has_adbc_driver
 
     driver = destination_config.destination_name or destination_config.destination_type
     if driver == "postgres":
@@ -27,7 +33,7 @@ def test_adbc_detection(destination_config: DestinationTestConfiguration) -> Non
     elif driver == "sqlalchemy_mysql":
         driver = "mysql"
 
-    assert has_driver(driver)[0] is True
+    assert has_adbc_driver(driver)[0] is True
 
 
 @pytest.mark.parametrize(
