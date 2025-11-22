@@ -2,6 +2,7 @@ from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence, Callab
 from datetime import datetime, date  # noqa: I251
 import inspect
 import os
+import sys
 from re import Pattern as _REPattern
 from types import FunctionType
 from typing import (
@@ -535,3 +536,51 @@ def add_value_to_literal(literal: Any, value: Any) -> None:
     if value not in type_args:
         type_args += (value,)
         literal.__args__ = type_args
+
+
+def resolve_single_annotation(
+    ann: Any,
+    *,
+    module_name: Optional[str] = None,
+    globalns: Optional[Dict[str, Any]] = None,
+    localns: Optional[Dict[str, Any]] = None,
+    raise_on_error: bool = False,
+) -> Any:
+    """
+    Resolves annotation `ann` if it is a str and/or ForwardRef. Will use `module_name` to
+    pull globalns if provided
+    - If `ann` is not a str or ForwardRef, it's returned unchanged.
+    - If it *is* a str/ForwardRef, we eval it in an appropriate namespace.
+    """
+
+    # fast path: already a real type
+    if not isinstance(ann, (str, ForwardRef)):
+        return ann
+
+    # extract the expression and module from ForwardRef if needed
+    expr: str
+    if isinstance(ann, ForwardRef):
+        expr = ann.__forward_arg__
+        module_name = module_name or getattr(ann, "__forward_module__", None)
+    else:
+        expr = ann
+
+    # build globalns
+    if globalns is None:
+        if module_name and module_name in sys.modules:
+            globalns = sys.modules[module_name].__dict__
+        else:
+            # Fallback empty globals; you'll usually want to pass a better one
+            globalns = {}
+
+    try:
+        ann = eval(expr, globalns, localns)
+        if isinstance(ann, ForwardRef):
+            ann = resolve_single_annotation(
+                ann, globalns=globalns, localns=localns, raise_on_error=raise_on_error
+            )
+    except Exception:
+        if raise_on_error:
+            raise
+
+    return ann

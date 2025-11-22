@@ -46,6 +46,7 @@ from dlt.common.typing import (
     is_union_type,
     get_args,
     get_origin,
+    resolve_single_annotation,
 )
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import (
@@ -233,9 +234,9 @@ def configspec(
                 # resolve the annotation as per PEP 563
                 # NOTE: we do not use get_type_hints because at this moment cls is an unknown name
                 # (ie. used as decorator and module is being imported)
-                if isinstance(hint, str):
-                    hint = eval(hint)
-
+                hint = resolve_single_annotation(
+                    hint, module_name=cls.__module__, raise_on_error=True
+                )
                 # context can have any type
                 if not is_valid_hint(hint) and not is_context:
                     raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
@@ -377,7 +378,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     def get_resolvable_fields(cls) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
         return {
-            f.name: eval(f.type) if isinstance(f.type, str) else f.type
+            f.name: resolve_single_annotation(f.type, module_name=cls.__module__)
             for f in cls._get_resolvable_dataclass_fields()
         }
 
