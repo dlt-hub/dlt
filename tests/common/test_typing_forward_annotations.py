@@ -87,7 +87,7 @@ def test_module_forward_annotations():
     # NOTE: do not import sentinel - it becomes visible in this module globals, this makes test meaningless
     assert (
         resolve_single_annotation(
-            td_ann["sentinel"], module_name=_annotated_futures_module.__name__
+            td_ann["sentinel"], globalns=_annotated_futures_module.__dict__
         ).__name__
         == "_Sentinel"
     )
@@ -109,13 +109,13 @@ def test_module_forward_annotations():
         resolve_single_annotation(fun_ann["sentinel"], raise_on_error=True)
     assert (
         resolve_single_annotation(
-            fun_ann["sentinel"], module_name=_annotated_futures_module.__name__
+            fun_ann["sentinel"], globalns=_annotated_futures_module.__dict__
         ).__name__
         == "_Sentinel"
     )
     assert (
         resolve_single_annotation(
-            fun_ann["sentinel_f"], module_name=_annotated_futures_module.__name__
+            fun_ann["sentinel_f"], globalns=_annotated_futures_module.__dict__
         ).__name__
         == "_Sentinel"
     )
