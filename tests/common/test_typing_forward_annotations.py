@@ -4,8 +4,11 @@ import inspect
 import pytest
 from typing import TypedDict
 
-# backport from inspect
-from typing_extensions import get_annotations  # type: ignore
+try:
+    # backport from inspect
+    from typing_extensions import get_annotations  # type: ignore
+except ImportError:
+    from inspect import get_annotations  # type: ignore
 
 from dlt.common.typing import AnyFun, get_type_hints, ForwardRef, resolve_single_annotation
 
