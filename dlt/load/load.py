@@ -539,6 +539,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         if isinstance(job_client, WithStagingDataset)
                         else None
                     ),
+                    lambda table_name: True,  # drop all passed tables
                     drop_tables=dropped_tables,
                     truncate_tables=truncated_tables,
                 )
@@ -556,9 +557,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             schema,
                             new_jobs,
                             expected_update,
-                            job_client.should_truncate_table_before_load_on_staging_destination,
                             # should_truncate_staging,
+                            job_client.should_truncate_table_before_load_on_staging_destination,
                             job_client.should_load_data_to_staging_dataset_on_staging_destination,
+                            # should we drop tables also on staging destination
+                            job_client.should_drop_table_on_staging_destination,
                             drop_tables=dropped_tables,
                             truncate_tables=truncated_tables,
                         )
