@@ -1,6 +1,4 @@
 from types import SimpleNamespace
-
-import pytest
 from dataclasses import dataclass
 from typing import (
     Any,
