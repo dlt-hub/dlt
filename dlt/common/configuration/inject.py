@@ -4,7 +4,7 @@ from functools import wraps
 from typing import Callable, Dict, Type, Any, Optional, Union, Tuple, TypeVar, overload, cast
 from inspect import Signature, Parameter, unwrap
 
-from dlt.common.typing import DictStrAny, TFun, AnyFun
+from dlt.common.typing import DictStrAny, TFun, AnyFun, resolve_single_annotation
 from dlt.common.configuration.resolve import resolve_configuration, inject_section
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -133,7 +133,7 @@ def with_config(
             # for all positional parameters that do not have default value, set default
             # if hasattr(SPEC, p.name) and p.default == Parameter.empty:
             #     p._default = None  # type: ignore
-            if p.annotation is SPEC:
+            if resolve_single_annotation(p.annotation, globalns=f.__globals__) is SPEC:
                 # if any argument has type SPEC then us it to take initial value
                 spec_arg = p
             if p.name == section_arg_name:
@@ -209,7 +209,7 @@ def with_config(
             for p in sig.parameters.values():
                 if p.name in resolved_params:
                     bound_args.arguments[p.name] = resolved_params.pop(p.name)
-                if p.annotation is SPEC:
+                if resolve_single_annotation(p.annotation, globalns=f.__globals__) is SPEC:
                     bound_args.arguments[p.name] = config
             # pass all other config parameters into kwargs if present
             if kwargs_arg is not None:
