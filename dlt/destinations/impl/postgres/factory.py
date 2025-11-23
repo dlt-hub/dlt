@@ -159,6 +159,20 @@ def postgres_loader_file_format_selector(
     return (preferred_loader_file_format, supported_loader_file_formats)
 
 
+def get_adbc_driver_location() -> str:
+    """Detects driver location if PyPI driver package is installed, otherwise falls back to dbc
+    driver name.
+    """
+    # TODO: move to the (future) ADBC helper module
+    try:
+        from adbc_driver_postgresql import _driver_path
+
+        # use driver from installed dependency
+        return _driver_path()  # type: ignore[no-any-return]
+    except Exception:
+        return "postgresql"
+
+
 class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
     spec = PostgresClientConfiguration
 
@@ -168,7 +182,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
         caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(
-            "postgresql",
+            get_adbc_driver_location(),
             "https://dlthub.com/docs/dlt-ecosystem/destinations/postgres#fast-loading-with-arrow-tables-and-parquet",
             prefer_parquet=False,
         )

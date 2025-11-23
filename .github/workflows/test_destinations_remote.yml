@@ -134,6 +134,7 @@ jobs:
               destinations: "[\"postgres\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb"
+              post_install_commands: "uv pip install adbc-driver-postgresql"  # use adbc driver installation
               always_run_all_tests: true
 
             # Qdrant (disabled, because we do not have a test account atm, qdrant is tested with local version)
