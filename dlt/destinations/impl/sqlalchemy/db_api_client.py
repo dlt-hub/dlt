@@ -216,6 +216,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                 self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
             # WAL mode is applied to all currently attached databases
             self.execute_sql("PRAGMA journal_mode=WAL")
+            self.execute_sql("PRAGMA synchronous=NORMAL;")
         self._sqlite_attached_datasets.add(dataset_name)
 
     def _sqlite_drop_dataset(self, dataset_name: str) -> None:

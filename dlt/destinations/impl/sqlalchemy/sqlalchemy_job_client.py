@@ -142,7 +142,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         elif parsed_file.file_format == "parquet":
             table_obj = self._to_table_object(table)
             # if driver for a given dialect is installed
-            if adbc_has_driver(self.config.credentials.engine.dialect.name):
+            if adbc_has_driver(self.config.credentials.engine.dialect.name)[0]:
                 return SqlalchemyParquetADBCJob(file_path, table_obj)
             else:
                 return SqlalchemyParquetInsertJob(file_path, table_obj)
