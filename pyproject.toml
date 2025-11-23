@@ -298,7 +298,6 @@ dbt = [
     "dbt-sqlserver>=1.5.0 ; python_version < '3.13'",
 ]
 adbc = [
-    "adbc-driver-postgresql>=1.8.0",
     "dbc>=0.1.0",
     "adbc-driver-manager>=1.8.0",
 ]

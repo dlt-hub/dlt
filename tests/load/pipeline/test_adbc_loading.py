@@ -12,6 +12,10 @@ from tests.load.utils import (
 )
 
 
+# NOTE: you need to install ADBC drivers to run this tests using dbc
+# dbc install: postgresql, mysql, mssql, sqlite
+
+
 @pytest.fixture(autouse=True)
 def enable_adbc(preserve_environ) -> None:
     os.environ["DISABLE_ADBC_DETECTION"] = "0"
@@ -27,7 +31,9 @@ def test_adbc_detection(destination_config: DestinationTestConfiguration) -> Non
 
     driver = destination_config.destination_name or destination_config.destination_type
     if driver == "postgres":
-        driver = "postgresql"
+        from dlt.destinations.impl.postgres.factory import get_adbc_driver_location
+
+        driver = get_adbc_driver_location()
     elif driver == "sqlalchemy_sqlite":
         driver = "sqlite"
     elif driver == "sqlalchemy_mysql":
