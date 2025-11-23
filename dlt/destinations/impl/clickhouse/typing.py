@@ -7,6 +7,7 @@ from dlt.common.typing import get_args
 TSecureConnection = Literal[0, 1]
 TTableEngineType = Literal[
     "merge_tree",
+    "replacing_merge_tree",
     "shared_merge_tree",
     "replicated_merge_tree",
 ]
