@@ -18,6 +18,7 @@ HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
 
 TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
     "merge_tree": "MergeTree",
+    "replacing_merge_tree": "ReplacingMergeTree",
     "shared_merge_tree": "SharedMergeTree",
     "replicated_merge_tree": "ReplicatedMergeTree",
 }
