@@ -3,6 +3,7 @@ import pytest
 
 import dlt
 
+from tests.pipeline.utils import load_table_counts
 from tests.utils import preserve_environ
 from tests.cases import table_update_and_row
 from tests.load.pipeline.utils import get_load_package_jobs
@@ -68,8 +69,12 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
                 data_[k] = str(data_[k])
                 column_schemas[k]["data_type"] = "text"
 
-    @dlt.resource(file_format="parquet", columns=column_schemas, max_table_nesting=0)
+    @dlt.resource(
+        file_format="parquet", columns=column_schemas, write_disposition="merge", primary_key="col1"
+    )
     def complex_resource():
+        # add child table
+        data_["child"] = [1, 2, 3]
         yield data_
 
     info = pipeline.run(complex_resource())
@@ -81,3 +86,9 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
     # make sure we can read data back. TODO: verify data types
     rows = pipeline.dataset().table("complex_resource").fetchall()
     assert len(rows) == 1
+    rows = pipeline.dataset().table("complex_resource__child").fetchall()
+    assert len(rows) == 3
+
+    # load again and make sure we still have 1 record
+    pipeline.run(complex_resource())
+    assert load_table_counts(pipeline) == {"complex_resource": 1, "complex_resource__child": 3}
