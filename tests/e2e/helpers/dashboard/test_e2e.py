@@ -122,16 +122,23 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
         schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
         schema_selector.select_option("fruitshop_customers")
+        expect(schema_selector).to_have_value("fruitshop_customers")
+        schema_selector.scroll_into_view_if_needed()
+
         expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
         expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
 
         schema_selector.select_option("fruitshop_inventory")
+        expect(schema_selector).to_have_value("fruitshop_inventory")
+
         expect(page.get_by_text("inventory", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("customers", exact=True)).to_have_count(0)
         expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
 
         schema_selector.select_option("fruitshop_purchases")
+        expect(schema_selector).to_have_value("fruitshop_purchases")
+
         expect(page.get_by_text("purchases", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
         expect(page.get_by_text("customers", exact=True)).to_have_count(0)
