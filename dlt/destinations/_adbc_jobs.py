@@ -15,7 +15,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 if TYPE_CHECKING:
     from adbc_driver_manager.dbapi import Connection
 
-from dlt.common.destination.client import RunnableLoadJob
+from dlt.common.destination.client import HasFollowupJobs, RunnableLoadJob
 
 
 # TODO: driver presence detection, driver location detection to support (see postgres factory)
@@ -46,7 +46,7 @@ def has_adbc_driver(driver: str, disable_adbc_detection: bool = False) -> Tuple[
         return False, str(import_ex)
 
 
-class AdbcParquetCopyJob(RunnableLoadJob, ABC):
+class AdbcParquetCopyJob(RunnableLoadJob, HasFollowupJobs, ABC):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path)
         self._job_client: SqlJobClientBase = None
@@ -100,8 +100,8 @@ class AdbcParquetCopyJob(RunnableLoadJob, ABC):
             )
             conn.commit()
             logger.info(
-                f"{rows} rows copied from {self._file_name} to {self.load_table_name} in"
-                f" {time.time()-t_} s"
+                f"{rows} rows copied from {self._file_name} to"
+                f" {self.load_table_name}.{schema_name} in {time.time()-t_} s"
             )
 
 
