@@ -117,7 +117,10 @@ class SqlalchemyParquetADBCJob(AdbcParquetCopyJob):
                 conn_str = f"{conn_str}?{qs}"
 
             logger.info(f"ADBC connect to {conn_str}")
-            return dbapi.connect(driver="sqlite", db_kwargs={"uri": conn_str})
+            conn = dbapi.connect(driver="sqlite", db_kwargs={"uri": conn_str})
+            # WAL mode already set, add busy timeout to handle multiple writers
+            conn.execute("PRAGMA busy_timeout=1000;")
+            return conn
 
         elif dialect == "mysql":
             # disable schema and catalog when ingest
