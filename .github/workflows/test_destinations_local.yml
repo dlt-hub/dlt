@@ -61,7 +61,7 @@ jobs:
           - name: sqlalchemy
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "--extra sqlalchemy --extra filesystem --extra parquet --extra adbc"
+            extras: "--extra sqlalchemy --extra filesystem --extra parquet --group adbc"
             needs_mysql: true
             post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==1.4 && uv run dbc install mysql && uv run dbc install sqlite"
 
@@ -69,7 +69,7 @@ jobs:
           - name: sqlalchemy
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "--extra sqlalchemy --extra filesystem --extra parquet --extra adbc"
+            extras: "--extra sqlalchemy --extra filesystem --extra parquet --group adbc"
             needs_mysql: true
             post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==2.0 && uv run dbc install mysql && uv run dbc install sqlite"
 

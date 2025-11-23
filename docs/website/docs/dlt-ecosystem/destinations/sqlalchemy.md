@@ -234,7 +234,7 @@ The following write dispositions are supported:
 ### Fast loading with parquet
 
 [parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql** and **sqlite**.
-Drivers is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+MySQL driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mysql
@@ -244,6 +244,7 @@ with `uv` you can run `dbc` directly:
 ```sh
 uv tool run dbc install sqlite
 ```
+Note that **we do not detect sqllite** driver [installed via Python package](https://arrow.apache.org/adbc/current/driver/sqlite.html)
 
 You must set have correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
 `dlt` will convert parquet into INSERT statements.

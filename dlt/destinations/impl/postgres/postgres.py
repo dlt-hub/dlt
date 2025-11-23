@@ -20,6 +20,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.destinations._adbc_jobs import AdbcParquetCopyJob
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
+from dlt.destinations.impl.postgres.factory import get_adbc_driver_location
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
@@ -62,47 +63,9 @@ class PostgresParquetCopyJob(AdbcParquetCopyJob):
 
         self._config = self._job_client.config
         return dbapi.connect(
-            driver="postgresql",
+            driver=get_adbc_driver_location(),
             db_kwargs={"uri": self._config.credentials.to_native_representation()},
         )
-        # import adbc_driver_postgresql.dbapi as adbapi
-
-        # self._config = self._job_client.config
-        # return dbapi.connect(
-        #     driver="mssql", db_kwargs={"uri": self._config.credentials.to_odbc_dsn()}
-        # )
-
-
-# class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
-#     def __init__(self, file_path: str) -> None:
-#         super().__init__(file_path)
-#         self._job_client: PostgresClient = None
-
-#     def run(self) -> None:
-#         self._config = self._job_client.config
-
-#         from dlt.common.libs.pyarrow import pq_stream_with_new_columns
-#         from dlt.common.libs.pyarrow import pyarrow
-#         import adbc_driver_postgresql.dbapi as adbapi
-
-#         def _iter_batches(file_path: str) -> Iterator[pyarrow.RecordBatch]:
-#             for table in pq_stream_with_new_columns(file_path, ()):
-#                 yield from table.to_batches()
-
-#         with (
-#             adbapi.connect(self._config.credentials.to_native_representation()) as conn,
-#             conn.cursor() as cur,
-#         ):
-#             rows = cur.adbc_ingest(
-#                 self.load_table_name,
-#                 _iter_batches(self._file_path),
-#                 mode="append",
-#                 db_schema_name=self._job_client.sql_client.fully_qualified_dataset_name(
-#                     quote=False
-#                 ),
-#             )
-#             logger.info(f"{rows} rows copied from {self._file_name} to {self.load_table_name}")
-#             conn.commit()
 
 
 class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):

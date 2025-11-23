@@ -116,7 +116,13 @@ In the example above, `arrow_table` will be converted to CSV with **pyarrow** an
 
 ### Fast loading with Arrow tables and parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html). Install the right driver to enable it:
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html).
+To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+```sh
+pip install adbc-driver-manager dbc
+dbc install postgresql
+```
+Installation via Python package is supported as well:
 ```sh
 pip install adbc-driver-postgresql
 ```

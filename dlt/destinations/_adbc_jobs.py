@@ -18,6 +18,11 @@ if TYPE_CHECKING:
 from dlt.common.destination.client import RunnableLoadJob
 
 
+# TODO: driver presence detection, driver location detection to support (see postgres factory)
+# dbc and pip install drivers, connection string conversion etc. should be extracted to ADBC
+# lib helper (like we do with sqlalchemy or arrow)
+
+
 @with_config
 def has_adbc_driver(driver: str, disable_adbc_detection: bool = False) -> Tuple[bool, str]:
     """Figures out if given driver is available without actually connecting to destination.
@@ -118,7 +123,8 @@ def _loader_file_format_selector(
         if table_schema.get("file_format") == "parquet":
             logger.warning(
                 f"parquet file format was requested for table {table_schema['name']} but ADBC"
-                f" driver for {driver} was not installed:\n {err_str}\n Read more: "
+                f" driver for {driver} was not installed:\n {err_str}\n"
+                " Read more: "
                 + docs_url
             )
     else:
