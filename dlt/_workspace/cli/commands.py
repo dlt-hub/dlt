@@ -1149,8 +1149,8 @@ class RuntimeCommand(SupportsCliCommand):
             nargs="?",
             type=int,
             help=(
-                "Run number. Optional for all commands except `list` and `create`. If not"
-                " specified, the latest run of given script be used."
+                "Run number. Used in all commands except `list` and `create` as optional argument."
+                " If not specified, the latest run of given script be used."
             ),
         )
         job_run_subparsers = job_run_cmd.add_subparsers(
@@ -1211,31 +1211,24 @@ class RuntimeCommand(SupportsCliCommand):
 
     def execute(self, args: argparse.Namespace) -> None:
         from dlt._workspace.cli._runtime_command import (
-            deploy,
+            create_job_run,
             fetch_run_logs,
             get_api_client,
             get_configuration_info,
             get_configurations,
             get_deployment_info,
             get_deployments,
-            get_run_info,
+            get_job_run_info,
             get_runs,
-            get_script_info,
-            get_scripts,
             job_create,
             job_info,
-            job_run_create,
-            job_runs_list,
             jobs_list,
             login,
             logout,
             request_run_cancel,
-            run_script,
-            runtime_cancel_by_ref,
             runtime_dashboard,
             runtime_info,
             runtime_launch,
-            runtime_logs_by_ref,
             runtime_schedule,
             runtime_schedule_cancel,
             runtime_serve,
@@ -1247,33 +1240,43 @@ class RuntimeCommand(SupportsCliCommand):
             login(minimal_logging=False)
         elif args.runtime_command == "logout":
             logout()
-        elif args.runtime_command == "launch":
-            runtime_launch(args.script_path, detach=bool(args.detach))
-        elif args.runtime_command == "serve":
-            runtime_serve(args.script_path)
-        elif args.runtime_command == "schedule":
-            if args.operation == "cancel":
-                runtime_schedule_cancel(args.script_path, cancel_current=bool(args.current))
-            else:
-                runtime_schedule(args.script_path, args.cron)
-        elif args.runtime_command == "logs":
-            runtime_logs_by_ref(args.script_path_or_job, args.run_number)
-        elif args.runtime_command == "cancel":
-            runtime_cancel_by_ref(args.script_path_or_job, args.run_number)
-        elif args.runtime_command == "dashboard":
-            runtime_dashboard()
-        elif args.runtime_command == "deploy":
-            # only sync code/config
-            auth_service = login()
-            api_client = get_api_client(auth_service)
-            sync_deployment(auth_service=auth_service, api_client=api_client)
-            sync_configuration(auth_service=auth_service, api_client=api_client)
-        elif args.runtime_command == "info":
-            runtime_info()
         else:
             auth_service = login()
             api_client = get_api_client(auth_service)
-            if args.runtime_command == "deployment":
+            if args.runtime_command == "launch":
+                runtime_launch(args.script_path, detach=bool(args.detach))
+            elif args.runtime_command == "serve":
+                runtime_serve(args.script_path)
+            elif args.runtime_command == "schedule":
+                if args.operation == "cancel":
+                    runtime_schedule_cancel(args.script_path, cancel_current=bool(args.current))
+                else:
+                    runtime_schedule(args.script_path, args.cron)
+            elif args.runtime_command == "logs":
+                fetch_run_logs(
+                    args.script_path_or_job_name,
+                    args.run_number,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
+            elif args.runtime_command == "cancel":
+                request_run_cancel(
+                    args.script_path_or_job_name,
+                    args.run_number,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
+            elif args.runtime_command == "dashboard":
+                runtime_dashboard()
+            elif args.runtime_command == "deploy":
+                # only sync code/config
+                auth_service = login()
+                api_client = get_api_client(auth_service)
+                sync_deployment(auth_service=auth_service, api_client=api_client)
+                sync_configuration(auth_service=auth_service, api_client=api_client)
+            elif args.runtime_command == "info":
+                runtime_info()
+            elif args.runtime_command == "deployment":
                 if args.operation == "list" or not args.operation:
                     get_deployments(auth_service=auth_service, api_client=api_client)
                 elif args.operation == "info":
@@ -1320,26 +1323,35 @@ class RuntimeCommand(SupportsCliCommand):
             elif args.runtime_command in ("job-run", "job-runs"):
                 # list runs across workspace or for a job
                 if args.operation == "list" or not args.operation:
-                    # optional script/job path/name
-                    target = getattr(args, "script_path_or_job", None)
-                    if target:
-                        get_runs(
-                            script_name=target,
-                            auth_service=auth_service,
-                            api_client=api_client,
-                        )
-                    else:
-                        get_runs(auth_service=auth_service, api_client=api_client)
+                    get_runs(
+                        args.script_path_or_job_name,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
                 elif args.operation == "create":
-                    job_run_create(
-                        args.script_path, auth_service=auth_service, api_client=api_client
+                    create_job_run(
+                        args.script_path_or_job_name,
+                        auth_service=auth_service,
+                        api_client=api_client,
                     )
                 elif args.operation == "info":
-                    from dlt._workspace.cli._runtime_command import runtime_run_info_by_ref
-
-                    runtime_run_info_by_ref(
-                        args.script_path_or_job,
-                        getattr(args, "run_number", None),
+                    get_job_run_info(
+                        args.script_path_or_job_name,
+                        args.run_number,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "logs":
+                    fetch_run_logs(
+                        args.script_path_or_job_name,
+                        args.run_number,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "cancel":
+                    request_run_cancel(
+                        args.script_path_or_job_name,
+                        args.run_number,
                         auth_service=auth_service,
                         api_client=api_client,
                     )

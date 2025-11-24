@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional, Union
 from uuid import UUID
+
 from cron_descriptor import FormatException, get_description
 
 from dlt._workspace._workspace_context import active
@@ -319,24 +320,27 @@ def run_script(
         raise _exception_from_response("Failed to run script", create_run_result)
 
 
-def get_run_info(
-    script_path_or_job: str,
+def get_job_run_info(
+    script_path_or_job_name: Optional[str] = None,
     run_number: Optional[int] = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
+    if script_path_or_job_name is None:
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg="Script path or job name is required",
+            inner_exc=None,
+        )
     if run_number is None:
-        try:
-            run_id = _to_uuid(script_path_or_job)
-        except RuntimeError:
-            run = _get_latest_run(api_client, auth_service, script_path_or_job)
-            run_id = run.id
+        run = _get_latest_run(api_client, auth_service, script_path_or_job_name)
+        run_id = run.id
     else:
         run_id = _resolve_run_id_by_number(
             api_client=api_client,
             auth_service=auth_service,
-            script_name_or_id=script_path_or_job,
+            script_path_or_job_name=script_path_or_job_name,
             run_number=run_number,
         )
 
@@ -362,24 +366,27 @@ def get_run_info(
 
 
 def fetch_run_logs(
-    script_path_or_job: str,
+    script_path_or_job_name: Optional[str] = None,
     run_number: Optional[int] = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
     """Get logs for a run of job (latest if run number not provided)."""
+    if script_path_or_job_name is None:
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg="Script path or job name is required",
+            inner_exc=None,
+        )
     if run_number is None:
-        try:
-            run_id = _to_uuid(script_path_or_job)
-        except RuntimeError:
-            run = _get_latest_run(api_client, auth_service, script_path_or_job)
-            run_id = run.id
+        run = _get_latest_run(api_client, auth_service, script_path_or_job_name)
+        run_id = run.id
     else:
         run_id = _resolve_run_id_by_number(
             api_client=api_client,
             auth_service=auth_service,
-            script_name_or_id=script_path_or_job,
+            script_path_or_job_name=script_path_or_job_name,
             run_number=run_number,
         )
 
@@ -401,37 +408,24 @@ def fetch_run_logs(
 
 
 def get_runs(
-    script_name: str = None,
+    script_path_or_job_name: Optional[str] = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
-    if script_name:
-        try:
-            _to_uuid(script_name)
-            raise CliCommandInnerException(
-                cmd="runtime",
-                msg=(
-                    "UUID run id provided instead of script name for dlt runtime runs <SCRIPT_NAME>"
-                    " list command"
-                ),
-                inner_exc=None,
-            )
-        except RuntimeError:
-            pass
-
-    script_id = None
-    if script_name:
+    script_id: Optional[UUID] = None
+    if script_path_or_job_name:
         script = get_script.sync_detailed(
             client=api_client,
             workspace_id=_to_uuid(auth_service.workspace_id),
-            script_id_or_name=script_name,
+            script_id_or_name=script_path_or_job_name,
         )
         if isinstance(script.parsed, get_script.ScriptResponse):
             script_id = script.parsed.id
         else:
             raise _exception_from_response(
-                f"Failed to get script with name {script_name} from runtime. Did you create one?",
+                f"Failed to get script with name {script_path_or_job_name} from runtime. Did you"
+                " create one?",
                 script,
             )
 
@@ -498,17 +492,29 @@ def get_deployment_info(
 
 
 def request_run_cancel(
-    script_name_or_run_id: str = None,
+    script_path_or_job_name: Optional[str] = None,
+    run_number: Optional[int] = None,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
     """Request the cancellation of a run, for a script or workspace if script is not provided"""
-    try:
-        run_id = _to_uuid(script_name_or_run_id)
-    except RuntimeError:
-        run = _get_latest_run(api_client, auth_service, script_name_or_run_id)
+    if script_path_or_job_name is None:
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg="Script path or job name is required",
+            inner_exc=None,
+        )
+    if run_number is None:
+        run = _get_latest_run(api_client, auth_service, script_path_or_job_name)
         run_id = run.id
+    else:
+        run_id = _resolve_run_id_by_number(
+            api_client=api_client,
+            auth_service=auth_service,
+            script_path_or_job_name=script_path_or_job_name,
+            run_number=run_number,
+        )
 
     cancel_run_result = cancel_run.sync_detailed(
         client=api_client,
@@ -669,17 +675,17 @@ def _resolve_run_id_by_number(
     *,
     api_client: ApiClient,
     auth_service: RuntimeAuthService,
-    script_name_or_id: str,
+    script_path_or_job_name: str,
     run_number: int,
 ) -> UUID:
     script = get_script.sync_detailed(
         client=api_client,
         workspace_id=_to_uuid(auth_service.workspace_id),
-        script_id_or_name=script_name_or_id,
+        script_id_or_name=script_path_or_job_name,
     )
     if not isinstance(script.parsed, get_script.ScriptResponse):
         raise _exception_from_response(
-            f"Failed to get script with name or id {script_name_or_id}", script
+            f"Failed to get script with name or id {script_path_or_job_name}", script
         )
     runs = list_runs.sync_detailed(
         client=api_client,
@@ -693,7 +699,7 @@ def _resolve_run_id_by_number(
             return r.id
     raise CliCommandInnerException(
         cmd="runtime",
-        msg=f"Run number {run_number} not found for script/job {script_name_or_id}",
+        msg=f"Run number {run_number} not found for script/job {script_path_or_job_name}",
         inner_exc=None,
     )
 
@@ -717,7 +723,7 @@ def runtime_launch(script_path: str, *, detach: bool = False) -> None:
     )
     if not detach:
         # Show status and then logs for latest run
-        get_run_info(script_path, None, auth_service=auth_service, api_client=api_client)
+        get_job_run_info(script_path, None, auth_service=auth_service, api_client=api_client)
         fetch_run_logs(script_path, None, auth_service=auth_service, api_client=api_client)
 
 
@@ -736,7 +742,7 @@ def runtime_serve(script_path: str) -> None:
         api_client=api_client,
     )
     # Follow until ready: show status then logs
-    get_run_info(script_path, None, auth_service=auth_service, api_client=api_client)
+    get_job_run_info(script_path, None, auth_service=auth_service, api_client=api_client)
     fetch_run_logs(script_path, None, auth_service=auth_service, api_client=api_client)
 
 
@@ -801,37 +807,6 @@ def runtime_schedule_cancel(script_path: str, *, cancel_current: bool = False) -
         raise _exception_from_response("Failed to cancel schedule", upsert)
     if cancel_current:
         request_run_cancel(script_path, auth_service=auth_service, api_client=api_client)
-
-
-def runtime_logs_by_ref(script_path_or_job: str, run_number: Optional[int]) -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-    fetch_run_logs(script_path_or_job, run_number, auth_service=auth_service, api_client=api_client)
-
-
-def runtime_cancel_by_ref(script_path_or_job: str, run_number: Optional[int]) -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-    if run_number is None:
-        request_run_cancel(script_path_or_job, auth_service=auth_service, api_client=api_client)
-    else:
-        run_id = _resolve_run_id_by_number(
-            api_client=api_client,
-            auth_service=auth_service,
-            script_name_or_id=script_path_or_job,
-            run_number=run_number,
-        )
-        request_run_cancel(str(run_id), auth_service=auth_service, api_client=api_client)
-
-
-def runtime_run_info_by_ref(
-    script_path_or_job: str,
-    run_number: Optional[int],
-    *,
-    auth_service: RuntimeAuthService,
-    api_client: ApiClient,
-) -> None:
-    get_run_info(script_path_or_job, run_number, auth_service=auth_service, api_client=api_client)
 
 
 def runtime_dashboard() -> None:
@@ -995,24 +970,27 @@ def job_create(
         raise _exception_from_response("Failed to create job", upsert)
 
 
-def job_run_create(
-    script_path: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+def create_job_run(
+    script_path_or_job_name: Optional[str] = None,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
 ) -> None:
+    if script_path_or_job_name is None:
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg="Script path or job name is required",
+            inner_exc=None,
+        )
     res = create_run.sync_detailed(
         client=api_client,
         workspace_id=_to_uuid(auth_service.workspace_id),
         body=create_run.CreateRunRequest(
-            script_id_or_name=script_path,
+            script_id_or_name=script_path_or_job_name,
             profile=None,
         ),
     )
     if isinstance(res.parsed, create_run.RunResponse):
-        fmt.echo(f"Run started for {fmt.bold(script_path)}")
+        fmt.echo(f"Run started for {fmt.bold(script_path_or_job_name)}")
     else:
         raise _exception_from_response("Failed to start run", res)
-
-
-def job_runs_list(
-    script_name: Optional[str], *, auth_service: RuntimeAuthService, api_client: ApiClient
-) -> None:
-    get_runs(script_name=script_name or "", auth_service=auth_service, api_client=api_client)
