@@ -1,8 +1,10 @@
 from copy import deepcopy
+from typing import List
 
 import pytest
 
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TColumnSchema, TTableSchema, TTableSchemaColumns
 from dlt.common.schema.utils import exclude_dlt_entities
 from tests.common.utils import load_yml_case
 
@@ -12,7 +14,7 @@ def ethereum_schema() -> Schema:
     return Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
 
 
-def _get_table(tables: list, name: str) -> dict:
+def _get_table(tables: List[TTableSchema], name: str) -> TTableSchema:
     return next(table for table in tables if table["name"] == name)
 
 
@@ -110,10 +112,10 @@ def test_exclude_dlt_entities_honors_custom_prefix(ethereum_schema: Schema) -> N
         }
     }
 
-    blocks_columns = blocks_table["columns"]
+    blocks_columns: TTableSchemaColumns = blocks_table["columns"]
     non_dlt_column_name = next(name for name in blocks_columns if not name.startswith("_dlt_"))
     prefixed_column_name = f"{new_prefix}load_id"
-    prefixed_column = {
+    prefixed_column: TColumnSchema = {
         **blocks_columns["_dlt_load_id"],
         "name": prefixed_column_name,
     }
@@ -123,7 +125,7 @@ def test_exclude_dlt_entities_honors_custom_prefix(ethereum_schema: Schema) -> N
         prefixed_column_name: prefixed_column,
     }
 
-    tables = [version_table, blocks_table]
+    tables: List[TTableSchema] = [version_table, blocks_table]
 
     filtered = exclude_dlt_entities(
         tables,
@@ -137,6 +139,4 @@ def test_exclude_dlt_entities_honors_custom_prefix(ethereum_schema: Schema) -> N
     remaining_table = filtered[0]
     assert remaining_table["name"] == blocks_table["name"]
     assert prefixed_column_name not in remaining_table["columns"]
-    assert all(
-        not column_name.startswith(new_prefix) for column_name in remaining_table["columns"]
-    )
+    assert all(not column_name.startswith(new_prefix) for column_name in remaining_table["columns"])

@@ -534,7 +534,9 @@ class Schema:
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
         return [
-            t for t in self._schema_tables.values() if is_dlt_table_or_column(t["name"], self._dlt_tables_prefix)
+            t
+            for t in self._schema_tables.values()
+            if is_dlt_table_or_column(t["name"], self._dlt_tables_prefix)
         ]
 
     def dlt_table_names(self) -> List[str]:

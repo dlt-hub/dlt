@@ -917,11 +917,11 @@ def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], 
 def is_dlt_table_or_column(name: str, dlt_prefix: str = DLT_NAME_PREFIX) -> bool:
     """
     Check if a table or column name is a dlt internal name by checking if it starts with dlt prefix.
-    
+
     Args:
         name: The table or column name to check
         dlt_prefix: The dlt prefix to check against (defaults to DLT_NAME_PREFIX)
-    
+
     Returns:
         True if the name starts with the dlt prefix, False otherwise
     """
@@ -935,19 +935,17 @@ def remove_dlt_columns_from_table(
 ) -> TTableSchema:
     """
     Remove dlt columns from a single table schema.
-    
+
     Args:
         table_schema: The table schema to filter
         exclude_dlt_columns: If True, remove columns whose name starts with given dlt_prefix
         dlt_prefix: The dlt prefix to filter by
-    
+
     Returns:
         A new table schema with dlt columns optionally filtered out
     """
     # Create a copy of the table schema, preserving all fields except columns
-    new_table_schema = cast(
-        TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"}
-    )
+    new_table_schema = cast(TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"})
 
     if "columns" in table_schema:
         if exclude_dlt_columns:
@@ -958,7 +956,7 @@ def remove_dlt_columns_from_table(
             }
         else:
             new_table_schema["columns"] = table_schema["columns"]
-    
+
     return new_table_schema
 
 
@@ -983,18 +981,20 @@ def exclude_dlt_entities(
         the source of truth for your schema
     """
     filtered_tables: List[TTableSchema] = []
-    
+
     for table_schema in table_schemas:
         table_name = table_schema["name"]
-        
+
         # Skip dlt tables if requested
         if exclude_dlt_tables and is_dlt_table_or_column(table_name, dlt_prefix):
             continue
 
         # Remove dlt columns if requested
-        filtered_table = remove_dlt_columns_from_table(table_schema, exclude_dlt_columns, dlt_prefix)
+        filtered_table = remove_dlt_columns_from_table(
+            table_schema, exclude_dlt_columns, dlt_prefix
+        )
         filtered_tables.append(filtered_table)
-    
+
     return filtered_tables
 
 
