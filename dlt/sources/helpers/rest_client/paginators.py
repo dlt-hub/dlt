@@ -846,6 +846,8 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         cursor_path: jsonpath.TJsonPath = "cursors.next",
         cursor_param: Optional[str] = None,
         cursor_body_path: Optional[str] = None,
+        stop_after_empty_page: bool = False,
+        has_more_path: Optional[jsonpath.TJsonPath] = None,
     ):
         """
         Args:
@@ -854,6 +856,10 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
             cursor_param: The name of the query parameter to be used in
                 the request to get the next page.
             cursor_body_path: The dot-separated path where to place the cursor in the request body.
+            stop_after_empty_page: Whether pagination should stop when
+                a page contains no result items. Defaults to `False`.
+            has_more_path: The JSON path to a boolean value in the response
+                indicating whether there are more items to fetch.
         """
         super().__init__()
         self.cursor_path = jsonpath.compile_path(cursor_path)
@@ -869,11 +875,26 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
 
         self.cursor_param = cursor_param
         self.cursor_body_path = cursor_body_path
+        self.stop_after_empty_page = stop_after_empty_page
+        self.has_more_path = has_more_path
 
     def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the cursor value from the JSON response."""
         values = jsonpath.find_values(self.cursor_path, response.json())
         self._next_reference = values[0] if values and values[0] else None
+
+        if (
+            self.has_more_path is not None
+            and len(jsonpath.find_values(self.has_more_path, response.json())) > 0
+            and jsonpath.find_values(self.has_more_path, response.json())[0] == False
+        ):
+            has_more_value = jsonpath.find_values(self.has_more_path, response.json())[0]
+            if not has_more_value:
+                self._has_next_page = False
+
+        if self.stop_after_empty_page:
+            if len(data) == 0:
+                self._has_next_page = False
 
     def update_request(self, request: Request) -> None:
         """Updates the request with the cursor value either in query parameters
