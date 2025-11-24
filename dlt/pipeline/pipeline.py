@@ -1703,7 +1703,7 @@ class Pipeline(SupportsPipeline):
         local_state = cast("Dict[str, Any]", state["_local"])
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if prop in local_state and not prop.startswith("_"):
-                setattr(self, prop, local_state[prop])  # type: ignore
+                setattr(self, prop, local_state[prop])
         # staging and destination are taken from state only if not yet set in the pipeline
         if not self._destination:
             self._set_destinations(
@@ -1737,7 +1737,7 @@ class Pipeline(SupportsPipeline):
                 state[prop] = getattr(self, prop)  # type: ignore
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if not prop.startswith("_"):
-                state["_local"][prop] = getattr(self, prop)
+                state["_local"][prop] = getattr(self, prop)  # type: ignore
         if self._destination:
             state["destination_type"] = self._destination.destination_type
             state["destination_name"] = self._destination.configured_name
