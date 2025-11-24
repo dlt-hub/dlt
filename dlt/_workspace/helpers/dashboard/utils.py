@@ -183,6 +183,8 @@ def get_local_pipelines(
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
+    
+    print("Searching for pipelines in ", pipelines_dir)
 
     try:
         pipelines = storage.list_folder_dirs(".", to_root=False)
