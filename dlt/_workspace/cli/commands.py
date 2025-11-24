@@ -1001,7 +1001,7 @@ class RuntimeCommand(SupportsCliCommand):
         )
         self._configure_deployments_parser(deployment_cmd)
 
-        # jobs (renamed from scripts)
+        # jobs (ex-scripts)
         job_cmd = subparsers.add_parser(
             "job",
             help="List, create and inspect jobs",
@@ -1015,6 +1015,21 @@ class RuntimeCommand(SupportsCliCommand):
             description="List and manipulate jobs registered in the workspace.",
         )
         self._configure_jobs_parser(jobs_cmd)
+
+        # job-runs (ex-script-runs)
+        job_run_cmd = subparsers.add_parser(
+            "job-run",
+            help="List, create and inspect job runs",
+            description="List and manipulate job runs registered in the workspace.",
+        )
+        self._configure_job_runs_parser(job_run_cmd)
+        # plural alias
+        job_runs_cmd = subparsers.add_parser(
+            "job-runs",
+            help="List, create and inspect job runs",
+            description="List and manipulate job runs registered in the workspace.",
+        )
+        self._configure_job_runs_parser(job_runs_cmd)
 
         # configurations
         configuration_cmd = subparsers.add_parser(
@@ -1066,7 +1081,8 @@ class RuntimeCommand(SupportsCliCommand):
         deployment_cmd.add_argument(
             "deployment_version_no",
             nargs="?",
-            help="Deployment version number (integer). Only used in the `info` subcommand",
+            type=int,
+            help="Deployment version number. Only used in the `info` subcommand",
         )
         deployment_subparsers = deployment_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
@@ -1088,6 +1104,11 @@ class RuntimeCommand(SupportsCliCommand):
         )
 
     def _configure_jobs_parser(self, job_cmd: argparse.ArgumentParser) -> None:
+        job_cmd.add_argument(
+            "script_path_or_job_name",
+            nargs="?",
+            help="Local script path or job name. Required for all commands except `list`",
+        )
         job_subparsers = job_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
         )
@@ -1096,26 +1117,78 @@ class RuntimeCommand(SupportsCliCommand):
             help="List the jobs registered in the workspace",
             description="List the jobs registered in the workspace",
         )
-        info_cmd = job_subparsers.add_parser(
+        job_subparsers.add_parser(
             "info",
             help="Show job info",
             description="Display detailed information about the job",
         )
-        info_cmd.add_argument("script_path_or_job", help="Local script path or job name")
         create_cmd = job_subparsers.add_parser(
             "create",
             help="Create a job without running it",
             description="Manually create the job",
         )
-        create_cmd.add_argument("script_path", help="Local script path")
-        create_cmd.add_argument("--name", required=True, help="Job name to create")
+        create_cmd.add_argument("--name", nargs="?", help="Job name to create")
+        create_cmd.add_argument(
+            "--schedule", nargs="?", help="Cron schedule for the job if it's a scheduled one"
+        )
+        create_cmd.add_argument(
+            "--interactive",
+            action="store_true",
+            help="Run the job interactively, e.g. for a notebook",
+        )
+        create_cmd.add_argument("--description", nargs="?", help="Job description")
+
+    def _configure_job_runs_parser(self, job_run_cmd: argparse.ArgumentParser) -> None:
+        job_run_cmd.add_argument(
+            "script_path_or_job_name",
+            nargs="?",
+            help="Local script path or job name. Required for all commands except `list`",
+        )
+        job_run_cmd.add_argument(
+            "run_number",
+            nargs="?",
+            type=int,
+            help=(
+                "Run number. Optional for all commands except `list` and `create`. If not"
+                " specified, the latest run of given script be used."
+            ),
+        )
+        job_run_subparsers = job_run_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        job_run_subparsers.add_parser(
+            "list",
+            help="List the job runs registered in the workspace",
+            description="List the job runs registered in the workspace",
+        )
+        job_run_subparsers.add_parser(
+            "info",
+            help="Show job run info",
+            description="Display detailed information about the job run",
+        )
+        job_run_subparsers.add_parser(
+            "create",
+            help="Create a job run without running it",
+            description="Manually create the job run",
+        )
+        job_run_subparsers.add_parser(
+            "logs",
+            help="Show logs for the latest or selected job run",
+            description="Show logs for the latest or selected job run",
+        )
+        job_run_subparsers.add_parser(
+            "cancel",
+            help="Cancel the latest or selected job run",
+            description="Cancel the latest or selected job run",
+        )
 
     def _configure_configurations_parser(self, configuration_cmd: argparse.ArgumentParser) -> None:
         # list/info/sync on configurations
         configuration_cmd.add_argument(
             "configuration_version_no",
             nargs="?",
-            help="Configuration version number (integer). Only used in the `info` subcommand",
+            type=int,
+            help="Configuration version number. Only used in the `info` subcommand",
         )
         configuration_subparsers = configuration_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
@@ -1218,12 +1291,14 @@ class RuntimeCommand(SupportsCliCommand):
                     jobs_list(auth_service=auth_service, api_client=api_client)
                 elif args.operation == "info":
                     job_info(
-                        args.script_path_or_job, auth_service=auth_service, api_client=api_client
+                        args.script_path_or_job_name,
+                        auth_service=auth_service,
+                        api_client=api_client,
                     )
                 elif args.operation == "create":
                     job_create(
-                        args.script_path,
-                        args.name,
+                        args.script_path_or_job_name,
+                        args,
                         auth_service=auth_service,
                         api_client=api_client,
                     )

@@ -1,8 +1,10 @@
+import argparse
 import time
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional, Union
 from uuid import UUID
+from cron_descriptor import FormatException, get_description
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.cli import echo as fmt
@@ -67,6 +69,18 @@ def _exception_from_response(message: str, response: Response[Any]) -> BaseExcep
 
     message += f". {details} (HTTP {status})"
     return CliCommandInnerException(cmd="runtime", msg=message, inner_exc=None)
+
+
+def _check_cron_expression(cron_expression: Optional[str]) -> None:
+    if cron_expression:
+        try:
+            get_description(cron_expression)
+        except FormatException as exc:
+            raise CliCommandInnerException(
+                cmd="runtime",
+                msg=f"Invalid cron expression: {cron_expression} ({exc})",
+                inner_exc=exc,
+            )
 
 
 def login(minimal_logging: bool = True) -> RuntimeAuthService:
@@ -889,12 +903,21 @@ def jobs_list(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> Non
 
 
 def job_info(
-    script_path_or_job: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+    script_path_or_job_name: Optional[str] = None,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
 ) -> None:
+    if not script_path_or_job_name:
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg="Script path or job name is required",
+            inner_exc=None,
+        )
     res = get_script.sync_detailed(
         client=api_client,
         workspace_id=_to_uuid(auth_service.workspace_id),
-        script_id_or_name=script_path_or_job,
+        script_id_or_name=script_path_or_job_name,
     )
     if isinstance(res.parsed, get_script.ScriptResponse):
         fmt.echo(
@@ -906,23 +929,68 @@ def job_info(
 
 
 def job_create(
-    script_path: str, name: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+    script_path: Optional[str],
+    args: argparse.Namespace,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
 ) -> None:
+    if not script_path:
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg="Script path is required to be a first argument",
+            inner_exc=None,
+        )
     script_path_obj = Path(active().run_dir) / script_path
     if not script_path_obj.exists():
-        raise RuntimeError(f"Script file {script_path} not found")
+        raise CliCommandInnerException(
+            cmd="runtime",
+            msg="Script path is required to be a first argument. Provided path does not exist",
+            inner_exc=None,
+        )
+    if args.schedule:
+        _check_cron_expression(args.schedule)
+    job_name = args.name or script_path
+    job_type = ScriptType.INTERACTIVE if args.interactive else ScriptType.BATCH
+    job_description = args.description or f"The {job_name} job"
+
+    # warn if the job exists already with different parameters
+    res = get_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        script_id_or_name=job_name,
+    )
+    if isinstance(res.parsed, get_script.ScriptResponse):
+        if args.name and res.parsed.entry_point != script_path:
+            fmt.warning(
+                f"Warning: Job {job_name} already exists for different script path"
+                f" ({res.parsed.entry_point} -> {script_path}). Overwriting..."
+            )
+        elif res.parsed.schedule != args.schedule:
+            fmt.warning(
+                f"Warning: Job {job_name} already exists with different schedule"
+                f" ({res.parsed.schedule} -> {args.schedule}). Overwriting..."
+            )
+        elif res.parsed.script_type != job_type:
+            fmt.warning(
+                f"Warning: Job {job_name} already exists with different interactive mode"
+                f" ({res.parsed.script_type} -> {job_type}). Overwriting..."
+            )
+
     upsert = create_or_update_script.sync_detailed(
         client=api_client,
         workspace_id=_to_uuid(auth_service.workspace_id),
         body=create_or_update_script.CreateScriptRequest(
-            name=name,
-            description=f"The {name} job",
+            name=job_name,
+            description=job_description,
             entry_point=script_path,
-            script_type=ScriptType.BATCH,
+            script_type=job_type,
+            profile=None,
+            schedule=args.schedule,
         ),
     )
     if isinstance(upsert.parsed, create_or_update_script.ScriptResponse):
-        fmt.echo(f"Job {fmt.bold(name)} created, id: {upsert.parsed.id}")
+        fmt.echo(f"Job {fmt.bold(script_path)} created, id: {upsert.parsed.id}")
     else:
         raise _exception_from_response("Failed to create job", upsert)
 
