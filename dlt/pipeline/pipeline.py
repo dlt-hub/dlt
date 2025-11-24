@@ -1,5 +1,6 @@
 import contextlib
 import os
+import re
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
@@ -1588,10 +1589,12 @@ class Pipeline(SupportsPipeline):
             if "initial_cwd" not in _local:
                 _local["initial_cwd"] = os.path.abspath(dlt.current.run_context().local_dir)
             # if previous run used dev_mode=True and current instance uses dev_mode=False,
-            # reset pipeline by returning an empty state
+            # strip dev instance id suffix from dataset_name if present
             _last_dev_mode = _local.get("_last_dev_mode")
             if _last_dev_mode and not self.dev_mode:
-                migrated_state.pop("dataset_name", None)
+                ds_name = migrated_state.get("dataset_name")
+                if isinstance(ds_name, str):
+                    migrated_state["dataset_name"] = re.sub(r"_[0-9]{8,}$", "", ds_name)
             return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
