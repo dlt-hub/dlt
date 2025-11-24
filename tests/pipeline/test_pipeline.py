@@ -299,21 +299,25 @@ def test_run_dev_mode_default_dataset() -> None:
 
 def test_dev_mode_then_non_dev_resets_dataset_name() -> None:
     p_dev = dlt.pipeline(dev_mode=True, destination="filesystem")
+
     assert p_dev.dataset_name.endswith(p_dev._pipeline_instance_id)
+
     p_non_dev = dlt.pipeline(destination="filesystem")
+
     assert not p_non_dev.dataset_name.endswith(p_dev._pipeline_instance_id)
     assert p_non_dev.dataset_name.endswith("_dataset")
 
 
 def test_dev_mode_then_non_dev_with_explicit_dataset_name() -> None:
     base_ds = "my_custom_dataset_name"
-    # In dev mode, explicit dataset_name should be suffixed with instance id
     p_dev = dlt.pipeline(dev_mode=True, destination="filesystem", dataset_name=base_ds)
+
     assert p_dev.dataset_name.startswith(base_ds)
     assert p_dev.dataset_name != base_ds
     assert p_dev.dataset_name.endswith(p_dev._pipeline_instance_id)
-    # In non-dev mode, explicit dataset_name should be used as-is (no suffix)
+
     p_non_dev = dlt.pipeline(destination="filesystem", dataset_name=base_ds)
+
     assert p_non_dev.dataset_name == base_ds
 
 
