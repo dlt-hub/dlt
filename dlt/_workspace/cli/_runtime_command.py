@@ -247,8 +247,11 @@ def sync_configuration(*, auth_service: RuntimeAuthService, api_client: ApiClien
     )
     if isinstance(create_configuration_result.parsed, create_configuration.ConfigurationResponse):
         fmt.echo(
-            f"configuration # {create_configuration_result.parsed.version} created successfully"
+            f"Configuration # {create_configuration_result.parsed.version} created successfully"
         )
+        fmt.echo(f"Configuration id: {create_configuration_result.parsed.id}")
+        fmt.echo(f"File count: {create_configuration_result.parsed.file_count}")
+        fmt.echo(f"Content hash: {create_configuration_result.parsed.content_hash}")
     else:
         raise _exception_from_response(
             "Failed to create configuration", create_configuration_result
@@ -596,33 +599,38 @@ def get_configurations(*, auth_service: RuntimeAuthService, api_client: ApiClien
         for configuration in reversed(list_configurations_result.parsed.items):
             fmt.echo(
                 f"Configuration # {configuration.version}, created at: {configuration.date_added},"
-                f" version id: {configuration.id}"
+                f" id: {configuration.id}, file count: {configuration.file_count}, content hash:"
+                f" {configuration.content_hash}"
             )
     else:
         raise _exception_from_response("Failed to list configurations", list_configurations_result)
 
 
 def get_configuration_info(
-    configuration_id: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+    configuration_version_no: Optional[int] = None,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
 ) -> None:
-    get_configuration_result = get_configuration.sync_detailed(
-        client=api_client,
-        workspace_id=_to_uuid(auth_service.workspace_id),
-        configuration_id_or_version=_to_uuid(configuration_id),
-    )
-    if isinstance(get_configuration_result.parsed, get_configuration.ConfigurationResponse):
-        fmt.echo(
-            f"Configuration # {get_configuration_result.parsed.version}, created at:"
-            f" {get_configuration_result.parsed.date_added}, version id:"
-            f" {get_configuration_result.parsed.id}"
+    if configuration_version_no is None:
+        get_configuration_result = get_latest_configuration.sync_detailed(
+            client=api_client,
+            workspace_id=_to_uuid(auth_service.workspace_id),
         )
     else:
+        get_configuration_result = get_configuration.sync_detailed(
+            client=api_client,
+            workspace_id=_to_uuid(auth_service.workspace_id),
+            configuration_id_or_version=configuration_version_no,
+        )
+    if isinstance(get_configuration_result.parsed, get_configuration.ConfigurationResponse):
+        fmt.echo(f"Configuration # {get_configuration_result.parsed.version}")
+        fmt.echo(f"Created at: {get_configuration_result.parsed.date_added}")
+        fmt.echo(f"Configuration id: {get_configuration_result.parsed.id}")
+        fmt.echo(f"File count: {get_configuration_result.parsed.file_count}")
+        fmt.echo(f"Content hash: {get_configuration_result.parsed.content_hash}")
+    else:
         raise _exception_from_response("Failed to get configuration info", get_configuration_result)
-
-
-# =========================
-# Runtime v2 helper methods
-# =========================
 
 
 def _ensure_profile_warning(required_profile: str) -> None:

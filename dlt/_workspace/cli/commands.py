@@ -1113,7 +1113,9 @@ class RuntimeCommand(SupportsCliCommand):
     def _configure_configurations_parser(self, configuration_cmd: argparse.ArgumentParser) -> None:
         # list/info/sync on configurations
         configuration_cmd.add_argument(
-            "configuration_id", nargs="?", help="Configuration id (UUID)"
+            "configuration_version_no",
+            nargs="?",
+            help="Configuration version number (integer). Only used in the `info` subcommand",
         )
         configuration_subparsers = configuration_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
@@ -1230,7 +1232,11 @@ class RuntimeCommand(SupportsCliCommand):
                     get_configurations(auth_service=auth_service, api_client=api_client)
                 elif args.operation == "info":
                     get_configuration_info(
-                        configuration_id=args.configuration_id,
+                        configuration_version_no=(
+                            int(args.configuration_version_no)
+                            if args.configuration_version_no
+                            else None
+                        ),
                         auth_service=auth_service,
                         api_client=api_client,
                     )
