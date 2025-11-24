@@ -1,7 +1,6 @@
 #
 # App general
 #
-import marimo as _mo
 
 # Reusable string parts
 

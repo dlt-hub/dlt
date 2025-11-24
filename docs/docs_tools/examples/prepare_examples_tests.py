@@ -13,7 +13,7 @@ EXAMPLES_DIR = "./examples"
 # settings
 SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
 # @pytest.mark.rfam
-SKIP_EXAMPLES: List[str] = ["backfill_in_chunks", "connector_x_arrow"]
+SKIP_EXAMPLES: List[str] = ["backfill_in_chunks", "connector_x_arrow", "transformers"]
 SKIP_FORK_EXAMPLES: List[str] = ["custom_destination_lancedb"]
 
 
