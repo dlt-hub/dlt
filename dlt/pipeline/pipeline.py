@@ -1591,7 +1591,7 @@ class Pipeline(SupportsPipeline):
             # reset pipeline by returning an empty state
             _last_dev_mode = _local.get("_last_dev_mode")
             if _last_dev_mode and not self.dev_mode:
-                return default_pipeline_state()
+                migrated_state.pop("dataset_name", None)
             return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
