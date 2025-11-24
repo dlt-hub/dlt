@@ -44,7 +44,7 @@ def disable_runtime_artifacts() -> None:
 
 def _get_runtime_artifacts_fs(config: RuntimeConfiguration) -> fsspec.filesystem:
     if (
-        not config.workspace_pipeline_artifacts_url
+        not config.workspace_pipeline_artifacts_sync_url
         or not config.workspace_artifacts_access_key
         or not config.workspace_artifacts_secret_key
         or not config.workspace_artifacts_host
@@ -79,7 +79,7 @@ def _write_to_bucket(
 
     for path in paths:
         with fs.open(
-            f"{config.workspace_pipeline_artifacts_url}/{pipeline_name}/{path}",
+            f"{config.workspace_pipeline_artifacts_send_url}/{pipeline_name}/{path}",
             mode=mode,
         ) as f:
             f.write(data)

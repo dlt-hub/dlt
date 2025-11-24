@@ -120,7 +120,7 @@ def sync_from_runtime() -> None:
     if not isinstance(context, WorkspaceRunContext):
         return
 
-    src_base = runtime_config.workspace_pipeline_artifacts_url  # the artifacts folder on fs
+    src_base = runtime_config.workspace_pipeline_artifacts_sync_url  # the artifacts folder on fs
     local_pipelines_dir = os.path.join(
         context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER
     )  # the local .var folder

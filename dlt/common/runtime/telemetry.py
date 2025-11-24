@@ -39,7 +39,7 @@ def start_telemetry(config: RuntimeConfiguration) -> None:
 
         init_platform_tracker()
 
-    if config.workspace_pipeline_artifacts_url:
+    if config.workspace_pipeline_artifacts_send_url:
         from dlt.pipeline.runtime_artifacts import init_runtime_artifacts
 
         init_runtime_artifacts()

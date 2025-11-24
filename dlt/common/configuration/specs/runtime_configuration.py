@@ -39,7 +39,8 @@ class RuntimeConfiguration(BaseConfiguration):
     """Maximum length of HTTP error response body to include in logs/exceptions"""
 
     # NOTE: these are here temporarily,
-    workspace_pipeline_artifacts_url: Optional[str] = None
+    workspace_pipeline_artifacts_send_url: Optional[str] = None
+    workspace_pipeline_artifacts_sync_url: Optional[str] = None
     workspace_artifacts_host: Optional[str] = None
     workspace_artifacts_access_key: Optional[str] = None
     workspace_artifacts_secret_key: Optional[str] = None
