@@ -53,6 +53,8 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUn
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
+from dlt._workspace.run_context import DEFAULT_WORKSPACE_WORKING_FOLDER
+from dlt._workspace._workspace_context import WorkspaceRunContext
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -93,14 +95,12 @@ def sync_from_runtime() -> None:
 
             # Copy all files in this directory
             for filename in files:
-
                 remote_file = fs.sep.join([dirpath, filename])
                 local_file = os.path.join(local_dir, filename)
 
                 print(f"Synching {remote_file} to {local_file}")
                 with fs.open(remote_file, "rb") as bf, open(local_file, "wb") as lf:
                     lf.write(bf.read())
-                    
 
                 # Try to preserve LastModified as mtime
                 # needed for correct ordering of pipelines in pipeline list
@@ -112,11 +112,18 @@ def sync_from_runtime() -> None:
                     os.utime(local_file, (ts, ts))  # (atime, mtime)
 
     runtime_config = dlt.current.run_context().runtime_config
+
     if not (fs := _get_runtime_artifacts_fs(runtime_config)):
         return
 
-    src_base = runtime_config.workspace_pipeline_artifacts_url  # the pipelines folder on fs
-    local_pipelines_dir = get_dlt_pipelines_dir()  # local root for pipelines
+    context = dlt.current.run_context()
+    if not isinstance(context, WorkspaceRunContext):
+        return
+
+    src_base = runtime_config.workspace_pipeline_artifacts_url  # the artifacts folder on fs
+    local_pipelines_dir = os.path.join(
+        context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER
+    )  # the local .var folder
 
     # Just sync the whole base folder into the local pipelines dir
     sync_dir(fs, src_base, local_pipelines_dir)
