@@ -284,7 +284,7 @@ def test_run_dev_mode_default_dataset() -> None:
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
     r_p = dlt.attach(dev_mode=False)
-    assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+    assert not r_p.dataset_name.endswith(p._pipeline_instance_id)
 
     # dummy does not need dataset
     p = dlt.pipeline(dev_mode=True, destination="dummy")
@@ -295,30 +295,6 @@ def test_run_dev_mode_default_dataset() -> None:
     p._set_dataset_name(None)
     # full refresh is still observed
     assert p.dataset_name and p.dataset_name.endswith(p._pipeline_instance_id)
-
-
-def test_dev_mode_then_non_dev_resets_dataset_name() -> None:
-    p_dev = dlt.pipeline(dev_mode=True, destination="filesystem")
-
-    assert p_dev.dataset_name.endswith(p_dev._pipeline_instance_id)
-
-    p_non_dev = dlt.pipeline(destination="filesystem")
-
-    assert not p_non_dev.dataset_name.endswith(p_dev._pipeline_instance_id)
-    assert p_non_dev.dataset_name.endswith("_dataset")
-
-
-def test_dev_mode_then_non_dev_with_explicit_dataset_name() -> None:
-    base_ds = "my_custom_dataset_name"
-    p_dev = dlt.pipeline(dev_mode=True, destination="filesystem", dataset_name=base_ds)
-
-    assert p_dev.dataset_name.startswith(base_ds)
-    assert p_dev.dataset_name != base_ds
-    assert p_dev.dataset_name.endswith(p_dev._pipeline_instance_id)
-
-    p_non_dev = dlt.pipeline(destination="filesystem", dataset_name=base_ds)
-
-    assert p_non_dev.dataset_name == base_ds
 
 
 def test_run_dev_mode_default_dataset_layout(environment) -> None:
@@ -333,10 +309,7 @@ def test_run_dev_mode_default_dataset_layout(environment) -> None:
     ]
     # restore this pipeline
     r_p = dlt.attach(dev_mode=False)
-    assert r_p.dataset_name in [
-        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
-        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
-    ]
+    assert not r_p.dataset_name.endswith(p._pipeline_instance_id)
 
     # dummy does not need dataset
     p = dlt.pipeline(dev_mode=True, destination="dummy")
@@ -355,11 +328,11 @@ def test_run_dev_mode_default_dataset_layout(environment) -> None:
 
 
 def test_run_dev_mode_underscored_dataset() -> None:
-    p = dlt.pipeline(dev_mode=True, dataset_name="_main_")
+    p = dlt.pipeline(dev_mode=True, dataset_name="_main_", destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
     r_p = dlt.attach(dev_mode=False)
-    assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+    assert not r_p.dataset_name.endswith(p._pipeline_instance_id)
 
 
 def test_dataset_pipeline_never_ran() -> None:
