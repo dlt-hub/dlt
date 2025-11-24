@@ -51,10 +51,14 @@ def _open_section(
     close_other_sections: bool = True,
 ) -> None:
     if close_other_sections:
-        for s in known_sections:
-            if s != section:
-                page.get_by_role("switch", name=s).uncheck()
+        _close_sections(page, section)
     page.get_by_role("switch", name=section).check()
+
+
+def _close_sections(page: Page, skip_section: str = None) -> None:
+    for s in known_sections:
+        if s != skip_section:
+            page.get_by_role("switch", name=s).uncheck()
 
 
 def test_page_overview(page: Page):
@@ -120,21 +124,33 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     for section in ["schema", "data"]:
         _open_section(page, section)  # type: ignore[arg-type]
 
+        # NOTE: this is using unspecific selector and may select other dropdowns id present (?)
         schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
         schema_selector.select_option("fruitshop_customers")
+        expect(schema_selector).to_have_value("fruitshop_customers")
+        schema_selector.scroll_into_view_if_needed()
+
         expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
         expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
 
         schema_selector.select_option("fruitshop_inventory")
+        expect(schema_selector).to_have_value("fruitshop_inventory")
+
         expect(page.get_by_text("inventory", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("customers", exact=True)).to_have_count(0)
         expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
 
         schema_selector.select_option("fruitshop_purchases")
+        expect(schema_selector).to_have_value("fruitshop_purchases")
+
         expect(page.get_by_text("purchases", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
         expect(page.get_by_text("customers", exact=True)).to_have_count(0)
+
+        _close_sections(page)
+        # make sure schema selector removed from page
+        expect(schema_selector).not_to_be_attached()
 
 
 def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: Any):
