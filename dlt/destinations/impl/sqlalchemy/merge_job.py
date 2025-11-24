@@ -375,9 +375,12 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             format_datetime_literal = (
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
-        created_at = current_load_package()["state"]["created_at"]
         _boundary_ts = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
-        boundary_ts: TAnyDateTime = _boundary_ts if _boundary_ts is not None else created_at
+        boundary_ts: TAnyDateTime = (
+            _boundary_ts
+            if _boundary_ts is not None
+            else current_load_package()["state"]["created_at"]
+        )
         boundary_ts = ensure_pendulum_datetime_utc(boundary_ts)
 
         boundary_literal = format_datetime_literal(boundary_ts, caps.timestamp_precision)

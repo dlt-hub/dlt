@@ -777,7 +777,7 @@ def test_boundary_timestamp(
                 **{FROM: ts2_dt, TO: ts3_dt},
                 **l2_3,
             },  # unchanged (already retired in load 3)
-            {**{FROM: ts5_dt, TO: None}, **l3_1},  # new current version
+            {**{FROM: ts5_dt, TO: None}, **l3_1},
         ]
         assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
 
