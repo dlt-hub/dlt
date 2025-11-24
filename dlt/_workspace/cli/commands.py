@@ -1063,7 +1063,11 @@ class RuntimeCommand(SupportsCliCommand):
 
     def _configure_deployments_parser(self, deployment_cmd: argparse.ArgumentParser) -> None:
         # list/info/sync on deployments
-        deployment_cmd.add_argument("deployment_id", nargs="?", help="Deployment id (UUID)")
+        deployment_cmd.add_argument(
+            "deployment_version_no",
+            nargs="?",
+            help="Deployment version number (integer). Only used in the `info` subcommand",
+        )
         deployment_subparsers = deployment_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
         )
@@ -1199,7 +1203,9 @@ class RuntimeCommand(SupportsCliCommand):
                     get_deployments(auth_service=auth_service, api_client=api_client)
                 elif args.operation == "info":
                     get_deployment_info(
-                        deployment_id=args.deployment_id,
+                        deployment_version_no=(
+                            int(args.deployment_version_no) if args.deployment_version_no else None
+                        ),
                         auth_service=auth_service,
                         api_client=api_client,
                     )

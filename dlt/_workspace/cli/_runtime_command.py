@@ -454,13 +454,22 @@ def get_deployments(*, auth_service: RuntimeAuthService, api_client: ApiClient) 
 
 
 def get_deployment_info(
-    deployment_id: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
+    deployment_version_no: Optional[int] = None,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
 ) -> None:
-    get_deployment_result = get_deployment.sync_detailed(
-        client=api_client,
-        workspace_id=_to_uuid(auth_service.workspace_id),
-        deployment_id_or_version=_to_uuid(deployment_id),
-    )
+    if deployment_version_no is None:
+        get_deployment_result = get_latest_deployment.sync_detailed(
+            client=api_client,
+            workspace_id=_to_uuid(auth_service.workspace_id),
+        )
+    else:
+        get_deployment_result = get_deployment.sync_detailed(
+            client=api_client,
+            workspace_id=_to_uuid(auth_service.workspace_id),
+            deployment_id_or_version=deployment_version_no,
+        )
     if isinstance(get_deployment_result.parsed, get_deployment.DeploymentResponse):
         fmt.echo(f"Deployment # {get_deployment_result.parsed.version}")
         fmt.echo(f"Created at: {get_deployment_result.parsed.date_added}")
