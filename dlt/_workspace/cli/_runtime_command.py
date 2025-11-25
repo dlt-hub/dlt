@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional, Set, Union
 from uuid import UUID
+import webbrowser
 
 from cron_descriptor import FormatException, get_description
 
@@ -367,7 +368,7 @@ def get_runs(
             workspace_id=_to_uuid(auth_service.workspace_id),
             script_id_or_name=script_path_or_job_name,
         )
-        if isinstance(script.parsed, get_script.ScriptResponse):
+        if isinstance(script.parsed, get_script.DetailedScriptResponse):
             script_id = script.parsed.id
         else:
             raise _exception_from_response(
@@ -500,7 +501,7 @@ def get_script_info(
         script_id_or_name=script_id_or_name,
     )
 
-    if isinstance(get_script_result.parsed, get_script.ScriptResponse):
+    if isinstance(get_script_result.parsed, get_script.DetailedScriptResponse):
         fmt.echo(
             f"Script {get_script_result.parsed.name}, created at:"
             f" {get_script_result.parsed.date_added}, id: {get_script_result.parsed.id}, version #:"
@@ -520,7 +521,7 @@ def _get_latest_run(
             workspace_id=_to_uuid(auth_service.workspace_id),
             script_id_or_name=script_id_or_name,
         )
-        if isinstance(script.parsed, get_script.ScriptResponse):
+        if isinstance(script.parsed, get_script.DetailedScriptResponse):
             fmt.echo(f"Job {script.parsed.name} found on runtime.")
             runs = list_runs.sync_detailed(
                 client=api_client,
@@ -632,7 +633,7 @@ def _resolve_run_id_by_number(
         workspace_id=_to_uuid(auth_service.workspace_id),
         script_id_or_name=script_path_or_job_name,
     )
-    if not isinstance(script.parsed, get_script.ScriptResponse):
+    if not isinstance(script.parsed, get_script.DetailedScriptResponse):
         raise _exception_from_response(
             f"Failed to get script with name or id {script_path_or_job_name}", script
         )
@@ -725,7 +726,7 @@ def serve(script_path: str, *, auth_service: RuntimeAuthService, api_client: Api
             workspace_id=_to_uuid(auth_service.workspace_id),
             script_id_or_name=script_path,
         )
-        if isinstance(res.parsed, get_script.ScriptResponse):
+        if isinstance(res.parsed, get_script.DetailedScriptResponse):
             url = f"https://{res.parsed.id}.apps.tower.dev"
             fmt.echo(f"Opening {url}")
             import webbrowser
@@ -923,13 +924,20 @@ def runtime_schedule_cancel(script_path: str, *, cancel_current: bool = False) -
         request_run_cancel(script_path, auth_service=auth_service, api_client=api_client)
 
 
-def runtime_dashboard() -> None:
-    auth_service = login()
-    # just echo link for now
-    fmt.echo(
-        "Open Runtime dashboard: %s"
-        % fmt.bold(f"https://console.tower.dev/workspaces/{auth_service.workspace_id}")
+def open_dashboard(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+    job = get_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        script_id_or_name="dashboard",
     )
+    if isinstance(job.parsed, get_script.DetailedScriptResponse):
+        if not job.parsed.script_url:
+            fmt.error("Failed to get the URL for the dashboard")
+            return
+        fmt.echo(f"Dashboard is available at {job.parsed.script_url}")
+        webbrowser.open(job.parsed.script_url)
+    else:
+        raise _exception_from_response("Failed to get dashboard job", job)
 
 
 def runtime_info() -> None:
@@ -1008,7 +1016,7 @@ def job_info(
         workspace_id=_to_uuid(auth_service.workspace_id),
         script_id_or_name=script_path_or_job_name,
     )
-    if isinstance(res.parsed, get_script.ScriptResponse):
+    if isinstance(res.parsed, get_script.DetailedScriptResponse):
         fmt.echo(
             f"Job {res.parsed.name}, created at: {res.parsed.date_added}, id: {res.parsed.id},"
             f" version #: {res.parsed.version}"
@@ -1049,7 +1057,7 @@ def job_create(
         workspace_id=_to_uuid(auth_service.workspace_id),
         script_id_or_name=job_name,
     )
-    if isinstance(res.parsed, get_script.ScriptResponse):
+    if isinstance(res.parsed, get_script.DetailedScriptResponse):
         if args.name and res.parsed.entry_point != script_path:
             fmt.warning(
                 f"Warning: Job {job_name} already exists for different script path"

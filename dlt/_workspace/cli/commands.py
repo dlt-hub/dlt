@@ -1268,7 +1268,7 @@ class RuntimeCommand(SupportsCliCommand):
                     api_client=api_client,
                 )
             elif args.runtime_command == "dashboard":
-                cmd.runtime_dashboard()
+                cmd.open_dashboard(auth_service=auth_service, api_client=api_client)
             elif args.runtime_command == "deploy":
                 cmd.deploy(auth_service=auth_service, api_client=api_client)
             elif args.runtime_command == "info":

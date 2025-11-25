@@ -7,6 +7,7 @@ from .create_run_request import CreateRunRequest
 from .create_script_request import CreateScriptRequest
 from .deployment_response import DeploymentResponse
 from .detailed_run_response import DetailedRunResponse
+from .detailed_script_response import DetailedScriptResponse
 from .error_response_400 import ErrorResponse400
 from .error_response_400_extra import ErrorResponse400Extra
 from .error_response_401 import ErrorResponse401
@@ -40,6 +41,7 @@ __all__ = (
     "CreateScriptRequest",
     "DeploymentResponse",
     "DetailedRunResponse",
+    "DetailedScriptResponse",
     "ErrorResponse400",
     "ErrorResponse400Extra",
     "ErrorResponse401",

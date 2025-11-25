@@ -10,11 +10,15 @@ from dateutil.parser import isoparse
 from ..models.script_type import ScriptType
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="ScriptResponse")
+if TYPE_CHECKING:
+    from ..models.run_response import RunResponse
+
+
+T = TypeVar("T", bound="DetailedScriptResponse")
 
 
 @_attrs_define
-class ScriptResponse:
+class DetailedScriptResponse:
     """
     Attributes:
         active (bool): Whether the profile is active and may be used to run scripts
@@ -30,6 +34,7 @@ class ScriptResponse:
         script_url (str): The URL where the script can be accessed if interactive
         version (int): The current version of the profile
         workspace_id (UUID): The ID of the workspace the script belongs to
+        last_run (Union['RunResponse', None, Unset]): The last run of the script, is None if no run has been made
         next_scheduled_run (Union[None, Unset, datetime.datetime]): The next scheduled run of the script, is None if no
             schedule is set
         profile (Union[None, Unset, str]): The name of the profile to use for the script
@@ -48,12 +53,15 @@ class ScriptResponse:
     script_url: str
     version: int
     workspace_id: UUID
+    last_run: Union["RunResponse", None, Unset] = UNSET
     next_scheduled_run: Union[None, Unset, datetime.datetime] = UNSET
     profile: Union[None, Unset, str] = UNSET
     schedule: Union[None, Unset, str] = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.run_response import RunResponse
+
         active = self.active
 
         created_by = str(self.created_by)
@@ -77,6 +85,14 @@ class ScriptResponse:
         version = self.version
 
         workspace_id = str(self.workspace_id)
+
+        last_run: Union[None, Unset, dict[str, Any]]
+        if isinstance(self.last_run, Unset):
+            last_run = UNSET
+        elif isinstance(self.last_run, RunResponse):
+            last_run = self.last_run.to_dict()
+        else:
+            last_run = self.last_run
 
         next_scheduled_run: Union[None, Unset, str]
         if isinstance(self.next_scheduled_run, Unset):
@@ -116,6 +132,8 @@ class ScriptResponse:
                 "workspace_id": workspace_id,
             }
         )
+        if last_run is not UNSET:
+            field_dict["last_run"] = last_run
         if next_scheduled_run is not UNSET:
             field_dict["next_scheduled_run"] = next_scheduled_run
         if profile is not UNSET:
@@ -127,6 +145,8 @@ class ScriptResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.run_response import RunResponse
+
         d = dict(src_dict)
         active = d.pop("active")
 
@@ -151,6 +171,23 @@ class ScriptResponse:
         version = d.pop("version")
 
         workspace_id = UUID(d.pop("workspace_id"))
+
+        def _parse_last_run(data: object) -> Union["RunResponse", None, Unset]:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                last_run_type_0 = RunResponse.from_dict(data)
+
+                return last_run_type_0
+            except:  # noqa: E722
+                pass
+            return cast(Union["RunResponse", None, Unset], data)
+
+        last_run = _parse_last_run(d.pop("last_run", UNSET))
 
         def _parse_next_scheduled_run(data: object) -> Union[None, Unset, datetime.datetime]:
             if data is None:
@@ -187,7 +224,7 @@ class ScriptResponse:
 
         schedule = _parse_schedule(d.pop("schedule", UNSET))
 
-        script_response = cls(
+        detailed_script_response = cls(
             active=active,
             created_by=created_by,
             date_added=date_added,
@@ -200,13 +237,14 @@ class ScriptResponse:
             script_url=script_url,
             version=version,
             workspace_id=workspace_id,
+            last_run=last_run,
             next_scheduled_run=next_scheduled_run,
             profile=profile,
             schedule=schedule,
         )
 
-        script_response.additional_properties = d
-        return script_response
+        detailed_script_response.additional_properties = d
+        return detailed_script_response
 
     @property
     def additional_keys(self) -> list[str]:

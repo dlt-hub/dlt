@@ -246,6 +246,87 @@ components:
       - workspace_id
       title: DetailedRunResponse
       type: object
+    DetailedScriptResponse:
+      properties:
+        active:
+          description: Whether the profile is active and may be used to run scripts
+          type: boolean
+        created_by:
+          description: The ID of the identity who created the profile
+          format: uuid
+          type: string
+        date_added:
+          description: The date the entity was added
+          format: date-time
+          type: string
+        date_updated:
+          description: The date the entity was updated
+          format: date-time
+          type: string
+        description:
+          description: The description of the script
+          type: string
+        entry_point:
+          description: The entry point of the script. Will usually be the path to
+            a python file in the uploaded tarball
+          type: string
+        id:
+          description: The uniqueID of the entity
+          format: uuid
+          type: string
+        last_run:
+          description: The last run of the script, is None if no run has been made
+          oneOf:
+          - $ref: '#/components/schemas/RunResponse'
+          - type: 'null'
+        name:
+          description: The name of the script
+          type: string
+        next_scheduled_run:
+          description: The next scheduled run of the script, is None if no schedule
+            is set
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        profile:
+          description: The name of the profile to use for the script
+          oneOf:
+          - type: string
+          - type: 'null'
+        schedule:
+          description: The schedule of the script. Use 'cron' format for cron jobs
+          oneOf:
+          - type: string
+          - type: 'null'
+        script_type:
+          $ref: '#/components/schemas/ScriptType'
+        script_url:
+          description: The URL where the script can be accessed if interactive
+          readOnly: true
+          type: string
+        version:
+          description: The current version of the profile
+          type: integer
+        workspace_id:
+          description: The ID of the workspace the script belongs to
+          format: uuid
+          type: string
+      required:
+      - active
+      - created_by
+      - date_added
+      - date_updated
+      - description
+      - entry_point
+      - id
+      - name
+      - script_type
+      - script_url
+      - version
+      - workspace_id
+      title: DetailedScriptResponse
+      type: object
     ErrorResponse400:
       description: Validation Exception
       examples:
@@ -490,9 +571,12 @@ components:
       - pending
       - starting
       - running
+      - finalizing
       - completed
       - failed
       - cancelled
+      - skipped
+      - cancelling
       title: RunStatus
       type: string
     RunTriggerType:
@@ -532,6 +616,13 @@ components:
         name:
           description: The name of the script
           type: string
+        next_scheduled_run:
+          description: The next scheduled run of the script, is None if no schedule
+            is set
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
         profile:
           description: The name of the profile to use for the script
           oneOf:
@@ -544,6 +635,10 @@ components:
           - type: 'null'
         script_type:
           $ref: '#/components/schemas/ScriptType'
+        script_url:
+          description: The URL where the script can be accessed if interactive
+          readOnly: true
+          type: string
         version:
           description: The current version of the profile
           type: integer
@@ -561,6 +656,7 @@ components:
       - id
       - name
       - script_type
+      - script_url
       - version
       - workspace_id
       title: ScriptResponse
@@ -1856,7 +1952,7 @@ paths:
                 properties:
                   items:
                     items:
-                      $ref: '#/components/schemas/ScriptResponse'
+                      $ref: '#/components/schemas/DetailedScriptResponse'
                     type: array
                   limit:
                     description: Maximal number of items to send.
@@ -1987,7 +2083,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ScriptResponse'
+                $ref: '#/components/schemas/DetailedScriptResponse'
           description: Request fulfilled, document follows
           headers: {}
         '400':
