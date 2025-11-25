@@ -213,24 +213,18 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self,
         sql: List[str],
         table_name: str,
-        new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
-        storage_columns: Optional[Sequence[TColumnSchema]] = None,
     ) -> List[str]:
         """Adds CLUSTER BY / DROP CLUSTERING KEY clause to SQL statements based on cluster hints.
 
         This method modifies the input `sql` list in place and also returns it.
         """
 
-        if generate_alter and storage_columns is None:
-            logger.warning(
-                "SnowflakeClient._add_cluster_sql called without storage_columns parameter. This"
-                " may lead to incorrect handling of cluster hints. Pass storage_columns to ensure"
-                " correct behavior."
-            )
-
-        all_columns = list(storage_columns or []) + list(new_columns)
-        cluster_column_names = [c["name"] for c in all_columns if c.get("cluster")]
+        cluster_column_names = [
+            c["name"]
+            for c in self.schema.get_table_columns(table_name).values()
+            if c.get("cluster")
+        ]
 
         if generate_alter:
             # altering -> need to issue separate ALTER TABLE statement for cluster operations
@@ -243,14 +237,10 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         return sql
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        storage_columns: Optional[Sequence[TColumnSchema]] = None,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
-        return self._add_cluster_sql(sql, table_name, new_columns, generate_alter, storage_columns)
+        return self._add_cluster_sql(sql, table_name, generate_alter)
 
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]

@@ -662,12 +662,7 @@ WHERE """
             if len(new_columns) > 0:
                 # build and add sql to execute
                 self._check_table_update_hints(table_name, new_columns, generate_alter)
-                sql_statements = self._get_table_update_sql(
-                    table_name,
-                    new_columns,
-                    generate_alter,
-                    storage_columns=list(storage_columns.values()),
-                )
+                sql_statements = self._get_table_update_sql(table_name, new_columns, generate_alter)
                 for sql in sql_statements:
                     sql_updates.append(sql)
                 # create a schema update for particular table
@@ -706,11 +701,7 @@ WHERE """
         return f"ALTER TABLE {qualified_name}\n"
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        storage_columns: Optional[Sequence[TColumnSchema]] = None,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         """Generates a list of SQL statements that updates table `table_name` to include `new_columns`
         columns. `generate_alter` is set to True if table already exists in destination.

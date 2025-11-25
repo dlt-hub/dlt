@@ -278,11 +278,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             raise e
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        storage_columns: Optional[Sequence[TColumnSchema]] = None,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         bucket = self.config.staging_config.bucket_url
         dataset = self.sql_client.dataset_name

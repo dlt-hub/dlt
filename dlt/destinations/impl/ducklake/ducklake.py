@@ -134,11 +134,7 @@ class DuckLakeClient(DuckDbClient):
         return job
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        storage_columns: Optional[Sequence[TColumnSchema]] = None,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 

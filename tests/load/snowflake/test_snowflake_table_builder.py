@@ -8,7 +8,8 @@ import pytest
 import sqlfluff
 
 from dlt.common.utils import uniq_id
-from dlt.common.schema import Schema, utils
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.destinations import snowflake
 from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient, SUPPORTED_HINTS
 from dlt.destinations.impl.snowflake.configuration import (
@@ -64,7 +65,7 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
             ).upper()
         )
 
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False, [])
+    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert len(statements) == 1
     sql = statements[0]
     sqlfluff.parse(sql, dialect="snowflake")
@@ -100,9 +101,7 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
 
     mod_update[4]["parent_key"] = True
 
-    sql = ";".join(
-        snowflake_client._get_table_update_sql("event_test_table", mod_update, False, [])
-    )
+    sql = ";".join(snowflake_client._get_table_update_sql("event_test_table", mod_update, False))
 
     assert sql.strip().startswith("CREATE TABLE")
     assert "EVENT_TEST_TABLE" in sql
@@ -123,11 +122,8 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
 
 
 def test_alter_table(snowflake_client: SnowflakeClient) -> None:
-    storage_columns = deepcopy(TABLE_UPDATE[:1])
     new_columns = deepcopy(TABLE_UPDATE[1:10])
-    statements = snowflake_client._get_table_update_sql(
-        "event_test_table", new_columns, True, storage_columns
-    )
+    statements = snowflake_client._get_table_update_sql("event_test_table", new_columns, True)
 
     assert len(statements) == 2, "Should have one ADD COLUMN and one DROP CLUSTERING KEY statement"
     add_column_sql = statements[0]
@@ -152,6 +148,8 @@ def test_alter_table(snowflake_client: SnowflakeClient) -> None:
 
 
 def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
+    table_name = "event_test_table"
+
     # mock hints
     snowflake_client.active_hints = SUPPORTED_HINTS
 
@@ -159,10 +157,7 @@ def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     new_columns = deepcopy(TABLE_UPDATE[11:])
     new_columns[0]["primary_key"] = True
     new_columns[1]["unique"] = True
-    storage_columns = deepcopy(TABLE_UPDATE[:11])
-    statements = snowflake_client._get_table_update_sql(
-        "event_test_table", new_columns, True, storage_columns
-    )
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
 
     assert len(statements) == 2, "Should have one ADD COLUMN and one DROP CLUSTERING KEY statement"
     add_column_sql = statements[0]
@@ -171,35 +166,35 @@ def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
 
     # test cluster hint
 
-    # case: drop clustering (always run if no cluster hints in new_columns and storage_columns)
+    # case: drop clustering (always run if no cluster hints present in table schema)
     cluster_by_sql = statements[1]
 
     assert cluster_by_sql.startswith("ALTER TABLE")
-    assert '"EVENT_TEST_TABLE"' in cluster_by_sql
+    assert f'"{table_name.upper()}"' in cluster_by_sql
     assert cluster_by_sql.endswith("DROP CLUSTERING KEY")
 
     # case: add clustering (without clustering -> with clustering)
-    storage_columns_without_clustering = deepcopy(TABLE_UPDATE[:1])
-    new_columns_with_clustering = deepcopy(TABLE_UPDATE[1:2])
-    new_columns_with_clustering[0]["cluster"] = True  # COL2
-    statements = snowflake_client._get_table_update_sql(
-        "event_test_table", new_columns_with_clustering, True, storage_columns_without_clustering
-    )
+    old_columns = deepcopy(TABLE_UPDATE[:1])
+    new_columns = deepcopy(TABLE_UPDATE[1:2])
+    new_columns[0]["cluster"] = True  # COL2
+    all_columns = deepcopy(old_columns + new_columns)
+    snowflake_client.schema.update_table(new_table(table_name, columns=deepcopy(all_columns)))
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
 
     assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
     cluster_by_sql = statements[1]
     assert cluster_by_sql.startswith("ALTER TABLE")
-    assert '"EVENT_TEST_TABLE"' in cluster_by_sql
+    assert f'"{table_name.upper()}"' in cluster_by_sql
     assert 'CLUSTER BY ("COL2")' in cluster_by_sql
 
     # case: modify clustering (extend cluster columns)
-    storage_columns_with_clustering = deepcopy(TABLE_UPDATE[:2])
-    storage_columns_with_clustering[1]["cluster"] = True  # COL2
-    new_columns_with_clustering = deepcopy(TABLE_UPDATE[2:5])
-    new_columns_with_clustering[2]["cluster"] = True  # COL5
-    statements = snowflake_client._get_table_update_sql(
-        "event_test_table", new_columns_with_clustering, True, storage_columns_with_clustering
-    )
+    old_columns = deepcopy(TABLE_UPDATE[:2])
+    old_columns[1]["cluster"] = True  # COL2
+    new_columns = deepcopy(TABLE_UPDATE[2:5])
+    new_columns[2]["cluster"] = True  # COL5
+    all_columns = deepcopy(old_columns + new_columns)
+    snowflake_client.schema.update_table(new_table(table_name, columns=all_columns))
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
 
     assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
     cluster_by_sql = statements[1]
@@ -208,17 +203,16 @@ def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     assert 'CLUSTER BY ("COL2","COL5")' in cluster_by_sql
 
     # case: modify clustering (reorder cluster columns)
-    storage_columns_reordered = deepcopy(TABLE_UPDATE[:5])
-    storage_columns_reordered[1]["cluster"] = True  # COL2
-    storage_columns_reordered[4]["cluster"] = True  # COL5
-    storage_columns_reordered[1], storage_columns_reordered[4] = (  # swap order
-        storage_columns_reordered[4],
-        storage_columns_reordered[1],
-    )
+    old_columns = deepcopy(TABLE_UPDATE[:5])
+    old_columns[1]["cluster"] = True  # COL2
+    old_columns[4]["cluster"] = True  # COL5
+    old_columns[1], old_columns[4] = old_columns[4], old_columns[1]  # swap order
     new_columns = deepcopy(TABLE_UPDATE[5:6])
-    statements = snowflake_client._get_table_update_sql(
-        "event_test_table", new_columns, True, storage_columns_reordered
-    )
+    all_columns = deepcopy(old_columns + new_columns)
+    # cannot change column order in existing table schema, so we drop and recreate
+    snowflake_client.schema.drop_tables([table_name])
+    snowflake_client.schema.update_table(new_table(table_name, columns=all_columns))
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
 
     assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
     cluster_by_sql = statements[1]
@@ -234,9 +228,7 @@ def test_create_table_case_sensitive(cs_client: SnowflakeClient) -> None:
         assert cs_client.sql_client.dataset_name.endswith("staginG")
     assert cs_client.sql_client.staging_dataset_name.endswith("staginG")
     # check tables
-    cs_client.schema.update_table(
-        utils.new_table("event_test_table", columns=deepcopy(TABLE_UPDATE))
-    )
+    cs_client.schema.update_table(new_table("event_test_table", columns=deepcopy(TABLE_UPDATE)))
     sql = cs_client._get_table_update_sql(
         "Event_test_tablE",
         list(cs_client.schema.get_table_columns("Event_test_tablE").values()),
@@ -256,7 +248,9 @@ def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClie
     mod_update[3]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
-    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    table_name = "event_test_table"
+    snowflake_client.schema.update_table(new_table(table_name, columns=deepcopy(mod_update)))
+    statements = snowflake_client._get_table_update_sql(table_name, mod_update, False)
     assert len(statements) == 1
     sql = statements[0]
 

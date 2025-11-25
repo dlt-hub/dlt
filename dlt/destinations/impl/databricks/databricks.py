@@ -388,11 +388,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         return ""
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        storage_columns: Optional[Sequence[TColumnSchema]] = None,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
 
