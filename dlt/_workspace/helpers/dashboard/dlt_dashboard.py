@@ -891,6 +891,12 @@ def utils_discover_pipelines(
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
 
+    # sync from runtime if enabled
+    _tmp_config = utils.resolve_dashboard_config(None)
+    if _tmp_config.sync_from_runtime:
+        with mo.status.spinner(title="Syncing pipeline list from runtime"):
+            utils.sync_from_runtime()
+
     _run_context = dlt.current.run_context()
     if (
         isinstance(_run_context, ProfilesRunContext)

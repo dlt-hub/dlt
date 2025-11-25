@@ -755,6 +755,11 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         "dlthub_dsn": None,
         "http_show_error_body": False,
         "http_max_error_body_length": 8192,
+        "workspace_pipeline_artifacts_sync_url": None,
+        "workspace_pipeline_artifacts_send_url": None,
+        "workspace_artifacts_access_key": None,
+        "workspace_artifacts_secret_key": None,
+        "workspace_artifacts_host": None,
         "secret_value": None,
     }
     assert dict(_SecretCredentials()) == expected_dict

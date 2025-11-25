@@ -158,7 +158,9 @@ def deploy(
     api_client = get_api_client(auth_service)
 
     script_path = Path(active().run_dir) / script_file_name
-    if not script_path.exists():
+    if script_file_name == DASHBOARD_SCRIPT_NAME:
+        is_interactive = True
+    elif not script_path.exists():
         raise RuntimeError(f"Script file {script_file_name} not found")
 
     sync_deployment(auth_service=auth_service, api_client=api_client)
@@ -255,6 +257,9 @@ def sync_configuration(*, auth_service: RuntimeAuthService, api_client: ApiClien
         )
 
 
+DASHBOARD_SCRIPT_NAME = "dashboard"
+
+
 def run_script(
     script_file_name: str,
     is_interactive: bool = False,
@@ -264,7 +269,10 @@ def run_script(
     api_client: ApiClient,
 ) -> None:
     script_path = Path(active().run_dir) / script_file_name
-    if not script_path.exists():
+
+    if script_file_name == DASHBOARD_SCRIPT_NAME:
+        is_interactive = True
+    elif not script_path.exists():
         raise RuntimeError(f"Script file {script_file_name} not found")
 
     create_script_result = create_or_update_script.sync_detailed(
