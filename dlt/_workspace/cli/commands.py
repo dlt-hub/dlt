@@ -1071,6 +1071,12 @@ class RuntimeCommand(SupportsCliCommand):
     def _configure_logs_parser(self, logs_cmd: argparse.ArgumentParser) -> None:
         logs_cmd.add_argument("script_path_or_job_name", help="Local path or job name")
         logs_cmd.add_argument("run_number", nargs="?", type=int, help="Run number (optional)")
+        logs_cmd.add_argument(
+            "-f",
+            "--follow",
+            action="store_true",
+            help="Follow the logs of the run in tailing mode",
+        )
 
     def _configure_cancel_parser(self, cancel_cmd: argparse.ArgumentParser) -> None:
         cancel_cmd.add_argument("script_path_or_job_name", help="Local path or job name")
@@ -1171,10 +1177,19 @@ class RuntimeCommand(SupportsCliCommand):
             help="Create a job run without running it",
             description="Manually create the job run",
         )
-        job_run_subparsers.add_parser(
+        logs_cmd = job_run_subparsers.add_parser(
             "logs",
             help="Show logs for the latest or selected job run",
-            description="Show logs for the latest or selected job run",
+            description=(
+                "Show logs for the latest or selected job run. Use --follow to follow the logs in"
+                " tailing mode."
+            ),
+        )
+        logs_cmd.add_argument(
+            "-f",
+            "--follow",
+            action="store_true",
+            help="Follow the logs of the run in tailing mode",
         )
         job_run_subparsers.add_parser(
             "cancel",
@@ -1241,6 +1256,7 @@ class RuntimeCommand(SupportsCliCommand):
                 cmd.fetch_run_logs(
                     args.script_path_or_job_name,
                     args.run_number,
+                    args.follow,
                     auth_service=auth_service,
                     api_client=api_client,
                 )
@@ -1330,6 +1346,7 @@ class RuntimeCommand(SupportsCliCommand):
                     cmd.fetch_run_logs(
                         args.script_path_or_job_name,
                         args.run_number,
+                        args.follow,
                         auth_service=auth_service,
                         api_client=api_client,
                     )

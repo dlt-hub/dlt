@@ -395,7 +395,7 @@ Show logs for latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime logs [-h] script_path_or_job_name [run_number]
+dlt runtime logs [-h] [-f] script_path_or_job_name [run_number]
 ```
 
 **Description**
@@ -414,6 +414,7 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `-f, --follow` - Follow the logs of the run in tailing mode
 
 </details>
 
@@ -953,12 +954,12 @@ Show logs for the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-run [script_path_or_job_name] [run_number] logs [-h]
+dlt runtime job-run [script_path_or_job_name] [run_number] logs [-h] [-f]
 ```
 
 **Description**
 
-Show logs for the latest or selected job run.
+Show logs for the latest or selected job run. Use --follow to follow the logs in tailing mode.
 
 <details>
 
@@ -968,6 +969,7 @@ Inherits arguments from [`dlt runtime job-run`](#dlt-runtime-job-run).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `-f, --follow` - Follow the logs of the run in tailing mode
 
 </details>
 
@@ -1109,12 +1111,12 @@ Show logs for the latest or selected job run.
 
 **Usage**
 ```sh
-dlt runtime job-runs [script_path_or_job_name] [run_number] logs [-h]
+dlt runtime job-runs [script_path_or_job_name] [run_number] logs [-h] [-f]
 ```
 
 **Description**
 
-Show logs for the latest or selected job run.
+Show logs for the latest or selected job run. Use --follow to follow the logs in tailing mode.
 
 <details>
 
@@ -1124,6 +1126,7 @@ Inherits arguments from [`dlt runtime job-runs`](#dlt-runtime-job-runs).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `-f, --follow` - Follow the logs of the run in tailing mode
 
 </details>
 

@@ -315,6 +315,7 @@ def get_job_run_info(
 def fetch_run_logs(
     script_path_or_job_name: Optional[str] = None,
     run_number: Optional[int] = None,
+    follow: bool = False,
     *,
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
@@ -337,21 +338,29 @@ def fetch_run_logs(
             run_number=run_number,
         )
 
-    get_run_logs_result = get_run_logs.sync_detailed(
-        client=api_client,
-        workspace_id=_to_uuid(auth_service.workspace_id),
-        run_id=run_id,
-    )
-    if isinstance(get_run_logs_result.parsed, get_run_logs.LogsResponse):
-        run = get_run_logs_result.parsed.run
-        run_info = (
-            f"Run # {run.number} of job {run.script.name}, status: {run.status}, run id: {run.id}"
+    if follow:
+        follow_job_run(
+            run_id,
+            {RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.COMPLETED},
+            None,
+            True,
+            auth_service=auth_service,
+            api_client=api_client,
         )
-        fmt.echo(f"========== Run logs for {run_info} ==========")
-        fmt.echo(get_run_logs_result.parsed.logs)
-        fmt.echo(f"========== End of run logs for {run_info} ==========")
     else:
-        raise _exception_from_response("Failed to get run logs.", get_run_logs_result)
+        get_run_logs_result = get_run_logs.sync_detailed(
+            client=api_client,
+            workspace_id=_to_uuid(auth_service.workspace_id),
+            run_id=run_id,
+        )
+        if isinstance(get_run_logs_result.parsed, get_run_logs.LogsResponse):
+            run = get_run_logs_result.parsed.run
+            run_info = f"Run # {run.number} of job {run.script.name}"
+            fmt.echo(f"========== Run logs for {run_info} ==========")
+            fmt.echo(get_run_logs_result.parsed.logs)
+            fmt.echo(f"========== End of run logs for {run_info} ==========")
+        else:
+            raise _exception_from_response("Failed to get run logs.", get_run_logs_result)
 
 
 def get_runs(
