@@ -212,7 +212,10 @@ In the load stage, the normalized queries from `.model` files are wrapped in INS
 For example, given this query from the extract stage:
 
 ```sql
-SELECT id, value FROM table
+SELECT
+    "my_table"."id" AS "id",
+    "my_table"."value" AS "value"
+FROM "my_pipeline_dataset"."my_table" AS "my_table"
 ```
 
 After the normalize stage processes it (adding dlt columns, wrapping in subquery, etc.) and results in:
