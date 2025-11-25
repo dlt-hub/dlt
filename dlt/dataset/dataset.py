@@ -212,8 +212,13 @@ class Dataset:
             )
 
         # maybe update the dataset schema
-        self._schema = internal_pipeline.default_schema
+        self._update_schema(internal_pipeline.default_schema)
         return info
+
+    def _update_schema(self, new_schema: dlt.Schema) -> None:
+        """Update the dataset schema"""
+        # todo: verify if we need to purge any cached objects (eg. sql_client)
+        self._schema = new_schema
 
     def query(
         self,
