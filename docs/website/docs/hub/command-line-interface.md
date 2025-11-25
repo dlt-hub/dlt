@@ -215,7 +215,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`logout`](#dlt-runtime-logout) - Logout from dlthub runtime
 * [`launch`](#dlt-runtime-launch) - Deploy code/config and run a script (follow status and logs by default)
 * [`serve`](#dlt-runtime-serve) - Deploy and serve an interactive notebook/app (read-only) and follow until ready
-* [`schedule`](#dlt-runtime-schedule) - Deploy and schedule a script with a cron timetable
+* [`schedule`](#dlt-runtime-schedule) - Deploy and schedule a script with a cron timetable, or cancel the scheduled script from future runs
 * [`logs`](#dlt-runtime-logs) - Show logs for latest or selected job run
 * [`cancel`](#dlt-runtime-cancel) - Cancel latest or selected job run
 * [`dashboard`](#dlt-runtime-dashboard) - Open the runtime dashboard for this workspace
@@ -335,16 +335,16 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 ### `dlt runtime schedule`
 
-Deploy and schedule a script with a cron timetable.
+Deploy and schedule a script with a cron timetable, or cancel the scheduled script from future runs.
 
 **Usage**
 ```sh
-dlt runtime schedule [-h] script_path [cron] {cancel} ...
+dlt runtime schedule [-h] [--current] script_path cron_expr_or_cancel
 ```
 
 **Description**
 
-Schedule a batch script to run on a cron timetable.
+Schedule a batch script to run on a cron timetable, or cancel the scheduled script from future runs.
 
 <details>
 
@@ -354,38 +354,11 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Positional arguments**
 * `script_path` - Local path to the script
-* `cron` - Cron schedule for the script
+* `cron_expr_or_cancel` - Either a cron schedule string if you want to schedule the script, or the literal 'cancel' command if you want to cancel it
 
 **Options**
 * `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`cancel`](#dlt-runtime-schedule-cancel) - Cancel future runs for this scheduled script
-
-</details>
-
-### `dlt runtime schedule cancel`
-
-Cancel future runs for this scheduled script.
-
-**Usage**
-```sh
-dlt runtime schedule script_path [cron] cancel [-h] [--current]
-```
-
-**Description**
-
-Cancel the schedule. Use --current to also cancel current run.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt runtime schedule`](#dlt-runtime-schedule).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--current` - Also cancel the currently running instance if any
+* `--current` - When cancelling the schedule, also cancel the currently running instance if any
 
 </details>
 

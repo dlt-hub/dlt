@@ -1,10 +1,10 @@
 import argparse
 import time
+import webbrowser
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional, Set, Union
 from uuid import UUID
-import webbrowser
 
 from cron_descriptor import FormatException, get_description
 
@@ -860,7 +860,13 @@ def follow_job_run(
         time.sleep(2)
 
 
-def runtime_schedule(script_path: str, cron: Optional[str]) -> None:
+def schedule(
+    script_path: str,
+    cron: Optional[str],
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
     if not cron:
         raise CliCommandInnerException(
             cmd="runtime",
@@ -870,22 +876,19 @@ def runtime_schedule(script_path: str, cron: Optional[str]) -> None:
             inner_exc=None,
         )
     _check_cron_expression(cron)
-    auth_service = login()
-    api_client = get_api_client(auth_service)
     _ensure_profile_warning("prod")
-    script_path_obj = Path(active().run_dir) / script_path
-    if not script_path_obj.exists():
-        raise RuntimeError(f"Script file {script_path} not found")
+
     # Ensure deployment/configuration in place
     sync_deployment(auth_service=auth_service, api_client=api_client)
     sync_configuration(auth_service=auth_service, api_client=api_client)
+
     # Upsert script with schedule
     upsert = create_or_update_script.sync_detailed(
         client=api_client,
         workspace_id=_to_uuid(auth_service.workspace_id),
         body=create_or_update_script.CreateScriptRequest(
             name=script_path,
-            description=f"The {script_path} job",
+            description=f"The {script_path} scheduled job",
             entry_point=script_path,
             script_type=ScriptType.BATCH,
             profile="prod",
@@ -901,9 +904,25 @@ def runtime_schedule(script_path: str, cron: Optional[str]) -> None:
         raise _exception_from_response("Failed to schedule script", upsert)
 
 
-def runtime_schedule_cancel(script_path: str, *, cancel_current: bool = False) -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
+def schedule_cancel(
+    script_path: str,
+    cancel_current: bool = False,
+    *,
+    auth_service: RuntimeAuthService,
+    api_client: ApiClient,
+) -> None:
+    existing_script = get_script.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+        script_id_or_name=script_path,
+    )
+    if isinstance(existing_script.parsed, get_script.DetailedScriptResponse):
+        if not isinstance(existing_script.parsed.schedule, str):
+            fmt.error(f"{script_path} is not a scheduled job")
+            return
+    else:
+        raise _exception_from_response("Failed to get job", existing_script)
+
     # Unset schedule
     upsert = create_or_update_script.sync_detailed(
         client=api_client,
@@ -921,7 +940,11 @@ def runtime_schedule_cancel(script_path: str, *, cancel_current: bool = False) -
     else:
         raise _exception_from_response("Failed to cancel schedule", upsert)
     if cancel_current:
-        request_run_cancel(script_path, auth_service=auth_service, api_client=api_client)
+        try:
+            request_run_cancel(script_path, auth_service=auth_service, api_client=api_client)
+        except CliCommandInnerException as e:
+            if "terminal state" not in e.args[0]:
+                raise e
 
 
 def open_dashboard(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:

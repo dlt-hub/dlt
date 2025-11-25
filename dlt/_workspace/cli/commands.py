@@ -956,8 +956,14 @@ class RuntimeCommand(SupportsCliCommand):
 
         schedule_cmd = subparsers.add_parser(
             "schedule",
-            help="Deploy and schedule a script with a cron timetable",
-            description="Schedule a batch script to run on a cron timetable.",
+            help=(
+                "Deploy and schedule a script with a cron timetable, or cancel the scheduled script"
+                " from future runs"
+            ),
+            description=(
+                "Schedule a batch script to run on a cron timetable, or cancel the scheduled script"
+                " from future runs."
+            ),
         )
         self._configure_schedule_parser(schedule_cmd)
 
@@ -1053,19 +1059,17 @@ class RuntimeCommand(SupportsCliCommand):
 
     def _configure_schedule_parser(self, schedule_cmd: argparse.ArgumentParser) -> None:
         schedule_cmd.add_argument("script_path", help="Local path to the script")
-        schedule_cmd.add_argument("cron", nargs="?", help="Cron schedule for the script")
-        schedule_subparsers = schedule_cmd.add_subparsers(
-            title="Available subcommands", dest="operation", required=False
+        schedule_cmd.add_argument(
+            "cron_expr_or_cancel",
+            help=(
+                "Either a cron schedule string if you want to schedule the script, or the literal"
+                " 'cancel' command if you want to cancel it"
+            ),
         )
-        cancel_cmd = schedule_subparsers.add_parser(
-            "cancel",
-            help="Cancel future runs for this scheduled script",
-            description="Cancel the schedule. Use --current to also cancel current run.",
-        )
-        cancel_cmd.add_argument(
+        schedule_cmd.add_argument(
             "--current",
             action="store_true",
-            help="Also cancel the currently running instance if any",
+            help="When cancelling the schedule, also cancel the currently running instance if any",
         )
 
     def _configure_logs_parser(self, logs_cmd: argparse.ArgumentParser) -> None:
@@ -1248,10 +1252,20 @@ class RuntimeCommand(SupportsCliCommand):
                     api_client=api_client,
                 )
             elif args.runtime_command == "schedule":
-                if args.operation == "cancel":
-                    cmd.runtime_schedule_cancel(args.script_path, cancel_current=bool(args.current))
+                if args.cron_expr_or_cancel == "cancel":
+                    cmd.schedule_cancel(
+                        args.script_path,
+                        cancel_current=bool(args.current),
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
                 else:
-                    cmd.runtime_schedule(args.script_path, args.cron)
+                    cmd.schedule(
+                        args.script_path,
+                        args.cron_expr_or_cancel,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
             elif args.runtime_command == "logs":
                 cmd.fetch_run_logs(
                     args.script_path_or_job_name,
