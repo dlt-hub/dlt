@@ -851,10 +851,6 @@ class Pipeline(SupportsPipeline):
                         )
             # write the state back
             self._props_to_state(state)
-            # persist current dev_mode in local state so future inits can detect toggles
-            if state.get("_local") is None:
-                state.setdefault("_local", {})
-            state["_local"]["_last_dev_mode"] = self.dev_mode
             # verify state
             if state_default_schema_name := state.get("default_schema_name"):
                 # at least empty list is present
@@ -1535,7 +1531,10 @@ class Pipeline(SupportsPipeline):
             if destination and issubclass(destination.spec, DestinationClientDwhConfiguration):
                 destination_needs_dataset = destination.spec.needs_dataset_name()
             # if destination is not specified - generate dataset
-            if destination_needs_dataset:
+            _local_state = self._get_state()["_local"]
+            _last_dev_mode = _local_state.get("_last_dev_mode") if _local_state else False
+            dataset_name_reset = _last_dev_mode and not self.dev_mode
+            if destination_needs_dataset or dataset_name_reset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
@@ -1588,13 +1587,6 @@ class Pipeline(SupportsPipeline):
             _local = migrated_state["_local"]
             if "initial_cwd" not in _local:
                 _local["initial_cwd"] = os.path.abspath(dlt.current.run_context().local_dir)
-            # if previous run used dev_mode=True and current instance uses dev_mode=False,
-            # strip dev instance id suffix from dataset_name if present
-            _last_dev_mode = _local.get("_last_dev_mode")
-            if _last_dev_mode and not self.dev_mode:
-                ds_name = migrated_state.get("dataset_name")
-                if isinstance(ds_name, str):
-                    migrated_state["dataset_name"] = re.sub(r"_[0-9]{8,}$", "", ds_name)
             return migrated_state
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
@@ -1704,6 +1696,8 @@ class Pipeline(SupportsPipeline):
                 setattr(self, prop, state[prop])  # type: ignore
         # access local state via a casted mapping to allow dynamic keys
         local_state = cast("Dict[str, Any]", state["_local"])
+        if local_state.get("_last_dev_mode") and not self.dev_mode:
+            self.dataset_name = self._make_dataset_name(None, self._destination)
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if prop in local_state and not prop.startswith("_"):
                 setattr(self, prop, local_state[prop])
@@ -1747,6 +1741,7 @@ class Pipeline(SupportsPipeline):
         if self._staging:
             state["staging_type"] = self._staging.destination_type
             state["staging_name"] = self._staging.configured_name
+        state["_local"]["_last_dev_mode"] = self.dev_mode
         state["schema_names"] = self._list_schemas_sorted()
         return state
 
@@ -1786,11 +1781,6 @@ class Pipeline(SupportsPipeline):
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.
         """
-        # Write pipeline props into state and persist the current dev_mode value in local state
-        self._props_to_state(state)
-        if state.get("_local") is None:
-            state.setdefault("_local", {})
-        state["_local"]["_last_dev_mode"] = self.dev_mode
         _, hash_, _ = bump_pipeline_state_version_if_modified(state)
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
         if should_extract and extract_state:
