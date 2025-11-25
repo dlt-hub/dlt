@@ -664,14 +664,13 @@ def launch(
     auth_service: RuntimeAuthService,
     api_client: ApiClient,
 ) -> None:
-    profile_active = _ensure_profile_warning("prod")
+    _ensure_profile_warning("prod")
     # Sync and run
     sync_deployment(auth_service=auth_service, api_client=api_client)
     sync_configuration(auth_service=auth_service, api_client=api_client)
     run_id = run_script(
         script_path,
         is_interactive=False,
-        profile="prod" if profile_active else None,
         auth_service=auth_service,
         api_client=api_client,
     )
@@ -682,7 +681,7 @@ def launch(
 
 
 def serve(script_path: str, *, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
-    profile_active = _ensure_profile_warning("access")
+    _ensure_profile_warning("access")
     # Try to detect marimo notebook
     try:
         script_path_obj = Path(active().run_dir) / script_path
@@ -712,7 +711,6 @@ def serve(script_path: str, *, auth_service: RuntimeAuthService, api_client: Api
     run_id = run_script(
         script_path,
         is_interactive=True,
-        profile="access" if profile_active else None,
         auth_service=auth_service,
         api_client=api_client,
     )
@@ -891,7 +889,6 @@ def schedule(
             description=f"The {script_path} scheduled job",
             entry_point=script_path,
             script_type=ScriptType.BATCH,
-            profile="prod",
             schedule=cron,
         ),
     )
@@ -963,33 +960,7 @@ def open_dashboard(*, auth_service: RuntimeAuthService, api_client: ApiClient) -
         raise _exception_from_response("Failed to get dashboard job", job)
 
 
-def runtime_info() -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-    fmt.echo("Remote workspace id: %s" % fmt.bold(auth_service.workspace_id))
-    # deployments
-    dep = list_deployments.sync_detailed(
-        client=api_client,
-        workspace_id=_to_uuid(auth_service.workspace_id),
-    )
-    dep_count = (
-        len(dep.parsed.items)
-        if isinstance(dep.parsed, list_deployments.ListDeploymentsResponse200) and dep.parsed.items
-        else 0
-    )
-    fmt.echo(f"Deployments: {dep_count}")
-    # configurations
-    cfg = list_configurations.sync_detailed(
-        client=api_client,
-        workspace_id=_to_uuid(auth_service.workspace_id),
-    )
-    cfg_count = (
-        len(cfg.parsed.items)
-        if isinstance(cfg.parsed, list_configurations.ListConfigurationsResponse200)
-        and cfg.parsed.items
-        else 0
-    )
-    fmt.echo(f"Configurations: {cfg_count}")
+def runtime_info(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
     # jobs
     scr = list_scripts.sync_detailed(
         client=api_client,
@@ -1000,7 +971,46 @@ def runtime_info() -> None:
         if isinstance(scr.parsed, list_scripts.ListScriptsResponse200) and scr.parsed.items
         else 0
     )
-    fmt.echo(f"Jobs: {job_count}")
+    fmt.echo(f"# registered jobs: {job_count}. Run `dlt runtime job list` to see all")
+
+    # last job run
+
+    latest_run = _get_latest_run(api_client, auth_service)
+    if isinstance(latest_run, DetailedRunResponse):
+        fmt.echo(
+            f"Latest job run: {latest_run.script.name} ({latest_run.status}), started at"
+            f" {latest_run.time_started}, ended at {latest_run.time_ended}"
+        )
+    else:
+        raise _exception_from_response("Failed to get latest run", latest_run)
+
+    # deployments
+    latest_deployment = get_latest_deployment.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    if isinstance(latest_deployment.parsed, get_latest_deployment.DeploymentResponse):
+        fmt.echo(
+            f"Current deployment version: {latest_deployment.parsed.version}, last updated at"
+            f" {latest_deployment.parsed.date_added}. Run `dlt runtime deployment info` to see"
+            " detailed deployment information"
+        )
+    else:
+        raise _exception_from_response("Failed to get latest deployment", latest_deployment)
+
+    # configurations
+    latest_configuration = get_latest_configuration.sync_detailed(
+        client=api_client,
+        workspace_id=_to_uuid(auth_service.workspace_id),
+    )
+    if isinstance(latest_configuration.parsed, get_latest_configuration.ConfigurationResponse):
+        fmt.echo(
+            f"Current configuration version: {latest_configuration.parsed.version}, last updated at"
+            f" {latest_configuration.parsed.date_added}. Run `dlt runtime configuration info` to"
+            " see detailed configuration information"
+        )
+    else:
+        raise _exception_from_response("Failed to get latest configuration", latest_configuration)
 
 
 # Power user: jobs and job-runs

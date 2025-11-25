@@ -995,7 +995,7 @@ class RuntimeCommand(SupportsCliCommand):
 
         subparsers.add_parser(
             "info",
-            help="Show overview of current remote workspace",
+            help="Show overview of current Runtime workspace",
             description="Show workspace id and summary of deployments, configurations and jobs.",
         )
 
@@ -1286,7 +1286,7 @@ class RuntimeCommand(SupportsCliCommand):
             elif args.runtime_command == "deploy":
                 cmd.deploy(auth_service=auth_service, api_client=api_client)
             elif args.runtime_command == "info":
-                cmd.runtime_info()
+                cmd.runtime_info(auth_service=auth_service, api_client=api_client)
             elif args.runtime_command == "deployment":
                 if args.operation == "list" or not args.operation:
                     cmd.get_deployments(auth_service=auth_service, api_client=api_client)
