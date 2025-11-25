@@ -992,6 +992,69 @@ def test_get_new_columns(schema: Schema) -> None:
         schema.get_new_table_columns("events", existing_columns, case_sensitive=False)
 
 
+def test_get_removed_columns(schema: Schema) -> None:
+    os.environ["SCHEMA__NAMING"] = "direct"
+    schema.update_normalizers()
+
+    def escape_col_f_snowflake(col: str, quite: bool, casefold: bool) -> str:
+        if casefold:
+            return col.upper()
+        return col
+
+    name_column = utils.new_column("name", "text")
+    id_column = utils.new_column("id", "text")
+    address_column = utils.new_column("address", "json")
+    schema.update_table(utils.new_table("events", columns=[name_column, id_column, address_column]))
+
+    existing_columns: TTableSchemaColumns = {
+        "ID": id_column,
+        "NAME": name_column,
+        "ADDRESS": address_column,
+    }
+    assert (
+        schema.get_removed_table_columns(
+            "events", existing_columns, escape_col_f_snowflake, disregard_dlt_columns=True
+        )
+        == []
+    )
+
+    # address column missing from destination
+    existing_columns_partial: TTableSchemaColumns = {
+        "ID": id_column,
+        "NAME": name_column,
+    }
+    removed = schema.get_removed_table_columns(
+        "events", existing_columns_partial, escape_col_f_snowflake, disregard_dlt_columns=True
+    )
+    assert len(removed) == 1
+    assert removed[0]["name"] == "address"
+
+    # multiple columns missing from destination
+    removed = schema.get_removed_table_columns(
+        "events", {"ID": id_column}, escape_col_f_snowflake, disregard_dlt_columns=True
+    )
+    assert len(removed) == 2
+    assert set(col["name"] for col in removed) == {"name", "address"}
+
+    # test disregard_dlt_columns
+    dlt_id_column = utils.new_column("_dlt_id", "text")
+    schema.update_table(utils.new_table("events", columns=[dlt_id_column]))
+
+    # _dlt_id missing, but disregarded by default
+    removed = schema.get_removed_table_columns(
+        "events", existing_columns_partial, escape_col_f_snowflake, disregard_dlt_columns=True
+    )
+    assert len(removed) == 1
+    assert removed[0]["name"] == "address"
+
+    # _dlt_id included when disregard_dlt_columns=False
+    removed = schema.get_removed_table_columns(
+        "events", existing_columns_partial, escape_col_f_snowflake, disregard_dlt_columns=False
+    )
+    assert len(removed) == 2
+    assert set(col["name"] for col in removed) == {"address", "_dlt_id"}
+
+
 def _setup_nested_tables(schema: Schema) -> None:
     """helper to create a nested table chain a_events -> a_events___1 -> a_events___1___2"""
     schema.update_table(utils.new_table("a_events", columns=[]))

@@ -23,13 +23,10 @@ from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
 from dlt.common.schema.typing import (
-    C_DLT_ID,
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
-    TSchemaDrop,
-    TPartialTableSchema,
 )
 from dlt.common.storages.exceptions import (
     CurrentLoadPackageStateNotAvailable,

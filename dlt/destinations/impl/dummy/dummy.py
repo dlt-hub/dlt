@@ -15,7 +15,7 @@ from typing import (
 import time
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TSchemaTables, TSchemaDrop
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.destination import DestinationCapabilitiesContext

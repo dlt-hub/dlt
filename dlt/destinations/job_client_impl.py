@@ -6,7 +6,6 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
-    ClassVar,
     Dict,
     List,
     Optional,
@@ -27,7 +26,6 @@ from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.utils import resolve_replace_strategy
 from dlt.common.json import json
 from dlt.common.schema.typing import (
-    C_DLT_ID,
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
     COLUMN_HINTS,
@@ -45,13 +43,7 @@ from dlt.common.schema.utils import (
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
-from dlt.common.schema import (
-    TColumnSchema,
-    Schema,
-    TTableSchemaColumns,
-    TSchemaTables,
-    TSchemaDrop,
-)
+from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.schema import TColumnHint
 from dlt.common.destination.client import (
     PreparedTableSchema,

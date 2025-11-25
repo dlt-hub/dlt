@@ -2,8 +2,6 @@ import re
 
 from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast, Iterable, Callable
 
-from sqlglot import column
-
 from dlt.common import logger
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
@@ -316,13 +314,16 @@ def sync_schema_from_storage_schema(
     and drop any tables and/or columns that disappeared.
 
     Args:
-        client (WithTableReflectionAndSql): The destination client with table reflection capabilities.
+        get_storage_tables_f (Callable): Function that retrieves table column schemas from destination storage.
+            Takes an iterable of table names and returns tuples of (table_name, column_schemas_dict).
+        escape_col_f (Callable): Function to transform dlt column names to destination format.
+            Takes (column_name, quote, casefold) and returns the transformed column name.
         schema (Schema): The dlt schema to compare against the destination.
         table_names (Iterable[str], optional): Check only listed tables. Defaults to None and checks all tables.
         dry_run (bool, optional): Whether to actually update the dlt schema. Defaults to False.
 
     Returns:
-        Optional[TSchemaDrop]: Returns the update that was applied to the schema.
+        Optional[TSchemaDrop]: Returns the update that was applied (or was meant to be applied) to the schema.
     """
     tables = table_names if table_names else schema.data_table_names()
 

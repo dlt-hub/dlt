@@ -31,7 +31,6 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
-    resolve_replace_strategy,
     verify_schema_capabilities,
     verify_supported_data_types,
 )
@@ -41,15 +40,12 @@ from dlt.common.normalizers.naming import NamingConvention
 
 from dlt.common.schema import Schema, TSchemaTables, TSchemaDrop
 from dlt.common.schema.typing import (
-    C_DLT_ID,
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
     TTableFormat,
     TTableSchema,
     TTableSchemaColumns,
-    TPartialTableSchema,
 )
-from dlt.common.schema.utils import get_nested_tables
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationSchemaTampered,

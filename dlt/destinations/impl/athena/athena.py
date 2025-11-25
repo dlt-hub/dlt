@@ -40,11 +40,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
-from dlt.common.destination.client import (
-    FollowupJobRequest,
-    SupportsStagingDestination,
-    LoadJob,
-)
+from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
 from dlt.destinations.sql_jobs import (
     SqlStagingCopyFollowupJob,
     SqlStagingReplaceFollowupJob,
