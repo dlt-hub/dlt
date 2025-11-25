@@ -15,6 +15,7 @@ from typing import (
     Set,
 )
 
+from dlt.common import logger
 from dlt.common.schema.migrations import migrate_schema
 from dlt.common.utils import extend_list_deduplicated, simple_repr, without_none
 from dlt.common.typing import (
@@ -519,6 +520,72 @@ class Schema:
         for c in updated_columns.values():
             if casefold_f(c["name"]) not in casefold_existing:
                 diff_c.append(c)
+        return diff_c
+
+    def get_removed_table_columns(
+        self,
+        table_name: str,
+        existing_columns: TTableSchemaColumns,
+        escape_col_f: Callable[[str, bool, bool], str],
+        disregard_dlt_columns: bool = True,
+    ) -> List[TColumnSchema]:
+        """Gets columns to be removed from schema to match `existing_columns`.
+
+        This function identifies columns that exist in the dlt schema but are missing from the
+        destination table. It's used during schema synchronization to detect when columns have
+        been dropped from the destination and need to be removed from the dlt schema as well.
+
+        Column names are compared by transforming dlt schema names to destination format using
+        `escape_col_f`. `existing_columns` are expected to be in destination format (as they
+        appear in the destination's INFORMATION_SCHEMA).
+
+        dlt internal columns (_dlt_id, _dlt_load_id) can be optionally disregarded because
+        users rarely drop these columns manually, and if they did, dlt cannot recover from
+        this situation anyway.
+
+        Args:
+            table_name (str): Name of the table to analyze.
+            existing_columns (TTableSchemaColumns): Column schemas that actually exist in the
+                destination table, typically obtained from INFORMATION_SCHEMA queries. Column
+                names should be in destination format.
+            escape_col_f (Callable[[str, bool, bool], str]): Function to transform dlt column
+                names to destination format (e.g., 'id' -> 'ID' in Snowflake).
+            disregard_dlt_columns (bool): Whether to ignore apparent mismatches for dlt internal
+                columns (_dlt_id, _dlt_load_id). Defaults to True.
+
+        Returns:
+            List[TColumnSchema]: List of column schemas that exist in the dlt schema but are
+                missing from the destination table.
+        """
+        # Transform dlt schema column names to destination format (e.g., 'id' -> 'ID' in Snowflake)
+        # to match against actual_col_names from INFORMATION_SCHEMA
+        # Keys: destination format, Values: original dlt schema names
+        col_schemas = self.get_table_columns(table_name)
+        escaped_to_dlt = {escape_col_f(col, False, True): col for col in col_schemas.keys()}
+
+        if len(escaped_to_dlt) != len(col_schemas):
+            raise SchemaCorruptedException(
+                self.name,
+                f"Columns in table `{table_name}` have colliding names when transformed to"
+                " destination format. Original dlt schema column names:"
+                f" {list(col_schemas.keys())}. Destination format names:"
+                f" {list(escaped_to_dlt.keys())}. This should not happen under normal circumstances"
+                " and indicates schema corruption.",
+            )
+
+        diff_c: List[TColumnSchema] = []
+        for dest_name, name_in_dlt in escaped_to_dlt.items():
+            if disregard_dlt_columns and self.is_dlt_entity(name_in_dlt):
+                continue
+            if dest_name not in existing_columns:
+                col_schema = col_schemas[name_in_dlt]
+                if col_schema.get("incremental"):
+                    logger.warning(
+                        f"An incremental field {name_in_dlt} is being removed from schema."
+                        "You should unset the"
+                        " incremental with `incremental=dlt.sources.incremental.EMPTY`"
+                    )
+                diff_c.append(col_schema)
         return diff_c
 
     def get_table(self, table_name: str) -> TTableSchema:

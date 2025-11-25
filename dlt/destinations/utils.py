@@ -2,6 +2,8 @@ import re
 
 from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast, Iterable, Callable
 
+from sqlglot import column
+
 from dlt.common import logger
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
@@ -301,78 +303,6 @@ class WithTableReflectionAndSql(WithTableReflection, WithSqlClient):
     pass
 
 
-def get_removed_table_columns(
-    escape_col_f: Callable[[str, bool, bool], str],
-    schema: Schema,
-    table_name: str,
-    actual_col_names: set[str],
-    disregard_dlt_columns: bool = True,
-) -> TPartialTableSchema:
-    """Compares dlt schema with destination table schema and returns columns that appear to be missing.
-
-    This function identifies columns that exist in the dlt schema but are missing from the actual
-    destination table. It's used during schema synchronization to detect when columns may have
-    been dropped from the destination and need to be removed from the dlt schema as well.
-
-    However, dlt internal columns (_dlt_id, _dlt_load_id) are treated specially because
-    users rarely drop dlt internal columns manually, and if they did,
-    dlt cannot recover from this situation anyway.
-
-    Args:
-        client (WithTableReflectionAndSql): The destination client with table reflection capabilities.
-        schema (Schema): The dlt schema to compare against the destination.
-        table_name (str): Name of the table to analyze.
-        actual_col_names (set[str]): Column names that actually exist in the destination table,
-            typically obtained from INFORMATION_SCHEMA queries. For Athena,
-            this may not include dlt columns present in the underlying data files.
-        disregard_dlt_columns: Whether to ignore apparent mismatches for dlt internal
-            columns (_dlt_id, _dlt_load_id). Defaults to True to prevent incorrect
-            removal of essential dlt columns from the schema.
-
-    Returns:
-        TPartialTableSchema: Returns a partial table schema containing columns that exist in the dlt schema
-        but are missing from the actual table.
-
-    Example:
-        If dlt schema has [user_id, name, _dlt_id, _dlt_load_id] but destination
-        INFORMATION_SCHEMA only shows [user_id, name], this function would return
-        an empty dict (assuming disregard_dlt_columns=True) rather than suggesting
-        the dlt columns should be dropped.
-    """
-    col_schemas = schema.get_table_columns(table_name)
-
-    # Transform dlt schema column names to destination format (e.g., 'id' -> 'ID' in Snowflake)
-    # to match against actual_col_names from INFORMATION_SCHEMA
-    # Keys: destination format, Values: original dlt schema names
-    escaped_to_dlt = {escape_col_f(col, False, True): col for col in col_schemas.keys()}
-
-    possibly_dropped_col_names = set(escaped_to_dlt.keys()) - actual_col_names
-
-    if not possibly_dropped_col_names:
-        return {}
-
-    partial_table: TPartialTableSchema = {"name": table_name, "columns": {}}
-
-    for esc_name in possibly_dropped_col_names:
-        name_in_dlt = escaped_to_dlt[esc_name]
-
-        if disregard_dlt_columns and schema.is_dlt_entity(name_in_dlt):
-            continue
-
-        col_schema = col_schemas[name_in_dlt]
-        if col_schema.get("increment"):
-            # We can warn within the for loop,
-            # since there's only one incremental field per table
-            logger.warning(
-                f"An incremental field {name_in_dlt} is being removed from schema."
-                "You should unset the"
-                " incremental with `incremental=dlt.sources.incremental.EMPTY`"
-            )
-        partial_table["columns"][name_in_dlt] = col_schema
-
-    return partial_table if partial_table["columns"] else {}
-
-
 def sync_schema_from_storage_schema(
     get_storage_tables_f: Callable[[Iterable[str]], Iterable[tuple[str, dict[str, TColumnSchema]]]],
     escape_col_f: Callable[[str, bool, bool], str],
@@ -416,13 +346,17 @@ def sync_schema_from_storage_schema(
         # we compare actual column schemas with dlt ones ->
         # we take the difference as a partial table
         else:
-            partial_table = get_removed_table_columns(
-                escape_col_f,
-                schema,
-                table_name,
-                set(actual_col_schemas.keys()),
+            removed_columns = schema.get_removed_table_columns(
+                table_name=table_name,
+                existing_columns=actual_col_schemas,
+                escape_col_f=escape_col_f,
+                disregard_dlt_columns=True,
             )
-            if partial_table:
+            if removed_columns:
+                partial_table: TPartialTableSchema = {
+                    "name": table_name,
+                    "columns": {col["name"]: col for col in removed_columns},
+                }
                 column_drops[table_name] = partial_table
 
     # 2. For entire table drops, we make sure no orphaned tables remain

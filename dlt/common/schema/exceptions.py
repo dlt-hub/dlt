@@ -104,6 +104,32 @@ class SchemaCorruptedException(SchemaException):
     pass
 
 
+class SchemaIdentifierDestinationCollision(SchemaCorruptedException):
+    """Raised when multiple column names collide after transformation to destination format.
+
+    This should not happen under normal circumstances and indicates schema corruption.
+    """
+
+    def __init__(
+        self,
+        schema_name: str,
+        table_name: str,
+        colliding_columns: List[str],
+        destination_format: str,
+    ) -> None:
+        self.table_name = table_name
+        self.colliding_columns = colliding_columns
+        self.destination_format = destination_format
+
+        msg = (
+            f"Multiple columns in table `{table_name}` collide when transformed to"
+            f" destination format `{destination_format}`:"
+            f" {', '.join(repr(c) for c in colliding_columns)}."
+            " This should not happen under normal circumstances and indicates schema corruption."
+        )
+        super().__init__(schema_name, msg)
+
+
 class SchemaIdentifierNormalizationCollision(SchemaCorruptedException):
     def __init__(
         self,
