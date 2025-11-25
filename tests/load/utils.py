@@ -255,19 +255,32 @@ class DestinationTestConfiguration:
             destination = self.destination_factory(**kwargs)
         else:
             self.setup()
+        staging_val = kwargs.pop("staging", self.staging)
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
             destination=destination,
-            staging=kwargs.pop("staging", self.staging),
+            staging=staging_val,
             dataset_name=dataset_name if dataset_name is not None else pipeline_name + "_data",
             dev_mode=dev_mode,
             **kwargs,
         )
+        # remember last run context to help attach to the same dataset later
+        self._last_dataset_name = pipeline.dataset_name
+        self._last_destination = destination
+        self._last_staging = staging_val
+
         return pipeline
 
     def attach_pipeline(self, pipeline_name: str, **kwargs) -> dlt.Pipeline:
         """Attach to existing pipeline keeping the dev_mode"""
         # remember dev_mode from setup_pipeline
+        # prefer explicit kwargs, otherwise use last known context from setup_pipeline
+        if "destination" not in kwargs and hasattr(self, "_last_destination"):
+            kwargs["destination"] = getattr(self, "_last_destination", None)
+        if "staging" not in kwargs and hasattr(self, "_last_staging"):
+            kwargs["staging"] = getattr(self, "_last_staging", None)
+        if "dataset_name" not in kwargs and hasattr(self, "_last_dataset_name"):
+            kwargs["dataset_name"] = getattr(self, "_last_dataset_name", None)
         pipeline = dlt.attach(pipeline_name, **kwargs)
         return pipeline
 
