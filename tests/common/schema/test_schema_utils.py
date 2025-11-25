@@ -8,139 +8,146 @@ from dlt.common.schema.typing import TColumnSchema, TTableSchema, TTableSchemaCo
 from dlt.common.schema.utils import exclude_dlt_entities
 from tests.common.utils import load_yml_case
 
+NAME_NORMALIZER_REFS = (
+    "tests.common.cases.normalizers.title_case",
+    "tests.common.cases.normalizers.sql_upper",
+    "tests.common.cases.normalizers.snake_no_x",
+)
+
 
 @pytest.fixture
 def ethereum_schema() -> Schema:
     return Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
 
 
+@pytest.mark.parametrize("name_normalizer_ref", NAME_NORMALIZER_REFS)
+def test_exclude_dlt_entities_remove_none(
+    ethereum_schema: Schema, name_normalizer_ref: str
+) -> None:
+    _apply_name_normalizer(ethereum_schema, name_normalizer_ref)
+
+    tables = list(ethereum_schema.tables.values())
+    filtered = exclude_dlt_entities(
+        tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
+        exclude_dlt_tables=False,
+        exclude_dlt_columns=False,
+    )
+
+    # verify all tables are still present
+    filtered_names = {table["name"] for table in filtered}
+    assert ethereum_schema.version_table_name in filtered_names
+    assert ethereum_schema.loads_table_name in filtered_names
+    blocks_table_name = _normalized_table_name(ethereum_schema, "blocks")
+    blocks = _get_table(filtered, blocks_table_name)
+    assert blocks_table_name in filtered_names
+
+    # as well as dlt columns
+    dlt_load_id_column = _normalized_column_name(ethereum_schema, "_dlt_load_id")
+    dlt_id_column = _normalized_column_name(ethereum_schema, "_dlt_id")
+    assert dlt_load_id_column in blocks["columns"]
+    assert dlt_id_column in blocks["columns"]
+
+
+@pytest.mark.parametrize("name_normalizer_ref", NAME_NORMALIZER_REFS)
+def test_exclude_dlt_entities_remove_tables_only(
+    ethereum_schema: Schema, name_normalizer_ref: str
+) -> None:
+    _apply_name_normalizer(ethereum_schema, name_normalizer_ref)
+
+    tables = list(ethereum_schema.tables.values())
+    filtered = exclude_dlt_entities(
+        tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
+        exclude_dlt_tables=True,
+        exclude_dlt_columns=False,
+    )
+
+    filtered_names = {table["name"] for table in filtered}
+
+    # verify tables got removed
+    blocks_table_name = _normalized_table_name(ethereum_schema, "blocks")
+    assert ethereum_schema.version_table_name not in filtered_names
+    assert ethereum_schema.loads_table_name not in filtered_names
+    assert blocks_table_name in filtered_names
+
+    # no columns got removed
+    dlt_load_id_column = _normalized_column_name(ethereum_schema, "_dlt_load_id")
+    dlt_id_column = _normalized_column_name(ethereum_schema, "_dlt_id")
+    blocks = _get_table(filtered, blocks_table_name)
+    assert dlt_load_id_column in blocks["columns"]
+    assert dlt_id_column in blocks["columns"]
+
+
+@pytest.mark.parametrize("name_normalizer_ref", NAME_NORMALIZER_REFS)
+def test_exclude_dlt_entities_remove_columns_only(
+    ethereum_schema: Schema, name_normalizer_ref: str
+) -> None:
+    _apply_name_normalizer(ethereum_schema, name_normalizer_ref)
+    blocks_table_name = _normalized_table_name(ethereum_schema, "blocks")
+    dlt_load_id_column = _normalized_column_name(ethereum_schema, "_dlt_load_id")
+    dlt_id_column = _normalized_column_name(ethereum_schema, "_dlt_id")
+    tables = list(ethereum_schema.tables.values())
+
+    filtered = exclude_dlt_entities(
+        tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
+        exclude_dlt_tables=False,
+        exclude_dlt_columns=True,
+    )
+
+    filtered_names = {table["name"] for table in filtered}
+    assert ethereum_schema.version_table_name in filtered_names
+    assert ethereum_schema.loads_table_name in filtered_names
+
+    blocks = _get_table(filtered, blocks_table_name)
+    block_column_names = set(blocks["columns"])
+    assert dlt_load_id_column not in block_column_names
+    assert dlt_id_column not in block_column_names
+
+
+@pytest.mark.parametrize("name_normalizer_ref", NAME_NORMALIZER_REFS)
+def test_exclude_dlt_entities_remove_tables_and_columns(
+    ethereum_schema: Schema, name_normalizer_ref: str
+) -> None:
+    _apply_name_normalizer(ethereum_schema, name_normalizer_ref)
+    blocks_table_name = _normalized_table_name(ethereum_schema, "blocks")
+    dlt_load_id_column = _normalized_column_name(ethereum_schema, "_dlt_load_id")
+    dlt_id_column = _normalized_column_name(ethereum_schema, "_dlt_id")
+    tables = list(ethereum_schema.tables.values())
+
+    filtered = exclude_dlt_entities(
+        tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
+        exclude_dlt_tables=True,
+        exclude_dlt_columns=True,
+    )
+
+    filtered_names = {table["name"] for table in filtered}
+    assert ethereum_schema.version_table_name not in filtered_names
+    assert ethereum_schema.loads_table_name not in filtered_names
+    assert blocks_table_name in filtered_names
+
+    blocks = _get_table(filtered, blocks_table_name)
+    block_column_names = set(blocks["columns"])
+    assert dlt_load_id_column not in block_column_names
+    assert dlt_id_column not in block_column_names
+
+
+# Helper functions
 def _get_table(tables: List[TTableSchema], name: str) -> TTableSchema:
     return next(table for table in tables if table["name"] == name)
 
 
-def test_exclude_dlt_entities_remove_none(ethereum_schema: Schema) -> None:
-    tables = list(ethereum_schema.tables.values())
-
-    filtered = exclude_dlt_entities(
-        tables,
-        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
-        exclude_dlt_tables=False,
-        exclude_dlt_columns=False,
-    )
-
-    filtered_names = {table["name"] for table in filtered}
-    assert ethereum_schema.version_table_name in filtered_names
-    assert ethereum_schema.loads_table_name in filtered_names
-    assert "blocks" in filtered_names
-
-    blocks = _get_table(filtered, "blocks")
-    assert "_dlt_load_id" in blocks["columns"]
-    assert "_dlt_id" in blocks["columns"]
+def _normalized_table_name(schema: Schema, table_name: str) -> str:
+    return schema.naming.normalize_table_identifier(table_name)
 
 
-def test_exclude_dlt_entities_remove_tables_only(ethereum_schema: Schema) -> None:
-    tables = list(ethereum_schema.tables.values())
-
-    filtered = exclude_dlt_entities(
-        tables,
-        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
-        exclude_dlt_tables=True,
-        exclude_dlt_columns=False,
-    )
-
-    filtered_names = {table["name"] for table in filtered}
-    assert ethereum_schema.version_table_name not in filtered_names
-    assert ethereum_schema.loads_table_name not in filtered_names
-    assert "blocks" in filtered_names
-
-    blocks = _get_table(filtered, "blocks")
-    assert "_dlt_load_id" in blocks["columns"]
-    assert "_dlt_id" in blocks["columns"]
+def _normalized_column_name(schema: Schema, column_name: str) -> str:
+    return schema.naming.normalize_identifier(column_name)
 
 
-def test_exclude_dlt_entities_remove_columns_only(ethereum_schema: Schema) -> None:
-    tables = list(ethereum_schema.tables.values())
-
-    filtered = exclude_dlt_entities(
-        tables,
-        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
-        exclude_dlt_tables=False,
-        exclude_dlt_columns=True,
-    )
-
-    filtered_names = {table["name"] for table in filtered}
-    assert ethereum_schema.version_table_name in filtered_names
-    assert ethereum_schema.loads_table_name in filtered_names
-
-    blocks = _get_table(filtered, "blocks")
-    block_column_names = set(blocks["columns"])
-    assert "_dlt_load_id" not in block_column_names
-    assert "_dlt_id" not in block_column_names
-
-
-def test_exclude_dlt_entities_remove_tables_and_columns(ethereum_schema: Schema) -> None:
-    tables = list(ethereum_schema.tables.values())
-
-    filtered = exclude_dlt_entities(
-        tables,
-        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
-        exclude_dlt_tables=True,
-        exclude_dlt_columns=True,
-    )
-
-    filtered_names = {table["name"] for table in filtered}
-    assert ethereum_schema.version_table_name not in filtered_names
-    assert ethereum_schema.loads_table_name not in filtered_names
-    assert "blocks" in filtered_names
-
-    blocks = _get_table(filtered, "blocks")
-    block_column_names = set(blocks["columns"])
-    assert "_dlt_load_id" not in block_column_names
-    assert "_dlt_id" not in block_column_names
-
-
-def test_exclude_dlt_entities_honors_custom_prefix(ethereum_schema: Schema) -> None:
-    new_prefix = "_NEW_DLT_PREFIX"
-    # mimic user changing the schema-level dlt prefix
-    ethereum_schema._dlt_tables_prefix = new_prefix
-    version_table = deepcopy(ethereum_schema.tables[ethereum_schema.version_table_name])
-    blocks_table = deepcopy(ethereum_schema.tables["blocks"])
-
-    # turn the schema version table into a DLT table with the new prefix applied everywhere
-    version_table["name"] = f"{new_prefix}version"
-    first_version_column = next(iter(version_table["columns"].values()))
-    version_table["columns"] = {
-        f"{new_prefix}version_id": {
-            **first_version_column,
-            "name": f"{new_prefix}version_id",
-        }
-    }
-
-    blocks_columns: TTableSchemaColumns = blocks_table["columns"]
-    non_dlt_column_name = next(name for name in blocks_columns if not name.startswith("_dlt_"))
-    prefixed_column_name = f"{new_prefix}load_id"
-    prefixed_column: TColumnSchema = {
-        **blocks_columns["_dlt_load_id"],
-        "name": prefixed_column_name,
-    }
-    # keep one non dlt column so this remains a data table, but also add a new-prefix column
-    blocks_table["columns"] = {
-        non_dlt_column_name: blocks_columns[non_dlt_column_name],
-        prefixed_column_name: prefixed_column,
-    }
-
-    tables: List[TTableSchema] = [version_table, blocks_table]
-
-    filtered = exclude_dlt_entities(
-        tables,
-        normalized_dlt_prefix=new_prefix,
-        exclude_dlt_tables=True,
-        exclude_dlt_columns=True,
-    )
-
-    # only the non dlt table should be left and the prefixed column removed
-    assert len(filtered) == 1
-    remaining_table = filtered[0]
-    assert remaining_table["name"] == blocks_table["name"]
-    assert prefixed_column_name not in remaining_table["columns"]
-    assert all(not column_name.startswith(new_prefix) for column_name in remaining_table["columns"])
+def _apply_name_normalizer(schema: Schema, name_normalizer_ref: str) -> None:
+    schema._normalizers_config["names"] = name_normalizer_ref
+    schema._normalizers_config["allow_identifier_change_on_table_with_data"] = True
+    schema.update_normalizers()
