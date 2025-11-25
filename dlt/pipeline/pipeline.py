@@ -1076,7 +1076,8 @@ class Pipeline(SupportsPipeline):
                 raise DestinationUndefinedEntity()
             if isinstance(client, WithTableReflection) and isinstance(client, WithSqlClient):
                 return sync_schema_from_storage_schema(
-                    client=cast(WithTableReflectionAndSql, client),
+                    get_storage_tables_f=client.get_storage_tables,
+                    escape_col_f=client.sql_client.escape_column_name,
                     schema=schema,
                     table_names=table_names,
                     dry_run=dry_run,

@@ -1,6 +1,6 @@
 import re
 
-from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast, Iterable
+from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast, Iterable, Callable
 
 from dlt.common import logger
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -11,12 +11,10 @@ from dlt.common.schema import Schema, TSchemaDrop
 from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
-    TColumnType,
+    TColumnSchema,
     TLoaderReplaceStrategy,
     TTableSchema,
     TPartialTableSchema,
-    C_DLT_ID,
-    C_DLT_LOAD_ID,
 )
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -24,7 +22,6 @@ from dlt.common.schema.utils import (
     has_column_with_prop,
     is_nested_table,
     pipeline_state_table,
-    get_nested_tables,
 )
 
 from dlt.destinations.exceptions import DatabaseTransientException
@@ -304,8 +301,8 @@ class WithTableReflectionAndSql(WithTableReflection, WithSqlClient):
     pass
 
 
-def _diff_between_actual_and_dlt_schema(
-    client: WithTableReflectionAndSql,
+def get_removed_table_columns(
+    escape_col_f: Callable[[str, bool, bool], str],
     schema: Schema,
     table_name: str,
     actual_col_names: set[str],
@@ -344,10 +341,10 @@ def _diff_between_actual_and_dlt_schema(
     """
     col_schemas = schema.get_table_columns(table_name)
 
-    # Map escaped (like actual_col_names) -> original names (what appears in the dlt schema)
-    escaped_to_dlt = {
-        client.sql_client.escape_column_name(col, quote=False): col for col in col_schemas.keys()
-    }
+    # Transform dlt schema column names to destination format (e.g., 'id' -> 'ID' in Snowflake)
+    # to match against actual_col_names from INFORMATION_SCHEMA
+    # Keys: destination format, Values: original dlt schema names
+    escaped_to_dlt = {escape_col_f(col, False, True): col for col in col_schemas.keys()}
 
     possibly_dropped_col_names = set(escaped_to_dlt.keys()) - actual_col_names
 
@@ -377,7 +374,8 @@ def _diff_between_actual_and_dlt_schema(
 
 
 def sync_schema_from_storage_schema(
-    client: WithTableReflectionAndSql,
+    get_storage_tables_f: Callable[[Iterable[str]], Iterable[tuple[str, dict[str, TColumnSchema]]]],
+    escape_col_f: Callable[[str, bool, bool], str],
     schema: Schema,
     table_names: Iterable[str] = None,
     dry_run: bool = False,
@@ -402,7 +400,7 @@ def sync_schema_from_storage_schema(
     column_drops: TSchemaDrop = {}  # includes parts of tables to drop as partial tables
 
     # 1. Detect what needs to be dropped
-    actual_table_col_schemas = dict(client.get_storage_tables(tables))
+    actual_table_col_schemas = dict(get_storage_tables_f(tables))
     for table_name in tables:
         actual_col_schemas = actual_table_col_schemas[table_name]
 
@@ -418,8 +416,8 @@ def sync_schema_from_storage_schema(
         # we compare actual column schemas with dlt ones ->
         # we take the difference as a partial table
         else:
-            partial_table = _diff_between_actual_and_dlt_schema(
-                client,
+            partial_table = get_removed_table_columns(
+                escape_col_f,
                 schema,
                 table_name,
                 set(actual_col_schemas.keys()),

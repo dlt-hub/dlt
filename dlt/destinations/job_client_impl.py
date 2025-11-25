@@ -82,7 +82,6 @@ from dlt.destinations.utils import (
     info_schema_null_to_bool,
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
-    sync_schema_from_storage_schema,
 )
 
 import sqlglot
