@@ -23,6 +23,7 @@ def test_exclude_dlt_entities_remove_none(ethereum_schema: Schema) -> None:
 
     filtered = exclude_dlt_entities(
         tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
         exclude_dlt_tables=False,
         exclude_dlt_columns=False,
     )
@@ -42,6 +43,7 @@ def test_exclude_dlt_entities_remove_tables_only(ethereum_schema: Schema) -> Non
 
     filtered = exclude_dlt_entities(
         tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
         exclude_dlt_tables=True,
         exclude_dlt_columns=False,
     )
@@ -61,6 +63,7 @@ def test_exclude_dlt_entities_remove_columns_only(ethereum_schema: Schema) -> No
 
     filtered = exclude_dlt_entities(
         tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
         exclude_dlt_tables=False,
         exclude_dlt_columns=True,
     )
@@ -80,6 +83,7 @@ def test_exclude_dlt_entities_remove_tables_and_columns(ethereum_schema: Schema)
 
     filtered = exclude_dlt_entities(
         tables,
+        normalized_dlt_prefix=ethereum_schema._dlt_tables_prefix,
         exclude_dlt_tables=True,
         exclude_dlt_columns=True,
     )
@@ -129,9 +133,9 @@ def test_exclude_dlt_entities_honors_custom_prefix(ethereum_schema: Schema) -> N
 
     filtered = exclude_dlt_entities(
         tables,
+        normalized_dlt_prefix=new_prefix,
         exclude_dlt_tables=True,
         exclude_dlt_columns=True,
-        dlt_prefix=new_prefix,
     )
 
     # only the non dlt table should be left and the prefixed column removed

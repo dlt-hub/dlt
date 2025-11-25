@@ -914,32 +914,34 @@ def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], 
     return data_tables, dlt_tables
 
 
-def is_dlt_table_or_column(name: str, dlt_prefix: str = DLT_NAME_PREFIX) -> bool:
+def get_dlt_prefix_by_naming_convetion(naming: NamingConvention) -> str:
+    """The dlt prefix, used for tables and columns,normalized according to the naming convention"""
+    return naming.normalize_table_identifier(DLT_NAME_PREFIX)
+
+
+def is_dlt_table_or_column(name: str, normalized_dlt_prefix: str) -> bool:
     """
     Check if a table or column name is a dlt internal name by checking if it starts with dlt prefix.
 
     Args:
         name: The table or column name to check
-        dlt_prefix: The dlt prefix to check against (defaults to DLT_NAME_PREFIX)
-
-    Returns:
-        True if the name starts with the dlt prefix, False otherwise
+        normalized_dlt_prefix: The dlt prefix to check against, normalized by the naming convention
     """
-    return name.startswith(dlt_prefix)
+    return name.startswith(normalized_dlt_prefix)
 
 
 def remove_dlt_columns_from_table(
     table_schema: TTableSchema,
+    normalized_dlt_prefix: str,
     exclude_dlt_columns: bool = True,
-    dlt_prefix: str = DLT_NAME_PREFIX,
 ) -> TTableSchema:
     """
     Remove dlt columns from a single table schema.
 
     Args:
         table_schema: The table schema to filter
-        exclude_dlt_columns: If True, remove columns whose name starts with given dlt_prefix
-        dlt_prefix: The dlt prefix to filter by
+        normalized_dlt_prefix: The dlt prefix to filter by, normalized by the naming convention
+        exclude_dlt_columns: If True, remove columns whose name starts with the given prefix
 
     Returns:
         A new table schema with dlt columns optionally filtered out
@@ -952,7 +954,7 @@ def remove_dlt_columns_from_table(
             new_table_schema["columns"] = {
                 col: col_def
                 for col, col_def in table_schema["columns"].items()
-                if not is_dlt_table_or_column(col, dlt_prefix)
+                if not is_dlt_table_or_column(col, normalized_dlt_prefix)
             }
         else:
             new_table_schema["columns"] = table_schema["columns"]
@@ -962,18 +964,19 @@ def remove_dlt_columns_from_table(
 
 def exclude_dlt_entities(
     table_schemas: Iterable[TTableSchema],
+    normalized_dlt_prefix: str,
     exclude_dlt_tables: bool = True,
     exclude_dlt_columns: bool = True,
-    dlt_prefix: str = DLT_NAME_PREFIX,
 ) -> List[TTableSchema]:
     """
     Filter out dlt tables and/or dlt columns from a collection of table schemas.
 
     Args:
         table_schemas: An iterable of table schemas to filter
-        exclude_dlt_tables: If True, remove tables whose name starts with given dlt_prefix
-        exclude_dlt_columns: If True, remove columns whose name starts with given dlt_prefix
-        dlt_prefix: The prefix by which to detect if a table or column is dlt internal
+        normalized_dlt_prefix: The normalized name of the prefix used to denote internal dlt
+            columns and tables, according to the used naming convention
+        exclude_dlt_tables: If True, remove tables whose name starts with the given prefix
+        exclude_dlt_columns: If True, remove columns whose name starts with the given prefix
     Returns:
         List of filtered table schemas.
 
@@ -986,12 +989,12 @@ def exclude_dlt_entities(
         table_name = table_schema["name"]
 
         # Skip dlt tables if requested
-        if exclude_dlt_tables and is_dlt_table_or_column(table_name, dlt_prefix):
+        if exclude_dlt_tables and is_dlt_table_or_column(table_name, normalized_dlt_prefix):
             continue
 
         # Remove dlt columns if requested
         filtered_table = remove_dlt_columns_from_table(
-            table_schema, exclude_dlt_columns, dlt_prefix
+            table_schema, normalized_dlt_prefix, exclude_dlt_columns
         )
         filtered_tables.append(filtered_table)
 
