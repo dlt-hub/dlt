@@ -308,7 +308,7 @@ def test_run_dev_mode_default_dataset_layout(environment) -> None:
         dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
     ]
     # restore this pipeline
-    r_p = dlt.attach(dev_mode=False)
+    r_p = dlt.pipeline(dev_mode=False, destination="filesystem")
     assert not r_p.dataset_name.endswith(p._pipeline_instance_id)
 
     # dummy does not need dataset

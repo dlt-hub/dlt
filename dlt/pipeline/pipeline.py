@@ -1531,10 +1531,7 @@ class Pipeline(SupportsPipeline):
             if destination and issubclass(destination.spec, DestinationClientDwhConfiguration):
                 destination_needs_dataset = destination.spec.needs_dataset_name()
             # if destination is not specified - generate dataset
-            _local_state = self._get_state()["_local"]
-            _last_dev_mode = _local_state.get("_last_dev_mode") if _local_state else False
-            dataset_name_reset = _last_dev_mode and not self.dev_mode
-            if destination_needs_dataset or dataset_name_reset:
+            if destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
