@@ -1,5 +1,6 @@
 # timezone is removed from all datetime objects in these tests to simplify comparison
 
+from unittest import mock
 import pytest
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timezone  # noqa: I251
@@ -633,7 +634,7 @@ def test_active_record_timestamp(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(default_sql_configs=True, subset=["sqlalchemy", "duckdb"]),
     ids=lambda x: x.name,
 )
 def test_boundary_timestamp(
@@ -645,6 +646,7 @@ def test_boundary_timestamp(
     ts2 = "2024-08-22"
     ts3 = date(2024, 8, 20)  # earlier than ts1 and ts2
     ts4 = "i_am_not_a_timestamp"
+    ts5 = pendulum.datetime(2025, 8, 21, 12, 15, tz="UTC").timestamp()
 
     @dlt.resource(
         table_name="dim_test",
@@ -657,75 +659,127 @@ def test_boundary_timestamp(
     def r(data):
         yield data
 
+    # normalize timestamps once for assertions
+    ts1_dt = strip_timezone(ts1)
+    ts2_dt = strip_timezone(ts2)
+    ts3_dt = strip_timezone(ts3)
+    ts5_dt = strip_timezone(ts5)
+
     # load 1 — initial load
     dim_snap = [
         l1_1 := {"nk": 1, "foo": "foo"},
         l1_2 := {"nk": 2, "foo": "foo"},
     ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 2
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: None}, **l1_1},
-        {**{FROM: strip_timezone(ts1), TO: None}, **l1_2},
-    ]
-    assert get_table(p, "dim_test", "nk") == expected
-
-    # load 2 — different source records, different boundary timestamp
-    r.apply_hints(
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "boundary_timestamp": ts2,
-        }
-    )
-    dim_snap = [
-        l2_1 := {"nk": 1, "foo": "bar"},  # natural key 1 updated
-        # l1_2,  # natural key 2 no longer present
-        l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
-    ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 4
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # retired
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # retired
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # new
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_3},  # new
-    ]
-    assert_records_as_set(get_table(p, "dim_test"), expected)
-
-    # load 3 — earlier boundary timestamp
-    # we naively apply any valid timestamp
-    # may lead to "valid from" > "valid to", as in this test case
-    r.apply_hints(
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "boundary_timestamp": ts3,
-        }
-    )
-    dim_snap = [l2_1]  # natural key 3 no longer present
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 4
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # unchanged
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # unchanged
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # unchanged
-        {**{FROM: strip_timezone(ts2), TO: strip_timezone(ts3)}, **l2_3},  # retired
-    ]
-    assert_records_as_set(get_table(p, "dim_test"), expected)
-
-    # invalid boundary timestamp should raise error
-    with pytest.raises(ValueError):
+    current_time: Dict[str, Optional[float]] = {"ts": None}
+    with mock.patch(
+        "dlt.common.storages.load_package.precise_time",
+        side_effect=lambda: current_time["ts"],
+    ):
+        # load 1 — initial load
+        current_time["ts"] = pendulum.datetime(2024, 8, 21, 12, 15, tz="UTC").timestamp()
         r.apply_hints(
             write_disposition={
                 "disposition": "merge",
                 "strategy": "scd2",
-                "boundary_timestamp": ts4,
+                "boundary_timestamp": ts1,
             }
         )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 2
+        expected = [
+            {**{FROM: ts1_dt, TO: None}, **l1_1},
+            {**{FROM: ts1_dt, TO: None}, **l1_2},
+        ]
+        assert get_table(p, "dim_test", "nk", ts_columns=[FROM, TO]) == expected
+
+        # load 2 — different source records, different boundary timestamp
+        current_time["ts"] = pendulum.datetime(2024, 8, 22, tz="UTC").timestamp()
+        dim_snap = [
+            l2_1 := {"nk": 1, "foo": "bar"},  # natural key 1 updated
+            # l1_2,  # natural key 2 no longer present
+            l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
+        ]
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": ts2,
+            }
+        )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 4
+        expected = [
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_1},  # retired
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_2},  # retired
+            {**{FROM: ts2_dt, TO: None}, **l2_1},  # new
+            {**{FROM: ts2_dt, TO: None}, **l2_3},  # new
+        ]
+        assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
+
+        # load 3 — earlier boundary timestamp
+        # we naively apply any valid timestamp
+        # may lead to "valid from" > "valid to", as in this test case
+        current_time["ts"] = pendulum.datetime(2024, 8, 22, 0, 0, 1, tz="UTC").timestamp()
+        dim_snap = [l2_1]  # natural key 3 no longer present
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": ts3,
+            }
+        )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 4
+        expected = [
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_1},  # unchanged
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_2},  # unchanged
+            {**{FROM: ts2_dt, TO: None}, **l2_1},  # unchanged
+            {**{FROM: ts2_dt, TO: ts3_dt}, **l2_3},  # retired
+        ]
+        assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
+
+        # invalid boundary timestamp should raise error
+        with pytest.raises(ValueError):
+            r.apply_hints(
+                write_disposition={
+                    "disposition": "merge",
+                    "strategy": "scd2",
+                    "boundary_timestamp": ts4,
+                }
+            )
+
+        # run 4 — no boundary timestamp (use current precise_time)
+        current_time["ts"] = ts5
+        dim_snap = [
+            l3_1 := {"nk": 1, "foo": "foobar"},  # updated
+        ]
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": None,
+            }
+        )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 5
+        expected = [
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_1},  # unchanged
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_2},  # unchanged
+            {
+                **{FROM: ts2_dt, TO: ts5_dt},
+                **l2_1,
+            },  # retired in this run
+            {
+                **{FROM: ts2_dt, TO: ts3_dt},
+                **l2_3,
+            },  # unchanged (already retired in load 3)
+            {**{FROM: ts5_dt, TO: None}, **l3_1},
+        ]
+        assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
 
 
 @pytest.mark.essential
