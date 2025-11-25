@@ -1270,11 +1270,7 @@ class RuntimeCommand(SupportsCliCommand):
             elif args.runtime_command == "dashboard":
                 cmd.runtime_dashboard()
             elif args.runtime_command == "deploy":
-                # only sync code/config
-                auth_service = cmd.login()
-                api_client = cmd.get_api_client(auth_service)
-                cmd.sync_deployment(auth_service=auth_service, api_client=api_client)
-                cmd.sync_configuration(auth_service=auth_service, api_client=api_client)
+                cmd.deploy(auth_service=auth_service, api_client=api_client)
             elif args.runtime_command == "info":
                 cmd.runtime_info()
             elif args.runtime_command == "deployment":

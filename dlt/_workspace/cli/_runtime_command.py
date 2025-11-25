@@ -167,16 +167,7 @@ def connect(
         fmt.echo("Authorized to workspace %s" % fmt.bold(auth_service.workspace_id))
 
 
-def deploy(
-    script_file_name: str, is_interactive: bool = False, profile: Optional[str] = None
-) -> None:
-    auth_service = login()
-    api_client = get_api_client(auth_service)
-
-    script_path = Path(active().run_dir) / script_file_name
-    if not script_path.exists():
-        raise RuntimeError(f"Script file {script_file_name} not found")
-
+def deploy(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
     sync_deployment(auth_service=auth_service, api_client=api_client)
     sync_configuration(auth_service=auth_service, api_client=api_client)
 
