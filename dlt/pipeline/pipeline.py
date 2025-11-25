@@ -1781,6 +1781,7 @@ class Pipeline(SupportsPipeline):
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.
         """
+        self._props_to_state(state)
         _, hash_, _ = bump_pipeline_state_version_if_modified(state)
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
         if should_extract and extract_state:
