@@ -98,7 +98,6 @@ def sync_from_runtime() -> None:
                 remote_file = fs.sep.join([dirpath, filename])
                 local_file = os.path.join(local_dir, filename)
 
-                print(f"Synching {remote_file} to {local_file}")
                 with fs.open(remote_file, "rb") as bf, open(local_file, "wb") as lf:
                     lf.write(bf.read())
 
@@ -183,8 +182,6 @@ def get_local_pipelines(
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
-    
-    print("Searching for pipelines in ", pipelines_dir)
 
     try:
         pipelines = storage.list_folder_dirs(".", to_root=False)
