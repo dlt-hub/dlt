@@ -150,3 +150,6 @@ local_cache/
 # test file for examples are generated and should not be committed
 docs/examples/**/test*.py
 compiled_requirements.txt
+
+# runtime api specs
+tools/runtime_clients/*.openapi.yaml

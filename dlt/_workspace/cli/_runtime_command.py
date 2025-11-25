@@ -725,7 +725,7 @@ def serve(script_path: str, *, auth_service: RuntimeAuthService, api_client: Api
             script_id_or_name=script_path,
         )
         if isinstance(res.parsed, get_script.DetailedScriptResponse):
-            url = f"https://{res.parsed.id}.apps.tower.dev"
+            url = res.parsed.script_url
             fmt.echo(f"Opening {url}")
             import webbrowser
 
@@ -776,7 +776,7 @@ def run_script(
     if isinstance(create_run_result.parsed, create_run.RunResponse):
         fmt.echo("Job %s run successfully" % (fmt.bold(str(script_file_name))))
         if is_interactive:
-            url = f"https://{script_id}.apps.tower.dev"
+            url = create_script_result.parsed.script_url
             fmt.echo(f"Job is accessible on {url}")
         return create_run_result.parsed.id
     else:
