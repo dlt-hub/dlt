@@ -1,4 +1,5 @@
 import argparse
+import copy
 import time
 import webbrowser
 from io import BytesIO
@@ -7,6 +8,7 @@ from typing import Any, Optional, Set, Union
 from uuid import UUID
 
 from cron_descriptor import FormatException, get_description
+from tabulate import tabulate
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.cli import echo as fmt
@@ -54,6 +56,30 @@ from dlt.common.configuration.plugins import SupportsCliCommand
 from dlt.common.json import json
 
 
+DEPLOYMENT_HEADERS = CONFIGURATION_HEADERS = {
+    "version": fmt.bold("Version #"),
+    "date_added": fmt.bold("Created at"),
+    "file_count": fmt.bold("File count"),
+    "content_hash": fmt.bold("Content hash"),
+}
+JOB_HEADERS = {
+    "name": fmt.bold("Job name"),
+    "version": fmt.bold("Version #"),
+    "entry_point": fmt.bold("Script path"),
+    "date_added": fmt.bold("Created at"),
+    "script_type": fmt.bold("Script type"),
+    "schedule": fmt.bold("Schedule"),
+}
+JOB_RUN_HEADERS = {
+    "job_name": fmt.bold("Job name"),
+    "number": fmt.bold("Run #"),
+    "status": fmt.bold("Status"),
+    "profile": fmt.bold("Profile"),
+    "time_started": fmt.bold("Started at"),
+    "time_ended": fmt.bold("Ended at"),
+}
+
+
 def _to_uuid(value: Union[str, UUID]) -> UUID:
     if isinstance(value, UUID):
         return value
@@ -70,7 +96,8 @@ def _exception_from_response(message: str, response: Response[Any]) -> BaseExcep
     except Exception:
         details = response.content.decode("utf-8")
 
-    message += f". {details} (HTTP {status})"
+    if status < 500:
+        message += f". {details.capitalize()} (HTTP {status})"
     return CliCommandInnerException(cmd="runtime", msg=message, inner_exc=None)
 
 
@@ -84,6 +111,10 @@ def _check_cron_expression(cron_expression: Optional[str]) -> None:
                 msg=f"Invalid cron expression: {cron_expression} ({exc})",
                 inner_exc=exc,
             )
+
+
+def _extract_keys(data: dict[str, Any], keys_dict: dict[str, str]) -> dict[str, Any]:
+    return {key: data[key] for key in keys_dict.keys() if key in data}
 
 
 def login(minimal_logging: bool = True) -> RuntimeAuthService:
@@ -211,9 +242,12 @@ def sync_deployment(
     )
     if isinstance(create_deployment_result.parsed, create_deployment.DeploymentResponse):
         if not minimal_logging:
-            fmt.echo(f"Deployment # {create_deployment_result.parsed.version} created successfully")
-            fmt.echo(f"File count: {create_deployment_result.parsed.file_count}")
-            fmt.echo(f"Content hash: {create_deployment_result.parsed.content_hash}")
+            fmt.echo(
+                tabulate(
+                    [_extract_keys(create_deployment_result.parsed.to_dict(), DEPLOYMENT_HEADERS)],
+                    headers=DEPLOYMENT_HEADERS,
+                )
+            )
     else:
         raise _exception_from_response("Failed to create deployment", create_deployment_result)
 
@@ -258,14 +292,25 @@ def sync_configuration(
     if isinstance(create_configuration_result.parsed, create_configuration.ConfigurationResponse):
         if not minimal_logging:
             fmt.echo(
-                f"Configuration # {create_configuration_result.parsed.version} created successfully"
+                tabulate(
+                    [
+                        _extract_keys(
+                            create_configuration_result.parsed.to_dict(), CONFIGURATION_HEADERS
+                        )
+                    ],
+                    headers=CONFIGURATION_HEADERS,
+                )
             )
-            fmt.echo(f"File count: {create_configuration_result.parsed.file_count}")
-            fmt.echo(f"Content hash: {create_configuration_result.parsed.content_hash}")
     else:
         raise _exception_from_response(
             "Failed to create configuration", create_configuration_result
         )
+
+
+def _preprocess_run_outut(run: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+    result = _extract_keys(run, headers)
+    result["job_name"] = run["script"]["name"]
+    return {key: result[key] for key in headers.keys() if key in result}
 
 
 def get_job_run_info(
@@ -298,15 +343,12 @@ def get_job_run_info(
         run_id=_to_uuid(run_id),
     )
     if isinstance(get_run_result.parsed, get_run.DetailedRunResponse):
-        fmt.echo(f"Job: {get_run_result.parsed.script.name}")
-        fmt.echo(f"Run #: {get_run_result.parsed.number}")
-        fmt.echo("Status: %s" % fmt.bold(get_run_result.parsed.status))
-        fmt.echo("Started at: %s" % fmt.bold(get_run_result.parsed.time_started))  # type: ignore[arg-type]
-        fmt.echo("Ended at: %s" % fmt.bold(get_run_result.parsed.time_ended))  # type: ignore[arg-type]
-        fmt.echo("Duration: %s seconds" % fmt.bold(get_run_result.parsed.duration))  # type: ignore[arg-type]
-        fmt.echo("Triggered by: %s" % fmt.bold(get_run_result.parsed.triggered_by))  # type: ignore[arg-type]
-        fmt.echo("Deployment id: %s" % fmt.bold(get_run_result.parsed.deployment_id))  # type: ignore[arg-type]
-        fmt.echo("Profile: %s" % fmt.bold(get_run_result.parsed.profile))  # type: ignore[arg-type]
+        fmt.echo(
+            tabulate(
+                [_extract_keys(get_run_result.parsed.to_dict(), JOB_RUN_HEADERS)],
+                headers=JOB_RUN_HEADERS,
+            )
+        )
 
     else:
         raise _exception_from_response("Failed to get run status", get_run_result)
@@ -390,12 +432,19 @@ def get_runs(
         workspace_id=_to_uuid(auth_service.workspace_id),
         script_id=script_id,
     )
-    if isinstance(list_runs_result.parsed, list_runs.ListRunsResponse200):
-        for run in reversed(list_runs_result.parsed.items or []):
-            fmt.echo(
-                f"Run # {run.number} of job {run.script.name}, status: {run.status}, profile:"
-                f" {run.profile}, started at {run.time_started}, ended at {run.time_ended}"
+    if (
+        isinstance(list_runs_result.parsed, list_runs.ListRunsResponse200)
+        and list_runs_result.parsed.items
+    ):
+        fmt.echo(
+            tabulate(
+                [
+                    _preprocess_run_outut(run.to_dict(), JOB_RUN_HEADERS)
+                    for run in reversed(list_runs_result.parsed.items)
+                ],
+                headers=JOB_RUN_HEADERS,
             )
+        )
     else:
         raise _exception_from_response("Failed to list workspace runs", list_runs_result)
 
@@ -409,11 +458,15 @@ def get_deployments(*, auth_service: RuntimeAuthService, api_client: ApiClient) 
         if not list_deployments_result.parsed.items:
             fmt.echo("No deployments found in this workspace")
             return
-        for deployment in reversed(list_deployments_result.parsed.items):
-            fmt.echo(
-                f"Deployment # {deployment.version}, created at: {deployment.date_added}, "
-                f"file count: {deployment.file_count}, content hash: {deployment.content_hash}"
+        fmt.echo(
+            tabulate(
+                [
+                    _extract_keys(deployment.to_dict(), DEPLOYMENT_HEADERS)
+                    for deployment in reversed(list_deployments_result.parsed.items)
+                ],
+                headers=DEPLOYMENT_HEADERS,
             )
+        )
     else:
         raise _exception_from_response("Failed to list deployments", list_deployments_result)
 
@@ -436,10 +489,12 @@ def get_deployment_info(
             deployment_id_or_version=deployment_version_no,
         )
     if isinstance(get_deployment_result.parsed, get_deployment.DeploymentResponse):
-        fmt.echo(f"Deployment # {get_deployment_result.parsed.version}")
-        fmt.echo(f"Created at: {get_deployment_result.parsed.date_added}")
-        fmt.echo(f"File count: {get_deployment_result.parsed.file_count}")
-        fmt.echo(f"Content hash: {get_deployment_result.parsed.content_hash}")
+        fmt.echo(
+            tabulate(
+                [_extract_keys(get_deployment_result.parsed.to_dict(), DEPLOYMENT_HEADERS)],
+                headers=DEPLOYMENT_HEADERS,
+            )
+        )
     else:
         raise _exception_from_response("Failed to get deployment info", get_deployment_result)
 
@@ -478,42 +533,6 @@ def request_run_cancel(
         fmt.echo(f"Successfully requested cancellation of run # {run.number}")
     else:
         raise _exception_from_response("Failed to request cancellation of run", cancel_run_result)
-
-
-def get_scripts(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
-    list_scripts_result = list_scripts.sync_detailed(
-        client=api_client,
-        workspace_id=_to_uuid(auth_service.workspace_id),
-    )
-    if isinstance(list_scripts_result.parsed, list_scripts.ListScriptsResponse200) and isinstance(
-        list_scripts_result.parsed.items, list
-    ):
-        for script in reversed(list_scripts_result.parsed.items):
-            fmt.echo(
-                f"Script {script.name}, created at: {script.date_added}, version"
-                f" #: {script.version}"
-            )
-    else:
-        raise _exception_from_response("Failed to list scripts", list_scripts_result)
-
-
-def get_script_info(
-    script_id_or_name: str, *, auth_service: RuntimeAuthService, api_client: ApiClient
-) -> None:
-    get_script_result = get_script.sync_detailed(
-        client=api_client,
-        workspace_id=_to_uuid(auth_service.workspace_id),
-        script_id_or_name=script_id_or_name,
-    )
-
-    if isinstance(get_script_result.parsed, get_script.DetailedScriptResponse):
-        fmt.echo(
-            f"Script {get_script_result.parsed.name}, created at:"
-            f" {get_script_result.parsed.date_added}, version #:"
-            f" {get_script_result.parsed.version}"
-        )
-    else:
-        raise _exception_from_response("Failed to get script info", get_script_result)
 
 
 def _get_latest_run(
@@ -569,12 +588,15 @@ def get_configurations(*, auth_service: RuntimeAuthService, api_client: ApiClien
     if isinstance(
         list_configurations_result.parsed, list_configurations.ListConfigurationsResponse200
     ) and isinstance(list_configurations_result.parsed.items, list):
-        for configuration in reversed(list_configurations_result.parsed.items):
-            fmt.echo(
-                f"Configuration # {configuration.version}, created at: {configuration.date_added},"
-                f" file count: {configuration.file_count}, content hash:"
-                f" {configuration.content_hash}"
+        fmt.echo(
+            tabulate(
+                [
+                    _extract_keys(configuration.to_dict(), CONFIGURATION_HEADERS)
+                    for configuration in reversed(list_configurations_result.parsed.items)
+                ],
+                headers=CONFIGURATION_HEADERS,
             )
+        )
     else:
         raise _exception_from_response("Failed to list configurations", list_configurations_result)
 
@@ -597,10 +619,12 @@ def get_configuration_info(
             configuration_id_or_version=configuration_version_no,
         )
     if isinstance(get_configuration_result.parsed, get_configuration.ConfigurationResponse):
-        fmt.echo(f"Configuration # {get_configuration_result.parsed.version}")
-        fmt.echo(f"Created at: {get_configuration_result.parsed.date_added}")
-        fmt.echo(f"File count: {get_configuration_result.parsed.file_count}")
-        fmt.echo(f"Content hash: {get_configuration_result.parsed.content_hash}")
+        fmt.echo(
+            tabulate(
+                [_extract_keys(get_configuration_result.parsed.to_dict(), CONFIGURATION_HEADERS)],
+                headers=CONFIGURATION_HEADERS,
+            )
+        )
     else:
         raise _exception_from_response("Failed to get configuration info", get_configuration_result)
 
@@ -1030,8 +1054,15 @@ def jobs_list(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> Non
     if isinstance(res.parsed, list_scripts.ListScriptsResponse200) and isinstance(
         res.parsed.items, list
     ):
-        for s in reversed(res.parsed.items):
-            fmt.echo(f"Job {s.name}, created at: {s.date_added}, version #: {s.version}")
+        fmt.echo(
+            tabulate(
+                [
+                    _extract_keys(script.to_dict(), JOB_HEADERS)
+                    for script in reversed(res.parsed.items)
+                ],
+                headers=JOB_HEADERS,
+            )
+        )
     else:
         raise _exception_from_response("Failed to list jobs", res)
 
@@ -1054,10 +1085,7 @@ def job_info(
         script_id_or_name=script_path_or_job_name,
     )
     if isinstance(res.parsed, get_script.DetailedScriptResponse):
-        fmt.echo(
-            f"Job {res.parsed.name}, created at: {res.parsed.date_added},"
-            f" version #: {res.parsed.version}"
-        )
+        fmt.echo(tabulate([_extract_keys(res.parsed.to_dict(), JOB_HEADERS)], headers=JOB_HEADERS))
     else:
         raise _exception_from_response("Failed to get job info", res)
 
@@ -1124,7 +1152,9 @@ def job_create(
         ),
     )
     if isinstance(upsert.parsed, create_or_update_script.ScriptResponse):
-        fmt.echo(f"Job {fmt.bold(script_path)} created, version #: {upsert.parsed.version}")
+        fmt.echo(
+            tabulate([_extract_keys(upsert.parsed.to_dict(), JOB_HEADERS)], headers=JOB_HEADERS)
+        )
     else:
         raise _exception_from_response("Failed to create job", upsert)
 
@@ -1150,6 +1180,10 @@ def create_job_run(
         ),
     )
     if isinstance(res.parsed, create_run.RunResponse):
-        fmt.echo(f"Run started for {fmt.bold(script_path_or_job_name)}")
+        fmt.echo(
+            tabulate(
+                [_extract_keys(res.parsed.to_dict(), JOB_RUN_HEADERS)], headers=JOB_RUN_HEADERS
+            )
+        )
     else:
         raise _exception_from_response("Failed to start run", res)
