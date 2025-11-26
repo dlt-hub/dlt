@@ -1356,7 +1356,7 @@ class NameNormalizationCollision(ValueError):
 
 def add_arrow_metadata(
     item: Union[pyarrow.Table, pyarrow.RecordBatch], metadata: dict[str, Any]
-) -> pyarrow.Table:
+) -> Union[pyarrow.Table, pyarrow.RecordBatch]:
     # Get current metadata or initialize empty
     schema = item.schema
     current = schema.metadata or {}

@@ -1028,7 +1028,7 @@ def top_level_resource(secret=dlt.secrets.value, config=dlt.config.value, opt: s
 
 def test_spec_generation() -> None:
     # outer resource does not take default params
-    SPEC = get_fun_spec(top_level_resource._pipe.gen)  # type: ignore[arg-type]
+    SPEC = get_fun_spec(top_level_resource._pipe.gen)
     fields = SPEC.get_resolvable_fields()
 
     assert len(fields) == 3
@@ -1040,7 +1040,7 @@ def test_spec_generation() -> None:
     def inner_resource(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
         yield 1
 
-    SPEC = get_fun_spec(inner_resource("TS", "CFG")._pipe.gen)  # type: ignore[arg-type]
+    SPEC = get_fun_spec(inner_resource("TS", "CFG")._pipe.gen)
     fields = SPEC.get_resolvable_fields()
     # resources inject full signature now
     assert len(fields) == 3
@@ -1560,8 +1560,8 @@ def test_decorated_resource_function() -> None:
         return [1, 2, 3]
 
     # get signature for all wrappers
-    sig_bottom = inspect.signature(will_decorate.__wrapped__.__wrapped__)  # type: ignore[attr-defined]
-    sig_middle = inspect.signature(will_decorate.__wrapped__)  # type: ignore[attr-defined]
+    sig_bottom = inspect.signature(will_decorate.__wrapped__.__wrapped__)
+    sig_middle = inspect.signature(will_decorate.__wrapped__)
     sig_top = inspect.signature(will_decorate, follow_wrapped=False)
     print("SIG YTOP SIG", will_decorate.__signature__)
 
@@ -1649,15 +1649,15 @@ def test_parallelized_resource_decorator() -> None:
     resource = dlt.resource(some_gen, parallelized=True)
 
     # Generator func is wrapped with parallelized gen that yields callables
-    gen = resource._pipe.gen()  # type: ignore
-    result = next(gen)  # type: ignore[arg-type]
+    gen = resource._pipe.gen()
+    result = next(gen)
     assert result() == 1
     assert list(resource) == [1, 2, 3]
 
     # Same but wrapping generator directly
     resource = dlt.resource(some_gen(), parallelized=True)
 
-    result = next(resource._pipe.gen)  # type: ignore
+    result = next(resource._pipe.gen)
     assert result() == 1
     # get remaining items
     assert list(resource) == [2, 3]
@@ -1705,8 +1705,8 @@ def test_parallelized_resource_decorator() -> None:
     resource = dlt.resource(gen_orig, parallelized=True)
     gen = resource._pipe.gen
 
-    next(gen)  # type: ignore
-    gen.close()  # type: ignore
+    next(gen)
+    gen.close()
 
     with pytest.raises(StopIteration):
         # Inner generator is also closed

@@ -58,6 +58,7 @@ from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
 from dlt.extract.state import reset_resource_state
 from dlt.extract.utils import get_data_item_format, make_schema_with_default_name
+from dlt.extract.wrappers import should_wrap_additional_type_in_list
 
 
 def select_schema(pipeline: SupportsPipeline) -> Schema:
@@ -138,8 +139,11 @@ def data_to_sources(
             )
 
     if isinstance(data, C_Sequence) and len(data) > 0:
-        # if first element is source or resource
-        if isinstance(data[0], (DltResource, DltSource)):
+        # if first element is source or resource, assumes that lists are of single type
+        first_elem = data[0]
+        if isinstance(first_elem, (DltResource, DltSource)) or should_wrap_additional_type_in_list(
+            first_elem
+        ):
             for item in data:
                 append_data(item)
         else:
