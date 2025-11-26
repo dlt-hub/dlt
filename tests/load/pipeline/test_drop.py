@@ -25,7 +25,13 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
 def _attach(pipeline: Pipeline) -> Pipeline:
-    return dlt.attach(pipeline.pipeline_name, pipelines_dir=pipeline.pipelines_dir)
+    return dlt.attach(
+        pipeline.pipeline_name,
+        pipelines_dir=pipeline.pipelines_dir,
+        destination=pipeline.destination,
+        staging=pipeline.staging,
+        dataset_name=pipeline.dataset_name,
+    )
 
 
 @dlt.source(section="droppable", name="droppable")

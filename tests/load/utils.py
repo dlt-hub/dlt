@@ -263,11 +263,22 @@ class DestinationTestConfiguration:
             dev_mode=dev_mode,
             **kwargs,
         )
+        # remember last used context for subsequent attaches
+        self._last_destination = destination
+        self._last_staging = getattr(pipeline, "staging", None)
+        self._last_dataset_name = pipeline.dataset_name
+        self._last_pipelines_dir = pipeline.pipelines_dir
+        self._last_dev_mode = dev_mode
         return pipeline
 
     def attach_pipeline(self, pipeline_name: str, **kwargs) -> dlt.Pipeline:
         """Attach to existing pipeline keeping the dev_mode"""
         # remember dev_mode from setup_pipeline
+        kwargs.setdefault("destination", getattr(self, "_last_destination", None))
+        kwargs.setdefault("staging", getattr(self, "_last_staging", None))
+        kwargs.setdefault("dataset_name", getattr(self, "_last_dataset_name", None))
+        kwargs.setdefault("pipelines_dir", getattr(self, "_last_pipelines_dir", None))
+        kwargs.setdefault("dev_mode", getattr(self, "_last_dev_mode", self.dev_mode))
         pipeline = dlt.attach(pipeline_name, **kwargs)
         return pipeline
 
