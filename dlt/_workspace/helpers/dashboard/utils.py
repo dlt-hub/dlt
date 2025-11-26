@@ -10,7 +10,6 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Set,
     Tuple,
     Union,
     cast,
@@ -28,6 +27,7 @@ import dlt
 import marimo as mo
 import pyarrow
 import traceback
+import datetime  # noqa: I251
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
@@ -45,6 +45,7 @@ from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import DictStrAny, TypedDict
 from dlt.common.utils import map_nested_keys_in_place
+from dlt.common.pipeline import get_dlt_pipelines_dir
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
@@ -52,6 +53,8 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUn
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
+from dlt._workspace.run_context import DEFAULT_WORKSPACE_WORKING_FOLDER
+from dlt._workspace._workspace_context import WorkspaceRunContext
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -73,6 +76,56 @@ def _exception_to_string(exception: Exception) -> str:
             " destination."
         )
     return str(exception)
+
+
+def sync_from_runtime() -> None:
+    """Sync the pipeline states and traces from the runtime backup, recursively."""
+    from dlt.pipeline.runtime_artifacts import _get_runtime_artifacts_fs
+    import fsspec
+
+    def sync_dir(fs: fsspec.filesystem, src_root: str, dst_root: str) -> None:
+        """Recursively sync src_root on fs into dst_root locally, always using fs.walk."""
+        os.makedirs(dst_root, exist_ok=True)
+
+        for dirpath, _dirs, files in fs.walk(src_root):
+            # Compute local directory path
+            relative = os.path.relpath(dirpath, src_root)
+            local_dir = dst_root if relative == "." else os.path.join(dst_root, relative)
+            os.makedirs(local_dir, exist_ok=True)
+
+            # Copy all files in this directory
+            for filename in files:
+                remote_file = fs.sep.join([dirpath, filename])
+                local_file = os.path.join(local_dir, filename)
+
+                with fs.open(remote_file, "rb") as bf, open(local_file, "wb") as lf:
+                    lf.write(bf.read())
+
+                # Try to preserve LastModified as mtime
+                # needed for correct ordering of pipelines in pipeline list
+                # TODO: this is a hack and probably should be done better...
+                info = fs.info(remote_file)
+                last_modified = info.get("LastModified") or info.get("last_modified")
+                if isinstance(last_modified, datetime.datetime):
+                    ts = last_modified.timestamp()
+                    os.utime(local_file, (ts, ts))  # (atime, mtime)
+
+    runtime_config = dlt.current.run_context().runtime_config
+
+    if not (fs := _get_runtime_artifacts_fs(runtime_config)):
+        return
+
+    context = dlt.current.run_context()
+    if not isinstance(context, WorkspaceRunContext):
+        return
+
+    src_base = runtime_config.workspace_pipeline_artifacts_sync_url  # the artifacts folder on fs
+    local_pipelines_dir = os.path.join(
+        context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER
+    )  # the local .var folder
+
+    # Just sync the whole base folder into the local pipelines dir
+    sync_dir(fs, src_base, local_pipelines_dir)
 
 
 def get_dashboard_config_sections(p: Optional[dlt.Pipeline]) -> Tuple[str, ...]:
@@ -219,7 +272,7 @@ def pipeline_details(
         credentials = "Could not resolve credentials."
 
     # find the pipeline in all_pipelines and get the timestamp
-    pipeline_timestamp = get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir)
+    trace = pipeline.last_trace
 
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,
@@ -228,7 +281,9 @@ def pipeline_details(
             if pipeline.destination
             else "No destination set"
         ),
-        "last executed": _date_from_timestamp_with_ago(c, pipeline_timestamp),
+        "last executed": (
+            _date_from_timestamp_with_ago(c, trace.started_at) if trace else "No trace found"
+        ),
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
@@ -667,7 +722,7 @@ def build_pipeline_link_list(
 ) -> str:
     """Build a list of links to the pipeline."""
     if not pipelines:
-        return "No local pipelines found."
+        return "No pipelines found."
 
     count = 0
     link_list: str = ""
@@ -750,12 +805,15 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
 
 def _date_from_timestamp_with_ago(
-    config: DashboardConfiguration, timestamp: Union[int, float]
+    config: DashboardConfiguration, timestamp: Union[int, float, datetime.datetime]
 ) -> str:
     """Return a date with ago section"""
     if not timestamp or timestamp == 0:
         return "never"
-    p_ts = pendulum.from_timestamp(timestamp)
+    if isinstance(timestamp, datetime.datetime):
+        p_ts = pendulum.instance(timestamp)
+    else:
+        p_ts = pendulum.from_timestamp(timestamp)
     time_formatted = p_ts.format(config.datetime_format)
     ago = p_ts.diff_for_humans()
     return f"{ago} ({time_formatted})"
