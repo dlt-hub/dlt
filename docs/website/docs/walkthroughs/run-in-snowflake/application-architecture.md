@@ -424,7 +424,7 @@ User-provided credentials are stored in the consumer account using Snowflake sec
 
 ### Architecture Diagram
 
-![Run dlt in Snowflake architecture](/https://storage.googleapis.com/dlt-blog-images/snowflake-app-architecture.png)
+![Run dlt in Snowflake architecture](https://storage.googleapis.com/dlt-blog-images/snowflake-app-architecture.svg)
 
 ### Components
 
