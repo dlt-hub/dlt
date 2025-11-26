@@ -654,7 +654,7 @@ GRANT USAGE ON PROCEDURE code.get_secret_config(STRING) TO APPLICATION ROLE app_
 GRANT USAGE ON PROCEDURE code.run_job(STRING, STRING) TO APPLICATION ROLE app_user;
 ``` 
 
-#### priviliges in `manifest.yml`:
+#### Privileges in `manifest.yml`:
 
 ```yaml
 privileges:
