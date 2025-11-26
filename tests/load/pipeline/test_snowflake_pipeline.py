@@ -1,6 +1,7 @@
 from copy import deepcopy
 import os
 import pytest
+from typing import cast
 from pytest_mock import MockerFixture
 
 import dlt
@@ -313,6 +314,79 @@ def test_snowflake_use_vectorized_scanner(
             schema=columns_schema,
             parse_json_strings=True,
         )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_cluster_hints(destination_config: DestinationTestConfiguration) -> None:
+    from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
+
+    def get_cluster_key(sql_client: SnowflakeSqlClient, table_name: str) -> str:
+        with sql_client:
+            _catalog_name, schema_name, table_names = sql_client._get_information_schema_components(
+                table_name
+            )
+            qry = f"""
+                SELECT CLUSTERING_KEY FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = '{schema_name}'
+                AND TABLE_NAME = '{table_names[0]}'
+            """
+            return sql_client.execute_sql(qry)[0][0]
+
+    pipeline = destination_config.setup_pipeline("test_snowflake_cluster_hints", dev_mode=True)
+    sql_client = cast(SnowflakeSqlClient, pipeline.sql_client())
+    table_name = "test_snowflake_cluster_hints"
+
+    @dlt.resource(table_name=table_name)
+    def test_data():
+        return [
+            {"c1": 1, "c2": "a"},
+            {"c1": 2, "c2": "b"},
+        ]
+
+    # create new table with clustering
+    test_data.apply_hints(columns=[{"name": "c1", "cluster": True}])
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1")'
+
+    # change cluster hints on existing table without adding new column
+    test_data.apply_hints(columns=[{"name": "c2", "cluster": True}])
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1")'  # unchanged (no new column)
+
+    # add new column to existing table with pending cluster hints from previous run
+    test_data.apply_hints(columns=[{"name": "c3", "data_type": "bool"}])
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1","C2")'  # updated
+
+    # remove clustering from existing table
+    test_data.apply_hints(
+        columns=[
+            {"name": "c1", "cluster": False},
+            {"name": "c2", "cluster": False},
+            {"name": "c4", "data_type": "bool"},  # include new column to trigger alter
+        ]
+    )
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) is None
+
+    # add clustering to existing table (and add new column to trigger alter)
+    test_data.apply_hints(
+        columns=[
+            {"name": "c1", "cluster": True},
+            {"name": "c5", "data_type": "bool"},  # include new column to trigger alter
+        ]
+    )
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1")'
 
 
 @pytest.mark.skip(reason="perf test for merge")

@@ -1,6 +1,7 @@
 import os
 import yaml
 from typing import Any, Sequence, Tuple
+from inspect import signature
 import dlt
 
 from dlt.common.json import json
@@ -378,13 +379,22 @@ def pipeline_command(
             schema_str = s.to_dbml()
         elif format_ == "dot":
             schema_str = s.to_dot()
+        elif format_ == "mermaid":
+            schema_str = s.to_mermaid()
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
 
         fmt.echo(schema_str)
 
     if operation == "drop":
-        drop = pipeline_drop(p, **command_kwargs)
+        drop = pipeline_drop(
+            p,
+            resources=command_kwargs.get("resources", ()),
+            schema_name=command_kwargs.get("schema_name"),
+            state_paths=command_kwargs.get("state_paths", ()),
+            drop_all=command_kwargs.get("drop_all", False),
+            state_only=command_kwargs.get("state_only", False),
+        )
         if drop.is_empty:
             fmt.echo(
                 "Could not select any resources to drop and no resource/source state to reset. Use"

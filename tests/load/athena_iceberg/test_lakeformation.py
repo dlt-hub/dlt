@@ -186,7 +186,9 @@ def create_pipelines(
     )
     lf_disabled_pipeline = destination_config.setup_pipeline(
         pipeline_name,
-        destination=destination_config.destination_factory(),
+        destination=destination_config.destination_factory(
+            lakeformation_config=LakeformationConfig(enabled=False)
+        ),
         dataset_name=dataset_name,
         staging=staging_destination,
     )

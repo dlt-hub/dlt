@@ -9,6 +9,10 @@ keywords: [weaviate, vector database, destination, dlt]
 [Weaviate](https://weaviate.io/) is an open-source vector database. It allows you to store data objects and perform similarity searches over them.
 This destination helps you load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
+:::note
+Currently, the Weaviate destination is using [weaviate-client v.3 as a backend] for loading the data.
+This does not affect your downstream data workflows.
+:::
 
 <!--@@@DLT_DESTINATION_CAPABILITIES weaviate-->
 
@@ -64,19 +68,18 @@ movies = [
 ]
 ```
 
-4. Define the pipeline:
+4. Define and run the pipeline:
 
 ```py
+import dlt
+from dlt.destinations.adapters import weaviate_adapter
+
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="weaviate",
     dataset_name="MoviesDataset",
 )
-```
 
-5. Run the pipeline:
-
-```py
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -85,7 +88,7 @@ info = pipeline.run(
 )
 ```
 
-6. Check the results:
+5. Check the results:
 
 ```py
 print(info)
@@ -100,6 +103,8 @@ Weaviate destination is different from other [dlt destinations](../destinations/
 The `weaviate_adapter` is a helper function that configures the resource for the Weaviate destination:
 
 ```py
+from dlt.destinations.adapters import weaviate_adapter
+
 weaviate_adapter(data, vectorize, tokenization)
 ```
 
@@ -113,6 +118,8 @@ Returns: a [dlt resource](../../general-usage/resource.md) object that you can p
 Example:
 
 ```py
+from dlt.destinations.adapters import weaviate_adapter
+
 weaviate_adapter(
     resource,
     vectorize=["title", "description"],
@@ -122,6 +129,10 @@ weaviate_adapter(
 When using the `weaviate_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
 
 ```py
+import dlt
+from dlt.sources.sql_database import sql_database
+from dlt.destinations.adapters import weaviate_adapter
+
 products_tables = sql_database().with_resources("products", "customers")
 
 pipeline = dlt.pipeline(
@@ -137,9 +148,7 @@ info = pipeline.run(products_tables)
 ```
 
 :::tip
-
-A more comprehensive pipeline would load data from some API or use one of dlt's [verified sources](../verified-sources/).
-
+A more comprehensive pipeline would load data from [API](https://dlthub.com/workspace) or use one of dlt's [sources](../verified-sources/).
 :::
 
 ## Write disposition
@@ -153,6 +162,8 @@ The [replace](../../general-usage/full-loading.md) disposition replaces the data
 In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
 ```py
+from dlt.destinations.adapters import weaviate_adapter
+
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -168,6 +179,8 @@ The [merge](../../general-usage/incremental-loading.md) write disposition merges
 For the `merge` disposition, you would need to specify a `primary_key` for the resource:
 
 ```py
+from dlt.destinations.adapters import weaviate_adapter
+
 info = pipeline.run(
     weaviate_adapter(
         movies,

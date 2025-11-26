@@ -73,7 +73,7 @@ class ItemTransform(BaseItemTransform[TCustomMetrics], ABC, Generic[TAny, TCusto
         pass
 
 
-class FilterItem(ItemTransform[bool]):
+class FilterItem(ItemTransform[bool, Dict[str, Any]]):
     # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[bool]
     _f: ItemTransformFunctionNoMeta[bool]
@@ -99,7 +99,7 @@ class FilterItem(ItemTransform[bool]):
                 return item if self._f(item) else None
 
 
-class MapItem(ItemTransform[TDataItem]):
+class MapItem(ItemTransform[TDataItem, Dict[str, Any]]):
     # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[TDataItem]
     _f: ItemTransformFunctionNoMeta[TDataItem]
@@ -121,7 +121,7 @@ class MapItem(ItemTransform[TDataItem]):
                 return self._f(item)
 
 
-class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
+class YieldMapItem(ItemTransform[Iterator[TDataItem], Dict[str, Any]]):
     # mypy needs those to type correctly
     _f_meta: ItemTransformFunctionWithMeta[TDataItem]
     _f: ItemTransformFunctionNoMeta[TDataItem]
@@ -144,7 +144,7 @@ class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
                 yield from self._f(item)
 
 
-class ValidateItem(ItemTransform[TDataItem]):
+class ValidateItem(ItemTransform[TDataItem, Dict[str, Any]]):
     """Base class for validators of data items.
 
     Subclass should implement the `__call__` method to either return the data item(s) or raise `extract.exceptions.ValidationError`.
@@ -160,7 +160,7 @@ class ValidateItem(ItemTransform[TDataItem]):
         return self
 
 
-class LimitItem(ItemTransform[TDataItem]):
+class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
     placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
 
     def __init__(
@@ -227,7 +227,7 @@ class LimitItem(ItemTransform[TDataItem]):
         return item
 
 
-class MetricsItem(ItemTransform[None]):
+class MetricsItem(ItemTransform[None, Dict[str, Any]]):
     """Collects custom metrics from data flowing through the pipe without modifying items.
 
     The metrics function receives items, optionally meta, and a metrics dictionary that it can

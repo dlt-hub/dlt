@@ -830,6 +830,8 @@ class DltResourceHints:
                     ):
                         continue  # None is allowed for active_record_timestamp
                     if ts in wd:
+                        if wd[ts] is None:  # type: ignore[literal-required]
+                            continue
                         try:
                             ensure_pendulum_datetime_utc(wd[ts])  # type: ignore[literal-required]
                         except Exception:
