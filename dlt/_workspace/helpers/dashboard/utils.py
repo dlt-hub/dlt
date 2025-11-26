@@ -2,7 +2,6 @@ import shutil
 import functools
 from itertools import chain
 from pathlib import Path
-from this import d
 from typing import (
     Any,
     Dict,
@@ -206,7 +205,7 @@ def get_local_pipelines(
 
 
 def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
-    """Get a pipeline by name.
+    """Get a pipeline by name. Attach exceptions must be handled by the caller
 
     Args:
         pipeline_name (str): The name of the pipeline to get.
@@ -214,12 +213,9 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     Returns:
         dlt.Pipeline: The pipeline.
     """
-    try:
-        p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
-        p.config.use_single_dataset = False
-        return p
-    except CannotRestorePipelineException:
-        return None
+    p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
+    p.config.use_single_dataset = False
+    return p
 
 
 #

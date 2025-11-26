@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.9.2, <3.15"
 resolution-markers = [
     "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
@@ -1566,95 +1566,36 @@ wheels = [
 
 [[package]]
 name = "databricks-sdk"
-version = "0.55.0"
+version = "0.73.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-auth" },
+    { name = "protobuf" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bf/50/8231952fa2dbafd6f7a4cb288530280f4a227ef69dbfdf6224ab270f83d5/databricks_sdk-0.55.0.tar.gz", hash = "sha256:087b3acd139857013bdd9762425e04db47ebda85a8f9845719b6d97845e588b3", size = 764071, upload-time = "2025-05-27T12:06:00.603Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/7f/cfb2a00d10f6295332616e5b22f2ae3aaf2841a3afa6c49262acb6b94f5b/databricks_sdk-0.73.0.tar.gz", hash = "sha256:db09eaaacd98e07dded78d3e7ab47d2f6c886e0380cb577977bd442bace8bd8d", size = 801017, upload-time = "2025-11-05T06:52:58.509Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/aa/d9/2fc1825c3e74228d31e6e21d20d28bf3d8278cb7301e2ccea9d42de97ede/databricks_sdk-0.55.0-py3-none-any.whl", hash = "sha256:77bb3e6ebfbe2e804f32bc71f06e7c99f0ec8f5a2eaa9fa848eac214106bcb8b", size = 722902, upload-time = "2025-05-27T12:05:58.431Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/27/b822b474aaefb684d11df358d52e012699a2a8af231f9b47c54b73f280cb/databricks_sdk-0.73.0-py3-none-any.whl", hash = "sha256:a4d3cfd19357a2b459d2dc3101454d7f0d1b62865ce099c35d0c342b66ac64ff", size = 753896, upload-time = "2025-11-05T06:52:56.451Z" },
 ]
 
 [[package]]
 name = "databricks-sql-connector"
-version = "3.7.4"
+version = "4.1.4"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.12.*' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.10.*' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and os_name != 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and os_name != 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.10.*' and os_name != 'nt' and sys_platform == 'emscripten'",
-    "python_full_version < '3.10' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version < '3.10' and os_name != 'nt' and sys_platform == 'emscripten'",
-]
 dependencies = [
-    { name = "lz4", marker = "python_full_version < '3.13'" },
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10' or (python_full_version >= '3.11' and python_full_version < '3.13')" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*'" },
-    { name = "oauthlib", marker = "python_full_version < '3.13'" },
-    { name = "openpyxl", marker = "python_full_version < '3.13'" },
-    { name = "pandas", marker = "python_full_version < '3.13'" },
-    { name = "pyarrow", marker = "python_full_version < '3.13'" },
-    { name = "requests", marker = "python_full_version < '3.13'" },
-    { name = "thrift", marker = "python_full_version < '3.13'" },
-    { name = "urllib3", marker = "python_full_version < '3.13'" },
+    { name = "lz4" },
+    { name = "oauthlib" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "pyjwt" },
+    { name = "python-dateutil" },
+    { name = "requests" },
+    { name = "thrift" },
+    { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/1f/d5d69f1a34683ab9da17e901209e36f42aadaf9f98248cd959fc1729c2c6/databricks_sql_connector-3.7.4.tar.gz", hash = "sha256:74530a2c2c1e805f21eb3591a9049845d35fab71449ce986bfb21a03c4ef1f3b", size = 414541, upload-time = "2025-04-22T04:49:42.535Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/dd/ab26e4b045cbd9e473e196480dc31cc9bc4f4c68dac8d0da9ccef88a26ca/databricks_sql_connector-4.1.4.tar.gz", hash = "sha256:803428c3a7d63b0fbb3bbf3f7ab9bf96f062f6a989f7df7a92529d7b0bbc8a14", size = 178362, upload-time = "2025-10-15T17:45:34.259Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/73/7abc365f80fe8a26b3b05d9add42f690756fa1f041a493fd07ba6da5df02/databricks_sql_connector-3.7.4-py3-none-any.whl", hash = "sha256:6bf6a5006ba843d672964ecb0592c2d467c9fd51d7b81b2c702f5aed60729254", size = 431129, upload-time = "2025-04-22T04:49:40.1Z" },
-]
-
-[[package]]
-name = "databricks-sql-connector"
-version = "4.0.3"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version >= '3.14' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.14' and os_name != 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.13.*' and os_name == 'nt' and sys_platform == 'emscripten'",
-    "python_full_version == '3.13.*' and os_name != 'nt' and sys_platform == 'emscripten'",
-]
-dependencies = [
-    { name = "lz4", marker = "python_full_version >= '3.13'" },
-    { name = "oauthlib", marker = "python_full_version >= '3.13'" },
-    { name = "openpyxl", marker = "python_full_version >= '3.13'" },
-    { name = "pandas", marker = "python_full_version >= '3.13'" },
-    { name = "python-dateutil", marker = "python_full_version >= '3.13'" },
-    { name = "requests", marker = "python_full_version >= '3.13'" },
-    { name = "thrift", marker = "python_full_version >= '3.13'" },
-    { name = "urllib3", marker = "python_full_version >= '3.13'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/25/b9/057c58d6a9bbe61eb629f8661f5a6bf5b94cef5c920c6d8dc321f6bb599e/databricks_sql_connector-4.0.3.tar.gz", hash = "sha256:4bc4654f8a51d6da5c1628660f4f0d6f04f0d047c82417943bf4c32fa1aedd98", size = 316443, upload-time = "2025-04-22T07:48:04.09Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/da/9fc6ed55c93b7c31c5f25faefbab0a9a12c2e4d1587db6ae44ffcec1a747/databricks_sql_connector-4.0.3-py3-none-any.whl", hash = "sha256:6ff2f18b5420d144a6835cde4900be6a124a7a68aa5c06806fe0a6b1fc24ed65", size = 325271, upload-time = "2025-04-22T07:48:00.19Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/15/a674e16ebbe36190cf79cbf2c25e5dc3b5f0203b471d9e9e98b7c8e70381/databricks_sql_connector-4.1.4-py3-none-any.whl", hash = "sha256:cabe1640412c240b328291d7155c280570892961ce56d0529593f354e9958727", size = 202303, upload-time = "2025-10-15T17:45:33.078Z" },
 ]
 
 [[package]]
@@ -2043,8 +1984,7 @@ clickhouse = [
 ]
 databricks = [
     { name = "databricks-sdk" },
-    { name = "databricks-sql-connector", version = "3.7.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
-    { name = "databricks-sql-connector", version = "4.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "databricks-sql-connector" },
 ]
 dbml = [
     { name = "pydbml" },
@@ -2273,7 +2213,7 @@ requires-dist = [
     { name = "cron-descriptor", marker = "extra == 'workspace'", specifier = ">=1.2.32" },
     { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.38.0" },
     { name = "databricks-sql-connector", marker = "python_full_version >= '3.13' and extra == 'databricks'", specifier = ">=3.6.0" },
-    { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3,<4" },
+    { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3" },
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
@@ -2357,7 +2297,7 @@ requires-dist = [
     { name = "types-python-jose", marker = "extra == 'workspace'", specifier = ">=3.5.0.20250531" },
     { name = "typing-extensions", specifier = ">=4.8.0" },
     { name = "tzdata", specifier = ">=2022.1" },
-    { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.22" },
+    { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.26.7,<4.0.0" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
 provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml"]
@@ -7803,7 +7743,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.31.0"
+version = "2.32.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -7811,9 +7751,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/be/10918a2eac4ae9f02f6cfe6414b7a155ccd8f7f9d4380d62fd5b955065c3/requests-2.31.0.tar.gz", hash = "sha256:942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1", size = 110794, upload-time = "2023-05-22T15:12:44.175Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/8e/0e2d847013cb52cd35b38c009bb167a1a26b2ce6cd6965bf26b47bc0bf44/requests-2.31.0-py3-none-any.whl", hash = "sha256:58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f", size = 62574, upload-time = "2023-05-22T15:12:42.313Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
 ]
 
 [[package]]
@@ -9240,11 +9180,11 @@ wheels = [
 
 [[package]]
 name = "validators"
-version = "0.21.0"
+version = "0.35.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1f/c5/4095e7a5a6fecc2eca953ad058a3609135d833f986f84951f7e26790d651/validators-0.21.0.tar.gz", hash = "sha256:245b98ab778ed9352a7269c6a8f6c2a839bed5b2a7e3e60273ce399d247dd4b3", size = 20937, upload-time = "2023-08-11T09:16:04.446Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/66/a435d9ae49850b2f071f7ebd8119dd4e84872b01630d6736761e6e7fd847/validators-0.35.0.tar.gz", hash = "sha256:992d6c48a4e77c81f1b4daba10d16c3a9bb0dbb79b3a19ea847ff0928e70497a", size = 73399, upload-time = "2025-05-01T05:42:06.7Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/50/18dbf2ac594234ee6249bfe3425fa424c18eeb96f29dcd47f199ed6c51bc/validators-0.21.0-py3-none-any.whl", hash = "sha256:3470db6f2384c49727ee319afa2e97aec3f8fad736faa6067e0fd7f9eaf2c551", size = 27686, upload-time = "2023-08-11T09:16:02.374Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/6e/3e955517e22cbdd565f2f8b2e73d52528b14b8bcfdb04f62466b071de847/validators-0.35.0-py3-none-any.whl", hash = "sha256:e8c947097eae7892cb3d26868d637f79f47b4a0554bc6b80065dfe5aac3705dd", size = 44712, upload-time = "2025-05-01T05:42:04.203Z" },
 ]
 
 [[package]]
@@ -9276,17 +9216,16 @@ wheels = [
 
 [[package]]
 name = "weaviate-client"
-version = "3.23.2"
+version = "3.26.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "authlib" },
     { name = "requests" },
-    { name = "tqdm" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/12/75/37624bdc90bf65df52c2e2692cad6484061495ebb6f4cd59c7e353d4e934/weaviate-client-3.23.2.tar.gz", hash = "sha256:1c8c94df032dd2fa5a4ea615fc69ccb983ffad5cc02974f78c793839e61ac150", size = 199697, upload-time = "2023-08-29T14:37:59.135Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/2e/9588bae34c1d67d05ccc07d74a4f5d73cce342b916f79ab3a9114c6607bb/weaviate_client-3.26.7.tar.gz", hash = "sha256:ea538437800abc6edba21acf213accaf8a82065584ee8b914bae4a4ad4ef6b70", size = 210480, upload-time = "2024-08-15T13:27:02.431Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/f7/1ce09f2b35903c451236dbb0fed10fde2bcbd48c28264730c9f5c6f5fcc9/weaviate_client-3.23.2-py3-none-any.whl", hash = "sha256:88ffc38cca07806d64726cc74bc194c7da50b222aa4e2cd129f4c1f5e53e9b61", size = 108127, upload-time = "2023-08-29T14:37:56.258Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/95/fb326052bc1d73cb3c19fcfaf6ebb477f896af68de07eaa1337e27ee57fa/weaviate_client-3.26.7-py3-none-any.whl", hash = "sha256:48b8d4b71df881b4e5e15964d7ac339434338ccee73779e3af7eab698a92083b", size = 120051, upload-time = "2024-08-15T13:27:00.212Z" },
 ]
 
 [[package]]

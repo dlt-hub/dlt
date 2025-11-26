@@ -294,7 +294,7 @@ LIMIT 5
     parsed_norm_select_query = sqlglot.parse_one(normalized_select_query, read=dialect)
 
     # Ensure the normalized model query contains a subquery in the FROM clause
-    from_clause = parsed_norm_select_query.args.get("from")
+    from_clause = parsed_norm_select_query.find(sqlglot.exp.From)
     assert isinstance(from_clause, sqlglot.exp.From)
     assert isinstance(from_clause.this, sqlglot.exp.Subquery)
     assert isinstance(from_clause.this.this, sqlglot.exp.Select)
