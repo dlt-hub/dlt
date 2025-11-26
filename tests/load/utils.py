@@ -268,20 +268,25 @@ class DestinationTestConfiguration:
         self._last_dataset_name = pipeline.dataset_name
         self._last_destination = destination
         self._last_staging = staging_val
+        self._last_pipelines_dir = pipeline.pipelines_dir
+        self._last_dev_mode = dev_mode
 
         return pipeline
 
     def attach_pipeline(self, pipeline_name: str, **kwargs) -> dlt.Pipeline:
         """Attach to existing pipeline keeping the dev_mode"""
-        # remember dev_mode from setup_pipeline
-        # prefer explicit kwargs, otherwise use last known context from setup_pipeline
-        if "destination" not in kwargs and hasattr(self, "_last_destination"):
-            kwargs["destination"] = getattr(self, "_last_destination", None)
-        if "staging" not in kwargs and hasattr(self, "_last_staging"):
-            kwargs["staging"] = getattr(self, "_last_staging", None)
-        if "dataset_name" not in kwargs and hasattr(self, "_last_dataset_name"):
-            kwargs["dataset_name"] = getattr(self, "_last_dataset_name", None)
+        # prefer explicit kwargs; otherwise use last-known context from setup_pipeline
+        kwargs.setdefault("destination", getattr(self, "_last_destination", None))
+        kwargs.setdefault("staging", getattr(self, "_last_staging", None))
+        kwargs.setdefault("dataset_name", getattr(self, "_last_dataset_name", None))
+        kwargs.setdefault("pipelines_dir", getattr(self, "_last_pipelines_dir", None))
+        kwargs.setdefault("dev_mode", getattr(self, "_last_dev_mode", getattr(self, "dev_mode", False)))
+
         pipeline = dlt.attach(pipeline_name, **kwargs)
+        # Embrace hard reset semantics: if local schemas are gone after attach, restore from destination
+        if not pipeline._schema_storage.list_schemas():
+            pipeline.config.restore_from_destination = True
+            pipeline.sync_destination()
         return pipeline
 
     def supports_sql_client(self, pipeline: dlt.Pipeline) -> bool:

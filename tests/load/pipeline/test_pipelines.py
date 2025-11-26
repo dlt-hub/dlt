@@ -401,6 +401,9 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
         staging=destination_config.staging,
         dataset_name=info.dataset_name,
     )
+    # restore local schema/state from destination after hard reset
+    p.config.restore_from_destination = True
+    p.sync_destination()
     # restored pipeline should be never put in full refresh
     assert p.dev_mode is False
     # assert parent table (easy), None First (db order)
