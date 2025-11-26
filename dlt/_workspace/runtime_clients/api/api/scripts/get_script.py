@@ -6,11 +6,11 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.detailed_script_response import DetailedScriptResponse
 from ...models.error_response_400 import ErrorResponse400
 from ...models.error_response_401 import ErrorResponse401
 from ...models.error_response_403 import ErrorResponse403
 from ...models.error_response_404 import ErrorResponse404
-from ...models.script_response import ScriptResponse
 from ...types import UNSET, Response
 
 
@@ -32,10 +32,16 @@ def _get_kwargs(
 def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Optional[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+    Union[
+        DetailedScriptResponse,
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+    ]
 ]:
     if response.status_code == 200:
-        response_200 = ScriptResponse.from_dict(response.json())
+        response_200 = DetailedScriptResponse.from_dict(response.json())
 
         return response_200
 
@@ -68,7 +74,13 @@ def _parse_response(
 def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+    Union[
+        DetailedScriptResponse,
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -84,7 +96,13 @@ def sync_detailed(
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+    Union[
+        DetailedScriptResponse,
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+    ]
 ]:
     """GetScript
 
@@ -102,7 +120,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]]
+        Response[Union[DetailedScriptResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -123,7 +141,13 @@ def sync(
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Optional[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+    Union[
+        DetailedScriptResponse,
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+    ]
 ]:
     """GetScript
 
@@ -141,7 +165,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+        Union[DetailedScriptResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return sync_detailed(
@@ -157,7 +181,13 @@ async def asyncio_detailed(
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Response[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+    Union[
+        DetailedScriptResponse,
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+    ]
 ]:
     """GetScript
 
@@ -175,7 +205,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]]
+        Response[Union[DetailedScriptResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]]
     """
 
     kwargs = _get_kwargs(
@@ -194,7 +224,13 @@ async def asyncio(
     *,
     client: Union[AuthenticatedClient, Client],
 ) -> Optional[
-    Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+    Union[
+        DetailedScriptResponse,
+        ErrorResponse400,
+        ErrorResponse401,
+        ErrorResponse403,
+        ErrorResponse404,
+    ]
 ]:
     """GetScript
 
@@ -212,7 +248,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404, ScriptResponse]
+        Union[DetailedScriptResponse, ErrorResponse400, ErrorResponse401, ErrorResponse403, ErrorResponse404]
     """
 
     return (

@@ -939,28 +939,65 @@ class RuntimeCommand(SupportsCliCommand):
             description="Logout from dltHub Runtime",
         )
 
-        deploy_cmd = subparsers.add_parser(
+        # convenience commands
+        launch_cmd = subparsers.add_parser(
+            "launch",
+            help="Deploy code/config and run a script (follow status and logs by default)",
+            description="Deploy current workspace and run a batch script remotely.",
+        )
+        self._configure_launch_parser(launch_cmd)
+
+        serve_cmd = subparsers.add_parser(
+            "serve",
+            help="Deploy and serve an interactive notebook/app (read-only) and follow until ready",
+            description="Deploy current workspace and run a notebook as a read-only web app.",
+        )
+        self._configure_serve_parser(serve_cmd)
+
+        schedule_cmd = subparsers.add_parser(
+            "schedule",
+            help=(
+                "Deploy and schedule a script with a cron timetable, or cancel the scheduled script"
+                " from future runs"
+            ),
+            description=(
+                "Schedule a batch script to run on a cron timetable, or cancel the scheduled script"
+                " from future runs."
+            ),
+        )
+        self._configure_schedule_parser(schedule_cmd)
+
+        logs_cmd = subparsers.add_parser(
+            "logs",
+            help="Show logs for latest or selected job run",
+            description="Show logs for the latest run of a job or a specific run number.",
+        )
+        self._configure_logs_parser(logs_cmd)
+
+        cancel_cmd = subparsers.add_parser(
+            "cancel",
+            help="Cancel latest or selected job run",
+            description="Cancel the latest run of a job or a specific run number.",
+        )
+        self._configure_cancel_parser(cancel_cmd)
+
+        subparsers.add_parser(
+            "dashboard",
+            help="Open the Runtime dashboard for this workspace",
+            description="Open link to the Runtime dashboard for current remote workspace.",
+        )
+
+        subparsers.add_parser(
             "deploy",
-            help="Create, run and inspect scripts in runtime",
-            description="Manipulate scripts in workspace",
+            help="Sync code and configuration to Runtime without running anything",
+            description="Upload deployment and configuration if changed.",
         )
-        self._configure_deploy_parser(deploy_cmd)
 
-        # run a script
-        run_cmd = subparsers.add_parser(
-            "run",
-            help="Run a script in the Runtime",
-            description="Create or update a script and trigger a run",
+        subparsers.add_parser(
+            "info",
+            help="Show overview of current Runtime workspace",
+            description="Show workspace id and summary of deployments, configurations and jobs.",
         )
-        self._configure_run_parser(run_cmd)
-
-        # runs management
-        runs_cmd = subparsers.add_parser(
-            "runs",
-            help="Manipulate runs in workspace",
-            description="Manipulate runs in workspace",
-        )
-        self._configure_runs_parser(runs_cmd)
 
         # deployments
         deployment_cmd = subparsers.add_parser(
@@ -970,13 +1007,35 @@ class RuntimeCommand(SupportsCliCommand):
         )
         self._configure_deployments_parser(deployment_cmd)
 
-        # scripts
-        script_cmd = subparsers.add_parser(
-            "script",
-            help="Create, list and inspect scripts in runtime",
-            description="Manipulate scripts in workspace",
+        # jobs (ex-scripts)
+        job_cmd = subparsers.add_parser(
+            "job",
+            help="List, create and inspect jobs",
+            description="List and manipulate jobs registered in the workspace.",
         )
-        self._configure_scripts_parser(script_cmd)
+        self._configure_jobs_parser(job_cmd)
+        # plural alias
+        jobs_cmd = subparsers.add_parser(
+            "jobs",
+            help="List, create and inspect jobs",
+            description="List and manipulate jobs registered in the workspace.",
+        )
+        self._configure_jobs_parser(jobs_cmd)
+
+        # job-runs (ex-script-runs)
+        job_run_cmd = subparsers.add_parser(
+            "job-run",
+            help="List, create and inspect job runs",
+            description="List and manipulate job runs registered in the workspace.",
+        )
+        self._configure_job_runs_parser(job_run_cmd)
+        # plural alias
+        job_runs_cmd = subparsers.add_parser(
+            "job-runs",
+            help="List, create and inspect job runs",
+            description="List and manipulate job runs registered in the workspace.",
+        )
+        self._configure_job_runs_parser(job_runs_cmd)
 
         # configurations
         configuration_cmd = subparsers.add_parser(
@@ -986,90 +1045,62 @@ class RuntimeCommand(SupportsCliCommand):
         )
         self._configure_configurations_parser(configuration_cmd)
 
-    def _configure_deploy_parser(self, deploy_cmd: argparse.ArgumentParser) -> None:
-        deploy_cmd.add_argument("script_name", help="Local path to the script")
-        deploy_cmd.add_argument(
-            "--profile",
-            "-p",
-            nargs="?",
-            help="Profile to use for the run",
-        )
-        deploy_cmd.add_argument(
-            "-i",
-            "--interactive",
+    def _configure_launch_parser(self, launch_cmd: argparse.ArgumentParser) -> None:
+        launch_cmd.add_argument("script_path", help="Local path to the script")
+        launch_cmd.add_argument(
+            "-d",
+            "--detach",
             action="store_true",
+            help="Do not follow status changes and logs after starting",
+        )
+
+    def _configure_serve_parser(self, serve_cmd: argparse.ArgumentParser) -> None:
+        serve_cmd.add_argument("script_path", help="Local path to the notebook/app")
+
+    def _configure_schedule_parser(self, schedule_cmd: argparse.ArgumentParser) -> None:
+        schedule_cmd.add_argument("script_path", help="Local path to the script")
+        schedule_cmd.add_argument(
+            "cron_expr_or_cancel",
             help=(
-                "Whether the script should be deployed as interactive (e.g. a notebook). False by"
-                " default"
+                "Either a cron schedule string if you want to schedule the script, or the literal"
+                " 'cancel' command if you want to cancel it"
             ),
         )
-
-    def _configure_runs_parser(self, runs_cmd: argparse.ArgumentParser) -> None:
-        runs_cmd.add_argument(
-            "script_name_or_run_id",
-            nargs="?",
-            help="The name of the script we're working with or the id of the run of this script",
-        )
-        runs_cmd.add_argument(
-            "--list", "-l", action=argparse.BooleanOptionalAction, help="List all runs in workspace"
-        )
-        runs_subparsers = runs_cmd.add_subparsers(
-            title="Available subcommands", dest="operation", required=False
-        )
-
-        # manage runs
-        runs_subparsers.add_parser(
-            "list",
-            help="List all runs of the script, only works if script name is provided",
-            description="List all runs of the script, only works if script name is provided",
-        )
-        runs_subparsers.add_parser(
-            "info",
-            help="Get detailed information about a run",
-            description="Get detailed information about a run",
-        )
-        runs_subparsers.add_parser(
-            "logs",
-            help="Get the logs of a run",
-            description="Get the logs of a run",
-        )
-        runs_subparsers.add_parser(
-            "cancel",
-            help="Cancel a run in the Runtime",
-            description="Cancel a run in the Runtime",
-        )
-
-    def _configure_run_parser(self, run_cmd: argparse.ArgumentParser) -> None:
-        run_cmd.add_argument(
-            "script_name_or_id",
-            help="Local path to the script or id/name of deployed script",
-        )
-        run_cmd.add_argument(
-            "--profile",
-            "-p",
-            nargs="?",
-            help="Profile to use for the run",
-        )
-        run_cmd.add_argument(
-            "-i",
-            "--interactive",
+        schedule_cmd.add_argument(
+            "--current",
             action="store_true",
-            help=(
-                "Whether the script should be deployed as interactive (e.g. a notebook). False by"
-                " default"
-            ),
+            help="When cancelling the schedule, also cancel the currently running instance if any",
         )
+
+    def _configure_logs_parser(self, logs_cmd: argparse.ArgumentParser) -> None:
+        logs_cmd.add_argument("script_path_or_job_name", help="Local path or job name")
+        logs_cmd.add_argument("run_number", nargs="?", type=int, help="Run number (optional)")
+        logs_cmd.add_argument(
+            "-f",
+            "--follow",
+            action="store_true",
+            help="Follow the logs of the run in tailing mode",
+        )
+
+    def _configure_cancel_parser(self, cancel_cmd: argparse.ArgumentParser) -> None:
+        cancel_cmd.add_argument("script_path_or_job_name", help="Local path or job name")
+        cancel_cmd.add_argument("run_number", nargs="?", type=int, help="Run number (optional)")
 
     def _configure_deployments_parser(self, deployment_cmd: argparse.ArgumentParser) -> None:
+        # list/info/sync on deployments
         deployment_cmd.add_argument(
-            "--list",
-            "-l",
-            action=argparse.BooleanOptionalAction,
-            help="List all deployments in workspace",
+            "deployment_version_no",
+            nargs="?",
+            type=int,
+            help="Deployment version number. Only used in the `info` subcommand",
         )
-        deployment_cmd.add_argument("deployment_id", nargs="?", help="Deployment id (UUID)")
         deployment_subparsers = deployment_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
+        )
+        deployment_subparsers.add_parser(
+            "list",
+            help="List all deployments in workspace",
+            description="List all deployments in workspace",
         )
         deployment_subparsers.add_parser(
             "info",
@@ -1082,44 +1113,109 @@ class RuntimeCommand(SupportsCliCommand):
             description="Create new deployment if local workspace content changed",
         )
 
-    def _configure_scripts_parser(self, script_cmd: argparse.ArgumentParser) -> None:
-        script_cmd.add_argument(
-            "script_name_or_id",
+    def _configure_jobs_parser(self, job_cmd: argparse.ArgumentParser) -> None:
+        job_cmd.add_argument(
+            "script_path_or_job_name",
             nargs="?",
-            help="Local path to the script or id/name of deployed script",
+            help="Local script path or job name. Required for all commands except `list`",
         )
-        script_cmd.add_argument(
-            "--list",
-            "-l",
-            action=argparse.BooleanOptionalAction,
-            help="List all scripts in workspace",
-        )
-        script_subparsers = script_cmd.add_subparsers(
+        job_subparsers = job_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
         )
-        script_subparsers.add_parser(
-            "info",
-            help="Get detailed information about a script",
-            description="Get detailed information about a script",
+        job_subparsers.add_parser(
+            "list",
+            help="List the jobs registered in the workspace",
+            description="List the jobs registered in the workspace",
         )
-        script_subparsers.add_parser(
-            "sync",
-            help="Create or update the script",
-            description="Create or update the script",
+        job_subparsers.add_parser(
+            "info",
+            help="Show job info",
+            description="Display detailed information about the job",
+        )
+        create_cmd = job_subparsers.add_parser(
+            "create",
+            help="Create a job without running it",
+            description="Manually create the job",
+        )
+        create_cmd.add_argument("--name", nargs="?", help="Job name to create")
+        create_cmd.add_argument(
+            "--schedule", nargs="?", help="Cron schedule for the job if it's a scheduled one"
+        )
+        create_cmd.add_argument(
+            "--interactive",
+            action="store_true",
+            help="Run the job interactively, e.g. for a notebook",
+        )
+        create_cmd.add_argument("--description", nargs="?", help="Job description")
+
+    def _configure_job_runs_parser(self, job_run_cmd: argparse.ArgumentParser) -> None:
+        job_run_cmd.add_argument(
+            "script_path_or_job_name",
+            nargs="?",
+            help="Local script path or job name. Required for all commands except `list`",
+        )
+        job_run_cmd.add_argument(
+            "run_number",
+            nargs="?",
+            type=int,
+            help=(
+                "Run number. Used in all commands except `list` and `create` as optional argument."
+                " If not specified, the latest run of given script be used."
+            ),
+        )
+        job_run_subparsers = job_run_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+        job_run_subparsers.add_parser(
+            "list",
+            help="List the job runs registered in the workspace",
+            description="List the job runs registered in the workspace",
+        )
+        job_run_subparsers.add_parser(
+            "info",
+            help="Show job run info",
+            description="Display detailed information about the job run",
+        )
+        job_run_subparsers.add_parser(
+            "create",
+            help="Create a job run without running it",
+            description="Manually create the job run",
+        )
+        logs_cmd = job_run_subparsers.add_parser(
+            "logs",
+            help="Show logs for the latest or selected job run",
+            description=(
+                "Show logs for the latest or selected job run. Use --follow to follow the logs in"
+                " tailing mode."
+            ),
+        )
+        logs_cmd.add_argument(
+            "-f",
+            "--follow",
+            action="store_true",
+            help="Follow the logs of the run in tailing mode",
+        )
+        job_run_subparsers.add_parser(
+            "cancel",
+            help="Cancel the latest or selected job run",
+            description="Cancel the latest or selected job run",
         )
 
     def _configure_configurations_parser(self, configuration_cmd: argparse.ArgumentParser) -> None:
+        # list/info/sync on configurations
         configuration_cmd.add_argument(
-            "--list",
-            "-l",
-            action=argparse.BooleanOptionalAction,
-            help="List all configurations in workspace",
-        )
-        configuration_cmd.add_argument(
-            "configuration_id", nargs="?", help="Configuration id (UUID)"
+            "configuration_version_no",
+            nargs="?",
+            type=int,
+            help="Configuration version number. Only used in the `info` subcommand",
         )
         configuration_subparsers = configuration_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
+        )
+        configuration_subparsers.add_parser(
+            "list",
+            help="List all configuration versions",
+            description="List all configuration versions",
         )
         configuration_subparsers.add_parser(
             "info",
@@ -1133,100 +1229,143 @@ class RuntimeCommand(SupportsCliCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        from dlt._workspace.cli._runtime_command import (
-            deploy,
-            fetch_run_logs,
-            get_api_client,
-            get_configuration_info,
-            get_configurations,
-            get_deployment_info,
-            get_deployments,
-            get_run_info,
-            get_runs,
-            get_script_info,
-            get_scripts,
-            login,
-            logout,
-            request_run_cancel,
-            run_script,
-            sync_configuration,
-            sync_deployment,
-        )
+        import dlt._workspace.cli._runtime_command as cmd
 
         if args.runtime_command == "login":
-            login(minimal_logging=False)
+            cmd.login(minimal_logging=False)
         elif args.runtime_command == "logout":
-            logout()
-        elif args.runtime_command == "deploy":
-            deploy(args.script_name, bool(args.interactive), args.profile)
+            cmd.logout()
         else:
-            auth_service = login()
-            api_client = get_api_client(auth_service)
-            if args.runtime_command == "run":
-                run_script(
-                    args.script_name_or_id,
-                    bool(args.interactive),
-                    args.profile,
+            auth_service = cmd.login()
+            api_client = cmd.get_api_client(auth_service)
+            if args.runtime_command == "launch":
+                cmd.launch(
+                    args.script_path,
+                    bool(args.detach),
                     auth_service=auth_service,
                     api_client=api_client,
                 )
-            elif args.runtime_command == "runs":
-                if args.list:
-                    get_runs(auth_service=auth_service, api_client=api_client)
-                elif args.operation == "info":
-                    get_run_info(
-                        script_name_or_run_id=args.script_name_or_run_id,
+            elif args.runtime_command == "serve":
+                cmd.serve(
+                    args.script_path,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
+            elif args.runtime_command == "schedule":
+                if args.cron_expr_or_cancel == "cancel":
+                    cmd.schedule_cancel(
+                        args.script_path,
+                        cancel_current=bool(args.current),
                         auth_service=auth_service,
                         api_client=api_client,
                     )
-                elif args.operation == "logs":
-                    fetch_run_logs(
-                        script_name_or_run_id=args.script_name_or_run_id,
+                else:
+                    cmd.schedule(
+                        args.script_path,
+                        args.cron_expr_or_cancel,
                         auth_service=auth_service,
                         api_client=api_client,
                     )
-                elif args.operation == "cancel":
-                    request_run_cancel(
-                        script_name_or_run_id=args.script_name_or_run_id,
-                        auth_service=auth_service,
-                        api_client=api_client,
-                    )
-                elif args.operation == "list":
-                    get_runs(
-                        script_name=args.script_name_or_run_id,  # raising downstream if run_id is passed
-                        auth_service=auth_service,
-                        api_client=api_client,
-                    )
+            elif args.runtime_command == "logs":
+                cmd.fetch_run_logs(
+                    args.script_path_or_job_name,
+                    args.run_number,
+                    args.follow,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
+            elif args.runtime_command == "cancel":
+                cmd.request_run_cancel(
+                    args.script_path_or_job_name,
+                    args.run_number,
+                    auth_service=auth_service,
+                    api_client=api_client,
+                )
+            elif args.runtime_command == "dashboard":
+                cmd.open_dashboard(auth_service=auth_service, api_client=api_client)
+            elif args.runtime_command == "deploy":
+                cmd.deploy(auth_service=auth_service, api_client=api_client)
+            elif args.runtime_command == "info":
+                cmd.runtime_info(auth_service=auth_service, api_client=api_client)
             elif args.runtime_command == "deployment":
-                if args.list:
-                    get_deployments(auth_service=auth_service, api_client=api_client)
+                if args.operation == "list" or not args.operation:
+                    cmd.get_deployments(auth_service=auth_service, api_client=api_client)
                 elif args.operation == "info":
-                    get_deployment_info(
-                        deployment_id=args.deployment_id,
+                    cmd.get_deployment_info(
+                        deployment_version_no=(
+                            int(args.deployment_version_no) if args.deployment_version_no else None
+                        ),
                         auth_service=auth_service,
                         api_client=api_client,
                     )
                 elif args.operation == "sync":
-                    sync_deployment(auth_service=auth_service, api_client=api_client)
-            elif args.runtime_command == "script":
-                if args.list:
-                    get_scripts(auth_service=auth_service, api_client=api_client)
+                    cmd.sync_deployment(auth_service=auth_service, api_client=api_client)
+            elif args.runtime_command in ("job", "jobs"):
+                if args.operation == "list" or not args.operation:
+                    cmd.jobs_list(auth_service=auth_service, api_client=api_client)
                 elif args.operation == "info":
-                    get_script_info(
-                        script_id_or_name=args.script_name_or_id,
+                    cmd.job_info(
+                        args.script_path_or_job_name,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "create":
+                    cmd.job_create(
+                        args.script_path_or_job_name,
+                        args,
                         auth_service=auth_service,
                         api_client=api_client,
                     )
             elif args.runtime_command == "configuration":
-                if args.list:
-                    get_configurations(auth_service=auth_service, api_client=api_client)
+                if args.operation == "list" or not args.operation:
+                    cmd.get_configurations(auth_service=auth_service, api_client=api_client)
                 elif args.operation == "info":
-                    get_configuration_info(
-                        configuration_id=args.configuration_id,
+                    cmd.get_configuration_info(
+                        configuration_version_no=(
+                            int(args.configuration_version_no)
+                            if args.configuration_version_no
+                            else None
+                        ),
                         auth_service=auth_service,
                         api_client=api_client,
                     )
                 elif args.operation == "sync":
-                    sync_configuration(auth_service=auth_service, api_client=api_client)
+                    cmd.sync_configuration(auth_service=auth_service, api_client=api_client)
+            elif args.runtime_command in ("job-run", "job-runs"):
+                # list runs across workspace or for a job
+                if args.operation == "list" or not args.operation:
+                    cmd.get_runs(
+                        args.script_path_or_job_name,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "create":
+                    cmd.create_job_run(
+                        args.script_path_or_job_name,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "info":
+                    cmd.get_job_run_info(
+                        args.script_path_or_job_name,
+                        args.run_number,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "logs":
+                    cmd.fetch_run_logs(
+                        args.script_path_or_job_name,
+                        args.run_number,
+                        args.follow,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
+                elif args.operation == "cancel":
+                    cmd.request_run_cancel(
+                        args.script_path_or_job_name,
+                        args.run_number,
+                        auth_service=auth_service,
+                        api_client=api_client,
+                    )
             else:
                 self.parser.print_usage()
