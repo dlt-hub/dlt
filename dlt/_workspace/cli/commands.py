@@ -1290,9 +1290,9 @@ class RuntimeCommand(SupportsCliCommand):
             elif args.runtime_command == "info":
                 cmd.runtime_info(auth_service=auth_service, api_client=api_client)
             elif args.runtime_command == "deployment":
-                if args.operation == "list" or not args.operation:
+                if args.operation == "list":
                     cmd.get_deployments(auth_service=auth_service, api_client=api_client)
-                elif args.operation == "info":
+                elif args.operation == "info" or not args.operation:
                     cmd.get_deployment_info(
                         deployment_version_no=(
                             int(args.deployment_version_no) if args.deployment_version_no else None
@@ -1321,9 +1321,9 @@ class RuntimeCommand(SupportsCliCommand):
                         api_client=api_client,
                     )
             elif args.runtime_command == "configuration":
-                if args.operation == "list" or not args.operation:
+                if args.operation == "list":
                     cmd.get_configurations(auth_service=auth_service, api_client=api_client)
-                elif args.operation == "info":
+                elif args.operation == "info" or not args.operation:
                     cmd.get_configuration_info(
                         configuration_version_no=(
                             int(args.configuration_version_no)

@@ -92,7 +92,7 @@ def login(minimal_logging: bool = True) -> RuntimeAuthService:
         auth_info = auth_service.authenticate()
         if not minimal_logging:
             fmt.echo("Already logged in as %s" % fmt.bold(auth_info.email))
-        connect(auth_service=auth_service)
+        connect(auth_service=auth_service, minimal_logging=minimal_logging)
         return auth_service
     except RuntimeNotAuthenticated:
         client = get_auth_client()
@@ -298,7 +298,6 @@ def get_job_run_info(
         run_id=_to_uuid(run_id),
     )
     if isinstance(get_run_result.parsed, get_run.DetailedRunResponse):
-        fmt.echo("Status of run %s" % fmt.bold(str(run_id)))
         fmt.echo(f"Job: {get_run_result.parsed.script.name}")
         fmt.echo(f"Run #: {get_run_result.parsed.number}")
         fmt.echo("Status: %s" % fmt.bold(get_run_result.parsed.status))
@@ -395,8 +394,7 @@ def get_runs(
         for run in reversed(list_runs_result.parsed.items or []):
             fmt.echo(
                 f"Run # {run.number} of job {run.script.name}, status: {run.status}, profile:"
-                f" {run.profile}, started at {run.time_started}, ended at {run.time_ended},"
-                f" run id: {run.id}"
+                f" {run.profile}, started at {run.time_started}, ended at {run.time_ended}"
             )
     else:
         raise _exception_from_response("Failed to list workspace runs", list_runs_result)
@@ -413,9 +411,8 @@ def get_deployments(*, auth_service: RuntimeAuthService, api_client: ApiClient) 
             return
         for deployment in reversed(list_deployments_result.parsed.items):
             fmt.echo(
-                f"Deployment # {deployment.version}, created at: {deployment.date_added}, id:"
-                f" {deployment.id}, file count: {deployment.file_count}, content hash:"
-                f" {deployment.content_hash}"
+                f"Deployment # {deployment.version}, created at: {deployment.date_added}, "
+                f"file count: {deployment.file_count}, content hash: {deployment.content_hash}"
             )
     else:
         raise _exception_from_response("Failed to list deployments", list_deployments_result)
@@ -441,7 +438,6 @@ def get_deployment_info(
     if isinstance(get_deployment_result.parsed, get_deployment.DeploymentResponse):
         fmt.echo(f"Deployment # {get_deployment_result.parsed.version}")
         fmt.echo(f"Created at: {get_deployment_result.parsed.date_added}")
-        fmt.echo(f"Deployment id: {get_deployment_result.parsed.id}")
         fmt.echo(f"File count: {get_deployment_result.parsed.file_count}")
         fmt.echo(f"Content hash: {get_deployment_result.parsed.content_hash}")
     else:
@@ -479,7 +475,7 @@ def request_run_cancel(
         run_id=_to_uuid(run_id),
     )
     if isinstance(cancel_run_result.parsed, cancel_run.DetailedRunResponse):
-        fmt.echo(f"Successfully requested cancellation of run {run_id}")
+        fmt.echo(f"Successfully requested cancellation of run # {run.number}")
     else:
         raise _exception_from_response("Failed to request cancellation of run", cancel_run_result)
 
@@ -494,7 +490,7 @@ def get_scripts(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> N
     ):
         for script in reversed(list_scripts_result.parsed.items):
             fmt.echo(
-                f"Script {script.name}, created at: {script.date_added}, id: {script.id}, version"
+                f"Script {script.name}, created at: {script.date_added}, version"
                 f" #: {script.version}"
             )
     else:
@@ -513,7 +509,7 @@ def get_script_info(
     if isinstance(get_script_result.parsed, get_script.DetailedScriptResponse):
         fmt.echo(
             f"Script {get_script_result.parsed.name}, created at:"
-            f" {get_script_result.parsed.date_added}, id: {get_script_result.parsed.id}, version #:"
+            f" {get_script_result.parsed.date_added}, version #:"
             f" {get_script_result.parsed.version}"
         )
     else:
@@ -576,7 +572,7 @@ def get_configurations(*, auth_service: RuntimeAuthService, api_client: ApiClien
         for configuration in reversed(list_configurations_result.parsed.items):
             fmt.echo(
                 f"Configuration # {configuration.version}, created at: {configuration.date_added},"
-                f" id: {configuration.id}, file count: {configuration.file_count}, content hash:"
+                f" file count: {configuration.file_count}, content hash:"
                 f" {configuration.content_hash}"
             )
     else:
@@ -603,7 +599,6 @@ def get_configuration_info(
     if isinstance(get_configuration_result.parsed, get_configuration.ConfigurationResponse):
         fmt.echo(f"Configuration # {get_configuration_result.parsed.version}")
         fmt.echo(f"Created at: {get_configuration_result.parsed.date_added}")
-        fmt.echo(f"Configuration id: {get_configuration_result.parsed.id}")
         fmt.echo(f"File count: {get_configuration_result.parsed.file_count}")
         fmt.echo(f"Content hash: {get_configuration_result.parsed.content_hash}")
     else:
@@ -771,8 +766,10 @@ def run_script(
     if not isinstance(create_script_result.parsed, create_or_update_script.ScriptResponse):
         raise _exception_from_response("Failed to create script", create_script_result)
     else:
-        script_id = create_script_result.parsed.id
-        fmt.echo(f"Job {script_file_name} created or updated successfully, id: {script_id}")
+        fmt.echo(
+            f"Job {script_file_name} created or updated successfully, version #:"
+            f" {create_script_result.parsed.version}"
+        )
 
     create_run_result = create_run.sync_detailed(
         client=api_client,
@@ -903,8 +900,8 @@ def schedule(
     )
     if isinstance(upsert.parsed, create_or_update_script.ScriptResponse):
         fmt.echo(
-            f"Scheduled {fmt.bold(script_path)} with cron {fmt.bold(cron)}. Job id:"
-            f" {upsert.parsed.id}"
+            f"Scheduled {fmt.bold(script_path)} with cron {fmt.bold(cron)}. Job version #:"
+            f" {upsert.parsed.version}"
         )
     else:
         raise _exception_from_response("Failed to schedule script", upsert)
@@ -1034,9 +1031,7 @@ def jobs_list(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> Non
         res.parsed.items, list
     ):
         for s in reversed(res.parsed.items):
-            fmt.echo(
-                f"Job {s.name}, created at: {s.date_added}, id: {s.id}, version #: {s.version}"
-            )
+            fmt.echo(f"Job {s.name}, created at: {s.date_added}, version #: {s.version}")
     else:
         raise _exception_from_response("Failed to list jobs", res)
 
@@ -1060,7 +1055,7 @@ def job_info(
     )
     if isinstance(res.parsed, get_script.DetailedScriptResponse):
         fmt.echo(
-            f"Job {res.parsed.name}, created at: {res.parsed.date_added}, id: {res.parsed.id},"
+            f"Job {res.parsed.name}, created at: {res.parsed.date_added},"
             f" version #: {res.parsed.version}"
         )
     else:
@@ -1129,7 +1124,7 @@ def job_create(
         ),
     )
     if isinstance(upsert.parsed, create_or_update_script.ScriptResponse):
-        fmt.echo(f"Job {fmt.bold(script_path)} created, id: {upsert.parsed.id}")
+        fmt.echo(f"Job {fmt.bold(script_path)} created, version #: {upsert.parsed.version}")
     else:
         raise _exception_from_response("Failed to create job", upsert)
 
