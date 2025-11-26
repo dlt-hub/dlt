@@ -346,7 +346,9 @@ class ModelItemsNormalizer(ItemsNormalizer):
             )
 
         outer_parsed_select, needs_reordering = self._build_outer_select_statement(
-            sql_dialect, parsed_select, self.schema.get_table_columns(root_table_name)
+            select_dialect=sql_dialect,
+            parsed_select=parsed_select,
+            columns=self.schema.get_table_columns(root_table_name, include_incomplete=True),
         )
 
         schema_updates = []
@@ -359,7 +361,9 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         if needs_reordering:
             self._reorder_or_adjust_outer_select(
-                outer_parsed_select, self.schema.get_table_columns(root_table_name), root_table_name
+                outer_parsed_select=outer_parsed_select,
+                columns=self.schema.get_table_columns(root_table_name, include_incomplete=True),
+                root_table_name=root_table_name,
             )
 
         # TODO the dialect here should be the "destination dialect"; i.e., the transpilation output
