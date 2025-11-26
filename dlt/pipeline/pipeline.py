@@ -1573,6 +1573,8 @@ class Pipeline(SupportsPipeline):
     def _get_state(self) -> TPipelineState:
         try:
             state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
+            if state.get("_local", {}).get("_last_dev_mode") and not self.dev_mode:
+                state = default_pipeline_state()
             migrated_state = migrate_pipeline_state(
                 self.pipeline_name,
                 state,
