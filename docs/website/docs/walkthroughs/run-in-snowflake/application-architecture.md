@@ -424,7 +424,7 @@ User-provided credentials are stored in the consumer account using Snowflake sec
 
 ### Architecture Diagram
 
-![Run dlt in Snowflake architecture](/img/snowflake-app-architecture.svg)
+![Run dlt in Snowflake architecture](/https://storage.googleapis.com/dlt-blog-images/snowflake-app-architecture.png)
 
 ### Components
 
@@ -674,6 +674,7 @@ All app functionality is accessed via authenticated Snowflake sessions. No funct
 
 
 
+### Incidents and support
 :::tip Support & security contact
 For Snowflake Natiev App support and security-related incidents reports, contact **support@dlthub.com**.  
 
