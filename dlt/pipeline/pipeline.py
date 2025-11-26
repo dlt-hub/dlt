@@ -1,6 +1,5 @@
 import contextlib
 import os
-import re
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
@@ -1248,11 +1247,16 @@ class Pipeline(SupportsPipeline):
 
         self.must_attach_to_local_pipeline = must_attach_to_local_pipeline
         # attach to pipeline if folder exists and contains state
+        reset_state: bool = False
         if has_state:
-            self._attach_pipeline()
-        else:
-            # this will erase the existing working folder
+            _local_state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
+            reset_state = (
+                bool(_local_state.get("_local", {}).get("_last_dev_mode")) and not self.dev_mode
+            )
+        if reset_state:
             self._create_pipeline()
+        else:
+            self._attach_pipeline()
 
         # create schema storage
         self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
@@ -1573,8 +1577,6 @@ class Pipeline(SupportsPipeline):
     def _get_state(self) -> TPipelineState:
         try:
             state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
-            if state.get("_local", {}).get("_last_dev_mode") and not self.dev_mode:
-                state = default_pipeline_state()
             migrated_state = migrate_pipeline_state(
                 self.pipeline_name,
                 state,
@@ -1690,13 +1692,14 @@ class Pipeline(SupportsPipeline):
 
     def _state_to_props(self, state: TPipelineState) -> None:
         """Write `state` to pipeline props."""
+        if state.get("_local", {}).get("_last_dev_mode") and not self.dev_mode:
+            state.pop("dataset_name", None)
+
         for prop in Pipeline.STATE_PROPS:
             if prop in state and not prop.startswith("_"):
                 setattr(self, prop, state[prop])  # type: ignore
         # access local state via a casted mapping to allow dynamic keys
         local_state = cast("Dict[str, Any]", state["_local"])
-        if local_state.get("_last_dev_mode") and not self.dev_mode:
-            self.dataset_name = self._make_dataset_name(None, self._destination)
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if prop in local_state and not prop.startswith("_"):
                 setattr(self, prop, local_state[prop])
@@ -1780,6 +1783,7 @@ class Pipeline(SupportsPipeline):
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.
         """
+        # ensure state reflects current props and toggle info before hashing/bumping
         self._props_to_state(state)
         _, hash_, _ = bump_pipeline_state_version_if_modified(state)
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
