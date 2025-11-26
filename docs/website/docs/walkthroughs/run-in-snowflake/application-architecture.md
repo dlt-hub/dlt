@@ -635,3 +635,11 @@ privileges:
 
 All app functionality is accessed via authenticated Snowflake sessions. No functionality can be accessed without authenticating through Snowflake first.
 
+
+
+:::tip Support & security contact
+For Snowflake Natiev App support and security-related incidents reports, contact **support@dlthub.com**.  
+
+
+We’ll get back to you within **three working days**.
+:::
