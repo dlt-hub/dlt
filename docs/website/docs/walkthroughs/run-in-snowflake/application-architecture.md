@@ -5,7 +5,7 @@ keywords: [snowflake, native app, dlt]
 ---
 
 
-# Application Architecture Documentation 
+# Snowflake Native App Architecture
 
 The dlt ingest app is a Snowflake Native App that uses Snowpark Container Servcies and dlt to extract, normalize, and load data from user-configured source systems into a Snowflake destination.
 
