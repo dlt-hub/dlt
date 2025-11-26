@@ -424,7 +424,44 @@ User-provided credentials are stored in the consumer account using Snowflake sec
 
 ### Architecture Diagram
 
-High-level visual of data flow and components.
+![Run dlt in Snowflake architecture](/img/snowflake-app-architecture.svg)
+
+### Components
+
+**Streamlit UI**  
+User-facing application hosted in Snowflake. It opens a Snowpark session and interacts only with Snowflake objects (tables, procedures, tasks) to manage pipelines and runs.
+
+**Snowflake Objects**  
+Schemas, tables, functions, procedures, and tasks created in the consumer account. They store pipeline configuration, orchestrate execution, and bridge the UI with Snowflake compute (compute pools and warehouses) and job services.
+
+**Job Service (SPCS)**  
+Containerized runtime executed by Snowflake. It connects to external sources via External Access Integrations and Secrets, merges UI configuration with integration metadata and secrets, and runs dlt to produce destination-ready loads.
+
+**Consumer Snowflake DB (Destination)**  
+The target database in the consumer account where normalized dlt output tables are created and maintained.
+
+**External Source System**  
+User-configured source database reachable through an External Access Integration and corresponding Secret.
+
+
+### End-to-end flow
+
+1. **User configures a pipeline in the UI** (e.g., pipeline name, source settings, scheduling options).
+2. **Streamlit UI opens a Snowpark session** and routes user actions (create/edit pipeline, run, schedule, delete) to stored procedures.
+3. **Snowflake objects persist configuration** by writing UI values into `config.*` tables.
+4. **Orchestration procedures prepare execution** by:
+   1. inserting a run record into `jobs.runs`,  
+   2. ensuring the required compute pool and warehouse exist or are updated,  
+   3. creating or updating a Snowflake task when scheduling is enabled.
+5. **Job service starts in Snowpark Container Services** and retrieves the pipeline configuration plus required integration references and secrets.
+6. **dlt extracts data from the external source** using credentials stored in Snowflake secrets.
+7. **dlt normalizes and loads data into the destination database** using the configured warehouse/compute pool.
+8. **Job service records pipeline state, logs, and status** by writing into `jobs.logs` and updating `jobs.runs`.
+9. **Streamlit “Runs” tab queries Snowflake tables** to display run history, details, and logs back to the user.
+
+
+
+
 
 ### Data Accessed / Porcessed by 
 
