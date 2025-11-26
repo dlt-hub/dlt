@@ -634,3 +634,4 @@ privileges:
 ### Authentication Requirements
 
 All app functionality is accessed via authenticated Snowflake sessions. No functionality can be accessed without authenticating through Snowflake first.
+

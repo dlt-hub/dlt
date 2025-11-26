@@ -394,8 +394,7 @@ const sidebars = {
             keywords: ["snowflake"]
           },
           items: [
-            "walkthroughs/run-in-snowflake/run-in-snowflake",
-            "walkthroughs/run-in-snowflake/application-architecture"
+            "walkthroughs/run-in-snowflake/run-in-snowflake"
           ]
         }
       ]
