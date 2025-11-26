@@ -274,6 +274,10 @@ def pipeline_details(
     # find the pipeline in all_pipelines and get the timestamp
     trace = pipeline.last_trace
 
+    last_executed = "No trace found"
+    if trace and hasattr(trace, "started_at"):
+        last_executed = _date_from_timestamp_with_ago(c, trace.started_at)
+
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,
         "destination": (
@@ -281,9 +285,7 @@ def pipeline_details(
             if pipeline.destination
             else "No destination set"
         ),
-        "last executed": (
-            _date_from_timestamp_with_ago(c, trace.started_at) if trace else "No trace found"
-        ),
+        "last executed": last_executed,
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
