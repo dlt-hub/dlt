@@ -25,13 +25,17 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
 def _attach(pipeline: Pipeline) -> Pipeline:
-    return dlt.attach(
+    p = dlt.attach(
         pipeline.pipeline_name,
         pipelines_dir=pipeline.pipelines_dir,
         destination=pipeline.destination,
         staging=pipeline.staging,
         dataset_name=pipeline.dataset_name,
     )
+    # After hard reset on dev→non-dev, restore local schema/state from destination
+    p.config.restore_from_destination = True
+    p.sync_destination()
+    return p
 
 
 @dlt.source(section="droppable", name="droppable")

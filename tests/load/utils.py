@@ -280,6 +280,10 @@ class DestinationTestConfiguration:
         kwargs.setdefault("pipelines_dir", getattr(self, "_last_pipelines_dir", None))
         kwargs.setdefault("dev_mode", getattr(self, "_last_dev_mode", self.dev_mode))
         pipeline = dlt.attach(pipeline_name, **kwargs)
+        # Embrace hard reset semantics: if local schemas are gone after attach, restore from destination
+        if not pipeline._schema_storage.list_schemas():
+            pipeline.config.restore_from_destination = True
+            pipeline.sync_destination()
         return pipeline
 
     def supports_sql_client(self, pipeline: dlt.Pipeline) -> bool:
