@@ -171,9 +171,12 @@ def connect(
 def deploy(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
     sync_deployment(auth_service=auth_service, api_client=api_client)
     sync_configuration(auth_service=auth_service, api_client=api_client)
+    fmt.echo("Deployment and configuration synchronized successfully")
 
 
-def sync_deployment(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+def sync_deployment(
+    minimal_logging: bool = True, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
     content_stream = BytesIO()
     package_builder = PackageBuilder(context=active())
     package_hash = package_builder.write_package_to_stream(
@@ -186,11 +189,13 @@ def sync_deployment(*, auth_service: RuntimeAuthService, api_client: ApiClient) 
     )
     if isinstance(latest_deployment.parsed, get_latest_deployment.DeploymentResponse):
         if latest_deployment.parsed.content_hash == package_hash:
-            fmt.echo("No changes detected in the deployment, skipping file upload")
+            if not minimal_logging:
+                fmt.echo("No changes detected in the deployment, skipping file upload")
             content_stream.close()
             return
     elif isinstance(latest_deployment.parsed, get_latest_deployment.ErrorResponse404):
-        fmt.echo("No deployment found in this workspace, creating new deployment")
+        if not minimal_logging:
+            fmt.echo("No deployment found in this workspace, creating new deployment")
     else:
         content_stream.close()
         raise _exception_from_response("Failed to get latest deployment", latest_deployment)
@@ -205,15 +210,17 @@ def sync_deployment(*, auth_service: RuntimeAuthService, api_client: ApiClient) 
         ),
     )
     if isinstance(create_deployment_result.parsed, create_deployment.DeploymentResponse):
-        fmt.echo(f"Deployment # {create_deployment_result.parsed.version} created successfully")
-        fmt.echo(f"Deployment id: {create_deployment_result.parsed.id}")
-        fmt.echo(f"File count: {create_deployment_result.parsed.file_count}")
-        fmt.echo(f"Content hash: {create_deployment_result.parsed.content_hash}")
+        if not minimal_logging:
+            fmt.echo(f"Deployment # {create_deployment_result.parsed.version} created successfully")
+            fmt.echo(f"File count: {create_deployment_result.parsed.file_count}")
+            fmt.echo(f"Content hash: {create_deployment_result.parsed.content_hash}")
     else:
         raise _exception_from_response("Failed to create deployment", create_deployment_result)
 
 
-def sync_configuration(*, auth_service: RuntimeAuthService, api_client: ApiClient) -> None:
+def sync_configuration(
+    minimal_logging: bool = True, *, auth_service: RuntimeAuthService, api_client: ApiClient
+) -> None:
     content_stream = BytesIO()
     package_builder = PackageBuilder(context=active())
     package_hash = package_builder.write_package_to_stream(
@@ -226,11 +233,13 @@ def sync_configuration(*, auth_service: RuntimeAuthService, api_client: ApiClien
     )
     if isinstance(latest_configuration.parsed, get_latest_configuration.ConfigurationResponse):
         if latest_configuration.parsed.content_hash == package_hash:
-            fmt.echo("No changes detected in the configuration, skipping file upload")
+            if not minimal_logging:
+                fmt.echo("No changes detected in the configuration, skipping file upload")
             content_stream.close()
             return
     elif isinstance(latest_configuration.parsed, get_latest_configuration.ErrorResponse404):
-        fmt.echo("No configuration found in this workspace, creating new configuration")
+        if not minimal_logging:
+            fmt.echo("No configuration found in this workspace, creating new configuration")
     else:
         content_stream.close()
         raise _exception_from_response("Failed to get latest configuration", latest_configuration)
@@ -247,12 +256,12 @@ def sync_configuration(*, auth_service: RuntimeAuthService, api_client: ApiClien
         ),
     )
     if isinstance(create_configuration_result.parsed, create_configuration.ConfigurationResponse):
-        fmt.echo(
-            f"Configuration # {create_configuration_result.parsed.version} created successfully"
-        )
-        fmt.echo(f"Configuration id: {create_configuration_result.parsed.id}")
-        fmt.echo(f"File count: {create_configuration_result.parsed.file_count}")
-        fmt.echo(f"Content hash: {create_configuration_result.parsed.content_hash}")
+        if not minimal_logging:
+            fmt.echo(
+                f"Configuration # {create_configuration_result.parsed.version} created successfully"
+            )
+            fmt.echo(f"File count: {create_configuration_result.parsed.file_count}")
+            fmt.echo(f"Content hash: {create_configuration_result.parsed.content_hash}")
     else:
         raise _exception_from_response(
             "Failed to create configuration", create_configuration_result

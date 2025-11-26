@@ -1301,7 +1301,9 @@ class RuntimeCommand(SupportsCliCommand):
                         api_client=api_client,
                     )
                 elif args.operation == "sync":
-                    cmd.sync_deployment(auth_service=auth_service, api_client=api_client)
+                    cmd.sync_deployment(
+                        minimal_logging=False, auth_service=auth_service, api_client=api_client
+                    )
             elif args.runtime_command in ("job", "jobs"):
                 if args.operation == "list" or not args.operation:
                     cmd.jobs_list(auth_service=auth_service, api_client=api_client)
@@ -1332,7 +1334,9 @@ class RuntimeCommand(SupportsCliCommand):
                         api_client=api_client,
                     )
                 elif args.operation == "sync":
-                    cmd.sync_configuration(auth_service=auth_service, api_client=api_client)
+                    cmd.sync_configuration(
+                        minimal_logging=False, auth_service=auth_service, api_client=api_client
+                    )
             elif args.runtime_command in ("job-run", "job-runs"):
                 # list runs across workspace or for a job
                 if args.operation == "list" or not args.operation:
