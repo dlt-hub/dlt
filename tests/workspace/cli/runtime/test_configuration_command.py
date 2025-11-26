@@ -69,20 +69,23 @@ def test_runtime_configuration_list_outputs_all(script_runner: ScriptRunner) -> 
     assert result.returncode == 0
 
     out = result.stdout
-    expected_line_v2 = (
-        f"Configuration # {CONFIG_2.version}, created at: {CONFIG_2.date_added}, id:"
-        f" {CONFIG_2.id}, file count: {CONFIG_2.file_count}, content hash:"
-        f" {CONFIG_2.content_hash}"
-    )
-    expected_line_v1 = (
-        f"Configuration # {CONFIG_1.version}, created at: {CONFIG_1.date_added}, id:"
-        f" {CONFIG_1.id}, file count: {CONFIG_1.file_count}, content hash:"
-        f" {CONFIG_1.content_hash}"
-    )
-    assert expected_line_v2 in out
-    assert expected_line_v1 in out
+    # Headers
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    # Values for latest (v2)
+    assert str(CONFIG_2.version) in out
+    assert CONFIG_2.date_added.isoformat() in out
+    assert str(CONFIG_2.file_count) in out
+    assert CONFIG_2.content_hash in out
+    # Values for previous (v1)
+    assert str(CONFIG_1.version) in out
+    assert CONFIG_1.date_added.isoformat() in out
+    assert str(CONFIG_1.file_count) in out
+    assert CONFIG_1.content_hash in out
     # Order should be latest first (because CLI reverses the list)
-    assert out.find("Configuration # 2") < out.find("Configuration # 1")
+    assert out.find(CONFIG_2.content_hash) < out.find(CONFIG_1.content_hash)
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -97,11 +100,15 @@ def test_runtime_configuration_info_latest(script_runner: ScriptRunner) -> None:
 
     assert result.returncode == 0
     out = result.stdout
-    assert f"Configuration # {CONFIG_2.version}" in out
-    assert f"Created at: {CONFIG_2.date_added}" in out
-    assert f"Configuration id: {CONFIG_2.id}" in out
-    assert f"File count: {CONFIG_2.file_count}" in out
-    assert f"Content hash: {CONFIG_2.content_hash}" in out
+    # Headers and values in tabulated output
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    assert str(CONFIG_2.version) in out
+    assert CONFIG_2.date_added.isoformat() in out
+    assert str(CONFIG_2.file_count) in out
+    assert CONFIG_2.content_hash in out
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -121,11 +128,15 @@ def test_runtime_configuration_info_version_1_by_version_number(
 
     assert result.returncode == 0
     out = result.stdout
-    assert f"Configuration # {CONFIG_1.version}" in out
-    assert f"Created at: {CONFIG_1.date_added}" in out
-    assert f"Configuration id: {CONFIG_1.id}" in out
-    assert f"File count: {CONFIG_1.file_count}" in out
-    assert f"Content hash: {CONFIG_1.content_hash}" in out
+    # Headers and values in tabulated output
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    assert str(CONFIG_1.version) in out
+    assert CONFIG_1.date_added.isoformat() in out
+    assert str(CONFIG_1.file_count) in out
+    assert CONFIG_1.content_hash in out
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -159,11 +170,14 @@ def test_runtime_configuration_sync_happy_path_creates_new(script_runner: Script
 
     assert result.returncode == 0
     out = result.stdout
-    # Should report successful creation with details from CONFIG_2
-    assert f"Configuration # {CONFIG_2.version} created successfully" in out
-    assert f"Configuration id: {CONFIG_2.id}" in out
-    assert f"File count: {CONFIG_2.file_count}" in out
-    assert f"Content hash: {CONFIG_2.content_hash}" in out
+    # Should tabulate details from CONFIG_2
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    assert str(CONFIG_2.version) in out
+    assert str(CONFIG_2.file_count) in out
+    assert CONFIG_2.content_hash in out
 
     # Validate calls used workspace id and client were passed through
     latest_kwargs = latest_mock.call_args.kwargs

@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 from pytest_console_scripts import ScriptRunner
 
-from dlt._workspace.runtime_clients.api.models.deployment_response import DeploymentResponse
 from dlt._workspace.cli import _runtime_command as rc
+from dlt._workspace.runtime_clients.api.models.deployment_response import DeploymentResponse
 from dlt._workspace.runtime_clients.api.models.list_deployments_response_200 import (
     ListDeploymentsResponse200,
 )
@@ -67,20 +67,23 @@ def test_runtime_deployment_list_outputs_all(script_runner: ScriptRunner) -> Non
     assert result.returncode == 0
 
     out = result.stdout
-    expected_line_v2 = (
-        f"Deployment # {DEPLOYMENT_2.version}, created at: {DEPLOYMENT_2.date_added}, id:"
-        f" {DEPLOYMENT_2.id}, file count: {DEPLOYMENT_2.file_count}, content hash:"
-        f" {DEPLOYMENT_2.content_hash}"
-    )
-    expected_line_v1 = (
-        f"Deployment # {DEPLOYMENT_1.version}, created at: {DEPLOYMENT_1.date_added}, id:"
-        f" {DEPLOYMENT_1.id}, file count: {DEPLOYMENT_1.file_count}, content hash:"
-        f" {DEPLOYMENT_1.content_hash}"
-    )
-    assert expected_line_v2 in out
-    assert expected_line_v1 in out
+    # Headers
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    # Values for latest (v2)
+    assert str(DEPLOYMENT_2.version) in out
+    assert DEPLOYMENT_2.date_added.isoformat() in out
+    assert str(DEPLOYMENT_2.file_count) in out
+    assert DEPLOYMENT_2.content_hash in out
+    # Values for previous (v1)
+    assert str(DEPLOYMENT_1.version) in out
+    assert DEPLOYMENT_1.date_added.isoformat() in out
+    assert str(DEPLOYMENT_1.file_count) in out
+    assert DEPLOYMENT_1.content_hash in out
     # Order should be latest first (because CLI reverses the list)
-    assert out.find("Deployment # 2") < out.find("Deployment # 1")
+    assert out.find(DEPLOYMENT_2.content_hash) < out.find(DEPLOYMENT_1.content_hash)
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -95,11 +98,15 @@ def test_runtime_deployment_info_latest(script_runner: ScriptRunner) -> None:
 
     assert result.returncode == 0
     out = result.stdout
-    assert f"Deployment # {DEPLOYMENT_2.version}" in out
-    assert f"Created at: {DEPLOYMENT_2.date_added}" in out
-    assert f"Deployment id: {DEPLOYMENT_2.id}" in out
-    assert f"File count: {DEPLOYMENT_2.file_count}" in out
-    assert f"Content hash: {DEPLOYMENT_2.content_hash}" in out
+    # Headers and values in tabulated output
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    assert str(DEPLOYMENT_2.version) in out
+    assert DEPLOYMENT_2.date_added.isoformat() in out
+    assert str(DEPLOYMENT_2.file_count) in out
+    assert DEPLOYMENT_2.content_hash in out
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -117,11 +124,15 @@ def test_runtime_deployment_info_version_1_by_version_number(script_runner: Scri
 
     assert result.returncode == 0
     out = result.stdout
-    assert f"Deployment # {DEPLOYMENT_1.version}" in out
-    assert f"Created at: {DEPLOYMENT_1.date_added}" in out
-    assert f"Deployment id: {DEPLOYMENT_1.id}" in out
-    assert f"File count: {DEPLOYMENT_1.file_count}" in out
-    assert f"Content hash: {DEPLOYMENT_1.content_hash}" in out
+    # Headers and values in tabulated output
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    assert str(DEPLOYMENT_1.version) in out
+    assert DEPLOYMENT_1.date_added.isoformat() in out
+    assert str(DEPLOYMENT_1.file_count) in out
+    assert DEPLOYMENT_1.content_hash in out
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -154,11 +165,14 @@ def test_runtime_deployment_sync_happy_path_creates_new(script_runner: ScriptRun
 
     assert result.returncode == 0
     out = result.stdout
-    # Should report successful creation with details from DEPLOYMENT_2
-    assert f"Deployment # {DEPLOYMENT_2.version} created successfully" in out
-    assert f"Deployment id: {DEPLOYMENT_2.id}" in out
-    assert f"File count: {DEPLOYMENT_2.file_count}" in out
-    assert f"Content hash: {DEPLOYMENT_2.content_hash}" in out
+    # Should tabulate details from DEPLOYMENT_2
+    assert "Version #" in out
+    assert "Created at" in out
+    assert "File count" in out
+    assert "Content hash" in out
+    assert str(DEPLOYMENT_2.version) in out
+    assert str(DEPLOYMENT_2.file_count) in out
+    assert DEPLOYMENT_2.content_hash in out
 
     # Validate calls used workspace id and client were passed through
     latest_kwargs = latest_mock.call_args.kwargs
