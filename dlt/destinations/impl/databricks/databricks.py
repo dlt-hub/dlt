@@ -80,7 +80,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                 backend.staging_allowed_local_path = file_dir
             else:
                 # thrift backend discontinued on newer databricks connector clients
-                conn_.staging_allowed_local_path = file_dir
+                conn_.staging_allowed_local_path = file_dir  # type: ignore[attr-defined,unused-ignore]
             # local file by uploading to a temporary volume on Databricks
             from_clause, file_name, volume_path, volume_file_path = self._handle_local_file_upload(
                 self._file_path
@@ -393,11 +393,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         return ""
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        separate_alters: bool = False,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
 
