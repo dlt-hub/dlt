@@ -1249,15 +1249,15 @@ class Pipeline(SupportsPipeline):
         # attach to pipeline if folder exists and contains state
         reset_state: bool = False
         if has_state:
-            _local_state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
-            reset_state = (
-                bool(_local_state.get("_local", {}).get("_last_dev_mode")) and not self.dev_mode
-            )
+            _last_dev_move = self.get_local_state_val("dev_mode")
+            reset_state = _last_dev_move and not self.dev_mode
         if reset_state:
             self._create_pipeline()
         else:
             self._attach_pipeline()
 
+        self.set_local_state_val("dev_mode", self.dev_mode)
+        self.set_local_state_val("dataset_name", self.dataset_name)
         # create schema storage
         self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
 
@@ -1535,7 +1535,7 @@ class Pipeline(SupportsPipeline):
             if destination and issubclass(destination.spec, DestinationClientDwhConfiguration):
                 destination_needs_dataset = destination.spec.needs_dataset_name()
             # if destination is not specified - generate dataset
-            if destination_needs_dataset:
+            if destination_needs_dataset or self.get_local_state_val("dataset_name") is not None:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
@@ -1692,9 +1692,6 @@ class Pipeline(SupportsPipeline):
 
     def _state_to_props(self, state: TPipelineState) -> None:
         """Write `state` to pipeline props."""
-        if state.get("_local", {}).get("_last_dev_mode") and not self.dev_mode:
-            state.pop("dataset_name", None)
-
         for prop in Pipeline.STATE_PROPS:
             if prop in state and not prop.startswith("_"):
                 setattr(self, prop, state[prop])  # type: ignore
@@ -1743,7 +1740,6 @@ class Pipeline(SupportsPipeline):
         if self._staging:
             state["staging_type"] = self._staging.destination_type
             state["staging_name"] = self._staging.configured_name
-        state["_local"]["_last_dev_mode"] = self.dev_mode
         state["schema_names"] = self._list_schemas_sorted()
         return state
 
@@ -1784,7 +1780,6 @@ class Pipeline(SupportsPipeline):
         Storage will be created on demand. In that case the extracted package will be immediately committed.
         """
         # ensure state reflects current props and toggle info before hashing/bumping
-        self._props_to_state(state)
         _, hash_, _ = bump_pipeline_state_version_if_modified(state)
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
         if should_extract and extract_state:

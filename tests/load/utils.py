@@ -269,7 +269,6 @@ class DestinationTestConfiguration:
         self._last_destination = destination
         self._last_staging = staging_val
         self._last_pipelines_dir = pipeline.pipelines_dir
-        self._last_dev_mode = dev_mode
 
         return pipeline
 
@@ -280,7 +279,9 @@ class DestinationTestConfiguration:
         kwargs.setdefault("staging", getattr(self, "_last_staging", None))
         kwargs.setdefault("dataset_name", getattr(self, "_last_dataset_name", None))
         kwargs.setdefault("pipelines_dir", getattr(self, "_last_pipelines_dir", None))
-        kwargs.setdefault("dev_mode", getattr(self, "_last_dev_mode", getattr(self, "dev_mode", False)))
+        kwargs.setdefault(
+            "dev_mode", getattr(self, "_last_dev_mode", getattr(self, "dev_mode", False))
+        )
 
         pipeline = dlt.attach(pipeline_name, **kwargs)
         # Embrace hard reset semantics: if local schemas are gone after attach, restore from destination
