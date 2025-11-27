@@ -133,6 +133,9 @@ weaviate = [
 mssql = [
     "pyodbc>=4.0.39"
 ]
+oracle = [
+    "oracledb>=3.4.1"
+]
 synapse = [
     "pyodbc>=4.0.39",
     "adlfs>=2024.7.0",
