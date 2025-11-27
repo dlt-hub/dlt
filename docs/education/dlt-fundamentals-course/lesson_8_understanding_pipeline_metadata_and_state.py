@@ -10,10 +10,10 @@ def _(mo):
         r"""
         # **Recap of [Lesson 7](https://colab.research.google.com/drive/1LokUcM5YSazdq5jfbkop-Z5rmP-39y4r#forceEdit=true&sandboxMode=true) 👩‍💻🚀**
 
-        1. Learned what is a schema.
+        1. Learned what a schema is.
         2. Explored schema settings and components.
-        3. Learned how to retrieve dlt pipeline schema.
-        4. Learned how to adjust schema.
+        3. Learned how to retrieve a dlt pipeline schema.
+        4. Learned how to adjust the schema.
         """
     )
     return
@@ -29,9 +29,9 @@ def _(mo):
 
 
         **Here, you will learn or brush up on:**
-        - What's pipeline metadata
+        - What pipeline metadata is
         - Exploring pipeline metadata from load info
-        - Exploring pipeline metadate from trace
+        - Exploring pipeline metadata from trace
         - Exploring pipeline metadata from state
         """
     )
@@ -54,17 +54,16 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Metadata is basically data about data.
+        **Metadata** is essentially *data about data*.
 
-        Pipeline Metadata is data about your data pipeline. This can be useful if you want to know things like:
+        **Pipeline metadata** is data about your data pipeline. This is useful when you want to know things like:
 
         - When your pipeline first ran
         - When your pipeline last ran
         - Information about your source or destination
         - Processing time
-        - Or information that you yourself may want to add to the metadata
+        - Custom metadata you add yourself
         - And much more!
-
         """
     )
     return
@@ -84,9 +83,9 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-         `dlt` allows you to be able to view all this metadata through various options!
+        `dlt` allows you to view all this metadata through various options!
 
-        This notebook will walk you through those options. Namely:
+        This notebook will walk you through those options, namely:
 
         - Load info
         - Trace
@@ -100,7 +99,9 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Let's load some GitHub data to DuckDB to inspect the pipeline metadata in different ways. First we need to install dlt with DuckDB:
+        Let's load some GitHub data into DuckDB to inspect the pipeline metadata in different ways.
+        First, we need to install `dlt` with DuckDB:
+
         """
     )
     return
@@ -118,7 +119,7 @@ def _():
 def _(mo):
     mo.md(
         r"""
-        Define a dlt resource that fetches Pull Requests and wrap it in a dlt source:
+        Define a `dlt` resource that fetches Pull Requests and wrap it in a `dlt` source:
         """
     )
     return
@@ -225,13 +226,13 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        From the [`Inspecting & Adjusting Schema`](https://colab.research.google.com/drive/1LokUcM5YSazdq5jfbkop-Z5rmP-39y4r) Colab we've already learned that we can see which schema changes a load package has introduced with the command:
+        From the [`Inspecting & Adjusting Schema`](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb) section, we've already learned that we can see which schema changes a load package introduced with the command:
 
         ```
         dlt pipeline -v <pipeline_name> load-package
         ```
 
-        The verbose flag only accounts for the schema changes, so if we run it without the flag, we will still see the most recent load package info:
+        The verbose flag only shows schema changes, so if we run it **without** the flag, we will still see the most recent load package info:
         """
     )
     return
@@ -249,9 +250,10 @@ app._unparsable_cell(
 def _(mo):
     mo.md(
         r"""
-        The `load_id` of a particular package is added to the top data tables (parent tables) and to the special `_dlt_loads` table with a status of 0 when the load process is fully completed. The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them.
+        The `load_id` of a particular package is added to the top data tables (parent tables) and to the special `_dlt_loads` table with a status of `0` when the load process is fully completed. The `_dlt_loads` table tracks completed loads and allows chaining transformations on top of them.
 
-        We can also see load package info with a specific load id:
+        We can also view load package info for a specific `load_id` (replace the value with the one output above):
+
         """
     )
     return
@@ -281,12 +283,12 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        From the [`Inspecting & Adjusting Schema`](https://colab.research.google.com/drive/1LokUcM5YSazdq5jfbkop-Z5rmP-39y4r?usp=sharing) Colab we've also learned that a schema can be accessed with:
+        From the [`Inspecting & Adjusting Schema`](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb) section, we've also learned that a schema can be accessed with:
 
         ```python
         print(load_info.load_packages[0].schema)
         ```
-        Similarly if we drop the schema part, we will just get the load package info:
+        Similarly, if we drop the schema part, we will get the load package info:
         """
     )
     return
@@ -365,7 +367,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        You can access pipeline trace using the command:
+        You can access the pipeline trace using the command:
 
 
         ```
@@ -380,7 +382,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Try on the github issues pipeline:
+        Try running it on the github issues pipeline:
         """
     )
     return
@@ -461,7 +463,7 @@ def _(pipeline):
 def _(mo):
     mo.md(
         r"""
-        In particular how many rows of data were normalized:
+        How many rows of data were normalized:
         """
     )
     return
@@ -510,17 +512,19 @@ def _(mo):
     mo.md(
         r"""
         **When to use pipeline state**
-        - dlt uses the state internally to implement last value incremental loading. This use case should cover around 90% of your needs to use the pipeline state.
+        - `dlt` uses the state internally to implement last value incremental loading. This use case should cover around 90% of your needs to use the pipeline state.
         - Store a list of already requested entities if the list is not much bigger than 100k elements.
         - Store large dictionaries of last values if you are not able to implement it with the standard incremental construct.
         - Store the custom fields dictionaries, dynamic configurations and other source-scoped state.
 
         **When not to use pipeline state**
 
-        Do not use dlt state when it may grow to millions of elements. Do you plan to store modification timestamps of all of your millions of user records? This is probably a bad idea! In that case you could:
+        Do not use `dlt` state when it may grow to millions of elements.
+        For example, storing modification timestamps for millions of user records is a bad idea.
+        In that case, you could:
 
-        - Store the state in dynamo-db, redis etc. taking into the account that if the extract stage fails you'll end with invalid state.
-        - Use your loaded data as the state. dlt exposes the current pipeline via dlt.current.pipeline() from which you can obtain sqlclient and load the data of interest. In that case try at least to process your user records in batches.
+        - Store the state in DynamoDB, Redis, etc., keeping in mind that if the extract stage fails, you may end up with invalid state.
+        - Use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()`, from which you can obtain a `sql_client` and load the data you need. If you choose this approach, try to process your user records in batches.
         """
     )
     return
@@ -670,7 +674,7 @@ def _(read_state):
 def _(mo):
     mo.md(
         r"""
-        In the state you will see the new items:
+        In the state, you will see the new items:
         """
     )
     return
@@ -789,11 +793,10 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        You can also access the source-scoped state with `dlt.current.source_state()` which can be shared across resources of a particular source and is also available **read-only** in the source-decorated functions. The most common use case for the source-scoped state is to store mapping of custom fields to their displayable names.
+        You can also access the source-scoped state with `dlt.current.source_state()` which can be shared across resources of a particular source and is also available **read-only** in the source-decorated functions. The most common use case for the source-scoped state is to store the mapping of custom fields to their displayable names.
 
-        Let's read some custom keys from the state:
+        Let's read some custom keys from the state with:
         ```python
-        # Let's read some custom state information
         source_new_keys = dlt.current.source_state().get("resources", {}).get("github_pulls", {}).get("new_key")
         ```
         Full example:
@@ -869,17 +872,24 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        What if you run your pipeline on, for example, Airflow where every task gets a clean filesystem and pipeline working directory is always deleted?
+        What if you run your pipeline on, for example, Airflow, where every task gets a clean filesystem and the pipeline working directory is always deleted?
 
-        **dlt loads** your **state** into the destination **together** with all other **data** and when faced with a clean start, it will try to restore state from the destination.
+        **dlt loads** your **state** into the destination **together** with all other **data**, and when starting from a clean slate, it will try to restore the state from the destination.
 
-        The remote state is identified by pipeline name, the destination location (as given by the credentials) and destination dataset. To re-use **the same state**, use **the same pipeline name** and destination.
+        The remote state is identified by the pipeline name, the destination location (as defined by the credentials), and the destination dataset.
+        To reuse **the same state**, use **the same pipeline name** and the same destination.
 
-        The state is stored in the `_dlt_pipeline_state` table at the destination and contains information about the pipeline, pipeline run (that the state belongs to) and state blob.
+        The state is stored in the `_dlt_pipeline_state` table at the destination and contains information about the pipeline, the pipeline run (to which the state belongs), and the state blob.
 
-        dlt has `dlt pipeline <pipeline name> sync` command where you can request the state back from that table.
+        `dlt` provides the command:
 
-        💡 If you can keep the pipeline working directory across the runs, you can disable the state sync by setting `restore_from_destination=false` i.e. in your `config.toml`.
+        ```
+        dlt pipeline <pipeline name> sync
+        ```
+
+        which retrieves the state from that table.
+
+        💡 If you can keep the pipeline working directory across runs, you can disable state sync by setting `restore_from_destination = false` in your `config.toml`.
         """
     )
     return
@@ -903,7 +913,7 @@ def _(pipeline_3):
 def _(mo):
     mo.md(
         r"""
-        Column "state" is compressed json dictionary.
+        The "state" column is a compressed json dictionary.
         """
     )
     return
@@ -947,14 +957,14 @@ def _(mo):
         r"""
         **To fully reset the state:**
 
-        Drop the destination dataset to fully reset the pipeline.
-        Set the `dev_mode` flag when creating pipeline.
-        Use the `dlt pipeline drop --drop-all` command to drop state and tables for a given schema name.
+        - Drop the destination dataset to fully reset the pipeline.
+        - Set the `dev_mode` flag when creating the pipeline.
+        - Use the `dlt pipeline drop --drop-all` command to drop state and tables for a given schema name.
 
         **To partially reset the state:**
 
-        Use the `dlt pipeline drop <resource_name>` command to drop state and tables for a given resource.
-        Use the `dlt pipeline drop --state-paths` command to reset the state at given path without touching the tables and data.
+        - Use the `dlt pipeline drop <resource_name>` command to drop state and tables for a given resource.
+        - Use the `dlt pipeline drop --state-paths` command to reset the state at a given path without touching the tables or data.
         """
     )
     return
@@ -964,9 +974,9 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        **Example for partial reset:**
+        **Example for a partial reset:**
 
-        >  in an ipynb environment, when the duckdb connection we opened is not yet closed -> close the connection before attempting to edit the pipeline through the CLI
+        >  In an ipynb environment, when the duckdb connection we opened is not yet closed -> close the connection before attempting to edit the pipeline through the CLI.
         """
     )
     return
@@ -998,7 +1008,7 @@ app._unparsable_cell(
 def _(mo):
     mo.md(
         r"""
-        🎊🎊🎊 That is actually it! We hope you enjoyed this course and learned more about dlt! 🎊🎊🎊
+        🎊🎊🎊 That's it! We hope you enjoyed this course and learned more about `dlt`! 🎊🎊🎊
 
         Please share your feedback with us: [Feedback Google Form](https://forms.gle/1NYrGcRj5gLQ4WDt8) 🌼
         """
