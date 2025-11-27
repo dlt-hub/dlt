@@ -8,14 +8,14 @@ app = marimo.App()
 def _(mo):
     mo.md(
         r"""
-        # **Recap of [Lesson 5](https://colab.research.google.com/drive/1Zf24gIVMNNj9j-gtXFl8p0orI9ttySDn#forceEdit=true&sandboxMode=true) 👩‍💻🚀**
+        # **Recap of [Lesson 5](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_5_write_disposition_and_incremental_loading.ipynb) 👩‍💻🚀**
 
-        1. Explored 3 dlt write dispositions:
-          * append;
-          * replace;
-          * merge.
-        2. Learned how to update and depuplicate data
-        3. Created incremental pipeline
+        1. Explored 3 `dlt` write dispositions:
+           - append
+           - replace
+           - merge
+        2. Learned how to update and deduplicate data
+        3. Created an incremental pipeline
 
         """
     )
@@ -30,12 +30,12 @@ def _(mo):
 
 
         **Here, you will learn:**
-        - Three main steps:
-          - Extract;
-          - Normalize;
-          - Load.
-        - Some default behaviour.
-        - About file formats.
+        - The 3 main steps of a pipeline run:
+          - Extract
+          - Normalize
+          - Load
+        - Some default behaviors
+        - Supported file formats
         """
     )
     return
@@ -47,7 +47,7 @@ def _(mo):
         r"""
         ## **Introduction**
 
-        The main building block of dlt is the **pipeline**, which orchestrates the loading of data from your source into your destination in three discrete steps when you call its **run** method.
+        The main building block of `dlt` is the **pipeline**, which orchestrates the loading of data from your source into your destination in three discrete steps when you call its **run** method.
         """
     )
     return
@@ -67,7 +67,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        # **Understing `pipeline.run()`**
+        # **Understanding `pipeline.run()`**
          The `pipeline.run()` method executes the entire pipeline, encompassing the [`extract`](#scrollTo=4C0U1dnwZxAB), [`normalize`](#scrollTo=bCeUqaW_cRSh), and [`load`](#scrollTo=Rn6cUc0OcWsk) stages.
         """
     )
@@ -139,12 +139,12 @@ def _(mo):
         The `progress="log"` argument in the `dlt.pipeline` configuration enables detailed logging of the pipeline’s progress during execution. These logs provide visibility into the pipeline’s operations, showing how data flows through the **Extract**, **Normalize**, and **Load** phases. The logs include real-time metrics such as resource or file counts, time elapsed, processing rates, memory usage, and CPU utilization.
 
 
-        dlt supports 4 progress monitors out of the box:
+        `dlt` supports 4 progress monitors out of the box:
 
         * `enlighten` - a status bar with progress bars that also allows for logging.
         * `tqdm` - the most popular Python progress bar lib, proven to work in Notebooks.
         * `alive_progress` - with the most fancy animations.
-        * `log` - dumps the progress information to log, console, or text stream. the most useful on production optionally adds memory and CPU usage stats.
+        * `log` — dumps progress information to a log, console, or text stream; most useful in production, and can optionally include memory and CPU usage stats.
 
         For more information read the [official documentation](https://dlthub.com/docs/general-usage/pipeline#display-the-loading-progress).
         """
@@ -158,7 +158,7 @@ def _(mo):
         r"""
         ## **Extract**
 
-        Extract can be run individually with the `extract` command on the pipeline:
+        Extract can be run individually with the `extract` method on the pipeline:
 
         ```python
         pipeline.extract(data)
@@ -743,7 +743,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1LokUcM5YSazdq5jfbkop-Z5rmP-39y4r#forceEdit=true&sandboxMode=true)!
+        ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb)!
         """
     )
     return
