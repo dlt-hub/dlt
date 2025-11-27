@@ -25,7 +25,7 @@ def _(mo):
         r"""
         ---
 
-        # **Understanding Pipeline Metadata and State** 👻📄 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb)
+        # **Understanding Pipeline Metadata and State** 👻📄 [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb)
 
 
         **Here, you will learn or brush up on:**
