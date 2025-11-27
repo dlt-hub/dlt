@@ -8,7 +8,7 @@ app = marimo.App()
 def _(mo):
     mo.md(
         r"""
-        # **Introduction** [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.ipynb)
+        # **Introduction** [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.ipynb)
 
         `dlt` offers powerful tools for schema configuration, giving you control over your data processing. You can export and import schemas for easy adjustments and apply specific settings directly to resources for precise data normalization. Plus, you can set data contracts to ensure your data meets your expectations... 👀
 
