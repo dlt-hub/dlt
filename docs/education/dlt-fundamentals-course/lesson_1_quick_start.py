@@ -8,7 +8,7 @@ app = marimo.App()
 def _(mo):
     mo.md(
         r"""
-        # **Quick Start** 👩‍💻🚀 [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/gh/dlt-hub/dlt/0c5e78fdb95b08fcf4628e0a7efbb37d35f7d30f?entrypoint=docs%2Feducation%2Fdlt-fundamentals-course%2Flesson_1_quick_start.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb)
+        # **Quick Start** 👩‍💻🚀 [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb)
 
         **Here, you will learn:**
         - What is dlt?
