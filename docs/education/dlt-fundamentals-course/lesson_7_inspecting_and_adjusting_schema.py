@@ -10,12 +10,12 @@ def _(mo):
         r"""
         # **Recap of [Lesson 6](https://colab.research.google.com/drive/1geSMNRkSwAelQJKd3e8vdoHCKiHMdmIo#forceEdit=true&sandboxMode=true) 👩‍💻🚀**
 
-        1. Learned how dlt works under the hood;
-        2. Explored 3 main steps:
-          * Extract;
-          * Normalize;
-          * Load.
-        3. Learned which file formats dlt supports.
+        1. Learned how `dlt` works under the hood.
+        2. Explored the 3 main steps of a pipeline run:
+           - Extract
+           - Normalize
+           - Load
+        3. Learned which file formats `dlt` supports.
         """
     )
     return
@@ -62,7 +62,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Let's load some GitHub data to DuckDB to inspect the schema in different ways. First we need to install dlt with DuckDB:
+        Let's load some GitHub data to DuckDB to inspect the schema in different ways. First we need to install `dlt`:
         """
     )
     return
@@ -80,7 +80,7 @@ def _():
 def _(mo):
     mo.md(
         r"""
-        Define a dlt resource that fetches pull requests and wrap it in a dlt source, create a pipeline and run it:
+        Define a `dlt` resource that fetches pull requests and wrap it in a `dlt` source, create a pipeline and run it:
         """
     )
     return
@@ -986,7 +986,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1jp5UtydA3x9cAq-fbW2tRmAOl4LMZqM1#forceEdit=true&sandboxMode=true)!
+        ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb)!
         """
     )
     return
