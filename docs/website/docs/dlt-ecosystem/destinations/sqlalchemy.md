@@ -249,7 +249,7 @@ Note that **we do not detect sqllite** driver [installed via Python package](htt
 You must set have correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
 `dlt` will convert parquet into INSERT statements.
 
-Not all arrow data types are supported by the **sqlite**:
+Note: The following arrow data types are NOT supported by the **sqlite**:
 * decimal types
 * time type
 
