@@ -19,7 +19,7 @@ from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob, SqlMergeFoll
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
-from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
+from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, build_odbc_dsn
 from dlt.destinations.sql_client import SqlClientBase
 
 
@@ -93,8 +93,7 @@ class MssqlParquetCopyJob(AdbcParquetCopyJob):
 
         self._config = self._job_client.config  # type: ignore[assignment]
         conn_dsn = self.odbc_to_go_mssql_dsn(self._config.credentials.get_odbc_dsn_dict())
-        conn_str = ";".join([f"{k}={v}" for k, v in conn_dsn.items()])
-        logger.info(f"ADBC connect to {conn_str}")
+        conn_str = build_odbc_dsn(conn_dsn)
         return dbapi.connect(driver="mssql", db_kwargs={"uri": conn_str})
 
     @staticmethod
