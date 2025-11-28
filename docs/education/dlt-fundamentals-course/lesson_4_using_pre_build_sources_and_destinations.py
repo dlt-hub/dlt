@@ -8,14 +8,14 @@ app = marimo.App()
 def _(mo):
     mo.md(
         r"""
-        # **Recap of [Lesson 3](https://colab.research.google.com/drive/1-jVNzMJTRYHhbRlXgGFlhMwdML1L9zMx#forceEdit=true&sandboxMode=true) 👩‍💻🚀**
+        # **Recap of [Lesson 3](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_3_pagination_and_authentication_and_dlt_configuration.ipynb) 👩‍💻🚀**
 
-        1. Used pagination for RestAPIs.
-        2. Used authentication for RestAPIs.
-        3. Tried dlt RESTClient.
-        4. Used environment variables to handle both secrets & configs.
-        5. Learned how to add values to `secrets.toml` or `config.toml`.
-        6. Used `secrets.toml` ENV variable special for Colab.
+        1. Used pagination with REST APIs.
+        2. Applied authentication for REST APIs.
+        3. Tried the dlt `RESTClient`.
+        4. Used environment variables to manage secrets and configuration.
+        5. Learned how to add values to `secrets.toml` and `config.toml`.
+        6. Used the special `secrets.toml` environment variable setup for Colab.
         """
     )
     return
@@ -29,19 +29,18 @@ def _(mo):
         # **`dlt`’s pre-built Sources and Destinations** [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.ipynb)
 
 
-
         **Here, you will learn:**
-        - How to initialize verified sources;
-        - Built-in `rest_api` source.
-        - Built-in `sql_database` source.
-        - Built-in `filesystem` source.
+        - How to initialize verified sources.
+        - The built-in `rest_api` source.
+        - The built-in `sql_database` source.
+        - The built-in `filesystem` source.
         - How to switch between destinations.
 
         ---
 
-        Our verified sources are the simplest way to get started with building your stack. Choose from any of our fully customizable 30+ pre-built sources, such as any SQL database, Google Sheets, Salesforce and others.
+        Our verified sources are the simplest way to start building your stack. Choose from any of our fully customizable 30+ pre-built sources, such as SQL databases, Google Sheets, Salesforce, and more.
 
-        With our numerous destinations you can load data to a local database, warehouse or a data lake. Choose from Snowflake, Databricks and more.
+        With our numerous destinations, you can load data into a local database, data warehouse, or data lake. Choose from Snowflake, Databricks, and many others.
         """
     )
     return
@@ -92,7 +91,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ### Step 0: Install dlt
+        ### Step 0: Install `dlt`
         """
     )
     return
@@ -131,7 +130,7 @@ def _(mo):
         r"""
         This command shows all available verified sources and their short descriptions. For each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
 
-        Consider an example of a pipeline for the GitHub API:
+        Consider an example pipeline for the GitHub API:
 
         ```
         Available dlt single file templates:
@@ -150,7 +149,7 @@ def _(mo):
 
         ### Step 1. Initialize the source
 
-        This command will initialize the pipeline example with GitHub API as the source and DuckBD as the destination:
+        This command will initialize the pipeline example with the GitHub API as the source and DuckBD as the destination:
         """
     )
     return
@@ -169,10 +168,11 @@ def _(mo):
     mo.md(
         r"""
         Now, check  your files on the left side bar. It should contain all the necessary files to run your GitHub API -> DuckDB pipeline:
-        * `.dlt` folder for `secrets.toml` and `config.toml`;
-        * pipeline script `github_api_pipeline.py`;
-        * requirements.txt;
-        * `.gitignore`.
+
+        - The `.dlt` folder containing `secrets.toml` and `config.toml`
+        - The pipeline script `github_api_pipeline.py`
+        - `requirements.txt`
+        - `.gitignore`
         """
     )
     return
@@ -195,7 +195,7 @@ def _(mo):
         - Adjust the pipeline script as needed
         - Run the pipeline script
 
-        > In certain cases, you can adjust the verified source code.
+        > If needed, you can adjust the verified source code.
         """
     )
     return
@@ -213,7 +213,8 @@ app._unparsable_cell(
 def _(mo):
     mo.md(
         r"""
-        From the code we can see that this pipeline loads **only "issues" endpoint**, you can adjust this code as you wish: add new endpoints, add additional logic, add transformations, etc.
+        From the code, we can see that this pipeline loads **only the `"issues"` endpoint**.
+        You can adjust this code as needed: add new endpoints, include additional logic, apply transformations, and more.
         """
     )
     return
@@ -225,9 +226,10 @@ def _(mo):
         r"""
         ### Step 2. Add credentials
 
-        In Colab is more convenient to use ENVs. In the previous lesson you learned how to configure dlt resource via environment variable.
+        In Colab, it is more convenient to use environment variables. In the previous lesson, you learned how to configure a `dlt` resource using an environment variable.
 
-        In the pipeline above we can see that `access_token` variable is `dlt.secrets.value`, it means we should configure this variable.
+        In the pipeline above, the `access_token` parameter is set to `dlt.secrets.value`, which means you need to configure this variable:
+
 
         ```python
         @dlt.resource(write_disposition="replace")
@@ -280,13 +282,13 @@ app._unparsable_cell(
 def _(mo):
     mo.md(
         r"""
-        From the pipeline output we can take pipeline information like pipeline_name, dataset_name, destination path, etc.
-
+        From the pipeline output, we can get information such as the pipeline name, dataset name, destination path, and more.
 
         > Pipeline **github_api_pipeline** load step completed in 1.23 seconds
-        1 load package(s) were loaded to destination duckdb and into dataset **github_api_data**
-        The duckdb destination used duckdb:////content/**github_api_pipeline.duckdb** location to store data
-        Load package 1733848559.8195539 is LOADED and contains no failed jobs
+        > 1 load package was loaded to the DuckDB destination and into the dataset **github_api_data**.
+        > The DuckDB destination used `duckdb:////content/**github_api_pipeline.duckdb**` as the storage location.
+        > Load package `1733848559.8195539` is **LOADED** and contains no failed jobs.
+
 
         """
     )
@@ -299,7 +301,7 @@ def _(mo):
         r"""
         ## Step 4: Explore your data
 
-        Let's explore what tables were created in duckdb.
+        Let's explore what tables were created in the destination.
         """
     )
     return
@@ -338,18 +340,19 @@ def _(mo):
         r"""
         ## **[RestAPI source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic)**
 
-        `rest_api` is a generic source that you can use to create a `dlt` source from a REST API using a declarative configuration. The majority of REST APIs behave in a similar way; this `dlt` source attempts to provide a declarative way to define a `dlt` source for those APIs.
+        `rest_api` is a generic source that lets you create a `dlt` source from any REST API using a declarative configuration. Since most REST APIs follow similar patterns, this source provides a convenient way to define your integration declaratively.
 
-        Using a [declarative configuration](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#source-configuration), you can define:
+        Using a [declarative configuration](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#source-configuration), you can specify:
 
         - the API endpoints to pull data from,
         - their relationships,
         - how to handle pagination,
         - authentication.
 
-        dlt will take care of the rest: **unnesting the data, inferring the schema**, etc., and **writing to the destination**
+        `dlt` handles the rest for you: **unnesting the data, inferring the schema**, and **writing it to the destination**.
 
-        In previous lesson you've already met Rest API Client. `dlt`’s **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client)** is the **low level abstraction** that powers the REST API Source.
+        In the previous lesson, you already used the REST API Client. `dlt`’s **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client)** is the **low-level abstraction** that powers the RestAPI source.
+
         """
     )
     return
@@ -359,8 +362,10 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ### Initialize `rest_api` template
-        You can initialize `rest_api` **template** using `init` command:
+        ### Initialize the `rest_api` template
+
+        You can initialize the `rest_api` **template** using the `init` command:
+
         """
     )
     return
@@ -378,15 +383,13 @@ app._unparsable_cell(
 def _(mo):
     mo.md(
         r"""
-        In the `rest_api_pipeline.py` script you will find sources for GitHub API and for PokeAPI, which were defined using `rest_api` source and `RESTAPIConfig`.
+        In the `rest_api_pipeline.py` script, you will find sources for both the GitHub API and the PokeAPI, defined using the `rest_api` source and `RESTAPIConfig`.
 
-        Since the `rest_api` source is a **built-in source**, you don't have to initialize it. You can **import** it from `dlt.sources` and use it immediately.
-
+        Since the `rest_api` source is a **built-in source**, you don't need to initialize it. You can simply **import** it from `dlt.sources` and start using it.
 
         ### Example
 
-        Here's a simplified example of how to configure the REST API source to load `issues` and issue `comments` from GitHub API:
-
+        Here is a simplified example of how to configure the REST API source to load `issues` and issue `comments` from the GitHub API:
 
         """
     )
@@ -445,16 +448,16 @@ def _():
 
     github_source = rest_api_source(config)
 
-    pipeline = dlt.pipeline(
+    rest_api_pipeline = dlt.pipeline(
         pipeline_name="rest_api_github",
         destination="duckdb",
         dataset_name="rest_api_data",
         dev_mode=True,
     )
 
-    load_info = pipeline.run(github_source)
+    load_info = rest_api_pipeline.run(github_source)
     print(load_info)
-    return dlt, pipeline
+    return (dlt,)
 
 
 @app.cell
@@ -467,12 +470,12 @@ def _(pipeline):
 def _(mo):
     mo.md(
         r"""
-        ### **Exercise 1: Run rest_api source**
+        ### **Exercise 1: Run `rest_api` source**
 
         Explore the cells above and answer the question below using `sql_client` or `pipeline.dataset()`.
 
-        #### Question
-        How many columns has the `issues` table?
+        #### **Question**
+        How many columns does the `issues` table have?
         """
     )
     return
@@ -482,15 +485,17 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ###  **Exercise 2: Create dlt source with rest_api**
+        ### **Exercise 2: Create a dlt source with `rest_api`**
 
-        Add `contributors` endpoint for dlt repository to the `rest_api` configuration:
-        - resource name is "contributors"
-        - endpoint path : "repos/dlt-hub/dlt/contributors"
-        - no parameters
+        Add the `contributors` endpoint for the `dlt` repository to the `rest_api` configuration:
 
-        #### Question
-        How many columns has the `contributors` table?
+        - Resource name: **"contributors"**
+        - Endpoint path: **"repos/dlt-hub/dlt/contributors"**
+        - No parameters
+
+        #### **Question**
+        How many columns does the `contributors` table have?
+
         """
     )
     return
@@ -519,9 +524,10 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ### Initialize `sql_database` template
+        ### Initialize the `sql_database` template
 
-        Initialize dlt template for `sql_database` using `init` command:
+        Initialize the `dlt` template for `sql_database` using the `init` command:
+
         """
     )
     return
@@ -551,9 +557,9 @@ def _(mo):
         r"""
         ### Example
 
-        The example below will show you how you can use dlt to load data from a SQL Database (PostgreSQL, MySQL, SQLight, Oracle, IBM DB2, etc.) into destination.
+        The example below shows how you can use dlt to load data from a SQL database (PostgreSQL, MySQL, SQLite, Oracle, IBM DB2, etc.) into a destination.
 
-        To make it easy to reproduce, we will be loading data from the [public MySQL RFam database](https://docs.rfam.org/en/latest/database.html) into a local DuckDB instance.
+        To make it easy to reproduce, we will load data from the [public MySQL Rfam database](https://docs.rfam.org/en/latest/database.html) into a local DuckDB instance.
         """
     )
     return
@@ -571,17 +577,17 @@ app._unparsable_cell(
 def _(dlt):
     from dlt.sources.sql_database import sql_database
 
-    source = sql_database(
+    sql_source = sql_database(
         "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",
         table_names=["family"],
     )
-    pipeline_1 = dlt.pipeline(
+    sql_db_pipeline = dlt.pipeline(
         pipeline_name="sql_database_example",
         destination="duckdb",
         dataset_name="sql_data",
         dev_mode=True,
     )
-    load_info_1 = pipeline_1.run(source)
+    load_info_1 = sql_db_pipeline.run(sql_source)
     print(load_info_1)
     return (sql_database,)
 
@@ -590,11 +596,11 @@ def _(dlt):
 def _(mo):
     mo.md(
         r"""
-        ### **Exercise 3: Run sql_database source**
+        ### **Exercise 3: Run `sql_database` source**
 
         Explore the cells above and answer the question below using `sql_client` or `pipeline.dataset()`.
 
-        #### Question
+        #### **Question**
         How many columns does the `family` table have?
         """
     )
@@ -645,9 +651,10 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ### Initialize `filesystem` template
+        ### Initialize the `filesystem` template
 
-        Initialize dlt template for `filesystem` using `init` command:
+        Initialize the dlt template for `filesystem` using the `init` command:
+
         """
     )
     return
@@ -699,8 +706,8 @@ def _(dlt):
         bucket_url="/content/local_data", file_glob="**/*.parquet"
     )
     filesystem_pipe = filesystem_resource | read_parquet()
-    pipeline_2 = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
-    load_info_2 = pipeline_2.run(filesystem_pipe.with_name("userdata"))
+    fs_pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+    load_info_2 = fs_pipeline.run(filesystem_pipe.with_name("userdata"))
     print(load_info_2)
     return
 
@@ -709,12 +716,13 @@ def _(dlt):
 def _(mo):
     mo.md(
         r"""
-        ### **Exercise 4: Run filesystem source**
+        ### **Exercise 4: Run `filesystem` source**
 
         Explore the cells above and answer the question below using `sql_client` or `pipeline.dataset()`.
 
-        #### Question
+        #### **Question**
         How many columns does the `userdata` table have?
+
         """
     )
     return
@@ -724,7 +732,9 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        How to configure **Cloud Storage** you can read in the official [dlt documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem/basic#configuration).
+        You can read how to configure **Cloud Storage** in the official
+        [dlt documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem/basic#configuration).
+
         """
     )
     return
@@ -734,9 +744,8 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        # **Built-in Destinations**
+        # [**Built-in Destinations**](https://dlthub.com/docs/dlt-ecosystem/destinations/)
 
-        https://dlthub.com/docs/dlt-ecosystem/destinations/
         """
     )
     return
@@ -768,9 +777,13 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        TBH this is a matter of simply going through the [documentation](https://dlthub.com/docs/dlt-ecosystem/destinations/) 👀, but to sum it up:
-        - Most likely the destination where you want to load data is already a `dlt` integration that undergoes several hundred automated tests every day.
-        - If not, you can simply define a custom destination and still be able to benefit from most `dlt`-specific features. FYI, custom destinations will be covered in the next Advanced course, so we expect you to come back for the second part...
+        To be honest, this is simply a matter of going through the
+        [documentation](https://dlthub.com/docs/dlt-ecosystem/destinations/) 👀, but to sum it up:
+
+        - Most likely, the destination where you want to load data is already a `dlt` integration that undergoes several hundred automated tests every day.
+        - If not, you can define a custom destination and still benefit from most `dlt`-specific features.
+          *FYI: custom destinations will be covered in the next Advanced course — so we expect you to come back for part two…*
+
         """
     )
     return
@@ -782,7 +795,7 @@ def _(mo):
         r"""
         ## **Choosing a destination**
 
-        Switching between destinations in dlt is incredibly straightforward—simply modify the `destination` parameter in your pipeline configuration. For example:
+        Switching between destinations in `dlt` is incredibly straightforward. Simply modify the `destination` parameter in your pipeline configuration. For example:
         """
     )
     return
@@ -790,12 +803,19 @@ def _(mo):
 
 @app.cell
 def _(dlt):
-    pipeline_3 = dlt.pipeline(
-        pipeline_name="data_pipeline", destination="duckdb", dataset_name="data"
+    data_pipeline = dlt.pipeline(
+        pipeline_name="data_pipeline",
+        destination="duckdb",  # <--- to test pipeline locally
+        dataset_name="data",
     )
-    pipeline_3 = dlt.pipeline(
-        pipeline_name="data_pipeline", destination="bigquery", dataset_name="data"
+    print(data_pipeline.destination.destination_type)
+
+    data_pipeline = dlt.pipeline(
+        pipeline_name="data_pipeline",
+        destination="bigquery",  # <--- to run pipeline in production
+        dataset_name="data",
     )
+    print(data_pipeline.destination.destination_type)
     return
 
 
@@ -846,16 +866,16 @@ def _(mo):
 
 @app.cell
 def _(dlt, sql_database):
-    source_1 = sql_database(
+    source = sql_database(
         "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",
         table_names=["family"],
     )
-    pipeline_4 = dlt.pipeline(
+    pipeline = dlt.pipeline(
         pipeline_name="fs_pipeline", destination="filesystem", dataset_name="fs_data"
     )
-    load_info_3 = pipeline_4.run(source_1, loader_file_format="parquet")
+    load_info_3 = pipeline.run(source, loader_file_format="parquet")
     print(load_info_3)
-    return pipeline_4, source_1
+    return pipeline, source
 
 
 @app.cell(hide_code=True)
@@ -887,8 +907,9 @@ def _(mo):
 
 
 @app.cell
-def _(pipeline_4):
-    pipeline_4.dataset().family.df()
+def _(pipeline):
+    # explore loaded data
+    pipeline.dataset().family.df()
     return
 
 
@@ -917,9 +938,9 @@ def _():
 
 
 @app.cell
-def _(pipeline_4, source_1):
-    load_info_4 = pipeline_4.run(
-        source_1, loader_file_format="parquet", table_format="iceberg"
+def _(pipeline, source):
+    load_info_4 = pipeline.run(
+        source, loader_file_format="parquet", table_format="iceberg"
     )
     print(load_info_4)
     return
@@ -931,9 +952,10 @@ def _(mo):
         r"""
         **Note:**
 
-        Open source version of dlt supports basic functionality for **iceberg**, but the dltHub team is currently working on an **extended** and **more powerful** integration with iceberg.
+        The open-source version of dlt supports basic functionality for **Iceberg**, but the dltHub team is currently working on an **extended** and **more powerful** Iceberg integration.
 
         [Join the waiting list to learn more about dlt+ and Iceberg.](https://info.dlthub.com/waiting-list)
+
         """
     )
     return
@@ -945,9 +967,13 @@ def _(mo):
         r"""
         # **Spoiler: Custom Sources & Destinations**
 
-        `dlt` tried to simplify as much as possible both the process of creating sources ([RestAPI Client](https://dlthub.com/docs/general-usage/http/rest-client), [rest_api source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api)) and [custom destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/destination).
+        `dlt` aims to simplify the process of creating both custom sources
+        ([REST API Client](https://dlthub.com/docs/general-usage/http/rest-client),
+        [`rest_api` source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api))
+        and [custom destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/destination).
 
-        We will look at this topic in more detail in the next Advanced course.
+        We will explore this topic in more detail in the next Advanced course.
+
         """
     )
     return
@@ -957,7 +983,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1Zf24gIVMNNj9j-gtXFl8p0orI9ttySDn#forceEdit=true&sandboxMode=true)!
+        ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_5_write_disposition_and_incremental_loading.ipynb)!
         """
     )
     return
