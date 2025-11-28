@@ -8,13 +8,13 @@ app = marimo.App()
 def _(mo):
     mo.md(
         r"""
-        # **Recap of [Lesson 2](https://colab.research.google.com/drive/1tc94GvIoYXmYrjUibDhY_9iPR5zA0Eyw#forceEdit=true&sandboxMode=true) 👩‍💻🚀**
+        # **Recap of [Lesson 2](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb) 👩‍💻🚀**
 
-        1.  Used `@dlt.resource` to load and query data such as lists, dataframes, and REST API responses into DuckDB.
-        2.  Grouped multiple resources into a single `@dlt.source` for better organization and efficiency.
-        3.  Used `@dlt.transformer` to process and enrich data between resources.
+        1. Used `@dlt.resource` to load and query data such as lists, dataframes, and REST API responses into DuckDB.
+        2. Grouped multiple resources into a single `@dlt.source` for better organization and efficiency.
+        3. Used `@dlt.transformer` to process and enrich data between resources.
 
-        Next: We'll dive deeper into building dlt pipelines using pagination, authentication and dlt configuration! 🚀
+        Next: We'll dive deeper into building dlt pipelines using pagination, authentication, and dlt configuration! 🚀
         """
     )
     return
@@ -866,7 +866,17 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1mfqZulsuFDc7h27d6joe2_Dduvl1uM-2#forceEdit=true&sandboxMode=true)!
+        ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.ipynb)!
+        """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+
         """
     )
     return
