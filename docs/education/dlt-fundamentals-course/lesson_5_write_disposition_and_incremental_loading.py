@@ -8,14 +8,15 @@ app = marimo.App()
 def _(mo):
     mo.md(
         r"""
-        # **Recap of [Lesson 4](https://colab.research.google.com/drive/1mfqZulsuFDc7h27d6joe2_Dduvl1uM-2#forceEdit=true&sandboxMode=true) 👩‍💻🚀**
+        # **Recap of [Lesson 4](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.ipynb) 👩‍💻🚀**
 
-        1. Listed all available verified sources;
-        2. Initialized `github_api` verified source;
-        3. Explored built-in `rest_api` source.
-        4. Explored built-in `sql_database` source.
-        5. Explored built-in `filesystem` source.
+        1. Listed all available verified sources.
+        2. Initialized the `github_api` verified source.
+        3. Explored the built-in `rest_api` source.
+        4. Explored the built-in `sql_database` source.
+        5. Explored the built-in `filesystem` source.
         6. Learned how to switch between destinations.
+
         """
     )
     return
@@ -57,19 +58,17 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Write disposition in the context of the dlt library defines how the data should be written to the destination. There are three types of write dispositions:
+        A **write disposition** in the context of the `dlt` library defines how data should be written to the destination. There are three types:
 
-        * **Append**: This is the **default** disposition. It will append the data to the existing data in the destination.
+        - **Append**: The **default** disposition. It appends new data to the existing data in the destination.
 
-        * **Replace**: This disposition replaces the data in the destination with the data from the resource. It **deletes** all the data and **recreates** the schema before loading the data.
+        - **Replace**: This disposition replaces all existing data at the destination with the new data from the resource. It **deletes** all previous data and **recreates** the schema before loading.
 
-        * **Merge**: This write disposition merges the data from the resource with the data at the destination. For the merge disposition, you need to specify a `primary_key` for the resource.
+        - **Merge**: This disposition merges incoming data with existing data at the destination. For `merge`, you must specify a `primary_key` for the resource.
 
-        The write disposition you choose depends on the dataset and how you can extract it. For more details, you can refer to the [Incremental loading page](https://dlthub.com/docs/general-usage/incremental-loading).
+        The choice of write disposition depends on your dataset and how you extract it. For more details, refer to the [Incremental loading page](https://dlthub.com/docs/general-usage/incremental-loading).
 
-
-
-        A `write_disposition` in `dlt` can specified in the resource decorator:
+        You can specify a `write_disposition` in the resource decorator:
 
         ```python
         @dlt.resource(write_disposition="append")
@@ -84,7 +83,7 @@ def _(mo):
         load_info = pipeline.run(my_resource, write_disposition="replace")
         ```
 
-        > In case you specify both, the write disposition specified at the pipeline run level will override the write disposition specified at the resource level.
+        > If both are specified, the write disposition at the pipeline run level overrides the one set at the resource level.
         """
     )
     return
@@ -104,7 +103,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Install `dlt` with DuckDB as a destination as per usual:
+        Install `dlt` with DuckDB as the destination:
         """
     )
     return
@@ -133,7 +132,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        As we already have said `append` is a default loading behavior. Now we will explore how this write disposition works.
+        As we have already said, `append` is the default loading behavior. Now we will explore how this write disposition works.
         """
     )
     return
@@ -164,7 +163,7 @@ def _():
 def _(mo):
     mo.md(
         r"""
-        We create dlt pipeline as usual and load this data into DuckDB.
+        We create a `dlt` pipeline as usual and load this data into DuckDB.
         """
     )
     return
@@ -176,35 +175,38 @@ def _(data):
     from dlt.common.typing import TDataItems
 
     @dlt.resource(name="pokemon", write_disposition="append")
-    def pokemon() -> TDataItems:
+    def append_pokemon() -> TDataItems:
         yield data
 
-    pipeline = dlt.pipeline(
-        pipeline_name="poke_pipeline", destination="duckdb", dataset_name="pokemon_data"
+    append_pipeline = dlt.pipeline(
+        pipeline_name="append_poke_pipeline",
+        destination="duckdb",
+        dataset_name="pokemon_data",
     )
-    _load_info = pipeline.run(pokemon)
+    _load_info = append_pipeline.run(append_pokemon)
     print(_load_info)
-    pipeline.dataset().pokemon.df()
-    return TDataItems, dlt, pipeline, pokemon
+    append_pipeline.dataset().pokemon.df()
+    return TDataItems, append_pipeline, append_pokemon, dlt
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
-        Run this example **twice**, and you'll notice that each time a copy of the data is added to your tables. We call this load mode **append**. It is very useful.
+        Run this example **twice**, and you'll notice that each time a copy of the data is added to your tables. We call this load mode **append**, and it is very useful.
 
-        Example use case: when you have a new folder created daily with json file logs, and you want to ingest them incrementally.
+        Example use case: when you have a new folder created daily with JSON log files, and you want to ingest them incrementally.
+
         """
     )
     return
 
 
 @app.cell
-def _(pipeline, pokemon):
-    _load_info = pipeline.run(pokemon)
+def _(append_pipeline, append_pokemon):
+    _load_info = append_pipeline.run(append_pokemon)
     print(_load_info)
-    pipeline.dataset().pokemon.df()
+    append_pipeline.dataset().pokemon.df()
     return
 
 
@@ -223,7 +225,8 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Perhaps this duplicated data is not what you want to get in your work projects. For example, if your data was updated, how we can refresh it in the database? One method is to tell dlt to **replace** the data in existing tables by using **write_disposition**.
+        Perhaps this duplicated data is not what you want in your work projects. For example, if your data was updated, how can we refresh it in the database? One way is to tell `dlt` to **replace** the data in the existing tables by using a **write_disposition**.
+
         """
     )
     return
@@ -232,16 +235,18 @@ def _(mo):
 @app.cell
 def _(TDataItems, data, dlt):
     @dlt.resource(name="pokemon", write_disposition="replace")
-    def pokemon_1() -> TDataItems:
+    def replace_pokemon() -> TDataItems:
         yield data
 
-    pipeline_1 = dlt.pipeline(
-        pipeline_name="poke_pipeline", destination="duckdb", dataset_name="pokemon_data"
+    replace_pipeline = dlt.pipeline(
+        pipeline_name="replace_poke_pipeline",
+        destination="duckdb",
+        dataset_name="pokemon_data",
     )
-    _load_info = pipeline_1.run(pokemon_1)
+    _load_info = replace_pipeline.run(replace_pokemon)
     print(_load_info)
-    pipeline_1.dataset().pokemon.df()
-    return pipeline_1, pokemon_1
+    replace_pipeline.dataset().pokemon.df()
+    return replace_pipeline, replace_pokemon
 
 
 @app.cell(hide_code=True)
@@ -255,10 +260,10 @@ def _(mo):
 
 
 @app.cell
-def _(pipeline_1, pokemon_1):
-    _load_info = pipeline_1.run(pokemon_1)
+def _(replace_pipeline, replace_pokemon):
+    _load_info = replace_pipeline.run(replace_pokemon)
     print(_load_info)
-    pipeline_1.dataset().pokemon.df()
+    replace_pipeline.dataset().pokemon.df()
     return
 
 
@@ -266,7 +271,7 @@ def _(pipeline_1, pokemon_1):
 def _(mo):
     mo.md(
         r"""
-        TAADA! No duplicates, your data was [fully refreshed](https://dlthub.com/docs/general-usage/full-loading).
+        TADA! No duplicates, your data was [fully refreshed](https://dlthub.com/docs/general-usage/full-loading).
         """
     )
     return
@@ -325,17 +330,17 @@ def _(mo):
 @app.cell
 def _(TDataItems, data, dlt):
     @dlt.resource(name="pokemon", write_disposition="merge", primary_key="id")
-    def pokemon_2() -> TDataItems:
+    def merge_pokemon() -> TDataItems:
         yield data
 
-    pipeline_2 = dlt.pipeline(
+    merge_pipeline = dlt.pipeline(
         pipeline_name="poke_pipeline_merge",
         destination="duckdb",
         dataset_name="pokemon_data",
     )
-    _load_info = pipeline_2.run(pokemon_2)
+    _load_info = merge_pipeline.run(merge_pokemon)
     print(_load_info)
-    pipeline_2.dataset().pokemon.df()
+    merge_pipeline.dataset().pokemon.df()
     return
 
 
@@ -383,38 +388,39 @@ def _(mo):
 
 @app.cell
 def _():
-    data_1 = [
+    # We added `created_at` field to the data
+    created_data = [
         {
             "id": "1",
             "name": "bulbasaur",
             "size": {"weight": 6.9, "height": 0.7},
-            "created_at": "2024-12-01",
+            "created_at": "2024-12-01",  # <------- new field
         },
         {
             "id": "4",
             "name": "charmander",
             "size": {"weight": 8.5, "height": 0.6},
-            "created_at": "2024-09-01",
+            "created_at": "2024-09-01",  # <------- new field
         },
         {
             "id": "25",
             "name": "pikachu",
             "size": {"weight": 6, "height": 0.4},
-            "created_at": "2023-06-01",
+            "created_at": "2023-06-01",  # <------- new field
         },
     ]
-    return (data_1,)
+    return (created_data,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
-        **The goal**: Load only Pokémon caught after January 1, 2024, skipping the ones you already have.
+        **The goal**: Load only Pokémons caught after January 1, 2024, skipping the ones you already have.
 
         ### **Step 2: Defining the incremental logic**
 
-        Using `dlt`, we set up an [incremental filter](https://www.google.com/url?q=https://dlthub.com/docs/general-usage/incremental-loading%23incremental-loading-with-a-cursor-field&sa=D&source=editors&ust=1734717286675253&usg=AOvVaw3rAF3y3p86sGt49ImCTgon) to only fetch Pokémon caught after a certain date:
+        Using `dlt`, we set up an [incremental filter](https://www.google.com/url?q=https://dlthub.com/docs/general-usage/incremental-loading%23incremental-loading-with-a-cursor-field&sa=D&source=editors&ust=1734717286675253&usg=AOvVaw3rAF3y3p86sGt49ImCTgon) to only fetch Pokémons caught after a certain date:
         ```python
         cursor_date = dlt.sources.incremental("created_at", initial_value="2024-01-01")
         ```
@@ -430,16 +436,19 @@ def _(mo):
 
 
 @app.cell
-def _(TDataItems, data_1, dlt):
-    @dlt.resource(name="pokemon", write_disposition="append")
-    def pokemon_3(
+def _(TDataItems, created_data, dlt):
+    @dlt.resource(
+        name="pokemon",
+        write_disposition="append",
+    )
+    def incremental_pokemon(
         cursor_date: dlt.sources.incremental[str] = dlt.sources.incremental(
             "created_at", initial_value="2024-01-01"
         )
     ) -> TDataItems:
-        yield data_1
+        yield created_data
 
-    return (pokemon_3,)
+    return (incremental_pokemon,)
 
 
 @app.cell(hide_code=True)
@@ -464,16 +473,16 @@ def _(mo):
 
 
 @app.cell
-def _(dlt, pokemon_3):
-    pipeline_3 = dlt.pipeline(
+def _(dlt, incremental_pokemon):
+    incremental_pipeline = dlt.pipeline(
         pipeline_name="poke_pipeline_incremental",
         destination="duckdb",
         dataset_name="pokemon_data",
     )
-    _load_info = pipeline_3.run(pokemon_3)
+    _load_info = incremental_pipeline.run(incremental_pokemon)
     print(_load_info)
-    pipeline_3.dataset().pokemon.df()
-    return (pipeline_3,)
+    incremental_pipeline.dataset().pokemon.df()
+    return (incremental_pipeline,)
 
 
 @app.cell(hide_code=True)
@@ -520,8 +529,8 @@ def _(mo):
 
 
 @app.cell
-def _(pipeline_3, pokemon_3):
-    _load_info = pipeline_3.run(pokemon_3)
+def _(incremental_pipeline, incremental_pokemon):
+    _load_info = incremental_pipeline.run(incremental_pokemon)
     print(_load_info)
     return
 
@@ -553,30 +562,34 @@ def _(mo):
 
 @app.cell
 def _():
-    data_2 = [
+    # We added `created_at` field to the data
+    updated_data = [
         {
             "id": "1",
             "name": "bulbasaur",
             "size": {"weight": 6.9, "height": 0.7},
             "created_at": "2024-12-01",
-            "updated_at": "2024-12-01",
+            "updated_at": "2024-12-01",  # <------- new field
         },
         {
             "id": "4",
             "name": "charmander",
             "size": {"weight": 8.5, "height": 0.6},
             "created_at": "2024-09-01",
-            "updated_at": "2024-09-01",
+            "updated_at": "2024-09-01",  # <------- new field
         },
         {
             "id": "25",
             "name": "pikachu",
-            "size": {"weight": 9, "height": 0.4},
+            "size": {
+                "weight": 9,
+                "height": 0.4,
+            },  # <----- pikachu gained weight from 6 to 9
             "created_at": "2023-06-01",
-            "updated_at": "2024-12-16",
+            "updated_at": "2024-12-16",  # <------- new field, information about pikachu has updated
         },
     ]
-    return (data_2,)
+    return (updated_data,)
 
 
 @app.cell(hide_code=True)
@@ -590,16 +603,21 @@ def _(mo):
 
 
 @app.cell
-def _(TDataItems, data_2, dlt):
-    @dlt.resource(name="pokemon", write_disposition="merge", primary_key="id")
-    def pokemon_4(
+def _(TDataItems, dlt):
+    @dlt.resource(
+        name="pokemon",
+        write_disposition="merge",  # <--- change write disposition from 'append' to 'merge'
+        primary_key="id",  # <--- set a primary key
+    )
+    def dedup_pokemon(
+        data: TDataItems,
         cursor_date: dlt.sources.incremental[str] = dlt.sources.incremental(
             "updated_at", initial_value="2024-01-01"
-        )
-    ) -> TDataItems:
-        yield data_2
+        ),
+    ) -> TDataItems:  # <--- change the cursor name from 'created_at' to 'updated_at'
+        yield data
 
-    return (pokemon_4,)
+    return (dedup_pokemon,)
 
 
 @app.cell(hide_code=True)
@@ -613,23 +631,23 @@ def _(mo):
 
 
 @app.cell
-def _(dlt, pokemon_4):
-    pipeline_4 = dlt.pipeline(
+def _(dedup_pokemon, dlt, updated_data):
+    dedup_pipeline = dlt.pipeline(
         pipeline_name="poke_pipeline_dedup",
         destination="duckdb",
         dataset_name="pokemon_data",
     )
-    _load_info = pipeline_4.run(pokemon_4)
+    _load_info = dedup_pipeline.run(dedup_pokemon(updated_data))
     print(_load_info)
-    pipeline_4.dataset().pokemon.df()
-    return (pipeline_4,)
+    dedup_pipeline.dataset().pokemon.df()
+    return (dedup_pipeline,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
-        All Pokémon are processed because this is the pipeline’s first run.
+        All Pokémons are processed because this is the pipeline’s first run.
 
         Now, let’s say Pikachu goes to gym and sheds some weight (down to 7.5), and the `updated_at` field is set to `2024-12-23`.
         """
@@ -639,7 +657,8 @@ def _(mo):
 
 @app.cell
 def _():
-    data_3 = [
+    # We added `created_at` field to the data
+    reupdated_data = [
         {
             "id": "1",
             "name": "bulbasaur",
@@ -657,12 +676,12 @@ def _():
         {
             "id": "25",
             "name": "pikachu",
-            "size": {"weight": 7.5, "height": 0.4},
+            "size": {"weight": 7.5, "height": 0.4},  # <--- pikachu lost weight
             "created_at": "2023-06-01",
-            "updated_at": "2024-12-23",
+            "updated_at": "2024-12-23",  # <--- data about his weight was updated a week later
         },
     ]
-    return
+    return (reupdated_data,)
 
 
 @app.cell(hide_code=True)
@@ -676,10 +695,10 @@ def _(mo):
 
 
 @app.cell
-def _(pipeline_4, pokemon_4):
-    _load_info = pipeline_4.run(pokemon_4)
+def _(dedup_pipeline, dedup_pokemon, reupdated_data):
+    _load_info = dedup_pipeline.run(dedup_pokemon(reupdated_data))
     print(_load_info)
-    pipeline_4.dataset().pokemon.df()
+    dedup_pipeline.dataset().pokemon.df()
     return
 
 
@@ -687,10 +706,10 @@ def _(pipeline_4, pokemon_4):
 def _(mo):
     mo.md(
         r"""
-        **What happens?**
+        **What happened?**
 
-        * The pipeline detects that `updated_at` for Bulbasaur and Charmander hasn’t changed—they’re skipped.
-        * Pikachu’s record is updated to reflect the latest weight.
+        * The pipeline detected that `updated_at` for Bulbasaur and Charmander hasn’t changed—they’re skipped.
+        * Pikachu’s record was updated to reflect the latest weight.
 
         You can see that the **`_dlt_load_id`** for Bulbasaur and Charmander remained the same, but for Pikachu it was changed since only the updated Pikachu data was loaded into the destination.
         """
@@ -702,12 +721,12 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        The **`dlt.sources.incremental`** instance above has the next attributes:
+        The **`dlt.sources.incremental`** instance above has the following attributes:
 
         * **`cursor_date.initial_value`** which is always equal to "2024-01-01" passed in the constructor;
         * **`cursor_date.start_value`** a maximum `updated_at` value from the previous run or the `initial_value` on the first run;
         * **`cursor_date.last_value`** a "real-time" `updated_at` value updated with each yielded item or page. Before the first yield, it equals `start_value`;
-        * **`cursor_date.end_value`** (here not used) marking the end of the backfill range.
+        * **`cursor_date.end_value`** (not used here) marking the end of the backfill range.
 
         ## **Example**
         You can use them in the resource code to make **more efficient requests**. Take look at the GitHub API example:
@@ -755,27 +774,27 @@ def _(TDataItems, dlt):
 
         return github_issues
 
-    pipeline_5 = dlt.pipeline(pipeline_name="github_incr", destination="duckdb")
-    _load_info = pipeline_5.run(github_source())
+    pipeline = dlt.pipeline(pipeline_name="github_incr", destination="duckdb")
+    _load_info = pipeline.run(github_source())
     print(_load_info)
-    return github_source, pipeline_5
+    return github_source, pipeline
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
-        Pay attention how we use **since** GitHub API parameter and `cursor_date.last_value` to tell GitHub which issues we are interested in. `cursor_date.last_value` holds the last `cursor_date` value from the previous run.
+        Pay attention to how we use the **since** GitHub API parameter and `cursor_date.last_value` to tell GitHub which issues we are interested in. `cursor_date.last_value` holds the last `cursor_date` value from the previous run.
 
-        Run the pipeline again and make sure that **no data was loaded**.
+        Run the pipeline again and make sure that **no data is loaded**.
         """
     )
     return
 
 
 @app.cell
-def _(github_source, pipeline_5):
-    _load_info = pipeline_5.run(github_source())
+def _(github_source, pipeline):
+    _load_info = pipeline.run(github_source())
     print(_load_info)
     return
 
@@ -810,12 +829,12 @@ def _(mo):
 
         Transform your GitHub API pipeline to use incremental loading. This means:
 
-        * Implement new `dlt.resource` for `pulls/comments` (List comments for Pull Requests) endpoint.
+        * Implement a new `dlt.resource` for `pulls/comments` (List comments for Pull Requests) endpoint.
         * Fetch only pulls comments updated after the last pipeline run.
         * Use the `updated_at` field from the GitHub API as the incremental cursor.
         * [Endpoint documentation](https://docs.github.com/en/rest/pulls/comments?apiVersion=2022-11-28#list-review-comments-in-a-repository)
         * Endpoint URL: `https://api.github.com/repos/OWNER/REPO/pulls/comments`
-        * Use `since` parameter - only show results that were last updated after the given time - and `last_value`.
+        * Use the `since` parameter - only show results that were last updated after the given time - and `last_value`.
         * `initial_value` is `2024-12-01`.
 
 
@@ -831,7 +850,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1geSMNRkSwAelQJKd3e8vdoHCKiHMdmIo#forceEdit=true&sandboxMode=true)!
+        ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_6_how_dlt_works.ipynb)!
         """
     )
     return
