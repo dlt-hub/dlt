@@ -29,12 +29,12 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ## Recap of [Lesson 1](https://colab.research.google.com/drive/1QwlDWxX5hvwbHMkCgiF0UCzGFRMRoSPY#forceEdit=true&sandboxMode=true) 👩‍💻🚀
+        ## Recap of [Lesson 1](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb) 👩‍💻🚀
         1. Created a pipeline, loaded toy data into DuckDB, and viewed the load info.
         2. Used the `dlt.pipeline` and `pipeline.run` methods.
         3. Queried data and viewed tables with DuckDB, the `sql_client`, and the dlt `dataset`.
 
-        Now, let's move on to the next lesson to learn more about dlt! 🚀
+        Now, let's move on to the next lesson to learn more! 🚀
         """
     )
     return
@@ -304,7 +304,9 @@ def _(mo):
 
 
 @app.cell
-def _(TDataItems, dlt, pipeline, requests):
+def _(TDataItems, dlt, pipeline):
+    from dlt.sources.helpers import requests
+
     @dlt.resource(table_name="pokemon_api")
     def get_pokemon() -> TDataItems:
         url = "https://pokeapi.co/api/v2/pokemon"
@@ -314,7 +316,7 @@ def _(TDataItems, dlt, pipeline, requests):
     _load_info = pipeline.run(get_pokemon)
     print(_load_info)
     pipeline.dataset().pokemon_api.df()
-    return (get_pokemon,)
+    return get_pokemon, requests
 
 
 @app.cell(hide_code=True)
@@ -556,24 +558,35 @@ def _(mo):
 
 @app.cell
 def _(TDataItems, dlt, my_pokemons, requests):
+    # Define a transformer to enrich pokemon data with additional details
     @dlt.transformer(data_from=my_pokemons, table_name="detailed_info")
-    def poke_details(items: TDataItems) -> TDataItems:
+    def poke_details(
+        items: TDataItems,
+    ) -> (
+        TDataItems
+    ):  # <--- `items` is a variable and contains data from `my_dict_list` resource
         for item in items:
-            print(f"Item: {item}\n")
+            print(
+                f"Item: {item}\n"
+            )  # <-- print what data we get from `my_dict_list` source
+
             item_id = item["id"]
             url = f"https://pokeapi.co/api/v2/pokemon/{item_id}"
             response = requests.get(url)
             details = response.json()
-            print(f"Details: {details}\n")
+
+            print(f"Details: {details}\n")  # <--- print what data we get from API
+
             yield details
 
-    pipeline_1 = dlt.pipeline(
+    # Set pipeline name, destination, and dataset name
+    another_pipeline = dlt.pipeline(
         pipeline_name="quick_start",
         destination="duckdb",
         dataset_name="pokedata",
         dev_mode=True,
     )
-    return (poke_details,)
+    return another_pipeline, poke_details
 
 
 @app.cell(hide_code=True)
@@ -604,15 +617,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    TDataItem,
-    TDataItems,
-    another_pipeline,
-    dlt,
-    my_dict_list,
-    other_poke_details,
-    requests,
-):
+def _(TDataItem, TDataItems, another_pipeline, dlt, requests):
     @dlt.resource(table_name="pokemon")
     def my_other_pokemons() -> TDataItems:
         pokemons = [
@@ -622,8 +627,8 @@ def _(
         ]
         yield from pokemons
 
-    @dlt.transformer(data_from=my_dict_list, table_name="detailed_info")
-    def details(data_item: TDataItem) -> TDataItems:
+    @dlt.transformer(data_from=my_other_pokemons, table_name="detailed_info")
+    def other_poke_details(data_item: TDataItem) -> TDataItems:
         item_id = data_item["id"]
         url = f"https://pokeapi.co/api/v2/pokemon/{item_id}"
         response = requests.get(url)
@@ -707,7 +712,7 @@ def _(mo):
     mo.md(
         r"""
         ---
-        ## **Exercise 1: Create a pipeline for GitHub API - repos endpoint**
+        ## **Exercise 1: Create a pipeline for GitHub API – repos endpoint**
 
         In this exercise, you'll build a dlt pipeline to fetch data from the GitHub REST API. The goal is to learn how to use `dlt.pipeline`, `dlt.resource`, and `dlt.source` to extract and load data into a destination.
 
@@ -715,24 +720,25 @@ def _(mo):
 
         1. **Explore the GitHub API**
 
-          Visit the [GitHub REST API Docs](https://docs.github.com/en/rest) to understand the endpoint to [list public repositories](https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28) for an organization:
+           Visit the [GitHub REST API Docs](https://docs.github.com/en/rest) to understand the endpoint to [list public repositories](https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28) for an organization:
 
-          GET https://api.github.com/orgs/{org}/repos
+           `GET https://api.github.com/orgs/{org}/repos`
 
-        2. **Build the Pipeline**
+        2. **Build the pipeline**
 
-          Write a script to:
+           Write a script to:
 
-          * Fetch repositories for a **dlt-hub** organization.
-          * Use `dlt.resource` to define the data extraction logic.
-          * Combine all resources to a single `@dlt.source`.
-          * Load the data into a DuckDB database.
+           - Fetch repositories for the **dlt-hub** organization.
+           - Use `dlt.resource` to define the data extraction logic.
+           - Combine all resources into a single `@dlt.source`.
+           - Load the data into a DuckDB database.
 
-        3. **Look at the data**
+        3. **Inspect the data**
 
-          Use `duckdb` connection, `sql_client` or `pipeline.dataset()`.
+           Use a `duckdb` connection, `sql_client`, or `pipeline.dataset()`.
 
-        > **Note**: For this exercise you don't need to use Auth and Pagination.
+        > **Note**: For this exercise you don't need to use authentication or pagination.
+
         """
     )
     return
@@ -742,7 +748,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        Play with API using requests library:
+        Play with the API using the requests library:
 
         """
     )
@@ -750,10 +756,10 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(requests_1):
     import requests
 
-    response = requests.get("https://api.github.com/orgs/dlt-hub/repos")
+    response = requests_1.get("https://api.github.com/orgs/dlt-hub/repos")
     response.json()[0]
     return (requests,)
 
@@ -762,18 +768,18 @@ def _():
 def _(mo):
     mo.md(
         r"""
-        In the code snippet below you will find an **example** for the **`events`** endpoint:
+        In the code snippet below, you will find an **example** for the **`events`** endpoint:
         """
     )
     return
 
 
 @app.cell
-def _(DltResource, Iterable, TDataItems, dlt, requests):
+def _(DltResource, Iterable, TDataItems, dlt, requests_1):
     @dlt.resource
     def github_events() -> TDataItems:
         url = "https://api.github.com/orgs/dlt-hub/events"
-        response = requests.get(url)
+        response = requests_1.get(url)
         yield response.json()
 
     @dlt.source
@@ -795,7 +801,7 @@ def _(mo):
     mo.md(
         r"""
         ### Question
-        How many columns has the `github_repos` table? Use `duckdb` connection, `sql_client` or `pipeline.dataset()`.
+        How many columns has the `github_repos` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
         """
     )
     return
@@ -805,14 +811,16 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ## **Exercise 2: Create a pipeline for GitHub API - stargazers endpoint**
+        ## **Exercise 2: Create a pipeline for the GitHub API – stargazers endpoint**
 
-        Create a `dlt.transformer` for the "stargazers" endpoint
-        https://api.github.com/repos/OWNER/REPO/stargazers for `dlt-hub` organization.
+        Create a `dlt.transformer` for the **"stargazers"** endpoint
+        `https://api.github.com/repos/OWNER/REPO/stargazers` for the `dlt-hub` organization.
 
-        Use `github_repos` resource as a main resource for the transformer:
-        1. Get all `dlt-hub` repositories.
-        2. Feed these repository names to dlt transformer and get all stargazers for all `dlt-hub` repositories.
+        Use the `github_repos` resource as the main resource for the transformer:
+
+        1. Get all repositories in the `dlt-hub` organization.
+        2. Feed these repository names into the `dlt` transformer and retrieve all stargazers for all `dlt-hub` repositories.
+
         """
     )
     return
@@ -829,7 +837,7 @@ def _(mo):
     mo.md(
         r"""
         ### Question
-        How many columns has the `github_stargazer` table? Use `duckdb` connection, `sql_client` or `pipeline.dataset()`.
+        How many columns has the `github_stargazer` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
         """
     )
     return
@@ -839,7 +847,17 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ✅ ▶ Proceed to the [next lesson](https://colab.research.google.com/drive/1-jVNzMJTRYHhbRlXgGFlhMwdML1L9zMx#forceEdit=true&sandboxMode=true)!
+        ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_3_pagination_and_authentication_and_dlt_configuration.ipynb)!
+        """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+
         """
     )
     return
