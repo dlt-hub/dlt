@@ -339,3 +339,24 @@ def test_duckdb_credentials_separation(
 
     assert "p1" in p1_dataset.sql_client.credentials._conn_str()
     assert "p2" in p2_dataset.sql_client.credentials._conn_str()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_duckdb_destination_handover(destination_config: DestinationTestConfiguration) -> None:
+    # pipeline should be able to handover default pipeline factory to another pipeline
+    p1 = dlt.pipeline("p1", destination="duckdb")
+    p1.run([1, 2, 3], table_name="digits")
+
+    # p2 sees tables from p1 so duckdb database file was handed over
+    p2 = dlt.pipeline("p2", destination=p1.destination, dataset_name=p1.dataset_name)
+    with p2.sql_client() as c:
+        assert len(c.execute_sql("SELECT * FROM digits")) == 3
+
+    p2.run(["a", "b", "c"], table_name="letters")
+
+    with p1.sql_client() as c:
+        assert len(c.execute_sql("SELECT * FROM letters")) == 3
