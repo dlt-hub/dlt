@@ -267,10 +267,9 @@ class DltResourceHints:
         return self._table_has_other_dynamic_hints
 
     @property
-    def write_disposition(self) -> Optional[TTableHintTemplate[TWriteDispositionConfig]]:
-        if self._hints is None or self._hints.get("write_disposition") is None:
-            return DEFAULT_WRITE_DISPOSITION
-        return self._hints.get("write_disposition")
+    def write_disposition(self) -> TTableHintTemplate[TWriteDispositionConfig]:
+        value = (self._hints or {}).get("write_disposition")
+        return value if value is not None else DEFAULT_WRITE_DISPOSITION
 
     @write_disposition.setter
     def write_disposition(self, value: TTableHintTemplate[TWriteDispositionConfig]) -> None:
