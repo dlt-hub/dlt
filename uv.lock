@@ -2169,6 +2169,7 @@ postgres = [
 pyiceberg = [
     { name = "pyarrow" },
     { name = "pyiceberg" },
+    { name = "pyiceberg-core" },
     { name = "sqlalchemy" },
 ]
 qdrant = [
@@ -2405,6 +2406,7 @@ requires-dist = [
     { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
     { name = "pydbml", marker = "extra == 'dbml'" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
+    { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
     { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'synapse'", specifier = ">=4.0.39" },
     { name = "pytz", specifier = ">=2022.6" },
@@ -7484,6 +7486,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/fd/d370f11fcb8da9c4146356dd635ef6a6615372f1e202e37cb4a9e47fafd5/pyiceberg-0.9.1-pp39-pypy39_pp73-macosx_11_0_arm64.whl", hash = "sha256:5150464428a0568c4f46405884bc777dde37935580fb72b0030dfa28805d82e7", size = 627370, upload-time = "2025-04-30T14:59:30.559Z" },
     { url = "https://files.pythonhosted.org/packages/af/66/843ce33ab3dbcce71fa8dec4368f930c4349d0c403990087a2ae996d387e/pyiceberg-0.9.1-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:af2a6c273cfaf2b21b319fcf79489f87604220a0497942303b2a715a9d0f29e9", size = 1315204, upload-time = "2025-04-30T14:59:31.959Z" },
     { url = "https://files.pythonhosted.org/packages/1c/56/f0c7014cd16bd9990bdfa9b901fe6ecc344d6b9775676dc35c48b3a6aca1/pyiceberg-0.9.1-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:023c3fcee36a441b7e20418b6e9cdc6f904141bfda09f8580dfe022d7faa7a53", size = 626539, upload-time = "2025-04-30T14:59:33.17Z" },
+]
+
+[[package]]
+name = "pyiceberg-core"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/85/d3ec2e229d4e1bad3b9c4092889cae102eaf0d4ed62ce0e2de2b6e32cc4d/pyiceberg_core-0.7.0.tar.gz", hash = "sha256:8166883ace30a388d2f659634bec87731cad7bc52341c997fcdd4e13780e4345", size = 504657, upload-time = "2025-10-10T16:30:16.202Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/35/2942dcaf19ca1becc7f9a9001d0cf98168634732a33efbb06a6f382c36b1/pyiceberg_core-0.7.0-cp39-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:99e23463c30c4180329719fe1f120e779b20616a36bbdd42042b70063a13bd39", size = 56895735, upload-time = "2025-10-10T16:30:00.949Z" },
+    { url = "https://files.pythonhosted.org/packages/93/54/dbf169474b8c336316657041fd6e2791b534f8ab3cffe50509533993de03/pyiceberg_core-0.7.0-cp39-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:94fe0281f09c84cdd4e56d217865ef1d81e0cb0b708ba6eb2f4c5ae8bf86f0ba", size = 30991747, upload-time = "2025-10-10T16:30:04.515Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/34/545cf261c343a8d04f75e25aa259f0cf5020b913ede0cb3bdf17c2c7690a/pyiceberg_core-0.7.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:74543885cc97e8d976707f97dd01e8f03dce8a5d3a01e41ada0aaefa13c742f9", size = 31572481, upload-time = "2025-10-10T16:30:07.319Z" },
+    { url = "https://files.pythonhosted.org/packages/63/6b/c8ae2eb1fd60798b819720915e50ea29befafb8816141182df7fa5e788d6/pyiceberg_core-0.7.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:2303276b0d8b57b8ce4a3ef9e5050ffdefd9561684728cd0a9a72a9ad0a6a74d", size = 30588256, upload-time = "2025-10-10T16:30:11.047Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/8f/e63e03afb2e655d6f984a4e57ea53aa860a545298eeb5bc887a5d5db9c3b/pyiceberg_core-0.7.0-cp39-abi3-win_amd64.whl", hash = "sha256:64dd3c3c7af6d39097e1d070161e98118e5dd423392992a9074e1ab813fd467b", size = 26606962, upload-time = "2025-10-10T16:30:13.96Z" },
 ]
 
 [[package]]
