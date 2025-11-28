@@ -1162,15 +1162,17 @@ class Pipeline(SupportsPipeline):
                 set(caps.supported_loader_file_formats),
             )
 
-    def _on_set_destination(self, new_value: AnyDestination) -> None:
+    def _on_set_destination(self, new_destination: AnyDestination) -> None:
         """Called when destination changes"""
-        if issubclass(new_value.spec, WithLocalFiles):
+        if issubclass(new_destination.spec, WithLocalFiles):
             config = WithLocalFiles()
             config = self._bind_local_files(config)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
-                if config[field] is not None:
-                    new_value.config_params[field] = config[field]
+                # if factory was already bound, do not overwrite
+                # TODO: support local files in destination factory explicitly
+                if config[field] is not None and new_destination.config_params.get(field) is None:
+                    new_destination.config_params[field] = config[field]
 
     def _bind_local_files(self, local_files: TWithLocalFiles) -> TWithLocalFiles:
         # get context for local files from pipeline
