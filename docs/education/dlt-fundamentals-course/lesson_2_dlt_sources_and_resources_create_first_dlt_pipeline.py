@@ -8,7 +8,7 @@ app = marimo.App()
 def _(mo):
     mo.md(
         r"""
-        # **dlt sources and resources**: Create your first dlt pipeline.  [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb)
+        # **dlt sources and resources**: Create your first dlt pipeline.  [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/?src=https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb)
 
         """
     )
@@ -57,7 +57,7 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ## **Install dlt**
+        [Install](https://dlthub.com/docs/reference/installation) `dlt` with DuckDB as destination:
         """
     )
     return
@@ -67,7 +67,7 @@ def _(mo):
 def _():
     # magic command not supported in marimo; please file an issue to add support
     # %%capture
-    # !pip install dlt
+    # !pip install "dlt[duckdb]"
     return
 
 
@@ -776,6 +776,8 @@ def _(mo):
 
 @app.cell
 def _(DltResource, Iterable, TDataItems, dlt, requests_1):
+    import duckdb
+
     @dlt.resource
     def github_events() -> TDataItems:
         url = "https://api.github.com/orgs/dlt-hub/events"
