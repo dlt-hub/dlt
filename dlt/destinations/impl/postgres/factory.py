@@ -129,36 +129,6 @@ class PostgresTypeMapper(TypeMapperImpl):
         return super().to_destination_type(column, table)
 
 
-def postgres_loader_file_format_selector(
-    preferred_loader_file_format: TLoaderFileFormat,
-    supported_loader_file_formats: Sequence[TLoaderFileFormat],
-    /,
-    *,
-    table_schema: TTableSchema,
-) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
-    try:
-        # supports adbc for direct parquet loading
-        # from adbc_driver_manager import _dbapi_backend, dbapi
-
-        # _dbapi_backend._ALL_BACKENDS
-        # dbapi.connect()
-
-        import adbc_driver_postgresql.dbapi
-    except ImportError:
-        supported_loader_file_formats = list(supported_loader_file_formats)
-        supported_loader_file_formats.remove("parquet")
-
-        if table_schema.get("file_format") == "parquet":
-            logger.warning(
-                f"parquet file format was requested for table {table_schema['name']} but ADBC"
-                " driver "
-                "for postgres was not installed. Read more:"
-                " https://dlthub.com/docs/dlt-ecosystem/destinations/postgres#fast-loading-with-arrow-tables-and-parquet"
-            )
-
-    return (preferred_loader_file_format, supported_loader_file_formats)
-
-
 def get_adbc_driver_location() -> str:
     """Detects driver location if PyPI driver package is installed, otherwise falls back to dbc
     driver name.
