@@ -235,7 +235,9 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             merge_iceberg_table,
             create_table,
         )
-        from dlt.destinations.impl.filesystem.iceberg_adapter import build_iceberg_partition_spec
+        from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
+            build_iceberg_partition_spec,
+        )
 
         try:
             table = self._job_client.load_open_table(

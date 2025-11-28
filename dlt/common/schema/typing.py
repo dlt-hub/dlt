@@ -178,7 +178,7 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     """TypedDict that defines additional column hints"""
 
     description: Optional[str]
-    partition: Optional[Union[bool, Dict[str, Any], List[Dict[str, Any]]]]
+    partition: Optional[bool]
     cluster: Optional[bool]
     unique: Optional[bool]
     sort: Optional[bool]

@@ -1,52 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, List, Dict, Union, Sequence, Optional, Callable, cast
+from typing import Any, List, Dict, Union, Sequence, Optional, cast
 
-from dlt import version
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.typing import PreparedTableSchema
-
-try:
-    from pyiceberg.transforms import (
-        Transform,
-        IdentityTransform,
-        YearTransform,
-        MonthTransform,
-        DayTransform,
-        HourTransform,
-        BucketTransform,
-        TruncateTransform,
-        S,
-    )
-    from pyiceberg.partitioning import (
-        PartitionSpec as IcebergPartitionSpec,
-        PartitionField,
-        PARTITION_FIELD_ID_START,
-    )
-    from pyiceberg.schema import Schema as IcebergSchema
-    from pyiceberg.io.pyarrow import pyarrow_to_schema
-    from pyiceberg.table.name_mapping import NameMapping, MappedField
-except ImportError:
-    raise MissingDependencyException(
-        "dlt iceberg adapter",
-        [f"{version.DLT_PKG_NAME}[pyiceberg]"],
-        "Install `pyiceberg` for dlt iceberg adapter to work",
-    )
-
-from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 
 PARTITION_HINT = "x-iceberg-partition"
-
-_TRANSFORM_LOOKUP: Dict[str, Callable[[Optional[int]], Transform[S, Any]]] = {
-    "identity": lambda _: IdentityTransform(),
-    "year": lambda _: YearTransform(),
-    "month": lambda _: MonthTransform(),
-    "day": lambda _: DayTransform(),
-    "hour": lambda _: HourTransform(),
-    "bucket": lambda n: BucketTransform(n),
-    "truncate": lambda w: TruncateTransform(w),
-}
 
 
 @dataclass(frozen=True)
@@ -55,21 +14,6 @@ class PartitionSpec:
     transform: str = "identity"
     param_value: Optional[int] = None
     partition_field: Optional[str] = None
-
-    def get_transform(self) -> Transform[S, Any]:
-        """Get the PyIceberg Transform object for this partition.
-
-        Returns:
-            A PyIceberg Transform object
-
-        Raises:
-            ValueError: If the transform is not recognized
-        """
-        try:
-            factory = _TRANSFORM_LOOKUP[self.transform]
-        except KeyError as exc:
-            raise ValueError(f"Unknown partition transformation type: {self.transform}") from exc
-        return factory(self.param_value)
 
     def to_dict(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {
@@ -278,38 +222,6 @@ def iceberg_adapter(
     return resource
 
 
-def _default_field_name(spec: PartitionSpec) -> str:
-    """
-    Replicate Iceberg's automatic partition-field naming by delegating to the private
-    _PartitionNameGenerator. Falls back to the user-supplied `partition_field` if present.
-    """
-    from pyiceberg.partitioning import _PartitionNameGenerator
-
-    name_generator = _PartitionNameGenerator()
-
-    if spec.partition_field:  # user-supplied `partition_field`
-        return spec.partition_field
-
-    # name generator requires field_id and source_id, but does not use them
-    dummy_field_id = 0
-    dummy_source_id = 0
-
-    if spec.transform == "bucket":
-        # bucket / truncate need the numeric parameter
-        return name_generator.bucket(
-            dummy_field_id, spec.source_column, dummy_source_id, spec.param_value
-        )
-    if spec.transform == "truncate":
-        return name_generator.truncate(
-            dummy_field_id, spec.source_column, dummy_source_id, spec.param_value
-        )
-
-    # identity, year, month, day, hour – all have the same signature
-    method = getattr(name_generator, spec.transform)
-
-    return method(dummy_field_id, spec.source_column, dummy_source_id)  # type: ignore[no-any-return]
-
-
 def parse_partition_hints(table_schema: PreparedTableSchema) -> List[PartitionSpec]:
     """Parse PARTITION_HINT from table schema into PartitionSpec list.
 
@@ -337,35 +249,3 @@ def create_identity_specs(column_names: List[str]) -> List[PartitionSpec]:
         List of PartitionSpec objects with identity transform
     """
     return [iceberg_partition.identity(column_name) for column_name in column_names]
-
-
-def build_iceberg_partition_spec(
-    arrow_schema: pa.Schema,
-    spec_list: Sequence[PartitionSpec],
-) -> tuple[IcebergPartitionSpec, IcebergSchema]:
-    """
-    Turn a dlt PartitionSpec list into a PyIceberg PartitionSpec.
-    Returns the PartitionSpec and the IcebergSchema derived from the Arrow schema.
-    """
-    name_mapping = NameMapping(
-        [
-            MappedField(field_id=i + 1, names=[name])  # type: ignore[call-arg]
-            for i, name in enumerate(arrow_schema.names)
-        ]
-    )
-    iceberg_schema: IcebergSchema = pyarrow_to_schema(arrow_schema, name_mapping)
-
-    fields: list[PartitionField] = []
-    for pos, spec in enumerate(spec_list):
-        iceberg_field = iceberg_schema.find_field(spec.source_column)
-
-        fields.append(
-            PartitionField(
-                field_id=PARTITION_FIELD_ID_START + pos,
-                source_id=iceberg_field.field_id,
-                transform=spec.get_transform(),
-                name=_default_field_name(spec),
-            )
-        )
-
-    return IcebergPartitionSpec(*fields), iceberg_schema
