@@ -1224,6 +1224,13 @@ class Pipeline(SupportsPipeline):
         if self.dev_mode:
             self._wipe_working_folder()
 
+    def _recreate_initial_state(self) -> None:
+        # replace the injected state dict with a fresh default
+        injected_state = self._container[StateInjectableContext].state
+        injected_state.update(default_pipeline_state())
+        self._set_dataset_name(None)
+        self._save_state(injected_state)
+
     def _configure(
         self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool
     ) -> None:
@@ -1247,14 +1254,17 @@ class Pipeline(SupportsPipeline):
             )
 
         self.must_attach_to_local_pipeline = must_attach_to_local_pipeline
-        # attach to pipeline if folder exists and contains state
-        if has_state:
+        prev_dev_mode: bool = self.get_local_state_val("dev_mode") if has_state else False
+        should_recreate_pipeline: bool = prev_dev_mode and not self.dev_mode
+        self.set_local_state_val("dev_mode", self.dev_mode)  # create schema storage
+        if has_state and not should_recreate_pipeline:
             self._attach_pipeline()
         else:
-            # this will erase the existing working folder
             self._create_pipeline()
 
-        # create schema storage
+        if should_recreate_pipeline:
+            self._recreate_initial_state()
+
         self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
 
     def _create_pipeline(self) -> None:
@@ -1521,10 +1531,12 @@ class Pipeline(SupportsPipeline):
     ) -> str:
         """Generates dataset name for the pipeline based on `new_dataset_name`
         1. if name is not provided, default name is created
-        2. for destinations that do not need dataset names, def. name is not created
-        3. we add serial number in dev mode
-        4. we apply layout from pipeline config if present
+        2. if destination is not provided, and no dataset name is provided, default name is created
+        3. for destinations that do not need dataset names, def. name is not created
+        4. we add serial number in dev mode
+        5. we apply layout from pipeline config if present
         """
+        # TODO: update this function to differentiate between the new_dataset_name parameter and the dataset_name property created by the function
         if not new_dataset_name:
             # dataset name is required but not provided - generate the default now
             destination_needs_dataset = False
@@ -1533,6 +1545,9 @@ class Pipeline(SupportsPipeline):
             # if destination is not specified - generate dataset
             if destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
+
+        if not destination and not new_dataset_name:
+            new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
             return new_dataset_name
