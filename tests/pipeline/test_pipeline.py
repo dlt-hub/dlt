@@ -278,12 +278,20 @@ def test_pipeline_configuration_named_section(environment) -> None:
         == environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"]
     )
 
+
 def test_dataset_name_consistency_with_dev_mode() -> None:
     p = dlt.pipeline(dev_mode=True, destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
     r_p = dlt.attach()
     assert not r_p.dataset_name.endswith(p._pipeline_instance_id)
+
+    # state was cleared (fresh local state)
+    assert r_p.state["_local"]["first_run"] is True
+    assert "_last_extracted_hash" not in r_p.state["_local"]
+    assert r_p.default_schema_name is None
+    assert r_p.schema_names == []
+
 
 def test_run_dev_mode_default_dataset() -> None:
     p = dlt.pipeline(dev_mode=True, destination="filesystem")

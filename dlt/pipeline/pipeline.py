@@ -7,6 +7,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Dict,
     List,
     Iterator,
     Optional,
@@ -1225,11 +1226,14 @@ class Pipeline(SupportsPipeline):
             self._wipe_working_folder()
 
     def _recreate_initial_state(self) -> None:
-        # replace the injected state dict with a fresh default
         injected_state = self._container[StateInjectableContext].state
-        injected_state.update(default_pipeline_state())
+        state_map = cast("Dict[str, Any]", injected_state)
+        state_map.clear()
+
+        state = cast(TPipelineState, state_map)
+        state.update(default_pipeline_state())
         self._set_dataset_name(None)
-        self._save_state(injected_state)
+        self._save_state(state)
 
     def _configure(
         self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool
