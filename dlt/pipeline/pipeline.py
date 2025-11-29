@@ -1277,10 +1277,10 @@ class Pipeline(SupportsPipeline):
             self._attach_pipeline()
         else:
             self._create_pipeline()
-        self.set_local_state_val("dev_mode", self.dev_mode)  # create schema storage
+        self.set_local_state_val("dev_mode", self.dev_mode)
         if should_recreate_pipeline:
             self._recreate_initial_state()
-
+        # create schema storage
         self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
 
     def _create_pipeline(self) -> None:
