@@ -1535,10 +1535,9 @@ class Pipeline(SupportsPipeline):
     ) -> str:
         """Generates dataset name for the pipeline based on `new_dataset_name`
         1. if name is not provided, default name is created
-        2. if destination is not provided, and no dataset name is provided, default name is created
-        3. for destinations that do not need dataset names, def. name is not created
-        4. we add serial number in dev mode
-        5. we apply layout from pipeline config if present
+        2. for destinations that do not need dataset names, def. name is not created
+        3. we add serial number in dev mode
+        4. we apply layout from pipeline config if present
         """
         # TODO: update this function to differentiate between the new_dataset_name parameter and the dataset_name property created by the function
         if not new_dataset_name:
@@ -1549,9 +1548,6 @@ class Pipeline(SupportsPipeline):
             # if destination is not specified - generate dataset
             if destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
-
-        if not destination and not new_dataset_name:
-            new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
         if not new_dataset_name:
             return new_dataset_name
