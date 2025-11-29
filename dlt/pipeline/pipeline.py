@@ -1235,6 +1235,19 @@ class Pipeline(SupportsPipeline):
         self._set_dataset_name(None)
         self._save_state(state)
 
+    def _get_prev_dev_mode_from_state(self) -> bool:
+        """Reads previous dev_mode from raw state.json only if engine supports it (>=2)."""
+        try:
+            raw = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
+        except FileNotFoundError:
+            return False
+        engine = int(raw.get("_state_engine_version", 1))
+        if engine >= 2:
+            return bool(raw.get("_local", {}).get("dev_mode", False))
+        else:
+            # legacy engine does not record dev flag
+            return False
+
     def _configure(
         self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool
     ) -> None:
@@ -1258,7 +1271,7 @@ class Pipeline(SupportsPipeline):
             )
 
         self.must_attach_to_local_pipeline = must_attach_to_local_pipeline
-        prev_dev_mode: bool = self.get_local_state_val("dev_mode") if has_state else False
+        prev_dev_mode: bool = self._get_prev_dev_mode_from_state() if has_state else False
         should_recreate_pipeline: bool = prev_dev_mode and not self.dev_mode
         self.set_local_state_val("dev_mode", self.dev_mode)  # create schema storage
         if has_state and not should_recreate_pipeline:
