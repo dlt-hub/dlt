@@ -1,4 +1,5 @@
 from typing import Any
+from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
 
 import dlt
 
@@ -75,3 +76,8 @@ def build_page_header(
             align="center",
         )
     ]
+
+
+def section_marker(section_name: str) -> mo.Html:
+    """Create an invisible marker element to identify sections for CSS styling."""
+    return mo.Html(f'<div class="section-marker" data-section="{section_name}" hidden"></div>')

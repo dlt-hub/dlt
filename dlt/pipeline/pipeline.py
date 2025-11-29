@@ -127,6 +127,7 @@ from dlt.pipeline.trace import (
     PipelineStepTrace,
     load_trace,
     merge_traces,
+    save_trace,
     start_trace,
     start_trace_step,
     end_trace_step,
@@ -237,9 +238,7 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
                             f"Messed up trace reference {self._trace.transaction_id} vs"
                             f" {trace.transaction_id}"
                         )
-                        trace = end_trace(
-                            trace, self, self._pipeline_storage.storage_path, send_state
-                        )
+                        trace = end_trace(trace, self, send_state)
                 finally:
                     # always end trace
                     if is_new_trace:
@@ -250,6 +249,7 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
                         # this way we combine several separate calls to extract, normalize, load as single trace
                         # the trace of "run" has many steps and will not be merged
                         self._last_trace = merge_traces(self._last_trace, trace)
+                        save_trace(self.working_dir, self._last_trace)
                         self._trace = None
 
         return _wrap  # type: ignore
@@ -952,23 +952,31 @@ class Pipeline(SupportsPipeline):
         return self.config.runtime
 
     def __repr__(self) -> str:
-        kwargs = {
-            "pipeline_name": self.pipeline_name,
-            "destination": (
-                self._destination.destination_name if getattr(self, "_destination", None) else None
-            ),
-            "staging": self._staging.destination_name if getattr(self, "_staging", None) else None,
-            "dataset_name": self.dataset_name,
-            "default_schema_name": self.default_schema_name,
-            "schema_names": getattr(self, "schema_names", None),
-            "first_run": getattr(self, "first_run", None),
-            "dev_mode": getattr(self, "dev_mode", None),
-            # `is_active is True` is the common case
-            "is_active": getattr(self, "is_active", None),
-            "pipelines_dir": getattr(self, "pipelines_dir", None),
-            "working_dir": getattr(self, "working_dir", None),
-        }
-        return simple_repr("dlt.pipeline", **without_none(kwargs))
+        try:
+            kwargs = {
+                "pipeline_name": self.pipeline_name,
+                "destination": (
+                    self._destination.destination_name
+                    if getattr(self, "_destination", None)
+                    else None
+                ),
+                "staging": (
+                    self._staging.destination_name if getattr(self, "_staging", None) else None
+                ),
+                "dataset_name": self.dataset_name,
+                "default_schema_name": self.default_schema_name,
+                "schema_names": getattr(self, "schema_names", None),
+                "first_run": getattr(self, "first_run", None),
+                "dev_mode": getattr(self, "dev_mode", None),
+                # `is_active is True` is the common case
+                "is_active": getattr(self, "is_active", None),
+                "pipelines_dir": getattr(self, "pipelines_dir", None),
+                "working_dir": getattr(self, "working_dir", None),
+            }
+            return simple_repr("dlt.pipeline", **without_none(kwargs))
+        except Exception:
+            # fallback to object repr
+            return super().__repr__()
 
     @deprecated(
         "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
@@ -1154,15 +1162,17 @@ class Pipeline(SupportsPipeline):
                 set(caps.supported_loader_file_formats),
             )
 
-    def _on_set_destination(self, new_value: AnyDestination) -> None:
+    def _on_set_destination(self, new_destination: AnyDestination) -> None:
         """Called when destination changes"""
-        if issubclass(new_value.spec, WithLocalFiles):
+        if issubclass(new_destination.spec, WithLocalFiles):
             config = WithLocalFiles()
             config = self._bind_local_files(config)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
-                if config[field] is not None:
-                    new_value.config_params[field] = config[field]
+                # if factory was already bound, do not overwrite
+                # TODO: support local files in destination factory explicitly
+                if config[field] is not None and new_destination.config_params.get(field) is None:
+                    new_destination.config_params[field] = config[field]
 
     def _bind_local_files(self, local_files: TWithLocalFiles) -> TWithLocalFiles:
         # get context for local files from pipeline

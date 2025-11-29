@@ -4,7 +4,6 @@ import os
 from typing import Awaitable, Callable, List, Optional, Dict, Iterator, Any, cast
 
 import pytest
-from pydantic import BaseModel
 
 import dlt
 from dlt.common.configuration import known_sections
@@ -386,6 +385,8 @@ def test_nested_hints_decorator() -> None:
 
 
 def test_columns_from_pydantic() -> None:
+    from pydantic import BaseModel
+
     class Columns(BaseModel):
         tags: List[str]
         name: Optional[str]

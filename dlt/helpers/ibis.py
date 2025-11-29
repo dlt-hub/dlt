@@ -83,7 +83,7 @@ def create_ibis_backend(
             # also prevents empty duckdb files from being created
             client.sql_client.use_dataset()
         except Exception:
-            # close explicitly, wont be done by the conn pool
+            # close explicitly, won't be done by the conn pool
             client.sql_client.close_connection()
             raise
         con = ibis.duckdb.from_connection(conn)

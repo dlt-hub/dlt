@@ -28,6 +28,45 @@ pytestmark = pytest.mark.essential
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["athena"],
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "lf_enabled", [True, False, None], ids=["lf-on", "lf-off", "lf-passthrough"]
+)
+def test_athena_lakeformation_config_gating(
+    destination_config: DestinationTestConfiguration, lf_enabled: bool, mocker, monkeypatch
+) -> None:
+    # Configure Lake Formation gating via env (read by client config)
+    if lf_enabled is not None:
+        monkeypatch.setenv("DESTINATION__LAKEFORMATION_CONFIG__ENABLED", str(lf_enabled))
+
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
+
+    with pipeline.destination_client() as client:
+        mocked_manage = mocker.patch(
+            "dlt.destinations.impl.athena.athena.AthenaClient.manage_lf_tags"
+        )
+        # avoid side effects in parent update_stored_schema; gating still runs in AthenaClient
+        mocker.patch(
+            "dlt.destinations.job_client_impl.SqlJobClientWithStagingDataset.update_stored_schema",
+            return_value=None,
+        )
+
+        client.update_stored_schema()
+        # disable and enable flag with add / remove tags respectively, None will skip
+        if lf_enabled is not None:
+            mocked_manage.assert_called()
+        else:
+            mocked_manage.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(default_sql_configs=True, subset=["athena"]),
     ids=lambda x: x.name,
 )

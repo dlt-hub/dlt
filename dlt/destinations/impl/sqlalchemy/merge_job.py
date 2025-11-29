@@ -1,7 +1,8 @@
-from typing import Sequence, Tuple, Optional, List, Union
+from typing import Sequence, Tuple, Optional, List, Union, cast
 import operator
 import sqlalchemy as sa
 
+from dlt.common.typing import TAnyDateTime
 from dlt.common.utils import uniq_id
 from dlt.common.destination import PreparedTableSchema, DestinationCapabilitiesContext
 from dlt.common.schema.utils import (
@@ -374,10 +375,13 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             format_datetime_literal = (
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
-
-        boundary_ts = ensure_pendulum_datetime_utc(
-            root_table.get("x-boundary-timestamp", current_load_package()["state"]["created_at"])  # type: ignore[arg-type]
+        _boundary_ts = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
+        boundary_ts: TAnyDateTime = (
+            _boundary_ts
+            if _boundary_ts is not None
+            else current_load_package()["state"]["created_at"]
         )
+        boundary_ts = ensure_pendulum_datetime_utc(boundary_ts)
 
         boundary_literal = format_datetime_literal(boundary_ts, caps.timestamp_precision)
 

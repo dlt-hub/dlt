@@ -7,12 +7,22 @@
   --dlt-color-lime: #c6d300;
   --dlt-color-aqua: #59c1d5;
   --dlt-color-purple: #191937;
+  --dlt-color-pink: #EE746D;
 
   /* background colors */
   --dlt-color-lime-background: #c6d30006;
   --dlt-color-aqua-background: #59c1d503;
   --dlt-color-purple-background: #19193706;
 
+  /* badge colors */
+  --grey-bg: #E0E0E0;
+  --grey-text: #555555;
+  --yellow-bg: #F2D6A2;
+  --yellow-text: #AD7F37;
+  --green-bg: #a8e4ac;
+  --green-text: #468A47;
+  --red-bg: #D47672;
+  --red-text: #FBE8E8;
 }
 
 /* Make headings bold */
@@ -46,49 +56,102 @@
 
 /* add colors to cells */
 
-#App .marimo-cell .output-area{
+/* Default: all sections get purple border and background */
+#App .marimo-cell .output-area {
   border: 1px dashed var(--dlt-color-purple);
   background-color: var(--dlt-color-purple-background);
-
 }
 
-/**
-*
-* Note: The block below makes it easier to see which cells belong together in app mode.
-* If you start adding new cells, you might need to update (or clear) these styles.
-*
-*/
+/* All cells with section markers get margin-top */
+#App .marimo-cell .output-area:has(.section-marker) {
+  margin-top: 0.5rem;
+}
 
-/* data browser cells */
-#App .marimo-cell:nth-child(3) .output-area,
-#App .marimo-cell:nth-child(5) .output-area,
-#App .marimo-cell:nth-child(6) .output-area,
-#App .marimo-cell:nth-child(7) .output-area,
-#App .marimo-cell:nth-child(9) .output-area,
-#App .marimo-cell:nth-child(12) .output-area
- {
+/* Aqua sections - identified by section name in strings.py */
+#App .marimo-cell .output-area:has([data-section="home_section"]),
+#App .marimo-cell .output-area:has([data-section="schema_section"]),
+#App .marimo-cell .output-area:has([data-section="state_section"]),
+#App .marimo-cell .output-area:has([data-section="loads_section"]) {
   background-color: var(--dlt-color-aqua-background);
   border: 1px dashed var(--dlt-color-aqua);
 }
 
-#App .marimo-cell:nth-child(0) .output-area,
-#App .marimo-cell:nth-child(1) .output-area {
-  background-color: white;
-  border: none;
-}
-
-#App .marimo-cell:nth-child(3) .output-area,
-#App .marimo-cell:nth-child(4) .output-area,
-#App .marimo-cell:nth-child(5) .output-area,
-#App .marimo-cell:nth-child(8) .output-area,
-#App .marimo-cell:nth-child(9) .output-area,
-#App .marimo-cell:nth-child(10) .output-area,
-#App .marimo-cell:nth-child(12) .output-area {
-  margin-top: 0.5rem;
-}
-
-
 marimo-callout-output .border {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+/* Pipeline execution visualization styles */
+.pipeline-execution-container {
+  padding-top: 16px;
+  padding-bottom: 10px;
+}
+
+.pipeline-execution-layout {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.pipeline-execution-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pipeline-execution-timeline {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 0 0 40%;
+}
+
+.pipeline-execution-timeline-bar {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  height: 16px;
+}
+
+/* Note: .pipeline-execution-timeline-segment uses inline styles for dynamic width, color, and border-radius */
+
+.pipeline-execution-labels {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.pipeline-execution-badges {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Status badge styles */
+.status-badge {
+  padding: 6px 16px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.status-badge-yellow {
+  background-color: var(--yellow-bg);
+  color: var(--yellow-text);
+}
+
+.status-badge-green {
+  background-color: var(--green-bg);
+  color: var(--green-text);
+}
+
+.status-badge-red {
+  background-color: var(--red-bg);
+  color: var(--red-text);
+}
+
+.status-badge-grey {
+  background-color: var(--grey-bg);
+  color: var(--grey-text);
 }

@@ -1,5 +1,6 @@
 import pytest
 from tests.pipeline.utils import assert_load_info
+from typing import Any, Dict, Iterator
 
 
 def start_snippet() -> None:
@@ -100,7 +101,9 @@ def db_snippet() -> None:
     # use any sql database supported by SQLAlchemy, below we use a public mysql instance to get data
     # NOTE: you'll need to install pymysql with "pip install pymysql"
     # NOTE: loading data from public mysql instance may take several seconds
-    engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
+    engine = create_engine(
+        "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+    )
     with engine.connect() as conn:
         # select genome table, stream data in batches of 100 elements
         rows = conn.execution_options(yield_per=100).exec_driver_sql(
@@ -114,7 +117,9 @@ def db_snippet() -> None:
         )
 
         # here we convert the rows into dictionaries on the fly with a map function
-        load_info = pipeline.run(map(lambda row: dict(row._mapping), rows), table_name="genome")
+        load_info = pipeline.run(
+            map(lambda row: dict(row._mapping), rows), table_name="genome"
+        )
 
     print(load_info)
     # @@@DLT_SNIPPET_END db
@@ -148,8 +153,10 @@ def incremental_snippet() -> None:
 
     @dlt.resource(table_name="issues", write_disposition="append")
     def get_issues(
-        created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
-    ):
+        created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
+            "created_at", initial_value="1970-01-01T00:00:00Z"
+        ),
+    ) -> Iterator[Dict[str, Any]]:
         # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
         url = "https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
 
@@ -195,8 +202,10 @@ def incremental_merge_snippet() -> None:
         primary_key="id",
     )
     def get_issues(
-        updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
-    ):
+        updated_at: dlt.sources.incremental[str] = dlt.sources.incremental(
+            "updated_at", initial_value="1970-01-01T00:00:00Z"
+        ),
+    ) -> Iterator[Dict[str, Any]]:
         # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
         url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}&per_page=100&sort=updated&directions=desc&state=open"
 
@@ -231,8 +240,14 @@ def table_dispatch_snippet() -> None:
     import dlt
     from dlt.sources.helpers import requests
 
-    @dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")
-    def repo_events(last_created_at=dlt.sources.incremental("created_at")):
+    @dlt.resource(
+        primary_key="id", table_name=lambda i: i["type"], write_disposition="append"
+    )
+    def repo_events(
+        last_created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
+            "created_at"
+        ),
+    ) -> Iterator[Dict[str, Any]]:
         url = "https://api.github.com/repos/dlt-hub/dlt/events?per_page=100"
 
         while True:

@@ -53,7 +53,9 @@ def nested_hints_primary_key() -> None:
         return row
 
     p = dlt.pipeline(
-        pipeline_name="test_nested_hints_primary_key", destination="duckdb", dataset_name="local"
+        pipeline_name="test_nested_hints_primary_key",
+        destination="duckdb",
+        dataset_name="local",
     )
     p.run(customers().add_map(_pushdown_customer_id))
     # load same data again to prove that merge works

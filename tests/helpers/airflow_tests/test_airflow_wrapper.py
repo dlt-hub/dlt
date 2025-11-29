@@ -416,7 +416,7 @@ def test_parallel_isolated_run():
         pipeline_dag_parallel = dlt.pipeline(
             pipeline_name="pipeline_dag_parallel",
             dataset_name="mock_data_" + uniq_id(),
-            destination=dlt.destinations.duckdb(),
+            destination=dlt.destinations.duckdb(destination_name="parallel.db"),
         )
         tasks_list = tasks.add_run(
             pipeline_dag_parallel,

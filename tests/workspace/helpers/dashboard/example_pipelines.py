@@ -18,6 +18,7 @@ import tempfile
 SUCCESS_PIPELINE_DUCKDB = "success_pipeline_duckdb"
 SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
 EXTRACT_EXCEPTION_PIPELINE = "extract_exception_pipeline"
+NORMALIZE_EXCEPTION_PIPELINE = "normalize_exception_pipeline"
 NEVER_RAN_PIPELINE = "never_ran_pipline"
 LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
 NO_DESTINATION_PIPELINE = "no_destination_pipeline"
@@ -25,13 +26,18 @@ NO_DESTINATION_PIPELINE = "no_destination_pipeline"
 ALL_PIPELINES = [
     SUCCESS_PIPELINE_DUCKDB,
     EXTRACT_EXCEPTION_PIPELINE,
+    NORMALIZE_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
     SUCCESS_PIPELINE_FILESYSTEM,
 ]
 
-PIPELINES_WITH_EXCEPTIONS = [EXTRACT_EXCEPTION_PIPELINE, LOAD_EXCEPTION_PIPELINE]
+PIPELINES_WITH_EXCEPTIONS = [
+    EXTRACT_EXCEPTION_PIPELINE,
+    NORMALIZE_EXCEPTION_PIPELINE,
+    LOAD_EXCEPTION_PIPELINE,
+]
 PIPELINES_WITH_LOAD = [SUCCESS_PIPELINE_DUCKDB, SUCCESS_PIPELINE_FILESYSTEM]
 
 
@@ -142,6 +148,33 @@ def create_extract_exception_pipeline(pipelines_dir: str = None):
     return pipeline
 
 
+def create_normalize_exception_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline with duckdb destination, raises an exception in the normalize step"""
+    import duckdb
+
+    pipeline = dlt.pipeline(
+        pipeline_name=NORMALIZE_EXCEPTION_PIPELINE,
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    @dlt.resource
+    def data_with_type_conflict():
+        # First yield double, then string for same column - causes normalize failure with strict schema contract
+        yield [{"id": 1, "value": 123.4}]
+        yield [{"id": 2, "value": "string"}]
+
+    with pytest.raises(Exception):
+        pipeline.run(
+            data_with_type_conflict(),
+            schema=dlt.Schema("fruitshop"),
+            table_name="items",
+            schema_contract={"data_type": "freeze"},  # Strict mode - fail on type conflicts
+        )
+
+    return pipeline
+
+
 def create_never_ran_pipeline(pipelines_dir: str = None):
     """Create a test pipeline with duckdb destination which never was run"""
     import duckdb
@@ -192,6 +225,7 @@ if __name__ == "__main__":
     create_success_pipeline_duckdb()
     create_success_pipeline_filesystem()
     create_extract_exception_pipeline()
+    create_normalize_exception_pipeline()
     create_never_ran_pipeline()
     create_load_exception_pipeline()
     create_no_destination_pipeline()

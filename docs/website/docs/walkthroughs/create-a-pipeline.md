@@ -155,7 +155,7 @@ You will need to install `pip dlt[workspace]`
 dlt pipeline github_api_pipeline show
 ```
 
-This will open the pipeline dashboard app that gives you an overview of the data loaded.
+This will open the workspace dashboard app that gives you an overview of the data loaded.
 
 ## 5. Next steps
 

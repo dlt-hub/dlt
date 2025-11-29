@@ -105,7 +105,7 @@ def run_dbt_command(
         runner = dbtRunner()
         run_result = runner.invoke(runner_args)
         success = run_result.success
-        results = run_result.result  # type: ignore
+        results = run_result.result
 
         assert type(success) is bool
         parsed_results = parse_dbt_execution_results(results)

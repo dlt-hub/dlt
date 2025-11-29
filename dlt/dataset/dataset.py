@@ -162,7 +162,7 @@ class Dataset:
         return self._table_client
 
     # TODO remove method; need to update `dlthub` to avoid conflict
-    # this is only used by `dlthub.transformation` currently
+    # this is only used by `dlt.hub.transformation` currently
     def is_same_physical_destination(self, other: dlt.Dataset) -> bool:
         """
         Returns true if the other dataset is on the same physical destination

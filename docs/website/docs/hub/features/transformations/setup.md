@@ -96,9 +96,9 @@ Now you can update the generated transformations and create new ones to reflect 
 
 ## Run transformations
 
-dltHub offers comprehensive CLI support for executing transformations. You can find the full list of available commands in the [command line interface](../../reference.md).
+dltHub offers comprehensive CLI support for executing transformations. You can find the full list of available commands in the command line interface.
 
-To run the defined transformation, use the [following command](../../reference.md#dlt-transformation-run):
+To run the defined transformation, use the following command:
 
 ```sh
 dlt transformation <transformation_name> run

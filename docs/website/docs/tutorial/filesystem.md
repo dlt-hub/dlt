@@ -362,9 +362,13 @@ Check out [other examples](../dlt-ecosystem/verified-sources/filesystem/advanced
 
 Congratulations on completing the tutorial! You've learned how to set up a filesystem source in dlt and run a data pipeline to load the data into DuckDB.
 
+With your pipeline code ready, we recommend the following next steps:
+- Inspect your pipeline and data in [workspace dashboard](../general-usage/dashboard.md)
+- [Access your data](../general-usage/dataset-access/) using `dataset` interface
+- [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
+
 Interested in learning more about dlt? Here are some suggestions:
 
 - Learn more about the filesystem source configuration in [filesystem source](../dlt-ecosystem/verified-sources/filesystem)
 - Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial
-

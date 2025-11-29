@@ -54,7 +54,9 @@ def loader(profile_name: str):
     # get the requested environment
     config = config.get(profile_name, None)
     if config is None:
-        raise RuntimeError(f"Profile with name {profile_name} not found in {os.path.abspath(path)}")
+        raise RuntimeError(
+            f"Profile with name {profile_name} not found in {os.path.abspath(path)}"
+        )
     # evaluate all placeholders
     # NOTE: this method only works with placeholders wrapped as strings in yaml. use jinja lib for real templating
     return map_nested_values_in_place(eval_placeholder, config)
@@ -75,7 +77,9 @@ if __name__ == "__main__":
 
     # instantiate custom provider using `prod` profile
     # NOTE: all placeholders (ie. GITHUB_API_KEY) will be evaluated in next line!
-    provider = CustomLoaderDocProvider("profiles", functools.partial(loader, profile_name))
+    provider = CustomLoaderDocProvider(
+        "profiles", functools.partial(loader, profile_name)
+    )
     # register provider, it will be added as the last one in chain
     dlt.config.register_provider(provider)
 
