@@ -57,10 +57,7 @@ def migrate_pipeline_state(
     if from_engine == to_engine:
         return cast(TPipelineState, state)
     if from_engine == 1 and to_engine > 1:
-        state["_local"] = {
-            "dev_mode": state.get("dev_mode", False),
-            "initial_cwd": os.path.abspath(dlt.current.run_context().local_dir),
-        }
+        state["_local"] = {}
         from_engine = 2
     if from_engine == 2 and to_engine > 2:
         # you may want to recompute hash
