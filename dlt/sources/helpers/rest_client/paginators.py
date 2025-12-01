@@ -846,6 +846,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         cursor_path: jsonpath.TJsonPath = "cursors.next",
         cursor_param: Optional[str] = None,
         cursor_body_path: Optional[str] = None,
+        *,       
         stop_after_empty_page: bool = False,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
     ):
