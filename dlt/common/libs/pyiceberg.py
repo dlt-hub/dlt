@@ -381,25 +381,27 @@ class PyIcebergConfig(BaseConfiguration):
     """
 
 
+@with_config(spec=PyIcebergConfig, sections = 'iceberg_catalog')
 def get_catalog(
-    catalog_name: str = "default",
-    catalog_uri: Optional[str] = None,
-    catalog_config: Optional[Dict[str, Any]] = None,
+    iceberg_catalog_name: str = "default",
+    iceberg_catalog_type: str = 'sql',
+    iceberg_catalog_uri: Optional[str] = None,
+    iceberg_catalog_config: Optional[Dict[str, Any]] = None,
     credentials: Optional[FileSystemCredentials] = None,
 ) -> IcebergCatalog:
     """Get an Iceberg catalog using multiple configuration methods.
 
     This function tries to load a catalog in the following priority order:
-    1. From explicit config dictionary (if catalog_config provided)
+    1. From explicit config dictionary (if iceberg_catalog_config provided)
     2. From .pyiceberg.yaml file
     3. From environment variables
     4. Fall back to in-memory SQLite catalog
 
     Args:
-        catalog_name: Name of the catalog (default: "default")
-        catalog_type: Type of catalog ('sql' or 'rest') - used for fallback
-        catalog_uri: URI for SQL catalog - used for fallback
-        catalog_config: Optional dictionary with complete catalog configuration
+        iceberg_catalog_name: Name of the catalog (default: "default")
+        iceberg_catalog_type: Type of catalog ('sql' or 'rest') - used for fallback
+        iceberg_catalog_uri: URI for SQL catalog - used for fallback
+        iceberg_catalog_config: Optional dictionary with complete catalog configuration
         credentials: Optional filesystem credentials to merge into config
 
     Returns:
@@ -411,32 +413,32 @@ def get_catalog(
 
         # Load from config dict
         config = {'type': 'rest', 'uri': 'https://...', 'warehouse': 'wh'}
-        catalog = get_catalog('my_catalog', catalog_config=config)
+        catalog = get_catalog('my_catalog', iceberg_catalog_config=config)
 
         # Load from environment variables
         # (set DLT_ICEBERG_CATALOG_TYPE, DLT_ICEBERG_CATALOG_URI, etc.)
         catalog = get_catalog()
     """
-    logger.info(f"Attempting to load Iceberg catalog: {catalog_name}")
+    logger.info(f"Attempting to load Iceberg catalog: {iceberg_catalog_name}")
 
-    # Priority 1: Explicit config dictionary
-    if catalog_config:
+    # Priority 1: Explicit config dictionary -> Priority N1 as it is a common pyiceberg pattern
+    if iceberg_catalog_config:
         try:
-            return load_catalog_from_config(catalog_name, catalog_config, credentials)
+            return load_catalog_from_config(iceberg_catalog_name, iceberg_catalog_config, credentials)
         except Exception as e:
-            logger.warning(f"Failed to load catalog from config dict: {e}")
+            logger.warning(f"Failed to load catalog from .dlt config: {e}")
 
-    # Priority 2: .pyiceberg.yaml file
+    # Priority 2: .pyiceberg.yaml file -> Priority N2 Second common pyiceberg pattern
     try:
-        return load_catalog_from_yaml(catalog_name, credentials=credentials)
+        return load_catalog_from_yaml(iceberg_catalog_name, credentials=credentials)
     except CatalogNotFoundError as e:
         logger.debug(f"Catalog not found in .pyiceberg.yaml: {e}")
     except Exception as e:
         logger.warning(f"Error loading catalog from .pyiceberg.yaml: {e}")
 
-    # Priority 3: Environment variables
+    # Priority 3: Environment variables -> In theory here I would go for either env var or the values from the config spec + credentials
     try:
-        return load_catalog_from_env(catalog_name, credentials)
+        return load_catalog_from_env(iceberg_catalog_name, credentials)
     except CatalogNotFoundError as e:
         logger.debug(f"Catalog not configured via environment variables: {e}")
     except Exception as e:
@@ -444,8 +446,8 @@ def get_catalog(
 
     # Priority 4: Fall back to in-memory SQLite
     logger.info("No catalog configuration found, using in-memory SQLite catalog")
-    uri = catalog_uri or "sqlite:///:memory:"
-    return get_sql_catalog(catalog_name, uri, credentials)
+    uri = iceberg_catalog_uri or "sqlite:///:memory:"
+    return get_sql_catalog(iceberg_catalog_name, uri, credentials)
 
 
 def evolve_table(
