@@ -53,6 +53,9 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         return engine_.connect()
 
     def return_conn(self, borrowed_conn: "Connection") -> None:
+        if getattr(self, "_conn_owner", None) is False:
+            borrowed_conn.close()
+            return
         # close the borrowed conn
         with self._conn_lock:
             borrowed_conn.close()

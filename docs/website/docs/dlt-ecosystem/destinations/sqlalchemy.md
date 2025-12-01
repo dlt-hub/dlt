@@ -109,7 +109,7 @@ is stored in `/home/me/data/chess_data__games.db`
 ### In-memory databases
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
-To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
+To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials. This engine must be created with check_same_thread=False so worker threads can share the connection, and with StaticPool so all operations use the same in-memory database instance.
 This engine is not disposed of automatically by `dlt`. Example:
 
 ```py
@@ -117,7 +117,11 @@ import dlt
 import sqlalchemy as sa
 
 # Create the SQLite engine
-engine = sa.create_engine('sqlite:///:memory:')
+engine = sa.create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=sa.pool.StaticPool
+)
 
 # Configure the destination instance and create pipeline
 pipeline = dlt.pipeline('my_pipeline', destination=dlt.destinations.sqlalchemy(engine), dataset_name='main')
