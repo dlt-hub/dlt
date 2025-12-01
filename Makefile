@@ -44,10 +44,10 @@ has-uv:
 	uv --version
 
 dev: has-uv
-	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv
-	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
+	uv sync --all-extras --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
 lint: lint-core lint-security lint-docstrings
 
@@ -60,44 +60,13 @@ lint-core:
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
-	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 
 format:
-	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
-	uv run black docs/education --ipynb --extend-exclude='.*syntax_error.py|_storage/.*'
-
-lint-snippets:
-	cd docs/tools && uv run python check_embedded_snippets.py full
-	# TODO: re-enable transformation snippets tests when dlthub dep is available
-	uv pip install docstring_parser_fork --reinstall
-	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/
-	uv run ruff check
-	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo,docs/website/node_modules
-
-lint-and-test-snippets: lint-snippets
-	cd docs/website/docs && uv run pytest --ignore=node_modules
-
-lint-and-test-examples:
-	uv pip install docstring_parser_fork --reinstall
-	cd docs/tools && uv run python prepare_examples_tests.py
-	uv run ruff check
-	uv run flake8 --max-line-length=200 docs/examples
-	uv run mypy --config-file mypy.ini docs/examples
-	cd docs/examples && uv run pytest
-
-test-examples:
-	cd docs/examples && uv run pytest
+	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
 
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
 	uv run bandit -r dlt/ -n 3 -lll
-
-lint-notebooks:
-	uv run nbqa flake8 docs/education --extend-ignore=D,F704 --max-line-length=200
-	uv run nbqa mypy docs/education \
-	--ignore-missing-imports \
-	--disable-error-code=no-redef \
-	--disable-error-code=top-level-await
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
@@ -146,10 +115,6 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 	docker build -f deploy/dlt/Dockerfile.minimal --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 
-preprocess-docs:
-	# run docs preprocessing to run a few checks and ensure examples can be parsed
-	cd docs/website && npm i && npm run preprocess-docs
-
 start-test-containers:
 	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
 	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
@@ -172,9 +137,6 @@ test-e2e-dashboard:
 
 test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
-
-start-dlt-dashboard-e2e:
-	uv run marimo run --headless dlt/_workspace/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true
 
 # creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
 create-test-pipelines:

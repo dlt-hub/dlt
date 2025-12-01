@@ -129,6 +129,68 @@ def test_load_sql_schema_loads_all_tables_parallel(
     destinations_configs(default_sql_configs=True),
     ids=lambda x: x.name,
 )
+def test_load_sql_schema_loads_all_tables_parallel_connectorx_arrow_stream(
+    postgres_db: PostgresSourceDB,
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "test_load_sql_schema_loads_all_tables_parallel_connectorx", dev_mode=True
+    )
+    os.environ["SOURCES__SQL_DATABASE__HAS_PRECISION__EXCLUDED_COLUMNS"] = '["array_col"]'
+    os.environ["SOURCES__SQL_DATABASE__HAS_PRECISION_NULLABLE__EXCLUDED_COLUMNS"] = '["array_col"]'
+
+    source = sql_database(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        backend="connectorx",
+        reflection_level="minimal",
+        backend_kwargs={"return_type": "arrow_stream"},
+        type_adapter_callback=default_test_callback(
+            destination_config.destination_type, "connectorx"
+        ),
+    ).parallelize()
+
+    if destination_config.destination_type == "bigquery":
+        # connectorx generates nanoseconds time which bigquery cannot load
+        source.has_precision.add_map(convert_time_to_us)
+        source.has_precision_nullable.add_map(convert_time_to_us)
+
+    load_info = pipeline.run(source)
+    # print(humanize.precisedelta(pipeline.last_trace.finished_at - pipeline.last_trace.started_at))
+    assert_load_info(load_info)
+    assert_row_counts(pipeline, postgres_db)
+
+    # make sure timestamp ntz is correct (stream converts them to dates, we convert them back)
+    assert (
+        pipeline.default_schema.tables["has_precision"]["columns"]["datetime_ntz_col"]["data_type"]
+        == "timestamp"
+    )
+    # fetch more than one row to avoid flakiness when first value lands on exact ms
+    data_ = pipeline.dataset().table("has_precision").limit(100).arrow()
+    import pyarrow as pa  # local import for assertions
+
+    # verify Arrow logical type and timezone
+    col_field = data_.schema.field("datetime_ntz_col")
+    assert pa.types.is_timestamp(col_field.type)
+    assert col_field.type.unit == "us"
+
+    # verify at least one value has non-zero microseconds (not only millisecond multiples)
+    micros = pa.compute.cast(data_["datetime_ntz_col"], pa.int64()).combine_chunks()
+    has_sub_ms = False
+    for i in range(len(micros)):
+        if micros[i].is_valid and (micros[i].as_py() % 1000 != 0):
+            has_sub_ms = True
+            break
+    assert (
+        has_sub_ms
+    ), "Expected at least one datetime_ntz_col value with non-zero microseconds remainder"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_sql_table_names(
     postgres_db: PostgresSourceDB,

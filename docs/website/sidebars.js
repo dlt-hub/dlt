@@ -232,6 +232,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
         'dlt-ecosystem/destinations/ducklake',
+        'dlt-ecosystem/destinations/community-destinations',
         'walkthroughs/create-new-destination'
       ]
     },
@@ -385,6 +386,20 @@ const sidebars = {
             'running-in-production/tracing',
           ],
         },
+        {
+          type: "category",
+          label: "Run in Snowflake",
+          link: {
+            type: "generated-index",
+            title: "Run in Snwoflake",
+            description: "How to run dlt in Snowflake.",
+            slug: "walkthroughs/run-in-snowflake",
+            keywords: ["snowflake"]
+          },
+          items: [
+            "walkthroughs/run-in-snowflake/run-in-snowflake"
+          ]
+        }
       ]
     },
     {

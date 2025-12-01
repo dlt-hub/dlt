@@ -279,7 +279,7 @@ def assert_equal_dbml_columns(col1: Column, col2: Column) -> None:
     assert col1.comment == col2.comment
     assert col1.default == col2.default
     assert col1.properties == col2.properties
-    # we dont't compare `.table` because of circular references
+    # we don't compare `.table` because of circular references
     # between PyDBML `Column` and `Table` objects.
     # assert col1.table == col2.table
 

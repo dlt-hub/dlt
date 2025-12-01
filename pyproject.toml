@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.18.2"
+version = "1.19.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -48,7 +48,7 @@ dependencies = [
     "giturlparse>=0.10.0",
     "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     # enables pyodide install, mind that 3.10.1 is a buggy version and should be yanked
-    "orjson>=3.10.1 ; sys_platform != 'emscripten'",
+    "orjson>=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "orjson>=3.11.0 ; python_version > '3.13'",
     "tenacity>=8.0.2",
     "jsonpath-ng>=1.5.3",
@@ -128,7 +128,7 @@ athena = [
     "botocore>=1.28",
 ]
 weaviate = [
-    "weaviate-client>=3.22"
+    "weaviate-client>=3.26.7,<4.0.0"
 ]
 mssql = [
     "pyodbc>=4.0.39"
@@ -142,7 +142,7 @@ qdrant = [
     "qdrant-client[fastembed]>=1.8"
 ]
 databricks = [
-    "databricks-sql-connector>=2.9.3,<4 ; python_version <= '3.12'",
+    "databricks-sql-connector>=2.9.3 ; python_version <= '3.12'",
     "databricks-sql-connector>=3.6.0 ; python_version >= '3.13'",
     "databricks-sdk>=0.38.0",
 ]
@@ -243,7 +243,6 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
     "graphviz>=0.21",
-    "nbqa>=1.9.1",
 ]
 
 # NOTE: those dependencies are used to test built in sources
@@ -299,28 +298,8 @@ dbt = [
     "dbt-sqlserver>=1.5.0 ; python_version < '3.13'",
 ]
 adbc = [
-    "adbc-driver-postgresql>=1.6.0"
-]
-# NOTE: depedencies required to lint and test docs and examples
-docs = [
-    "SQLAlchemy>=1.4.0",
-    "pymysql>=1.1.0,<2",
-    "pypdf2>=3.0.1,<4",
-    "pydoc-markdown>=4.8.2,<5",
-    "dbt-core>=1.5.0",
-    "dbt-duckdb>=1.5.0",
-    "pymongo>=4.3.3",
-    "pandas>=2.1.4",
-    "alive-progress>=3.0.1",
-    "pyarrow>=16.0.0",
-    "psycopg2-binary>=2.9",
-    "lancedb>=0.8.2 ; python_version < '3.13'",
-    "openai>=1.45",
-    "connectorx>=0.4.2 ; python_version >= '3.10'",
-    "modal>=0.64.170",
-    # google secrets provider
-    "google-api-python-client>=1.7.11",
-    "google-auth-oauthlib>=1.0.0,<2",
+    "dbc>=0.1.0",
+    "adbc-driver-manager>=1.8.0",
 ]
 
 [project.entry-points.dlt]
@@ -402,14 +381,14 @@ src_paths = ["dlt"]
 multi_line_output = 3
 
 [tool.pytest.ini_options]
-pythonpath = ["dlt", "docs/website/docs"]
+pythonpath = ["dlt"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
 addopts = "--showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
 log_cli_level = "INFO"
 console_output_style = "count"
-python_files = ["test_*.py", "*_test.py", "*snippets.py", "*snippet.pytest"]
-python_functions = ["*_test", "test_*", "*_snippet"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["*_test", "test_*"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",

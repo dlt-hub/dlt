@@ -1,7 +1,9 @@
+from typing import cast, Set, List, Dict, Any
 import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
+import re
 
 import marimo as mo
 import pyarrow
@@ -42,15 +44,24 @@ from dlt._workspace.helpers.dashboard.utils import (
     get_source_and_resouce_state_for_table,
     get_default_query_for_table,
     get_example_query_for_dataset,
+    _get_steps_data_and_status,
+    _get_migrations_count,
+    build_pipeline_execution_visualization,
+    _collect_load_packages_from_trace,
+    load_package_status_labels,
+    TPipelineRunStatus,
+    TVisualPipelineStep,
 )
 
 from tests.workspace.helpers.dashboard.example_pipelines import (
     SUCCESS_PIPELINE_DUCKDB,
     SUCCESS_PIPELINE_FILESYSTEM,
     EXTRACT_EXCEPTION_PIPELINE,
+    NORMALIZE_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
+    create_success_pipeline_duckdb,
 )
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
@@ -228,7 +239,7 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     assert isinstance(result, list)
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert len(result) == 9
-    elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
+    elif pipeline.pipeline_name in [LOAD_EXCEPTION_PIPELINE, NORMALIZE_EXCEPTION_PIPELINE]:
         # custom destination does not support remote data info
         assert len(result) == 8
     else:
@@ -248,10 +259,10 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     else:
         assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
     assert details_dict["dataset_name"] == pipeline.dataset_name
-    if (
-        pipeline.pipeline_name in PIPELINES_WITH_LOAD
-        or pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE
-    ):
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD or pipeline.pipeline_name in [
+        LOAD_EXCEPTION_PIPELINE,
+        NORMALIZE_EXCEPTION_PIPELINE,
+    ]:
         assert details_dict["schemas"].startswith("fruitshop")
     else:
         assert "schemas" not in details_dict
@@ -497,6 +508,10 @@ def test_trace(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name == EXTRACT_EXCEPTION_PIPELINE:
         assert len(result) == 1
         assert result[0]["step"] == "extract"
+    elif pipeline.pipeline_name == NORMALIZE_EXCEPTION_PIPELINE:
+        assert len(result) == 2
+        assert result[0]["step"] == "extract"
+        assert result[1]["step"] == "normalize"
     else:
         assert len(result) == 3
         assert result[0]["step"] == "extract"
@@ -741,3 +756,163 @@ def test_sanitize_trace_for_display(pipeline: dlt.Pipeline):
     assert isinstance(sanitized, dict)
     # check it can be rendered with marimo
     assert mo.json(sanitized).text is not None
+
+
+@pytest.mark.parametrize(
+    "pipeline, expected_steps, expected_status",
+    [
+        (SUCCESS_PIPELINE_DUCKDB, {"extract", "normalize", "load"}, "succeeded"),
+        (SUCCESS_PIPELINE_FILESYSTEM, {"extract", "normalize", "load"}, "succeeded"),
+        (EXTRACT_EXCEPTION_PIPELINE, {"extract"}, "failed"),
+        (LOAD_EXCEPTION_PIPELINE, {"extract", "normalize", "load"}, "failed"),
+    ],
+    indirect=["pipeline"],
+)
+def test_get_steps_data_and_status(
+    pipeline: dlt.Pipeline,
+    expected_steps: Set[TVisualPipelineStep],
+    expected_status: TPipelineRunStatus,
+) -> None:
+    """Test getting steps data and the pipeline execution status from trace"""
+    trace = pipeline.last_trace
+
+    steps_data, status = _get_steps_data_and_status(trace.steps)
+    assert len(steps_data) == len(expected_steps)
+    assert status == expected_status
+
+    assert all(step.duration_ms > 0 for step in steps_data)
+    if expected_status == "succeeded":
+        assert all(step.failed is False for step in steps_data)
+    else:
+        assert any(step.failed is True for step in steps_data)
+
+    assert set([step.step for step in steps_data]) == expected_steps
+
+
+def test_get_migrations_count(temp_pipelines_dir) -> None:
+    """Test getting migrations count from the pipeline's last load info"""
+
+    pipeline = create_success_pipeline_duckdb(temp_pipelines_dir)
+
+    migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+    assert migrations_count == 1
+
+    # Trigger multiple migrations
+    pipeline.extract([{"id": 1, "name": "test"}], table_name="my_table")
+    pipeline.extract([{"id": 2, "name": "test2", "new_column": "value"}], table_name="my_table")
+    pipeline.extract(
+        [{"id": 3, "name": "test3", "new_column": "value", "another_column": 100}],
+        table_name="my_table",
+    )
+    pipeline.normalize()
+    pipeline.load()
+    migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+    assert migrations_count == 3
+
+
+@pytest.mark.parametrize(
+    "pipeline, expected_steps, expected_status",
+    [
+        (SUCCESS_PIPELINE_DUCKDB, {"extract", "normalize", "load"}, "succeeded"),
+        (SUCCESS_PIPELINE_FILESYSTEM, {"extract", "normalize", "load"}, "succeeded"),
+        (EXTRACT_EXCEPTION_PIPELINE, {"extract"}, "failed"),
+        (LOAD_EXCEPTION_PIPELINE, {"extract", "normalize", "load"}, "failed"),
+    ],
+    indirect=["pipeline"],
+)
+def test_build_pipeline_execution_visualization(
+    pipeline: dlt.Pipeline,
+    expected_steps: Set[TVisualPipelineStep],
+    expected_status: TPipelineRunStatus,
+) -> None:
+    """Test overall pipeline execution visualization logic"""
+
+    trace = pipeline.last_trace
+
+    html = build_pipeline_execution_visualization(trace)
+    html_str = str(html.text)
+
+    # Check for CSS class structure
+    assert 'class="pipeline-execution-container"' in html_str
+    assert 'class="pipeline-execution-layout"' in html_str
+    assert 'class="pipeline-execution-timeline"' in html_str
+    assert 'class="pipeline-execution-badges"' in html_str
+
+    assert f"Last execution ID: <strong>{trace.transaction_id[:8]}</strong>" in html_str
+    total_time_match = re.search(
+        r"<div>Total time: <strong>([\d.]+)(ms|s)?</strong></div>", html_str
+    )
+    assert total_time_match is not None
+
+    # Check for status badge using CSS classes (not inline styles)
+    status_badge_class = (
+        "status-badge-green" if expected_status == "succeeded" else "status-badge-red"
+    )
+    assert (
+        f'<div class="status-badge {status_badge_class}"><strong>{expected_status}</strong></div>'
+        in html_str
+    )
+
+    # Check for migration badge using CSS classes (not inline styles)
+    migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
+    migration_badge = (
+        f'<div class="status-badge status-badge-yellow"><strong>{migrations_count} dataset'
+        " migration(s)</strong></div>"
+    )
+    if migrations_count != 0:
+        assert migration_badge in html_str
+    else:
+        assert migration_badge not in html_str
+
+    steps_data, _ = _get_steps_data_and_status(trace.steps)
+    for step_data in steps_data:
+        duration_pattern = re.search(rf"{step_data.step.capitalize()}\s+([\d.]+)(ms|s)?", html_str)
+        assert duration_pattern is not None
+
+    if "extract" in expected_steps:
+        assert "var(--dlt-color-lime)" in html_str
+    if "normalize" in expected_steps:
+        assert "var(--dlt-color-aqua)" in html_str
+    if "load" in expected_steps:
+        assert "var(--dlt-color-pink)" in html_str
+
+
+@pytest.mark.parametrize(
+    "pipeline",
+    [
+        SUCCESS_PIPELINE_DUCKDB,
+        SUCCESS_PIPELINE_FILESYSTEM,
+        EXTRACT_EXCEPTION_PIPELINE,
+        NORMALIZE_EXCEPTION_PIPELINE,
+        LOAD_EXCEPTION_PIPELINE,
+    ],
+    indirect=["pipeline"],
+)
+def test_collect_load_packages_from_trace(
+    pipeline: dlt.Pipeline,
+) -> None:
+    """Test getting load package status labels from trace"""
+
+    trace = pipeline.last_trace
+    table = load_package_status_labels(trace)
+
+    list_of_load_package_info = cast(List[Dict[str, Any]], table.data)
+
+    if pipeline.pipeline_name in ["success_pipeline_duckdb", "success_pipeline_filesystem"]:
+        assert len(list_of_load_package_info) == 2
+        assert all(
+            "loaded" in str(load_package_info["status"].text)
+            for load_package_info in list_of_load_package_info
+        )
+
+    elif pipeline.pipeline_name == "extract_exception_pipeline":
+        assert len(list_of_load_package_info) == 1
+        assert "discarded" in str(list_of_load_package_info[0]["status"].text)
+
+    elif pipeline.pipeline_name == "load_exception_pipeline":
+        assert len(list_of_load_package_info) == 1
+        assert "aborted" in str(list_of_load_package_info[0]["status"].text)
+
+    elif pipeline.pipeline_name == "normalize_exception_pipeline":
+        assert len(list_of_load_package_info) == 1
+        assert "pending" in str(list_of_load_package_info[0]["status"].text)

@@ -52,7 +52,7 @@ from dlt.extract.items_transform import ItemTransform
 from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
-from dlt.extract.reference import SourceReference
+from dlt.extract.reference import SourceReference, SourceFactory
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
@@ -125,6 +125,11 @@ def data_to_sources(
             # many resources with the same name may be present
             r_ = resources.setdefault(data_item.name, [])
             r_.append(data_item)
+        elif isinstance(data_item, SourceFactory):
+            source = data_item()
+            if schema:
+                source.schema = schema
+            sources.append(source)
         else:
             # iterator/iterable/generator
             # create resource first without table template

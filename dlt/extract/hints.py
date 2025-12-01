@@ -171,18 +171,18 @@ def make_nested_hints(**hints: Unpack[TResourceNestedHints]) -> TResourceNestedH
 
 
 def make_hints(
-    table_name: TTableHintTemplate[str] = None,
-    parent_table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
+    table_name: Optional[TTableHintTemplate[str]] = None,
+    parent_table_name: Optional[TTableHintTemplate[str]] = None,
+    write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]] = None,
+    columns: Optional[TTableHintTemplate[TAnySchemaColumns]] = None,
+    primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+    merge_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+    schema_contract: Optional[TTableHintTemplate[TSchemaContract]] = None,
+    table_format: Optional[TTableHintTemplate[TTableFormat]] = None,
+    file_format: Optional[TTableHintTemplate[TFileFormat]] = None,
     additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    incremental: TIncrementalConfig = None,
+    references: Optional[TTableHintTemplate[TTableReferenceParam]] = None,
+    incremental: Optional[TIncrementalConfig] = None,
     nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
@@ -229,11 +229,11 @@ def make_hints(
 
 
 class DltResourceHints:
-    def __init__(self, table_schema_template: TResourceHints = None):
+    def __init__(self, table_schema_template: Optional[TResourceHints] = None):
         self.__qualname__ = self.__name__ = self.name
-        self._table_name_hint_fun: TFunHintTemplate[str] = None
+        self._table_name_hint_fun: Optional[TFunHintTemplate[str]] = None
         self._table_has_other_dynamic_hints: bool = False
-        self._hints: TResourceHints = None
+        self._hints: Optional[TResourceHints] = None
         """Hints for the resource"""
         self._hints_variants: Dict[str, TResourceHints] = {}
         """Hints for tables emitted from resources"""
@@ -268,9 +268,8 @@ class DltResourceHints:
 
     @property
     def write_disposition(self) -> TTableHintTemplate[TWriteDispositionConfig]:
-        if self._hints is None or self._hints.get("write_disposition") is None:
-            return DEFAULT_WRITE_DISPOSITION
-        return self._hints.get("write_disposition")
+        value = (self._hints or {}).get("write_disposition")
+        return value if value is not None else DEFAULT_WRITE_DISPOSITION
 
     @write_disposition.setter
     def write_disposition(self, value: TTableHintTemplate[TWriteDispositionConfig]) -> None:
@@ -290,15 +289,15 @@ class DltResourceHints:
         )
 
     @property
-    def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
+    def schema_contract(self) -> Optional[TTableHintTemplate[TSchemaContract]]:
         return None if self._hints is None else self._hints.get("schema_contract")
 
     @property
-    def table_format(self) -> TTableHintTemplate[TTableFormat]:
+    def table_format(self) -> Optional[TTableHintTemplate[TTableFormat]]:
         return None if self._hints is None else self._hints.get("table_format")
 
     @property
-    def parent_table_name(self) -> TTableHintTemplate[str]:
+    def parent_table_name(self) -> Optional[TTableHintTemplate[str]]:
         return None if self._hints is None else self._hints.get("parent_table_name")
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
@@ -441,20 +440,20 @@ class DltResourceHints:
 
     def apply_hints(
         self,
-        table_name: TTableHintTemplate[str] = None,
-        parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
-        columns: TTableHintTemplate[TAnySchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnNames] = None,
-        merge_key: TTableHintTemplate[TColumnNames] = None,
-        incremental: TIncrementalConfig = None,
-        schema_contract: TTableHintTemplate[TSchemaContract] = None,
+        table_name: Optional[TTableHintTemplate[str]] = None,
+        parent_table_name: Optional[TTableHintTemplate[str]] = None,
+        write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]] = None,
+        columns: Optional[TTableHintTemplate[TAnySchemaColumns]] = None,
+        primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+        merge_key: Optional[TTableHintTemplate[TColumnNames]] = None,
+        incremental: Optional[TIncrementalConfig] = None,
+        schema_contract: Optional[TTableHintTemplate[TSchemaContract]] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
-        table_format: TTableHintTemplate[TTableFormat] = None,
-        file_format: TTableHintTemplate[TFileFormat] = None,
-        references: TTableHintTemplate[TTableReferenceParam] = None,
+        table_format: Optional[TTableHintTemplate[TTableFormat]] = None,
+        file_format: Optional[TTableHintTemplate[TFileFormat]] = None,
+        references: Optional[TTableHintTemplate[TTableReferenceParam]] = None,
         create_table_variant: bool = False,
-        nested_hints: TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]] = None,
+        nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     ) -> Self:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -830,6 +829,8 @@ class DltResourceHints:
                     ):
                         continue  # None is allowed for active_record_timestamp
                     if ts in wd:
+                        if wd[ts] is None:  # type: ignore[literal-required]
+                            continue
                         try:
                             ensure_pendulum_datetime_utc(wd[ts])  # type: ignore[literal-required]
                         except Exception:
