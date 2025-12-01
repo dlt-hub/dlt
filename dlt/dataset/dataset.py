@@ -23,6 +23,9 @@ from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
 from dlt.common.destination.exceptions import SqlClientNotAvailable
+from dlt.common.schema.exceptions import (
+    TableNotFound,
+)
 
 if TYPE_CHECKING:
     from ibis import ir
@@ -180,28 +183,39 @@ class Dataset:
     @contextmanager
     def write_pipeline(self) -> Generator[dlt.Pipeline, None, None]:
         """Get the internal pipeline used by `Dataset.write()`.
+        It uses "_dlt_dataset_{dataset_name}" as pipeline name. Its working directory is
+        so that load packages can be inspected after a run, but is cleared before each write.
 
-        Passing a `pipelines_dir` allows you to set a
         """
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            pipeline = _get_internal_pipeline(
-                dataset_name=self.dataset_name, destination=self._destination, pipelines_dir=tmp_dir
-            )
-            yield pipeline
+        pipeline = _get_internal_pipeline(
+            dataset_name=self.dataset_name, destination=self._destination
+        )
+        yield pipeline
 
     def write(
         self,
         data: TDataItems,
         *,
         table_name: str,
-        write_disposition: TWriteDisposition = "append",
     ) -> LoadInfo:
         """Write `data` to the specified table.
 
         This method uses a full-on `dlt.Pipeline` internally. You can retrieve this pipeline
         using `Dataset.get_write_pipeline()` for complete flexibility.
+        The resulting load packages can be inspected in the pipeline's working directory which is
+        named "_dlt_dataset_{dataset_name}".
+        This directory will be wiped before each `write()` call.
         """
         with self.write_pipeline() as internal_pipeline:
+            # drop all load packages from previous writes
+            # internal_pipeline._wipe_working_folder()
+            internal_pipeline.drop()
+
+            # get write dispostion for existing table from schema (or "append" if table is new)
+            try:
+                write_disposition = self.schema.get_table(table_name)["write_disposition"]
+            except TableNotFound:
+                write_disposition = "append"
             # TODO should we try/except this run to gracefully handle failed writes?
             info = internal_pipeline.run(
                 data,
