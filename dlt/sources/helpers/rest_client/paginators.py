@@ -846,7 +846,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         cursor_path: jsonpath.TJsonPath = "cursors.next",
         cursor_param: Optional[str] = None,
         cursor_body_path: Optional[str] = None,
-        *,       
+        *,
         stop_after_empty_page: bool = False,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
     ):
@@ -881,20 +881,41 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
 
     def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the cursor value from the JSON response."""
-        values = jsonpath.find_values(self.cursor_path, response.json())
+        response_json = response.json()
+        values = jsonpath.find_values(self.cursor_path, response_json)
         self._next_reference = values[0] if values and values[0] else None
 
-        if (
-            self.has_more_path is not None
-            and len(jsonpath.find_values(self.has_more_path, response.json())) > 0
-            and jsonpath.find_values(self.has_more_path, response.json())[0] == False
-        ):
-            has_more_value = jsonpath.find_values(self.has_more_path, response.json())[0]
-            if not has_more_value:
-                self._has_next_page = False
+        has_more = None
+        if self.has_more_path:
+            values = jsonpath.find_values(self.has_more_path, response_json)
+            has_more = values[0] if values else None
+            if has_more is None:
+                self._handle_missing_has_more(response_json)
+            elif isinstance(has_more, str):
+                try:
+                    has_more = str2bool(has_more)
+                except ValueError:
+                    self._handle_invalid_has_more(has_more)
+            elif not isinstance(has_more, bool):
+                self._handle_invalid_has_more(has_more)
+
+            self._has_next_page = has_more
 
         if self.stop_after_empty_page and not data:
             self._has_next_page = False
+
+    def _handle_invalid_has_more(self, has_more: Any) -> None:
+        raise ValueError(
+            f"'{self.has_more_path}' is not a `bool` in the response in"
+            f" `{self.__class__.__name__}`. Expected a boolean, got `{has_more}`"
+        )
+
+    def _handle_missing_has_more(self, response_json: Dict[str, Any]) -> None:
+        raise ValueError(
+            f"Has more value not found in the response in `{self.__class__.__name__}`."
+            f"Expected a response with a `{self.has_more_path}` key, got"
+            f" `{response_json}`."
+        )
 
     def update_request(self, request: Request) -> None:
         """Updates the request with the cursor value either in query parameters
