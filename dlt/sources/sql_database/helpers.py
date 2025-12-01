@@ -22,7 +22,6 @@ from dlt.common.configuration.specs import (
     configspec,
 )
 from dlt.common.exceptions import DltException, MissingDependencyException
-from dlt.common.libs.pyarrow import cast_date64_columns_to_timestamp
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
 from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
@@ -223,12 +222,13 @@ class TableLoader:
     def _load_rows_connectorx(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
     ) -> Iterator[TDataItem]:
-        import pyarrow as pa
-
         try:
             import connectorx as cx
         except ImportError:
             raise MissingDependencyException("Connector X table backend", ["connectorx"])
+        
+        import pyarrow as pa
+        from dlt.common.libs.pyarrow import cast_date64_columns_to_timestamp
 
         # default settings
         backend_kwargs = {
