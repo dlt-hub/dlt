@@ -1,3 +1,4 @@
+from dlt.common.configuration.inject import with_config
 import os
 import yaml
 from typing import Dict, Any, List, Optional
@@ -8,6 +9,7 @@ from packaging.version import Version
 
 from dlt import version
 from dlt.common import logger
+from dlt.common.configuration import configspec
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.time import precise_time
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
@@ -18,7 +20,7 @@ from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
-from dlt.common.configuration.specs import CredentialsConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -342,6 +344,41 @@ def load_catalog_from_env(
         config.update(fileio_config)
 
     return load_catalog(catalog_name, **config)
+
+@configspec
+class PyIcebergConfig(BaseConfiguration):
+
+    # Iceberg catalog configuration
+    iceberg_catalog_name: Optional[str] = "default"
+    """Name of the Iceberg catalog to use. Corresponds to catalog name in .pyiceberg.yaml"""
+
+    iceberg_catalog_type: Optional[str] = "sql"
+    """Type of Iceberg catalog: 'sql', 'rest', 'glue', 'hive', etc."""
+
+    iceberg_catalog_uri: Optional[str] = None
+    """
+    URI for SQL catalog (e.g., 'postgresql://...') or REST catalog endpoint.
+    If not provided, defaults to in-memory SQLite for backward compatibility.
+    """
+
+    iceberg_catalog_config: Optional[Dict[str, Any]] = None
+    """
+    Optional dictionary with complete catalog configuration.
+    If provided, will be used instead of loading from .pyiceberg.yaml.
+    Example for REST catalog:
+        {
+            'type': 'rest',
+            'uri': 'https://catalog.example.com',
+            'warehouse': 'my_warehouse',
+            'credential': 'token',
+            'scope': 'PRINCIPAL_ROLE:ALL'
+        }
+    Example for SQL catalog:
+        {
+            'type': 'sql',
+            'uri': 'postgresql://user:pass@localhost/catalog'
+        }
+    """
 
 
 def get_catalog(
