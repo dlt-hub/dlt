@@ -1,16 +1,23 @@
+# /// script
+# dependencies = [
+#     "dlt",
+#     "numpy",
+#     "pandas",
+#     "pymysql",
+#     "sqlalchemy",
+# ]
+# ///
+
 import marimo
 
-__generated_with = "0.14.10"
+__generated_with = "0.17.4"
 app = marimo.App()
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        # **dlt sources and resources**: Create your first dlt pipeline.  [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/?src=https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb)
-
-        """
+        r"""# **dlt sources and resources**: Create your first dlt pipeline  [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb)"""
     )
     return
 
@@ -18,99 +25,65 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        ![Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img1.png](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img1.png)
-        """
+        r"""![Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img1.png](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img1.png)"""
     )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ## Recap of [Lesson 1](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb) 👩‍💻🚀
-        1. Created a pipeline, loaded toy data into DuckDB, and viewed the load info.
-        2. Used the `dlt.pipeline` and `pipeline.run` methods.
-        3. Queried data and viewed tables with DuckDB, the `sql_client`, and the dlt `dataset`.
+    mo.md(r"""
+    ## Recap of [Lesson 1](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_1_quick_start.ipynb) 👩‍💻🚀
+    1. Created a pipeline, loaded toy data into DuckDB, and viewed the load info.
+    2. Used the `dlt.pipeline` and `pipeline.run` methods.
+    3. Queried data and viewed tables with DuckDB, the `sql_client`, and the dlt `dataset`.
 
-        Now, let's move on to the next lesson to learn more! 🚀
-        """
-    )
+    Now, let's move on to the next lesson to learn more! 🚀
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        **Here, you will learn how to:**
-        - Run a simple pipeline with different types of data, such as dataframes, databases and REST APIs.
-        - Use `dlt.resource`, `dlt.source` and `dlt.transformer`.
-        - Build your first dlt pipeline for a REST API.
-        """
-    )
+    mo.md(r"""
+    **Here, you will learn how to:**
+    - Run a simple pipeline with different types of data, such as dataframes, databases and REST APIs.
+    - Use `dlt.resource`, `dlt.source` and `dlt.transformer`.
+    - Build your first dlt pipeline for a REST API.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        [Install](https://dlthub.com/docs/reference/installation) `dlt` with DuckDB as destination:
-        """
-    )
-    return
-
-
-@app.cell
-def _():
-    # magic command not supported in marimo; please file an issue to add support
-    # %%capture
-    # !pip install "dlt[duckdb]"
+    mo.md(r"""
+    ---
+    ## **`dlt` resources**
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ---
-        ## **`dlt` resources**
-        """
-    )
-    return
+    mo.md(r"""
+    ---
+    ### List of dicts
 
 
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
-        ---
-        ### List of dicts
-
-
-        In the previous lesson, we simply used a list of dictionaries that essentially represents the `pokemon` table.
-
-
-        """
-    )
+    In the previous lesson, we simply used a list of dictionaries that essentially represents the `pokemon` table.
+    """)
     return
 
 
 @app.cell
 def _():
     import dlt
-
-    data = [
-        {"id": "1", "name": "bulbasaur", "size": {"weight": 6.9, "height": 0.7}},
-        {"id": "4", "name": "charmander", "size": {"weight": 8.5, "height": 0.6}},
-        {"id": "25", "name": "pikachu", "size": {"weight": 6, "height": 0.4}},
-    ]
-    pipeline = dlt.pipeline(
-        pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
-    )
-    _load_info = pipeline.run(data, table_name="pokemon")
+    data = [{'id': '1', 'name': 'bulbasaur', 'size': {'weight': 6.9, 'height': 0.7}}, {'id': '4', 'name': 'charmander', 'size': {'weight': 8.5, 'height': 0.6}}, {'id': '25', 'name': 'pikachu', 'size': {'weight': 6, 'height': 0.4}}]
+    # Sample data containing pokemon details
+    pipeline = dlt.pipeline(pipeline_name='quick_start', destination='duckdb', dataset_name='mydata')
+    _load_info = pipeline.run(data, table_name='pokemon')
+    # Set pipeline name, destination, and dataset name
+    # Run the pipeline with data and table name
     print(_load_info)
     return data, dlt, pipeline
 
@@ -118,9 +91,7 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        A better way is to wrap it in the `@dlt.resource` decorator which denotes a logical grouping of data within a data source, typically holding data of similar structure and origin:
-        """
+        r"""A better way is to wrap it in the `@dlt.resource` decorator which denotes a logical grouping of data within a data source, typically holding data of similar structure and origin:"""
     )
     return
 
@@ -129,50 +100,42 @@ def _(mo):
 def _(data, dlt):
     from dlt.common.typing import TDataItems, TDataItem
 
-    # Create a dlt resource from the data
-    @dlt.resource(table_name="pokemon_new")  # <--- we set new table name
+    @dlt.resource(table_name='pokemon_new')
     def my_dict_list() -> TDataItems:
-        yield data
-
+    # Create a dlt resource from the data
+        yield data  # <--- we set new table name
     return TDataItem, TDataItems, my_dict_list
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Commonly used arguments:
+    mo.md(r"""
+    Commonly used arguments:
 
-        * **`name`**: The resource name and the name of the table generated by this resource. Defaults to the decorated function name.
-        * **`table_name`**: The name of the table, if different from the resource name.
-        * **`write_disposition`**: Controls how to write data to a table. Defaults to the value "append".
-        """
-    )
+    * **`name`**: The resource name and the name of the table generated by this resource. Defaults to the decorated function name.
+    * **`table_name`**: The name of the table, if different from the resource name.
+    * **`write_disposition`**: Controls how to write data to a table. Defaults to the value "append".
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        > **Why is it a better way?** This allows you to use `dlt` functionalities to the fullest that follow Data Engineering best practices, including incremental loading and data contracts.
-        """
+        r"""> **Why is it a better way?** This allows you to use `dlt` functionalities to the fullest that follow Data Engineering best practices, including incremental loading and data contracts."""
     )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Try running the pipeline with the `my_dict_list` resource:
-        """
-    )
+    mo.md(r"""Try running the pipeline with the `my_dict_list` resource:""")
     return
 
 
 @app.cell
 def _(my_dict_list, pipeline):
+    # Run the pipeline and print load info
     _load_info = pipeline.run(my_dict_list)
     print(_load_info)
     return
@@ -180,11 +143,7 @@ def _(my_dict_list, pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Check what was loaded to the `pokemon_new` table:
-        """
-    )
+    mo.md(r"""Check what was loaded to the `pokemon_new` table:""")
     return
 
 
@@ -196,27 +155,23 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Instead of a dict list, the data could also be a/an:
-        - dataframe
-        - database query response
-        - API request response
-        - Anything you can transform into JSON/dict format
-        """
-    )
+    mo.md(r"""
+    Instead of a dict list, the data could also be a/an:
+    - dataframe
+    - database query response
+    - API request response
+    - Anything you can transform into JSON/dict format
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ---
-        ### Dataframes
-        To create a pipeline using dataframes, you would do:
-        """
-    )
+    mo.md(r"""
+    ---
+    ### Dataframes
+    To create a pipeline using dataframes, you would do:
+    """)
     return
 
 
@@ -224,48 +179,34 @@ def _(mo):
 def _(TDataItems, dlt, pipeline):
     import pandas as pd
 
-    @dlt.resource(table_name="df_data")
+    @dlt.resource(table_name='df_data')
+    # Define a resource to load data from a CSV
     def my_df() -> TDataItems:
-        sample_df = pd.read_csv(
-            "https://people.sc.fsu.edu/~jburkardt/data/csv/hw_200.csv"
-        )
+        sample_df = pd.read_csv('https://people.sc.fsu.edu/~jburkardt/data/csv/hw_200.csv')
         yield sample_df
-
     _load_info = pipeline.run(my_df)
     print(_load_info)
+    # Run the pipeline with the defined resource
+    # Query the loaded data from 'df_data'
     pipeline.dataset().df_data.df()
     return (my_df,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ---
-        ### Databases
+    mo.md(r"""
+    ---
+    ### Databases
 
-        To create a pipeline from an SQL database query you would:
-
-        1. Install the PyMySQL package:
-        """
-    )
-    return
-
-
-@app.cell
-def _():
-    # magic command not supported in marimo; please file an issue to add support
-    # %%capture
-    # !pip install pymysql
+    To create a pipeline from an SQL database query you would:
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        2. Create and run a pipeline to fetch data from an SQL resource and query the loaded data as follows:
-        """
+        r"""1. Create and run a pipeline to fetch data from an SQL resource and query the loaded data as follows:"""
     )
     return
 
@@ -274,16 +215,13 @@ def _(mo):
 def _(TDataItems, dlt, pipeline):
     from sqlalchemy import create_engine
 
-    @dlt.resource(table_name="genome_data")
+    @dlt.resource(table_name='genome_data')
     def get_genome_data() -> TDataItems:
-        engine = create_engine(
-            "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
-        )
+        engine = create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
         with engine.connect() as conn:
-            query = "SELECT * FROM genome LIMIT 1000"
+            query = 'SELECT * FROM genome LIMIT 1000'
             rows = conn.execution_options(yield_per=100).exec_driver_sql(query)
             yield from map(lambda row: dict(row._mapping), rows)
-
     _load_info = pipeline.run(get_genome_data)
     print(_load_info)
     pipeline.dataset().genome_data.df()
@@ -292,14 +230,12 @@ def _(TDataItems, dlt, pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ---
-        ### REST API
+    mo.md(r"""
+    ---
+    ### REST API
 
-        For REST API endpoints, create a pipeline as follows:
-        """
-    )
+    For REST API endpoints, create a pipeline as follows:
+    """)
     return
 
 
@@ -307,25 +243,23 @@ def _(mo):
 def _(TDataItems, dlt, pipeline):
     from dlt.sources.helpers import requests
 
-    @dlt.resource(table_name="pokemon_api")
+    @dlt.resource(table_name='pokemon_api')
+    # Define a resource to fetch pokemons from PokeAPI
     def get_pokemon() -> TDataItems:
-        url = "https://pokeapi.co/api/v2/pokemon"
+        url = 'https://pokeapi.co/api/v2/pokemon'
         response = requests.get(url)
-        yield response.json()["results"]
-
+        yield response.json()['results']
     _load_info = pipeline.run(get_pokemon)
     print(_load_info)
+    # Run the pipeline using the defined resource
+    # Query the loaded data from 'pokemon_api' table
     pipeline.dataset().pokemon_api.df()
     return get_pokemon, requests
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Try loading everything above, in a single pipeline:
-        """
-    )
+    mo.md(r"""Try loading everything above, in a single pipeline:""")
     return
 
 
@@ -338,11 +272,7 @@ def _(get_genome_data, get_pokemon, my_df, pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Check which new tables were created:
-        """
-    )
+    mo.md(r"""Check which new tables were created:""")
     return
 
 
@@ -359,12 +289,17 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
+    ---
+    ## **`dlt` sources**
+    """)
+    return
 
-        ---
-        ## **`dlt` sources**
-        """
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""Now that there are multiple `dlt` resources, each corresponding to a separate table, we can group them into a `dlt` source."""
     )
     return
 
@@ -372,50 +307,33 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        Now that there are multiple `dlt` resources, each corresponding to a separate table, we can group them into a `dlt` source.
-
-        """
+        r"""![Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img2](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img2.png)"""
     )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ![Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img2](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_2_dlt_sources_and_resources_Create_first_dlt_pipeline_img2.png)
-        """
-    )
+    mo.md(r"""
+    A source is a logical grouping of resources, e.g., endpoints of a single API. The most common approach is to define it in a separate Python module.
+
+    * A source is a function decorated with `@dlt.source` that returns one or more resources.
+    * A source can optionally define a schema with tables, columns, performance hints, and more.
+    * The source Python module typically contains optional customizations and data transformations.
+    * The source Python module typically contains the authentication and pagination code for a particular API.
+
+    Read more about [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource).
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        A source is a logical grouping of resources, e.g., endpoints of a single API. The most common approach is to define it in a separate Python module.
+    mo.md(r"""
+    You declare a source by decorating a function that returns or yields one or more resources with `@dlt.source`.
 
-        * A source is a function decorated with `@dlt.source` that returns one or more resources.
-        * A source can optionally define a schema with tables, columns, performance hints, and more.
-        * The source Python module typically contains optional customizations and data transformations.
-        * The source Python module typically contains the authentication and pagination code for a particular API.
-
-        Read more about [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource).
-        """
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
-        You declare a source by decorating a function that returns or yields one or more resources with `@dlt.source`.
-
-        Here's how it's done:
-        """
-    )
+    Here's how it's done:
+    """)
     return
 
 
@@ -424,111 +342,97 @@ def _(dlt, get_genome_data, get_pokemon, my_df):
     from typing import Iterable
     from dlt.extract import DltResource
 
+
     @dlt.source
     def all_data() -> Iterable[DltResource]:
         return my_df, get_genome_data, get_pokemon
-
     return DltResource, Iterable, all_data
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        Only using the source above, load everything into a separate database using a new pipeline:
-        """
+        r"""Only using the source above, load everything into a separate database using a new pipeline:"""
     )
     return
 
 
 @app.cell
 def _(all_data, dlt):
-    new_pipeline = dlt.pipeline(
-        pipeline_name="resource_source_new",
-        destination="duckdb",
-        dataset_name="all_data",
-    )
+    # Create a pipeline
+    new_pipeline = dlt.pipeline(pipeline_name='resource_source_new', destination='duckdb', dataset_name='all_data')
     _load_info = new_pipeline.run(all_data())
+    # Run the pipeline
+    # Print load info
     print(_load_info)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        > **Why does this matter?**:
-        - It is more efficient than running your resources separately.
-        - It organizes both your schema and your code. 🙂
-        - It enables the option for parallelization.
-        """
-    )
+    mo.md(r"""
+    > **Why does this matter?**:
+    - It is more efficient than running your resources separately.
+    - It organizes both your schema and your code. 🙂
+    - It enables the option for parallelization.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ---
-        ## **`dlt` transformers**
-        """
-    )
+    mo.md(r"""
+    ---
+    ## **`dlt` transformers**
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        We now know that `dlt` resources can be grouped into a `dlt` source, represented as:
+    mo.md(r"""
+    We now know that `dlt` resources can be grouped into a `dlt` source, represented as:
 
 
-        ```
-                          Source
-                       /          \
-                  Resource 1  ...  Resource N
+    ```
+                      Source
+                   /          \
+              Resource 1  ...  Resource N
 
-        ```
+    ```
 
-        However, imagine a scenario where you need an additional step in between:
+    However, imagine a scenario where you need an additional step in between:
 
-        ```
-                          Source
-                         /     \
-                     step        \
-                     /             \
-                Resource 1  ...  Resource N
+    ```
+                      Source
+                     /     \
+                 step        \
+                 /             \
+            Resource 1  ...  Resource N
 
-        ```
+    ```
 
-        This step could arise, for example, in a situation where:
+    This step could arise, for example, in a situation where:
 
-        - Resource 1 returns a list of pokemons IDs, and you need to use each of those IDs to retrieve detailed information about the pokemons from a separate API endpoint.
+    - Resource 1 returns a list of pokemons IDs, and you need to use each of those IDs to retrieve detailed information about the pokemons from a separate API endpoint.
 
-        In such cases, you would use `dlt` transformers — special `dlt` resources that can be fed data from another resource:
+    In such cases, you would use `dlt` transformers — special `dlt` resources that can be fed data from another resource:
 
-        ```
-                          Source
-                         /     \
-                  Transformer    \
-                     /             \
-                Resource 1  ...  Resource N
+    ```
+                      Source
+                     /     \
+              Transformer    \
+                 /             \
+            Resource 1  ...  Resource N
 
-        ```
-
-        """
-    )
+    ```
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Let’s assume Resource 1 is:
-        """
-    )
+    mo.md(r"""Let’s assume Resource 1 is:""")
     return
 
 
@@ -542,16 +446,13 @@ def _(TDataItems, dlt):
             {"id": "25", "name": "pikachu", "size": {"weight": 6, "height": 0.4}},
         ]
         yield pokemons
-
     return (my_pokemons,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        We need to get detailed information about pokemons from [PokeAPI](https://pokeapi.co/) `"https://pokeapi.co/api/v2/pokemon/{id}"` based on their IDs. We would do:
-        """
+        r"""We need to get detailed information about pokemons from [PokeAPI](https://pokeapi.co/) `"https://pokeapi.co/api/v2/pokemon/{id}"` based on their IDs. We would do:"""
     )
     return
 
@@ -579,6 +480,7 @@ def _(TDataItems, dlt, my_pokemons, requests):
 
             yield details
 
+
     # Set pipeline name, destination, and dataset name
     another_pipeline = dlt.pipeline(
         pipeline_name="quick_start",
@@ -591,11 +493,7 @@ def _(TDataItems, dlt, my_pokemons, requests):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Run the pipeline:
-        """
-    )
+    mo.md(r"""Run the pipeline:""")
     return
 
 
@@ -608,44 +506,33 @@ def _(another_pipeline, poke_details):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Alternatively, we could do:
-        """
-    )
+    mo.md(r"""Alternatively, we could do:""")
     return
 
 
 @app.cell
 def _(TDataItem, TDataItems, another_pipeline, dlt, requests):
-    @dlt.resource(table_name="pokemon")
+    @dlt.resource(table_name='pokemon')
     def my_other_pokemons() -> TDataItems:
-        pokemons = [
-            {"id": "1", "name": "bulbasaur", "size": {"weight": 6.9, "height": 0.7}},
-            {"id": "4", "name": "charmander", "size": {"weight": 8.5, "height": 0.6}},
-            {"id": "25", "name": "pikachu", "size": {"weight": 6, "height": 0.4}},
-        ]
+        pokemons = [{'id': '1', 'name': 'bulbasaur', 'size': {'weight': 6.9, 'height': 0.7}}, {'id': '4', 'name': 'charmander', 'size': {'weight': 8.5, 'height': 0.6}}, {'id': '25', 'name': 'pikachu', 'size': {'weight': 6, 'height': 0.4}}]
         yield from pokemons
 
-    @dlt.transformer(data_from=my_other_pokemons, table_name="detailed_info")
+    @dlt.transformer(data_from=my_other_pokemons, table_name='detailed_info')
     def other_poke_details(data_item: TDataItem) -> TDataItems:
-        item_id = data_item["id"]
-        url = f"https://pokeapi.co/api/v2/pokemon/{item_id}"
+        item_id = data_item['id']
+        url = f'https://pokeapi.co/api/v2/pokemon/{item_id}'
         response = requests.get(url)
         details = response.json()
         yield details
-
     _load_info = another_pipeline.run(other_poke_details())
-    print(_load_info)
+    print(_load_info)  # <--- Transformer receives one item at a time
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        You can also use pipe instead of `data_from`, this is useful when you want to apply `dlt.transformer` to multiple `dlt.resources`:
-        """
+        r"""You can also use pipe instead of `data_from`, this is useful when you want to apply `dlt.transformer` to multiple `dlt.resources`:"""
     )
     return
 
@@ -659,11 +546,7 @@ def _(another_pipeline, my_pokemons, poke_details):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Check the loaded data:
-        """
-    )
+    mo.md(r"""Check the loaded data:""")
     return
 
 
@@ -676,123 +559,102 @@ def _(another_pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ---
-        ## **Reduce the nesting level of generated tables**
-        You can limit how deep dlt goes when generating nested tables and flattening dicts into columns. By default, the library will descend and generate nested tables for all nested lists, without limit.
+    mo.md(r"""
+    ---
+    ## **Reduce the nesting level of generated tables**
+    You can limit how deep dlt goes when generating nested tables and flattening dicts into columns. By default, the library will descend and generate nested tables for all nested lists, without limit.
 
-        You can set nesting level for all resources on the source level:
+    You can set nesting level for all resources on the source level:
 
-        ```python
-        @dlt.source(max_table_nesting=1)
-        def all_data():
-          return my_df, get_genome_data, get_pokemon
-        ```
+    ```python
+    @dlt.source(max_table_nesting=1)
+    def all_data():
+      return my_df, get_genome_data, get_pokemon
+    ```
 
-        or for each resource separately:
+    or for each resource separately:
 
-        ```python
-        @dlt.resource(table_name='pokemon_new', max_table_nesting=1)
-        def my_dict_list():
-            yield data
-        ```
+    ```python
+    @dlt.resource(table_name='pokemon_new', max_table_nesting=1)
+    def my_dict_list():
+        yield data
+    ```
 
-        In the example above, we want only 1 level of nested tables to be generated (so there are no nested tables of a nested table). Typical settings:
+    In the example above, we want only 1 level of nested tables to be generated (so there are no nested tables of a nested table). Typical settings:
 
-        * `max_table_nesting=0` will not generate nested tables and will not flatten dicts into columns at all. All nested data will be represented as JSON.
-        * `max_table_nesting=1` will generate nested tables of root tables and nothing more. All nested data in nested tables will be represented as JSON.
-        """
-    )
+    * `max_table_nesting=0` will not generate nested tables and will not flatten dicts into columns at all. All nested data will be represented as JSON.
+    * `max_table_nesting=1` will generate nested tables of root tables and nothing more. All nested data in nested tables will be represented as JSON.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ---
-        ## **Exercise 1: Create a pipeline for GitHub API – repos endpoint**
+    mo.md(r"""
+    ---
+    ## **Exercise 1: Create a pipeline for GitHub API – repos endpoint**
 
-        In this exercise, you'll build a dlt pipeline to fetch data from the GitHub REST API. The goal is to learn how to use `dlt.pipeline`, `dlt.resource`, and `dlt.source` to extract and load data into a destination.
+    In this exercise, you'll build a dlt pipeline to fetch data from the GitHub REST API. The goal is to learn how to use `dlt.pipeline`, `dlt.resource`, and `dlt.source` to extract and load data into a destination.
 
-        ## Instructions
+    ## Instructions
 
-        1. **Explore the GitHub API**
+    1. **Explore the GitHub API**
 
-           Visit the [GitHub REST API Docs](https://docs.github.com/en/rest) to understand the endpoint to [list public repositories](https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28) for an organization:
+       Visit the [GitHub REST API Docs](https://docs.github.com/en/rest) to understand the endpoint to [list public repositories](https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28) for an organization:
 
-           `GET https://api.github.com/orgs/{org}/repos`
+       `GET https://api.github.com/orgs/{org}/repos`
 
-        2. **Build the pipeline**
+    2. **Build the pipeline**
 
-           Write a script to:
+       Write a script to:
 
-           - Fetch repositories for the **dlt-hub** organization.
-           - Use `dlt.resource` to define the data extraction logic.
-           - Combine all resources into a single `@dlt.source`.
-           - Load the data into a DuckDB database.
+       - Fetch repositories for the **dlt-hub** organization.
+       - Use `dlt.resource` to define the data extraction logic.
+       - Combine all resources into a single `@dlt.source`.
+       - Load the data into a DuckDB database.
 
-        3. **Inspect the data**
+    3. **Inspect the data**
 
-           Use a `duckdb` connection, `sql_client`, or `pipeline.dataset()`.
+       Use a `duckdb` connection, `sql_client`, or `pipeline.dataset()`.
 
-        > **Note**: For this exercise you don't need to use authentication or pagination.
-
-        """
-    )
+    > **Note**: For this exercise you don't need to use authentication or pagination.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        Play with the API using the requests library:
-
-        """
-    )
+    mo.md(r"""Play with the API using the requests library:""")
     return
 
 
 @app.cell
-def _(requests_1):
-    import requests
-
-    response = requests_1.get("https://api.github.com/orgs/dlt-hub/repos")
+def _(requests):
+    response = requests.get('https://api.github.com/orgs/dlt-hub/repos')
     response.json()[0]
-    return (requests,)
+    return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        In the code snippet below, you will find an **example** for the **`events`** endpoint:
-        """
+        r"""In the code snippet below, you will find an **example** for the **`events`** endpoint:"""
     )
     return
 
 
 @app.cell
-def _(DltResource, Iterable, TDataItems, dlt, requests_1):
-    import duckdb
-
+def _(DltResource, Iterable, TDataItems, dlt, requests):
     @dlt.resource
     def github_events() -> TDataItems:
-        url = "https://api.github.com/orgs/dlt-hub/events"
-        response = requests_1.get(url)
+        url = 'https://api.github.com/orgs/dlt-hub/events'
+        response = requests.get(url)
         yield response.json()
 
     @dlt.source
     def github_data() -> Iterable[DltResource]:
         return (github_events,)
-
-    github_pipeline = dlt.pipeline(
-        pipeline_name="github_pipeline",
-        destination="duckdb",
-        dataset_name="github_data",
-    )
+    github_pipeline = dlt.pipeline(pipeline_name='github_pipeline', destination='duckdb', dataset_name='github_data')
     _load_info = github_pipeline.run(github_data())
     print(_load_info)
     return
@@ -800,67 +662,48 @@ def _(DltResource, Iterable, TDataItems, dlt, requests_1):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ### Question
-        How many columns has the `github_repos` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
-        """
-    )
+    mo.md(r"""
+    ### Question
+    How many columns has the `github_repos` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ## **Exercise 2: Create a pipeline for the GitHub API – stargazers endpoint**
+    mo.md(r"""
+    ## **Exercise 2: Create a pipeline for the GitHub API – stargazers endpoint**
 
-        Create a `dlt.transformer` for the **"stargazers"** endpoint
-        `https://api.github.com/repos/OWNER/REPO/stargazers` for the `dlt-hub` organization.
+    Create a `dlt.transformer` for the **"stargazers"** endpoint
+    `https://api.github.com/repos/OWNER/REPO/stargazers` for the `dlt-hub` organization.
 
-        Use the `github_repos` resource as the main resource for the transformer:
+    Use the `github_repos` resource as the main resource for the transformer:
 
-        1. Get all repositories in the `dlt-hub` organization.
-        2. Feed these repository names into the `dlt` transformer and retrieve all stargazers for all `dlt-hub` repositories.
-
-        """
-    )
+    1. Get all repositories in the `dlt-hub` organization.
+    2. Feed these repository names into the `dlt` transformer and retrieve all stargazers for all `dlt-hub` repositories.
+    """)
     return
 
 
 @app.cell
 def _():
-    # here is your code
+    print("HERE IS YOUR CODE")
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Question
+    How many columns has the `github_stargazer` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""
-        ### Question
-        How many columns has the `github_stargazer` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
-        """
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
-        ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_3_pagination_and_authentication_and_dlt_configuration.ipynb)!
-        """
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
-
-        """
+        r"""✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_3_pagination_and_authentication_and_dlt_configuration.ipynb)!"""
     )
     return
 
@@ -868,9 +711,9 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
+

@@ -27,10 +27,9 @@ test-examples: ## Tests the examples in the examples folder
 test-snippets: ## Tests the snippets in the snippets folder
 	cd website/docs && uv run pytest --ignore=node_modules
 
-format: ## Formats the docs tooling, notebooks, and examples
+format: ## Formats the docs toolin, website, examples, and notebooks
 	uv run black docs_tools website examples
-	uv run black education --ipynb 
-
+	uv run black education/*/*.ipynb --ipynb 
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
 	cd docs_tools/api_docs && uv run pydoc-markdown
@@ -43,3 +42,11 @@ preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed 
 preprocess-docs-watch: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links and watches for changes
 	uv run preprocess-docs --watch
 
+build-marimo: format
+	# Format the ipynb files first
+	uv run black education/*/*.ipynb --ipynb 
+	# Prepare ipynb files
+	uv run python docs_tools/education/preprocess_to_marimo.py
+
+check-marimo:
+	uv run marimo check education/*/*.py
