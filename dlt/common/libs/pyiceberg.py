@@ -182,16 +182,20 @@ def load_catalog_from_yaml(
             credential: token
     """
     from pyiceberg.catalog import load_catalog
+    import dlt
+    
+    active_run_context = dlt.current.run_context()
 
+        
+    # Search through potential paths for Iceberg Config
     search_paths = []
     if config_path:
         search_paths.append(Path(config_path))
     else:
-        # Search in standard locations
         search_paths.extend(
             [
-                Path.cwd() / ".pyiceberg.yaml",
-                Path.cwd() / ".dlt" / ".pyiceberg.yaml",
+                Path(active_run_context.run_dir) / ".pyiceberg.yaml",
+                Path(active_run_context.get_setting(".pyiceberg.yaml")),
                 Path.home() / ".pyiceberg.yaml",
             ]
         )
@@ -271,7 +275,6 @@ def load_catalog_from_config(
         config_dict.update(fileio_config)
 
     return load_catalog(catalog_name, **config_dict)
-
 
 def load_catalog_from_env(
     catalog_name: Optional[str] = None,
