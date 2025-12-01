@@ -31,6 +31,8 @@ class ParquetFormatConfiguration(BaseConfiguration):
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
     allow_truncated_timestamps: bool = False
     use_compliant_nested_type: bool = True
+    use_content_defined_chunking: bool = False
+    write_page_index: bool = False
 
     def max_timestamp_precision(self) -> int:
         if (self.flavor or "").lower() == "spark":
