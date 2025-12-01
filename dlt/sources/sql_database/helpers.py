@@ -226,7 +226,7 @@ class TableLoader:
             import connectorx as cx
         except ImportError:
             raise MissingDependencyException("Connector X table backend", ["connectorx"])
-        
+
         import pyarrow as pa
         from dlt.common.libs.pyarrow import cast_date64_columns_to_timestamp
 
