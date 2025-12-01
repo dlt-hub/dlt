@@ -100,7 +100,7 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     @property
     def runtime_config(self) -> WorkspaceRuntimeConfiguration:
-        return self._config.runtime
+        return self.config.runtime
 
     @property
     def config(self) -> WorkspaceConfiguration:
