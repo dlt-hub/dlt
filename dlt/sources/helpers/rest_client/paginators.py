@@ -892,9 +892,8 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
             if not has_more_value:
                 self._has_next_page = False
 
-        if self.stop_after_empty_page:
-            if len(data) == 0:
-                self._has_next_page = False
+        if self.stop_after_empty_page and not data:
+            self._has_next_page = False
 
     def update_request(self, request: Request) -> None:
         """Updates the request with the cursor value either in query parameters
