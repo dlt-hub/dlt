@@ -55,7 +55,6 @@ from dlt._workspace.runtime_clients.auth.api.github import github_oauth_complete
 from dlt.common.configuration.plugins import SupportsCliCommand
 from dlt.common.json import json
 
-
 DEPLOYMENT_HEADERS = CONFIGURATION_HEADERS = {
     "version": fmt.bold("Version #"),
     "date_added": fmt.bold("Created at"),
@@ -516,6 +515,7 @@ def request_run_cancel(
     if run_number is None:
         run = _get_latest_run(api_client, auth_service, script_path_or_job_name)
         run_id = run.id
+        run_no = run.number
     else:
         run_id = _resolve_run_id_by_number(
             api_client=api_client,
@@ -523,6 +523,7 @@ def request_run_cancel(
             script_path_or_job_name=script_path_or_job_name,
             run_number=run_number,
         )
+        run_no = run_number
 
     cancel_run_result = cancel_run.sync_detailed(
         client=api_client,
@@ -530,7 +531,7 @@ def request_run_cancel(
         run_id=_to_uuid(run_id),
     )
     if isinstance(cancel_run_result.parsed, cancel_run.DetailedRunResponse):
-        fmt.echo(f"Successfully requested cancellation of run # {run.number}")
+        fmt.echo(f"Successfully requested cancellation of run # {run_no}")
     else:
         raise _exception_from_response("Failed to request cancellation of run", cancel_run_result)
 

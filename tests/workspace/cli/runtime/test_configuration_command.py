@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from pytest_console_scripts import ScriptRunner
 
-from dlt._workspace.cli import _runtime_command as rc
+from dlt._workspace.cli import _runtime_command as commands
 from dlt._workspace.runtime_clients.api.models.configuration_response import ConfigurationResponse
 from dlt._workspace.runtime_clients.api.models.list_configurations_response_200 import (
     ListConfigurationsResponse200,
@@ -45,16 +45,32 @@ CONFIGS = [CONFIG_1, CONFIG_2]
 _WORKSPACE_ID = uuid.UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
 
 
+def assert_configuration_headers(out: str) -> None:
+    for h in ["Version #", "Created at", "File count", "Content hash"]:
+        assert h in out
+
+
+def assert_configuration_values(out: str, cfg: "ConfigurationResponse") -> None:
+    assert str(cfg.version) in out
+    assert cfg.date_added.isoformat() in out
+    assert str(cfg.file_count) in out
+    assert cfg.content_hash in out
+
+
+def assert_out_order(out: str, first: str, second: str) -> None:
+    assert out.find(first) < out.find(second)
+
+
 @pytest.fixture(autouse=True)
 def stub_login_and_client():
-    from dlt._workspace.cli import _runtime_command as rc
+    from dlt._workspace.cli import _runtime_command as commands
 
     class _Auth:
         workspace_id = str(_WORKSPACE_ID)
 
     with (
-        patch.object(rc, "login", return_value=_Auth()),
-        patch.object(rc, "get_api_client", return_value=object()),
+        patch.object(commands, "login", return_value=_Auth()),
+        patch.object(commands, "get_api_client", return_value=object()),
     ):
         yield
 
@@ -62,30 +78,20 @@ def stub_login_and_client():
 def test_runtime_configuration_list_outputs_all(script_runner: ScriptRunner) -> None:
     response = ListConfigurationsResponse200(items=CONFIGS)
     with patch.object(
-        rc.list_configurations, "sync_detailed", return_value=SimpleNamespace(parsed=response)
+        commands.list_configurations, "sync_detailed", return_value=SimpleNamespace(parsed=response)
     ) as sync_detailed_mock:
         result = script_runner.run(["dlt", "runtime", "configuration", "list"])
 
     assert result.returncode == 0
 
     out = result.stdout
-    # Headers
-    assert "Version #" in out
-    assert "Created at" in out
-    assert "File count" in out
-    assert "Content hash" in out
+    assert_configuration_headers(out)
     # Values for latest (v2)
-    assert str(CONFIG_2.version) in out
-    assert CONFIG_2.date_added.isoformat() in out
-    assert str(CONFIG_2.file_count) in out
-    assert CONFIG_2.content_hash in out
+    assert_configuration_values(out, CONFIG_2)
     # Values for previous (v1)
-    assert str(CONFIG_1.version) in out
-    assert CONFIG_1.date_added.isoformat() in out
-    assert str(CONFIG_1.file_count) in out
-    assert CONFIG_1.content_hash in out
+    assert_configuration_values(out, CONFIG_1)
     # Order should be latest first (because CLI reverses the list)
-    assert out.find(CONFIG_2.content_hash) < out.find(CONFIG_1.content_hash)
+    assert_out_order(out, CONFIG_2.content_hash, CONFIG_1.content_hash)
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -94,21 +100,16 @@ def test_runtime_configuration_list_outputs_all(script_runner: ScriptRunner) -> 
 
 def test_runtime_configuration_info_latest(script_runner: ScriptRunner) -> None:
     with patch.object(
-        rc.get_latest_configuration, "sync_detailed", return_value=SimpleNamespace(parsed=CONFIG_2)
+        commands.get_latest_configuration,
+        "sync_detailed",
+        return_value=SimpleNamespace(parsed=CONFIG_2),
     ) as sync_detailed_mock:
         result = script_runner.run(["dlt", "runtime", "configuration", "info"])
 
     assert result.returncode == 0
     out = result.stdout
-    # Headers and values in tabulated output
-    assert "Version #" in out
-    assert "Created at" in out
-    assert "File count" in out
-    assert "Content hash" in out
-    assert str(CONFIG_2.version) in out
-    assert CONFIG_2.date_added.isoformat() in out
-    assert str(CONFIG_2.file_count) in out
-    assert CONFIG_2.content_hash in out
+    assert_configuration_headers(out)
+    assert_configuration_values(out, CONFIG_2)
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -120,7 +121,7 @@ def test_runtime_configuration_info_version_1_by_version_number(
     script_runner: ScriptRunner,
 ) -> None:
     with patch.object(
-        rc.get_configuration, "sync_detailed", return_value=SimpleNamespace(parsed=CONFIG_1)
+        commands.get_configuration, "sync_detailed", return_value=SimpleNamespace(parsed=CONFIG_1)
     ) as sync_detailed_mock:
         result = script_runner.run(
             ["dlt", "runtime", "configuration", str(CONFIG_1.version), "info"]
@@ -128,15 +129,8 @@ def test_runtime_configuration_info_version_1_by_version_number(
 
     assert result.returncode == 0
     out = result.stdout
-    # Headers and values in tabulated output
-    assert "Version #" in out
-    assert "Created at" in out
-    assert "File count" in out
-    assert "Content hash" in out
-    assert str(CONFIG_1.version) in out
-    assert CONFIG_1.date_added.isoformat() in out
-    assert str(CONFIG_1.file_count) in out
-    assert CONFIG_1.content_hash in out
+    assert_configuration_headers(out)
+    assert_configuration_values(out, CONFIG_1)
 
     kwargs = sync_detailed_mock.call_args.kwargs
     assert str(kwargs["workspace_id"]) == str(_WORKSPACE_ID)
@@ -150,18 +144,18 @@ def test_runtime_configuration_sync_happy_path_creates_new(script_runner: Script
     calculated_package_hash = "different_content_hash_than_latest"
     with (
         patch.object(
-            rc.PackageBuilder,
+            commands.PackageBuilder,
             "write_package_to_stream",
             return_value=calculated_package_hash,
         ),
         patch.object(
-            rc.get_latest_configuration,
+            commands.get_latest_configuration,
             "sync_detailed",
             # Latest exists but with a different content hash to trigger creation
             return_value=SimpleNamespace(parsed=CONFIG_1),
         ) as latest_mock,
         patch.object(
-            rc.create_configuration,
+            commands.create_configuration,
             "sync_detailed",
             return_value=SimpleNamespace(parsed=CONFIG_2),
         ) as create_mock,
@@ -171,13 +165,8 @@ def test_runtime_configuration_sync_happy_path_creates_new(script_runner: Script
     assert result.returncode == 0
     out = result.stdout
     # Should tabulate details from CONFIG_2
-    assert "Version #" in out
-    assert "Created at" in out
-    assert "File count" in out
-    assert "Content hash" in out
-    assert str(CONFIG_2.version) in out
-    assert str(CONFIG_2.file_count) in out
-    assert CONFIG_2.content_hash in out
+    assert_configuration_headers(out)
+    assert_configuration_values(out, CONFIG_2)
 
     # Validate calls used workspace id and client were passed through
     latest_kwargs = latest_mock.call_args.kwargs
