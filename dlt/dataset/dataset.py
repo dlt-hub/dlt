@@ -197,6 +197,8 @@ class Dataset:
         data: TDataItems,
         *,
         table_name: str,
+        overwrite: bool = False,
+        # todo: do we need other args? like column-hints if we merge by something tricky?
     ) -> LoadInfo:
         """Write `data` to the specified table.
 
@@ -223,6 +225,7 @@ class Dataset:
                 table_name=table_name,
                 schema=self.schema,
                 write_disposition=write_disposition,
+                refresh="drop_resources" if overwrite else None,
             )
 
         # maybe update the dataset schema

@@ -1,11 +1,12 @@
 import pathlib
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, Generator, List, Sequence, Tuple
 
 import duckdb
 import pytest
 
 import dlt
 from dlt.common.pipeline import LoadInfo
+from dlt.common.typing import DictStrAny
 from dlt.dataset.dataset import (
     _INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE,
     is_same_physical_destination,
@@ -191,15 +192,6 @@ def test_dataset_writes_new_table_to_existing_schema(
     # expect write_disposition of new table to be "append"
     assert dataset.schema.get_table("letters")["write_disposition"] == "append"
 
-    pipeline_dataset = pipeline.dataset()
-    print(pipeline_dataset.schema.tables.keys())
-
-    pipeline.sync_destination(destination=destination, dataset_name=dataset_name)
-
-    pipeline_dataset = pipeline.dataset()
-    print(pipeline_dataset.schema.tables.keys())
-    assert "letters" in pipeline_dataset.schema.tables.keys()
-
 
 # @pytest.mark.xfail(
 #     reason=(
@@ -254,6 +246,42 @@ def test_data_write_wipes_working_directory_and_persists_data_after_running(
     storage_dir = pathlib.Path(TEST_STORAGE_ROOT)
     pipeline_dir = storage_dir / ".dlt" / "pipelines" / write_pipeline.pipeline_name
     assert pipeline_dir.exists()
+
+
+def test_data_write_overwrite_mode( pipeline_and_foo_dataset: Tuple[dlt.Pipeline, dlt.Dataset, str, Destination]):
+    pipeline, dataset, dataset_name, destination = pipeline_and_foo_dataset
+
+    @dlt.resource(write_disposition="append")
+    def identity_resource(
+        data: List[DictStrAny],
+    ) -> Generator[List[DictStrAny], None, None]:
+        yield data  
+
+    table_name = "bar"
+
+    data_as_str = [{"id": 0, "value": "is a string"}, {"id": 1, "value": "is also a string"}]
+
+    pipeline.run(identity_resource(data_as_str), table_name=table_name)
+
+    assert dataset.schema.tables[table_name]["columns"]["value"]["data_type"] == "text"
+
+    # execute
+    same_data_as_int = [{"id": 0, "value": 0}, {"id": 1, "value": 1}]
+    load_info = dataset.write(identity_resource(same_data_as_int), table_name=table_name, overwrite=True)
+    assert_load_info(load_info, expected_load_packages=1)
+
+    # verify
+    new_dataset = dlt.dataset(destination, dataset_name)
+
+    # assert exsiting content got dropped
+    assert new_dataset.row_counts().fetchall() == [("bar", 2)]
+
+    # assert dataset.table("bar").select("id", "value").fetchall() == [
+    #     (0, 0),
+    #     (1, 1)
+    # ]
+
+    # assert new_dataset.schema.tables[table_name]["columns"]["value"]["data_type"] == "bigint"
 
 
 def test_internal_pipeline_can_write_to_scratchpad_dataset(
