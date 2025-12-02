@@ -1,5 +1,5 @@
 """Implements SupportsTracking"""
-from typing import Any, List, Union
+from typing import Any, List, Union, Optional
 from requests import Session
 import fsspec
 import pickle
@@ -12,26 +12,16 @@ from dlt.common.managed_thread_pool import ManagedThreadPool
 from dlt.common.versioned_state import json_encode_state
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
 from dlt.common.configuration.specs import RuntimeConfiguration
-from dlt.common.schema import Schema
 
 _THREAD_POOL: ManagedThreadPool = None
-requests: Session = None
 
 tl_store = threading.local()
 
 
 def init_runtime_artifacts() -> None:
-    # lazily import requests to avoid binding config before initialization
-    global requests
-    from dlt.sources.helpers.requests import Client
-
-    # fail fast, don't block user
-    requests = Client(request_timeout=(2, 10), request_max_attempts=0)  # type: ignore[assignment]
-
     global _THREAD_POOL
     if _THREAD_POOL is None:
         _THREAD_POOL = ManagedThreadPool("runtime_artifacts", 1)
-        # create thread pool in controlled way, not lazy
         _THREAD_POOL._create_thread_pool()
 
 
@@ -42,28 +32,20 @@ def disable_runtime_artifacts() -> None:
     _THREAD_POOL = None
 
 
-def _get_runtime_artifacts_fs(config: RuntimeConfiguration) -> fsspec.filesystem:
-    if (
-        not config.workspace_pipeline_artifacts_sync_url
-        or not config.workspace_artifacts_access_key
-        or not config.workspace_artifacts_secret_key
-        or not config.workspace_artifacts_host
-    ):
+def _get_runtime_artifacts_fs(config: RuntimeConfiguration) -> Optional[fsspec.AbstractFileSystem]:
+    if not config.workspace_artifacts_gcs_token or not config.workspace_artifacts_bucket:
         return None
-    fs = fsspec.filesystem(
-        "s3",
-        key=config.workspace_artifacts_access_key,
-        secret=config.workspace_artifacts_secret_key,
-        client_kwargs={"endpoint_url": config.workspace_artifacts_host},
-        config_kwargs={
-            "request_checksum_calculation": "when_required",
-            "response_checksum_validation": "when_required",
-        },
+
+    return fsspec.filesystem(
+        "gcs",
+        token=config.workspace_artifacts_gcs_token,
     )
-    return fs
 
 
-# write to bucket using the config, same object may be written to multiple paths
+def _get_artifacts_base_path(config: RuntimeConfiguration) -> str:
+    return f"{config.workspace_artifacts_bucket}/{config.workspace_pipeline_artifacts_url}"
+
+
 def _write_to_bucket(
     config: RuntimeConfiguration,
     pipeline_name: str,
@@ -71,17 +53,15 @@ def _write_to_bucket(
     data: Union[str, bytes],
     mode: str = "w",
 ) -> None:
-    # NOTE: needs to migrate to some kind of signed urls
     fs = _get_runtime_artifacts_fs(config)
-
     if not fs:
         return
 
+    base_path = _get_artifacts_base_path(config)
+
     for path in paths:
-        with fs.open(
-            f"{config.workspace_pipeline_artifacts_send_url}/{pipeline_name}/{path}",
-            mode=mode,
-        ) as f:
+        full_path = f"{base_path}/{pipeline_name}/{path}"
+        with fs.open(full_path, mode=mode) as f:
             f.write(data)
 
 

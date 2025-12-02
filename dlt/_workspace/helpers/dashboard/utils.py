@@ -78,36 +78,9 @@ def _exception_to_string(exception: Exception) -> str:
 
 
 def sync_from_runtime() -> None:
-    """Sync the pipeline states and traces from the runtime backup, recursively."""
-    from dlt.pipeline.runtime_artifacts import _get_runtime_artifacts_fs
-    import fsspec
-
-    def sync_dir(fs: fsspec.filesystem, src_root: str, dst_root: str) -> None:
-        """Recursively sync src_root on fs into dst_root locally, always using fs.walk."""
-        os.makedirs(dst_root, exist_ok=True)
-
-        for dirpath, _dirs, files in fs.walk(src_root):
-            # Compute local directory path
-            relative = os.path.relpath(dirpath, src_root)
-            local_dir = dst_root if relative == "." else os.path.join(dst_root, relative)
-            os.makedirs(local_dir, exist_ok=True)
-
-            # Copy all files in this directory
-            for filename in files:
-                remote_file = fs.sep.join([dirpath, filename])
-                local_file = os.path.join(local_dir, filename)
-
-                with fs.open(remote_file, "rb") as bf, open(local_file, "wb") as lf:
-                    lf.write(bf.read())
-
-                # Try to preserve LastModified as mtime
-                # needed for correct ordering of pipelines in pipeline list
-                # TODO: this is a hack and probably should be done better...
-                info = fs.info(remote_file)
-                last_modified = info.get("LastModified") or info.get("last_modified")
-                if isinstance(last_modified, datetime.datetime):
-                    ts = last_modified.timestamp()
-                    os.utime(local_file, (ts, ts))  # (atime, mtime)
+    """Sync all pipeline artifacts from the runtime bucket to local storage."""
+    from dlt.common import logger
+    from dlt.pipeline.runtime_artifacts import _get_runtime_artifacts_fs, _get_artifacts_base_path
 
     runtime_config = dlt.current.run_context().runtime_config
 
@@ -118,13 +91,69 @@ def sync_from_runtime() -> None:
     if not isinstance(context, WorkspaceRunContext):
         return
 
-    src_base = runtime_config.workspace_pipeline_artifacts_sync_url  # the artifacts folder on fs
-    local_pipelines_dir = os.path.join(
-        context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER
-    )  # the local .var folder
+    src_base = _get_artifacts_base_path(runtime_config)
+    local_pipelines_dir = os.path.join(context.settings_dir, DEFAULT_WORKSPACE_WORKING_FOLDER)
 
-    # Just sync the whole base folder into the local pipelines dir
-    sync_dir(fs, src_base, local_pipelines_dir)
+    os.makedirs(local_pipelines_dir, exist_ok=True)
+
+    try:
+        # each item is a pipeline folder
+        items = fs.ls(src_base, detail=False)
+
+        for item_path in items:
+            # xxx: is this correct?
+            pipeline_name = os.path.basename(item_path.rstrip("/"))
+            _sync_pipeline_dir(fs, src_base, local_pipelines_dir, pipeline_name)
+
+    except Exception as e:
+        logger.warning(f"Failed to sync from runtime: {e}")
+
+
+def _sync_pipeline_dir(
+    fs,
+    src_base: str,
+    local_dir: str,
+    pipeline_name: str,
+) -> None:
+    """Sync a single pipeline's artifacts from a bucket to local directory."""
+    from dlt.common import logger
+
+    pipeline_src = f"{src_base}/{pipeline_name}"
+    pipeline_dst = os.path.join(local_dir, pipeline_name)
+    os.makedirs(pipeline_dst, exist_ok=True)
+
+    try:
+        for dirpath, _, files in fs.walk(pipeline_src):
+            relative = os.path.relpath(dirpath, pipeline_src)
+            local_subdir = pipeline_dst if relative == "." else os.path.join(pipeline_dst, relative)
+            os.makedirs(local_subdir, exist_ok=True)
+
+            for filename in files:
+                remote_file = f"{dirpath}/{filename}"
+                local_file = os.path.join(local_subdir, filename)
+
+                with fs.open(remote_file, "rb") as rf, open(local_file, "wb") as lf:
+                    lf.write(rf.read())
+
+                try:
+                    info = fs.info(remote_file)
+                    # Preserve mtime for ordering
+                    # GCS uses 'updated' or 'timeCreated' for timestamps
+                    last_modified = info.get("updated") or info.get("timeCreated")
+                    print(f"last_modified: {last_modified}")
+                    if last_modified:
+                        if isinstance(last_modified, datetime.datetime):
+                            ts = last_modified.timestamp()
+                        elif isinstance(last_modified, str):
+                            ts = pendulum.parse(last_modified).timestamp()
+                        else:
+                            continue
+                        os.utime(local_file, (ts, ts))
+                except Exception as e:
+                    logger.warning(f"Failed to set mtime for {local_file}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Failed to sync pipeline {pipeline_name}: {e}")
 
 
 def get_dashboard_config_sections(p: Optional[dlt.Pipeline]) -> Tuple[str, ...]:
