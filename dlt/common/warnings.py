@@ -65,6 +65,15 @@ class Dlt100DeprecationWarning(DltDeprecationWarning):
         )
 
 
+class Dlt1160DeprecationWarning(DltDeprecationWarning):
+    V1160 = semver.Version.parse("1.16.0")
+
+    def __init__(self, message: str, *args: typing.Any, expected_due: VersionString = None) -> None:
+        super().__init__(
+            message, *args, since=Dlt1160DeprecationWarning.V1160, expected_due=expected_due
+        )
+
+
 # show dlt deprecations once
 warnings.simplefilter("once", DltDeprecationWarning)
 

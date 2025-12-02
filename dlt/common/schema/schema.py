@@ -12,8 +12,10 @@ from typing import (
     Tuple,
     Any,
     cast,
+    Set,
 )
 
+from dlt.common import logger
 from dlt.common.schema.migrations import migrate_schema
 from dlt.common.utils import extend_list_deduplicated, simple_repr, without_none
 from dlt.common.typing import (
@@ -237,7 +239,7 @@ class Schema:
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
-            if column_name.startswith(self._dlt_tables_prefix):
+            if self.is_dlt_entity(column_name):
                 continue
             is_variant = column.get("variant", False)
             # new column and contract prohibits that
@@ -299,7 +301,7 @@ class Schema:
         """Resolve the exact applicable schema contract settings for the table `table_name`. `new_table_schema` is added to the tree during the resolution."""
 
         settings: TSchemaContract = {}
-        if not table_name.startswith(self._dlt_tables_prefix):
+        if not self.is_dlt_entity(table_name):
             if new_table_schema:
                 tables = copy(self._schema_tables)
                 tables[table_name] = new_table_schema
@@ -373,21 +375,12 @@ class Schema:
         must contain all nested tables to tables being dropped.
         """
         result = []
-        candidates = set()
-
-        for table_name in table_names:
-            if self.get_table(table_name) and table_name not in candidates:
-                candidates.add(table_name)
-                # also add table chain
-                candidates.update(
-                    t["name"] for t in utils.get_nested_tables(self._schema_tables, table_name)
-                )
-        # compare extension with original list
-        if orphaned := candidates.difference(table_names):
+        orphaned, candidates = self.validate_table_drop_list(table_names, table_names)
+        if orphaned:
             raise SchemaCorruptedException(
                 self._schema_name,
-                "A set tables to drop would leave orphaned tables. Please use consistent list of "
-                f"table names in `drop_table`. Orphaned tabled: {orphaned}",
+                "A set of tables to drop would leave orphaned tables. Please use a consistent list"
+                f" of table names in `drop_tables`. Orphaned tables: {orphaned}",
             )
         # final drop
         for table_name in table_names:
@@ -396,6 +389,50 @@ class Schema:
                 self.data_item_normalizer.remove_table(table_name)
 
         return result
+
+    def validate_table_drop_list(
+        self, parent_tables: Sequence[str], provided_table_names: Sequence[str]
+    ) -> Tuple[Set[str], Set[str]]:
+        """Validate a table drop list by expanding to nested tables and finding orphans.
+
+        When dropping tables, nested/child tables must also be dropped. This method checks if all
+        necessary dependent tables are included in the drop list.
+
+        Args:
+            parent_tables (Sequence[str]): Tables to analyze for dependencies (typically the tables user wants to drop)
+            provided_table_names (Sequence[str]): Complete list of table names that will be dropped
+
+        Returns:
+            Tuple[Set[str], Set[str]]: Tuple of
+                - orphaned_tables: Child/nested tables that would be left without parents
+                - all_dependent_tables: Complete set including parents and all their children
+        """
+        all_dependent_tables = set()
+
+        for table_name in parent_tables:
+            if self.get_table(table_name) and table_name not in all_dependent_tables:
+                all_dependent_tables.add(table_name)
+                # Add all nested/child tables that depend on this parent
+                all_dependent_tables.update(
+                    t["name"] for t in utils.get_nested_tables(self._schema_tables, table_name)
+                )
+
+        # Find tables that would be orphaned (dependent tables not in the provided list)
+        orphaned_tables = all_dependent_tables.difference(provided_table_names)
+
+        return orphaned_tables, all_dependent_tables
+
+    def drop_columns(self, table_name: str, column_names: Sequence[str]) -> TPartialTableSchema:
+        """Drops columns from the table schema in place and returns the table schema with the dropped columns"""
+        table: TPartialTableSchema = {"name": table_name}
+        dropped_col_schemas: TTableSchemaColumns = {}
+
+        for col in column_names:
+            col_schema = self._schema_tables[table["name"]]["columns"].pop(col)
+            dropped_col_schemas[col] = col_schema
+
+        table["columns"] = dropped_col_schemas
+        return table
 
     def filter_row_with_hint(
         self, table_name: str, hint_type: TColumnDefaultHint, row: StrAny
@@ -485,6 +522,72 @@ class Schema:
                 diff_c.append(c)
         return diff_c
 
+    def get_removed_table_columns(
+        self,
+        table_name: str,
+        existing_columns: TTableSchemaColumns,
+        escape_col_f: Callable[[str, bool, bool], str],
+        disregard_dlt_columns: bool = True,
+    ) -> List[TColumnSchema]:
+        """Gets columns to be removed from schema to match `existing_columns`.
+
+        This function identifies columns that exist in the dlt schema but are missing from the
+        destination table. It's used during schema synchronization to detect when columns have
+        been dropped from the destination and need to be removed from the dlt schema as well.
+
+        Column names are compared by transforming dlt schema names to destination format using
+        `escape_col_f`. `existing_columns` are expected to be in destination format (as they
+        appear in the destination's INFORMATION_SCHEMA).
+
+        dlt internal columns (_dlt_id, _dlt_load_id) can be optionally disregarded because
+        users rarely drop these columns manually, and if they did, dlt cannot recover from
+        this situation anyway.
+
+        Args:
+            table_name (str): Name of the table to analyze.
+            existing_columns (TTableSchemaColumns): Column schemas that actually exist in the
+                destination table, typically obtained from INFORMATION_SCHEMA queries. Column
+                names should be in destination format.
+            escape_col_f (Callable[[str, bool, bool], str]): Function to transform dlt column
+                names to destination format (e.g., 'id' -> 'ID' in Snowflake).
+            disregard_dlt_columns (bool): Whether to ignore apparent mismatches for dlt internal
+                columns (_dlt_id, _dlt_load_id). Defaults to True.
+
+        Returns:
+            List[TColumnSchema]: List of column schemas that exist in the dlt schema but are
+                missing from the destination table.
+        """
+        # Transform dlt schema column names to destination format (e.g., 'id' -> 'ID' in Snowflake)
+        # to match against actual_col_names from INFORMATION_SCHEMA
+        # Keys: destination format, Values: original dlt schema names
+        col_schemas = self.get_table_columns(table_name)
+        escaped_to_dlt = {escape_col_f(col, False, True): col for col in col_schemas.keys()}
+
+        if len(escaped_to_dlt) != len(col_schemas):
+            raise SchemaCorruptedException(
+                self.name,
+                f"Columns in table `{table_name}` have colliding names when transformed to"
+                " destination format. Original dlt schema column names:"
+                f" {list(col_schemas.keys())}. Destination format names:"
+                f" {list(escaped_to_dlt.keys())}. This should not happen under normal circumstances"
+                " and indicates schema corruption.",
+            )
+
+        diff_c: List[TColumnSchema] = []
+        for dest_name, name_in_dlt in escaped_to_dlt.items():
+            if disregard_dlt_columns and self.is_dlt_entity(name_in_dlt):
+                continue
+            if dest_name not in existing_columns:
+                col_schema = col_schemas[name_in_dlt]
+                if col_schema.get("incremental"):
+                    logger.warning(
+                        f"An incremental field {name_in_dlt} is being removed from schema."
+                        "You should unset the"
+                        " incremental with `incremental=dlt.sources.incremental.EMPTY`"
+                    )
+                diff_c.append(col_schema)
+        return diff_c
+
     def get_table(self, table_name: str) -> TTableSchema:
         try:
             return self._schema_tables[table_name]
@@ -508,7 +611,7 @@ class Schema:
         return [
             t
             for t in self._schema_tables.values()
-            if not t["name"].startswith(self._dlt_tables_prefix)
+            if not self.is_dlt_entity(t["name"])
             and (
                 (
                     include_incomplete
@@ -531,9 +634,7 @@ class Schema:
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
-        return [
-            t for t in self._schema_tables.values() if t["name"].startswith(self._dlt_tables_prefix)
-        ]
+        return [t for t in self._schema_tables.values() if self.is_dlt_entity(t["name"])]
 
     def dlt_table_names(self) -> List[str]:
         """Returns list of dlt table names."""
@@ -882,6 +983,10 @@ class Schema:
         else:
             self._settings["schema_contract"] = settings
 
+    def is_dlt_entity(self, entity_name: str) -> bool:
+        """Checks if the requested entity is a dlt entity"""
+        return entity_name.startswith(self._dlt_tables_prefix)
+
     def _infer_hint(self, hint_type: TColumnDefaultHint, col_name: str) -> bool:
         if hint_type in self._compiled_hints:
             return any(h.search(col_name) for h in self._compiled_hints[hint_type])
@@ -1112,7 +1217,7 @@ class Schema:
         self.state_table_name = to_naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)
         # do a sanity check - dlt tables must start with dlt prefix
         for table_name in [self.version_table_name, self.loads_table_name, self.state_table_name]:
-            if not table_name.startswith(self._dlt_tables_prefix):
+            if not self.is_dlt_entity(table_name):
                 raise SchemaCorruptedException(
                     self.name,
                     f"A naming convention `{self.naming.name()}` mangles `_dlt` table prefix to"

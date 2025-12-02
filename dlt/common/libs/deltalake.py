@@ -6,9 +6,9 @@ from pathlib import Path
 from dlt import version, Pipeline
 from dlt.common import logger
 from dlt.common.libs.pyarrow import pyarrow as pa
-from dlt.common.libs.pyarrow import cast_arrow_schema_types
+from dlt.common.libs.pyarrow import cast_arrow_schema_types, py_arrow_to_table_schema_columns
 from dlt.common.libs.utils import load_open_tables
-from dlt.common.schema.typing import TWriteDisposition, TTableSchema
+from dlt.common.schema.typing import TWriteDisposition, TTableSchema, TTableSchemaColumns
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.storages import FilesystemConfiguration
@@ -217,3 +217,8 @@ def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) 
     if new_fields:
         delta_table.alter.add_columns(new_fields)
     return delta_table
+
+
+def get_table_columns(table: DeltaTable) -> TTableSchemaColumns:
+    arrow_schema = table.schema().to_pyarrow()
+    return py_arrow_to_table_schema_columns(arrow_schema)

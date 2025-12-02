@@ -17,6 +17,7 @@ from typing import (
     ContextManager,
     Union,
     TYPE_CHECKING,
+    Iterable,
 )
 
 import dlt
@@ -35,6 +36,7 @@ from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
+    DestinationTableReflectionNotSupported,
 )
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import (
@@ -43,6 +45,7 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
+    TSchemaDrop,
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
@@ -76,6 +79,7 @@ from dlt.common.destination.client import (
     WithStateSync,
     JobClientBase,
     DestinationClientStagingConfiguration,
+    WithTableReflection,
 )
 from dlt.common.destination.exceptions import SqlClientNotAvailable, FSClientNotAvailable
 from dlt.common.normalizers.naming import NamingConvention
@@ -96,7 +100,7 @@ from dlt.common.pipeline import (
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive, simple_repr, without_none
-from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
+from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, Dlt1160DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.extract import DltSource
@@ -106,8 +110,8 @@ from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import get_destination_clients
+from dlt.destinations.utils import sync_schema_from_storage_schema, WithTableReflectionAndSql
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -118,7 +122,6 @@ from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     InvalidPipelineName,
     PipelineConfigMissing,
-    PipelineNeverRan,
     PipelineNotActive,
     PipelineStepFailed,
 )
@@ -1028,9 +1031,18 @@ class Pipeline(SupportsPipeline):
         for load_id in normalize_storage.extracted_packages.list_packages():
             normalize_storage.extracted_packages.delete_package(load_id)
 
+    @deprecated(
+        "Please use sync_schema_to_destination instead. The sync_schema is deprecated due to"
+        " ambiguous naming.",
+        category=Dlt1160DeprecationWarning,
+    )
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:
-        """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
+        return self.sync_schema_to_destination(schema_name)
+
+    @with_schemas_sync
+    def sync_schema_to_destination(self, schema_name: str = None) -> TSchemaTables:
+        """Synchronizes the destination with the schema `schema_name`. If no name is provided, the default schema will be synchronized."""
         if not schema_name and not self.default_schema_name:
             raise PipelineConfigMissing(
                 self.pipeline_name,
@@ -1044,6 +1056,34 @@ class Pipeline(SupportsPipeline):
         with self._get_destination_clients(schema)[0] as client:
             client.initialize_storage()
             return client.update_stored_schema()
+
+    @with_schemas_sync
+    def sync_schema_from_destination(
+        self, schema_name: str = None, table_names: Iterable[str] = None, dry_run: bool = False
+    ) -> Optional[TSchemaDrop]:
+        """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
+        if not schema_name and not self.default_schema_name:
+            raise PipelineConfigMissing(
+                self.pipeline_name,
+                "default_schema_name",
+                "load",
+                "Pipeline contains no schemas. Please extract any data with `extract` or `run`"
+                " methods.",
+            )
+        schema = self.schemas[schema_name] if schema_name else self.default_schema
+        with self._get_destination_clients(schema)[0] as client:
+            if not client.is_storage_initialized():
+                raise DestinationUndefinedEntity()
+            if isinstance(client, WithTableReflection) and isinstance(client, WithSqlClient):
+                return sync_schema_from_storage_schema(
+                    get_storage_tables_f=client.get_storage_tables,
+                    escape_col_f=client.sql_client.escape_column_name,
+                    schema=schema,
+                    table_names=table_names,
+                    dry_run=dry_run,
+                )
+            else:
+                raise DestinationTableReflectionNotSupported(self._destination.destination_name)
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""

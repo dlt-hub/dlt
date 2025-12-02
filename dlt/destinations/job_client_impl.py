@@ -6,7 +6,6 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
-    ClassVar,
     Dict,
     List,
     Optional,
@@ -60,6 +59,7 @@ from dlt.common.destination.client import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    WithTableReflection,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -240,7 +240,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
-class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
+class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync, WithTableReflection):
     def __init__(
         self,
         schema: Schema,

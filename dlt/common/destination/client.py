@@ -31,7 +31,6 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
-    resolve_replace_strategy,
     verify_schema_capabilities,
     verify_supported_data_types,
 )
@@ -39,12 +38,13 @@ from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
 
-from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables, TSchemaDrop
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
     TTableFormat,
     TTableSchema,
+    TTableSchemaColumns,
 )
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
@@ -620,6 +620,26 @@ class WithStateSync(ABC):
     @abstractmethod
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
+        pass
+
+
+class WithTableReflection(ABC):
+    @abstractmethod
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        """Retrieves table and column information for the specified tables.
+
+        Implementations use database introspection (INFORMATION_SCHEMA, table reflection) or file metadata
+        and return column names exactly as they appear in the underlying storage (e.g., as stored in INFORMATION_SCHEMA).
+        To match these storage columns with columns in your dlt schema, use the `schema.get_new_table_columns()` method
+        with the appropriate case_sensitive parameter. Note that naming conventions like snake_case are lossy transformations
+        (e.g., "UserID" and "userId" both become "user_id"), making it impossible to reverse-transform storage identifiers
+        back to their original dlt schema form.
+
+        Returns an iterator of tuples (table_name, columns_dict) where columns_dict
+        contains column schemas for existing tables, or is empty for non-existent tables.
+        """
         pass
 
 

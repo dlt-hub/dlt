@@ -8,7 +8,7 @@ from dlt.common.storages.load_package import destination_state
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration import create_resolved_partial
 
-from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables, TSchemaDrop
 from dlt.common.destination import DestinationCapabilitiesContext
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
@@ -56,13 +56,13 @@ class DestinationClient(JobClientBase):
     ) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
         if self.config.skip_dlt_columns_and_tables:
-            if table["name"].startswith(self.schema._dlt_tables_prefix):
+            if self.schema.is_dlt_entity(table["name"]):
                 return FinalizedLoadJob(file_path)
 
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
             for column in list(self.schema.get_table(table["name"])["columns"].keys()):
-                if column.startswith(self.schema._dlt_tables_prefix):
+                if self.schema.is_dlt_entity(column):
                     skipped_columns.append(column)
 
         # save our state in destination name scope
@@ -91,7 +91,7 @@ class DestinationClient(JobClientBase):
         table = super().prepare_load_table(table_name)
         if self.config.skip_dlt_columns_and_tables:
             for column in list(table["columns"].keys()):
-                if column.startswith(self.schema._dlt_tables_prefix):
+                if self.schema.is_dlt_entity(column):
                     table["columns"].pop(column)
         return table
 

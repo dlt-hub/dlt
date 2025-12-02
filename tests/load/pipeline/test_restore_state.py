@@ -85,7 +85,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         with pytest.raises(DestinationUndefinedEntity):
             load_pipeline_state_from_destination(p.pipeline_name, job_client)
     # sync the schema
-    p.sync_schema()
+    p.sync_schema_to_destination()
     # check if schema exists
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema(job_client.schema.name)
@@ -110,7 +110,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         # so dlt in normalize stage infers _state_version table again but with different column order and the column order in schema is different
         # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
         # schema.bump_version()
-    p.sync_schema()
+    p.sync_schema_to_destination()
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema(job_client.schema.name)
         assert stored_schema is not None
@@ -257,7 +257,7 @@ def test_get_schemas_from_destination(
     p._inject_schema(default_schema)
 
     # just sync schema without name - will use default schema
-    p.sync_schema()
+    p.sync_schema_to_destination()
     with p.destination_client() as job_client:
         assert get_normalized_dataset_name(
             job_client
@@ -275,7 +275,7 @@ def test_get_schemas_from_destination(
     schema_three = Schema("three")
     p._inject_schema(schema_three)
     # sync schema with a name
-    p.sync_schema(schema_three.name)
+    p.sync_schema_to_destination(schema_three.name)
     with p._get_destination_clients(schema_three)[0] as job_client:
         assert get_normalized_dataset_name(
             job_client
