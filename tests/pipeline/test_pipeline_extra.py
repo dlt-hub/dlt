@@ -855,3 +855,53 @@ def test_null_in_non_null_arrow() -> None:
         # generates variant column on non-nullable column. original "foo" will receive null
         pipeline.run(inconsistent_data("text"))
     assert pip_ex.value.step == "normalize"
+
+
+@pytest.mark.parametrize(
+    "as_model, as_list",
+    [
+        (False, False),
+        (True, False),
+        (False, True),
+        (True, True),
+    ],
+)
+def test_pydantic_validator_preserves_model_instances(as_model, as_list):
+    class Result(BaseModel):
+        id: int
+
+    @dlt.resource(columns=Result)
+    def data():
+        if as_model:
+            item = Result(id=1)
+        else:
+            item = {"id": 1}# type: ignore[assignment]
+        if as_list:
+            yield [item, item, item]
+        else:
+            yield item
+
+    seen = []
+
+    @dlt.transformer(data_from=data)
+    def check(x):
+        seen.append(x)
+        yield x
+
+    pipeline = dlt.pipeline(destination="duckdb", dev_mode=True)
+    pipeline.run(check)
+
+    assert len(seen) == 1
+    v = seen[0]
+
+    if as_list:
+        assert isinstance(v, list)
+        if as_model:
+            assert all(isinstance(el, BaseModel) for el in v)
+        else:
+            assert all(isinstance(el, dict) for el in v)
+    else:
+        if as_model:
+            assert isinstance(v, BaseModel)
+        else:
+            assert isinstance(v, dict)
