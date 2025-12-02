@@ -1,3 +1,4 @@
+from pyiceberg.exceptions import NamespaceAlreadyExistsError
 import posixpath
 import os
 import orjson
@@ -1012,10 +1013,6 @@ class FilesystemClient(
         try:
             # Try to load catalog using new function
             catalog = self._catalog = get_catalog(
-                catalog_name=catalog_name,
-                catalog_type=self.config.iceberg_catalog_type,
-                catalog_uri=self.config.iceberg_catalog_uri,
-                catalog_config=self.config.iceberg_catalog_config,
                 credentials=self.config.credentials,
             )
 
@@ -1039,7 +1036,7 @@ class FilesystemClient(
         try:
             catalog.create_namespace(self.dataset_name)
             logger.info(f"Created Iceberg namespace: {self.dataset_name}")
-        except Exception as e:
+        except NamespaceAlreadyExistsError as e:
             logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")
 
         return catalog
