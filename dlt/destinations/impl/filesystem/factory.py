@@ -102,6 +102,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         - AWS S3 (and S3 compatible storages): `s3://bucket-name
         - Azure Blob Storage: `az://container-name
         - Google Cloud Storage: `gs://bucket-name
+        - Hugging Face Datasets: `hf://datasets/user-name
         - Memory fs: `memory://m`
 
         Args:
