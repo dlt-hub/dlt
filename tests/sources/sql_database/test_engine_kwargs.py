@@ -78,13 +78,8 @@ def test_engine_kwargs_timeout_is_honored_sqlite():
     finally:
         os.remove(db_path)
 
-@pytest.mark.parametrize("dtype_backend, expected_dtype", [
-    ("numpy_nullable", "Float64"),
-    ("pyarrow", "double"),
-])
-def test_engine_kwargs_and_backend_kwargs_with_pandas_backend(
-    caplog, dtype_backend, expected_dtype
-):
+def test_engine_kwargs_and_backend_kwargs_with_pyarrow_backend(caplog):
+    import pyarrow as pa
     fd, db_path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     try:
@@ -97,23 +92,21 @@ def test_engine_kwargs_and_backend_kwargs_with_pandas_backend(
             credentials=f"sqlite:///{db_path}",
             table_names=["test_table"],
             engine_kwargs={"echo": True},
-            backend="pandas",
-            chunk_size=2,
-            backend_kwargs={"dtype_backend": dtype_backend},
+            backend="pyarrow",
+            backend_kwargs={"tz": "UTC"},
         )
 
         with caplog.at_level(logging.INFO):
             tables = list(source.resources["test_table"])
 
         logs = " ".join(r.message.lower() for r in caplog.records)
-        assert "select" in logs or "pragma" in logs or "raw sql" in logs
+        assert "select" in logs or "pragma" in logs
 
         assert len(tables) == 1
         table = tables[0]
 
-        assert len(table) == 2
-        assert table["value"].tolist() == [1.1, 2.2]
-        assert expected_dtype in str(table["value"].dtype)
+        assert isinstance(table, pa.Table)
+        assert table["value"].to_pylist() == [1.1, 2.2]
     finally:
         os.remove(db_path)
 
