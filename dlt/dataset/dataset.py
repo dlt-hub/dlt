@@ -209,21 +209,26 @@ class Dataset:
         This directory will be wiped before each `write()` call.
         """
         with self.write_pipeline() as internal_pipeline:
-            # drop all load packages from previous writes
-            # internal_pipeline._wipe_working_folder()
+            # drop all load packages and schemas from previous writes
             internal_pipeline.drop()
+            # pipeline needs to know old schema so that it can drop the correct tables
+            if overwrite:
+                internal_pipeline._inject_schema(self.schema)
+                # get write disposition from resource (data)
+                write_disposition = None # let resource/data define it
+            else:
+                # get write dispostion for existing table from schema (or "append" if table is new)
+                try:
+                    write_disposition = self.schema.get_table(table_name)["write_disposition"]
+                except TableNotFound:
+                    write_disposition = "append"
 
-            # get write dispostion for existing table from schema (or "append" if table is new)
-            try:
-                write_disposition = self.schema.get_table(table_name)["write_disposition"]
-            except TableNotFound:
-                write_disposition = "append"
             # TODO should we try/except this run to gracefully handle failed writes?
             info = internal_pipeline.run(
                 data,
                 dataset_name=self.dataset_name,
                 table_name=table_name,
-                schema=self.schema,
+                schema=self.schema if not overwrite else None,
                 write_disposition=write_disposition,
                 refresh="drop_resources" if overwrite else None,
             )

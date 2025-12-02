@@ -276,12 +276,12 @@ def test_data_write_overwrite_mode( pipeline_and_foo_dataset: Tuple[dlt.Pipeline
     # assert exsiting content got dropped
     assert new_dataset.row_counts().fetchall() == [("bar", 2)]
 
-    # assert dataset.table("bar").select("id", "value").fetchall() == [
-    #     (0, 0),
-    #     (1, 1)
-    # ]
+    assert new_dataset.table("bar").select("id", "value").fetchall() == [
+        (0, 0),
+        (1, 1)
+    ]
 
-    # assert new_dataset.schema.tables[table_name]["columns"]["value"]["data_type"] == "bigint"
+    assert new_dataset.schema.tables[table_name]["columns"]["value"]["data_type"] == "bigint"
 
 
 def test_internal_pipeline_can_write_to_scratchpad_dataset(
