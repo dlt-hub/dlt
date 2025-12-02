@@ -276,6 +276,8 @@ def load_catalog_from_config(
 
     return load_catalog(catalog_name, **config_dict)
 
+#! Following Rudolf comment, we could just swap this whole funciton out with `load_catalog`, 
+#! as pyiceberg supports loading from env vars, and DLT will pass them along
 def load_catalog_from_env(
     catalog_name: Optional[str] = None,
     credentials: Optional[FileSystemCredentials] = None,
@@ -424,6 +426,17 @@ def get_catalog(
     """
     logger.info(f"Attempting to load Iceberg catalog: {iceberg_catalog_name}")
 
+
+    #? I am not sure about the usefulness of this, truth is that there is only sql and rest. 
+    #? I am only adding it right now to validate the param that rudolf suggested should be passed
+    supported_catalog_type = [
+        'sql', 'rest'
+    ]
+
+    if iceberg_catalog_type not in supported_catalog_type:
+        raise ValueError(f"Unsupported catalog type: {iceberg_catalog_type}. Use 'sql' or 'rest'.")
+
+
     # Priority 1: Explicit config dictionary -> Priority N1 as it is a common pyiceberg pattern
     if iceberg_catalog_config:
         try:
@@ -451,7 +464,6 @@ def get_catalog(
     logger.info("No catalog configuration found, using in-memory SQLite catalog")
     uri = iceberg_catalog_uri or "sqlite:///:memory:"
     return get_sql_catalog(iceberg_catalog_name, uri, credentials)
-
 
 def evolve_table(
     catalog: IcebergCatalog,
