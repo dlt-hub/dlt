@@ -160,7 +160,7 @@ def test_dataset_write_respects_write_disposition_of_existing_tables(
 def test_dataset_writes_new_table_to_existing_schema(
     pipeline_and_foo_dataset: Tuple[dlt.Pipeline, dlt.Dataset, str, Destination]
 ):
-    pipeline, dataset, _, _ = pipeline_and_foo_dataset
+    pipeline, dataset, dataset_name, destination = pipeline_and_foo_dataset
 
     # create existing table in the destination
     data = [{"id": 0, "value": 1}, {"id": 1, "value": 2}]
@@ -191,41 +191,53 @@ def test_dataset_writes_new_table_to_existing_schema(
     # expect write_disposition of new table to be "append"
     assert dataset.schema.get_table("letters")["write_disposition"] == "append"
 
+    pipeline_dataset = pipeline.dataset()
+    print(pipeline_dataset.schema.tables.keys())
 
-@pytest.mark.xfail(
-    reason=(
-        "schema syncing is using version hash and doesnt check if there is a newer schema in the"
-        " _dlt_versions table"
-    )
-)  # noqa: E501
-def test_pipeline_dataset_updates_after_dataset_write():
+    pipeline.sync_destination(destination=destination, dataset_name=dataset_name)
+
+    pipeline_dataset = pipeline.dataset()
+    print(pipeline_dataset.schema.tables.keys())
+    assert "letters" in pipeline_dataset.schema.tables.keys()
+
+
+# @pytest.mark.xfail(
+#     reason=(
+#         "schema syncing is using version hash and doesnt check if there is a newer schema in the"
+#         " _dlt_versions table"
+#     )
+# )
+def test_pipeline_sync_destination_fetches_new_schema(
+    pipeline_and_foo_dataset: Tuple[dlt.Pipeline, dlt.Dataset, str, Destination]
+):
+    pipeline, dataset, dataset_name, destination = pipeline_and_foo_dataset
+    data = [{"id": 0, "value": 1}, {"id": 1, "value": 2}]
+    pipeline.run(data, table_name="numbers")
+
     # future issue:
     # pipeline dataset should also see the new table after doing something
+    new_data = [{"id": 1, "value": "a"}, {"id": 2, "value": "b"}]
+    dataset.write(new_data, table_name="letters")
+    assert dataset.schema.data_table_names() == ["numbers", "letters"]
 
-    # maybe after syncing the pipeline
-    # pipeline.sync_destination()
-    # assert "letters" not in pipeline_dataset.schema.data_table_names()
+    # without any additional action the pipeline will not be aware of the changed schema
+    assert pipeline.dataset().schema != dataset.schema
 
-    # after syncing the schema
-    # pipeline.sync_schema(schema_name=dataset.schema.name)
+    pipeline.sync_destination()
+    assert pipeline.dataset().schema != dataset.schema
 
-    # after dropping the pipeline
+    # only when explicitly prompted to download!
+    pipeline.sync_destination(always_download_schemas=True)
 
-    # using sql client on pipeline dataset will work
-    # pipeline_dataset = pipeline.dataset()
-    # assert pipeline_dataset.query("SELECT id, value FROM letters").fetchall() == [
-    # tuple(i.values()) for i in [{"id": 1, "value": 'a'}, {"id": 2, "value": 'b'}]
-    # ]
-    pass
+    assert pipeline.dataset().schema == dataset.schema
 
 
-def test_data_write_wipes_working_directory(
+def test_data_write_wipes_working_directory_and_persists_data_after_running(
     pipeline_and_foo_dataset: Tuple[dlt.Pipeline, dlt.Dataset, str, Destination]
 ):
     _, dataset, _, _ = pipeline_and_foo_dataset
 
     table_name = "bar"
-    storage_dir = pathlib.Path(TEST_STORAGE_ROOT)
 
     # create load package with faulty data
     with dataset.write_pipeline() as write_pipeline:
@@ -239,6 +251,9 @@ def test_data_write_wipes_working_directory(
         (0, "correct"),
         (1, "also correct"),
     ]
+    storage_dir = pathlib.Path(TEST_STORAGE_ROOT)
+    pipeline_dir = storage_dir / ".dlt" / "pipelines" / write_pipeline.pipeline_name
+    assert pipeline_dir.exists()
 
 
 def test_internal_pipeline_can_write_to_scratchpad_dataset(
@@ -268,9 +283,3 @@ def test_internal_pipeline_can_write_to_scratchpad_dataset(
     scratchpad_dataset.table("bar").select("id", "value").fetchall() == [
         (1, "something else"),
     ]
-
-
-# Helpers
-def _rows_to_dicts(rows: List[Tuple[Any, ...]], columns: Sequence[str]) -> List[Dict[str, Any]]:
-    """Convert SQL result tuples into dictionaries keyed by the supplied column names."""
-    return [dict(zip(columns, row)) for row in rows]
