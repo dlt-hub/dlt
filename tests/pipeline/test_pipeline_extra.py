@@ -868,14 +868,14 @@ def test_null_in_non_null_arrow() -> None:
 )
 def test_pydantic_validator_preserves_model_instances(as_model, as_list):
     class Result(BaseModel):
-        id: int
+        number: int
 
     @dlt.resource(columns=Result)
     def data():
         if as_model:
-            item = Result(id=1)
+            item = Result(number=1)
         else:
-            item = {"id": 1}# type: ignore[assignment]
+            item = {"number": 1}# type: ignore[assignment]
         if as_list:
             yield [item, item, item]
         else:
