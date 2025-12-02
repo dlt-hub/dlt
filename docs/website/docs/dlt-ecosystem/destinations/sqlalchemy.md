@@ -93,6 +93,55 @@ pipeline = dlt.pipeline(
 )
 ```
 
+### Passing SQLAlchemy Engine Options: `engine_args`
+
+The SQLAlchemy destination accepts an optional `engine_args` parameter, which is forwarded directly to `sqlalchemy.create_engine`.
+
+Example enabling SQLAlchemy verbose logging:
+#### In `.dlt/secrets.toml`
+```toml
+[destination.sqlalchemy]
+credentials = "sqlite:///logger.db"
+```
+
+#### In `.dlt/config.toml`
+```toml
+[destination.sqlalchemy.engine_args]
+echo = true
+```
+
+Or, directly in code:
+
+```python
+import logging
+import dlt
+from dlt.destinations import sqlalchemy
+
+logging.basicConfig(level=logging.INFO)
+
+dest = sqlalchemy(
+    credentials="sqlite:///logger.db",
+    engine_args={"echo": True},
+)
+
+pipeline = dlt.pipeline(
+    pipeline_name='logger',
+    destination=dest,
+    dataset_name='main'
+)
+
+pipeline.run(
+    [
+        {'id': 1},
+        {'id': 2},
+        {'id': 3},
+    ],
+    table_name="logger"
+)
+```
+
+`engine_args` configures only the engine used by the **destination**. It does not affect sources (use `engine_kwargs` for sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options)).
+
 ## Notes on SQLite
 
 ### Dataset files
@@ -110,6 +159,7 @@ is stored in `/home/me/data/chess_data__games.db`
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
 To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
+Additionally, `check_same_thread` must be set to `False` in `connect_args`, and the pool class must be configured as `sa.pool.StaticPool`.
 This engine is not disposed of automatically by `dlt`. Example:
 
 ```py
@@ -117,7 +167,11 @@ import dlt
 import sqlalchemy as sa
 
 # Create the SQLite engine
-engine = sa.create_engine('sqlite:///:memory:')
+engine = sa.create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=sa.pool.StaticPool
+)
 
 # Configure the destination instance and create pipeline
 pipeline = dlt.pipeline('my_pipeline', destination=dlt.destinations.sqlalchemy(engine), dataset_name='main')
