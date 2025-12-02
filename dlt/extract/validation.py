@@ -33,6 +33,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         self.list_model = create_list_model(self.model, data_mode)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> TDataItems:
+        """Validate a data item against the pydantic model"""
         if item is None:
             return None
 
