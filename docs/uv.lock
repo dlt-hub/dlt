@@ -1078,7 +1078,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.18.2"
+version = "1.19.0"
 source = { editable = "../" }
 dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -1258,7 +1258,6 @@ provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb
 [package.metadata.requires-dev]
 adbc = [
     { name = "adbc-driver-manager", specifier = ">=1.8.0" },
-    { name = "adbc-driver-postgresql", specifier = ">=1.8.0" },
     { name = "dbc", specifier = ">=0.1.0" },
 ]
 airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.12'", specifier = ">=2.8.0,<3" }]
