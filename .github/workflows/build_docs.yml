@@ -24,7 +24,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.11"
+          python-version: "3.10"
           activate-environment: true
 
       - name: Install node dependencies
