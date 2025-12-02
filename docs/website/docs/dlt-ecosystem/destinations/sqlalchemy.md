@@ -112,7 +112,7 @@ echo = true
 
 Or, directly in code:
 
-```python
+```py
 import logging
 import dlt
 from dlt.destinations import sqlalchemy
