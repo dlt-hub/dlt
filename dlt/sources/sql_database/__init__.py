@@ -46,6 +46,7 @@ def sql_database(
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
     engine_adapter_callback: Optional[Callable[[Engine], Engine]] = None,
+    engine_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
@@ -97,6 +98,9 @@ def sql_database(
         engine_adapter_callback (Optional[Callable[[Engine], Engine]]): Callback to configure, modify an Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
 
+        engine_kwargs (Optional[Dict[str, Any]]): Optional SQLAlchemy engine keyword arguments passed directly to `sqlalchemy.create_engine()`.
+            They always affect table reflection and also data loading if SQLAlchemy backend is used (default). If other backend is used, pass equivalent idiomatic params to backend_kwargs.
+
     Yields:
         DltResource: DLT resources for each table to be loaded.
     """
@@ -108,8 +112,12 @@ def sql_database(
     else:
         reflection_level = reflection_level or "minimal"
 
-    # set up alchemy engine
-    engine = engine_from_credentials(credentials)
+    engine_kwargs = engine_kwargs or {}
+    engine = engine_from_credentials(
+        credentials,
+        False,
+        **engine_kwargs,
+    )
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
@@ -151,6 +159,7 @@ def sql_database(
             query_adapter_callback=query_adapter_callback,
             resolve_foreign_keys=resolve_foreign_keys,
             engine_adapter_callback=engine_adapter_callback,
+            engine_kwargs=engine_kwargs,
         )
 
 
@@ -177,6 +186,7 @@ def sql_table(
     write_disposition: TWriteDispositionConfig = "append",
     primary_key: TColumnNames = None,
     merge_key: TColumnNames = None,
+    engine_kwargs: Optional[Dict[str, Any]] = None,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -237,6 +247,9 @@ def sql_table(
         merge_key (TColumnNames): A list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to
             keep a single record for a given day.
 
+        engine_kwargs (Optional[Dict[str, Any]]): Optional SQLAlchemy engine keyword arguments passed directly to `sqlalchemy.create_engine()`.
+            They always affect table reflection and also data loading if SQLAlchemy backend is used (default). If other backend is used, pass equivalent idiomatic params to backend_kwargs.
+
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
     """
@@ -250,7 +263,12 @@ def sql_table(
     else:
         reflection_level = reflection_level or "minimal"
 
-    engine = engine_from_credentials(credentials, may_dispose_after_use=True)
+    engine_kwargs = engine_kwargs or {}
+    engine = engine_from_credentials(
+        credentials,
+        may_dispose_after_use=True,
+        **engine_kwargs,
+    )
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
