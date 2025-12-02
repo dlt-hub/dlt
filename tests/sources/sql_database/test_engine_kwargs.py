@@ -6,7 +6,6 @@ import sqlite3
 import sqlalchemy as sa
 import logging
 
-from dlt.destinations.impl.postgres.sql_client import psycopg1
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.sources.sql_database import sql_database, sql_table
 
