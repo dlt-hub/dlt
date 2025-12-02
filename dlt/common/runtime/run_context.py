@@ -81,6 +81,8 @@ class RunContext(RunContextBase):
 
     @property
     def runtime_config(self) -> RuntimeConfiguration:
+        if self._runtime_config is None:
+            self.initialize_runtime()
         return self._runtime_config
 
     @property
@@ -116,7 +118,6 @@ class RunContext(RunContextBase):
 
     def reset_config(self) -> None:
         self._runtime_config = None
-        self._runtime_config = resolve_configuration(RuntimeConfiguration())
 
     @property
     def name(self) -> str:

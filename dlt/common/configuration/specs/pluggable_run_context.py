@@ -210,10 +210,10 @@ class PluggableRunContext(ContainerInjectableContext):
 
     def reload_providers(self) -> None:
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
-        # Invalidate any cached configuration on the context so it re-resolves using new providers
-        self.context.reset_config()
         # Re-add extras and re-initialize runtime so changes take effect
         self.providers.add_extras()
+        # Invalidate any cached configuration on the context so it re-resolves using new providers
+        self.context.reset_config()
 
     def after_add(self) -> None:
         super().after_add()
