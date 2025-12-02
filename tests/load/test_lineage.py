@@ -137,7 +137,10 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         0
     ] == {
         "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
-        "total_amount": {"name": "total_amount", "data_type": "double"},  # , "data_type": "double"},
+        "total_amount": {
+            "name": "total_amount",
+            "data_type": "double",
+        },  # , "data_type": "double"},
     }
 
     # test WITH clause
