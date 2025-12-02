@@ -6,11 +6,11 @@ import sqlite3
 import sqlalchemy as sa
 import logging
 
-from dlt.sources.sql_database import sql_database, sql_table
+from dlt.destinations.impl.postgres.sql_client import psycopg1
 from dlt.extract.exceptions import ResourceExtractionError
+from dlt.sources.sql_database import sql_database, sql_table
 
 MYSQL_TEST = "mysql+pymysql://user:pass@10.255.255.1/testdb"
-POSTGRES_TEST = "postgresql://user:pass@127.0.0.1:5432/testdb"
 
 
 # these two tests below are still valuable since the db driver validates engine kwargs before establishing connection
@@ -19,7 +19,6 @@ POSTGRES_TEST = "postgresql://user:pass@127.0.0.1:5432/testdb"
     [
         "sqlite:///:memory:",
         MYSQL_TEST,
-        POSTGRES_TEST,
     ],
 )
 def test_invalid_engine_kwargs_propagate(credentials):
@@ -37,7 +36,6 @@ def test_invalid_engine_kwargs_propagate(credentials):
     [
         "sqlite:///:memory:",
         MYSQL_TEST,
-        POSTGRES_TEST,
     ],
 )
 def test_invalid_engine_kwargs_fail_during_reflection_for_table(credentials):

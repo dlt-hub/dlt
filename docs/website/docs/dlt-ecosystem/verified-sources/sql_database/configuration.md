@@ -340,7 +340,7 @@ These settings are passed directly to `sqlalchemy.create_engine` and affect:
 - Data extraction, if SQLAlchemy backend chosen (default)
 
 Example that waits maximum 5 seconds for aquiring a lock:
-```python
+```py
 from dlt.sources.sql_database import sql_database
 
 source = sql_database(
