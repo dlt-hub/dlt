@@ -64,6 +64,9 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
                 return validated
         return validated.dict(by_alias=True)
 
+    def __str__(self, *args: Any, **kwargs: Any) -> str:
+        return f"PydanticValidator(model={self.model.__qualname__})"
+
 
 def create_item_validator(
     columns: TTableHintTemplate[TAnySchemaColumns],
