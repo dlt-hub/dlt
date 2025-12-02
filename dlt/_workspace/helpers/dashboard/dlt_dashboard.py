@@ -37,6 +37,13 @@ def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any]
         ]
     return None
 
+@app.function(hide_code=True)
+def detect_dlt_hub():
+    try:
+        return dlt.hub.__found__
+    except ImportError:
+        return False
+
 
 @app.function
 def build_home_header_row(
@@ -442,6 +449,32 @@ def section_schema(
     mo.vstack(_result) if _result else None
     return
 
+
+@app.cell(hide_code=True)
+def section_data_quality(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+):
+    """
+    Show data quality of the currently selected pipeline
+    only if dlt.hub is installed
+    """
+    if not detect_dlt_hub():
+        _result = None
+    else:
+        _result = [ui.section_marker(strings.data_quality_section_name)]
+        _result.extend(
+            ui.build_page_header(
+                dlt_pipeline,
+                strings.data_quality_title,
+                strings.data_quality_subtitle,
+                strings.data_quality_subtitle,
+                dlt_section_data_quality_switch,
+            )
+        )
+        if dlt_pipeline and dlt_section_data_quality_switch.value:
+            _result.append(mo.md(strings.data_quality_subtitle))
+    mo.vstack(_result) if _result else None
 
 @app.cell(hide_code=True)
 def section_browse_data_table_list(
@@ -1135,6 +1168,9 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_ibis_browser_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="ibis" if mo_cli_arg_with_test_identifiers else ""
     )
+    dlt_section_data_quality_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="data_quality" if mo_cli_arg_with_test_identifiers else ""
+    )
 
     # other switches
     dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
@@ -1175,6 +1211,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_schema_show_row_counts,
         dlt_schema_show_type_hints,
         dlt_section_browse_data_switch,
+        dlt_section_data_quality_switch,
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
         dlt_section_info_switch,

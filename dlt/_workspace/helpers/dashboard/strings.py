@@ -179,6 +179,12 @@ state_section_name = "state_section"
 state_title = "Pipeline State"
 state_subtitle = "A raw view of the currently stored pipeline state."
 
+#
+# Data quality page
+#
+data_quality_section_name = "data_quality_section"
+data_quality_title = "Data Quality"
+data_quality_subtitle = "Sleep easy if you have data quality tests."
 
 #
 # Last trace page
