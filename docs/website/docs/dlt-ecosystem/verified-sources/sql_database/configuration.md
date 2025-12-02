@@ -339,18 +339,19 @@ These settings are passed directly to `sqlalchemy.create_engine` and affect:
 - Table reflection (always)
 - Data extraction, if SQLAlchemy backend chosen (default)
 
+Example that waits maximum 5 seconds for aquiring a lock:
 ```python
 from dlt.sources.sql_database import sql_database
 
 source = sql_database(
-    credentials="sqlite:///my.db",
+    credentials="sqlite:///example.db",
     engine_kwargs={
         "connect_args": {"timeout": 5},
     },
 )
 ```
 
-If you are using a backend different from SQLAlchemy, remember that `engine_kwargs` still apply to reflection, but they do not affect the backend’s extraction behavior. Backend-specific tuning must be placed in `backend_kwargs`, as explained [here](#configuring-the-backend). 
+If you are using a backend different from SQLAlchemy, remember that `engine_kwargs` still apply to reflection, but they do not affect the backend’s extraction behavior. Backend-specific tuning must be placed in `backend_kwargs`, as explained [here](#configuring-the-backend).
 
 ### Connecting to a remote database over SSH
 
