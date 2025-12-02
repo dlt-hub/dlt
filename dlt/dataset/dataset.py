@@ -529,8 +529,9 @@ def _get_internal_pipeline(
         destination=destination,
         pipelines_dir=pipelines_dir,
     )
-    # the internal write pipeline should be stateless; it is limited to the data passed
-    # it shouldn't persist state (e.g., incremntal cursor) and interfere with other `pipeline.run()`
+    # the internal write pipeline is stateless; it is limited to the data passed in one write call
+    # it's artifacts will be written to a regular pipeline directory for inspection, but it should
+    # be dropped before every run
     pipeline.config.restore_from_destination = False
 
     return pipeline
