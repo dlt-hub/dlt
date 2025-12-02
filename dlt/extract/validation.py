@@ -33,28 +33,35 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         self.list_model = create_list_model(self.model, data_mode)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> TDataItems:
-        """Validate a data item against the pydantic model"""
         if item is None:
             return None
 
         from dlt.common.libs.pydantic import validate_and_filter_item, validate_and_filter_items
 
         if isinstance(item, list):
-            return [
-                model.dict(by_alias=True)
-                for model in validate_and_filter_items(
-                    self.table_name, self.list_model, item, self.column_mode, self.data_mode
-                )
-            ]
-        item = validate_and_filter_item(
+            input_is_model = bool(item) and isinstance(item[0], PydanticBaseModel)
+            validated_list = validate_and_filter_items(
+                self.table_name, self.list_model, item, self.column_mode, self.data_mode
+            )
+            if input_is_model:
+                input_fields = set(item[0].__class__.model_fields.keys())
+                validated_fields = set(validated_list[0].__class__.model_fields.keys())
+                if input_fields.issubset(validated_fields):
+                    return validated_list
+            return [m.dict(by_alias=True) for m in validated_list]
+
+        input_is_model = isinstance(item, PydanticBaseModel)
+        validated = validate_and_filter_item(
             self.table_name, self.model, item, self.column_mode, self.data_mode
         )
-        if item is not None:
-            item = item.dict(by_alias=True)
-        return item
-
-    def __str__(self, *args: Any, **kwargs: Any) -> str:
-        return f"PydanticValidator(model={self.model.__qualname__})"
+        if validated is None:
+            return None
+        if input_is_model:
+            input_fields = set(item.__class__.model_fields.keys())
+            validated_fields = set(validated.__class__.model_fields.keys())
+            if input_fields.issubset(validated_fields):
+                return validated
+        return validated.dict(by_alias=True)
 
 
 def create_item_validator(
