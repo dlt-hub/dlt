@@ -13,6 +13,7 @@ MYSQL_TEST = "mysql+pymysql://user:pass@10.255.255.1/testdb"
 POSTGRES_TEST = "postgresql://user:pass@127.0.0.1:5432/testdb"
 
 
+# these two tests below are still valuable since the db driver validates engine kwargs before establishing connection
 @pytest.mark.parametrize(
     "credentials",
     [
