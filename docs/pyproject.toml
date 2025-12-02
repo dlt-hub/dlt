@@ -3,7 +3,7 @@ name = "dlt-docs-tools"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10, <3.11" #  databind not available over 3.10, we need to update the build
+requires-python = ">=3.10, <3.13" #  databind not available over 3.10, we need to update the build
 
 # NOTE: working here is always dev enviroment, so we don't need a dev group
 dependencies = [
