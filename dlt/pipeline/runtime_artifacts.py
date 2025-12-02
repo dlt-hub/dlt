@@ -34,8 +34,17 @@ def disable_runtime_artifacts() -> None:
 
 def _get_runtime_artifacts_fs(config: RuntimeConfiguration) -> Optional[fsspec.AbstractFileSystem]:
     if not config.workspace_artifacts_gcs_token or not config.workspace_artifacts_bucket:
+        logger.warning(
+            "Runtime artifacts disabled:"
+            f" gcs_token={'set' if config.workspace_artifacts_gcs_token else 'missing'},"
+            f" bucket={'set' if config.workspace_artifacts_bucket else 'missing'}"
+        )
         return None
 
+    logger.info(
+        f"Runtime artifacts enabled: bucket={config.workspace_artifacts_bucket}, "
+        f"path={config.workspace_pipeline_artifacts_url}"
+    )
     return fsspec.filesystem(
         "gcs",
         token=config.workspace_artifacts_gcs_token,
@@ -83,7 +92,7 @@ def _send_trace_to_bucket(trace: PipelineTrace, pipeline: SupportsPipeline) -> N
                 mode="wb",
             )
         except Exception as e:
-            logger.debug(f"Exception while sending trace to bucket: {e}")
+            logger.warning(f"Exception while sending trace to bucket: {e}", exc_info=True)
 
     # _THREAD_POOL.thread_pool.submit(_future_send)
     # NOTE f3fs and futures somehow don't work here, need to investigate
@@ -104,7 +113,7 @@ def _send_state_to_bucket(trace: PipelineTrace, pipeline: SupportsPipeline) -> N
                 mode="w",
             )
         except Exception as e:
-            logger.debug(f"Exception while sending state to bucket: {e}")
+            logger.warning(f"Exception while sending state to bucket: {e}", exc_info=True)
 
     # _THREAD_POOL.thread_pool.submit(_future_send)
     # NOTE f3fs and futures somehow don't work here, need to investigate
