@@ -78,30 +78,42 @@ def test_engine_kwargs_timeout_is_honored_sqlite():
     finally:
         os.remove(db_path)
 
-
-def test_engine_kwargs_and_backend_kwargs_with_arrow_backend():
-    """Engine kwargs and backend kwargs must work together."""
+@pytest.mark.parametrize("dtype_backend, expected_dtype", [
+    ("numpy_nullable", "Float64"),
+    ("pyarrow", "double"),
+])
+def test_engine_kwargs_and_backend_kwargs_with_pandas_backend(
+    caplog, dtype_backend, expected_dtype
+):
     fd, db_path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     try:
         engine = sa.create_engine(f"sqlite:///{db_path}")
         with engine.connect() as conn:
-            conn.execute(sa.text("CREATE TABLE test_table (id INTEGER PRIMARY KEY, value TEXT)"))
-            conn.execute(sa.text("INSERT INTO test_table (value) VALUES ('hello'), ('world')"))
+            conn.execute(sa.text("CREATE TABLE test_table (id INTEGER PRIMARY KEY, value FLOAT)"))
+            conn.execute(sa.text("INSERT INTO test_table (value) VALUES (1.1), (2.2)"))
 
         source = sql_database(
             credentials=f"sqlite:///{db_path}",
             table_names=["test_table"],
             engine_kwargs={"echo": True},
-            backend_kwargs={"chunk_size": 2},
-            backend="pyarrow",
+            backend="pandas",
+            chunk_size=2,
+            backend_kwargs={"dtype_backend": dtype_backend},
         )
 
-        tables = list(source.resources["test_table"])
+        with caplog.at_level(logging.INFO):
+            tables = list(source.resources["test_table"])
+
+        logs = " ".join(r.message.lower() for r in caplog.records)
+        assert "select" in logs or "pragma" in logs or "raw sql" in logs
+
         assert len(tables) == 1
         table = tables[0]
-        assert table.num_rows == 2
-        assert table["value"].to_pylist() == ["hello", "world"]
+
+        assert len(table) == 2
+        assert table["value"].tolist() == [1.1, 2.2]
+        assert expected_dtype in str(table["value"].dtype)
     finally:
         os.remove(db_path)
 
