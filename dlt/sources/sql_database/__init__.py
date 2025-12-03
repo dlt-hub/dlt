@@ -115,7 +115,7 @@ def sql_database(
     engine_kwargs = engine_kwargs or {}
     engine = engine_from_credentials(
         credentials,
-        False,
+        may_dispose_after_use=False,
         **engine_kwargs,
     )
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
