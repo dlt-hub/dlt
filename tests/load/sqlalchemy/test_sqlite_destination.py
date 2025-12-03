@@ -1,20 +1,34 @@
+import os
+import tempfile
+
 import dlt
 import sqlalchemy as sa
-from dlt.destinations import sqlalchemy
+from sqlalchemy import text
+from dlt.destinations import sqlalchemy as dlt_sqlalchemy
 
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import sequence_generator
 
-import tempfile
-import os
+
+def assert_engine_not_disposed(engine):
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except sa.exc.ResourceClosedError:
+        return False
 
 
-def test_inmemory_database() -> None:
-    generator_instance1 = sequence_generator()
+def test_inmemory_database_passing_engine() -> None:
+    output = [
+        {"content": 1},
+        {"content": 2},
+        {"content": 3},
+    ]
 
     @dlt.resource
     def some_data():
-        yield from next(generator_instance1)
+        yield output
 
     engine = sa.create_engine(
         "sqlite:///:memory:",
@@ -24,7 +38,7 @@ def test_inmemory_database() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_sqlite_inmemory",
-        destination=sqlalchemy(engine),
+        destination=dlt_sqlalchemy(engine),
         dataset_name='main'
     )
 
@@ -34,6 +48,18 @@ def test_inmemory_database() -> None:
     )
 
     assert_load_info(info)
+    assert assert_engine_not_disposed(engine)
+
+    with engine.connect() as conn:
+        rows = conn.execute(sa.text(
+            "SELECT content FROM inmemory_table ORDER BY content"
+        )).fetchall()
+
+    actual_values = [row[0] for row in rows]
+    expected_values = [row["content"] for row in output]
+
+    assert actual_values == expected_values
+    engine.dispose()
 
 
 def test_file_based_database_with_engine_args() -> None:
@@ -56,7 +82,7 @@ def test_file_based_database_with_engine_args() -> None:
 
         pipeline = dlt.pipeline(
             pipeline_name="test_pipeline_sqlite_file_engine_args",
-            destination=sqlalchemy(credentials, engine_args=engine_args),
+            destination=dlt_sqlalchemy(credentials, engine_args=engine_args),
             dataset_name="main"
         )
 
