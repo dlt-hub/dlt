@@ -37,6 +37,7 @@ def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any]
         ]
     return None
 
+
 @app.function(hide_code=True)
 def detect_dlt_hub():
     try:
@@ -451,13 +452,53 @@ def section_schema(
 
 
 @app.cell(hide_code=True)
-def section_data_quality(
+def ui_data_quality_controls(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_data_quality_switch: mo.ui.switch,
 ):
     """
+    Create data quality filter controls (separate cell for marimo reactivity)
+
+    Import the cell from the dashboard notebook and call it.
+    """
+    dlt_data_quality_show_failed_filter: mo.ui.checkbox = None
+    dlt_data_quality_table_filter: mo.ui.dropdown = None
+    dlt_data_quality_rate_filter: mo.ui.slider = None
+
+    if detect_dlt_hub() and dlt_pipeline and dlt_section_data_quality_switch.value:
+        try:
+            # Import the cell from the dashboard notebook
+            from dlthub.data_quality._dashboard import create_data_quality_controls
+
+            # Call the cell function - it's a marimo cell so we call it directly
+            (
+                dlt_data_quality_show_failed_filter,
+                dlt_data_quality_table_filter,
+                dlt_data_quality_rate_filter,
+            ) = create_data_quality_controls(dlt_pipeline)
+        except Exception:
+            pass
+
+    return (
+        dlt_data_quality_show_failed_filter,
+        dlt_data_quality_table_filter,
+        dlt_data_quality_rate_filter,
+    )
+
+
+@app.cell(hide_code=True)
+def section_data_quality(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_failed_filter: mo.ui.checkbox,
+    dlt_data_quality_table_filter: mo.ui.dropdown,
+    dlt_data_quality_rate_filter: mo.ui.slider,
+):
+    """
     Show data quality of the currently selected pipeline
     only if dlt.hub is installed
+
+    Import the widget cell from the dashboard notebook and call it.
     """
     if not detect_dlt_hub():
         _result = None
@@ -473,8 +514,54 @@ def section_data_quality(
             )
         )
         if dlt_pipeline and dlt_section_data_quality_switch.value:
-            _result.append(mo.md(strings.data_quality_subtitle))
+            try:
+                # Import the widget cell from the dashboard notebook
+                from dlthub.data_quality._dashboard import data_quality_widget_cell
+
+                # Extract values from controls (must be in separate cell from where controls are created)
+                show_failed_value = (
+                    dlt_data_quality_show_failed_filter.value
+                    if dlt_data_quality_show_failed_filter is not None
+                    else False
+                )
+                table_value = None
+                if (
+                    dlt_data_quality_table_filter is not None
+                    and dlt_data_quality_table_filter.value != "All"
+                ):
+                    table_value = dlt_data_quality_table_filter.value
+                rate_value = (
+                    dlt_data_quality_rate_filter.value
+                    if dlt_data_quality_rate_filter is not None
+                    else None
+                )
+
+                # Call the cell function - it's a marimo cell so we call it directly
+                # Use keyword arguments to match the alphabetical parameter order
+                widget_output = data_quality_widget_cell(
+                    dlt_pipeline=dlt_pipeline,
+                    failure_rate_filter_control=dlt_data_quality_rate_filter,
+                    failure_rate_filter_value=rate_value,
+                    show_only_failed_control=dlt_data_quality_show_failed_filter,
+                    show_only_failed_value=show_failed_value,
+                    table_name_filter_control=dlt_data_quality_table_filter,
+                    table_name_filter_value=table_value,
+                )
+                if widget_output is not None:
+                    _result.append(widget_output)
+                else:
+                    _result.append(mo.md("**No data quality checks available** for this pipeline."))
+            except ImportError:
+                _result.append(mo.md("**DLT Hub data quality module is not available.**"))
+            except Exception as exc:
+                _result.append(
+                    ui.build_error_callout(
+                        f"Error loading data quality checks: {exc}",
+                        traceback_string=traceback.format_exc(),
+                    )
+                )
     mo.vstack(_result) if _result else None
+
 
 @app.cell(hide_code=True)
 def section_browse_data_table_list(
