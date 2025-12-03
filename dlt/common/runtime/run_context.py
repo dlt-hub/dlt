@@ -6,6 +6,8 @@ from types import ModuleType
 from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urlencode
 
+from packaging.version import Version
+
 from dlt.common import known_env
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
@@ -262,7 +264,9 @@ def ensure_plugin_version_match(
     dlt_installed = Version(dlt_version)
 
     # currently packages must match on minor version
-    if installed.minor != dlt_installed.minor or (installed.major != dlt_installed.major and installed.major != 0):
+    if installed.minor != dlt_installed.minor or (
+        installed.major != dlt_installed.major and installed.major != 0
+    ):
         from dlt.common.exceptions import MissingDependencyException
 
         custom_msg = (
