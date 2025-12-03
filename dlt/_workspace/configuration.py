@@ -31,6 +31,8 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     api_base_url: Optional[str] = None
     """Base URL for the dltHub Runtime API"""
 
+    __section__: ClassVar[str] = "runtime"
+
 
 @configspec
 class WorkspaceConfiguration(BaseConfiguration):

@@ -1002,8 +1002,10 @@ def utils_discover_pipelines(
     # sync from runtime if enabled
     _tmp_config = utils.resolve_dashboard_config(None)
     if _tmp_config.sync_from_runtime:
+        from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
+
         with mo.status.spinner(title="Syncing pipeline list from runtime"):
-            utils.sync_from_runtime()
+            sync_from_runtime()
 
     _run_context = dlt.current.run_context()
     if (
@@ -1017,7 +1019,7 @@ def utils_discover_pipelines(
     dlt_all_pipelines: List[Dict[str, Any]] = []
     dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
         mo_cli_arg_pipelines_dir,
-        addtional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
+        additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(

@@ -33,17 +33,11 @@ class RuntimeConfiguration(BaseConfiguration):
     config_files_storage_path: str = "/run/config/"
     """Platform connection"""
     dlthub_dsn: Optional[TSecretStrValue] = None
+    run_id: Optional[str] = None
     http_show_error_body: bool = False
     """Include HTTP response body in raised exceptions/logs. Default is False"""
     http_max_error_body_length: int = 8192
     """Maximum length of HTTP error response body to include in logs/exceptions"""
-
-    # NOTE: these are here temporarily,
-    workspace_pipeline_artifacts_send_url: Optional[str] = None
-    workspace_pipeline_artifacts_sync_url: Optional[str] = None
-    workspace_artifacts_host: Optional[str] = None
-    workspace_artifacts_access_key: Optional[str] = None
-    workspace_artifacts_secret_key: Optional[str] = None
 
     __section__: ClassVar[str] = "runtime"
 
