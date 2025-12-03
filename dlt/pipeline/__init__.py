@@ -1,7 +1,6 @@
 from typing import Sequence, Type, cast, overload, Optional
 from typing_extensions import TypeVar
 
-from dlt._workspace.helpers.runtime import runtime_artifacts
 from dlt.common.configuration.specs import known_sections
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
@@ -365,7 +364,7 @@ def run(
 # plug default tracking module
 from dlt.pipeline import trace, track, platform
 
-trace.TRACKING_MODULES = [track, platform, runtime_artifacts]
+trace.TRACKING_MODULES = [track, platform]
 
 # setup default pipeline in the container
 PipelineContext.cls__init__(pipeline)
