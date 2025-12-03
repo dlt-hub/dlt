@@ -137,6 +137,10 @@ class RunContextBase(ABC):
                 f"`{run_dir=:}` doesn't belong to module `{m_.__file__}` which seems unrelated."
             )
 
+    @abstractmethod
+    def reset_config(self) -> None:
+        """Hook for contexts that store resolved configuration to reset it"""
+
 
 class ProfilesRunContext(RunContextBase):
     """Adds profile support on run context. Note: runtime checkable protocols are slow on isinstance"""
@@ -206,7 +210,10 @@ class PluggableRunContext(ContainerInjectableContext):
 
     def reload_providers(self) -> None:
         self.providers = ConfigProvidersContainer(self.context.initial_providers())
+        # Re-add extras and re-initialize runtime so changes take effect
         self.providers.add_extras()
+        # Invalidate any cached configuration on the context so it re-resolves using new providers
+        self.context.reset_config()
 
     def after_add(self) -> None:
         super().after_add()

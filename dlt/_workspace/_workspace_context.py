@@ -100,7 +100,7 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     @property
     def runtime_config(self) -> WorkspaceRuntimeConfiguration:
-        return self._config.runtime
+        return self.config.runtime
 
     @property
     def config(self) -> WorkspaceConfiguration:
@@ -161,6 +161,11 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     def unplug(self) -> None:
         pass
+
+    def reset_config(self) -> None:
+        # Drop resolved configuration to force re-resolve with refreshed providers
+        self._config = None
+        # no need to initialize the _config anew as it's done in .config property
 
     # SupportsProfilesOnContext
 
