@@ -8,7 +8,9 @@ def test_hub_fallback() -> None:
     import dlt.hub
 
     if dlt.hub.__found__ or not isinstance(dlt.hub.__exception__, ModuleNotFoundError):
-        pytest.skip("Skip test due to hub being present or partially loaded: " + str(dlt.hub.__exception__))
+        pytest.skip(
+            "Skip test due to hub being present or partially loaded: " + str(dlt.hub.__exception__)
+        )
 
     assert isinstance(dlt.hub.__exception__, ModuleNotFoundError)
 

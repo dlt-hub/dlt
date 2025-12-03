@@ -31,6 +31,8 @@ def __getattr__(name: str) -> Any:
         raise __exception__
 
     raise MissingDependencyException(
-        "dlt.hub", ["dlt[hub]"], "This will install `dlthub` plugin package in with a matching "
-        f"version.\nfrom:\n({str(__exception__)})"
+        "dlt.hub",
+        ["dlt[hub]"],
+        "This will install `dlthub` plugin package in with a matching "
+        f"version.\nfrom:\n({str(__exception__)})",
     )

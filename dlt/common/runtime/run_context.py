@@ -238,6 +238,49 @@ def get_plugin_modules() -> List[str]:
     return plugin_modules
 
 
+def ensure_plugin_version_match(
+    pkg_name: str,
+    dlt_version: str,
+    plugin_version: str,
+    plugin_module_name: str,
+    dlt_extra: str,
+) -> None:
+    """Ensures that installed dlt version matches plugin version. Plugins are tightly bound to `dlt`
+    and released together. Both major and minor version must match. For alpha plugins version may be 0.
+
+    Args:
+        pkg_name: Name of the plugin package (e.g., "dlthub")
+        dlt_version: The installed dlt version string
+        plugin_version: The installed plugin version string
+        plugin_module_name: The module name for MissingDependencyException (e.g., "dlthub")
+        dlt_extra: The dlt extra to install the plugin (e.g., "hub")
+
+    Raises:
+        MissingDependencyException: If version mismatch is detected
+    """
+    installed = Version(plugin_version)
+    dlt_installed = Version(dlt_version)
+
+    # currently packages must match on minor version
+    if installed.minor != dlt_installed.minor or (installed.major != dlt_installed.major and installed.major != 0):
+        from dlt.common.exceptions import MissingDependencyException
+
+        custom_msg = (
+            f"`{pkg_name}` is a `dlt` plugin and must be installed together with `dlt` with a "
+            f"matching version. `dlt` {dlt_installed.major}.{dlt_installed.minor}.x requires "
+            f"`{pkg_name}` 0.{dlt_installed.minor}.x but you have "
+            f"{plugin_version}. Please install the right version of {pkg_name} with:\n\n"
+            f'pip install "dlt[{dlt_extra}]=={dlt_version}"\n\n'
+            "or if you are upgrading the plugin:\n\n"
+            f'pip install "dlt[{dlt_extra}]=={dlt_version}" -U {pkg_name}'
+        )
+        missing_dep_ex = MissingDependencyException(plugin_module_name, [])
+        # ImportError uses `msg` attribute for __str__, not just args
+        missing_dep_ex.args = (custom_msg,)
+        missing_dep_ex.msg = custom_msg
+        raise missing_dep_ex
+
+
 def context_uri(name: str, run_dir: str, runtime_kwargs: Optional[Dict[str, Any]]) -> str:
     from dlt.common.storages.configuration import FilesystemConfiguration
 

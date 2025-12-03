@@ -16,4 +16,4 @@ def test_import_props() -> None:
     with pytest.raises(AttributeError) as attr_err:
         dlt.hub._unknown_feature
 
-    assert attr_err.value.name == "_unknown_feature"
+    assert "_unknown_feature" in str(attr_err.value)
