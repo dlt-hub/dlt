@@ -2,6 +2,7 @@ from typing import ClassVar, Optional, Sequence
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
+from dlt.common.typing import TSecretStrValue
 
 
 @configspec
@@ -21,8 +22,14 @@ class WorkspaceSettings(BaseConfiguration):
 class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Extends runtime configuration with dlthub runtime"""
 
-    # TODO: connect workspace to runtime here
-    # TODO: optionally define scripts and other runtime settings
+    workspace_id: Optional[str] = None
+    """Id of the remote workspace that local one should be connected to"""
+    auth_token: Optional[TSecretStrValue] = None
+    """JWT token for Runtime API"""
+    auth_base_url: Optional[str] = None
+    """Base URL for the dltHub Runtime authentication API"""
+    api_base_url: Optional[str] = None
+    """Base URL for the dltHub Runtime API"""
 
 
 @configspec
