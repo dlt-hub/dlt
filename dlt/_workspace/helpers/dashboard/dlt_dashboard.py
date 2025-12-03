@@ -185,8 +185,11 @@ def render_pipeline_home(
         )
         _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
 
-    _stack = render_pipeline_header_row(
-        dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
+    _stack = [ui.section_marker(strings.home_section_name)]
+    _stack.extend(
+        render_pipeline_header_row(
+            dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
+        )
     )
 
     if _pipeline_execution_summary:
@@ -301,12 +304,15 @@ def section_info(
     Overview page of currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.overview_title,
-        strings.overview_subtitle,
-        strings.overview_subtitle,
-        dlt_section_info_switch,
+    _result = [ui.section_marker(strings.overview_section_name)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.overview_title,
+            strings.overview_subtitle,
+            strings.overview_subtitle,
+            dlt_section_info_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_info_switch.value:
@@ -357,12 +363,15 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.schema_title,
-        strings.schema_subtitle,
-        strings.schema_subtitle_long,
-        dlt_section_schema_switch,
+    _result = [ui.section_marker(strings.schema_section_name)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.schema_title,
+            strings.schema_subtitle,
+            strings.schema_subtitle_long,
+            dlt_section_schema_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
@@ -451,12 +460,15 @@ def section_browse_data_table_list(
     Show data of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.browse_data_title,
-        strings.browse_data_subtitle,
-        strings.browse_data_subtitle_long,
-        dlt_section_browse_data_switch,
+    _result = [ui.section_marker(strings.browse_data_section_name)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.browse_data_title,
+            strings.browse_data_subtitle,
+            strings.browse_data_subtitle_long,
+            dlt_section_browse_data_switch,
+        )
     )
 
     dlt_query_editor: mo.ui.code_editor = None
@@ -693,12 +705,15 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.state_title,
-        strings.state_subtitle,
-        strings.state_subtitle,
-        dlt_section_state_switch,
+    _result = [ui.section_marker(strings.state_section_name)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.state_title,
+            strings.state_subtitle,
+            strings.state_subtitle,
+            dlt_section_state_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_state_switch.value:
@@ -722,12 +737,15 @@ def section_trace(
     Show last trace of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.trace_title,
-        strings.trace_subtitle,
-        strings.trace_subtitle,
-        dlt_section_trace_switch,
+    _result = [ui.section_marker(strings.trace_section_name)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.trace_title,
+            strings.trace_subtitle,
+            strings.trace_subtitle,
+            dlt_section_trace_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
@@ -833,12 +851,15 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.loads_title,
-        strings.loads_subtitle,
-        strings.loads_subtitle_long,
-        dlt_section_loads_switch,
+    _result = [ui.section_marker(strings.loads_section_name)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.loads_title,
+            strings.loads_subtitle,
+            strings.loads_subtitle_long,
+            dlt_section_loads_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_loads_switch.value:
@@ -943,12 +964,15 @@ def section_ibis_backend(
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.ibis_backend_title,
-        strings.ibis_backend_subtitle,
-        strings.ibis_backend_subtitle,
-        dlt_section_ibis_browser_switch,
+    _result = [ui.section_marker(strings.ibis_backend_section_name)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.ibis_backend_title,
+            strings.ibis_backend_subtitle,
+            strings.ibis_backend_subtitle,
+            dlt_section_ibis_browser_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:

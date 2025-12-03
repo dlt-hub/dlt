@@ -97,10 +97,10 @@ for (const version of selectedVersions) {
 
     // build doc version, we also run preprocessing and markdown gen for each doc version
     console.log(`Building docs...`)
-    proc.execSync(`cd ${REPO_DOCS_DIR} && npm run preprocess-docs:cloudflare && PYTHONPATH=. pydoc-markdown && python clean_pydoc_sidebar.py`)
+    proc.execSync(`cd ${REPO_DOCS_DIR} && cd .. && make preprocess-docs`)
 
     console.log(`Snapshotting version...`)
-    proc.execSync(`cd ${REPO_DOCS_DIR} && npm run docusaurus docs:version ${version}`)
+    proc.execSync(`cd ${REPO_DOCS_DIR} && npx docusaurus docs:version ${version}`)
 
     console.log(`Moving snapshot`)
     fs.cpSync(REPO_DOCS_DIR+"/"+VERSIONED_DOCS_FOLDER, VERSIONED_DOCS_FOLDER, {recursive: true})
