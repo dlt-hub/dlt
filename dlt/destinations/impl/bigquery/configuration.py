@@ -1,8 +1,9 @@
 import dataclasses
-from typing import ClassVar, List, Final, Optional
+from typing import ClassVar, List, Final, Optional, Union
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import GcpServiceAccountCredentials
+from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpOAuthCredentials
+from dlt.common.configuration.specs.gcp_credentials import GcpCredentials
 from dlt.common.utils import digest128
 
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
@@ -11,7 +12,7 @@ from dlt.common.destination.client import DestinationClientDwhWithStagingConfigu
 @configspec
 class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="bigquery", init=False, repr=False, compare=False)  # type: ignore
-    credentials: GcpServiceAccountCredentials = None
+    credentials: Union[GcpServiceAccountCredentials, GcpOAuthCredentials, GcpCredentials] = None
     location: str = "US"
     project_id: Optional[str] = None
     """Note, that this is BigQuery project_id which could be different from credentials.project_id"""
