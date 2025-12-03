@@ -49,9 +49,9 @@ jobs:
           export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
           make lint
 
-      # - name: Check that cli docs are up to date
-      #   run: make check-cli-docs
-      #   if: ${{ matrix.python-version == '3.11' }}
+      - name: Check that cli docs are up to date
+        run: make check-cli-docs
+        if: ${{ matrix.python-version == '3.11' }}
 
       - name: Check filesizes
         uses: ppremk/lfs-warning@v3.2

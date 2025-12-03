@@ -114,10 +114,6 @@ class RunContext(RunContextBase):
     def unplug(self) -> None:
         pass
 
-    def reset_config(self) -> None:
-        self._runtime_config = None
-        self._runtime_config = resolve_configuration(RuntimeConfiguration())
-
     @property
     def name(self) -> str:
         return "dlt"

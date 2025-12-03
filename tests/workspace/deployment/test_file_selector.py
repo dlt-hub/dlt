@@ -1,9 +1,9 @@
 import os
-
 import pytest
-from tests.workspace.utils import isolated_workspace
 
-from dlt._workspace.deployment.file_selector import ConfigurationFileSelector, WorkspaceFileSelector
+from dlt._workspace.deployment.file_selector import WorkspaceFileSelector
+
+from tests.workspace.utils import isolated_workspace
 
 
 @pytest.mark.parametrize(
@@ -27,15 +27,5 @@ def test_file_selector_respects_gitignore(with_additional_exclude: bool) -> None
         selector = WorkspaceFileSelector(
             ctx, additional_excludes=additional_excludes, ignore_file=".ignorefile"
         )
-        # selector yields (absolute_path, relative_path)
-        files = set([rel.as_posix() for _, rel in selector])
+        files = set([f.as_posix() for f in selector])
         assert files == expected_files
-
-
-def test_configuration_file_selector() -> None:
-    """Test that ConfigurationFileSelector yields only config/secrets from settings dir."""
-    with isolated_workspace("configured_workspace") as ctx:
-        selector = ConfigurationFileSelector(ctx)
-        files = set([rel.as_posix() for _, rel in selector])
-        # In this workspace case only .config.toml files exist
-        assert files == {"config.toml", "dev.config.toml"}
