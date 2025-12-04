@@ -30,6 +30,8 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Base URL for the dltHub Runtime authentication API"""
     api_base_url: Optional[str] = None
     """Base URL for the dltHub Runtime API"""
+    invite_code: Optional[str] = None
+    """Invite code for dltHub Runtime"""
 
 
 @configspec
