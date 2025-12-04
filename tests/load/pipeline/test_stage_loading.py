@@ -77,9 +77,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     num_sql_jobs = 0
     if destination_config.supports_merge:
         num_sql_jobs += 1
-        # sql job is used to copy parquet to Athena Iceberg table (_dlt_pipeline_state)
-        # if destination_config.destination == "athena":
-        #     num_sql_jobs += 1
+    if destination_config.uses_table_format_for_state_table:
+        num_sql_jobs += 1
     assert len(package_info.jobs["completed_jobs"]) == num_jobs + num_sql_jobs
     assert (
         len(
@@ -227,7 +226,8 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
             destination_config.destination_type == "athena"
             and destination_config.table_format == "iceberg"
         ):
-            table_count = 9
+            # with S3 Tables Catalog, Athena uses a managed location, so no files in staging client
+            table_count = 0 if destination_config.is_athena_s3_tables else 9
             # but keeps them in staging dataset on staging destination - but only the last one
             with staging_client.with_staging_dataset():  # type: ignore[attr-defined]
                 assert len(staging_client.list_table_files(table_name)) == 1  # type: ignore[attr-defined]

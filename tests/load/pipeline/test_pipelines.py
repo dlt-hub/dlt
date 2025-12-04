@@ -13,7 +13,7 @@ from dlt.common.destination import Destination
 from dlt.common.destination.client import WithStagingDataset
 from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES, TLoaderReplaceStrategy
+from dlt.common.schema.typing import REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.common.schema.utils import new_table
 from dlt.common.schema import TTableSchema
 from dlt.common.typing import TDataItem, TDataItems
@@ -352,7 +352,7 @@ def test_skip_sync_schema_for_tables_without_columns(
 
     with p._get_destination_clients(schema)[0] as job_client:
         # there's some data at all
-        exists, _ = job_client.get_storage_table(VERSION_TABLE_NAME)  # type: ignore[attr-defined]
+        exists, _ = job_client.get_storage_table(schema.version_table_name)  # type: ignore[attr-defined]
         assert exists is True
 
         # such tables are not created but silently ignored
@@ -516,7 +516,7 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     )
     with p.sql_client() as client:
         simple_rows_table = client.make_qualified_table_name("simple_rows")
-        dlt_loads_table = client.make_qualified_table_name("_dlt_loads")
+        dlt_loads_table = client.make_qualified_table_name(schema.loads_table_name)
     assert_query_column(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)
     assert_query_column(
         p,
@@ -687,9 +687,11 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     # add sql merge job
     if destination_config.supports_merge:
         expected_completed_jobs += 1
-        # add iceberg copy jobs
+        # add table format copy jobs
         if destination_config.table_format in ("iceberg", "delta"):
             expected_completed_jobs += 2  # if destination_config.supports_merge else 4
+            if destination_config.uses_table_format_for_state_table:
+                expected_completed_jobs += 1
     else:
         if destination_config.table_format:
             expected_completed_jobs += 3  # reference jobs for all tables but not state
@@ -728,7 +730,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
     destination_config.setup()
     # standard name
     ds_1_name = "iteration" + uniq_id()
-    # will go to snake case
+    # will go to normalized name
     ds_2_name = "IteRation" + uniq_id()
     # illegal name that will be later normalized
     ds_3_name = "1it/era 👍 tion__" + uniq_id()
@@ -741,7 +743,8 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
         # run to another dataset
         info = p.run(s(), dataset_name=ds_2_name, **destination_config.run_kwargs)
         assert_load_info(info)
-        assert info.dataset_name.startswith("ite_ration")
+        dataset_normalizer = p.default_schema.naming.normalize_table_identifier
+        assert info.dataset_name.startswith(dataset_normalizer(ds_2_name))
         # save normalized dataset name to delete correctly later
         ds_2_name = info.dataset_name
         ds_2_counts = load_table_counts(p, "lists", "lists__value")
@@ -750,7 +753,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
         p.dataset_name = ds_3_name
         info = p.run(s(), **destination_config.run_kwargs)
         assert_load_info(info)
-        assert info.dataset_name.startswith("_1it_era_tion_")
+        assert info.dataset_name.startswith(dataset_normalizer(ds_3_name))
         ds_3_counts = load_table_counts(p, "lists", "lists__value")
         assert ds_1_counts == ds_3_counts
 
@@ -835,9 +838,8 @@ def test_pipeline_upfront_tables_two_loads(
     with pytest.raises(DestinationUndefinedEntity):
         load_table_counts(pipeline, "table_3")
     assert "x-normalizer" not in pipeline.default_schema.tables["table_3"]
-    assert (
-        pipeline.default_schema.tables["_dlt_pipeline_state"]["x-normalizer"]["seen-data"] is True
-    )
+    schema = pipeline.default_schema
+    assert schema.tables[schema.state_table_name]["x-normalizer"]["seen-data"] is True
 
     # load with one empty job, table 3 not created
     load_info = pipeline.run(source.table_3, **destination_config.run_kwargs)
