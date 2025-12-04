@@ -26,10 +26,12 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     """Id of the remote workspace that local one should be connected to"""
     auth_token: Optional[TSecretStrValue] = None
     """JWT token for Runtime API"""
-    auth_base_url: Optional[str] = None
+    auth_base_url: Optional[str] = "https://dlthub.app/api/auth"
     """Base URL for the dltHub Runtime authentication API"""
-    api_base_url: Optional[str] = None
+    api_base_url: Optional[str] = "https://dlthub.app/api/api"
     """Base URL for the dltHub Runtime API"""
+    invite_code: Optional[str] = None
+    """Invite code for dltHub Runtime"""
 
 
 @configspec
