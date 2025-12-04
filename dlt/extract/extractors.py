@@ -510,9 +510,7 @@ class ArrowExtractor(Extractor):
                         " schema and data were unmodified. It is up to destination to coerce the"
                         " differences when loading. Change log level to INFO for more details."
                     )
-                utils.merge_columns(
-                    arrow_table["columns"], computed_table["columns"], merge_columns=True
-                )
+                utils.merge_columns(arrow_table["columns"], computed_table["columns"])
                 arrow_tables[computed_table["name"]] = arrow_table
 
         return list(arrow_tables.values())

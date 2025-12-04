@@ -71,3 +71,29 @@ def test_schema_updates() -> None:
         },
         "max_nesting": 50,
     }
+
+
+def test_changing_merge_key_between_runs() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name="test_changing_merge_key_between_runs", destination="dummy")
+
+    @dlt.resource(
+        write_disposition="merge",
+        merge_key=["id"],
+    )
+    def my_resource():
+        yield {"id": 1, "other_id": 2, "name": "Bob"}
+
+    p.run(my_resource())
+    assert p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key") is True
+
+    @dlt.resource(  # type: ignore[no-redef]
+        write_disposition="merge",
+        merge_key=["other_id"],
+    )
+    def my_resource():
+        yield {"id": 1, "other_id": 2, "name": "Bob"}
+
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key")
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key")
