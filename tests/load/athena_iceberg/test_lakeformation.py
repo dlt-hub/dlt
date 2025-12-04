@@ -313,7 +313,6 @@ def test_apply_tags_to_existing_pipeline_resource(
     lf_disabled_pipeline.run(test_data)
 
     # Verify no tags exists
-    # catalog_name = destination_config.aws_data_catalog
     catalog_name = lf_enabled_pipeline.sql_client().catalog_name(quote=False)
     dataset_name = lf_disabled_pipeline.dataset_name
     key = None
