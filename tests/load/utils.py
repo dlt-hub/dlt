@@ -184,6 +184,8 @@ class DestinationTestConfiguration:
     env_vars: Optional[Dict[str, str]] = None
     destination_name: Optional[str] = None
     naming_convention: Optional[TNamingConventionReferenceArg] = None
+    sets_naming_convention: bool = False
+    """Whether the destination explicitly sets a naming convention with this configuration."""
 
     def destination_factory(self, **kwargs) -> Destination[Any, Any]:
         dest_type = kwargs.pop("destination", self.destination_type)
@@ -363,7 +365,9 @@ def destinations_configs(
             supports_dbt=False,
             aws_data_catalog=S3_TABLES_CATALOG,
             table_format="iceberg",
-            naming_convention="s3_tables",
+            # Athena destination will automatically set `s3_tables` naming convention
+            sets_naming_convention=True,
+            extra_info="s3-tables",
         ),
     ]
 
@@ -822,8 +826,8 @@ def destinations_configs_with_naming_convention(
 ) -> List[DestinationTestConfiguration]:
     confs = destinations_configs(**destinations_configs_kwargs)
 
-    confs_without_naming = [c for c in confs if c.naming_convention is None]
-    confs_with_naming = [c for c in confs if c.naming_convention is not None]
+    confs_with_naming = [c for c in confs if c.sets_naming_convention]
+    confs_without_naming = [c for c in confs if not c.sets_naming_convention]
 
     confs_with_naming_injected = [
         with_naming_convention(c, n) for c in confs_without_naming for n in naming_conventions
