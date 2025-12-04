@@ -998,11 +998,8 @@ class TestJSONResponseCursorPaginator:
         response = Mock(
             Response, json=lambda: {"next_cursor": "cursor", "results": [{'hello', 'world'}]}
         )
-        try:
+        with pytest.raises(ValueError, match="Has more value not found in the response"):
             paginator.update_state(response)
-        except Exception as err:
-            assert isinstance(err, ValueError)
-            assert "Has more value not found in the response" in str(err)
 
     def test_update_request_param(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
