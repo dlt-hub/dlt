@@ -314,7 +314,7 @@ dlt = "dlt.__plugins__"
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
-dlthub = { path = "../dlt-plus/packages/dlthub", editable = true }
+# dlthub = { path = "../dlt-plus/packages/dlthub", editable = true }
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]

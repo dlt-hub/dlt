@@ -25,7 +25,7 @@ def test_import_props() -> None:
 def test_runtime_client_imports(script_runner: ScriptRunner) -> None:
     pytest.importorskip("dlt_runtime")
 
-    import dlt_runtime  # type: ignore[import-untyped]
+    import dlt_runtime  # type: ignore[import-untyped,import-not-found,unused-ignore]
 
     print(dlt_runtime.__version__)
 
