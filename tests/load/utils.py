@@ -812,8 +812,9 @@ def with_naming_convention(
     destination_config: DestinationTestConfiguration,
     naming_convention: TNamingConventionReferenceArg,
 ) -> DestinationTestConfiguration:
-    destination_config.naming_convention = naming_convention
-    return destination_config
+    destination_config_ = deepcopy(destination_config)
+    destination_config_.naming_convention = naming_convention
+    return destination_config_
 
 
 def destinations_configs_with_naming_convention(
