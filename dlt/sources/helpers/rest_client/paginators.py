@@ -888,7 +888,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         if self.stop_after_empty_page and not data:
             self._has_next_page = False
             return
-            
+
         has_more = None
         if self.has_more_path:
             values = jsonpath.find_values(self.has_more_path, response_json)
@@ -904,7 +904,6 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
                 self._handle_invalid_has_more(has_more)
 
             self._has_next_page = has_more
-
 
     def _handle_invalid_has_more(self, has_more: Any) -> None:
         raise ValueError(
