@@ -199,7 +199,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         credentials: Union[AwsCredentials, Dict[str, Any], Any] = None,
         athena_work_group: str = None,
         aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG,
-        staging_aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG,
+        staging_aws_data_catalog: str = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -213,8 +213,10 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
             credentials (Union[AwsCredentials, Dict[str, Any], Any], optional): AWS credentials to connect to the Athena database. Can be an instance of `AwsCredentials` or
                 a dict with AWS credentials
             athena_work_group (str, optional): Athena work group to use
-            aws_data_catalog (str, optional): Athena data catalog to use for production tables
-            staging_aws_data_catalog (str, optional): Athena data catalog to use for staging tables, cannot be an S3 Tables Catalog
+            aws_data_catalog (str, optional): Catalog used to register production (non-staging) tables in
+            staging_aws_data_catalog (str, optional): Catalog used to register staging tables in.
+                Should not be an S3 Tables Catalog. If not set, defaults to configured value for
+                `aws_data_catalog` if it's not an S3 Tables Catalog, and to `awsdatacatalog` if it is
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config

@@ -45,7 +45,10 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
+from dlt.destinations.impl.athena.configuration import (
+    DEFAULT_AWS_DATA_CATALOG,
+    AthenaClientConfiguration,
+)
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -113,10 +116,16 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def catalog_name(
         self, quote: bool = True, casefold: bool = True, ddl: bool = False
     ) -> Optional[str]:
+        catalog_name = self.config.aws_data_catalog
+
         if self.is_staging_dataset_active:
-            catalog_name = self.config.staging_aws_data_catalog or self.config.aws_data_catalog
-        else:
-            catalog_name = self.config.aws_data_catalog
+            if self.config.staging_aws_data_catalog is None:
+                if self.config._is_s3_tables_catalog():
+                    # staging dataset has Parquet tables, which we can't register in S3 Tables
+                    # Catalog; hence, use default catalog
+                    catalog_name = DEFAULT_AWS_DATA_CATALOG
+            else:
+                catalog_name = self.config.staging_aws_data_catalog
 
         if casefold:
             catalog_name = self.capabilities.casefold_identifier(catalog_name)

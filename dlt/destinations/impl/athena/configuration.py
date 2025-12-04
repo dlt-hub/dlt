@@ -24,9 +24,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None
     aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG
-    """Catalog used to register production tables in."""
-    staging_aws_data_catalog: Optional[str] = DEFAULT_AWS_DATA_CATALOG
-    """Catalog used to register staging tables in. This cannot be an S3 Tables Catalog."""
+    staging_aws_data_catalog: Optional[str] = None
     connection_params: Optional[Dict[str, Any]] = None
     force_iceberg: Optional[bool] = None
     table_location_layout: Optional[str] = DEFAULT_TABLE_LOCATION_LAYOUT
