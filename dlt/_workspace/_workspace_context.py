@@ -98,6 +98,14 @@ class WorkspaceRunContext(ProfilesRunContext):
         # this also resolves workspace config if necessary
         initialize_runtime(self.name, self.config.runtime)
 
+        # if on runtime, add additional tracker
+        if self.runtime_config.run_id:
+            from dlt._workspace.helpers.runtime import runtime_artifacts
+            from dlt.pipeline import trace
+
+            if runtime_artifacts not in trace.TRACKING_MODULES:
+                trace.TRACKING_MODULES.append(runtime_artifacts)
+
     @property
     def runtime_config(self) -> WorkspaceRuntimeConfiguration:
         return self.config.runtime

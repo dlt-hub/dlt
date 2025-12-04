@@ -1,11 +1,13 @@
 import os
 import pytest
 import pickle
+import tempfile
 
 import dlt
 from dlt._workspace._workspace_context import WorkspaceRunContext, switch_context
 from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
+from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
 from dlt._workspace.profile import DEFAULT_PROFILE, read_profile_pin, save_profile_pin
 from dlt._workspace.run_context import (
     DEFAULT_LOCAL_FOLDER,
@@ -16,7 +18,9 @@ from dlt._workspace.cli.echo import always_choose
 from dlt.common.runtime.exceptions import RunContextNotAvailable
 from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
 
+from dlt.common.storages.file_storage import FileStorage
 from tests.pipeline.utils import assert_table_counts
+from tests.utils import clean_test_storage
 from tests.workspace.utils import isolated_workspace
 
 
@@ -144,6 +148,43 @@ def test_workspace_pipeline() -> None:
         # local files point to prod
         assert os.path.isfile(os.path.join(ctx.local_dir, "prod_ducklake.sqlite"))
         assert os.path.isdir(os.path.join(ctx.local_dir, "prod_ducklake.files"))
+
+
+def test_workspace_send_artifacts() -> None:
+    pytest.importorskip("duckdb", minversion="1.3.2")
+
+    # create a random temp directory for the test bucket
+    with tempfile.TemporaryDirectory() as temp_bucket_dir:
+        bucket_base = os.path.join(temp_bucket_dir, "local_bucket", "workspace_id")
+        send_bucket_url = os.path.join(bucket_base, "tests", "pipelines")
+
+        # mock run id to enable artifact storage
+        os.environ["RUNTIME__RUN_ID"] = "uniq_run_id"
+        # emit runtime filesystem info
+        os.environ["SEND__ARTIFACTS__BUCKET_URL"] = send_bucket_url
+        # auto create dirs
+        os.environ["ARTIFACTS__KWARGS"] = '{"auto_mkdir": true}'
+
+        with isolated_workspace("pipelines", profile="tests") as ctx:
+            # `ducklake_pipeline` configured in config.toml
+            pipeline = dlt.pipeline(pipeline_name="ducklake_pipeline")
+            pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
+
+            print(ctx.run_dir)
+
+        # delete the whole workspace
+        clean_test_storage()
+
+        with isolated_workspace("pipelines", profile="tests") as ctx:
+            # now restore pipeline from bucket
+            os.environ["SYNC__ARTIFACTS__BUCKET_URL"] = bucket_base
+            sync_from_runtime()
+            # now pipeline sees restored state
+            pipeline = dlt.pipeline(pipeline_name="ducklake_pipeline")
+            assert pipeline.first_run is False
+            assert pipeline.default_schema_name == "ducklake"
+            assert pipeline.default_schema.tables["table_foo"] is not None
+            assert pipeline.last_trace is not None
 
 
 def assert_dev_config() -> None:
