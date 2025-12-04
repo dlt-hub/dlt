@@ -246,7 +246,8 @@ dependencies = [
     { name = "aiohappyeyeballs" },
     { name = "aiosignal" },
     { name = "async-timeout", marker = "python_full_version < '3.11'" },
-    { name = "attrs" },
+    { name = "attrs", version = "25.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "frozenlist" },
     { name = "multidict" },
     { name = "propcache" },
@@ -459,7 +460,8 @@ dependencies = [
     { name = "apache-airflow-providers-sqlite", marker = "python_full_version < '3.12'" },
     { name = "argcomplete", marker = "python_full_version < '3.12'" },
     { name = "asgiref", marker = "python_full_version < '3.12'" },
-    { name = "attrs", marker = "python_full_version < '3.12'" },
+    { name = "attrs", version = "25.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
     { name = "blinker", marker = "python_full_version < '3.12'" },
     { name = "colorlog", marker = "python_full_version < '3.12'" },
     { name = "configupdater", marker = "python_full_version < '3.12'" },
@@ -745,9 +747,58 @@ wheels = [
 name = "attrs"
 version = "25.3.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version < '3.10' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version < '3.10' and os_name != 'nt' and sys_platform == 'emscripten'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/5a/b0/1367933a8532ee6ff8d63537de4f1177af4bff9f3e829baf7331f595bb24/attrs-25.3.0.tar.gz", hash = "sha256:75d7cefc7fb576747b2c81b4442d4d4a1ce0900973527c011d1030fd3bf4af1b", size = 812032, upload-time = "2025-03-13T11:10:22.779Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/77/06/bb80f5f86020c4551da315d78b3ab75e8228f89f0162f2c3a819e407941a/attrs-25.3.0-py3-none-any.whl", hash = "sha256:427318ce031701fea540783410126f03899a97ffc6f61596ad581ac2e40e3bc3", size = 63815, upload-time = "2025-03-13T11:10:21.14Z" },
+]
+
+[[package]]
+name = "attrs"
+version = "25.4.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version >= '3.14' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and platform_python_implementation == 'PyPy' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.10.*' and os_name == 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+    "python_full_version == '3.10.*' and os_name != 'nt' and sys_platform == 'emscripten'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6b/5c/685e6633917e101e5dcb62b9dd76946cbb57c26e133bae9e0cd36033c0a9/attrs-25.4.0.tar.gz", hash = "sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11", size = 934251, upload-time = "2025-10-06T13:54:44.725Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl", hash = "sha256:adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373", size = 67615, upload-time = "2025-10-06T13:54:43.17Z" },
 ]
 
 [[package]]
@@ -2007,7 +2058,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.19.1"
+version = "1.20.0a0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2109,8 +2160,8 @@ http = [
     { name = "aiohttp" },
 ]
 hub = [
-    { name = "dlthub" },
-    { name = "pathspec" },
+    { name = "dlt-runtime", marker = "python_full_version >= '3.10'" },
+    { name = "dlthub", marker = "python_full_version >= '3.10'" },
 ]
 lancedb = [
     { name = "lancedb", marker = "python_full_version < '3.13'" },
@@ -2305,7 +2356,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.19.0a0,<0.20" },
+    { name = "dlt-runtime", marker = "python_full_version >= '3.10' and extra == 'hub'", specifier = ">=0.19.0a0,<0.21" },
+    { name = "dlthub", marker = "python_full_version >= '3.10' and extra == 'hub'", editable = "../dlt-plus/packages/dlthub" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9" },
@@ -2332,7 +2384,6 @@ requires-dist = [
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.10.1" },
     { name = "packaging", specifier = ">=21.1" },
     { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0" },
-    { name = "pathspec", marker = "extra == 'hub'", specifier = ">=0.11.2" },
     { name = "pathspec", marker = "extra == 'workspace'", specifier = ">=0.11.2" },
     { name = "pathvalidate", specifier = ">=2.5.2" },
     { name = "pendulum", specifier = ">=2.1.2" },
@@ -2483,17 +2534,53 @@ sources = [
 streamlit = [{ name = "streamlit", marker = "python_full_version >= '3.9' and python_full_version < '3.14'", specifier = ">=1.40.0,<2" }]
 
 [[package]]
-name = "dlthub"
-version = "0.19.0a0"
+name = "dlt-runtime"
+version = "0.20.0a0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "python-jose" },
-    { name = "ruamel-yaml" },
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "cron-descriptor", marker = "python_full_version >= '3.10'" },
+    { name = "httpx", marker = "python_full_version >= '3.10'" },
+    { name = "pathspec", marker = "python_full_version >= '3.10'" },
+    { name = "python-jose", marker = "python_full_version >= '3.10'" },
+    { name = "tabulate", marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/98/91/19b9ab8b21803557c1f4f3c02bb95268fc362e8ef8da7bdf16f04887219f/dlthub-0.19.0a0.tar.gz", hash = "sha256:c76f739e3dff9f09042dd5b7be745ba1cff186289afb74506ee625049d2898d4", size = 154801, upload-time = "2025-12-02T23:07:34.264Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/f5/d5c74ba2560507493b9d5d0c98a8482e15f036f338bb2832730065679e22/dlt_runtime-0.20.0a0.tar.gz", hash = "sha256:3e9d5df91f03152c251e5f874e5a13ac1bd66d5fbac0357c11996bf4e8279c8c", size = 48300, upload-time = "2025-12-04T15:51:51.192Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/38/82eb52725910d0958e994710d755464b4166c4d783674ea29dd2b366cada/dlthub-0.19.0a0-py3-none-any.whl", hash = "sha256:29c59bcd4dd944acaf0881fa4f5150907a1f2607f72fc9f49065afe84b961ffe", size = 205528, upload-time = "2025-12-02T23:07:31.915Z" },
+    { url = "https://files.pythonhosted.org/packages/21/1f/ebcfea0c69a697d64f836140bfdb0f73d0be2880547dc00ff267eaad7569/dlt_runtime-0.20.0a0-py3-none-any.whl", hash = "sha256:d6498d4078980c833ea9c5cbfc8b7146488beddb77146ae6d3a2e7d7345dfb5a", size = 118233, upload-time = "2025-12-04T15:51:49.67Z" },
 ]
+
+[[package]]
+name = "dlthub"
+version = "0.20.0a0"
+source = { editable = "../dlt-plus/packages/dlthub" }
+dependencies = [
+    { name = "python-jose", marker = "python_full_version >= '3.10'" },
+    { name = "ruamel-yaml", marker = "python_full_version >= '3.10'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", marker = "extra == 'iceberg'", specifier = ">=1.37.3" },
+    { name = "dbt-core", marker = "extra == 'dbt'", specifier = "<1.10" },
+    { name = "dlt", extras = ["snowflake"], marker = "extra == 'snowflake'", git = "https://github.com/dlt-hub/dlt.git?rev=rfix%2Fadds-hub-extra" },
+    { name = "duckdb", marker = "extra == 'cache'", specifier = ">0.9" },
+    { name = "duckdb", marker = "extra == 'iceberg'", specifier = ">=1.3.2" },
+    { name = "duckdb", marker = "extra == 'mcp'", specifier = ">=1.1.3" },
+    { name = "jinja2", marker = "extra == 'dbt'", specifier = ">=3.1.2" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2.1" },
+    { name = "pandas", marker = "extra == 'mcp'", specifier = ">=2.1.4" },
+    { name = "pyarrow", marker = "extra == 'iceberg'", specifier = ">=17" },
+    { name = "pyarrow", marker = "extra == 'mcp'", specifier = ">=17" },
+    { name = "pydantic", marker = "extra == 'dbt'", specifier = ">2,<2.12" },
+    { name = "pyiceberg", marker = "extra == 'iceberg'", specifier = ">=0.9.1" },
+    { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
+    { name = "python-jose", specifier = ">=3.5.0" },
+    { name = "ruamel-yaml", specifier = ">=0.18.10" },
+    { name = "sqlalchemy", marker = "extra == 'iceberg'", specifier = ">2" },
+    { name = "sqlalchemy", marker = "extra == 'mssql'", specifier = ">1.4" },
+]
+provides-extras = ["dbt", "cache", "mssql", "iceberg", "snowflake", "mcp"]
 
 [[package]]
 name = "dnspython"
@@ -2631,7 +2718,7 @@ name = "ecdsa"
 version = "0.19.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six" },
+    { name = "six", marker = "python_full_version >= '3.10'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c0/1f/924e3caae75f471eae4b26bd13b698f6af2c44279f67af317439c2f4c46a/ecdsa-0.19.1.tar.gz", hash = "sha256:478cba7b62555866fcb3bb3fe985e06decbdb68ef55713c4e5ab98c57d508e61", size = 201793, upload-time = "2025-03-13T11:52:43.25Z" }
 wheels = [
@@ -2754,7 +2841,8 @@ name = "flake8-bugbear"
 version = "22.12.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs" },
+    { name = "attrs", version = "25.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "flake8" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/da/b5/83a89114a82a2764ddfe27451df6b69c46513f88a3f66206514265b6f447/flake8-bugbear-22.12.6.tar.gz", hash = "sha256:4cdb2c06e229971104443ae293e75e64c6107798229202fbe4f4091427a30ac0", size = 44094, upload-time = "2022-12-06T19:07:02.569Z" }
@@ -4166,7 +4254,8 @@ name = "jsonschema"
 version = "4.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs" },
+    { name = "attrs", version = "25.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "jsonschema-specifications" },
     { name = "referencing" },
     { name = "rpds-py" },
@@ -7539,9 +7628,9 @@ name = "python-jose"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ecdsa" },
-    { name = "pyasn1" },
-    { name = "rsa" },
+    { name = "ecdsa", marker = "python_full_version >= '3.10'" },
+    { name = "pyasn1", marker = "python_full_version >= '3.10'" },
+    { name = "rsa", marker = "python_full_version >= '3.10'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c6/77/3a1c9039db7124eb039772b935f2244fbb73fc8ee65b9acf2375da1c07bf/python_jose-3.5.0.tar.gz", hash = "sha256:fb4eaa44dbeb1c26dcc69e4bd7ec54a1cb8dd64d3b4d81ef08d90ff453f2b01b", size = 92726, upload-time = "2025-05-28T17:31:54.288Z" }
 wheels = [
@@ -7728,7 +7817,8 @@ name = "referencing"
 version = "0.36.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs" },
+    { name = "attrs", version = "25.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "attrs", version = "25.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "rpds-py" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
@@ -8065,7 +8155,7 @@ name = "ruamel-yaml"
 version = "0.18.16"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ruamel-yaml-clib", marker = "python_full_version < '3.14' and platform_python_implementation == 'CPython'" },
+    { name = "ruamel-yaml-clib", marker = "python_full_version >= '3.10' and python_full_version < '3.14' and platform_python_implementation == 'CPython'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9f/c7/ee630b29e04a672ecfc9b63227c87fd7a37eb67c1bf30fe95376437f897c/ruamel.yaml-0.18.16.tar.gz", hash = "sha256:a6e587512f3c998b2225d68aa1f35111c29fad14aed561a26e73fab729ec5e5a", size = 147269, upload-time = "2025-10-22T17:54:02.346Z" }
 wheels = [

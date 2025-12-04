@@ -1,4 +1,7 @@
 import pytest
+from pytest_console_scripts import ScriptRunner
+
+from tests.workspace.utils import isolated_workspace
 
 
 def test_import_props() -> None:
@@ -17,3 +20,17 @@ def test_import_props() -> None:
         dlt.hub._unknown_feature
 
     assert "_unknown_feature" in str(attr_err.value)
+
+
+def test_runtime_client_imports(script_runner: ScriptRunner) -> None:
+    pytest.importorskip("dlt_runtime")
+
+    import dlt_runtime  # type: ignore[import-untyped]
+
+    print(dlt_runtime.__version__)
+
+    # check command activation
+
+    with isolated_workspace("pipelines"):
+        result = script_runner.run(["dlt", "runtime", "-h"])
+        assert result.returncode == 0
