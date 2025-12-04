@@ -1,5 +1,5 @@
 from collections.abc import MutableMapping
-from operator import eq
+import pickle
 from typing import Dict
 
 import pytest
@@ -14,7 +14,7 @@ from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
 
 from tests.common.configuration.utils import environment
-from tests.utils import ACTIVE_DESTINATIONS
+from tests.utils import IMPLEMENTED_DESTINATIONS
 
 
 def test_import_unknown_destination() -> None:
@@ -166,7 +166,7 @@ def test_import_module_by_path() -> None:
 
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
-    for dest_type in ACTIVE_DESTINATIONS:
+    for dest_type in IMPLEMENTED_DESTINATIONS:
         dest = DestinationReference.from_reference(
             dest_type, None, dest_type + "_name", "production"
         )
@@ -175,7 +175,12 @@ def test_import_all_destinations() -> None:
         assert dest.config_params["environment"] == "production"
         assert dest.config_params["destination_name"] == dest_type + "_name"
         dest.spec()
-        assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
+        caps = dest.capabilities()
+        assert isinstance(caps, DestinationCapabilitiesContext)
+        # make sure caps are pickable
+        pickled_caps = pickle.dumps(caps)
+        unpickled_caps = pickle.loads(pickled_caps)
+        assert caps.supported_loader_file_formats == unpickled_caps.supported_loader_file_formats
         # every destination is in the registry
         assert dest.destination_type in DestinationReference.DESTINATIONS
         assert DestinationReference.find(dest_type) is DestinationReference.find(

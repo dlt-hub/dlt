@@ -81,7 +81,7 @@ jobs:
         run: make dev
 
       - name: Install dlthub
-        run: uv run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.dlthub_dep }}
+        run: uv run pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
 
       - name: Run tests
         run: pytest tests/hub

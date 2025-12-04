@@ -9,7 +9,6 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Set,
     Tuple,
     Union,
     cast,
@@ -27,6 +26,7 @@ import dlt
 import marimo as mo
 import pyarrow
 import traceback
+import datetime  # noqa: I251
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
@@ -44,6 +44,7 @@ from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.typing import DictStrAny, TypedDict
 from dlt.common.utils import map_nested_keys_in_place
+from dlt.common.pipeline import get_dlt_pipelines_dir
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
@@ -116,7 +117,7 @@ def get_pipeline_last_run(pipeline_name: str, pipelines_dir: str) -> float:
 
 
 def get_local_pipelines(
-    pipelines_dir: str = None, sort_by_trace: bool = True, addtional_pipelines: List[str] = None
+    pipelines_dir: str = None, sort_by_trace: bool = True, additional_pipelines: List[str] = None
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
@@ -134,8 +135,8 @@ def get_local_pipelines(
     except Exception:
         pipelines = []
 
-    if addtional_pipelines:
-        for pipeline in addtional_pipelines:
+    if additional_pipelines:
+        for pipeline in additional_pipelines:
             if pipeline and pipeline not in pipelines:
                 pipelines.append(pipeline)
 
@@ -215,7 +216,11 @@ def pipeline_details(
         credentials = "Could not resolve credentials."
 
     # find the pipeline in all_pipelines and get the timestamp
-    pipeline_timestamp = get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir)
+    trace = pipeline.last_trace
+
+    last_executed = "No trace found"
+    if trace and hasattr(trace, "started_at"):
+        last_executed = _date_from_timestamp_with_ago(c, trace.started_at)
 
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,
@@ -224,7 +229,7 @@ def pipeline_details(
             if pipeline.destination
             else "No destination set"
         ),
-        "last executed": _date_from_timestamp_with_ago(c, pipeline_timestamp),
+        "last executed": last_executed,
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
@@ -663,7 +668,7 @@ def build_pipeline_link_list(
 ) -> str:
     """Build a list of links to the pipeline."""
     if not pipelines:
-        return "No local pipelines found."
+        return "No pipelines found."
 
     count = 0
     link_list: str = ""
@@ -746,12 +751,15 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 
 
 def _date_from_timestamp_with_ago(
-    config: DashboardConfiguration, timestamp: Union[int, float]
+    config: DashboardConfiguration, timestamp: Union[int, float, datetime.datetime]
 ) -> str:
     """Return a date with ago section"""
     if not timestamp or timestamp == 0:
         return "never"
-    p_ts = pendulum.from_timestamp(timestamp)
+    if isinstance(timestamp, datetime.datetime):
+        p_ts = pendulum.instance(timestamp)
+    else:
+        p_ts = pendulum.from_timestamp(timestamp)
     time_formatted = p_ts.format(config.datetime_format)
     ago = p_ts.diff_for_humans()
     return f"{ago} ({time_formatted})"

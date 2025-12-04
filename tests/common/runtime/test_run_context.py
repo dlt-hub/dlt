@@ -46,11 +46,6 @@ def test_run_context() -> None:
     # check config providers
     assert len(run_context.initial_providers()) == 3
 
-    assert ctx.context.runtime_config is None
-    ctx.add_extras()
-    # still not applied - must be in container
-    assert ctx.context.runtime_config is None
-
     with Container().injectable_context(ctx):
         ctx.initialize_runtime()
     assert ctx.context.runtime_config is not None

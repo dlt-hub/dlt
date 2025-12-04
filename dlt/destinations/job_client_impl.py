@@ -695,6 +695,11 @@ WHERE """
             not_exists_clause = " IF NOT EXISTS "
         return f"CREATE TABLE{not_exists_clause}{qualified_name}"
 
+    @staticmethod
+    def _make_alter_table(qualified_name: str) -> str:
+        """Begins ALTER TABLE statement"""
+        return f"ALTER TABLE {qualified_name}\n"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -712,7 +717,7 @@ WHERE """
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = f"ALTER TABLE {qualified_name}\n"
+            sql_base = self._make_alter_table(qualified_name)
             add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"

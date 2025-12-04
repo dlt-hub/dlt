@@ -98,9 +98,17 @@ class WorkspaceRunContext(ProfilesRunContext):
         # this also resolves workspace config if necessary
         initialize_runtime(self.name, self.config.runtime)
 
+        # if on runtime, add additional tracker
+        if self.runtime_config.run_id:
+            from dlt._workspace.helpers.runtime import runtime_artifacts
+            from dlt.pipeline import trace
+
+            if runtime_artifacts not in trace.TRACKING_MODULES:
+                trace.TRACKING_MODULES.append(runtime_artifacts)
+
     @property
     def runtime_config(self) -> WorkspaceRuntimeConfiguration:
-        return self._config.runtime
+        return self.config.runtime
 
     @property
     def config(self) -> WorkspaceConfiguration:
@@ -161,6 +169,11 @@ class WorkspaceRunContext(ProfilesRunContext):
 
     def unplug(self) -> None:
         pass
+
+    def reset_config(self) -> None:
+        # Drop resolved configuration to force re-resolve with refreshed providers
+        self._config = None
+        # no need to initialize the _config anew as it's done in .config property
 
     # SupportsProfilesOnContext
 
