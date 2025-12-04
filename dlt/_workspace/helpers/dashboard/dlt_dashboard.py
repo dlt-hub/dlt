@@ -6,6 +6,7 @@
 # mypy: disable-error-code=no-untyped-def
 
 import marimo
+from dlt.common import logger
 
 __generated_with = "0.13.9"
 app = marimo.App(
@@ -465,7 +466,9 @@ def ui_data_quality_controls(
     dlt_data_quality_table_filter: mo.ui.dropdown = None
     dlt_data_quality_rate_filter: mo.ui.slider = None
 
-    if detect_dlt_hub() and dlt_pipeline and dlt_section_data_quality_switch.value:
+    # Create controls whenever dlthub is detected and pipeline exists
+    # The switch controls whether widget content is shown, not whether controls exist
+    if detect_dlt_hub() and dlt_pipeline:
         try:
             # Import the cell from the dashboard notebook
             from dlthub.data_quality._dashboard import create_data_quality_controls
@@ -515,6 +518,18 @@ def section_data_quality(
         )
         if dlt_pipeline and dlt_section_data_quality_switch.value:
             try:
+                # Import constants from data_quality module
+                from dlthub.data_quality.storage import (
+                    DLT_CHECKS_RESULTS_TABLE_NAME,
+                    DLT_DATA_QUALITY_SCHEMA_NAME,
+                )
+
+                _result.append(
+                    mo.md(
+                        f"<small>Tests are stored in table `{DLT_CHECKS_RESULTS_TABLE_NAME}` in schema `{DLT_DATA_QUALITY_SCHEMA_NAME}` at the destination.</small>",
+                    )
+                )
+
                 # Import the widget cell from the dashboard notebook
                 from dlthub.data_quality._dashboard import data_quality_widget_cell
 
@@ -551,8 +566,18 @@ def section_data_quality(
                     _result.append(widget_output)
                 else:
                     _result.append(mo.md("**No data quality checks available** for this pipeline."))
+
+                # Add show raw table toggle switch
+                dlt_data_quality_show_raw_table_switch: mo.ui.switch = mo.ui.switch(
+                    value=False,
+                    label="<small>Show Raw Table</small>",
+                )
+                _result.append(
+                    mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start")
+                )
             except ImportError:
                 _result.append(mo.md("**DLT Hub data quality module is not available.**"))
+                dlt_data_quality_show_raw_table_switch = None
             except Exception as exc:
                 _result.append(
                     ui.build_error_callout(
@@ -560,7 +585,89 @@ def section_data_quality(
                         traceback_string=traceback.format_exc(),
                     )
                 )
+                dlt_data_quality_show_raw_table_switch = None
+        else:
+            dlt_data_quality_show_raw_table_switch = None
     mo.vstack(_result) if _result else None
+    return dlt_data_quality_show_raw_table_switch
+
+
+@app.cell(hide_code=True)
+def section_data_quality_raw_table(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_raw_table_switch: mo.ui.switch,
+    dlt_get_last_query_result,
+    dlt_set_last_query_result,
+):
+    """
+    Display the raw data quality checks table with _dlt_load_id column
+    """
+    _result = []
+
+    if (
+        dlt_pipeline
+        and dlt_section_data_quality_switch.value
+        and dlt_data_quality_show_raw_table_switch is not None
+        and dlt_data_quality_show_raw_table_switch.value
+    ):
+        try:
+            # Import constants from data_quality module (using private names to avoid conflicts)
+            from dlthub.data_quality.storage import (
+                DLT_CHECKS_RESULTS_TABLE_NAME as _DLT_CHECKS_RESULTS_TABLE_NAME,
+                DLT_DATA_QUALITY_SCHEMA_NAME as _DLT_DATA_QUALITY_SCHEMA_NAME,
+            )
+
+            _error_message: str = None
+            with mo.status.spinner(title="Loading raw data quality checks table..."):
+                try:
+                    # Build query to select all columns including _dlt_load_id
+                    _raw_dataset = dlt_pipeline.dataset(schema=_DLT_DATA_QUALITY_SCHEMA_NAME)
+                    _raw_sql_query = (
+                        _raw_dataset.table(_DLT_CHECKS_RESULTS_TABLE_NAME)
+                        .limit(1000)
+                        .to_sql(pretty=True, _raw_query=True)
+                    )
+
+                    # Execute query
+                    _raw_query_result, _error_message, _traceback_string = utils.get_query_result(
+                        dlt_pipeline, _raw_sql_query
+                    )
+                    dlt_set_last_query_result(_raw_query_result)
+                except Exception as exc:
+                    _error_message = str(exc)
+                    _traceback_string = traceback.format_exc()
+
+            # Display error message if encountered
+            if _error_message:
+                _result.append(
+                    ui.build_error_callout(
+                        f"Error loading raw table: {_error_message}",
+                        traceback_string=_traceback_string,
+                    )
+                )
+
+            # Always display result table
+            _last_result = dlt_get_last_query_result()
+            if _last_result is not None:
+                _result.append(mo.ui.table(_last_result, selection=None))
+        except ImportError:
+            _result.append(
+                mo.callout(
+                    mo.md("DLT Hub data quality module is not available."),
+                    kind="warn",
+                )
+            )
+        except Exception as exc:
+            _result.append(
+                ui.build_error_callout(
+                    f"Error loading raw table: {exc}",
+                    traceback_string=traceback.format_exc(),
+                )
+            )
+
+    mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
