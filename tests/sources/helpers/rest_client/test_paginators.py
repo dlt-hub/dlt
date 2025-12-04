@@ -980,7 +980,12 @@ class TestJSONResponseCursorPaginator:
     def test_update_has_more_path_true_nonempty_result(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor", has_more_path="has_more")
         response = Mock(
-            Response, json=lambda: {"next_cursor": "cursor", "results": [{'hello': 'world'}], "has_more": True}
+            Response,
+            json=lambda: {
+                "next_cursor": "cursor",
+                "results": [{"hello": "world"}],
+                "has_more": True,
+            },
         )
         paginator.update_state(response)
         assert paginator.has_next_page is True
@@ -996,7 +1001,7 @@ class TestJSONResponseCursorPaginator:
     def test_update_has_more_path_missing(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor", has_more_path="has_more")
         response = Mock(
-            Response, json=lambda: {"next_cursor": "cursor", "results": [{'hello', 'world'}]}
+            Response, json=lambda: {"next_cursor": "cursor", "results": [{"hello", "world"}]}
         )
         with pytest.raises(ValueError, match="Has more value not found in the response"):
             paginator.update_state(response)
