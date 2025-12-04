@@ -33,6 +33,8 @@ class WorkspaceRuntimeConfiguration(RuntimeConfiguration):
     invite_code: Optional[str] = None
     """Invite code for dltHub Runtime"""
 
+    __section__: ClassVar[str] = "runtime"
+
 
 @configspec
 class WorkspaceConfiguration(BaseConfiguration):

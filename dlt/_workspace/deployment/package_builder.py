@@ -64,7 +64,10 @@ class PackageBuilder:
             manifest_info.size = len(manifest_yaml)
             tar.addfile(manifest_info, BytesIO(manifest_yaml))
 
-        return digest256_tar_stream(output_stream)
+        content_hash, _ = digest256_tar_stream(
+            output_stream, filter_file_names=lambda x: x != DEFAULT_MANIFEST_FILE_NAME
+        )
+        return content_hash
 
     def build_package(self, file_selector: BaseFileSelector) -> Tuple[Path, str]:
         """Create deployment package file, return (path, content_hash)"""
