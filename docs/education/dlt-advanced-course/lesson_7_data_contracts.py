@@ -177,7 +177,7 @@ def _(mo):
 
     Data contracts are rules that help control how your data schema changes over time. They are particularly useful for maintaining the integrity and consistency of your data as it evolves.
 
-    `dlt` allows you to implement these data contracts at various levels, including the [table level](#scrollTo=zzVNMHgqNEYr), [column level](#scrollTo=Bq_9SNOMQGk_), and [data type level](#scrollTo=H9eMPvlOQHrJ). This provides granular control over how different parts of your schema evolve.
+    `dlt` allows you to implement these data contracts at various levels, including the `table level`, `column level`, and `data type level`. This provides granular control over how different parts of your schema evolve.
 
     > **Note**: This Colab (or Molab) is based on `dlt`'s [schema contracts doc page](https://dlthub.com/docs/general-usage/schema-contracts) and includes additional code examples. It's still a good idea to check out the doc page for all the details.
     """

@@ -422,12 +422,12 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-    - Control the [in-memory buffer size](#scrollTo=ffVpDFHfnqO-) for the extract stage
+    - Control the `in-memory buffer size` for the extract stage
     - Group `dlt` resources into `dlt` sources
     - Specify the number of thread workers or..
     - When using async generators, control the number of async functions/awaitables being evaluated in parallel
     - Yield pages instead of rows
-    - Customize the [size of intermediary files](#scrollTo=g9AGWfLkoAMb) created in the extract stage to control file rotation
+    - Customize the `size of intermediary files` created in the extract stage to control file rotation
     """
     )
     return
