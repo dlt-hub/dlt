@@ -42,7 +42,7 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(os):
     from typing import Iterable, Union
     import dlt
     from dlt.sources.helpers import requests
@@ -51,9 +51,8 @@ def _():
     from dlt.sources.helpers.rest_client import RESTClient
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
-    import os
 
-    os.environ["SOURCES__SECRET_KEY"] = os.getenv("ACCESS_TOKEN")
+    dlt.secrets["SOURCES__SECRET_KEY"] = os.getenv("ACCESS_TOKEN")
 
     @dlt.source
     def github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
@@ -84,7 +83,7 @@ def _():
     # define new dlt pipeline
     # run the pipeline with the new resource
     print(_load_info)
-    return Union, dlt, github_source, os, pipeline
+    return Union, dlt, github_source, pipeline
 
 
 @app.cell(hide_code=True)
@@ -238,9 +237,11 @@ def _(mo):
 
 
 @app.cell
-def _(os):
-    os.environ["RUNTIME__SENTRY_DSN"] = os.getenv("SENTRY_TOKEN")
-    return
+def _(dlt):
+    import os
+
+    dlt.config["RUNTIME__SENTRY_DSN"] = os.getenv("SENTRY_TOKEN")
+    return (os,)
 
 
 @app.cell
@@ -337,8 +338,8 @@ def _(mo):
 
 
 @app.cell
-def _(os):
-    os.environ["RUNTIME__LOG_LEVEL"] = "INFO"
+def _(dlt):
+    dlt.config["RUNTIME__LOG_LEVEL"] = "INFO"
     return
 
 
@@ -397,8 +398,8 @@ def _(mo):
 
 
 @app.cell
-def _(os):
-    os.environ["RUNTIME__LOG_LEVEL"] = "INFO"
+def _(dlt):
+    dlt.config["RUNTIME__LOG_LEVEL"] = "INFO"
     return
 
 
@@ -458,8 +459,8 @@ def _(mo):
 
 
 @app.cell
-def _(dlt, github_source, os):
-    os.environ["RUNTIME__LOG_LEVEL"] = "WARNING"
+def _(dlt, github_source):
+    dlt.config["RUNTIME__LOG_LEVEL"] = "WARNING"
     pipeline_3 = dlt.pipeline(
         pipeline_name="github_issues_progress",
         destination="duckdb",

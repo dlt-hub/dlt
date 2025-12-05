@@ -389,8 +389,8 @@ def _(mo):
 def _(TDataItems, TTableSchema, dlt, os):
     from notion_client import Client
 
-    os.environ["DESTINATION__NOTION__NOTION_AUTH"] = os.getenv("NOTION_AUTHENTICATION")
-    os.environ["DESTINATION__NOTION__NOTION_PAGE_ID"] = os.getenv("NOTION_PAGE_ID")
+    dlt.secrets["DESTINATION__NOTION__NOTION_AUTH"] = os.getenv("NOTION_AUTHENTICATION")
+    dlt.secrets["DESTINATION__NOTION__NOTION_PAGE_ID"] = os.getenv("NOTION_PAGE_ID")
 
     @dlt.destination(name="notion")
     def push_to_notion(
