@@ -42,11 +42,9 @@ preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed 
 preprocess-docs-watch: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links and watches for changes
 	uv run preprocess-docs --watch
 
-build-marimo: format
+build-molabs: format
 	# Format the ipynb files first
 	uv run black education/*/*.ipynb --ipynb 
 	# Prepare ipynb files
 	uv run python docs_tools/education/preprocess_to_marimo.py
-
-check-marimo:
-	uv run marimo check education/*/*.py
+	#uv run black education/*/*.py
