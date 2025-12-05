@@ -366,6 +366,11 @@ class PyIcebergConfig(BaseConfiguration):
     If not provided, defaults to in-memory SQLite for backward compatibility.
     """
 
+    iceberg_catalog_warehouse: Optional[str] = None
+    """
+    Warehouse name for REST catalogs. Required when iceberg_catalog_type is 'rest'.
+    """
+
     iceberg_catalog_config: Optional[Dict[str, Any]] = None
     """
     Optional dictionary with complete catalog configuration.
@@ -391,6 +396,7 @@ def get_catalog(
     iceberg_catalog_name: str = "default",
     iceberg_catalog_type: str = 'sql',
     iceberg_catalog_uri: Optional[str] = None,
+    iceberg_catalog_warehouse: Optional[str] = None,
     iceberg_catalog_config: Optional[Dict[str, Any]] = None,
     credentials: Optional[FileSystemCredentials] = None,
 ) -> IcebergCatalog:
@@ -399,13 +405,15 @@ def get_catalog(
     This function tries to load a catalog in the following priority order:
     1. From explicit config dictionary (if iceberg_catalog_config provided)
     2. From .pyiceberg.yaml file
-    3. From environment variables
-    4. Fall back to in-memory SQLite catalog
+    3. From environment variables (DLT_ICEBERG_*)
+    4. From DLT configuration (config.toml, env vars via @with_config)
+    5. Fall back to in-memory SQLite catalog
 
     Args:
         iceberg_catalog_name: Name of the catalog (default: "default")
-        iceberg_catalog_type: Type of catalog ('sql' or 'rest') - used for fallback
-        iceberg_catalog_uri: URI for SQL catalog - used for fallback
+        iceberg_catalog_type: Type of catalog ('sql' or 'rest')
+        iceberg_catalog_uri: URI for catalog (SQL URI or REST endpoint)
+        iceberg_catalog_warehouse: Warehouse name (for REST catalogs)
         iceberg_catalog_config: Optional dictionary with complete catalog configuration
         credentials: Optional filesystem credentials to merge into config
 
@@ -423,28 +431,25 @@ def get_catalog(
         # Load from environment variables
         # (set DLT_ICEBERG_CATALOG_TYPE, DLT_ICEBERG_CATALOG_URI, etc.)
         catalog = get_catalog()
+        
+        # Load from DLT config (config.toml or ICEBERG_CATALOG__* env vars)
+        catalog = get_catalog()  # Will use [iceberg_catalog] section from config
     """
     logger.info(f"Attempting to load Iceberg catalog: {iceberg_catalog_name}")
 
-
-    #? I am not sure about the usefulness of this, truth is that there is only sql and rest. 
-    #? I am only adding it right now to validate the param that rudolf suggested should be passed
-    supported_catalog_type = [
-        'sql', 'rest'
-    ]
-
-    if iceberg_catalog_type not in supported_catalog_type:
+    # Validate catalog type
+    supported_catalog_types = ['sql', 'rest']
+    if iceberg_catalog_type not in supported_catalog_types:
         raise ValueError(f"Unsupported catalog type: {iceberg_catalog_type}. Use 'sql' or 'rest'.")
 
-
-    # Priority 1: Explicit config dictionary -> Priority N1 as it is a common pyiceberg pattern
+    # Priority 1: Explicit config dictionary (most specific)
     if iceberg_catalog_config:
         try:
             return load_catalog_from_config(iceberg_catalog_name, iceberg_catalog_config, credentials)
         except Exception as e:
-            logger.warning(f"Failed to load catalog from .dlt config: {e}")
+            logger.warning(f"Failed to load catalog from config dict: {e}")
 
-    # Priority 2: .pyiceberg.yaml file -> Priority N2 Second common pyiceberg pattern
+    # Priority 2: .pyiceberg.yaml file (PyIceberg standard)
     try:
         return load_catalog_from_yaml(iceberg_catalog_name, credentials=credentials)
     except CatalogNotFoundError as e:
@@ -452,18 +457,38 @@ def get_catalog(
     except Exception as e:
         logger.warning(f"Error loading catalog from .pyiceberg.yaml: {e}")
 
-    # Priority 3: Environment variables -> In theory here I would go for either env var or the values from the config spec + credentials
+    # Priority 3: DLT_ICEBERG_* environment variables
     try:
         return load_catalog_from_env(iceberg_catalog_name, credentials)
     except CatalogNotFoundError as e:
-        logger.debug(f"Catalog not configured via environment variables: {e}")
+        logger.debug(f"Catalog not configured via DLT_ICEBERG_* environment variables: {e}")
     except Exception as e:
         logger.warning(f"Error loading catalog from environment: {e}")
 
-    # Priority 4: Fall back to in-memory SQLite
-    logger.info("No catalog configuration found, using in-memory SQLite catalog")
-    uri = iceberg_catalog_uri or "sqlite:///:memory:"
-    return get_sql_catalog(iceberg_catalog_name, uri, credentials)
+    # Priority 4: DLT configuration injection (from secrets.toml or ICEBERG_CATALOG__* env vars)
+    # These parameters are injected by @with_config decorator
+    if iceberg_catalog_uri:
+        logger.info(f"Loading catalog '{iceberg_catalog_name}' from DLT configuration")
+        
+        if iceberg_catalog_type == "rest":
+            if not iceberg_catalog_warehouse:
+                raise ValueError(
+                    "iceberg_catalog_warehouse is required for REST catalogs. "
+                    "Set via secrets.toml [iceberg_catalog] section or ICEBERG_CATALOG__ICEBERG_CATALOG_WAREHOUSE env var."
+                )
+            config = {
+                "type": "rest",
+                "uri": iceberg_catalog_uri,
+                "warehouse": iceberg_catalog_warehouse,
+            }
+            return load_catalog_from_config(iceberg_catalog_name, config, credentials)
+        else:
+            # SQL catalog
+            return get_sql_catalog(iceberg_catalog_name, iceberg_catalog_uri, credentials)
+
+    # Priority 5: Fall back to in-memory SQLite (backward compatibility)
+    logger.info("No catalog configuration found, using in-memory SQLite catalog (backward compatibility)")
+    return get_sql_catalog(iceberg_catalog_name, "sqlite:///:memory:", credentials)
 
 def evolve_table(
     catalog: IcebergCatalog,
