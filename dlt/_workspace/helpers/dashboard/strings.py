@@ -184,7 +184,7 @@ state_subtitle = "A raw view of the currently stored pipeline state."
 #
 data_quality_section_name = "data_quality_section"
 data_quality_title = "Data Quality"
-data_quality_subtitle = "Sleep easy if you have data quality tests."
+data_quality_subtitle = "View the results of your data quality checks"
 
 #
 # Last trace page

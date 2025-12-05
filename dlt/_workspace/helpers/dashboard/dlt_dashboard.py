@@ -526,7 +526,8 @@ def section_data_quality(
 
                 _result.append(
                     mo.md(
-                        f"<small>Tests are stored in table `{DLT_CHECKS_RESULTS_TABLE_NAME}` in schema `{DLT_DATA_QUALITY_SCHEMA_NAME}` at the destination.</small>",
+                        f"<small>Tests are stored in table `{DLT_CHECKS_RESULTS_TABLE_NAME}` in"
+                        f" schema `{DLT_DATA_QUALITY_SCHEMA_NAME}` at the destination.</small>",
                     )
                 )
 
@@ -565,16 +566,14 @@ def section_data_quality(
                 if widget_output is not None:
                     _result.append(widget_output)
                 else:
-                    _result.append(mo.md("**No data quality checks available** for this pipeline."))
+                    _result.append(mo.md("**No data quality checks defined** for this pipeline."))
 
                 # Add show raw table toggle switch
                 dlt_data_quality_show_raw_table_switch: mo.ui.switch = mo.ui.switch(
                     value=False,
                     label="<small>Show Raw Table</small>",
                 )
-                _result.append(
-                    mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start")
-                )
+                _result.append(mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start"))
             except ImportError:
                 _result.append(mo.md("**DLT Hub data quality module is not available.**"))
                 dlt_data_quality_show_raw_table_switch = None
@@ -665,7 +664,6 @@ def section_data_quality_raw_table(
                     traceback_string=traceback.format_exc(),
                 )
             )
-
     mo.vstack(_result) if _result else None
     return
 
