@@ -24,12 +24,14 @@ from dlt.common.configuration.specs import (
 from dlt.common.exceptions import DltException, MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
+from dlt.common.schema.utils import merge_columns
 from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
 from dlt.common.jsonpath import extract_simple_field_name
 from dlt.common.utils import is_typeerror_due_to_wrong_call
 
 from dlt.extract import Incremental
 from dlt.extract.items_transform import LimitItem
+from dlt.extract.utils import ensure_table_schema_columns
 
 from .arrow_helpers import row_tuples_to_arrow
 from .schema_types import (
@@ -348,7 +350,17 @@ def table_rows(
 
     limit = None
     try:
-        limit = dlt.current.resource().limit
+        resource = dlt.current.resource()
+        resource_columns = resource.columns
+        if resource_columns and hints["columns"]:
+            print("hints from reflection: ", hints["columns"])
+            print("hints from resource: ", resource_columns)
+            resource_columns_as_hints = ensure_table_schema_columns(resource_columns)
+            # print("resource_columns_as_hints: ", resource_columns_as_hints)
+            hints["columns"] = merge_columns(hints["columns"], resource_columns_as_hints)
+            # print("hints after merge: ", hints["columns"])
+
+        limit = resource.limit
     except DltException:
         pass
 
