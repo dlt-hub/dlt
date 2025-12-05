@@ -659,6 +659,8 @@ def _(mo):
         r"""
     Alternatively, you can set:
 
+    > `userdata.get()` is Colab-specific.
+
     ```python
     os.environ["SOURCES__ACCESS_TOKEN"] = userdata.get('SECRET_KEY')
     os.environ["SOURCES____MAIN____ACCESS_TOKEN"] = userdata.get('SECRET_KEY')

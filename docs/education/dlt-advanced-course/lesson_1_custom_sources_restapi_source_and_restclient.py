@@ -73,7 +73,7 @@ def _():
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
-    os.environ["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
+    dlt.secrets["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
 
     @dlt.source
     def github_source(access_token: str = dlt.secrets.value) -> Iterable[DltResource]:
@@ -228,7 +228,7 @@ def _(mo):
 
 @app.cell
 def _(BearerTokenAuth, HeaderLinkPaginator, RESTClient, dlt, os):
-    os.environ["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
+    dlt.secrets["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
     client = RESTClient(
         base_url="https://api.github.com",
         headers={"User-Agent": "MyApp/1.0"},
