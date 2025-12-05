@@ -101,10 +101,17 @@ TColumnHint = Literal[
 COLUMN_HINTS: Set[TColumnHint] = set(get_args(TColumnHint))
 
 
+TColumnPropMergeType = Literal[
+    "replacable",
+    "removable",
+]
+
+
 class TColumnPropInfo(NamedTuple):
     name: Union[TColumnProp, str]
     defaults: Tuple[Any, ...] = (None,)
     is_hint: bool = False
+    merge_type: TColumnPropMergeType = "replacable"
 
 
 _ColumnPropInfos = [
@@ -117,10 +124,10 @@ _ColumnPropInfos = [
     TColumnPropInfo("variant", (False, None)),
     TColumnPropInfo("partition", (False, None)),
     TColumnPropInfo("cluster", (False, None)),
-    TColumnPropInfo("primary_key", (False, None)),
+    TColumnPropInfo("primary_key", (False, None), False, "removable"),
     TColumnPropInfo("sort", (False, None)),
     TColumnPropInfo("unique", (False, None)),
-    TColumnPropInfo("merge_key", (False, None)),
+    TColumnPropInfo("merge_key", (False, None), False, "removable"),
     TColumnPropInfo("row_key", (False, None)),
     TColumnPropInfo("parent_key", (False, None)),
     TColumnPropInfo("root_key", (False, None)),
@@ -148,6 +155,10 @@ TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
 ]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
+
+RemovablePropInfos = {
+    info.name: info for info in _ColumnPropInfos if info.merge_type == "removable"
+}
 
 
 class TColumnType(TypedDict, total=False):
