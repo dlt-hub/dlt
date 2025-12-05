@@ -107,7 +107,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         # https://learn.microsoft.com/en-us/sql/t-sql/data-types/datetimeoffset-transact-sql?view=sql-server-ver16
         caps.timestamp_precision = 6
 
-        caps.supported_merge_strategies = ["delete-insert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "scd2", "insert-only"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
 
         caps.sqlglot_dialect = "tsql"

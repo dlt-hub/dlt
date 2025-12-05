@@ -180,6 +180,22 @@ def verify_schema_merge_disposition(
                         " `upsert` merge strategy. Merge key is not supported"
                         " for this strategy and will be ignored."
                     )
+            elif merge_strategy == "insert-only":
+                if not has_column_with_prop(table, "primary_key"):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            schema.name,
+                            f"No primary key defined for table `{table['name']}`."
+                            " `primary_key` needs to be set when using the `insert-only`"
+                            " merge strategy.",
+                        )
+                    )
+                if has_column_with_prop(table, "merge_key"):
+                    log(
+                        f"Found `merge_key` for table `{table['name']}` with"
+                        " `insert-only` merge strategy. Merge key is not supported"
+                        " for this strategy and will be ignored."
+                    )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                 exception_log.append(
