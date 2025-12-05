@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
@@ -16,6 +17,9 @@ from dlt.common.storages.fsspec_filesystem import (
 
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.exceptions import LoadJobTerminalException
+
+
+SNOWFLAKE_SESSION_TOKEN_PATH = "/snowflake/session/token"
 
 
 def ensure_snowflake_azure_url(
@@ -194,3 +198,24 @@ def gen_copy_sql(
         {column_match_clause}
         {on_error_clause}
     """
+
+
+def snowflake_session_token_available() -> bool:
+    """Whether Snowflake-provided OAuth token is available in environment.
+
+    Reference: https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs#connecting-with-a-snowflake-provided-oauth-token
+    """
+    return (
+        os.path.exists(SNOWFLAKE_SESSION_TOKEN_PATH)
+        and "SNOWFLAKE_ACCOUNT" in os.environ
+        and "SNOWFLAKE_HOST" in os.environ
+    )
+
+
+def read_snowflake_session_token() -> str:
+    """
+    Read the session token supplied automatically by Snowflake. These tokens
+    are short lived and should always be read right before creating any new connection.
+    """
+    with open(SNOWFLAKE_SESSION_TOKEN_PATH, "r", encoding="utf-8") as f:
+        return f.read()
