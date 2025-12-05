@@ -4,15 +4,12 @@ from typing import Iterator, Any
 
 import dlt, os
 from dlt.common import pendulum
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination.exceptions import UnsupportedDataType
 from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.load.pipeline.utils import (
-    TableBucketTestClient,
-    simple_nested_source,
-    table_bucket_test_client,
-)
+from tests.load.pipeline.utils import TableBucketTestClient, simple_nested_source
 from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
 from dlt.destinations.exceptions import CantExtractTablePrefix
@@ -359,10 +356,7 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
     ),
     ids=lambda x: x.name,
 )
-def test_athena_s3_tables(
-    destination_config: DestinationTestConfiguration,
-    table_bucket_test_client: TableBucketTestClient,
-) -> None:
+def test_athena_s3_tables(destination_config: DestinationTestConfiguration) -> None:
     """This test checks the S3 Tables bucket is actually used when setting an S3 Tables Catalog.
 
     All other tests use Athena to query the data, but here we directly check the bucket.
@@ -371,6 +365,9 @@ def test_athena_s3_tables(
     pipe = destination_config.setup_pipeline("test_table_bucket", dev_mode=True)
     pipe.run(simple_nested_source())
 
+    credentials = pipe.destination_client().config.credentials
+    assert isinstance(credentials, AwsCredentials)
+    table_bucket_test_client = TableBucketTestClient(credentials)
     assert table_bucket_test_client.namespace_exists(pipe.dataset_name)
     assert table_bucket_test_client.table_exists(pipe.dataset_name, "lists")
     assert table_bucket_test_client.table_exists(pipe.dataset_name, "lists__value")

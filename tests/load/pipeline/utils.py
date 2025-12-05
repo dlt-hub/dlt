@@ -1,9 +1,9 @@
 from typing import Callable, List, Tuple
-import boto3
 import pytest
 from botocore.exceptions import ClientError
 
 import dlt
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
@@ -20,9 +20,14 @@ from tests.load.utils import S3_TABLE_BUCKET_ARN, DestinationTestConfiguration
 
 
 class TableBucketTestClient:
-    def __init__(self, table_bucket_arn: str):
+    def __init__(
+        self,
+        credentials: AwsCredentials,
+        table_bucket_arn: str = S3_TABLE_BUCKET_ARN,
+    ):
+        self.credentials = credentials
         self.table_bucket_arn = table_bucket_arn
-        self.s3_tables_client = boto3.client("s3tables")
+        self.s3_tables_client = credentials._to_botocore_session().create_client("s3tables")
 
     def namespace_exists(self, namespace: str) -> bool:
         try:
@@ -47,11 +52,6 @@ class TableBucketTestClient:
                 return False
             else:
                 raise
-
-
-@pytest.fixture
-def table_bucket_test_client() -> TableBucketTestClient:
-    return TableBucketTestClient(S3_TABLE_BUCKET_ARN)
 
 
 def get_load_package_jobs(
