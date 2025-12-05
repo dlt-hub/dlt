@@ -69,6 +69,7 @@ from tests.utils import (
     IMPLEMENTED_DESTINATIONS,
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
+    EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -166,6 +167,7 @@ class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
     destination_type: str
+    cid: Optional[str] = None  # configuration id
     staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
     table_format: Optional[TTableFormat] = None
@@ -343,12 +345,14 @@ def destinations_configs(
         # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         DestinationTestConfiguration(
             destination_type="athena",
+            cid="athena",
             file_format="parquet",
             supports_merge=False,
             bucket_url=AWS_BUCKET,
         ),
         DestinationTestConfiguration(
             destination_type="athena",
+            cid="athena_iceberg",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
@@ -357,6 +361,7 @@ def destinations_configs(
         ),
         DestinationTestConfiguration(
             destination_type="athena",
+            cid="athena_s3_tables",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
@@ -803,6 +808,13 @@ def destinations_configs(
     # filter out excluded configs
     destination_configs = [
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
+    ]
+
+    # filter out excluded ids
+    destination_configs = [
+        conf
+        for conf in destination_configs
+        if conf.cid not in EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS
     ]
 
     return destination_configs

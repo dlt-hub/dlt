@@ -35,14 +35,19 @@ jobs:
             - name: athena
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
-              excluded_destination_configurations: "[\"athena-parquet-iceberg-no-staging-iceberg\", \"athena-parquet-iceberg-staging-iceberg\"]"
+              excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
 
-            # Athena iceberg (NOTE: same as athene with different configs disabled)
             - name: athena iceberg
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
-              excluded_destination_configurations: "[\"athena-no-staging\", \"athena-parquet-no-staging\"]"
+              excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
+              extras: "--extra athena"
+
+            - name: athena s3 tables
+              destinations: "[\"athena\"]"
+              filesystem_drivers: "[\"memory\"]"
+              excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
 
             # BigQuery
@@ -152,7 +157,7 @@ jobs:
     env:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
-        EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
+        EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS: ${{ matrix.excluded_destination_test_configuration_ids || '[]' }}
 
     defaults:
       run:
