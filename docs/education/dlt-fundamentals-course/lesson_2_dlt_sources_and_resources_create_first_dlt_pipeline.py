@@ -103,7 +103,7 @@ def _(data, dlt):
     @dlt.resource(table_name='pokemon_new')
     def my_dict_list() -> TDataItems:
     # Create a dlt resource from the data
-        yield data  # <--- we set new table name
+        yield data
     return TDataItem, TDataItems, my_dict_list
 
 
@@ -460,23 +460,20 @@ def _(mo):
 @app.cell
 def _(TDataItems, dlt, my_pokemons, requests):
     # Define a transformer to enrich pokemon data with additional details
+    # NOTE: the `items` argument contains data from the `my_dict_list` resource
     @dlt.transformer(data_from=my_pokemons, table_name="detailed_info")
     def poke_details(
         items: TDataItems,
-    ) -> (
-        TDataItems
-    ):  # <--- `items` is a variable and contains data from `my_dict_list` resource
+    ) -> TDataItems:
         for item in items:
-            print(
-                f"Item: {item}\n"
-            )  # <-- print what data we get from `my_dict_list` source
+            print(f"Item: {item}\n")
 
             item_id = item["id"]
             url = f"https://pokeapi.co/api/v2/pokemon/{item_id}"
             response = requests.get(url)
             details = response.json()
 
-            print(f"Details: {details}\n")  # <--- print what data we get from API
+            print(f"Details: {details}\n")
 
             yield details
 
@@ -522,10 +519,11 @@ def _(TDataItem, TDataItems, another_pipeline, dlt, requests):
         item_id = data_item['id']
         url = f'https://pokeapi.co/api/v2/pokemon/{item_id}'
         response = requests.get(url)
+    # NOTE: Transformer receives one item at a time
         details = response.json()
         yield details
     _load_info = another_pipeline.run(other_poke_details())
-    print(_load_info)  # <--- Transformer receives one item at a time
+    print(_load_info)
     return
 
 
@@ -650,10 +648,12 @@ def _(DltResource, Iterable, TDataItems, dlt, requests):
         url = 'https://api.github.com/orgs/dlt-hub/events'
         response = requests.get(url)
         yield response.json()
+    print('build the `github_repos` resource here')
 
     @dlt.source
     def github_data() -> Iterable[DltResource]:
         return (github_events,)
+    print('return your new resource as part of the source above')
     github_pipeline = dlt.pipeline(pipeline_name='github_pipeline', destination='duckdb', dataset_name='github_data')
     _load_info = github_pipeline.run(github_data())
     print(_load_info)
@@ -687,7 +687,7 @@ def _(mo):
 
 @app.cell
 def _():
-    print("HERE IS YOUR CODE")
+    print("YOUR CODE GOES HERE")
     return
 
 
