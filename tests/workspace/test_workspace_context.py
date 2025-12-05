@@ -43,6 +43,12 @@ def test_workspace_settings() -> None:
     with isolated_workspace("default") as ctx:
         assert_workspace_context(ctx, "default", DEFAULT_PROFILE)
         assert_dev_config()
+        assert ctx.configured_profiles() == [DEFAULT_PROFILE]
+        # has dev config
+        assert ctx._profile_has_config(DEFAULT_PROFILE) is True
+        assert ctx._profile_has_config("unknown") is False
+        # no pipelines
+        assert ctx._profile_has_pipelines(DEFAULT_PROFILE) is False
 
 
 def test_workspace_profile() -> None:
@@ -50,6 +56,9 @@ def test_workspace_profile() -> None:
         assert_workspace_context(ctx, "default", "prod")
         # mocked global dir
         assert ctx.global_dir.endswith(".global_dir")
+        assert set(ctx.configured_profiles()) == {"dev", "prod"}
+        assert ctx._profile_has_config("prod") is False
+        assert ctx._profile_has_config("dev") is True
 
         # files for dev profile will be ignores
         assert dlt.config["config_val"] == "config.toml"
@@ -69,6 +78,8 @@ def test_workspace_profile() -> None:
         # standard global dir
         assert ctx.global_dir == global_dir()
         assert_dev_config()
+        assert ctx.configured_profiles() == ["dev"]
+        assert ctx._profile_has_config("dev") is True
 
 
 def test_profile_switch_no_workspace():
@@ -95,8 +106,15 @@ def test_workspace_configuration():
 
 def test_pinned_profile() -> None:
     with isolated_workspace("default") as ctx:
+        assert ctx.profile == "dev"
+        assert ctx.configured_profiles() == ["dev"]
+        # we pin prod
         save_profile_pin(ctx, "prod")
         assert read_profile_pin(ctx) == "prod"
+        # prod is configured profile now
+        assert set(ctx.configured_profiles()) == {"prod", "dev"}
+        # because it is pinned, we still do not see it as special config
+        assert ctx._profile_has_config("prod") is False
 
         # this is new default profile
         ctx = switch_context(ctx.run_dir)
@@ -114,6 +132,13 @@ def test_workspace_pipeline() -> None:
     pytest.importorskip("duckdb", minversion="1.3.2")
 
     with isolated_workspace("pipelines", profile="tests") as ctx:
+        # prod and test have explicit config for profiles
+        assert set(ctx.configured_profiles()) == {"tests", "prod"}
+        assert ctx._profile_has_config("tests") is True
+        assert ctx._profile_has_config("prod") is True
+        assert ctx._profile_has_pipelines("tests") is False
+        assert ctx._profile_has_pipelines("prod") is False
+
         # `ducklake_pipeline` configured in config.toml
         pipeline = dlt.pipeline(pipeline_name="ducklake_pipeline")
         assert pipeline.run_context is ctx
@@ -128,6 +153,7 @@ def test_workspace_pipeline() -> None:
         assert os.path.isdir(os.path.join(ctx.local_dir, "test_ducklake.files"))
         # make sure that working folder got created
         assert os.path.isdir(os.path.join(ctx.get_data_entity("pipelines"), "ducklake_pipeline"))
+        assert ctx._profile_has_pipelines("tests") is True
 
         # test wipe function
         with always_choose(always_choose_default=False, always_choose_value=True):
@@ -148,6 +174,14 @@ def test_workspace_pipeline() -> None:
         # local files point to prod
         assert os.path.isfile(os.path.join(ctx.local_dir, "prod_ducklake.sqlite"))
         assert os.path.isdir(os.path.join(ctx.local_dir, "prod_ducklake.files"))
+        # both profiles have pipelines
+        assert ctx._profile_has_pipelines("tests") is True
+        assert ctx._profile_has_pipelines("prod") is True
+        assert set(ctx.configured_profiles()) == {"prod", "tests"}
+
+        # switch to dev
+        ctx = ctx.switch_profile("dev")
+        assert set(ctx.configured_profiles()) == {"dev", "prod", "tests"}
 
 
 def test_workspace_send_artifacts() -> None:
@@ -202,6 +236,8 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     # basic properties must be set
     assert context.name.startswith(name_prefix)
     assert context.profile == profile
+    assert context.default_profile == "dev"
+    assert context.profile in context.configured_profiles()
 
     expected_settings = os.path.join(context.run_dir, DOT_DLT)
     assert context.settings_dir == expected_settings
@@ -213,6 +249,8 @@ def assert_workspace_context(context: WorkspaceRunContext, name_prefix: str, pro
     assert context.data_dir == expected_data_dir
     # got created
     assert os.path.isdir(context.data_dir)
+    # is a default dir
+    assert context._has_default_working_dir() is True
 
     # local files
     expected_local_dir = os.path.join(context.run_dir, DEFAULT_LOCAL_FOLDER, profile)

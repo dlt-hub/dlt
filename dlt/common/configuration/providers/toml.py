@@ -74,7 +74,8 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         self._toml_paths = self._resolve_toml_paths(
             file_name, [d for d in resolvable_dirs if d is not None]
         )
-
+        # read toml files and set present locations
+        self._present_locations: List[str] = []
         self._config_toml = self._read_toml_files(name, file_name, self._toml_paths)
 
         super().__init__(
@@ -114,6 +115,10 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
     @property
     def is_empty(self) -> bool:
         return len(self._config_toml.body) == 0 and super().is_empty
+
+    @property
+    def present_locations(self) -> List[str]:
+        return self._present_locations
 
     def set_fragment(
         self, key: Optional[str], value_or_fragment: str, pipeline_name: str, *sections: str
@@ -207,6 +212,8 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
                         result_toml = loaded_toml
                     else:
                         result_toml = update_dict_nested(loaded_toml, result_toml)
+                    # store as present location
+                    self._present_locations.append(path)
 
             # if nothing was found, try to load from google colab or streamlit
             if result_toml is None:

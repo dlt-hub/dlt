@@ -19,7 +19,7 @@ try:
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "Workspace Dashboard",
-        ['dlt["workspace"]'],
+        ["dlt[workspace]"],
         "to install the dlt workspace extra.",
     )
 

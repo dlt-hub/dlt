@@ -493,7 +493,7 @@ def section_browse_data_table_list(
 
             # we only show resource state if the table has resource set, child tables do not have a resource set
             _resource_name, _source_state, _resource_state = (
-                utils.get_source_and_resouce_state_for_table(
+                utils.get_source_and_resource_state_for_table(
                     _schema_table, dlt_pipeline, dlt_selected_schema_name
                 )
             )
@@ -998,6 +998,7 @@ def utils_discover_pipelines(
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
+    from dlt._workspace.cli.utils import list_local_pipelines
 
     # sync from runtime if enabled
     _tmp_config = utils.resolve_dashboard_config(None)
@@ -1017,7 +1018,7 @@ def utils_discover_pipelines(
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
-    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
+    dlt_pipelines_dir, dlt_all_pipelines = list_local_pipelines(
         mo_cli_arg_pipelines_dir,
         additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
@@ -1047,7 +1048,7 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
     selected_profile = None
 
     if isinstance(run_context, ProfilesRunContext):
-        options = run_context.available_profiles() or []
+        options = run_context.configured_profiles() or []
         current = run_context.profile if options and run_context.profile in options else None
 
         selected_profile = current
@@ -1201,15 +1202,15 @@ def watch_changes(
     """
     Watch changes in the trace file and trigger reload in the home cell and all following cells on change
     """
+    from dlt.pipeline.trace import get_trace_file_path
+
     # provide pipeline object to the following cells
     dlt_pipeline_name: str = (
         str(dlt_pipeline_select.value[0]) if dlt_pipeline_select.value else None
     )
     dlt_file_watcher = None
     if dlt_pipeline_name:
-        dlt_file_watcher = mo.watch.file(
-            utils.get_trace_file_path(dlt_pipeline_name, dlt_pipelines_dir)
-        )
+        dlt_file_watcher = mo.watch.file(get_trace_file_path(dlt_pipelines_dir, dlt_pipeline_name))
     return dlt_pipeline_name, dlt_file_watcher
 
 
