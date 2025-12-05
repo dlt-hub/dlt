@@ -15,7 +15,8 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **Recap of [Lesson 2](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb) 👩‍💻🚀**
 
     1. Used `@dlt.resource` to load and query data such as lists, dataframes, and REST API responses into DuckDB.
@@ -23,13 +24,15 @@ def _(mo):
     3. Used `@dlt.transformer` to process and enrich data between resources.
 
     Next: We'll dive deeper into building dlt pipelines using pagination, authentication, and dlt configuration! 🚀
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
 
     # **Pagination & Authentication & dlt Configuration** 🤫🔩   [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_3_pagination_and_authentication_and_dlt_configuration.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_3_pagination_and_authentication_and_dlt_configuration.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_3_pagination_and_authentication_and_dlt_configuration.ipynb)
@@ -42,15 +45,14 @@ def _(mo):
     - Add values to `secrets.toml` or `config.toml`.
 
     To learn more about credentials, refer to the [dlt documentation](https://dlthub.com/docs/general-usage/credentials/).
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""In the previous lesson, we loaded data from the GitHub API to DuckDB,"""
-    )
+    mo.md(r"""In the previous lesson, we loaded data from the GitHub API to DuckDB,""")
     return
 
 
@@ -63,10 +65,11 @@ def _():
     @dlt.resource
     # define dlt resources
     def github_events() -> TDataItems:
-        url = 'https://api.github.com/orgs/dlt-hub/events'
+        url = "https://api.github.com/orgs/dlt-hub/events"
         _response = requests.get(url)
         yield _response.json()
-    _pipeline = dlt.pipeline(destination='duckdb')
+
+    _pipeline = dlt.pipeline(destination="duckdb")
     _load_info = _pipeline.run(github_events)
     print(_load_info)
     # define dlt pipeline
@@ -78,11 +81,13 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     You may notice we received only one page — just 30 records — even though this endpoint has many more.
 
     To fetch everything, enable pagination: many APIs (like GitHub) return results in pages and limit how much you can retrieve per request, so paginating lets you iterate through all pages to collect the full dataset.
-    """)
+    """
+    )
     return
 
 
@@ -96,7 +101,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ## **Pagination**
 
@@ -107,26 +113,31 @@ def _(mo):
     >You can use the `Link` header from the response to request additional pages of data.
 
     >The `Link` header contains URLs that let you fetch other pages of results — for example, the previous, next, first, and last pages.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **GitHub API Pagination Example**
 
     The GitHub API provides the `per_page` and `page` query parameters:
 
     * `per_page`: The number of records per page (up to 100).
     * `page`: The page number to retrieve.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(requests):
-    _response = requests.get('https://api.github.com/orgs/dlt-hub/events?per_page=10&page=1')
+    _response = requests.get(
+        "https://api.github.com/orgs/dlt-hub/events?per_page=10&page=1"
+    )
     _response.headers
     return
 
@@ -141,14 +152,17 @@ def _(mo):
 
 @app.cell
 def _(requests):
-    _response = requests.get('https://api.github.com/orgs/dlt-hub/events?per_page=10&page=1')
+    _response = requests.get(
+        "https://api.github.com/orgs/dlt-hub/events?per_page=10&page=1"
+    )
     _response.links
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **dlt RESTClient**
 
     Now that we know how pagination works conceptually, let’s see how to implement it efficiently!
@@ -178,15 +192,17 @@ def _(mo):
     1. Import `RESTClient`
     2. Create a `RESTClient` instance
     3. Use the `paginate` method to iterate through all pages of data
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _():
     from dlt.sources.helpers.rest_client import RESTClient
-    client = RESTClient(base_url='https://api.github.com')
-    for _page in client.paginate('orgs/dlt-hub/events'):
+
+    client = RESTClient(base_url="https://api.github.com")
+    for _page in client.paginate("orgs/dlt-hub/events"):
         print(_page)
     return (RESTClient,)
 
@@ -202,7 +218,10 @@ def _(mo):
 @app.cell
 def _(RESTClient):
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
-    client_1 = RESTClient(base_url='https://api.github.com', paginator=HeaderLinkPaginator())
+
+    client_1 = RESTClient(
+        base_url="https://api.github.com", paginator=HeaderLinkPaginator()
+    )
     return (client_1,)
 
 
@@ -224,35 +243,40 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The events endpoint doesn’t contain as much data, especially compared to the stargazers endpoint of the dlt repository.
 
     If you run the pipeline for the stargazers endpoint, there's a high chance that you'll face a **rate limit error**.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(client_1):
-    for _page in client_1.paginate('repos/dlt-hub/dlt/stargazers'):
+    for _page in client_1.paginate("repos/dlt-hub/dlt/stargazers"):
         print(_page)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **Exercise 1: Pagination with RESTClient**
     Explore the cells above and answer the question below.
     #### Question
     What type of pagination should we use for the GitHub API?
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ## **Authentication**
 
@@ -261,26 +285,31 @@ def _(mo):
     1. Login to your GitHub account.
     2. Generate an [API token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) (classic).
     2.  Use it as an access token for the GitHub API.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     > **! ATTENTION !**
     > Never share your credentials publicly and never hard-code them in your code. Use **environment variables, files** or dlt's **secrets.toml**.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Create an environment variable for your access token in Colab.
 
     ![Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img3](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img3.webp)
-    """)
+    """
+    )
     return
 
 
@@ -309,8 +338,11 @@ def _(mo):
 @app.cell
 def _(RESTClient, access_token):
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
-    client_2 = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=access_token))
-    for _page in client_2.paginate('repos/dlt-hub/dlt/stargazers'):
+
+    client_2 = RESTClient(
+        base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
+    )
+    for _page in client_2.paginate("repos/dlt-hub/dlt/stargazers"):
         print(_page)
         break
     return (BearerTokenAuth,)
@@ -328,10 +360,13 @@ def _(mo):
 def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
     @dlt.resource
     def github_stargazers() -> TDataItems:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=access_token))
-        for _page in client.paginate('repos/dlt-hub/dlt/stargazers'):
+        client = RESTClient(
+            base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
+        )
+        for _page in client.paginate("repos/dlt-hub/dlt/stargazers"):
             yield _page
-    _pipeline = dlt.pipeline(destination='duckdb')
+
+    _pipeline = dlt.pipeline(destination="duckdb")
     _load_info = _pipeline.run(github_stargazers)
     print(_load_info)
     _pipeline.dataset().github_stargazers.df()
@@ -348,7 +383,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ## **dlt configuration and secrets**
 
@@ -365,17 +401,20 @@ def _(mo):
     * Via configuration files (`secrets.toml` and `config.toml`)
 
     > **Note**: While you can store both configurations and credentials in `dlt.secrets` (or `secrets.toml`) if that’s more convenient, credentials cannot be placed in `dlt.config` (or `config.toml`) because dlt does not read them from there.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Let's create a dlt pipeline for both endpoints: `repos/dlt-hub/dlt/stargazers` and `orgs/dlt-hub/events`.
 
     We'll use `@dlt.source` to group both resources.
-    """)
+    """
+    )
     return
 
 
@@ -386,18 +425,22 @@ def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
 
     @dlt.source
     def github_source() -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=access_token))
+        client = RESTClient(
+            base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
+        )
 
         @dlt.resource
         def github_events() -> TDataItems:
-            for _page in client.paginate('orgs/dlt-hub/events'):
+            for _page in client.paginate("orgs/dlt-hub/events"):
                 yield _page
 
         @dlt.resource
         def github_stargazers() -> TDataItems:
-            for _page in client.paginate('repos/dlt-hub/dlt/stargazers'):
+            for _page in client.paginate("repos/dlt-hub/dlt/stargazers"):
                 yield _page
+
         return (github_events, github_stargazers)
+
     return DltResource, Iterable
 
 
@@ -419,18 +462,22 @@ def _(os):
 def _(BearerTokenAuth, DltResource, Iterable, RESTClient, TDataItems, dlt):
     @dlt.source
     def github_source_1(access_token=dlt.secrets.value) -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=access_token))
+        client = RESTClient(
+            base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
+        )
 
         @dlt.resource
         def github_events() -> TDataItems:
-            for _page in client.paginate('orgs/dlt-hub/events'):
+            for _page in client.paginate("orgs/dlt-hub/events"):
                 yield _page
 
         @dlt.resource
         def github_stargazers() -> TDataItems:
-            for _page in client.paginate('repos/dlt-hub/dlt/stargazers'):
+            for _page in client.paginate("repos/dlt-hub/dlt/stargazers"):
                 yield _page
+
         return (github_events, github_stargazers)
+
     return (github_source_1,)
 
 
@@ -450,7 +497,7 @@ def _(mo):
 
 @app.cell
 def _(dlt, github_source_1):
-    _pipeline = dlt.pipeline(destination='duckdb')
+    _pipeline = dlt.pipeline(destination="duckdb")
     _load_info = _pipeline.run(github_source_1())
     print(_load_info)
     return
@@ -458,7 +505,8 @@ def _(dlt, github_source_1):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     That’s what happens when you use `dlt.secrets.value` for a variable in your pipeline but haven’t actually set the secret value.
 
     When this occurs, dlt searches for the missing secret across different possible locations and naming formats, as shown below:
@@ -478,36 +526,41 @@ def _(mo):
     If you keep your secret files in the same folder as your pipeline script but run your script from some other folder, secrets/configs will not be found
     Please refer to https://dlthub.com/docs/general-usage/credentials for more information
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     To define the `access_token` secret value, we can use (as mentioned earlier):
 
     1. `dlt.secrets` in code (recommended for secret vaults or dynamic creds)
     2. Environment variables (recommended for prod)
     3. `secrets.toml` file (recommended for local dev)
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **Use `dlt.secrets` in code**
 
     You can easily set or update your secrets directly in Python code. This is especially convenient when retrieving credentials from third-party secret managers or when you need to update secrets and configurations dynamically.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, github_source_1, os):
-    dlt.secrets['access_token'] = os.getenv('SECRET_KEY')
-    github_pipeline = dlt.pipeline(destination='duckdb')
+    dlt.secrets["access_token"] = os.getenv("SECRET_KEY")
+    github_pipeline = dlt.pipeline(destination="duckdb")
     _load_info = github_pipeline.run(github_source_1())
     print(_load_info)
     return
@@ -515,7 +568,8 @@ def _(dlt, github_source_1, os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Alternatively, you can set:
 
     ```python
@@ -524,13 +578,15 @@ def _(mo):
     dlt.secrets["sources.____main____.github_source.access_token"] = userdata.get('SECRET_KEY')
     ...
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     * `sources` is a special word;
 
     * `__main__` is a python module name;
@@ -555,13 +611,15 @@ def _(mo):
     ```
 
     To keep the **naming convention** flexible, dlt looks for a lot of **possible combinations** of key names, starting from the most specific possible path. Then, if the value is not found, it removes the right-most section and tries again.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **Exercise 2: Run a pipeline with `dlt.secrets.value`**
 
     Explore the cells above and answer the question below using `sql_client`.
@@ -569,24 +627,27 @@ def _(mo):
     #### Question
 
     Who has id=`17202864` in the `stargazers` table? Use `sql_client`.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ###  **Use environment variables**
 
     Let's set the environment variable for our access token in one of the formats dlt accepts: `ACCESS_TOKEN`.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, github_source_1, os):
-    os.environ['ACCESS_TOKEN'] = os.getenv('SECRET_KEY')
-    _pipeline = dlt.pipeline(destination='duckdb')
+    os.environ["ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
+    _pipeline = dlt.pipeline(destination="duckdb")
     _load_info = _pipeline.run(github_source_1())
     print(_load_info)
     return
@@ -594,7 +655,8 @@ def _(dlt, github_source_1, os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Alternatively, you can set:
 
     ```python
@@ -603,13 +665,15 @@ def _(mo):
     os.environ["SOURCES____MAIN____GITHUB_SOURCE__ACCESS_TOKEN"] = userdata.get('SECRET_KEY')
     ...
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **How does it work?**
 
     `dlt` **automatically extracts** configuration settings and secrets based on flexible naming conventions.
@@ -620,7 +684,8 @@ def _(mo):
     >dlt uses a specific naming hierarchy to search for the secrets and config values. This makes configurations and secrets easy to manage.
     >
     > The naming convention for **environment variables** in dlt follows a specific pattern. All names are **capitalized** and sections are separated with **double underscores** __ , e.g.  `SOURCES____MAIN____GITHUB_SOURCE__SECRET_KEY`.
-    """)
+    """
+    )
     return
 
 
@@ -640,7 +705,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The `secrets.toml` file - along with the `config.toml` file - should be stored in the `.dlt` directory where your pipeline code is located:
 
     ```
@@ -654,13 +720,15 @@ def _(mo):
     ```
 
     Read more about adding [credentials](https://dlthub.com/docs/walkthroughs/add_credentials).
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     To set credentials via the toml files, you would first add your access token to `secrets.toml`:
 
     ```toml
@@ -669,13 +737,15 @@ def _(mo):
     [sources]
     secret_key = "your_access_token"
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Alternatively, you can set:
 
     ```
@@ -700,13 +770,15 @@ def _(mo):
     [sources.____main____.github_source]
     secret_key = "your_access_token"
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **Configure secrets in Colab**
 
     You can configure secrets using the **Secrets** sidebar. Just create a variable with the name `secrets.toml` and paste the content of the toml file from your `.dlt` folder into it. We support `config.toml` variable as well.
@@ -720,7 +792,8 @@ def _(mo):
 
 
     >dlt will not reload the secrets automatically. **Restart your interpreter** in Colab options when you add/change the variables above.
-    """)
+    """
+    )
     return
 
 
@@ -743,9 +816,9 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
-

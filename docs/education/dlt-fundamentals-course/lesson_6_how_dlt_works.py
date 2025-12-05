@@ -15,7 +15,8 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **Recap of [Lesson 5](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_5_write_disposition_and_incremental_loading.ipynb) 👩‍💻🚀**
 
     1. Explored 3 `dlt` write dispositions:
@@ -24,13 +25,15 @@ def _(mo):
        - merge
     2. Learned how to update and deduplicate data
     3. Created an incremental pipeline
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **How dlt works** 🧠🧠 [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_6_how_dlt_works.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_6_how_dlt_works.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_6_how_dlt_works.ipynb)
 
 
@@ -41,17 +44,20 @@ def _(mo):
       - Load
     - Some default behaviors
     - Supported file formats
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **Introduction**
 
     The main building block of `dlt` is the **pipeline**, which orchestrates the loading of data from your source into your destination in three discrete steps when you call its **run** method.
-    """)
+    """
+    )
     return
 
 
@@ -65,10 +71,12 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **Understanding `pipeline.run()`**
      The `pipeline.run()` method executes the entire pipeline, encompassing the [`extract`](#scrollTo=4C0U1dnwZxAB), [`normalize`](#scrollTo=bCeUqaW_cRSh), and [`load`](#scrollTo=Rn6cUc0OcWsk) stages.
-    """)
+    """
+    )
     return
 
 
@@ -108,7 +116,8 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     This is what happens when the `run` method is executed:
 
     1. **Extract** - Fully extracts the data from your source to your hard drive. In the example above, an implicit source with one resource with 3 items is created and extracted.
@@ -130,13 +139,15 @@ def _(mo):
     * `log` — dumps progress information to a log, console, or text stream; most useful in production, and can optionally include memory and CPU usage stats.
 
     For more information read the [official documentation](https://dlthub.com/docs/general-usage/pipeline#display-the-loading-progress).
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **Extract**
 
     Extract can be run individually with the `extract` method on the pipeline:
@@ -144,7 +155,8 @@ def _(mo):
     ```python
     pipeline.extract(data)
     ```
-    """)
+    """
+    )
     return
 
 
@@ -156,7 +168,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     When the `pipeline.run()` method is executed, it first performs the `extract` stage, during which the following occurs:
 
     1. Data is fetched and stored in an in-memory buffer.
@@ -173,7 +186,8 @@ def _(mo):
     ```
 
     The **number** of intermediate **files** depends on the number of **resources** and whether **file rotation** is enabled.
-    """)
+    """
+    )
     return
 
 
@@ -185,17 +199,20 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     - The in-memory buffer is set to `5000` items.
     - By default, **intermediary files are not rotated**. If you do not explicitly set a size for an intermediary file with `file_max_items=100000`, `dlt` will create a **single file** for a resource, regardless of the number of records it contains, even if it reaches millions.
     - By default, intermediary files at the extract stage use a custom version of the JSONL format.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **Normalize**
 
     Normalize can be run individually with the `normalize` command on the pipeline. Normalize is dependent on having a completed extract phase and will not do anything if there is no extracted data.
@@ -203,7 +220,8 @@ def _(mo):
     ```py
     pipeline.normalize()
     ```
-    """)
+    """
+    )
     return
 
 
@@ -215,7 +233,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     In the `normalize` stage, `dlt` first transforms the structure of the input data. This transformed data is then converted into a relational structure that can be easily loaded into the destination. To be detailed, here's what happens during this stage:
 
     1. Intermediary files are sent from the `extract` stage to the `normalize` stage.
@@ -235,7 +254,8 @@ def _(mo):
 
 
     The **number** of intermediate **files** depends on the number of **resources** and whether **file rotation** is enabled.
-    """)
+    """
+    )
     return
 
 
@@ -247,16 +267,19 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     - The in-memory buffer is set to `5000`, just like at the extraction stage.
     - By default, **intermediary files are not rotated** as well. If you do not explicitly set a size for an intermediary file with `file_max_items=100000`, dlt will create a **single file** for a resource, regardless of the number of records it contains, even if it reaches millions.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **Load**
 
     Load can be run individually with the `load` command on the pipeline. Load is dependent on having a completed normalize phase and will not do anything if there is no normalized data.
@@ -264,7 +287,8 @@ def _(mo):
     ```py
     pipeline.load()
     ```
-    """)
+    """
+    )
     return
 
 
@@ -276,7 +300,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The `load` stage is responsible for taking the normalized data and loading it into your chosen destination:
 
     1. All intermediary files from a single source are combined into a single load package.
@@ -292,7 +317,8 @@ def _(mo):
                                         destination
 
     ```
-    """)
+    """
+    )
     return
 
 
@@ -330,7 +356,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **Definition**: JSON Delimited is a file format that stores several JSON documents in one file. The JSON documents are separated by a new line.
 
     **Compression:** enabled by default.
@@ -377,7 +404,8 @@ def _(mo):
       def generate_rows():
         ...
       ```
-    """)
+    """
+    )
     return
 
 
@@ -389,7 +417,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **Definition**: Apache Parquet is a free and open-source column-oriented data storage format in the Apache Hadoop ecosystem.
 
     **Prerequisite:** To use this format, you need a pyarrow package. You can get this package as a dlt extra as well:
@@ -490,7 +519,8 @@ def _(mo):
     - Set `timestamp_timezone` to an empty string (`DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate logical timestamps without UTC adjustment.
 
     By default, pyarrow converts timezone-aware DateTime objects to UTC and stores them in Parquet without timezone information.
-    """)
+    """
+    )
     return
 
 
@@ -502,7 +532,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **Supported by:**
 
     - PostgreSQL
@@ -579,7 +610,8 @@ def _(mo):
       NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
       NORMALIZE__DATA_WRITER__QUOTING=quote_all
       ```
-    """)
+    """
+    )
     return
 
 
@@ -591,7 +623,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     This file format contains an INSERT...VALUES statement to be executed on the destination during the `load` stage.
 
     Additional data types are stored as follows:
@@ -641,7 +674,8 @@ def _(mo):
       def generate_rows():
         ...
       ```
-    """)
+    """
+    )
     return
 
 
@@ -656,9 +690,9 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
-

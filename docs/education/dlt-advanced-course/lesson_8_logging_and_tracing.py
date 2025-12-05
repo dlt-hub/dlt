@@ -25,11 +25,13 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     In this notebook, we focus more on pipeline metadata, and how to use that to be able to trace and debug our pipelines.
 
     First, we create the pipeline we'll inspect throughout this notebook.
-    """)
+    """
+    )
     return
 
 
@@ -50,19 +52,34 @@ def _():
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
     import os
-    os.environ['SOURCES__SECRET_KEY'] = os.getenv('ACCESS_TOKEN')
+
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("ACCESS_TOKEN")
 
     @dlt.source
-    def github_source(secret_key: str=dlt.secrets.value) -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=secret_key), paginator=HeaderLinkPaginator())
+    def github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
+        client = RESTClient(
+            base_url="https://api.github.com",
+            auth=BearerTokenAuth(token=secret_key),
+            paginator=HeaderLinkPaginator(),
+        )
 
         @dlt.resource
-        def github_pulls(cursor_date: dlt.sources.incremental[str]=dlt.sources.incremental('updated_at', initial_value='2024-12-01')) -> TDataItems:
-            params = {'since': cursor_date.last_value, 'status': 'open'}
-            for page in client.paginate('repos/dlt-hub/dlt/pulls', params=params):
+        def github_pulls(
+            cursor_date: dlt.sources.incremental[str] = dlt.sources.incremental(
+                "updated_at", initial_value="2024-12-01"
+            )
+        ) -> TDataItems:
+            params = {"since": cursor_date.last_value, "status": "open"}
+            for page in client.paginate("repos/dlt-hub/dlt/pulls", params=params):
                 yield page
+
         return github_pulls
-    pipeline = dlt.pipeline(pipeline_name='github_pipeline', destination='duckdb', dataset_name='github_data')
+
+    pipeline = dlt.pipeline(
+        pipeline_name="github_pipeline",
+        destination="duckdb",
+        dataset_name="github_data",
+    )
     _load_info = pipeline.run(github_source())
     # define new dlt pipeline
     # run the pipeline with the new resource
@@ -106,25 +123,29 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     You can enable tracing through Sentry.
 
     ## What is `Sentry` 🤔
 
     `Sentry` is an open-source error tracking and performance monitoring tool that helps developers **identify**, **monitor**, and **fix issues** in real-time in their applications.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _():
     import sentry_sdk
+
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Sentry needs to be initialized in normal scripts
 
 
@@ -138,13 +159,15 @@ def _(mo):
         traces_sample_rate=1.0  # Adjust this for performance monitoring if needed
     )
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Say, you make an error and it is caught with Sentry:
 
 
@@ -156,7 +179,8 @@ def _(mo):
         sentry_sdk.capture_exception(e)
 
     ```
-    """)
+    """
+    )
     return
 
 
@@ -184,7 +208,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### In dlt, you can enable Sentry quite easily
 
     You can configure the `DSN` in the `config.toml`:
@@ -201,7 +226,8 @@ def _(mo):
     RUNTIME__SENTRY_DSN="https:///<...>"
     ```
     The entry client is configured after the first pipeline is created with `dlt.pipeline()`. Feel free to use `sentry_sdk` init again to cover your specific needs.
-    """)
+    """
+    )
     return
 
 
@@ -213,7 +239,7 @@ def _(mo):
 
 @app.cell
 def _(os):
-    os.environ['RUNTIME__SENTRY_DSN'] = os.getenv('SENTRY_TOKEN')
+    os.environ["RUNTIME__SENTRY_DSN"] = os.getenv("SENTRY_TOKEN")
     return
 
 
@@ -242,12 +268,14 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The message sent to Sentry is:
     ```
     Job for issues.a3f927c556.insert_values failed terminally in load 1723645286.6510239 with message Constraint Error: NOT NULL constraint failed: issues.id
     ```
-    """)
+    """
+    )
     return
 
 
@@ -259,11 +287,13 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     There are various environments where we would be completely lost without logs.
 
     Debugging any system would be incredibly hard if we didn't know what was going on, or at what point the program ran into an error.
-    """)
+    """
+    )
     return
 
 
@@ -275,7 +305,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     You can set log levels in your `config.toml` file:
 
 
@@ -294,7 +325,8 @@ def _(mo):
     **`CRITICAL` will disable logging.**
 
     **`DEBUG` should not be used in production.**
-    """)
+    """
+    )
     return
 
 
@@ -306,17 +338,19 @@ def _(mo):
 
 @app.cell
 def _(os):
-    os.environ['RUNTIME__LOG_LEVEL'] = 'INFO'
+    os.environ["RUNTIME__LOG_LEVEL"] = "INFO"
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     dlt logs to a logger named `dlt`.
 
     dlt logger uses a regular python logger so you can configure the handlers as per your requirement.
-    """)
+    """
+    )
     return
 
 
@@ -340,7 +374,11 @@ def _():
 
 @app.cell
 def _(dlt, github_source):
-    pipeline_1 = dlt.pipeline(pipeline_name='github_issues_merge_logger', destination='duckdb', dataset_name='github_data_merge')
+    pipeline_1 = dlt.pipeline(
+        pipeline_name="github_issues_merge_logger",
+        destination="duckdb",
+        dataset_name="github_data_merge",
+    )
     _load_info = pipeline_1.run(github_source())
     print(_load_info)
     return
@@ -360,7 +398,7 @@ def _(mo):
 
 @app.cell
 def _(os):
-    os.environ['RUNTIME__LOG_LEVEL'] = 'INFO'
+    os.environ["RUNTIME__LOG_LEVEL"] = "INFO"
     return
 
 
@@ -370,29 +408,44 @@ def _(Union, logging):
     from loguru import logger as loguru_logger
 
     class InterceptHandler(logging.Handler):
-
         @loguru_logger.catch(default=True, onerror=lambda _: sys.exit(1))
         def emit(self, record: logging.LogRecord) -> None:
-    # parent class logging.Handler processes log messages
+            # parent class logging.Handler processes log messages
             try:
-                level: Union[str, int] = loguru_logger.level(record.levelname).name  # decorator provided by loguru that catches any exceptions in the decorated function and logs them
+                level: Union[str, int] = loguru_logger.level(
+                    record.levelname
+                ).name  # decorator provided by loguru that catches any exceptions in the decorated function and logs them
             except ValueError:
                 level = record.levelno
-            (frame, depth) = (sys._getframe(6), 6)  # Get corresponding Loguru level if it exists.
+            (frame, depth) = (
+                sys._getframe(6),
+                6,
+            )  # Get corresponding Loguru level if it exists.
             while frame and frame.f_code.co_filename == logging.__file__:
                 frame = frame.f_back
                 depth = depth + 1
-            loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
-    logger_dlt = logging.getLogger('dlt')
-    logger_dlt.addHandler(InterceptHandler())  # Find caller (call frame) from where originated the logged message.
+            loguru_logger.opt(depth=depth, exception=record.exc_info).log(
+                level, record.getMessage()
+            )
+
+    logger_dlt = logging.getLogger("dlt")
+    logger_dlt.addHandler(
+        InterceptHandler()
+    )  # Find caller (call frame) from where originated the logged message.
     # all logs will be written to dlt_loguru.log
-    loguru_logger.add('dlt_loguru.log')  # logs the message using loguru, with the level, exception information, and depth
+    loguru_logger.add(
+        "dlt_loguru.log"
+    )  # logs the message using loguru, with the level, exception information, and depth
     return
 
 
 @app.cell
 def _(dlt, github_source):
-    pipeline_2 = dlt.pipeline(pipeline_name='github_issues_merge_loguru', destination='duckdb', dataset_name='github_data_merge')
+    pipeline_2 = dlt.pipeline(
+        pipeline_name="github_issues_merge_loguru",
+        destination="duckdb",
+        dataset_name="github_data_merge",
+    )
     _load_info = pipeline_2.run(github_source())
     print(_load_info)
     return
@@ -406,8 +459,13 @@ def _(mo):
 
 @app.cell
 def _(dlt, github_source, os):
-    os.environ['RUNTIME__LOG_LEVEL'] = 'WARNING'
-    pipeline_3 = dlt.pipeline(pipeline_name='github_issues_progress', destination='duckdb', dataset_name='github_data_merge', progress='log')
+    os.environ["RUNTIME__LOG_LEVEL"] = "WARNING"
+    pipeline_3 = dlt.pipeline(
+        pipeline_name="github_issues_progress",
+        destination="duckdb",
+        dataset_name="github_data_merge",
+        progress="log",
+    )
     _load_info = pipeline_3.run(github_source())
     print(_load_info)
     return
@@ -424,9 +482,9 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
-

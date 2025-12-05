@@ -17,11 +17,13 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # Building custom sources using SQL Databases [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb)
 
     This lesson covers building flexible and powerful custom sources using the `sql_database` verified source.
-    """)
+    """
+    )
     return
 
 
@@ -35,13 +37,15 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## What you will learn
 
     - How to build a custom pipeline using SQL sources
     - How to use `query_adapter_callback`, `table_adapter_callback`, and `type_adapter_callback`
     - How to load only new data with incremental loading
-    """)
+    """
+    )
     return
 
 
@@ -64,8 +68,17 @@ def _():
     from typing import Any
     from dlt.sources.sql_database import sql_database
     import dlt
-    _source = sql_database('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam', table_names=['family'])
-    pipeline = dlt.pipeline(pipeline_name='sql_database_example', destination='duckdb', dataset_name='sql_data', dev_mode=True)
+
+    _source = sql_database(
+        "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",
+        table_names=["family"],
+    )
+    pipeline = dlt.pipeline(
+        pipeline_name="sql_database_example",
+        destination="duckdb",
+        dataset_name="sql_data",
+        dev_mode=True,
+    )
     load_info = pipeline.run(_source)
     print(load_info)
     return Any, dlt, pipeline, sql_database
@@ -85,11 +98,13 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Step 2: Customize SQL queries with `query_adapter_callback`
 
     You can fully rewrite or modify the SQL SELECT statement per table.
-    """)
+    """
+    )
     return
 
 
@@ -104,9 +119,9 @@ def _():
     from sqlalchemy import text
     from dlt.sources.sql_database.helpers import SelectClause, Table
 
-
     def query_adapter_callback(query: SelectClause, table: Table) -> SelectClause:
         return text(f"SELECT * FROM {table.fullname} WHERE rfam_id like '%bacteria%'")
+
     return Table, query_adapter_callback
 
 
@@ -144,7 +159,7 @@ def _(mo):
 
 @app.cell
 def _(filtered_resource, pipeline):
-    _info = pipeline.run(filtered_resource, table_name='bacteria')
+    _info = pipeline.run(filtered_resource, table_name="bacteria")
     print(_info)
     return
 
@@ -163,23 +178,27 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **Question 1**:
 
     How many rows are present in the `bacteria` table?
 
     >Answer this question and select the correct option in the homework Quiz.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Step 3: Modify table schema with `table_adapter_callback`
 
     Add columns, change types, or transform schema using this hook.
-    """)
+    """
+    )
     return
 
 
@@ -193,13 +212,13 @@ def _(mo):
 def _(Any, Table):
     import sqlalchemy as sa
 
-
     def add_max_timestamp(table: Table) -> Any:
         max_ts = sa.func.greatest(table.columns.created, table.columns.updated).label(
             "max_timestamp"
         )
         subq = sa.select(*table.columns, max_ts).subquery()
         return subq
+
     return add_max_timestamp, sa
 
 
@@ -212,8 +231,13 @@ def _(mo):
 @app.cell
 def _(add_max_timestamp, dlt, pipeline):
     from dlt.sources.sql_database import sql_table
-    table = sql_table(table='family', table_adapter_callback=add_max_timestamp, incremental=dlt.sources.incremental('max_timestamp'))
-    _info = pipeline.run(table, table_name='family_with_max_timestamp')
+
+    table = sql_table(
+        table="family",
+        table_adapter_callback=add_max_timestamp,
+        incremental=dlt.sources.incremental("max_timestamp"),
+    )
+    _info = pipeline.run(table, table_name="family_with_max_timestamp")
     print(_info)
     return
 
@@ -232,34 +256,38 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Step 4: Adapt column data types with `type_adapter_callback`
 
     When the default types don’t match what you want in the destination, you can remap them.
 
     Let's look at the schema that has already been loaded:
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(pipeline):
-    schema = pipeline.default_schema.to_dict()['tables']['family']['columns']
+    schema = pipeline.default_schema.to_dict()["tables"]["family"]["columns"]
     for _column in schema:
-        print(schema[_column]['name'], ':', schema[_column]['data_type'])
+        print(schema[_column]["name"], ":", schema[_column]["data_type"])
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Lets change `hmm_lambda` from decimal to float.
 
     💡 Quick fyi: The `float` data type is:
     - Fast and uses less space
     - But it's approximate — you may get 0.30000000000000004 instead of 0.3
     - Bad for money, great for probabilities, large numeric ranges, scientific values
-    """)
+    """
+    )
     return
 
 
@@ -277,6 +305,7 @@ def _(Any, sa):
         if isinstance(sql_type, sa.Numeric):
             return Float
         return sql_type
+
     return (type_adapter_callback,)
 
 
@@ -288,8 +317,10 @@ def _(mo):
 
 @app.cell
 def _(pipeline, sql_database, type_adapter_callback):
-    new_source = sql_database(type_adapter_callback=type_adapter_callback, table_names=['family'])
-    _info = pipeline.run(new_source, table_name='type_changed_family')
+    new_source = sql_database(
+        type_adapter_callback=type_adapter_callback, table_names=["family"]
+    )
+    _info = pipeline.run(new_source, table_name="type_changed_family")
     print(_info)
     return
 
@@ -302,51 +333,75 @@ def _(mo):
 
 @app.cell
 def _(pipeline):
-    schema1 = pipeline.default_schema.to_dict()['tables']['family']['columns']
-    schema2 = pipeline.default_schema.to_dict()['tables']['type_changed_family']['columns']
-    _column = 'trusted_cutoff'
-    print("For table 'family':", schema1[_column]['name'], ':', schema1[_column]['data_type'])
-    print("For table 'type_changed_family':", schema2[_column]['name'], ':', schema2[_column]['data_type'])
+    schema1 = pipeline.default_schema.to_dict()["tables"]["family"]["columns"]
+    schema2 = pipeline.default_schema.to_dict()["tables"]["type_changed_family"][
+        "columns"
+    ]
+    _column = "trusted_cutoff"
+    print(
+        "For table 'family':",
+        schema1[_column]["name"],
+        ":",
+        schema1[_column]["data_type"],
+    )
+    print(
+        "For table 'type_changed_family':",
+        schema2[_column]["name"],
+        ":",
+        schema2[_column]["data_type"],
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **Question 2**:
 
     How many columns had their type changed in the `type_changed_family` table?
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Step 5: Incremental loads with `sql_database`
     Track only new rows using a timestamp or ID column.
 
     We'll also be looking at where these incremental values are stored.
 
     Hint: they are stored in the [dlt state](https://dlthub.com/docs/general-usage/state).
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _():
     import json
-    with open('/var/dlt/pipelines/sql_database_example/state.json', 'r', encoding='utf-8') as _f:
+
+    with open(
+        "/var/dlt/pipelines/sql_database_example/state.json", "r", encoding="utf-8"
+    ) as _f:
         _data = json.load(_f)
-    _data['sources']['sql_database']['resources']['family']['incremental'].keys()
+    _data["sources"]["sql_database"]["resources"]["family"]["incremental"].keys()
     return (json,)
 
 
 @app.cell
 def _(dlt, pipeline, sql_database):
     import pendulum
-    _source = sql_database(table_names=['family'])
-    _source.family.apply_hints(incremental=dlt.sources.incremental('updated', initial_value=pendulum.datetime(2024, 1, 1)))
+
+    _source = sql_database(table_names=["family"])
+    _source.family.apply_hints(
+        incremental=dlt.sources.incremental(
+            "updated", initial_value=pendulum.datetime(2024, 1, 1)
+        )
+    )
     _info = pipeline.run(_source)
     print(_info)
     return
@@ -354,9 +409,11 @@ def _(dlt, pipeline, sql_database):
 
 @app.cell
 def _(json):
-    with open('/var/dlt/pipelines/sql_database_example/state.json', 'r', encoding='utf-8') as _f:
+    with open(
+        "/var/dlt/pipelines/sql_database_example/state.json", "r", encoding="utf-8"
+    ) as _f:
         _data = json.load(_f)
-    _data['sources']['sql_database']['resources']['family']['incremental'].keys()
+    _data["sources"]["sql_database"]["resources"]["family"]["incremental"].keys()
     return
 
 
@@ -368,10 +425,14 @@ def _(mo):
 
 @app.cell
 def _(dlt, sql_database):
-    _source = sql_database(table_names=['family'])
-    for (_resource_name, resource) in _source.resources.items():
-        resource.apply_hints(table_name=f'xxxx__{resource.name}')
-    pipeline_1 = dlt.pipeline(pipeline_name='sql_db_prefixed_tables', destination='duckdb', dataset_name='renamed_tables')
+    _source = sql_database(table_names=["family"])
+    for _resource_name, resource in _source.resources.items():
+        resource.apply_hints(table_name=f"xxxx__{resource.name}")
+    pipeline_1 = dlt.pipeline(
+        pipeline_name="sql_db_prefixed_tables",
+        destination="duckdb",
+        dataset_name="renamed_tables",
+    )
     print(pipeline_1.run(_source))
     pipeline_1.dataset().row_counts().df()
     return
@@ -388,9 +449,9 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
-

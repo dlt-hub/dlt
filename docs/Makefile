@@ -47,4 +47,4 @@ build-molabs: format
 	uv run black education/*/*.ipynb --ipynb 
 	# Prepare ipynb files
 	uv run python docs_tools/education/preprocess_to_marimo.py
-	#uv run black education/*/*.py
+	uv run black education/*/*.py

@@ -29,7 +29,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **Recap**
 
     In the **[dlt Fundamentals](https://github.com/dlt-hub/dlthub-education/tree/main/courses/dlt_fundamentals_dec_2024)** course, we learned two primary ways to build sources for REST APIs:
@@ -38,20 +39,23 @@ def _(mo):
     2. **Using the built-in [`rest_api` source](https://dlthub.com/docs/devel/dlt-ecosystem/verified-sources/rest_api/basic)** with declarative configuration.
 
     ---
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **1. Building sources with low-level dlt decorators**
 
     We constructed a custom source for the **GitHub API** using the `RESTClient` class, decorators like `@dlt.resource` and `@dlt.source`, and manual pagination handling.
 
 
     #### **Example**
-    """)
+    """
+    )
     return
 
 
@@ -66,23 +70,35 @@ def _():
     from dlt.sources.helpers.rest_client import RESTClient
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
-    os.environ['ACCESS_TOKEN'] = os.getenv('ACCESS_TOKEN')
+
+    os.environ["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
 
     @dlt.source
-    def github_source(access_token: str=dlt.secrets.value) -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=access_token), paginator=HeaderLinkPaginator())
+    def github_source(access_token: str = dlt.secrets.value) -> Iterable[DltResource]:
+        client = RESTClient(
+            base_url="https://api.github.com",
+            auth=BearerTokenAuth(token=access_token),
+            paginator=HeaderLinkPaginator(),
+        )
 
         @dlt.resource
         def github_events() -> Iterator[TDataItems]:
-            for page in client.paginate('orgs/dlt-hub/events'):
+            for page in client.paginate("orgs/dlt-hub/events"):
                 yield page
 
         @dlt.resource
         def github_stargazers() -> Iterator[TDataItems]:
-            for page in client.paginate('repos/dlt-hub/dlt/stargazers'):
+            for page in client.paginate("repos/dlt-hub/dlt/stargazers"):
                 yield page
+
         return (github_events, github_stargazers)
-    pipeline = dlt.pipeline(pipeline_name='rest_client_github', destination='duckdb', dataset_name='rest_client_data', dev_mode=True)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_client_github",
+        destination="duckdb",
+        dataset_name="rest_client_data",
+        dev_mode=True,
+    )
     _load_info = pipeline.run(github_source())
     print(_load_info)
     return (
@@ -101,7 +117,8 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
 
     ### **2. Building sources with `rest_api` source**
@@ -110,16 +127,55 @@ def _(mo):
 
 
     #### **Example**
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt):
     from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
-    config: RESTAPIConfig = {'client': {'base_url': 'https://api.github.com', 'auth': {'token': dlt.secrets['access_token']}, 'paginator': 'header_link'}, 'resources': [{'name': 'issues', 'endpoint': {'path': 'repos/dlt-hub/dlt/issues', 'params': {'state': 'open'}}}, {'name': 'issue_comments', 'endpoint': {'path': 'repos/dlt-hub/dlt/issues/{issue_number}/comments', 'params': {'issue_number': {'type': 'resolve', 'resource': 'issues', 'field': 'number'}}}}, {'name': 'contributors', 'endpoint': {'path': 'repos/dlt-hub/dlt/contributors'}}]}
+
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.github.com",
+            "auth": {"token": dlt.secrets["access_token"]},
+            "paginator": "header_link",
+        },
+        "resources": [
+            {
+                "name": "issues",
+                "endpoint": {
+                    "path": "repos/dlt-hub/dlt/issues",
+                    "params": {"state": "open"},
+                },
+            },
+            {
+                "name": "issue_comments",
+                "endpoint": {
+                    "path": "repos/dlt-hub/dlt/issues/{issue_number}/comments",
+                    "params": {
+                        "issue_number": {
+                            "type": "resolve",
+                            "resource": "issues",
+                            "field": "number",
+                        }
+                    },
+                },
+            },
+            {
+                "name": "contributors",
+                "endpoint": {"path": "repos/dlt-hub/dlt/contributors"},
+            },
+        ],
+    }
     git_source = rest_api_source(config)
-    rest_api_pipeline = dlt.pipeline(pipeline_name='rest_api_github', destination='duckdb', dataset_name='rest_api_data', dev_mode=True)
+    rest_api_pipeline = dlt.pipeline(
+        pipeline_name="rest_api_github",
+        destination="duckdb",
+        dataset_name="rest_api_data",
+        dev_mode=True,
+    )
     _load_info = rest_api_pipeline.run(git_source)
     print(_load_info)
     return RESTAPIConfig, rest_api_source
@@ -127,17 +183,20 @@ def _(dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **REST API Client by `dlt`**
 
     `dlt`’s REST API Client is the low level abstraction that powers the REST API Source. You can use it in your imperative code for more automation and brevity, if you do not wish to use the higher level declarative interface.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     If you don't like black boxes and prefer lower-level building blocks, then our `RESTClient` is perfect for you!
 
     The `RESTClient` class offers a Pythonic interface for interacting with RESTful APIs, including features like:
@@ -154,7 +213,8 @@ def _(mo):
     - How to run the pipeline and inspect the data
 
     For more information, read `dlt`'s official documentation for the [REST API Client](https://dlthub.com/devel/general-usage/http/rest-client).
-    """)
+    """
+    )
     return
 
 
@@ -167,15 +227,23 @@ def _(mo):
 @app.cell
 def _(BearerTokenAuth, HeaderLinkPaginator, RESTClient, dlt, os):
     from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-    os.environ['ACCESS_TOKEN'] = os.getenv('ACCESS_TOKEN')
-    client = RESTClient(base_url='https://api.github.com', headers={'User-Agent': 'MyApp/1.0'}, auth=BearerTokenAuth(dlt.secrets['access_token']), paginator=HeaderLinkPaginator(), data_selector='data')
-    client.get('repos/dlt-hub/dlt/issues').json()  # session=MyCustomSession()
+
+    os.environ["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
+    client = RESTClient(
+        base_url="https://api.github.com",
+        headers={"User-Agent": "MyApp/1.0"},
+        auth=BearerTokenAuth(dlt.secrets["access_token"]),
+        paginator=HeaderLinkPaginator(),
+        data_selector="data",
+    )
+    client.get("repos/dlt-hub/dlt/issues").json()  # session=MyCustomSession()
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The `RESTClient` class is initialized with the following parameters:
 
     - `base_url`: The root URL of the API. All requests will be made relative to this URL.
@@ -184,13 +252,15 @@ def _(mo):
     - `paginator`: A paginator instance for handling paginated responses. See the [Paginators](https://dlthub.com/docs/general-usage/http/rest-client#paginators) section below.
     - `data_selector`: A [JSONPath selector](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for extracting data from the responses. This defines a way to extract the data from the response JSON. Only used when paginating.
     - `session`: An optional session for making requests. This should be a [Requests session](https://requests.readthedocs.io/en/latest/api/#requests.Session) instance that can be used to set up custom request behavior for the client.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **2. Add authentication**
 
     The RESTClient supports various authentication strategies, such as bearer tokens, API keys, and HTTP basic auth, configured through the `auth` parameter of both the `RESTClient` and the `paginate()` method.
@@ -204,7 +274,8 @@ def _(mo):
 
     For specific use cases, you can [implement custom authentication](https://dlthub.com/docs/devel/general-usage/http/rest-client#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the [`dlt.sources.helpers.rest_client.auth`](https://github.com/dlt-hub/dlt/blob/devel/dlt/sources/helpers/rest_client/auth.py) module.
     For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](https://dlthub.com/docs/devel/general-usage/http/rest-client#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
-    """)
+    """
+    )
     return
 
 
@@ -218,7 +289,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### 📰 **NewsAPI overview**
 
     - **Base URL:** `https://newsapi.org/v2/`
@@ -239,13 +311,15 @@ def _(mo):
     ```http
     GET /v2/everything?q=python&page=1&apiKey=YOUR_API_KEY
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **Prerequisites:**
 
     To securely access the NewsAPI in your dlt project:
@@ -287,16 +361,21 @@ def _(mo):
       ```
       https://newsapi.org/v2/everything?q=python&apiKey=your_key
       ```
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(RESTClient, os):
     from dlt.sources.helpers.rest_client.auth import APIKeyAuth
-    api_key = os.getenv('NEWS_API_KEY')
-    news_api_client = RESTClient(base_url='https://newsapi.org/v2/', auth=APIKeyAuth(name='apiKey', api_key=api_key, location='query'))
-    response = news_api_client.get('everything', params={'q': 'python', 'page': 1})
+
+    api_key = os.getenv("NEWS_API_KEY")
+    news_api_client = RESTClient(
+        base_url="https://newsapi.org/v2/",
+        auth=APIKeyAuth(name="apiKey", api_key=api_key, location="query"),
+    )
+    response = news_api_client.get("everything", params={"q": "python", "page": 1})
     print(response.json())
     return APIKeyAuth, news_api_client
 
@@ -311,7 +390,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **3. Add pagination**
 
     The `RESTClient` supports automatic pagination of API responses via the `paginate()` method, which can be customized using a built-in or custom paginator.
@@ -334,13 +414,15 @@ def _(mo):
 
 
     > If a `paginator` is not specified, the `paginate()` method will attempt to **automatically detect** the pagination mechanism used by the API. If the API uses a standard pagination mechanism like having a `next` link in the response's headers or JSON body, the `paginate()` method will handle this automatically. Otherwise, you can specify a paginator object explicitly or implement a custom paginator.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **PageData**
 
     When using `client.paginate(...)` in dlt, you don’t just get a stream of data — each **page** returned is a rich object called `PageData`, and it gives you full access to the internals of the request, response, and pagination state.
@@ -356,7 +438,8 @@ def _(mo):
     - `auth`: The authentication object used for the request.
 
     Let’s walk through an example.
-    """)
+    """
+    )
     return
 
 
@@ -387,7 +470,8 @@ def _(news_api_client):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **Log Warning explained**
 
     ```
@@ -399,13 +483,15 @@ def _(mo):
     - dlt tried to guess the pagination method but failed
     - It will make only **one request**
     - You won’t get multiple pages of data unless you configure a paginator explicitly
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **Question 1:**
 
 
@@ -413,13 +499,15 @@ def _(mo):
 
 
     >Answer this question and select the correct option in the homework Google Form.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **How we chose the right paginator for NewsAPI**
 
     When using `RESTClient` to extract data from paginated APIs, one of the first decisions you must make is:
@@ -472,28 +560,46 @@ def _(mo):
     **Step 3: Choose `PageNumberPaginator`**
 
     This is exactly what `PageNumberPaginator` is made for:
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(APIKeyAuth, RESTClient, os):
     from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
-    api_key_1 = os.getenv('NEWS_API_KEY')
-    another_client = RESTClient(base_url='https://newsapi.org/v2/', auth=APIKeyAuth(name='apiKey', api_key=api_key_1, location='query'), paginator=PageNumberPaginator(base_page=1, page_param='page', total_path=None, stop_after_empty_page=True, maximum_page=4))
-    for page in another_client.paginate('everything', params={'q': 'python', 'pageSize': 5, 'language': 'en'}):
+
+    api_key_1 = os.getenv("NEWS_API_KEY")
+    another_client = RESTClient(
+        base_url="https://newsapi.org/v2/",
+        auth=APIKeyAuth(name="apiKey", api_key=api_key_1, location="query"),
+        paginator=PageNumberPaginator(
+            base_page=1,
+            page_param="page",
+            total_path=None,
+            stop_after_empty_page=True,
+            maximum_page=4,
+        ),
+    )
+    for page in another_client.paginate(
+        "everything", params={"q": "python", "pageSize": 5, "language": "en"}
+    ):
         for article in page:
-            print(article['title'])  # NewsAPI starts paging from 1  # Matches the API spec  # Set it to None explicitly  # Stop if no articles returned  # Optional limit for dev/testing
+            print(
+                article["title"]
+            )  # NewsAPI starts paging from 1  # Matches the API spec  # Set it to None explicitly  # Stop if no articles returned  # Optional limit for dev/testing
     return PageNumberPaginator, api_key_1
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **4. Wrap into a dlt Resource**
 
     Let’s turn this into a dlt pipeline resource:
-    """)
+    """
+    )
     return
 
 
@@ -507,13 +613,26 @@ def _(
     dlt,
     os,
 ):
-    os.environ['NEWS_API_KEY'] = os.getenv('NEWS_API_KEY')
+    os.environ["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
 
-    @dlt.resource(write_disposition='replace', name='python_articles')
-    def get_articles(news_api_key: str=dlt.secrets.value) -> Iterator[TDataItems]:
-        client = RESTClient(base_url='https://newsapi.org/v2/', auth=APIKeyAuth(name='apiKey', api_key=news_api_key, location='query'), paginator=PageNumberPaginator(base_page=1, page_param='page', total_path=None, stop_after_empty_page=True, maximum_page=4))
-        for page in client.paginate('everything', params={'q': 'python', 'pageSize': 5, 'language': 'en'}):
+    @dlt.resource(write_disposition="replace", name="python_articles")
+    def get_articles(news_api_key: str = dlt.secrets.value) -> Iterator[TDataItems]:
+        client = RESTClient(
+            base_url="https://newsapi.org/v2/",
+            auth=APIKeyAuth(name="apiKey", api_key=news_api_key, location="query"),
+            paginator=PageNumberPaginator(
+                base_page=1,
+                page_param="page",
+                total_path=None,
+                stop_after_empty_page=True,
+                maximum_page=4,
+            ),
+        )
+        for page in client.paginate(
+            "everything", params={"q": "python", "pageSize": 5, "language": "en"}
+        ):
             yield page
+
     return (get_articles,)
 
 
@@ -534,23 +653,38 @@ def _(
     dlt,
     os,
 ):
-    os.environ['NEWS_API_KEY'] = os.getenv('NEWS_API_KEY')
+    os.environ["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
 
-    @dlt.resource(write_disposition='replace', name='top_articles')
-    def get_top_articles(news_api_key: str=dlt.secrets.value) -> Iterator[TDataItems]:
-        client = RESTClient(base_url='https://newsapi.org/v2/', auth=APIKeyAuth(name='apiKey', api_key=api_key_1, location='query'), paginator=PageNumberPaginator(base_page=1, page_param='page', total_path=None, stop_after_empty_page=True, maximum_page=4))
-        for page in client.paginate('top-headlines', params={'pageSize': 5, 'language': 'en'}):
+    @dlt.resource(write_disposition="replace", name="top_articles")
+    def get_top_articles(news_api_key: str = dlt.secrets.value) -> Iterator[TDataItems]:
+        client = RESTClient(
+            base_url="https://newsapi.org/v2/",
+            auth=APIKeyAuth(name="apiKey", api_key=api_key_1, location="query"),
+            paginator=PageNumberPaginator(
+                base_page=1,
+                page_param="page",
+                total_path=None,
+                stop_after_empty_page=True,
+                maximum_page=4,
+            ),
+        )
+        for page in client.paginate(
+            "top-headlines", params={"pageSize": 5, "language": "en"}
+        ):
             yield page
+
     return (get_top_articles,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **6. Create a reusable Source**
 
     Now bundle both resources into a single `@dlt.source`:
-    """)
+    """
+    )
     return
 
 
@@ -559,6 +693,7 @@ def _(DltResource, Iterable, dlt, get_articles, get_top_articles):
     @dlt.source
     def newsapi_source(news_api_key: str = dlt.secrets.value) -> Iterable[DltResource]:
         return [get_articles(news_api_key), get_top_articles(news_api_key)]
+
     return (newsapi_source,)
 
 
@@ -570,7 +705,9 @@ def _(mo):
 
 @app.cell
 def _(dlt, newsapi_source):
-    pipeline_1 = dlt.pipeline(pipeline_name='newsapi_pipeline', destination='duckdb', dataset_name='news_data')
+    pipeline_1 = dlt.pipeline(
+        pipeline_name="newsapi_pipeline", destination="duckdb", dataset_name="news_data"
+    )
     info = pipeline_1.run(newsapi_source())
     print(info)
     return (pipeline_1,)
@@ -596,7 +733,8 @@ def _(pipeline_1):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **Create custom source using `dlt` and [`rest_api` source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic)**
 
     `rest_api` is a generic source that you can use to create a `dlt` source from a REST API using a declarative configuration. The majority of REST APIs behave in a similar way; this `dlt` source attempts to provide a declarative way to define a `dlt` source for those APIs.
@@ -613,13 +751,15 @@ def _(mo):
     dlt will take care of the rest: **unnesting the data, inferring the schema**, etc., and **writing to the destination**
 
     In the previous section, you've already learned about the Rest API Client. `dlt`’s **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client)** is the **low level abstraction** that powers the REST API Source.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **What you’ll learn**
 
     This section will teach you how to create a reusable, authenticated, and paginated pipeline using the `rest_api_source` module in dlt. Our example will use the [NewsAPI](https://newsapi.org), which provides access to thousands of news articles via a REST API.
@@ -630,13 +770,15 @@ def _(mo):
     - Configuring pagination
     - Building a working `dlt` pipeline
     - Inspecting and transforming the response
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## Reminder: **About NewsAPI**
 
     - **Base URL:** `https://newsapi.org/v2/`
@@ -652,23 +794,27 @@ def _(mo):
     To access the API, register for a **free account** at [newsapi.org](https://newsapi.org/register) and copy your personal API key.
 
     Add this key to your Colab secrets.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **1. Define the source configuration**
 
     We'll now build the complete configuration step-by-step. This gives you control over authentication, pagination, filters, and even incremental loading.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **RESTAPIConfig**
 
     The central object when working with the `rest_api_source` is the `RESTAPIConfig`. This is a declarative Python dictionary that tells dlt everything it needs to know about the API you are connecting to.
@@ -708,13 +854,15 @@ def _(mo):
     # Run it
     load_info = pipeline.run(news_source)
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     You can start with just these fields and then add pagination, schema hints, transformations, and more as needed.
 
     To extract data from a REST API using `dlt`, we define a configuration dictionary that follows the `RESTAPIConfig` structure.
@@ -725,26 +873,30 @@ def _(mo):
     - how to paginate, filter, and process responses
 
     At a high level, the configuration has two required keys:
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **`client`**
     This defines the shared connection details for all requests:
     - `base_url`: The root URL for the API
     - `auth`: (Optional) Authentication method to use — such as API key or token
     - `headers`: (Optional) Custom headers for requests
     - `paginator`: (Optional) Default paginator for all resources
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### **`resources`**
     A list of resource definitions. Each resource becomes a table in your destination.
     A resource includes:
@@ -757,15 +909,26 @@ def _(mo):
     - `response_actions`: Optional hooks to inspect or alter the HTTP response
 
     Let’s build a real-world configuration step-by-step using NewsAPI.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(RESTAPIConfig, dlt, rest_api_source):
-    _news_config: RESTAPIConfig = {'client': {'base_url': 'https://newsapi.org/v2/'}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'params': {'q': 'python'}}}]}
+    _news_config: RESTAPIConfig = {
+        "client": {"base_url": "https://newsapi.org/v2/"},
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {"path": "everything", "params": {"q": "python"}},
+            }
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_2 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_2 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_2.run(_news_source)
     print(pipeline_2.last_trace)
     return
@@ -773,19 +936,22 @@ def _(RESTAPIConfig, dlt, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Question 2:
 
     What error was thrown in the example above?
 
     >Answer this question and select the correct option in the homework Google Form.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **2. Add authentication**
 
     NewsAPI requires an API key to be sent with every request. We use dlt's built-in `api_key` authentication method, which places the key into the query string automatically:
@@ -803,16 +969,35 @@ def _(mo):
 
 
     The available authentication methods you can find in [dlt documentation](https://dlthub.com/docs/general-usage/http/rest-client#authentication).
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, os, rest_api_source):
-    api_key_2 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_2, 'location': 'query'}}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'params': {'q': 'python'}}}]}
+    api_key_2 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_2,
+                "location": "query",
+            },
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {"path": "everything", "params": {"q": "python"}},
+            }
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    another_pipeline = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    another_pipeline = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     another_pipeline.run(_news_source)
     print(another_pipeline.last_trace)
     return
@@ -820,7 +1005,8 @@ def _(dlt, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **3. Add pagination**
 
     The REST API source will try to automatically handle pagination for you. This works by detecting the pagination details from the first API response. Unfortunately, it doesn't work for NewsAPI.
@@ -839,16 +1025,42 @@ def _(mo):
     ```
 
     This will fetch up to 3 pages of results, stopping early if a page is empty.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, os, rest_api_source):
-    api_key_3 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_3, 'location': 'query'}, 'paginator': {'base_page': 1, 'type': 'page_number', 'page_param': 'page', 'total_path': None, 'maximum_page': 3}}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'params': {'q': 'python'}}}]}
+    api_key_3 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_3,
+                "location": "query",
+            },
+            "paginator": {
+                "base_page": 1,
+                "type": "page_number",
+                "page_param": "page",
+                "total_path": None,
+                "maximum_page": 3,
+            },
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {"path": "everything", "params": {"q": "python"}},
+            }
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_3 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_3 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_3.run(_news_source)
     print(pipeline_3.last_trace)
     return (pipeline_3,)
@@ -862,7 +1074,8 @@ def _(pipeline_3):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **4. Add order, filtering via params**
     We can filter articles using query parameters supported by NewsAPI:
 
@@ -877,16 +1090,45 @@ def _(mo):
     - `q`: search keyword (e.g. "python")
     - `language`: filter by article language
     - `pageSize`: number of articles per page (max 100)
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, os, rest_api_source):
-    api_key_4 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_4, 'location': 'query'}, 'paginator': {'base_page': 1, 'type': 'page_number', 'page_param': 'page', 'total_path': None, 'maximum_page': 3}}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'params': {'q': 'python', 'language': 'en', 'pageSize': 20}}}]}
+    api_key_4 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_4,
+                "location": "query",
+            },
+            "paginator": {
+                "base_page": 1,
+                "type": "page_number",
+                "page_param": "page",
+                "total_path": None,
+                "maximum_page": 3,
+            },
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {
+                    "path": "everything",
+                    "params": {"q": "python", "language": "en", "pageSize": 20},
+                },
+            }
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_4 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_4 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_4.run(_news_source)
     print(pipeline_4.last_trace)
     return
@@ -894,7 +1136,8 @@ def _(dlt, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ## **5. Incremental loading**
 
     Although NewsAPI does not support true incremental loading via cursors, you can simulate it using the `from` or `to` date filters and dlt's `incremental` loader:
@@ -912,16 +1155,54 @@ def _(mo):
     - On the next run, it will only request articles newer than that
 
     This is optional and depends on your usage pattern.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, os, rest_api_source):
-    api_key_5 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_5, 'location': 'query'}, 'paginator': {'base_page': 1, 'type': 'page_number', 'page_param': 'page', 'total_path': None, 'maximum_page': 3}}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'params': {'q': 'python', 'language': 'en', 'pageSize': 20, 'from': {'type': 'incremental', 'cursor_path': 'publishedAt', 'initial_value': '2025-04-15T00:00:00Z'}}}}]}
+    api_key_5 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_5,
+                "location": "query",
+            },
+            "paginator": {
+                "base_page": 1,
+                "type": "page_number",
+                "page_param": "page",
+                "total_path": None,
+                "maximum_page": 3,
+            },
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {
+                    "path": "everything",
+                    "params": {
+                        "q": "python",
+                        "language": "en",
+                        "pageSize": 20,
+                        "from": {
+                            "type": "incremental",
+                            "cursor_path": "publishedAt",
+                            "initial_value": "2025-04-15T00:00:00Z",
+                        },
+                    },
+                },
+            }
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_5 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_5 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_5.run(_news_source)
     print(pipeline_5.last_trace)
     pipeline_5.run(_news_source)
@@ -937,7 +1218,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Set defaults
 
     First, set some defaults for all endpoints:
@@ -953,16 +1235,56 @@ def _(mo):
         },
     },
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, os, rest_api_source):
-    api_key_6 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_6, 'location': 'query'}, 'paginator': {'base_page': 1, 'type': 'page_number', 'page_param': 'page', 'total_path': None, 'maximum_page': 3}}, 'resource_defaults': {'write_disposition': 'append', 'endpoint': {'params': {'language': 'en', 'pageSize': 20}}}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'params': {'q': 'python', 'from': {'type': 'incremental', 'cursor_path': 'publishedAt', 'initial_value': '2025-04-15T00:00:00Z'}}}}]}
+    api_key_6 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_6,
+                "location": "query",
+            },
+            "paginator": {
+                "base_page": 1,
+                "type": "page_number",
+                "page_param": "page",
+                "total_path": None,
+                "maximum_page": 3,
+            },
+        },
+        "resource_defaults": {
+            "write_disposition": "append",
+            "endpoint": {"params": {"language": "en", "pageSize": 20}},
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {
+                    "path": "everything",
+                    "params": {
+                        "q": "python",
+                        "from": {
+                            "type": "incremental",
+                            "cursor_path": "publishedAt",
+                            "initial_value": "2025-04-15T00:00:00Z",
+                        },
+                    },
+                },
+            }
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_6 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_6 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_6.run(_news_source)
     print(pipeline_6.last_trace)
     pipeline_6.run(_news_source)
@@ -972,17 +1294,20 @@ def _(dlt, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     `resource_defaults` contains the default values to configure the dlt resources returned by this source.
 
     `resources` object contains the configuration for each resource.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Add same level endpoint
 
     To load additional endpoints like `/top-headlines` or `/sources`, you can simply add more entries to the `resources` list:
@@ -999,16 +1324,60 @@ def _(mo):
       "data_selector": "articles"
     }
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(dlt, os, rest_api_source):
-    api_key_7 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_7, 'location': 'query'}, 'paginator': {'base_page': 1, 'type': 'page_number', 'page_param': 'page', 'total_path': None, 'maximum_page': 3}}, 'resource_defaults': {'write_disposition': 'append', 'endpoint': {'params': {'language': 'en', 'pageSize': 20}}}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'params': {'q': 'python', 'from': {'type': 'incremental', 'cursor_path': 'publishedAt', 'initial_value': '2025-04-15T00:00:00Z'}}}}, {'name': 'top_headlines', 'endpoint': {'path': 'top-headlines', 'params': {'country': 'us'}}}]}
+    api_key_7 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_7,
+                "location": "query",
+            },
+            "paginator": {
+                "base_page": 1,
+                "type": "page_number",
+                "page_param": "page",
+                "total_path": None,
+                "maximum_page": 3,
+            },
+        },
+        "resource_defaults": {
+            "write_disposition": "append",
+            "endpoint": {"params": {"language": "en", "pageSize": 20}},
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {
+                    "path": "everything",
+                    "params": {
+                        "q": "python",
+                        "from": {
+                            "type": "incremental",
+                            "cursor_path": "publishedAt",
+                            "initial_value": "2025-04-15T00:00:00Z",
+                        },
+                    },
+                },
+            },
+            {
+                "name": "top_headlines",
+                "endpoint": {"path": "top-headlines", "params": {"country": "us"}},
+            },
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_7 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_7 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_7.run(_news_source)
     print(pipeline_7.last_trace)
     pipeline_7.dataset().top_headlines.df().head()
@@ -1023,7 +1392,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Response actions
 
     The `response_actions` field in the endpoint configuration allows you to specify how to **handle specific responses** or all responses from the API.
@@ -1031,13 +1401,15 @@ def _(mo):
     For example:
     - Responses with specific status codes or content substrings can be ignored.
     - All responses or only responses with specific status codes or content substrings can be transformed with a custom callable, such as a function. This callable is passed on to the requests library as a response hook. The callable can modify the response object and has to return it for the modifications to take effect.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ```python
     "resources": [
         {
@@ -1063,7 +1435,8 @@ def _(mo):
     "ignore": Ignore the response.
     a callable accepting and returning the response object.
     a list of callables, each accepting and returning the response object.
-    """)
+    """
+    )
     return
 
 
@@ -1071,19 +1444,65 @@ def _(mo):
 def _(Any):
     from dlt.sources.helpers.requests import Response
 
-
     def debug_response(response: Response, *args: Any, **kwargs: Any) -> Response:
         print("Intercepted:", response.status_code)
         return response
+
     return (debug_response,)
 
 
 @app.cell
 def _(debug_response, dlt, os, rest_api_source):
-    api_key_8 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_8, 'location': 'query'}, 'paginator': {'base_page': 1, 'type': 'page_number', 'page_param': 'page', 'total_path': None, 'maximum_page': 3}}, 'resource_defaults': {'write_disposition': 'append', 'endpoint': {'params': {'language': 'en', 'pageSize': 20}}}, 'resources': [{'name': 'news_articles', 'endpoint': {'path': 'everything', 'response_actions': [{'status_code': 200, 'action': debug_response}], 'params': {'q': 'python', 'from': {'type': 'incremental', 'cursor_path': 'publishedAt', 'initial_value': '2025-04-15T00:00:00Z'}}}}, {'name': 'top_headlines', 'endpoint': {'path': 'top-headlines', 'params': {'country': 'us'}}}]}
+    api_key_8 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_8,
+                "location": "query",
+            },
+            "paginator": {
+                "base_page": 1,
+                "type": "page_number",
+                "page_param": "page",
+                "total_path": None,
+                "maximum_page": 3,
+            },
+        },
+        "resource_defaults": {
+            "write_disposition": "append",
+            "endpoint": {"params": {"language": "en", "pageSize": 20}},
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "endpoint": {
+                    "path": "everything",
+                    "response_actions": [
+                        {"status_code": 200, "action": debug_response}
+                    ],
+                    "params": {
+                        "q": "python",
+                        "from": {
+                            "type": "incremental",
+                            "cursor_path": "publishedAt",
+                            "initial_value": "2025-04-15T00:00:00Z",
+                        },
+                    },
+                },
+            },
+            {
+                "name": "top_headlines",
+                "endpoint": {"path": "top-headlines", "params": {"country": "us"}},
+            },
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_8 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_8 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_8.run(_news_source)
     print(pipeline_8.last_trace)
     pipeline_8.dataset().news_articles.df().head()
@@ -1092,7 +1511,8 @@ def _(debug_response, dlt, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Processing steps: filter and transform data
     The `processing_steps` field in the resource configuration allows you to **apply transformations** to the data fetched from the API before it is loaded into your destination.
 
@@ -1102,13 +1522,15 @@ def _(mo):
     - **anonymize** sensitive information.
 
     Each processing step is a dictionary specifying the type of operation (filter or map) and the function to apply. Steps apply in the order they are listed.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ```python
      "resources": [
             {
@@ -1120,7 +1542,8 @@ def _(mo):
             },
         ],
     ```
-    """)
+    """
+    )
     return
 
 
@@ -1129,15 +1552,66 @@ def _(Any):
     def lower_title(record: dict[str, Any]) -> dict[str, Any]:
         record["title"] = str(record["title"]).lower()
         return record
+
     return (lower_title,)
 
 
 @app.cell
 def _(debug_response, dlt, lower_title, os, rest_api_source):
-    api_key_9 = os.getenv('NEWS_API_KEY')
-    _news_config = {'client': {'base_url': 'https://newsapi.org/v2/', 'auth': {'type': 'api_key', 'name': 'apiKey', 'api_key': api_key_9, 'location': 'query'}, 'paginator': {'base_page': 1, 'type': 'page_number', 'page_param': 'page', 'total_path': None, 'maximum_page': 3}}, 'resource_defaults': {'write_disposition': 'append', 'endpoint': {'params': {'language': 'en', 'pageSize': 20}}}, 'resources': [{'name': 'news_articles', 'processing_steps': [{'filter': lambda x: len(x['author']) > 0}, {'map': lower_title}], 'endpoint': {'path': 'everything', 'response_actions': [{'status_code': 200, 'action': debug_response}], 'params': {'q': 'python', 'from': {'type': 'incremental', 'cursor_path': 'publishedAt', 'initial_value': '2025-04-15T00:00:00Z'}}}}, {'name': 'top_headlines', 'endpoint': {'path': 'top-headlines', 'params': {'country': 'us'}}}]}
+    api_key_9 = os.getenv("NEWS_API_KEY")
+    _news_config = {
+        "client": {
+            "base_url": "https://newsapi.org/v2/",
+            "auth": {
+                "type": "api_key",
+                "name": "apiKey",
+                "api_key": api_key_9,
+                "location": "query",
+            },
+            "paginator": {
+                "base_page": 1,
+                "type": "page_number",
+                "page_param": "page",
+                "total_path": None,
+                "maximum_page": 3,
+            },
+        },
+        "resource_defaults": {
+            "write_disposition": "append",
+            "endpoint": {"params": {"language": "en", "pageSize": 20}},
+        },
+        "resources": [
+            {
+                "name": "news_articles",
+                "processing_steps": [
+                    {"filter": lambda x: len(x["author"]) > 0},
+                    {"map": lower_title},
+                ],
+                "endpoint": {
+                    "path": "everything",
+                    "response_actions": [
+                        {"status_code": 200, "action": debug_response}
+                    ],
+                    "params": {
+                        "q": "python",
+                        "from": {
+                            "type": "incremental",
+                            "cursor_path": "publishedAt",
+                            "initial_value": "2025-04-15T00:00:00Z",
+                        },
+                    },
+                },
+            },
+            {
+                "name": "top_headlines",
+                "endpoint": {"path": "top-headlines", "params": {"country": "us"}},
+            },
+        ],
+    }
     _news_source = rest_api_source(_news_config)
-    pipeline_9 = dlt.pipeline(pipeline_name='news_pipeline', destination='duckdb', dataset_name='news')
+    pipeline_9 = dlt.pipeline(
+        pipeline_name="news_pipeline", destination="duckdb", dataset_name="news"
+    )
     pipeline_9.run(_news_source)
     print(pipeline_9.last_trace)
     pipeline_9.dataset().news_articles.df().head()
@@ -1146,7 +1620,8 @@ def _(debug_response, dlt, lower_title, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # Links
 
     More Information about how to build efficient data pipelines you can find in our official documentation:
@@ -1157,7 +1632,8 @@ def _(mo):
     - [Incremental loading](https://dlthub.com/docs/general-usage/incremental-loading),
     - Our pre-built [Verified Sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources/),
     - Available [Destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/).
-    """)
+    """
+    )
     return
 
 
@@ -1171,7 +1647,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # Exercise 1
 
     Your task is to create a `rest_api_source` configuration for the public **Jaffle Shop API**. This exercise will help you apply what you’ve learned:
@@ -1194,7 +1671,8 @@ def _(mo):
 
     ### Question:
     How many rows does the resulting table `orders` contain?
-    """)
+    """
+    )
     return
 
 
@@ -1215,9 +1693,9 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
-

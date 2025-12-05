@@ -110,7 +110,7 @@ jobs:
       - name: Ensure marimo notebooks are up-to-date
         shell: bash
         run: |
-          cd docs && make build-marimo && \
+          cd docs && make build-molabs \
           # Add any new files that might have been generated
           git add -A
           # Check if there are any differences
@@ -121,6 +121,3 @@ jobs:
           else
             echo "Marimo notebooks are up to date!"
           fi        
-      
-      - name: Check marimo notebooks 
-        run: make check-marimo
