@@ -4,6 +4,13 @@ from dlt.destinations.impl.athena.configuration import DEFAULT_AWS_DATA_CATALOG
 from tests.load.utils import S3_TABLES_CATALOG, cm_yield_client
 
 
+def test_s3_tables_naming_convention_setting() -> None:
+    # naming convention should be adjusted to `s3_tables` when using S3 Tables Catalog
+    config = {"aws_data_catalog": S3_TABLES_CATALOG}
+    with cm_yield_client("athena", "dummy_dataset", config) as client:
+        assert client.capabilities.naming_convention == "s3_tables"
+
+
 def test_catalog_name() -> None:
     # use defaults for both aws_data_catalog and staging_aws_data_catalog
     config: StrAny = {}
