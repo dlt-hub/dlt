@@ -190,7 +190,7 @@ if __name__ == "__main__":
         add_inline_dependencies(packages, py_file)
 
         # clean up py files
-        #        clean_whitespace(py_file)
+        clean_whitespace(py_file)
         #        format_with_black(py_file)
 
         temp_ipynb_file.unlink()

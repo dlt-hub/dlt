@@ -91,34 +91,10 @@ def _(mo):
 
 
 @app.cell
-def _(get_ipython):
+def _():
     import subprocess
-
-
-    def run_cli(cmd_list, piped=False):
-        """
-        cmd_list: list like ["dlt", "init", "rest_api", "duckdb"]
-        piped: set True if you want to prefix with `yes |`
-        """
-        try:
-            # Jupyter/Colab: use shell string
-            get_ipython()
-            if piped:
-                cmd = "yes | " + " ".join(cmd_list)
-            else:
-                cmd = " ".join(cmd_list)
-            subprocess.run(cmd, shell=True, check=True)
-
-        except Exception:
-            # marimo/plain Python: no pipes allowed → manually supply input
-            if piped:
-                subprocess.run(cmd_list, input=b"yes\n", check=True)
-            else:
-                subprocess.run(cmd_list, check=True)
-
-
-    run_cli(["dlt", "init", "--list-sources"])
-    return (run_cli,)
+    subprocess.run(['dlt', 'init', '--list-sources'], check=True)
+    return (subprocess,)
 
 
 @app.cell(hide_code=True)
@@ -151,8 +127,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["dlt", "--non-interactive", "init", "github_api", "duckdb"])
+def _(subprocess):
+    subprocess.run(['dlt', '--non-interactive', 'init', 'github_api', 'duckdb'], check=True)
     return
 
 
@@ -170,8 +146,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["ls", "-a"])
+def _(subprocess):
+    subprocess.run(['ls', '-a'], check=True)
     return
 
 
@@ -189,8 +165,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["cat", "github_api_pipeline.py"])
+def _(subprocess):
+    subprocess.run(['cat', 'github_api_pipeline.py'], check=True)
     return
 
 
@@ -243,8 +219,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["python", "github_api_pipeline.py"])
+def _(subprocess):
+    subprocess.run(['python', 'github_api_pipeline.py'], check=True)
     return
 
 
@@ -326,8 +302,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["dlt", "init", "rest_api", "duckdb"], piped=True)
+def _(subprocess):
+    subprocess.run(['dlt', 'init', 'rest_api', 'duckdb'], input='y\n', text=True, check=True)
     return
 
 
@@ -350,11 +326,11 @@ def _():
     import dlt
     from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
     from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
-    config: RESTAPIConfig = {'client': {'base_url': 'https://api.github.com', 'auth': {'token': dlt.secrets['sources.access_token']}, 'paginator': 'header_link'}, 'resources': [{'name': 'issues', 'endpoint': {'path': 'repos/dlt-hub/dlt/issues', 'params': {'state': 'open'}}}, {'name': 'issue_comments', 'endpoint': {'path': 'repos/dlt-hub/dlt/issues/{issue_number}/comments', 'params': {'issue_number': {'type': 'resolve', 'resource': 'issues', 'field': 'number'}}}}, {'name': 'contributors', 'endpoint': {'path': 'repos/dlt-hub/dlt/contributors'}}]}
+    config: RESTAPIConfig = {'client': {'base_url': 'https://api.github.com', 'auth': {'token': dlt.secrets['sources.access_token']}, 'paginator': 'header_link'}, 'resources': [{'name': 'issues', 'endpoint': {'path': 'repos/dlt-hub/dlt/issues', 'params': {'state': 'open'}}}, {'name': 'issue_comments', 'endpoint': {'path': 'repos/dlt-hub/dlt/issues/{issue_number}/comments', 'params': {'issue_number': {'type': 'resolve', 'resource': 'issues', 'field': 'number'}}}}]}
     github_source = rest_api_source(config)
     rest_api_pipeline = dlt.pipeline(pipeline_name='rest_api_github', destination='duckdb', dataset_name='rest_api_data', dev_mode=True)
     _load_info = rest_api_pipeline.run(github_source)
-    print(_load_info)  # <--- we already configured access_token above  # <---- set up paginator type  # <--- list resources  # <-- here we declare dlt.transformer  # <--- use type 'resolve' to resolve {issue_number} for transformer
+    print(_load_info)
     return dlt, rest_api_pipeline
 
 
@@ -422,8 +398,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["dlt", "init", "sql_database", "duckdb"], piped=True)
+def _(subprocess):
+    subprocess.run(['dlt', 'init', 'sql_database', 'duckdb'], input='y\n', text=True, check=True)
     return
 
 
@@ -517,8 +493,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["dlt", "init", "filesystem", "duckdb"], piped=True)
+def _(subprocess):
+    subprocess.run(['dlt', 'init', 'filesystem', 'duckdb'], input='y\n', text=True, check=True)
     return
 
 
@@ -543,19 +519,21 @@ def _(mo):
 @app.cell
 def _(os):
     import requests
-    os.makedirs('local_data', exist_ok=True)
+    folder_name = 'local_data'
+    os.makedirs(folder_name, exist_ok=True)
+    full_path = os.path.abspath(folder_name)
     url = 'https://www.timestored.com/data/sample/userdata.parquet'
     resp = requests.get(url)
     resp.raise_for_status()
-    with open('local_data/userdata.parquet', 'wb') as f:
+    with open(f'{full_path}/userdata.parquet', 'wb') as f:
         f.write(resp.content)
-    return
+    return (full_path,)
 
 
 @app.cell
-def _(dlt):
+def _(dlt, full_path):
     from dlt.sources.filesystem import filesystem, read_parquet
-    filesystem_resource = filesystem(bucket_url='/content/local_data', file_glob='**/*.parquet')
+    filesystem_resource = filesystem(bucket_url=full_path, file_glob='**/*.parquet')
     filesystem_pipe = filesystem_resource | read_parquet()
     fs_pipeline = dlt.pipeline(pipeline_name='my_pipeline', destination='duckdb')
     _load_info = fs_pipeline.run(filesystem_pipe.with_name('userdata'))
@@ -637,14 +615,14 @@ def _(mo):
 def _(dlt):
     data_pipeline = dlt.pipeline(
         pipeline_name="data_pipeline",
-        destination="duckdb",  # <--- to test pipeline locally
+        destination="duckdb",
         dataset_name="data",
     )
     print(data_pipeline.destination.destination_type)
 
     data_pipeline = dlt.pipeline(
         pipeline_name="data_pipeline",
-        destination="bigquery",  # <--- to run pipeline in production
+        destination="bigquery",
         dataset_name="data",
     )
     print(data_pipeline.destination.destination_type)
@@ -701,8 +679,8 @@ def _(mo):
 
 
 @app.cell
-def _(run_cli):
-    run_cli(["ls", "./content/fs_data/family"])
+def _(subprocess):
+    subprocess.run(['ls', './content/fs_data/family'], check=True)
     return
 
 
@@ -736,7 +714,7 @@ def _(mo):
 @app.cell
 def _(pipeline, source):
     _load_info = pipeline.run(source, loader_file_format='parquet', table_format='iceberg')
-    print(_load_info)  # <--- choose a table format: delta or iceberg
+    print(_load_info)
     return
 
 
@@ -747,7 +725,7 @@ def _(mo):
 
     The open-source version of dlt supports basic functionality for **Iceberg**, but the dltHub team is currently working on an **extended** and **more powerful** Iceberg integration.
 
-    [Join the waiting list to learn more about dlt+ and Iceberg.](https://info.dlthub.com/waiting-list)
+    [Join the waiting list to learn more about dltHub and Iceberg.](https://info.dlthub.com/waiting-list)
     """)
     return
 
