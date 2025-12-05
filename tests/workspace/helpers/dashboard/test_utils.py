@@ -809,25 +809,28 @@ def test_get_steps_data_and_status(
 
 def test_get_migrations_count(temp_pipelines_dir) -> None:
     """Test getting migrations count from the pipeline's last load info"""
+    import duckdb
 
-    pipeline = create_success_pipeline_duckdb(
-        temp_pipelines_dir, db_location=os.path.join(temp_pipelines_dir, "duck.db")
-    )
+    db_conn = duckdb.connect()
+    try:
+        pipeline = create_success_pipeline_duckdb(temp_pipelines_dir, db_conn=db_conn)
 
-    migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
-    assert migrations_count == 1
+        migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+        assert migrations_count == 1
 
-    # Trigger multiple migrations
-    pipeline.extract([{"id": 1, "name": "test"}], table_name="my_table")
-    pipeline.extract([{"id": 2, "name": "test2", "new_column": "value"}], table_name="my_table")
-    pipeline.extract(
-        [{"id": 3, "name": "test3", "new_column": "value", "another_column": 100}],
-        table_name="my_table",
-    )
-    pipeline.normalize()
-    pipeline.load()
-    migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
-    assert migrations_count == 3
+        # Trigger multiple migrations
+        pipeline.extract([{"id": 1, "name": "test"}], table_name="my_table")
+        pipeline.extract([{"id": 2, "name": "test2", "new_column": "value"}], table_name="my_table")
+        pipeline.extract(
+            [{"id": 3, "name": "test3", "new_column": "value", "another_column": 100}],
+            table_name="my_table",
+        )
+        pipeline.normalize()
+        pipeline.load()
+        migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+        assert migrations_count == 3
+    finally:
+        db_conn.close()
 
 
 @pytest.mark.parametrize(

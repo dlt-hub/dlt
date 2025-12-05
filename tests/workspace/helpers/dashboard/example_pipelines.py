@@ -4,6 +4,7 @@
 # TODO: consolidate these test pipelines with the ones in tests/e2e/helpers/dashboard
 #
 
+from typing import Any
 import dlt
 import pytest
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
@@ -93,16 +94,14 @@ def run_success_pipeline(pipeline: dlt.Pipeline):
     )
 
 
-def create_success_pipeline_duckdb(pipelines_dir: str = None, db_location: str = None):
+def create_success_pipeline_duckdb(pipelines_dir: str = None, db_conn: Any = None):
     """Create a test pipeline with in memory duckdb destination, properties see `run_success_pipeline`"""
     import duckdb
 
     pipeline = dlt.pipeline(
         pipeline_name=SUCCESS_PIPELINE_DUCKDB,
         pipelines_dir=pipelines_dir,
-        destination=dlt.destinations.duckdb(
-            credentials=duckdb.connect(db_location) if db_location else None
-        ),
+        destination=dlt.destinations.duckdb(credentials=db_conn if db_conn else None),
     )
 
     run_success_pipeline(pipeline)
