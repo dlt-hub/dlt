@@ -826,14 +826,13 @@ def _(mo):
 
 
 @app.cell
-def _(data_table, pipeline_3):
+def _(pipeline_3):
     import duckdb
     from IPython.display import display
 
-    data_table.enable_dataframe_formatter()
     conn = duckdb.connect(f"{pipeline_3.pipeline_name}.duckdb")
-    conn.sql(f"SET search_path = '{pipeline_3.dataset_name}'")
     # a database 'chess_pipeline.duckdb' was created in working directory so just connect to it
+    conn.sql(f"SET search_path = '{pipeline_3.dataset_name}'")
     stats_table = conn.sql("SELECT * FROM _dlt_pipeline_state").df()
     display(stats_table)
     return (conn,)
