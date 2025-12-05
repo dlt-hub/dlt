@@ -74,7 +74,7 @@ def _(mo):
     mo.md(
         r"""
     # **Understanding `pipeline.run()`**
-     The `pipeline.run()` method executes the entire pipeline, encompassing the [`extract`](#scrollTo=4C0U1dnwZxAB), [`normalize`](#scrollTo=bCeUqaW_cRSh), and [`load`](#scrollTo=Rn6cUc0OcWsk) stages.
+     The `pipeline.run()` method executes the entire pipeline, encompassing the `extract`, `normalize`, and `load` stages.
     """
     )
     return
