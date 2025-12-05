@@ -17,7 +17,6 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.impl.athena.athena import AthenaClient
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.typing import TNativeConn
 from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
@@ -790,7 +789,7 @@ def prepare_temp_table(
     ddl_suffix = ""
     coltype = "numeric"
     py_type: Union[Type[Decimal], Type[float]] = Decimal
-    if isinstance(client, AthenaClient):
+    if client.config.destination_type == "athena":
         if not client.destination_config.is_athena_s3_tables:
             ddl_suffix = (
                 f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
