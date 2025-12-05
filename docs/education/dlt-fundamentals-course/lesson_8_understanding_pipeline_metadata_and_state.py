@@ -15,20 +15,23 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **Recap of [Lesson 7](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb) 👩‍💻🚀**
 
     1. Learned what a schema is.
     2. Explored schema settings and components.
     3. Learned how to retrieve a dlt pipeline schema.
     4. Learned how to adjust the schema.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
 
     # **Understanding Pipeline Metadata and State** 👻📄 [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_8_understanding_pipeline_metadata_and_state.ipynb)
@@ -39,22 +42,26 @@ def _(mo):
     - Exploring pipeline metadata from load info
     - Exploring pipeline metadata from trace
     - Exploring pipeline metadata from state
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ##  **Pipeline Metadata**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **Metadata** is essentially *data about data*.
 
     **Pipeline metadata** is data about your data pipeline. This is useful when you want to know things like:
@@ -65,7 +72,8 @@ def _(mo):
     - Processing time
     - Custom metadata you add yourself
     - And much more!
-    """)
+    """
+    )
     return
 
 
@@ -79,7 +87,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     `dlt` allows you to view all this metadata through various options!
 
     This notebook will walk you through those options, namely:
@@ -87,7 +96,8 @@ def _(mo):
     - Load info
     - Trace
     - State
-    """)
+    """
+    )
     return
 
 
@@ -118,19 +128,34 @@ def _():
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
     import os
-    os.environ['SOURCES__SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
-    def _github_source(secret_key: str=dlt.secrets.value) -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=secret_key), paginator=HeaderLinkPaginator())
+    def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
+        client = RESTClient(
+            base_url="https://api.github.com",
+            auth=BearerTokenAuth(token=secret_key),
+            paginator=HeaderLinkPaginator(),
+        )
 
         @dlt.resource
-        def github_pulls(cursor_date: dlt.sources.incremental[str]=dlt.sources.incremental('updated_at', initial_value='2024-12-01')) -> TDataItems:
-            params = {'since': cursor_date.last_value, 'status': 'open'}
-            for page in client.paginate('repos/dlt-hub/dlt/pulls', params=params):
+        def github_pulls(
+            cursor_date: dlt.sources.incremental[str] = dlt.sources.incremental(
+                "updated_at", initial_value="2024-12-01"
+            )
+        ) -> TDataItems:
+            params = {"since": cursor_date.last_value, "status": "open"}
+            for page in client.paginate("repos/dlt-hub/dlt/pulls", params=params):
                 yield page
+
         return github_pulls
-    pipeline = dlt.pipeline(pipeline_name='github_pipeline', destination='duckdb', dataset_name='github_data')
+
+    pipeline = dlt.pipeline(
+        pipeline_name="github_pipeline",
+        destination="duckdb",
+        dataset_name="github_data",
+    )
     load_info = pipeline.run(_github_source())
     # define new dlt pipeline
     # run the pipeline with the new resource
@@ -151,35 +176,42 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ##  **Load info**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     `Load Info:` This is a collection of useful information about the recently loaded data. It includes details like the pipeline and dataset name, destination information, and a list of loaded packages with their statuses, file sizes, types, and error messages (if any).
 
     `Load Package:` A load package is a collection of jobs with data for specific tables, generated during each execution of the pipeline. Each package is uniquely identified by a `load_id`.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **(0) CLI**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     From the [`Inspecting & Adjusting Schema`](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb) section, we've already learned that we can see which schema changes a load package introduced with the command:
 
     ```
@@ -187,52 +219,63 @@ def _(mo):
     ```
 
     The verbose flag only shows schema changes, so if we run it **without** the flag, we will still see the most recent load package info:
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _():
     import subprocess
-    subprocess.run(['dlt', 'pipeline', 'github_pipeline', 'load-package'], check=True)
+
+    subprocess.run(["dlt", "pipeline", "github_pipeline", "load-package"], check=True)
     return (subprocess,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The `load_id` of a particular package is added to the top data tables (parent tables) and to the special `_dlt_loads` table with a status of `0` when the load process is fully completed. The `_dlt_loads` table tracks completed loads and allows chaining transformations on top of them.
 
     We can also view load package info for a specific `load_id` (replace the value with the one output above):
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(subprocess):
-    subprocess.run(['dlt', 'pipeline', 'github_pipeline', 'load-package', '1741348101.3398592'], check=True)
+    subprocess.run(
+        ["dlt", "pipeline", "github_pipeline", "load-package", "1741348101.3398592"],
+        check=True,
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **(0) Python**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     From the [`Inspecting & Adjusting Schema`](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb) section, we've also learned that a schema can be accessed with:
 
     ```python
     print(load_info.load_packages[0].schema)
     ```
     Similarly, if we drop the schema part, we will get the load package info:
-    """)
+    """
+    )
     return
 
 
@@ -269,10 +312,12 @@ def _(load_info):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ##  **Trace**
-    """)
+    """
+    )
     return
 
 
@@ -286,23 +331,27 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **(0) CLI**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     You can access the pipeline trace using the command:
 
 
     ```
     dlt pipeline <pipeline_name> trace
     ```
-    """)
+    """
+    )
     return
 
 
@@ -314,16 +363,18 @@ def _(mo):
 
 @app.cell
 def _(subprocess):
-    subprocess.run(['dlt', 'pipeline', 'github_pipeline', 'trace'], check=True)
+    subprocess.run(["dlt", "pipeline", "github_pipeline", "trace"], check=True)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **(0) Python**
-    """)
+    """
+    )
     return
 
 
@@ -394,18 +445,21 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ##  **State**
 
     [`The pipeline state`](https://dlthub.com/docs/general-usage/state) is a Python dictionary that lives alongside your data. You can store values in it during a pipeline run, and then retrieve them in the next pipeline run. It's used for tasks like preserving the "last value" or similar loading checkpoints, and it gets committed atomically with the data. The state is stored locally in the pipeline working directory and is also stored at the destination for future runs.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **When to use pipeline state**
     - `dlt` uses the state internally to implement last value incremental loading. This use case should cover around 90% of your needs to use the pipeline state.
     - Store a list of already requested entities if the list is not much bigger than 100k elements.
@@ -420,31 +474,36 @@ def _(mo):
 
     - Store the state in DynamoDB, Redis, etc., keeping in mind that if the extract stage fails, you may end up with invalid state.
     - Use your loaded data as the state. `dlt` exposes the current pipeline via `dlt.current.pipeline()`, from which you can obtain a `sql_client` and load the data you need. If you choose this approach, try to process your user records in batches.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **(0) CLI**
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(subprocess):
-    subprocess.run(['dlt', 'pipeline', '-v', 'github_pipeline', 'info'], check=True)
+    subprocess.run(["dlt", "pipeline", "-v", "github_pipeline", "info"], check=True)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **(1) Python**
-    """)
+    """
+    )
     return
 
 
@@ -452,12 +511,12 @@ def _(mo):
 def _():
     import json
 
-
     def read_state(filepath: str) -> str:
         with open(filepath, "r", encoding="utf-8") as file:
             data = json.load(file)
             pretty_json = json.dumps(data, indent=4)
             return pretty_json
+
     return (read_state,)
 
 
@@ -470,18 +529,21 @@ def _(read_state):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **Modify State**
 
     The pipeline state is a Python dictionary that lives alongside your data; you can store values in it and, on the next pipeline run, request them back.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ####  **(0) Resource state**
 
@@ -495,7 +557,8 @@ def _(mo):
     ```python
     dlt.current.resource_state().setdefault(key, value)
     ```
-    """)
+    """
+    )
     return
 
 
@@ -510,20 +573,36 @@ def _(
     dlt,
     os,
 ):
-    os.environ['SOURCES__SECRET_KEY'] = os.getenv('SECRET_KEY')
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
-    def _github_source(secret_key: str=dlt.secrets.value) -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=secret_key), paginator=HeaderLinkPaginator())
+    def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
+        client = RESTClient(
+            base_url="https://api.github.com",
+            auth=BearerTokenAuth(token=secret_key),
+            paginator=HeaderLinkPaginator(),
+        )
 
         @dlt.resource
-        def github_pulls(cursor_date: dlt.sources.incremental[str]=dlt.sources.incremental('updated_at', initial_value='2024-12-01')) -> TDataItems:
-            dlt.current.resource_state().setdefault('new_key', ['first_value', 'second_value'])
-            params = {'since': cursor_date.last_value, 'status': 'open'}
-            for page in client.paginate('repos/dlt-hub/dlt/pulls', params=params):
+        def github_pulls(
+            cursor_date: dlt.sources.incremental[str] = dlt.sources.incremental(
+                "updated_at", initial_value="2024-12-01"
+            )
+        ) -> TDataItems:
+            dlt.current.resource_state().setdefault(
+                "new_key", ["first_value", "second_value"]
+            )
+            params = {"since": cursor_date.last_value, "status": "open"}
+            for page in client.paginate("repos/dlt-hub/dlt/pulls", params=params):
                 yield page
+
         return github_pulls
-    pipeline_1 = dlt.pipeline(pipeline_name='github_pipeline', destination='duckdb', dataset_name='github_data')
+
+    pipeline_1 = dlt.pipeline(
+        pipeline_name="github_pipeline",
+        destination="duckdb",
+        dataset_name="github_data",
+    )
     load_info_1 = pipeline_1.run(_github_source())
     print(load_info_1)
     return
@@ -551,7 +630,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     You can modify any item in the state dict:
 
     ```python
@@ -563,7 +643,8 @@ def _(mo):
     incremental_dict = dlt.current.resource_state().get("incremental")
     incremental_dict.update({"second_new_key": "fourth_value"})
     ```
-    """)
+    """
+    )
     return
 
 
@@ -584,24 +665,40 @@ def _(
     dlt,
     os,
 ):
-    os.environ['SOURCES__SECRET_KEY'] = os.getenv('SECRET_KEY')
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
-    def _github_source(secret_key: str=dlt.secrets.value) -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=secret_key), paginator=HeaderLinkPaginator())
+    def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
+        client = RESTClient(
+            base_url="https://api.github.com",
+            auth=BearerTokenAuth(token=secret_key),
+            paginator=HeaderLinkPaginator(),
+        )
 
         @dlt.resource
-        def github_pulls(cursor_date: dlt.sources.incremental[str]=dlt.sources.incremental('updated_at', initial_value='2024-12-01')) -> TDataItems:
-            new_keys = dlt.current.resource_state().setdefault('new_key', ['first_value', 'second_value'])
-            if 'something_happened':
-                new_keys.append('third_value')
-            incremental_dict = dlt.current.resource_state().get('incremental')
-            incremental_dict.update({'second_new_key': 'fourth_value'})
-            params = {'since': cursor_date.last_value, 'status': 'open'}
-            for page in client.paginate('repos/dlt-hub/dlt/pulls', params=params):
+        def github_pulls(
+            cursor_date: dlt.sources.incremental[str] = dlt.sources.incremental(
+                "updated_at", initial_value="2024-12-01"
+            )
+        ) -> TDataItems:
+            new_keys = dlt.current.resource_state().setdefault(
+                "new_key", ["first_value", "second_value"]
+            )
+            if "something_happened":
+                new_keys.append("third_value")
+            incremental_dict = dlt.current.resource_state().get("incremental")
+            incremental_dict.update({"second_new_key": "fourth_value"})
+            params = {"since": cursor_date.last_value, "status": "open"}
+            for page in client.paginate("repos/dlt-hub/dlt/pulls", params=params):
                 yield page
+
         return github_pulls
-    pipeline_2 = dlt.pipeline(pipeline_name='github_pipeline', destination='duckdb', dataset_name='github_data')
+
+    pipeline_2 = dlt.pipeline(
+        pipeline_name="github_pipeline",
+        destination="duckdb",
+        dataset_name="github_data",
+    )
     load_info_2 = pipeline_2.run(_github_source())
     print(load_info_2)
     return
@@ -615,16 +712,19 @@ def _(read_state):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ####  **(1) Source state**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     You can also access the source-scoped state with `dlt.current.source_state()` which can be shared across resources of a particular source and is also available **read-only** in the source-decorated functions. The most common use case for the source-scoped state is to store the mapping of custom fields to their displayable names.
 
     Let's read some custom keys from the state with:
@@ -632,7 +732,8 @@ def _(mo):
     source_new_keys = dlt.current.source_state().get("resources", {}).get("github_pulls", {}).get("new_key")
     ```
     Full example:
-    """)
+    """
+    )
     return
 
 
@@ -647,21 +748,40 @@ def _(
     dlt,
     os,
 ):
-    os.environ['SOURCES__SECRET_KEY'] = os.getenv('SECRET_KEY')
+    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
-    def _github_source(secret_key: str=dlt.secrets.value) -> Iterable[DltResource]:
-        client = RESTClient(base_url='https://api.github.com', auth=BearerTokenAuth(token=secret_key), paginator=HeaderLinkPaginator())
+    def _github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
+        client = RESTClient(
+            base_url="https://api.github.com",
+            auth=BearerTokenAuth(token=secret_key),
+            paginator=HeaderLinkPaginator(),
+        )
 
         @dlt.resource
-        def github_pulls(cursor_date: dlt.sources.incremental[str]=dlt.sources.incremental('updated_at', initial_value='2024-12-01')) -> TDataItems:
-            params = {'since': cursor_date.last_value, 'status': 'open'}
-            for page in client.paginate('repos/dlt-hub/dlt/pulls', params=params):
+        def github_pulls(
+            cursor_date: dlt.sources.incremental[str] = dlt.sources.incremental(
+                "updated_at", initial_value="2024-12-01"
+            )
+        ) -> TDataItems:
+            params = {"since": cursor_date.last_value, "status": "open"}
+            for page in client.paginate("repos/dlt-hub/dlt/pulls", params=params):
                 yield page
-            source_new_keys = dlt.current.source_state().get('resources', {}).get('github_pulls', {}).get('new_key')
-            print('My custom values: ', source_new_keys)
+            source_new_keys = (
+                dlt.current.source_state()
+                .get("resources", {})
+                .get("github_pulls", {})
+                .get("new_key")
+            )
+            print("My custom values: ", source_new_keys)
+
         return github_pulls
-    pipeline_3 = dlt.pipeline(pipeline_name='github_pipeline', destination='duckdb', dataset_name='github_data')
+
+    pipeline_3 = dlt.pipeline(
+        pipeline_name="github_pipeline",
+        destination="duckdb",
+        dataset_name="github_data",
+    )
     load_info_3 = pipeline_3.run(_github_source())
     print(load_info_3)
     return (pipeline_3,)
@@ -669,16 +789,19 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **Sync State**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     What if you run your pipeline on, for example, Airflow, where every task gets a clean filesystem and the pipeline working directory is always deleted?
 
     **dlt loads** your **state** into the destination **together** with all other **data**, and when starting from a clean slate, it will try to restore the state from the destination.
@@ -697,7 +820,8 @@ def _(mo):
     which retrieves the state from that table.
 
     💡 If you can keep the pipeline working directory across runs, you can disable state sync by setting `restore_from_destination = false` in your `config.toml`.
-    """)
+    """
+    )
     return
 
 
@@ -705,11 +829,12 @@ def _(mo):
 def _(data_table, pipeline_3):
     import duckdb
     from IPython.display import display
+
     data_table.enable_dataframe_formatter()
-    conn = duckdb.connect(f'{pipeline_3.pipeline_name}.duckdb')
+    conn = duckdb.connect(f"{pipeline_3.pipeline_name}.duckdb")
     conn.sql(f"SET search_path = '{pipeline_3.dataset_name}'")
     # a database 'chess_pipeline.duckdb' was created in working directory so just connect to it
-    stats_table = conn.sql('SELECT * FROM _dlt_pipeline_state').df()
+    stats_table = conn.sql("SELECT * FROM _dlt_pipeline_state").df()
     display(stats_table)
     return (conn,)
 
@@ -722,32 +847,39 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     |index|version|engine\_version|pipeline\_name|state|created\_at|version\_hash|\_dlt\_load\_id|\_dlt\_id|
     |---|---|---|---|---|---|---|---|---|
     |0|1|4|github\_pipeline|eNplkN....6+/m/QA7mbNc|2025-03-10 14:02:34\.340458+00:00|pnp+9AIA5jAGx5LKon6zWmPnfYVb10ROa5aIKjv9O0I=|1741615353\.5473728|FOzn5XuSZ/y/BQ|
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(subprocess):
-    subprocess.run(['dlt', '--non-interactive', 'pipeline', 'github_pipeline', 'sync'], check=True)
+    subprocess.run(
+        ["dlt", "--non-interactive", "pipeline", "github_pipeline", "sync"], check=True
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ###  **Reset State**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **To fully reset the state:**
 
     - Drop the destination dataset to fully reset the pipeline.
@@ -758,17 +890,20 @@ def _(mo):
 
     - Use the `dlt pipeline drop <resource_name>` command to drop state and tables for a given resource.
     - Use the `dlt pipeline drop --state-paths` command to reset the state at a given path without touching the tables or data.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **Example for a partial reset:**
 
     >  In an ipynb environment, when the duckdb connection we opened is not yet closed -> close the connection before attempting to edit the pipeline through the CLI.
-    """)
+    """
+    )
     return
 
 
@@ -780,32 +915,39 @@ def _(conn):
 
 @app.cell
 def _(subprocess):
-    subprocess.run(['dlt', 'pipeline', 'github_pipeline', 'drop', 'github_pulls'], input='y\n', text=True, check=True)
+    subprocess.run(
+        ["dlt", "pipeline", "github_pipeline", "drop", "github_pulls"],
+        input="y\n",
+        text=True,
+        check=True,
+    )
     return
 
 
 @app.cell
 def _(subprocess):
-    subprocess.run(['dlt', 'pipeline', '-v', 'github_pipeline', 'info'], check=True)
+    subprocess.run(["dlt", "pipeline", "-v", "github_pipeline", "info"], check=True)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     🎊🎊🎊 That's it! We hope you enjoyed this course and learned more about `dlt`! 🎊🎊🎊
 
     Please share your feedback with us: [Feedback Google Form](https://forms.gle/1NYrGcRj5gLQ4WDt8) 🌼
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
-

@@ -15,7 +15,8 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     # **Recap of [Lesson 6](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_6_how_dlt_works.ipynb) 👩‍💻🚀**
 
     1. Learned how `dlt` works under the hood.
@@ -24,13 +25,15 @@ def _(mo):
        - Normalize
        - Load
     3. Learned which file formats `dlt` supports.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
 
     # **Inspecting & Adjusting Schema** 🧠🧠 [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb)
@@ -40,13 +43,15 @@ def _(mo):
     - Methods to inspect a schema
     - The components of a schema
     - How to modify a schema
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ##  **Methods to inspect a schema**
 
@@ -56,7 +61,8 @@ def _(mo):
       - CLI
       - Python
       - Export schema directly
-    """)
+    """
+    )
     return
 
 
@@ -91,7 +97,6 @@ def _():
 
     os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
-
     @dlt.source
     def github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:
         client = RESTClient(
@@ -112,14 +117,12 @@ def _():
 
         return github_pulls
 
-
     # define new dlt pipeline
     pipeline = dlt.pipeline(
         pipeline_name="github_pipeline1",
         destination="duckdb",
         dataset_name="github_data",
     )
-
 
     # run the pipeline with the new resource
     load_info = pipeline.run(github_source())
@@ -129,7 +132,8 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(0) CLI**
 
@@ -138,7 +142,8 @@ def _(mo):
     > In the context of the `dlt` library, a load package is a collection of jobs with data for particular tables. The -v flag stands for verbose, which means the command will provide more detailed output.
 
     Specifically, this command will show the schema changes introduced in the load package for the given pipeline.
-    """)
+    """
+    )
     return
 
 
@@ -161,7 +166,8 @@ def _(get_ipython):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(1) Python**
 
@@ -172,7 +178,8 @@ def _(mo):
     ```
 
     which has the following public methods and attributes:
-    """)
+    """
+    )
     return
 
 
@@ -209,12 +216,14 @@ def _(load_info):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(2) Exporting schema**
 
     > Exporting the data schema directly into a file might be even more straightforward than the two previous approaches.
-    """)
+    """
+    )
     return
 
 
@@ -228,7 +237,12 @@ def _(mo):
 
 @app.cell
 def _(dlt):
-    pipeline_1 = dlt.pipeline(pipeline_name='github_pipeline2', destination='duckdb', dataset_name='github_data', export_schema_path='schemas/export')  # <--- dir path for a schema export
+    pipeline_1 = dlt.pipeline(
+        pipeline_name="github_pipeline2",
+        destination="duckdb",
+        dataset_name="github_data",
+        export_schema_path="schemas/export",
+    )  # <--- dir path for a schema export
     return (pipeline_1,)
 
 
@@ -261,18 +275,20 @@ def _(mo):
 
 @app.cell
 def _(os):
-    print(os.listdir('schemas/export'))
-    with open('schemas/export/github_source.schema.yaml') as _f:
+    print(os.listdir("schemas/export"))
+    with open("schemas/export/github_source.schema.yaml") as _f:
         print(_f.read())
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ##  **The components of a schema**
-    """)
+    """
+    )
     return
 
 
@@ -286,7 +302,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     A schema (in YAML format) looks somethng like this:
 
     ```yaml
@@ -327,28 +344,33 @@ def _(mo):
     - 0WLnuf3Jh1J1XsbVrV2eB824Z6heOlf5o912i1v3tho=
     - 0d1z0RFV2O0OvfEWkebtSjxrCjjiyv1lOeNiF0V8Lws=
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(0) Schema version hash**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The schema hash, denoted by `version_hash`, is generated from the actual schema content, excluding the hash values and version of the schema.
 
     Each time the schema is changed, a new hash is produced.
 
     > Note that during the initial run (the first pipeline run), the version will be 2, and there will be two previous hashes because the schema is updated during both the extract and normalize stages. You can rely on the version number to determine how many times the schema has been changed, but keep in mind that it stops being reliable when parallelization is introduced.
-    """)
+    """
+    )
     return
 
 
@@ -368,27 +390,32 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     On subsequent runs, `dlt` checks if the generated schema hash is stored in this table. If it is not, `dlt` concludes that the schema has changed and migrates the destination accordingly.
 
     - If multiple pipelines are sending data to the same dataset and there is a clash in table names, a single table with the union of the columns will be created.
     - If columns clash and have different types or other incompatible characteristics, the load may fail if the data cannot be coerced.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(1) Naming convention**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Each schema contains a naming convention that is denoted in the following way when the schema is exported:
 
     ```yaml
@@ -400,13 +427,15 @@ def _(mo):
     The naming convention is particularly useful if the identifiers of the data to be loaded (e.g., keys in JSON files) need to match the namespace of the destination (such as Redshift, which accepts case-insensitive alphanumeric identifiers with a maximum of 127 characters). This convention is used by `dlt` to translate between these identifiers and namespaces.
 
     The standard behavior of `dlt` is to use the same naming convention for all destinations, ensuring that users always see the same tables and columns in their databases.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The default naming convention is `snake_case`:
 
     - Removes all ASCII characters except alphanumerics and underscores.
@@ -416,13 +445,15 @@ def _(mo):
     - The identifier is shortened if it exceeds the length allowed at the destination.
 
     > If you provide any schema elements that contain identifiers via decorators or arguments (e.g., `table_name` or `columns`), all the names used will be converted according to the naming convention when added to the schema. For example, if you execute `dlt.run(..., table_name="CamelCaseTableName")`, the data will be loaded into `camel_case_table_name`.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     To retain the original naming convention, you can define the following in your `config.toml`:
 
     ```python
@@ -435,22 +466,26 @@ def _(mo):
     ```
     SCHEMA__NAMING=direct
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(2) Schema settings**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     The `settings` section of the schema file allows you to define various global rules that impact how tables and columns are inferred from data.
 
     ```yaml
@@ -460,13 +495,15 @@ def _(mo):
       default_hints:
         ...
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **1. Detections**
 
     You can define a set of functions that will be used to infer the data type of the column from a value. These functions are executed sequentially from top to bottom on the list.
@@ -491,13 +528,15 @@ def _(mo):
       source.schema.remove_type_detection("iso_timestamp")
       source.schema.add_type_detection("timestamp")
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **2. Column hint rules**
 
     The `default_hints` section in the schema file is used to define global rules that apply to newly inferred columns.
@@ -542,13 +581,15 @@ def _(mo):
       source.schema.merge_hints({"partition": ["re:_timestamp$"]})
 
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     **3. Preferred data types**
 
     In the `preferred_types` section, you can define rules that will set the data type for newly created columns. On the left side, you specify a rule for a column name, and on the right side, you define the corresponding data type. You can use column names directly or with regular expressions to match them.
@@ -576,44 +617,52 @@ def _(mo):
       }
     )
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ##  **How to modify a schema**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Speaking of data types... you can directly apply data types and hints to your resources, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
 
     The two main approaches are:
 
     - Using the `columns` argument in the `dlt.resource` decorator.
     - Using the `apply_hints` method.
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **`(0) @dlt.resource(columns=...)`**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     This code snippet sets up a nullable boolean column named `my_column` directly in the decorator.
 
     ```python
@@ -622,22 +671,26 @@ def _(mo):
         for i in range(10):
             yield {'my_column': i % 2 == 0}
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(1) `apply_hints`**
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your go-to tool.
 
     The `apply_hints` method in dlt is used to programmatically **set** or **adjust** various aspects of your data resources or pipeline. It can be used in several ways:
@@ -669,16 +722,19 @@ def _(mo):
     )
     load_info = pipeline.run(source_data)
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(2) Adjusting schema settings**
-    """)
+    """
+    )
     return
 
 
@@ -692,7 +748,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Detectors can be removed or added directly in code:
 
     ```python
@@ -700,13 +757,15 @@ def _(mo):
       source.schema.remove_type_detection("iso_timestamp")
       source.schema.add_type_detection("timestamp")
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Column hints can be added directly in code:
 
     ```python
@@ -715,13 +774,15 @@ def _(mo):
       source.schema.merge_hints({"partition": ["re:_timestamp$"]})
 
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Preferred data types can be added directly in code as well:
 
     ```python
@@ -735,16 +796,19 @@ def _(mo):
       }
     )
     ```
-    """)
+    """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ---
     ### **(3) Importing a schema**
-    """)
+    """
+    )
     return
 
 
@@ -766,15 +830,19 @@ def _(mo):
 
 @app.cell
 def _(dlt):
-    pipeline_2 = dlt.pipeline(pipeline_name='github_pipeline3', destination='duckdb', dataset_name='github_data', export_schema_path='schemas/export', import_schema_path='schemas/import')
+    pipeline_2 = dlt.pipeline(
+        pipeline_name="github_pipeline3",
+        destination="duckdb",
+        dataset_name="github_data",
+        export_schema_path="schemas/export",
+        import_schema_path="schemas/import",
+    )
     return (pipeline_2,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""Let's make an initial pipeline run to export schema into the file."""
-    )
+    mo.md(r"""Let's make an initial pipeline run to export schema into the file.""")
     return
 
 
@@ -804,7 +872,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     Now, both folders contain identic schema files.
 
     ### **Exercise 1: Adjust import schema**
@@ -821,7 +890,8 @@ def _(mo):
       resource: github_pulls
       description: Table contains all pull requests information from dlt repository
     ```
-    """)
+    """
+    )
     return
 
 
@@ -848,18 +918,20 @@ def _(mo):
 
 @app.cell
 def _():
-    with open('schemas/export/github_source.schema.yaml') as _f:
+    with open("schemas/export/github_source.schema.yaml") as _f:
         print(_f.read())
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
+    mo.md(
+        r"""
     ### Question
 
     What **data type** does the column `version` in the `_dlt_version` table have?
-    """)
+    """
+    )
     return
 
 
@@ -874,9 +946,9 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
 if __name__ == "__main__":
     app.run()
-
