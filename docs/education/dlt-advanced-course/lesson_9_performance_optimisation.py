@@ -1751,8 +1751,8 @@ def _(mo):
 
 
 @app.cell
-def _():
-    exit()
+def _(os):
+    os.environ.clear()
     return
 
 
