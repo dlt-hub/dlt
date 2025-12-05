@@ -13,8 +13,6 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
 )
 
-import tempfile
-
 SUCCESS_PIPELINE_DUCKDB = "success_pipeline_duckdb"
 SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
 EXTRACT_EXCEPTION_PIPELINE = "extract_exception_pipeline"
@@ -215,12 +213,8 @@ def create_no_destination_pipeline(pipelines_dir: str = None):
     )
     return pipeline
 
-    pipeline.extract(fruitshop_source())
 
-    return pipeline
-
-
-# NOTE: this sript can be run to create the test pipelines globally for manual testing of the dashboard app and cli
+# NOTE: this script can be run to create the test pipelines globally for manual testing of the dashboard app and cli
 if __name__ == "__main__":
     create_success_pipeline_duckdb()
     create_success_pipeline_filesystem()
