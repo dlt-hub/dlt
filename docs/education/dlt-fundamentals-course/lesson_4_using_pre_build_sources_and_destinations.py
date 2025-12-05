@@ -204,7 +204,7 @@ def _(mo):
         r"""
     ### Step 2. Add credentials
 
-    In Colab, it is more convenient to use environment variables. In the previous lesson, you learned how to configure a `dlt` resource using an environment variable.
+    In Colab (or Molab), it is more convenient to use environment variables or `dlt.secrets`.
 
     In the pipeline above, the `access_token` parameter is set to `dlt.secrets.value`, which means you need to configure this variable:
 
@@ -220,11 +220,9 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import os
-
-    os.environ["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
-    return (os,)
+def _(dlt, os):
+    dlt.secrets["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
+    return
 
 
 @app.cell(hide_code=True)
@@ -617,18 +615,21 @@ def _(mo):
 
 
 @app.cell
-def _(os):
+def _():
+    import os
     import requests
 
     folder_name = "local_data"
     os.makedirs(folder_name, exist_ok=True)
     full_path = os.path.abspath(folder_name)
+
     url = "https://www.timestored.com/data/sample/userdata.parquet"
     resp = requests.get(url)
     resp.raise_for_status()
+
     with open(f"{full_path}/userdata.parquet", "wb") as f:
         f.write(resp.content)
-    return (full_path,)
+    return full_path, os
 
 
 @app.cell
