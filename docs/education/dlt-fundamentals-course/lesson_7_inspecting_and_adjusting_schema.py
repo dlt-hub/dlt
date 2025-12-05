@@ -95,7 +95,7 @@ def _():
 
     import os
 
-    os.environ["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
+    dlt.secrets["SOURCES__SECRET_KEY"] = os.getenv("SECRET_KEY")
 
     @dlt.source
     def github_source(secret_key: str = dlt.secrets.value) -> Iterable[DltResource]:

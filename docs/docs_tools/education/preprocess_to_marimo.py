@@ -11,19 +11,6 @@ from docs_tools.education.constans import (
 )
 
 
-def clean_whitespace(py_file: Path) -> None:
-    """Remove trailing spaces and convert tabs to 4 spaces."""
-    text = py_file.read_text(encoding="utf-8")
-    text = re.sub(r"[ \t]+$", "", text, flags=re.MULTILINE)
-    text = text.replace("\t", "    ")
-    py_file.write_text(text, encoding="utf-8")
-
-
-def format_with_black(py_file: Path) -> None:
-    """Run black on the given list of files."""
-    subprocess.run(["uv", "run", "black", f"{str(py_file)}"], check=True)
-
-
 def convert_ipynb_to_py(original_ipynb: Path, cleaned_ipynb: Path) -> Path:
     """Run `marimo convert` on the cleaned `.ipynb` but
     write to the original .py filename."""
@@ -188,9 +175,5 @@ if __name__ == "__main__":
         # convert to marimo py files and add inline dependencies
         py_file = convert_ipynb_to_py(ipynb_file, temp_ipynb_file)
         add_inline_dependencies(packages, py_file)
-
-        # clean up py files
-        clean_whitespace(py_file)
-        #        format_with_black(py_file)
 
         temp_ipynb_file.unlink()

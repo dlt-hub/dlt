@@ -513,15 +513,15 @@ def _(mo):
 
     ```python
     ConfigFieldMissingException: Following fields are missing: ['access_token'] in configuration with spec GithubSourceConfiguration
-        for field "access_token" config providers and keys were tried in following order:
-            In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__SOURCES____MAIN____GITHUB_SOURCE__ACCESS_TOKEN was not found.
-            In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__SOURCES____MAIN____ACCESS_TOKEN was not found.
-            In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__SOURCES__ACCESS_TOKEN was not found.
-            In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__ACCESS_TOKEN was not found.
-            In Environment Variables key SOURCES____MAIN____GITHUB_SOURCE__ACCESS_TOKEN was not found.
-            In Environment Variables key SOURCES____MAIN____ACCESS_TOKEN was not found.
-            In Environment Variables key SOURCES__ACCESS_TOKEN was not found.
-            In Environment Variables key ACCESS_TOKEN was not found.
+    	for field "access_token" config providers and keys were tried in following order:
+    		In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__SOURCES____MAIN____GITHUB_SOURCE__ACCESS_TOKEN was not found.
+    		In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__SOURCES____MAIN____ACCESS_TOKEN was not found.
+    		In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__SOURCES__ACCESS_TOKEN was not found.
+    		In Environment Variables key DLT_COLAB_KERNEL_LAUNCHER__ACCESS_TOKEN was not found.
+    		In Environment Variables key SOURCES____MAIN____GITHUB_SOURCE__ACCESS_TOKEN was not found.
+    		In Environment Variables key SOURCES____MAIN____ACCESS_TOKEN was not found.
+    		In Environment Variables key SOURCES__ACCESS_TOKEN was not found.
+    		In Environment Variables key ACCESS_TOKEN was not found.
     WARNING: dlt looks for .dlt folder in your current working directory and your cwd (/content) is different from directory of your pipeline script (/usr/local/lib/python3.10/dist-packages).
     If you keep your secret files in the same folder as your pipeline script but run your script from some other folder, secrets/configs will not be found
     Please refer to https://dlthub.com/docs/general-usage/credentials for more information
@@ -638,7 +638,7 @@ def _(mo):
         r"""
     ###  **Use environment variables**
 
-    Let's set the environment variable for our access token in one of the formats dlt accepts: `ACCESS_TOKEN`.
+    Let's explicitly set the environment variable for our access token in one of the formats dlt accepts: `ACCESS_TOKEN`.
     """
     )
     return

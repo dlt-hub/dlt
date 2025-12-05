@@ -54,6 +54,8 @@ def _(mo):
 
 
     #### **Example**
+
+    > Don't forget to use your [GitHub API token](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api?apiVersion=2022-11-28) below!
     """
     )
     return
@@ -226,8 +228,6 @@ def _(mo):
 
 @app.cell
 def _(BearerTokenAuth, HeaderLinkPaginator, RESTClient, dlt, os):
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-
     os.environ["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
     client = RESTClient(
         base_url="https://api.github.com",
@@ -613,7 +613,7 @@ def _(
     dlt,
     os,
 ):
-    os.environ["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
+    dlt.secrets["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
 
     @dlt.resource(write_disposition="replace", name="python_articles")
     def get_articles(news_api_key: str = dlt.secrets.value) -> Iterator[TDataItems]:
@@ -653,7 +653,7 @@ def _(
     dlt,
     os,
 ):
-    os.environ["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
+    dlt.secrets["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
 
     @dlt.resource(write_disposition="replace", name="top_articles")
     def get_top_articles(news_api_key: str = dlt.secrets.value) -> Iterator[TDataItems]:
