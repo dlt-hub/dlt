@@ -91,6 +91,7 @@ def _write_to_bucket(
 ) -> None:
     # write to bucket using the config, same object may be written to multiple paths
 
+    logger.info(f"Will send run artifact to {bucket_url}: {paths}")
     for path in paths:
         with fs.open(f"{bucket_url}/{pipeline_name}/{path}", mode=mode) as f:
             f.write(data)

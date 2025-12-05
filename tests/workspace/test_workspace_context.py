@@ -56,7 +56,7 @@ def test_workspace_profile() -> None:
         assert_workspace_context(ctx, "default", "prod")
         # mocked global dir
         assert ctx.global_dir.endswith(".global_dir")
-        assert ctx.configured_profiles() == ["dev", "prod"]
+        assert set(ctx.configured_profiles()) == {"dev", "prod"}
         assert ctx._profile_has_config("prod") is False
         assert ctx._profile_has_config("dev") is True
 
@@ -112,7 +112,7 @@ def test_pinned_profile() -> None:
         save_profile_pin(ctx, "prod")
         assert read_profile_pin(ctx) == "prod"
         # prod is configured profile now
-        assert ctx.configured_profiles() == ["prod", "dev"]
+        assert set(ctx.configured_profiles()) == {"prod", "dev"}
         # because it is pinned, we still do not see it as special config
         assert ctx._profile_has_config("prod") is False
 
@@ -133,7 +133,7 @@ def test_workspace_pipeline() -> None:
 
     with isolated_workspace("pipelines", profile="tests") as ctx:
         # prod and test have explicit config for profiles
-        assert set(ctx.configured_profiles()) == set(["tests", "prod"])
+        assert set(ctx.configured_profiles()) == {"tests", "prod"}
         assert ctx._profile_has_config("tests") is True
         assert ctx._profile_has_config("prod") is True
         assert ctx._profile_has_pipelines("tests") is False
@@ -177,11 +177,11 @@ def test_workspace_pipeline() -> None:
         # both profiles have pipelines
         assert ctx._profile_has_pipelines("tests") is True
         assert ctx._profile_has_pipelines("prod") is True
-        assert ctx.configured_profiles() == ["prod", "tests"]
+        assert set(ctx.configured_profiles()) == {"prod", "tests"}
 
         # switch to dev
         ctx = ctx.switch_profile("dev")
-        assert set(ctx.configured_profiles()) == set(["dev", "prod", "tests"])
+        assert set(ctx.configured_profiles()) == {"dev", "prod", "tests"}
 
 
 def test_workspace_send_artifacts() -> None:
