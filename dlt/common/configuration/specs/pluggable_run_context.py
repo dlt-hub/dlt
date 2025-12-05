@@ -159,6 +159,10 @@ class ProfilesRunContext(RunContextBase):
     def available_profiles(self) -> List[str]:
         """Returns available profiles"""
 
+    def configured_profiles(self) -> List[str]:
+        """Returns profiles with configurations or dlt entities, same as available by default"""
+        return self.available_profiles()
+
     @abstractmethod
     def switch_profile(self, new_profile: str) -> Self:
         """Switches current profile and returns new run context"""
