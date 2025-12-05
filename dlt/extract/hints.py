@@ -534,7 +534,7 @@ class DltResourceHints:
                     columns = ensure_table_schema_columns(columns)
                     # this updates all columns with defaults
                     assert isinstance(t["columns"], dict)
-                    t["columns"] = merge_columns(t["columns"], columns, merge_columns=True)
+                    t["columns"] = merge_columns(t["columns"], columns)
                 else:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)

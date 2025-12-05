@@ -154,6 +154,37 @@ def has_default_column_prop_value(prop: str, value: Any) -> bool:
     return value in (None, False)
 
 
+def is_compound_prop(prop: str) -> bool:
+    """Checks if a column property is compound."""
+    if prop in ColumnPropInfos:
+        return ColumnPropInfos[prop].compound is True
+    # for any unknown property
+    return False
+
+
+def remove_compound_props(
+    columns: TTableSchemaColumns, compound_props: List[str]
+) -> TTableSchemaColumns:
+    """Removes compound properties from all columns in place."""
+    non_compound = [prop for prop in compound_props if not is_compound_prop(prop)]
+    if non_compound:
+        raise ValueError(
+            f"The following properties are not compound properties: {', '.join(non_compound)}"
+        )
+
+    for column in columns.values():
+        is_nullable = is_nullable_column(column)
+        for prop in compound_props:
+            if not is_nullable:
+                logger.warning(
+                    f"Removing compound property '{prop}' from column '{column['name']}', but"
+                    " 'unique' constraint remains set to True."
+                )
+            column.pop(prop, None)  # type: ignore[misc]
+
+    return columns
+
+
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
     """Removes default values from `column_schema` in place, returns the input for chaining"""
     # remove hints with default values
@@ -436,20 +467,22 @@ def merge_column(
 def merge_columns(
     columns_a: TTableSchemaColumns,
     columns_b: TTableSchemaColumns,
-    merge_columns: bool = False,
-    columns_partial: bool = True,
+    keep_compound_props: bool = False,
 ) -> TTableSchemaColumns:
-    """Merges `columns_a` with `columns_b`. `columns_a` is modified in place.
+    """Merges `columns_b` into `columns_a`. `columns_a` is modified in place and returned.
 
-    * new columns are added
-    * if `merge_columns` is False, updated columns are replaced from `columns_b`
-    * if `merge_columns` is True, updated columns are merged with `merge_column`
-    * if `columns_partial` is True, both columns sets are considered incomplete. In that case hints like `primary_key` or `merge_key` are merged
-    * if `columns_partial` is False, hints like `primary_key` and `merge_key` are dropped from `columns_a` and replaced from `columns_b`
-    * incomplete columns in `columns_a` that got completed in `columns_b` are removed to preserve order
+    * New columns from `columns_b` are added to `columns_a`
+    * Existing columns that appear in both sets are merged using `merge_column`
+    * If `preserve_compound_props` is False, compound properties (like `primary_key`, `merge_key`) found in `columns_b` are first removed from all columns in `columns_a`
+    * If `preserve_compound_props` is True, compound properties in `columns_a` are kept, allowing incremental merging
+    * Incomplete columns in `columns_a` that are complete in `columns_b` are removed and re-added to preserve column order
     """
-    if columns_partial is False:
-        raise NotImplementedError("Using `merge_columns()` requires `columns_partial=False`")
+    if keep_compound_props is False:
+        compound_props: List[str] = []
+        for column_b in columns_b.values():
+            compound_props.extend(prop for prop in column_b if is_compound_prop(prop))
+        if compound_props:
+            remove_compound_props(columns=columns_a, compound_props=compound_props)
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
@@ -457,7 +490,7 @@ def merge_columns(
         if is_complete_column(column_b):
             if column_a and not is_complete_column(column_a):
                 columns_a.pop(col_name)
-        if column_a and merge_columns:
+        if column_a:
             column_b = merge_column(column_a, column_b)
         # set new or updated column
         columns_a[col_name] = column_b
@@ -606,7 +639,7 @@ def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartial
             table["columns"][incremental_a_col].pop("incremental")
 
     # add new columns when all checks passed
-    updated_columns = merge_columns(table["columns"], table_diff["columns"])
+    updated_columns = merge_columns(columns_a=table["columns"], columns_b=table_diff["columns"])
     table.update(table_diff)
     table["columns"] = updated_columns
 

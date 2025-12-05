@@ -955,7 +955,7 @@ def _merge_resource_endpoints(
             columns = ensure_table_schema_columns(columns)
             default_columns = ensure_table_schema_columns(default_columns)
             # merge columns with deep merging hints
-            config["columns"] = merge_columns(copy(default_columns), columns, merge_columns=True)
+            config["columns"] = merge_columns(copy(default_columns), columns)
 
     # no need to deep merge resources
     merged_resource: EndpointResource = {
