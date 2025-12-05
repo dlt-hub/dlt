@@ -138,7 +138,7 @@ def _(mo):
     * `alive_progress` - with the most fancy animations.
     * `log` — dumps progress information to a log, console, or text stream; most useful in production, and can optionally include memory and CPU usage stats.
 
-    For more information read the [official documentation](https://dlthub.com/docs/general-usage/pipeline#display-the-loading-progress).
+    For more information read the [official documentation](https://dlthub.com/docs/general-usage/pipeline#monitor-the-loading-progress).
     """
     )
     return
