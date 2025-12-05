@@ -410,8 +410,8 @@ def _(mo):
 
 
 @app.cell
-def _():
-    exit()  # we use exit() to reset all ENVs we set
+def _(os):
+    os.environ.clear()
     return
 
 
@@ -507,8 +507,8 @@ def _(mo):
 @app.cell
 def _(dlt, github_source_1, os):
     dlt.secrets['access_token'] = os.getenv('SECRET_KEY')
-    _pipeline = dlt.pipeline(destination='duckdb')
-    _load_info = _pipeline.run(github_source_1())
+    github_pipeline = dlt.pipeline(destination='duckdb')
+    _load_info = github_pipeline.run(github_source_1())
     print(_load_info)
     return
 

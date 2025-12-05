@@ -122,5 +122,5 @@ jobs:
             echo "Marimo notebooks are up to date!"
           fi        
       
-      - name: Lint marimo notebooks 
-        run: make lint-marimo
+      - name: Check marimo notebooks 
+        run: make check-marimo
