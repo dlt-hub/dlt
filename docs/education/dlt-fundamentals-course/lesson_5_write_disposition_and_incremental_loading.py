@@ -152,7 +152,7 @@ def _(data):
         pipeline_name="append_poke_pipeline",
         destination="duckdb",
         dataset_name="pokemon_data",
-    )  # <--- add new argument into decorator
+    )
     _load_info = append_pipeline.run(append_pokemon)
     print(_load_info)
     # explore loaded data
@@ -350,19 +350,19 @@ def _():
             "id": "1",
             "name": "bulbasaur",
             "size": {"weight": 6.9, "height": 0.7},
-            "created_at": "2024-12-01",  # <------- new field
+            "created_at": "2024-12-01",
         },
         {
             "id": "4",
             "name": "charmander",
             "size": {"weight": 8.5, "height": 0.6},
-            "created_at": "2024-09-01",  # <------- new field
+            "created_at": "2024-09-01",
         },
         {
             "id": "25",
             "name": "pikachu",
             "size": {"weight": 6, "height": 0.4},
-            "created_at": "2023-06-01",  # <------- new field
+            "created_at": "2023-06-01",
         },
     ]
     return (created_data,)
@@ -507,21 +507,21 @@ def _(mo):
 
 @app.cell
 def _():
-    # We added `created_at` field to the data
+    # We added `updated_at` field to the data
     updated_data = [
         {
             "id": "1",
             "name": "bulbasaur",
             "size": {"weight": 6.9, "height": 0.7},
             "created_at": "2024-12-01",
-            "updated_at": "2024-12-01",  # <------- new field
+            "updated_at": "2024-12-01",
         },
         {
             "id": "4",
             "name": "charmander",
             "size": {"weight": 8.5, "height": 0.6},
             "created_at": "2024-09-01",
-            "updated_at": "2024-09-01",  # <------- new field
+            "updated_at": "2024-09-01",
         },
         {
             "id": "25",
@@ -529,9 +529,9 @@ def _():
             "size": {
                 "weight": 9,
                 "height": 0.4,
-            },  # <----- pikachu gained weight from 6 to 9
+            },
             "created_at": "2023-06-01",
-            "updated_at": "2024-12-16",  # <------- new field, information about pikachu has updated
+            "updated_at": "2024-12-16",
         },
     ]
     return (updated_data,)
@@ -554,7 +554,7 @@ def _(TDataItems, dlt):
             "updated_at", initial_value="2024-01-01"
         ),
     ) -> TDataItems:
-        yield data  # <--- change write disposition from 'append' to 'merge'  # <--- set a primary key  # <--- change the cursor name from 'created_at' to 'updated_at'
+        yield data
 
     return (dedup_pokemon,)
 
@@ -595,7 +595,6 @@ def _(mo):
 
 @app.cell
 def _():
-    # We added `created_at` field to the data
     reupdated_data = [
         {
             "id": "1",
@@ -614,9 +613,9 @@ def _():
         {
             "id": "25",
             "name": "pikachu",
-            "size": {"weight": 7.5, "height": 0.4},  # <--- pikachu lost weight
+            "size": {"weight": 7.5, "height": 0.4},
             "created_at": "2023-06-01",
-            "updated_at": "2024-12-23",  # <--- data about his weight was updated a week later
+            "updated_at": "2024-12-23",
         },
     ]
     return (reupdated_data,)
@@ -671,20 +670,14 @@ def _(mo):
 
 
 @app.cell
-def _():
-    exit()  # we use exit() to reset all ENVs we set
-    return
-
-
-@app.cell
 def _(TDataItems, dlt):
     from typing import Iterable
+    import os
     from dlt.extract import DltResource
     from dlt.sources.helpers import requests
     from dlt.sources.helpers.rest_client import RESTClient
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
-    import os
 
     os.environ["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
 
