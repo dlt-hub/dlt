@@ -276,8 +276,6 @@ def load_catalog_from_config(
 
     return load_catalog(catalog_name, **config_dict)
 
-#! Following Rudolf comment, we could just swap this whole funciton out with `load_catalog`, 
-#! as pyiceberg supports loading from env vars, and DLT will pass them along
 def load_catalog_from_env(
     catalog_name: Optional[str] = None,
     credentials: Optional[FileSystemCredentials] = None,
@@ -294,61 +292,24 @@ def load_catalog_from_env(
     Raises:
         CatalogNotFoundError: If required environment variables are not set
 
-    Environment variables:
-        DLT_ICEBERG_CATALOG_NAME: Name of the catalog (optional, defaults to 'default')
-        DLT_ICEBERG_CATALOG_TYPE: Type of catalog ('sql' or 'rest')
-        DLT_ICEBERG_CATALOG_URI: Catalog URI
-        DLT_ICEBERG_CATALOG_WAREHOUSE: Warehouse name (for REST catalogs)
-        DLT_ICEBERG_CATALOG_PROP_*: Additional properties (e.g., PROP_CREDENTIAL, PROP_SCOPE)
+    Example Environment variables (catalog name is 'default'). See https://py.iceberg.apache.org/configuration/#setting-configuration-values:
+        PYICEBERG_CATALOG__DEFAULT__TYPE: Type of catalog ('sql' or 'rest')
+        PYICEBERG_CATALOG__DEFAULT__URI: Catalog URI
+        PYICEBERG_CATALOG__DEFAULT__WAREHOUSE: Warehouse name (for REST catalogs)
+        PYICEBERG_CATALOG__DEFAULT__CREDENTIAL: Credential name
     """
     from pyiceberg.catalog import load_catalog
 
-    catalog_name = catalog_name or os.getenv("DLT_ICEBERG_CATALOG_NAME", "default")
-    catalog_type = os.getenv("DLT_ICEBERG_CATALOG_TYPE")
-
-    if not catalog_type:
+    # Check if any PYICEBERG_* environment variable is set
+    has_pyiceberg_env = any(key.startswith("PYICEBERG_") for key in os.environ)
+    if not has_pyiceberg_env:
         raise CatalogNotFoundError(
-            "DLT_ICEBERG_CATALOG_TYPE environment variable not set. Set to 'sql' or 'rest'."
+            "No PYICEBERG_* environment variables found. Assumption is that catalog is not defined in the environment variables."
         )
 
     logger.info(f"Loading catalog '{catalog_name}' from environment variables")
 
-    if catalog_type == "rest":
-        config = {
-            "type": "rest",
-            "uri": os.getenv("DLT_ICEBERG_CATALOG_URI"),
-            "warehouse": os.getenv("DLT_ICEBERG_CATALOG_WAREHOUSE"),
-        }
-
-        if not config["uri"] or not config["warehouse"]:
-            raise CatalogNotFoundError(
-                "For REST catalog, DLT_ICEBERG_CATALOG_URI and "
-                "DLT_ICEBERG_CATALOG_WAREHOUSE must be set"
-            )
-
-        # Add custom properties from DLT_ICEBERG_CATALOG_PROP_* variables
-        for key, value in os.environ.items():
-            if key.startswith("DLT_ICEBERG_CATALOG_PROP_"):
-                prop_name = key.replace("DLT_ICEBERG_CATALOG_PROP_", "").lower().replace("_", "-")
-                config[prop_name] = value
-
-    elif catalog_type == "sql":
-        config = {
-            "type": "sql",
-            "uri": os.getenv("DLT_ICEBERG_CATALOG_URI", "sqlite:///:memory:"),
-        }
-
-    else:
-        raise CatalogNotFoundError(
-            f"Unsupported catalog type: {catalog_type}. Use 'sql' or 'rest'."
-        )
-
-    # Merge filesystem credentials if provided
-    if credentials:
-        fileio_config = _get_fileio_config(credentials)
-        config.update(fileio_config)
-
-    return load_catalog(catalog_name, **config)
+    return load_catalog(catalog_name, **_get_fileio_config(credentials))
 
 @configspec
 class PyIcebergConfig(BaseConfiguration):
@@ -446,7 +407,7 @@ def get_catalog(
     if iceberg_catalog_config:
         try:
             return load_catalog_from_config(iceberg_catalog_name, iceberg_catalog_config, credentials)
-        except Exception as e:
+        except CatalogNotFoundError as e:
             logger.warning(f"Failed to load catalog from config dict: {e}")
 
     # Priority 2: .pyiceberg.yaml file (PyIceberg standard)
@@ -454,16 +415,14 @@ def get_catalog(
         return load_catalog_from_yaml(iceberg_catalog_name, credentials=credentials)
     except CatalogNotFoundError as e:
         logger.debug(f"Catalog not found in .pyiceberg.yaml: {e}")
-    except Exception as e:
-        logger.warning(f"Error loading catalog from .pyiceberg.yaml: {e}")
+
 
     # Priority 3: DLT_ICEBERG_* environment variables
     try:
         return load_catalog_from_env(iceberg_catalog_name, credentials)
     except CatalogNotFoundError as e:
         logger.debug(f"Catalog not configured via DLT_ICEBERG_* environment variables: {e}")
-    except Exception as e:
-        logger.warning(f"Error loading catalog from environment: {e}")
+
 
     # Priority 4: DLT configuration injection (from secrets.toml or ICEBERG_CATALOG__* env vars)
     # These parameters are injected by @with_config decorator
