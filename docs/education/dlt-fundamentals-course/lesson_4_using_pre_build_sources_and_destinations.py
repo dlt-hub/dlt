@@ -220,9 +220,11 @@ def _(mo):
 
 
 @app.cell
-def _(dlt, os):
+def _(os):
+    import dlt
+
     dlt.secrets["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
-    return
+    return (dlt,)
 
 
 @app.cell(hide_code=True)
@@ -353,8 +355,7 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import dlt
+def _(dlt):
     from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
     from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
 
@@ -396,7 +397,7 @@ def _():
     )
     _load_info = rest_api_pipeline.run(github_source)
     print(_load_info)
-    return dlt, rest_api_pipeline
+    return (rest_api_pipeline,)
 
 
 @app.cell

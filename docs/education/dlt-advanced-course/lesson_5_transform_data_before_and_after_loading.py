@@ -656,7 +656,7 @@ def _(mo):
 def _(pipeline_7):
     with pipeline_7.sql_client() as _client:
         _client.execute_sql(
-            " CREATE OR REPLACE TABLE genome_length AS\n            SELECT\n                SUM(total_length) AS total_total_length,\n                AVG(total_length) AS average_total_length\n            FROM\n                genome\n    "
+            "CREATE OR REPLACE TABLE genome_length AS SELECT     SUM(total_length) AS total_total_length,     AVG(total_length) AS average_total_length FROM genome"
         )
         with _client.execute_query("SELECT * FROM genome_length") as _my_table:
             genome_length = _my_table.df()
