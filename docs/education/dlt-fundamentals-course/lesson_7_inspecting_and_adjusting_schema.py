@@ -148,19 +148,12 @@ def _(mo):
 
 
 @app.cell
-def _(get_ipython):
+def _():
     import subprocess
 
-    cmd_list = ["dlt", "pipeline", "-v", "github_pipeline1", "load-package"]
-    try:
-        # Jupyter/Colab: use shell string
-        get_ipython()
-        cmd = " ".join(cmd_list)
-        subprocess.run(cmd, shell=True, check=True)
-
-    except Exception:
-        # marimo/plain Python: no pipes allowed → manually supply input
-        subprocess.run(cmd_list, check=True)
+    subprocess.run(
+        ["dlt", "pipeline", "-v", "github_pipeline1", "load-package"], check=True
+    )
     return
 
 
