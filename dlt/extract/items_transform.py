@@ -199,6 +199,10 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
         if item is None:
             return None
 
+        # do not return any late arriving items
+        if self.exhausted:
+            return None
+
         if self.count_rows:
             self.count += count_rows_in_items(item)
         else:
@@ -219,9 +223,6 @@ class LimitItem(ItemTransform[TDataItem, Dict[str, Any]]):
             # otherwise never return anything
             if self.max_items != 0:
                 return item
-
-        # do not return any late arriving items
-        if self.exhausted:
             return None
 
         return item
