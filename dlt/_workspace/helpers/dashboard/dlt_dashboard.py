@@ -86,6 +86,7 @@ def render_workspace_home(
 ) -> List[Any]:
     """Render the workspace-level home view (no pipeline selected)."""
     return [
+        ui.section_marker(strings.app_section_name, has_content=True),
         build_home_header_row(dlt_profile_select, dlt_pipeline_select),
         mo.md(strings.app_title).center(),
         mo.md(strings.app_intro).center(),
@@ -185,7 +186,7 @@ def render_pipeline_home(
         )
         _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
 
-    _stack = [ui.section_marker(strings.home_section_name)]
+    _stack = [ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)]
     _stack.extend(
         render_pipeline_header_row(
             dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
@@ -304,7 +305,9 @@ def section_info(
     Overview page of currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.overview_section_name)]
+    _result = [
+        ui.section_marker(strings.overview_section_name, has_content=dlt_pipeline is not None)
+    ]
     _result.extend(
         ui.build_page_header(
             dlt_pipeline,
@@ -363,7 +366,7 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.schema_section_name)]
+    _result = [ui.section_marker(strings.schema_section_name, has_content=dlt_pipeline is not None)]
     _result.extend(
         ui.build_page_header(
             dlt_pipeline,
@@ -460,7 +463,9 @@ def section_browse_data_table_list(
     Show data of the currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.browse_data_section_name)]
+    _result = [
+        ui.section_marker(strings.browse_data_section_name, has_content=dlt_pipeline is not None)
+    ]
     _result.extend(
         ui.build_page_header(
             dlt_pipeline,
@@ -705,7 +710,7 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result = [ui.section_marker(strings.state_section_name)]
+    _result = [ui.section_marker(strings.state_section_name, has_content=dlt_pipeline is not None)]
     _result.extend(
         ui.build_page_header(
             dlt_pipeline,
@@ -737,7 +742,7 @@ def section_trace(
     Show last trace of the currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.trace_section_name)]
+    _result = [ui.section_marker(strings.trace_section_name, has_content=dlt_pipeline is not None)]
     _result.extend(
         ui.build_page_header(
             dlt_pipeline,
@@ -851,7 +856,7 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result = [ui.section_marker(strings.loads_section_name)]
+    _result = [ui.section_marker(strings.loads_section_name, has_content=dlt_pipeline is not None)]
     _result.extend(
         ui.build_page_header(
             dlt_pipeline,
@@ -964,7 +969,9 @@ def section_ibis_backend(
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
-    _result = [ui.section_marker(strings.ibis_backend_section_name)]
+    _result = [
+        ui.section_marker(strings.ibis_backend_section_name, has_content=dlt_pipeline is not None)
+    ]
     _result.extend(
         ui.build_page_header(
             dlt_pipeline,

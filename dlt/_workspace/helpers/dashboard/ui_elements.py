@@ -78,6 +78,18 @@ def build_page_header(
     ]
 
 
-def section_marker(section_name: str) -> mo.Html:
-    """Create an invisible marker element to identify sections for CSS styling."""
-    return mo.Html(f'<div class="section-marker" data-section="{section_name}" hidden"></div>')
+def section_marker(section_name: str, has_content: bool = False) -> mo.Html:
+    """Create an invisible marker element to identify sections for CSS styling.
+
+    Args:
+        section_name: Name identifier for the section (e.g., "home_section", "schema_section")
+        has_content: If True, adds 'has-content' class to enable CSS styling (borders, backgrounds).
+                     Should be True only when the section has actual content and is displayed.
+
+    Returns:
+        Hidden HTML div element with section marker classes for CSS targeting.
+    """
+    content_class = "has-content" if has_content else ""
+    return mo.Html(
+        f'<div class="section-marker {content_class}" data-section="{section_name}" hidden"></div>'
+    )

@@ -56,22 +56,25 @@
 
 /* add colors to cells */
 
-/* Default: all sections get purple border and background */
-#App .marimo-cell .output-area {
+/* Default: all sections that have content get purple border and background */
+#App .marimo-cell .output-area:has(.section-marker.has-content) {
   border: 1px dashed var(--dlt-color-purple);
   background-color: var(--dlt-color-purple-background);
 }
 
-/* All cells with section markers get margin-top */
-#App .marimo-cell .output-area:has(.section-marker) {
+
+/* All cells with section markers and have content get margin-top */
+#App .marimo-cell .output-area:has(.section-marker.has-content) {
   margin-top: 0.5rem;
 }
 
-/* Aqua sections - identified by section name in strings.py */
-#App .marimo-cell .output-area:has([data-section="home_section"]),
-#App .marimo-cell .output-area:has([data-section="schema_section"]),
-#App .marimo-cell .output-area:has([data-section="state_section"]),
-#App .marimo-cell .output-area:has([data-section="loads_section"]) {
+
+/* Aqua sections - identified by section name in strings.py and the availability of content */
+#App .marimo-cell .output-area:has([data-section="workspace_home"].has-content),
+#App .marimo-cell .output-area:has([data-section="home_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="schema_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="state_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="loads_section"].has-content) {
   background-color: var(--dlt-color-aqua-background);
   border: 1px dashed var(--dlt-color-aqua);
 }
