@@ -1,11 +1,15 @@
+from dlt.common.configuration.inject import with_config
 import os
+import yaml
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 
 from fsspec import AbstractFileSystem
 from packaging.version import Version
 
 from dlt import version
 from dlt.common import logger
+from dlt.common.configuration import configspec
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.time import precise_time
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
@@ -16,7 +20,7 @@ from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
-from dlt.common.configuration.specs import CredentialsConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -141,6 +145,309 @@ def get_sql_catalog(
         **(properties or {}),
     )
 
+
+class CatalogNotFoundError(Exception):
+    """Raised when a catalog cannot be found in the specified configuration method"""
+
+    pass
+
+
+def load_catalog_from_yaml(
+    catalog_name: str,
+    config_path: Optional[str] = None,
+    credentials: Optional[FileSystemCredentials] = None,
+) -> IcebergCatalog:
+    """Load Iceberg catalog from .pyiceberg.yaml file
+
+    Args:
+        catalog_name: Name of the catalog to load from YAML
+        config_path: Optional path to .pyiceberg.yaml file. If None, searches in:
+                    1. Current directory (./.pyiceberg.yaml)
+                    2. DLT project directory (./.dlt/.pyiceberg.yaml)
+                    3. Home directory (~/.pyiceberg.yaml)
+        credentials: Optional filesystem credentials to merge into catalog config
+
+    Returns:
+        IcebergCatalog instance loaded from YAML configuration
+
+    Raises:
+        CatalogNotFoundError: If no .pyiceberg.yaml file found or catalog not in file
+
+    Example .pyiceberg.yaml:
+        catalog:
+          my_catalog:
+            type: rest
+            uri: https://catalog.example.com
+            warehouse: my_warehouse
+            credential: token
+    """
+    from pyiceberg.catalog import load_catalog
+    import dlt
+    
+    active_run_context = dlt.current.run_context()
+
+        
+    # Search through potential paths for Iceberg Config
+    search_paths = []
+    if config_path:
+        search_paths.append(Path(config_path))
+    else:
+        search_paths.extend(
+            [
+                Path(active_run_context.run_dir) / ".pyiceberg.yaml",
+                Path(active_run_context.get_setting(".pyiceberg.yaml")),
+                Path.home() / ".pyiceberg.yaml",
+            ]
+        )
+
+    # Search for the first existing config file
+    config = None
+    for path in search_paths:
+        if path.exists():
+            logger.info(f"Loading Iceberg catalog configuration from: {path}")
+            with open(path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            break
+
+    # If no config file was found, raise error
+    if config is None:
+        raise CatalogNotFoundError(
+            f"No .pyiceberg.yaml file found. Searched in: {', '.join(str(p) for p in search_paths)}"
+        )
+
+    # Check if catalog exists in config
+    if "catalog" not in config or catalog_name not in config["catalog"]:
+        available = list(config.get("catalog", {}).keys())
+        raise CatalogNotFoundError(
+            f"Catalog '{catalog_name}' not found in .pyiceberg.yaml. "
+            f"Available catalogs: {available}"
+        )
+
+    logger.info(f"Found catalog '{catalog_name}' in .pyiceberg.yaml")
+
+    # Get catalog config and merge credentials if provided
+    catalog_config = config["catalog"][catalog_name].copy()
+    if credentials:
+        fileio_config = _get_fileio_config(credentials)
+        catalog_config.update(fileio_config)
+
+    return load_catalog(catalog_name, **catalog_config)
+
+
+def load_catalog_from_config(
+    catalog_name: str,
+    config_dict: Dict[str, Any],
+    credentials: Optional[FileSystemCredentials] = None,
+) -> IcebergCatalog:
+    """Load Iceberg catalog from configuration dictionary
+
+    Args:
+        catalog_name: Name of the catalog
+        config_dict: Dictionary with catalog configuration (type, uri, warehouse, etc.)
+        credentials: Optional filesystem credentials to merge into config
+
+    Returns:
+        IcebergCatalog instance
+
+    Raises:
+        CatalogNotFoundError: If config_dict is None or empty
+
+    Example:
+        config = {
+            'type': 'rest',
+            'uri': 'https://catalog.example.com',
+            'warehouse': 'my_warehouse',
+            'credential': 'token'
+        }
+        catalog = load_catalog_from_config('my_catalog', config)
+    """
+    from pyiceberg.catalog import load_catalog
+
+    if not config_dict:
+        raise CatalogNotFoundError("No configuration dictionary provided")
+
+    logger.info(f"Loading catalog '{catalog_name}' from provided configuration")
+
+    # Merge filesystem credentials if provided
+    config_dict = config_dict.copy()
+    if credentials:
+        fileio_config = _get_fileio_config(credentials)
+        config_dict.update(fileio_config)
+
+    return load_catalog(catalog_name, **config_dict)
+
+def load_catalog_from_env(
+    catalog_name: Optional[str] = None,
+    credentials: Optional[FileSystemCredentials] = None,
+) -> IcebergCatalog:
+    """Load Iceberg catalog from environment variables
+
+    Args:
+        catalog_name: Optional catalog name (defaults to DLT_ICEBERG_CATALOG_NAME env var)
+        credentials: Optional filesystem credentials to merge into config
+
+    Returns:
+        IcebergCatalog instance
+
+    Raises:
+        CatalogNotFoundError: If required environment variables are not set
+
+    Example Environment variables (catalog name is 'default'). See https://py.iceberg.apache.org/configuration/#setting-configuration-values:
+        PYICEBERG_CATALOG__DEFAULT__TYPE: Type of catalog ('sql' or 'rest')
+        PYICEBERG_CATALOG__DEFAULT__URI: Catalog URI
+        PYICEBERG_CATALOG__DEFAULT__WAREHOUSE: Warehouse name (for REST catalogs)
+        PYICEBERG_CATALOG__DEFAULT__CREDENTIAL: Credential name
+    """
+    from pyiceberg.catalog import load_catalog
+
+    # Check if any PYICEBERG_* environment variable is set
+    has_pyiceberg_env = any(key.startswith("PYICEBERG_") for key in os.environ)
+    if not has_pyiceberg_env:
+        raise CatalogNotFoundError(
+            "No PYICEBERG_* environment variables found. Assumption is that catalog is not defined in the environment variables."
+        )
+
+    logger.info(f"Loading catalog '{catalog_name}' from environment variables")
+
+    return load_catalog(catalog_name, **_get_fileio_config(credentials))
+
+@configspec
+class PyIcebergConfig(BaseConfiguration):
+
+    # Iceberg catalog configuration
+    iceberg_catalog_name: Optional[str] = "default"
+    """Name of the Iceberg catalog to use. Corresponds to catalog name in .pyiceberg.yaml"""
+
+    iceberg_catalog_type: Optional[str] = "sql"
+    """Type of Iceberg catalog: 'sql', 'rest', 'glue', 'hive', etc."""
+
+    iceberg_catalog_uri: Optional[str] = None
+    """
+    URI for SQL catalog (e.g., 'postgresql://...') or REST catalog endpoint.
+    If not provided, defaults to in-memory SQLite for backward compatibility.
+    """
+
+    iceberg_catalog_warehouse: Optional[str] = None
+    """
+    Warehouse name for REST catalogs. Required when iceberg_catalog_type is 'rest'.
+    """
+
+    iceberg_catalog_config: Optional[Dict[str, Any]] = None
+    """
+    Optional dictionary with complete catalog configuration.
+    If provided, will be used instead of loading from .pyiceberg.yaml.
+    Example for REST catalog:
+        {
+            'type': 'rest',
+            'uri': 'https://catalog.example.com',
+            'warehouse': 'my_warehouse',
+            'credential': 'token',
+            'scope': 'PRINCIPAL_ROLE:ALL'
+        }
+    Example for SQL catalog:
+        {
+            'type': 'sql',
+            'uri': 'postgresql://user:pass@localhost/catalog'
+        }
+    """
+
+
+@with_config(spec=PyIcebergConfig, sections = 'iceberg_catalog')
+def get_catalog(
+    iceberg_catalog_name: str = "default",
+    iceberg_catalog_type: str = 'sql',
+    iceberg_catalog_uri: Optional[str] = None,
+    iceberg_catalog_warehouse: Optional[str] = None,
+    iceberg_catalog_config: Optional[Dict[str, Any]] = None,
+    credentials: Optional[FileSystemCredentials] = None,
+) -> IcebergCatalog:
+    """Get an Iceberg catalog using multiple configuration methods.
+
+    This function tries to load a catalog in the following priority order:
+    1. From explicit config dictionary (if iceberg_catalog_config provided)
+    2. From .pyiceberg.yaml file
+    3. From environment variables (DLT_ICEBERG_*)
+    4. From DLT configuration (config.toml, env vars via @with_config)
+    5. Fall back to in-memory SQLite catalog
+
+    Args:
+        iceberg_catalog_name: Name of the catalog (default: "default")
+        iceberg_catalog_type: Type of catalog ('sql' or 'rest')
+        iceberg_catalog_uri: URI for catalog (SQL URI or REST endpoint)
+        iceberg_catalog_warehouse: Warehouse name (for REST catalogs)
+        iceberg_catalog_config: Optional dictionary with complete catalog configuration
+        credentials: Optional filesystem credentials to merge into config
+
+    Returns:
+        IcebergCatalog instance
+
+    Examples:
+        # Load from .pyiceberg.yaml
+        catalog = get_catalog('my_catalog')
+
+        # Load from config dict
+        config = {'type': 'rest', 'uri': 'https://...', 'warehouse': 'wh'}
+        catalog = get_catalog('my_catalog', iceberg_catalog_config=config)
+
+        # Load from environment variables
+        # (set DLT_ICEBERG_CATALOG_TYPE, DLT_ICEBERG_CATALOG_URI, etc.)
+        catalog = get_catalog()
+        
+        # Load from DLT config (config.toml or ICEBERG_CATALOG__* env vars)
+        catalog = get_catalog()  # Will use [iceberg_catalog] section from config
+    """
+    logger.info(f"Attempting to load Iceberg catalog: {iceberg_catalog_name}")
+
+    # Validate catalog type
+    supported_catalog_types = ['sql', 'rest']
+    if iceberg_catalog_type not in supported_catalog_types:
+        raise ValueError(f"Unsupported catalog type: {iceberg_catalog_type}. Use 'sql' or 'rest'.")
+
+    # Priority 1: Explicit config dictionary (most specific)
+    if iceberg_catalog_config:
+        try:
+            return load_catalog_from_config(iceberg_catalog_name, iceberg_catalog_config, credentials)
+        except CatalogNotFoundError as e:
+            logger.warning(f"Failed to load catalog from config dict: {e}")
+
+    # Priority 2: .pyiceberg.yaml file (PyIceberg standard)
+    try:
+        return load_catalog_from_yaml(iceberg_catalog_name, credentials=credentials)
+    except CatalogNotFoundError as e:
+        logger.debug(f"Catalog not found in .pyiceberg.yaml: {e}")
+
+
+    # Priority 3: DLT_ICEBERG_* environment variables
+    try:
+        return load_catalog_from_env(iceberg_catalog_name, credentials)
+    except CatalogNotFoundError as e:
+        logger.debug(f"Catalog not configured via DLT_ICEBERG_* environment variables: {e}")
+
+
+    # Priority 4: DLT configuration injection (from secrets.toml or ICEBERG_CATALOG__* env vars)
+    # These parameters are injected by @with_config decorator
+    if iceberg_catalog_uri:
+        logger.info(f"Loading catalog '{iceberg_catalog_name}' from DLT configuration")
+        
+        if iceberg_catalog_type == "rest":
+            if not iceberg_catalog_warehouse:
+                raise ValueError(
+                    "iceberg_catalog_warehouse is required for REST catalogs. "
+                    "Set via secrets.toml [iceberg_catalog] section or ICEBERG_CATALOG__ICEBERG_CATALOG_WAREHOUSE env var."
+                )
+            config = {
+                "type": "rest",
+                "uri": iceberg_catalog_uri,
+                "warehouse": iceberg_catalog_warehouse,
+            }
+            return load_catalog_from_config(iceberg_catalog_name, config, credentials)
+        else:
+            # SQL catalog
+            return get_sql_catalog(iceberg_catalog_name, iceberg_catalog_uri, credentials)
+
+    # Priority 5: Fall back to in-memory SQLite (backward compatibility)
+    logger.info("No catalog configuration found, using in-memory SQLite catalog (backward compatibility)")
+    return get_sql_catalog(iceberg_catalog_name, "sqlite:///:memory:", credentials)
 
 def evolve_table(
     catalog: IcebergCatalog,

@@ -1,6 +1,6 @@
 import dataclasses
 
-from typing import Final, Optional, Type
+from typing import Final, Optional, Type, Dict, Any
 
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
@@ -25,6 +25,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
+
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
