@@ -352,7 +352,7 @@ def destinations_configs(
         ),
         DestinationTestConfiguration(
             destination_type="athena",
-            cid="athena_iceberg",
+            cid="athena-iceberg",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
@@ -361,7 +361,7 @@ def destinations_configs(
         ),
         DestinationTestConfiguration(
             destination_type="athena",
-            cid="athena_s3_tables",
+            cid="athena-s3-tables",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
