@@ -106,3 +106,18 @@ jobs:
 
       - name: run docs preprocessor
         run: cd docs && make preprocess-docs
+
+      - name: Ensure marimo notebooks are up-to-date
+        shell: bash
+        run: |
+          cd docs && make build-molabs \
+          # Add any new files that might have been generated
+          git add -A
+          # Check if there are any differences
+          if ! git diff --staged --quiet; then
+            echo "Marimo notebooks are out of date!"
+            echo "Please run 'make build-marimo' locally, check the molabs and commit the changes."
+            exit 1
+          else
+            echo "Marimo notebooks are up to date!"
+          fi        
