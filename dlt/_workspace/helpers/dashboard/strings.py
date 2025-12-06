@@ -18,6 +18,7 @@ _credentials_info = (
 #
 # App general
 #
+app_section_name = "workspace_home"
 app_title = """
 # Welcome to the dltHub workspace dashboard...
 """
