@@ -463,24 +463,26 @@ def ui_data_quality_controls(
     """
     Create data quality filter controls (separate cell for marimo reactivity)
 
-    Import the cell from the dashboard notebook and call it.
+    Import the function from the dashboard module and call it.
     """
     dlt_data_quality_show_failed_filter: mo.ui.checkbox = None
     dlt_data_quality_table_filter: mo.ui.dropdown = None
     dlt_data_quality_rate_filter: mo.ui.slider = None
+    dlt_data_quality_checks_arrow = None
 
     # Create controls whenever dlthub is detected and pipeline exists
     # The switch controls whether widget content is shown, not whether controls exist
     if detect_dlt_hub() and dlt_pipeline:
         try:
-            # Import the cell from the dashboard notebook
+            # Import the function from the dashboard module
             from dlthub.data_quality._dashboard import create_data_quality_controls
 
-            # Call the cell function - it's a marimo cell so we call it directly
+            # Call the function - returns (checkbox, dropdown, slider, checks_arrow)
             (
                 dlt_data_quality_show_failed_filter,
                 dlt_data_quality_table_filter,
                 dlt_data_quality_rate_filter,
+                dlt_data_quality_checks_arrow,
             ) = create_data_quality_controls(dlt_pipeline)
         except Exception:
             pass
@@ -489,6 +491,7 @@ def ui_data_quality_controls(
         dlt_data_quality_show_failed_filter,
         dlt_data_quality_table_filter,
         dlt_data_quality_rate_filter,
+        dlt_data_quality_checks_arrow,
     )
 
 
@@ -499,17 +502,22 @@ def section_data_quality(
     dlt_data_quality_show_failed_filter: mo.ui.checkbox,
     dlt_data_quality_table_filter: mo.ui.dropdown,
     dlt_data_quality_rate_filter: mo.ui.slider,
+    dlt_data_quality_checks_arrow,
 ):
     """
     Show data quality of the currently selected pipeline
     only if dlt.hub is installed
 
-    Import the widget cell from the dashboard notebook and call it.
+    Import the widget function from the dashboard module and call it.
     """
     if not detect_dlt_hub():
         _result = None
     else:
-        _result = [ui.section_marker(strings.data_quality_section_name)]
+        _result = [
+            ui.section_marker(
+                strings.data_quality_section_name, has_content=dlt_pipeline is not None
+            )
+        ]
         _result.extend(
             ui.build_page_header(
                 dlt_pipeline,
@@ -521,21 +529,8 @@ def section_data_quality(
         )
         if dlt_pipeline and dlt_section_data_quality_switch.value:
             try:
-                # Import constants from data_quality module
-                from dlthub.data_quality.storage import (
-                    DLT_CHECKS_RESULTS_TABLE_NAME,
-                    DLT_DATA_QUALITY_SCHEMA_NAME,
-                )
-
-                _result.append(
-                    mo.md(
-                        f"<small>Tests are stored in table `{DLT_CHECKS_RESULTS_TABLE_NAME}` in"
-                        f" schema `{DLT_DATA_QUALITY_SCHEMA_NAME}` at the destination.</small>",
-                    )
-                )
-
-                # Import the widget cell from the dashboard notebook
-                from dlthub.data_quality._dashboard import data_quality_widget_cell
+                # Import the widget function from the dashboard module
+                from dlthub.data_quality._dashboard import data_quality_widget
 
                 # Extract values from controls (must be in separate cell from where controls are created)
                 show_failed_value = (
@@ -555,28 +550,34 @@ def section_data_quality(
                     else None
                 )
 
-                # Call the cell function - it's a marimo cell so we call it directly
-                # Use keyword arguments to match the alphabetical parameter order
-                widget_output = data_quality_widget_cell(
+                # Call the widget function
+                widget_output = data_quality_widget(
                     dlt_pipeline=dlt_pipeline,
-                    failure_rate_filter_control=dlt_data_quality_rate_filter,
+                    failure_rate_slider=dlt_data_quality_rate_filter,
                     failure_rate_filter_value=rate_value,
-                    show_only_failed_control=dlt_data_quality_show_failed_filter,
+                    show_only_failed_checkbox=dlt_data_quality_show_failed_filter,
                     show_only_failed_value=show_failed_value,
-                    table_name_filter_control=dlt_data_quality_table_filter,
+                    table_dropdown=dlt_data_quality_table_filter,
                     table_name_filter_value=table_value,
+                    checks_arrow=dlt_data_quality_checks_arrow,
                 )
                 if widget_output is not None:
                     _result.append(widget_output)
-                else:
-                    _result.append(mo.md("**No data quality checks defined** for this pipeline."))
 
-                # Add show raw table toggle switch
-                dlt_data_quality_show_raw_table_switch: mo.ui.switch = mo.ui.switch(
-                    value=False,
-                    label="<small>Show Raw Table</small>",
-                )
-                _result.append(mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start"))
+                # Only show raw table switch if there is data to display
+                if (
+                    dlt_data_quality_checks_arrow is not None
+                    and dlt_data_quality_checks_arrow.num_rows > 0
+                ):
+                    dlt_data_quality_show_raw_table_switch: mo.ui.switch = mo.ui.switch(
+                        value=False,
+                        label="<small>Show Raw Table</small>",
+                    )
+                    _result.append(
+                        mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start")
+                    )
+                else:
+                    dlt_data_quality_show_raw_table_switch = None
             except ImportError:
                 _result.append(mo.md("**DLT Hub data quality module is not available.**"))
                 dlt_data_quality_show_raw_table_switch = None
