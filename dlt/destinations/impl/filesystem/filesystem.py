@@ -1021,16 +1021,6 @@ class FilesystemClient(
                 f"of type '{self.config.iceberg_catalog_type}'"
             )
 
-        except Exception as e:
-            logger.warning(f"Failed to load catalog '{catalog_name}': {e}")
-            logger.info("Falling back to default in-memory SQLite catalog")
-
-            # Fall back to original behavior (in-memory SQLite)
-            from dlt.common.libs.pyiceberg import get_sql_catalog
-
-            catalog = self._catalog = get_sql_catalog(
-                catalog_name, "sqlite:///:memory:", self.config.credentials
-            )
 
         # Create namespace
         try:
