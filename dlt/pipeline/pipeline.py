@@ -23,7 +23,7 @@ import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.exceptions import ValueErrorWithKnownValues
+from dlt.common.exceptions import ValueErrorWithKnownValues, WithJobError
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
@@ -539,11 +539,15 @@ class Pipeline(SupportsPipeline):
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
             except (Exception, KeyboardInterrupt) as n_ex:
+                if isinstance(n_ex, WithJobError):
+                    err_load_id = n_ex.load_id
+                else:
+                    err_load_id = normalize_step.current_load_id
                 step_info = self._get_step_info(normalize_step)
                 raise PipelineStepFailed(
                     self,
                     "normalize",
-                    normalize_step.current_load_id,
+                    err_load_id,
                     n_ex,
                     step_info,
                 ) from n_ex
@@ -600,10 +604,12 @@ class Pipeline(SupportsPipeline):
             self._update_last_run_context()
             return info
         except (Exception, KeyboardInterrupt) as l_ex:
+            if isinstance(l_ex, WithJobError):
+                err_load_id = l_ex.load_id
+            else:
+                err_load_id = load_step.current_load_id
             step_info = self._get_step_info(load_step)
-            raise PipelineStepFailed(
-                self, "load", load_step.current_load_id, l_ex, step_info
-            ) from l_ex
+            raise PipelineStepFailed(self, "load", err_load_id, l_ex, step_info) from l_ex
 
     @with_runtime_trace()
     @with_config_section(("run",))
@@ -708,18 +714,20 @@ class Pipeline(SupportsPipeline):
             self._sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
-        # normalize and load pending data
-        if self.list_extracted_load_packages():
-            self.normalize()
-        if self.list_normalized_load_packages():
-            # if there were any pending loads, load them and **exit**
+
+        if self.has_pending_data:
             if data is not None:
                 logger.warn(
                     "The pipeline `run` method will now load the pending load packages. The data"
-                    " you passed to the run function will not be loaded. In order to do that you"
+                    " you passed to the run function will not be extracted. In order to do that you"
                     " must run the pipeline again"
                 )
-            return self.load(destination, dataset_name, credentials=credentials)
+            # normalize and load pending data
+            if self.list_extracted_load_packages():
+                self.normalize()
+            if self.list_normalized_load_packages():
+                # if there were any pending loads, load them and **exit**
+                return self.load(destination, dataset_name, credentials=credentials)
 
         # extract from the source
         if data is not None:

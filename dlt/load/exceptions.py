@@ -3,18 +3,21 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
 )
+from dlt.common.exceptions import WithJobError
 
 
-class LoadClientJobException(Exception):
-    load_id: str
-    job_id: str
+class LoadClientJobException(Exception, WithJobError):
+    client_exception: BaseException
 
 
 class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
-    def __init__(self, load_id: str, job_id: str, failed_message: str) -> None:
+    def __init__(
+        self, load_id: str, job_id: str, failed_message: str, exception: BaseException
+    ) -> None:
         self.load_id = load_id
         self.job_id = job_id
         self.failed_message = failed_message
+        self.client_exception = exception
         super().__init__(
             f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
             f" {failed_message}. The package is aborted and cannot be retried."
@@ -23,17 +26,24 @@ class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
 
 class LoadClientJobRetry(DestinationTransientException, LoadClientJobException):
     def __init__(
-        self, load_id: str, job_id: str, retry_count: int, max_retry_count: int, retry_message: str
+        self,
+        load_id: str,
+        job_id: str,
+        retry_count: int,
+        max_retry_count: int,
+        failed_message: str,
+        exception: BaseException,
     ) -> None:
         self.load_id = load_id
         self.job_id = job_id
         self.retry_count = retry_count
         self.max_retry_count = max_retry_count
-        self.retry_message = retry_message
+        self.failed_message = failed_message
+        self.client_exception = exception
         super().__init__(
             f"Job with `{job_id=:}` had {retry_count} retries which is a multiple of"
             f" `{max_retry_count=:}`. Exiting retry loop. You can still rerun the load package to"
-            f" retry this job. Last failure message was: {retry_message}"
+            f" retry this job. Last failure message was: {failed_message}"
         )
 
 
