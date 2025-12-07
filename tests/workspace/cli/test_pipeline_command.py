@@ -45,7 +45,7 @@ def test_pipeline_command_operations(repo_dir: str) -> None:
         _pipeline_command.pipeline_command("list", "-", None, 0)
         _out = buf.getvalue()
         # do we have chess pipeline in the list
-        assert "chess_pipeline" in _out.splitlines()
+        assert _out.splitlines()[1].startswith("chess_pipeline")
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
@@ -287,3 +287,36 @@ def test_drop_from_wrong_dir(repo_dir: str) -> None:
         )
         _out = buf.getvalue()
         assert "WARNING: You should run this from the same directory as the pipeline script" in _out
+
+
+def test_pipeline_command_drop_with_global_args(repo_dir: str) -> None:
+    """Test that global CLI arguments don't cause errors in pipeline drop command."""
+    _init_command.init_command("chess", "duckdb", repo_dir)
+
+    os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)
+    venv = Venv.restore_current()
+    try:
+        print(venv.run_script("chess_pipeline.py"))
+    except CalledProcessError as cpe:
+        print(cpe.stdout)
+        print(cpe.stderr)
+        raise
+
+    # Test drop command with global arguments that should be ignored
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command(
+                "drop",
+                "chess_pipeline",
+                None,
+                0,
+                resources=["players_games"],
+                no_pwd=False,  # Global arg that should be ignored
+                debug=False,  # Another global arg
+            )
+        _out = buf.getvalue()
+        assert "Selected resource(s): ['players_games']" in _out
+
+    # Verify the command actually executed
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    assert "players_games" not in pipeline.default_schema.tables

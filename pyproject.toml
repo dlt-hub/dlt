@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.18.2"
+version = "1.20.0a1"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.15"
@@ -48,7 +48,7 @@ dependencies = [
     "giturlparse>=0.10.0",
     "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     # enables pyodide install, mind that 3.10.1 is a buggy version and should be yanked
-    "orjson>=3.10.1 ; sys_platform != 'emscripten'",
+    "orjson>=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "orjson>=3.11.0 ; python_version > '3.13'",
     "tenacity>=8.0.2",
     "jsonpath-ng>=1.5.3",
@@ -56,7 +56,7 @@ dependencies = [
     "packaging>=21.1",
     "pluggy>=1.3.0",
     "win-precise-time>=1.4.2 ; os_name == 'nt' and python_version < '3.13'",
-    "sqlglot>=25.4.0",
+    "sqlglot>=25.4.0,!=28.1",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
 ]
@@ -187,6 +187,11 @@ workspace = [
     "mcp>=1.2.1 ; python_version >= '3.10'",
     "pathspec>=0.11.2",
 ]
+hub = [
+    "dlthub>=0.20.0a1,<0.21 ; python_version >= '3.10'",
+    "dlt-runtime>=0.19.0a0,<0.21 ; python_version >= '3.10'",
+]
+
 dbml = [
     "pydbml"
 ]
@@ -298,7 +303,8 @@ dbt = [
     "dbt-sqlserver>=1.5.0 ; python_version < '3.13'",
 ]
 adbc = [
-    "adbc-driver-postgresql>=1.6.0"
+    "dbc>=0.1.0",
+    "adbc-driver-manager>=1.8.0",
 ]
 
 [project.entry-points.dlt]
@@ -308,6 +314,7 @@ dlt = "dlt.__plugins__"
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
+# dlthub = { path = "../dlt-plus/packages/dlthub", editable = true }
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]

@@ -2,6 +2,7 @@ import pathlib
 import sys
 from typing import Any
 import pickle
+import os
 
 import pytest
 
@@ -11,6 +12,7 @@ from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import 
     fruitshop as fruitshop_source,
 )
 from dlt._workspace.helpers.dashboard import utils as dashboard_utils
+from dlt.pipeline.trace import get_trace_file_path
 
 
 def _normpath(path: str) -> str:
@@ -94,9 +96,9 @@ def broken_trace_pipeline() -> Any:
     )
     bp.run(fruitshop_source())
 
-    trace_file = dashboard_utils.get_trace_file_path(bp.pipeline_name, bp.pipelines_dir)
-    trace_file.parent.mkdir(parents=True, exist_ok=True)
-    with trace_file.open("wb") as f:
+    trace_file = get_trace_file_path(bp.pipelines_dir, bp.pipeline_name)
+    os.makedirs(os.path.dirname(trace_file), exist_ok=True)
+    with open(trace_file, mode="wb") as f:
         pickle.dump({"not": "a real PipelineTrace"}, f)
 
     return bp

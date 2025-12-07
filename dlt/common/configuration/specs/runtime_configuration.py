@@ -33,6 +33,7 @@ class RuntimeConfiguration(BaseConfiguration):
     config_files_storage_path: str = "/run/config/"
     """Platform connection"""
     dlthub_dsn: Optional[TSecretStrValue] = None
+    run_id: Optional[str] = None
     http_show_error_body: bool = False
     """Include HTTP response body in raised exceptions/logs. Default is False"""
     http_max_error_body_length: int = 8192

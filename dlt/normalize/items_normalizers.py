@@ -30,6 +30,7 @@ from dlt.common.schema.utils import (
     dlt_id_column,
     dlt_load_id_column,
     has_table_seen_data,
+    is_complete_column,
     normalize_table_identifiers,
     is_nested_table,
     has_seen_null_first_hint,
@@ -605,7 +606,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     )
                     parent_col_schema = parent_col_schemas.get(last_ident_path)
 
-                    if parent_col_schema and has_seen_null_first_hint(parent_col_schema):
+                    # remove only incomplete columns: both None, simple and complex values may be received by a column
+                    # in any order
+                    if (
+                        parent_col_schema
+                        and has_seen_null_first_hint(parent_col_schema)
+                        and not is_complete_column(parent_col_schema)
+                    ):
                         parent_col_schemas.pop(last_ident_path)
                         parent_updates = schema_update.get(parent_name, [])
                         for j, parent_update in enumerate(parent_updates):
@@ -629,7 +636,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         updated_table_partial: TPartialTableSchema = None
         table = self.schema._schema_tables.get(table_name)
         if not table:
-            # print("NEW TABLE", table_name)
             table = utils.new_table(table_name, parent_table)
         table_columns = table["columns"]
 
