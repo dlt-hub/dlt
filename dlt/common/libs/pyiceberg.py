@@ -232,6 +232,7 @@ def load_catalog_from_yaml(
 def load_catalog_from_config(
     catalog_name: str,
     config_dict: Dict[str, Any],
+    credentials: Optional[FileSystemCredentials] = None,
 ) -> IcebergCatalog:
     """Load Iceberg catalog from configuration dictionary
 
@@ -261,7 +262,9 @@ def load_catalog_from_config(
 
     logger.info(f"Loading catalog '{catalog_name}' from provided configuration")
 
-    
+    if credentials:
+        config_dict.update(_get_fileio_config(credentials))
+
     return load_catalog(catalog_name, **config_dict)
 
 def load_catalog_from_env(
