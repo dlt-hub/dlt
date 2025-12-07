@@ -117,17 +117,22 @@ class FileStorage:
         """Touch file, assumes single writer"""
         file_path = self.make_full_path(relative_path)
         try:
-            os.utime(file_path, None, follow_symlinks=False)
+            os.utime(file_path, None)
             return
-        except FileNotFoundError:
-            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
-            fd = None
-            try:
-                fd = os.open(file_path, flags, 0o666)
-                return
-            finally:
-                if fd is not None:
-                    os.close(fd)
+        except OSError as ex:
+            if isinstance(ex, FileNotFoundError):
+                # File does not exist, create it
+                flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                fd = None
+                try:
+                    fd = os.open(file_path, flags, 0o666)
+                    return
+                finally:
+                    if fd is not None:
+                        os.close(fd)
+            else:
+                # utime does not work
+                pass
 
     # def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
     #     mode = mode + file_type or self.file_type
