@@ -196,7 +196,6 @@ def load_catalog_from_yaml(
             [
                 Path(active_run_context.run_dir) / ".pyiceberg.yaml",
                 Path(active_run_context.get_setting(".pyiceberg.yaml")),
-                Path.home() / ".pyiceberg.yaml",
             ]
         )
 
