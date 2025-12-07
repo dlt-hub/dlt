@@ -1205,10 +1205,9 @@ class Pipeline(SupportsPipeline):
         return NormalizeStorage(True, self._normalize_storage_config())
 
     def _get_load_storage(self) -> LoadStorage:
-        caps = self._get_destination_capabilities()
         return LoadStorage(
             True,
-            caps.supported_loader_file_formats,
+            [],
             self._load_storage_config(),
         )
 
