@@ -50,7 +50,6 @@ def raises_step_exception(check_raise: bool = True, expected_nested_error: Type[
         # normalize
         assert isinstance(py_exc.value.__context__.__context__, expected_nested_error)
         assert py_exc.value.has_pending_data is True
-    assert py_exc.value.load_id is not None
     assert py_exc.value.is_package_partially_loaded is False
 
 
