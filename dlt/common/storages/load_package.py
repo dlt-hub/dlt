@@ -486,7 +486,9 @@ class PackageStorage:
     # Create and drop entities
     #
 
-    def create_package(self, load_id: str, initial_state: TLoadPackageState = None) -> None:
+    def create_package(
+        self, load_id: str, initial_state: TLoadPackageState = None, schema: Schema = None
+    ) -> None:
         self.storage.create_folder(load_id)
         # create processing directories
         self.storage.create_folder(os.path.join(load_id, PackageStorage.NEW_JOBS_FOLDER))
@@ -503,6 +505,8 @@ class PackageStorage:
                 created_at = precise_time()
             state["created_at"] = pendulum.from_timestamp(created_at)
         self.save_load_package_state(load_id, state)
+        if schema:
+            self.save_schema(load_id, schema)
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
