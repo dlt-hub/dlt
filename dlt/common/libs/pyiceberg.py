@@ -304,10 +304,10 @@ def load_catalog_from_env(
 class PyIcebergConfig(BaseConfiguration):
 
     # Iceberg catalog configuration
-    iceberg_catalog_name: Optional[str] = "default"
+    iceberg_catalog_name: str = None
     """Name of the Iceberg catalog to use. Corresponds to catalog name in .pyiceberg.yaml"""
 
-    iceberg_catalog_type: Optional[str] = "sql"
+    iceberg_catalog_type: str = None
     """Type of Iceberg catalog: 'sql', 'rest', 'glue', 'hive', etc."""
 
     iceberg_catalog_uri: Optional[str] = None
@@ -338,13 +338,28 @@ class PyIcebergConfig(BaseConfiguration):
             'type': 'sql',
             'uri': 'postgresql://user:pass@localhost/catalog'
         }
+
+    Example for secrets.toml:
+        [iceberg_catalog]
+        iceberg_catalog_name = "default"
+        iceberg_catalog_type = "rest"
+
+        [iceberg_catalog.iceberg_catalog_config]
+        uri = "http://localhost:8181/catalog"
+        warehouse = "default"
+        header.X-Iceberg-Access-Delegation = "remote-signing"
+        py-io-impl = "pyiceberg.io.fsspec.FsspecFileIO"
+        s3.endpoint = "https://cool-bucket.com/"
+        s3.access-key-id = "cool-bucket-access-key"
+        s3.secret-access-key = "cool-bucket-secret-key"
+        s3.region = "cool-bucket-region"
     """
 
 
 @with_config(spec=PyIcebergConfig, sections = 'iceberg_catalog')
 def get_catalog(
-    iceberg_catalog_name: str = "default",
-    iceberg_catalog_type: str = 'sql',
+    iceberg_catalog_name: str = None,
+    iceberg_catalog_type: str = None,
     iceberg_catalog_uri: Optional[str] = None,
     iceberg_catalog_warehouse: Optional[str] = None,
     iceberg_catalog_config: Optional[Dict[str, Any]] = None,
@@ -392,7 +407,7 @@ def get_catalog(
     if iceberg_catalog_type not in supported_catalog_types:
         raise ValueError(f"Unsupported catalog type: {iceberg_catalog_type}. Use 'sql' or 'rest'.")
 
-    # Priority 1: Explicit config dictionary (most specific)
+    # Priority 1: Explicit config dictionary (most specific and comes from secrets.toml)
     if iceberg_catalog_config:
         try:
             return load_catalog_from_config(iceberg_catalog_name, iceberg_catalog_config)
@@ -406,11 +421,11 @@ def get_catalog(
         logger.debug(f"Catalog not found in .pyiceberg.yaml: {e}")
 
 
-    # Priority 3: DLT_ICEBERG_* environment variables
+    # Priority 3: PYICEBERG_* environment variables
     try:
         return load_catalog_from_env(iceberg_catalog_name)
     except CatalogNotFoundError as e:
-        logger.debug(f"Catalog not configured via DLT_ICEBERG_* environment variables: {e}")
+        logger.debug(f"Catalog not configured via PYICEBERG_* environment variables: {e}")
 
 
     # Priority 4: DLT configuration injection (from secrets.toml or ICEBERG_CATALOG__* env vars)
