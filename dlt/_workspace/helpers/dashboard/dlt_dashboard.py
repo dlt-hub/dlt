@@ -6,7 +6,6 @@
 # mypy: disable-error-code=no-untyped-def
 
 import marimo
-from dlt.common import logger
 
 __generated_with = "0.13.9"
 app = marimo.App(
