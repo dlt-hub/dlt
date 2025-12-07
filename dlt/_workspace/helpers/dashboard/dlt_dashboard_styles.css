@@ -74,7 +74,8 @@
 #App .marimo-cell .output-area:has([data-section="home_section"].has-content),
 #App .marimo-cell .output-area:has([data-section="schema_section"].has-content),
 #App .marimo-cell .output-area:has([data-section="state_section"].has-content),
-#App .marimo-cell .output-area:has([data-section="loads_section"].has-content) {
+#App .marimo-cell .output-area:has([data-section="loads_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="data_quality_section"].has-content) {
   background-color: var(--dlt-color-aqua-background);
   border: 1px dashed var(--dlt-color-aqua);
 }

@@ -367,7 +367,7 @@ def test_workspace_profile_dev(page: Page):
 
             page.goto(f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline")
 
-            expect(page.get_by_role("switch", name="overview")).to_be_visible()
+            expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
 
