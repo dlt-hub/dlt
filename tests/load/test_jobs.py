@@ -58,7 +58,8 @@ def test_runnable_job_results() -> None:
     assert j.state() == "ready"
     j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "retry"
-    assert j.exception() == "Oh no!"
+    assert j.failed_message() == "Oh no!"
+    assert isinstance(j.exception(), Exception)
     metrics_3 = j.metrics()
     assert metrics_3.state == "retry"
     assert metrics_3.started_at is not None
@@ -74,7 +75,8 @@ def test_runnable_job_results() -> None:
     assert j.state() == "ready"
     j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "failed"
-    assert j.exception() == "Oh no!"
+    assert j.failed_message() == "Oh no!"
+    assert isinstance(j.exception(), Exception)
     metrics_4 = j.metrics()
     assert metrics_4.state == "failed"
     assert metrics_4.started_at is not None
@@ -87,13 +89,17 @@ def test_finalized_load_job() -> None:
     file_path = "/path/" + file_name
     j = FinalizedLoadJob(file_path)
     assert j.state() == "completed"
-    assert not j.exception()
+    assert not j.failed_message()
+    assert j.exception() is None
     assert isinstance(j._started_at, pendulum.DateTime)
     assert isinstance(j._finished_at, pendulum.DateTime)
 
-    j = FinalizedLoadJob(file_path, status="failed", exception="oh no!")
+    j = FinalizedLoadJob(
+        file_path, status="failed", failed_message="oh no!", exception=RuntimeError()
+    )
     assert j.state() == "failed"
-    assert j.exception() == "oh no!"
+    assert j.failed_message() == "oh no!"
+    assert isinstance(j.exception(), RuntimeError)
     # start and finish dates will be automatically set for terminal states
     assert isinstance(j._started_at, pendulum.DateTime)
     assert isinstance(j._finished_at, pendulum.DateTime)

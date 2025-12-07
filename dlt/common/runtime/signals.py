@@ -50,7 +50,7 @@ def _signal_receiver(sig: int, frame: FrameType) -> None:
                 sig_desc = f"Signal {sig}"
             msg = (
                 f"{sig_desc} received. Trying to shut down gracefully. It may take time to drain"
-                f" job pools. Send {sig_desc} again to force stop."
+                f" job pools. Send {sig_desc} again to force stop.\n"
             )
             try:
                 os.write(sys.stderr.fileno(), msg.encode(encoding="utf-8"))
