@@ -40,7 +40,7 @@ def item_normalizer() -> JsonLItemsNormalizer:
     n = Normalize()
     schema = Schema("event")
     add_preferred_types(schema)
-    return JsonLItemsNormalizer(None, None, schema, "load_id", n.config)
+    return JsonLItemsNormalizer(None, None, None, schema, "load_id", n.config)
 
 
 @pytest.fixture

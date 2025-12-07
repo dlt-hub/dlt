@@ -38,6 +38,7 @@ from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TTableS
 from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import (
     LoadPackageAlreadyCompleted,
+    LoadPackageCancelled,
     LoadPackageNotCompleted,
     LoadPackageNotFound,
     CurrentLoadPackageStateNotAvailable,
@@ -333,6 +334,7 @@ class PackageStorage:
     LOAD_PACKAGE_STATE_FILE_NAME = (  # internal state of the load package, will not be synced to the destination
         "load_package_state.json"
     )
+    CANCEL_PACKAGE_FILE_NAME = "_cancelled"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
@@ -551,9 +553,25 @@ class PackageStorage:
         ) as f:
             json.dump(schema_update, f)
 
+    def cancel(self, load_id: str) -> None:
+        """Sets cancel flag currently used for inter-process signalling"""
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        self.storage.touch_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME))
+
+    def raise_if_cancelled(self, load_id: str) -> None:
+        """Raise an exception if package is cancelled"""
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        if self.storage.has_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME)):
+            raise LoadPackageCancelled(load_id)
+
     #
-    # Loadpackage state
+    # Load package state
     #
+
     def get_load_package_state(self, load_id: str) -> TLoadPackageState:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):

@@ -113,6 +113,22 @@ class FileStorage:
             return FileStorage.open_zipsafe_ro(self.make_full_path(relative_path), mode)
         return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
 
+    def touch_file(self, relative_path: str) -> None:
+        """Touch file, assumes single writer"""
+        file_path = self.make_full_path(relative_path)
+        try:
+            os.utime(file_path, None, follow_symlinks=False)
+            return
+        except FileNotFoundError:
+            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            fd = None
+            try:
+                fd = os.open(file_path, flags, 0o666)
+                return
+            finally:
+                if fd is not None:
+                    os.close(fd)
+
     # def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
     #     mode = mode + file_type or self.file_type
     #     return tempfile.NamedTemporaryFile(
