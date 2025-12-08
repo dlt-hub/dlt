@@ -119,6 +119,20 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
     expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
 
+    def _select_schema_and_verify(
+        schema_selector: Any,
+        schema_name: str,
+        expected: str,
+        not_expected: set[str],
+    ):
+        schema_selector.select_option(schema_name)
+        expect(schema_selector).to_have_value(schema_name)
+        # allow marimo reactivity to process
+        page.wait_for_timeout(500)
+        expect(page.get_by_text(expected, exact=True).nth(0)).to_be_visible(timeout=15000)
+        for table in not_expected:
+            expect(page.get_by_text(table, exact=True)).to_have_count(0, timeout=10000)
+
     # select each schema and see if the right tables are shown
     # do this both for schema and data section
     for section in ["schema", "data"]:
@@ -126,27 +140,30 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
 
         # NOTE: this is using unspecific selector and may select other dropdowns id present (?)
         schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
-        schema_selector.select_option("fruitshop_customers")
-        expect(schema_selector).to_have_value("fruitshop_customers")
+
+        all_tables = {"customers", "inventory", "purchases"}
+
+        _select_schema_and_verify(
+            schema_selector,
+            "fruitshop_customers",
+            expected="customers",
+            not_expected=all_tables - {"customers"},
+        )
         schema_selector.scroll_into_view_if_needed()
 
-        expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
-        expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
-        expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
+        _select_schema_and_verify(
+            schema_selector,
+            "fruitshop_inventory",
+            expected="inventory",
+            not_expected=all_tables - {"inventory"},
+        )
 
-        schema_selector.select_option("fruitshop_inventory")
-        expect(schema_selector).to_have_value("fruitshop_inventory")
-
-        expect(page.get_by_text("inventory", exact=True).nth(0)).to_be_visible()
-        expect(page.get_by_text("customers", exact=True)).to_have_count(0)
-        expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
-
-        schema_selector.select_option("fruitshop_purchases")
-        expect(schema_selector).to_have_value("fruitshop_purchases")
-
-        expect(page.get_by_text("purchases", exact=True).nth(0)).to_be_visible()
-        expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
-        expect(page.get_by_text("customers", exact=True)).to_have_count(0)
+        _select_schema_and_verify(
+            schema_selector,
+            "fruitshop_purchases",
+            expected="purchases",
+            not_expected=all_tables - {"purchases"},
+        )
 
         _close_sections(page)
         # make sure schema selector removed from page
