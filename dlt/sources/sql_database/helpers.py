@@ -352,13 +352,10 @@ def table_rows(
     try:
         resource = dlt.current.resource()
         resource_columns = resource.columns
-        # Only merge if both resource_columns and hints["columns"] are dicts (not callables)
-        if (
-            resource_columns
-            and hints["columns"]
-            and isinstance(resource_columns, dict)
-            and isinstance(hints["columns"], dict)
-        ):
+        # Merge user-provided column hints with reflection hints
+        # We can only merge static hints (dict, Sequence, Pydantic models), not dynamic callables
+        # Callables are evaluated per-item at runtime and can't be merged statically
+        if resource_columns and hints["columns"] and not callable(resource_columns):
             resource_columns_as_hints = ensure_table_schema_columns(resource_columns)
             hints["columns"] = merge_columns(hints["columns"], resource_columns_as_hints)
 
