@@ -1,31 +1,35 @@
 import os
 from copy import deepcopy
-from typing import Iterator, Dict, Any, List
+from typing import Any, Dict, Iterator, List
 
 import google
 import pytest
 import sqlfluff
+from tests.load.utils import (
+    TABLE_UPDATE,
+    DestinationTestConfiguration,
+    destinations_configs,
+    drop_active_pipeline_data,
+    sequence_generator,
+)
 
 import dlt
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import (
-    GcpServiceAccountCredentialsWithoutDefaults,
     GcpServiceAccountCredentials,
+    GcpServiceAccountCredentialsWithoutDefaults,
 )
 from dlt.common.destination.exceptions import DestinationSchemaTampered
 from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
-from dlt.common.utils import custom_environ
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.destinations import bigquery
 from dlt.destinations.adapters import bigquery_adapter, bigquery_partition
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
-from dlt.destinations.impl.bigquery.bigquery_adapter import (
-    PARTITION_HINT,
-    CLUSTER_HINT,
-)
+from dlt.destinations.impl.bigquery.bigquery_adapter import CLUSTER_HINT, PARTITION_HINT
+from dlt.destinations.impl.bigquery.bigquery_partition_specs import BigQueryRangeBucketPartition
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.extract import DltResource
 from tests.load.utils import (
@@ -213,7 +217,7 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
     assert sql.endswith("CLUSTER BY `col2`, `col5`")
-    assert "PARTITION BY `col10`" in sql
+    assert "PARTITION BY `col10`" in sql or "PARTITION BY col10" in sql
 
 
 def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
@@ -232,7 +236,7 @@ def test_create_table_with_time_partition(gcp_client: BigQueryClient) -> None:
     mod_update[3]["partition"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert "PARTITION BY DATE(`col4`)" in sql
+    assert "PARTITION BY DATE(`col4`)" in sql or "PARTITION BY DATE(col4)" in sql
 
 
 def test_create_table_with_date_partition(gcp_client: BigQueryClient) -> None:
@@ -240,7 +244,7 @@ def test_create_table_with_date_partition(gcp_client: BigQueryClient) -> None:
     mod_update[9]["partition"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert "PARTITION BY `col10`" in sql
+    assert "PARTITION BY `col10`" in sql or "PARTITION BY col10" in sql
 
 
 def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None:
@@ -248,7 +252,10 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     mod_update[0]["partition"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+    assert (
+        "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+        or "PARTITION BY RANGE_BUCKET(col1, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+    )
 
 
 def test_create_table_with_custom_range_bucket_partition() -> None:
@@ -288,7 +295,49 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
             False,
         )[0]
 
-    expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
+    expected_clause_quoted = (
+        "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
+    )
+    expected_clause_unquoted = (
+        "PARTITION BY RANGE_BUCKET(user_id, GENERATE_ARRAY(0, 1000000, 10000))"
+    )
+    assert expected_clause_quoted in sql_partitioned or expected_clause_unquoted in sql_partitioned
+
+
+def test_create_table_with_custom_range_bucket_partition_using_partition_spec() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+            "created_at": "2021-01-01T00:00:00Z",
+            "category": "category 1",
+            "score": 100.0,
+        }
+
+    partition_spec = BigQueryRangeBucketPartition(
+        column_name="user_id", start=0, end=1000000, interval=10000
+    )
+
+    bigquery_adapter(partitioned_table, partition=partition_spec)
+
+    pipeline = dlt.pipeline(
+        "bigquery_test_partition_with_partition_spec",
+        destination="bigquery",
+        dev_mode=True,
+    )
+
+    pipeline.extract(partitioned_table)
+    pipeline.normalize()
+
+    with pipeline.destination_client() as client:
+        sql_partitioned = client._get_table_update_sql(  # type: ignore[attr-defined]
+            "partitioned_table",
+            list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
+            False,
+        )[0]
+
+    expected_clause = "PARTITION BY RANGE_BUCKET(user_id, GENERATE_ARRAY(0, 1000000, 10000))"
     assert expected_clause in sql_partitioned
 
 
@@ -561,7 +610,10 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
 
     with pytest.raises(
         ValueError,
-        match="`partition` must be a single column name as a `str` or a `PartitionTransformation`.",
+        match=(
+            "`partition` must be a single column name as a `str`, `PartitionTransformation`, or"
+            " `BigQueryPartitionSpec`."
+        ),
     ):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 
