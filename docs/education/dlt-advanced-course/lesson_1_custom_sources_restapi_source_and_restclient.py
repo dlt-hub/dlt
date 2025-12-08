@@ -560,6 +560,16 @@ def _(mo):
     **Step 3: Choose `PageNumberPaginator`**
 
     This is exactly what `PageNumberPaginator` is made for:
+
+    > ```python
+    >    paginator=PageNumberPaginator(
+    >        base_page=1,  # NewsAPI starts paging from 1
+    >        page_param="page",  # Matches the API spec
+    >        total_path=None,  # Set it to None explicitly
+    >        stop_after_empty_page=True,  # Stop if no articles returned
+    >        maximum_page=4,  # Optional limit for dev/testing
+    >    ),
+    ```
     """
     )
     return
@@ -585,9 +595,7 @@ def _(APIKeyAuth, RESTClient, os):
         "everything", params={"q": "python", "pageSize": 5, "language": "en"}
     ):
         for article in page:
-            print(
-                article["title"]
-            )  # NewsAPI starts paging from 1  # Matches the API spec  # Set it to None explicitly  # Stop if no articles returned  # Optional limit for dev/testing
+            print(article["title"])
     return PageNumberPaginator, api_key_1
 
 
@@ -1162,6 +1170,10 @@ def _(mo):
 
 @app.cell
 def _(dlt, os, rest_api_source):
+    from datetime import datetime, timedelta, timezone
+
+    one_month_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    initial_from = one_month_ago.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
     api_key_5 = os.getenv("NEWS_API_KEY")
     _news_config = {
         "client": {
@@ -1192,7 +1204,7 @@ def _(dlt, os, rest_api_source):
                         "from": {
                             "type": "incremental",
                             "cursor_path": "publishedAt",
-                            "initial_value": "2025-04-15T00:00:00Z",
+                            "initial_value": initial_from,
                         },
                     },
                 },
@@ -1207,7 +1219,7 @@ def _(dlt, os, rest_api_source):
     print(pipeline_5.last_trace)
     pipeline_5.run(_news_source)
     print(pipeline_5.last_trace)
-    return
+    return (initial_from,)
 
 
 @app.cell(hide_code=True)
@@ -1241,7 +1253,7 @@ def _(mo):
 
 
 @app.cell
-def _(dlt, os, rest_api_source):
+def _(dlt, initial_from, os, rest_api_source):
     api_key_6 = os.getenv("NEWS_API_KEY")
     _news_config = {
         "client": {
@@ -1274,7 +1286,7 @@ def _(dlt, os, rest_api_source):
                         "from": {
                             "type": "incremental",
                             "cursor_path": "publishedAt",
-                            "initial_value": "2025-04-15T00:00:00Z",
+                            "initial_value": initial_from,
                         },
                     },
                 },
@@ -1330,7 +1342,7 @@ def _(mo):
 
 
 @app.cell
-def _(dlt, os, rest_api_source):
+def _(dlt, initial_from, os, rest_api_source):
     api_key_7 = os.getenv("NEWS_API_KEY")
     _news_config = {
         "client": {
@@ -1363,7 +1375,7 @@ def _(dlt, os, rest_api_source):
                         "from": {
                             "type": "incremental",
                             "cursor_path": "publishedAt",
-                            "initial_value": "2025-04-15T00:00:00Z",
+                            "initial_value": initial_from,
                         },
                     },
                 },
@@ -1452,7 +1464,7 @@ def _(Any):
 
 
 @app.cell
-def _(debug_response, dlt, os, rest_api_source):
+def _(debug_response, dlt, initial_from, os, rest_api_source):
     api_key_8 = os.getenv("NEWS_API_KEY")
     _news_config = {
         "client": {
@@ -1488,7 +1500,7 @@ def _(debug_response, dlt, os, rest_api_source):
                         "from": {
                             "type": "incremental",
                             "cursor_path": "publishedAt",
-                            "initial_value": "2025-04-15T00:00:00Z",
+                            "initial_value": initial_from,
                         },
                     },
                 },
@@ -1557,7 +1569,7 @@ def _(Any):
 
 
 @app.cell
-def _(debug_response, dlt, lower_title, os, rest_api_source):
+def _(debug_response, dlt, initial_from, lower_title, os, rest_api_source):
     api_key_9 = os.getenv("NEWS_API_KEY")
     _news_config = {
         "client": {
@@ -1597,7 +1609,7 @@ def _(debug_response, dlt, lower_title, os, rest_api_source):
                         "from": {
                             "type": "incremental",
                             "cursor_path": "publishedAt",
-                            "initial_value": "2025-04-15T00:00:00Z",
+                            "initial_value": initial_from,
                         },
                     },
                 },
