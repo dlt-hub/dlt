@@ -782,7 +782,9 @@ class FilesystemClient(
                 raise DestinationUndefinedEntity(table_name)
         for filepath in all_files:
             filename = os.path.splitext(os.path.basename(filepath))[0]
-            fileparts = filename.split(FILENAME_SEPARATOR)
+            fileparts = filename.rsplit(
+                FILENAME_SEPARATOR, maxsplit=2
+            )  # pipeline_name, load_id, version_hash
             if len(fileparts) != 3:
                 continue
             # Filters only if pipeline_name provided
