@@ -1,6 +1,8 @@
 from typing import List
-from dlt.common.exceptions import DltException, WithJobError
+
+from dlt.common.exceptions import DltException
 from dlt.common.metrics import DataWriterMetrics
+from dlt.common.destination.exceptions import WithJobError
 
 
 class NormalizeException(DltException):

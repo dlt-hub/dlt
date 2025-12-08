@@ -171,7 +171,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     logger.debug(f"{len(tasks)} tasks still remaining for {load_id}...")
             # raise on signal
             if signals.was_signal_received() and not pending_exc:
-                pending_exc = KeyboardInterrupt()
+                pending_exc = signals.exception_for_signal()
                 logger.warning(f"Cancelling package {load_id} due to signal")
                 self.load_storage.new_packages.cancel(load_id)
 

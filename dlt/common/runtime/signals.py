@@ -87,7 +87,13 @@ def set_received_signal(sig: int) -> None:
 def raise_if_signalled() -> None:
     """Raises `SignalReceivedException` if signal was received."""
     if was_signal_received():
-        raise SignalReceivedException(_received_signal)
+        raise exception_for_signal()
+
+
+def exception_for_signal() -> BaseException:
+    if not was_signal_received():
+        raise RuntimeError("no signal received")
+    return SignalReceivedException(_received_signal)
 
 
 def was_signal_received() -> bool:

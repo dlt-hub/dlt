@@ -191,14 +191,6 @@ class DependencyVersionException(DltException):
         return msg
 
 
-class WithJobError:
-    """A mixin for exceptions raised on failed jobs"""
-
-    load_id: str
-    job_id: str
-    failed_message: str
-
-
 # NOTE MSSQL/Synapse is the only code using this
 class SystemConfigurationException(DltException):
     pass

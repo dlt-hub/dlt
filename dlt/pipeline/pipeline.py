@@ -23,9 +23,8 @@ import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.exceptions import ValueErrorWithKnownValues, WithJobError
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
-from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
@@ -35,6 +34,7 @@ from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
+    WithJobError,
 )
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import (

@@ -2,8 +2,8 @@ from typing import Sequence
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
+    WithJobError,
 )
-from dlt.common.exceptions import WithJobError
 
 
 class LoadClientJobException(Exception, WithJobError):
