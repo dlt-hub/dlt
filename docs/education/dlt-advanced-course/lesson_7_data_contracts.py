@@ -408,9 +408,7 @@ def _(TDataItems, column_pipeline, dlt, duckdb):
     print("\n")
     _conn = duckdb.connect(f"{column_pipeline.pipeline_name}.duckdb")
     # View the data that has been loaded
-    _conn.sql(
-        "SELECT * FROM mydata.users"
-    ).df()  # This row will be loaded  # This row will not be loaded
+    _conn.sql("SELECT * FROM mydata.users").df()
     return
 
 
@@ -607,9 +605,7 @@ def _(TDataItems, data_type_pipeline, dlt, duckdb):
     print("\n")
     _conn = duckdb.connect(f"{data_type_pipeline.pipeline_name}.duckdb")
     # View the data that has been loaded
-    _conn.sql(
-        "SELECT * FROM mydata.users"
-    ).df()  # This row will be loaded  # This row will not be loaded
+    _conn.sql("SELECT * FROM mydata.users").df()
     return
 
 

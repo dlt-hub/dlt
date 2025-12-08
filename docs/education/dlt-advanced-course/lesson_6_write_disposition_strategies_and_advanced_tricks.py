@@ -334,9 +334,7 @@ def _(dlt):
         dataset_name="pokemon_data_2",
     )
     pipeline_1.run(data_1, table_name="pokemon", write_disposition="replace")
-    print(
-        pipeline_1.last_trace
-    )  # <--- set the replace strategy using TOML, ENVs or Python
+    print(pipeline_1.last_trace)
     return (pipeline_1,)
 
 
@@ -557,9 +555,7 @@ def _(mo):
 @app.cell
 def _():
     # Sample data containing pokemon details
-    data_3 = [
-        {"id": "25", "name": "pikachu", "size": {"weight": 7.5, "height": 0.4}}
-    ]  # <--- Pikachu's weight has increased
+    data_3 = [{"id": "25", "name": "pikachu", "size": {"weight": 7.5, "height": 0.4}}]
     return (data_3,)
 
 
@@ -620,7 +616,7 @@ def _(pipeline_2):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""We see that only new row is in the staging table. Since we used primary key, `dlt` deleted the previous entry of Pikachu and then inserted the new one."""
+        r"""We see that only the new row is in the staging table. Since we used primary key, `dlt` deleted the previous entry of Pikachu and then inserted the new one."""
     )
     return
 
@@ -807,7 +803,7 @@ def _():
         {"id": "1", "name": "bulbasaur", "size": {"weight": 6.9, "height": 0.7}},
         {"id": "4", "name": "charmander", "size": {"weight": 8.5, "height": 0.6}},
         {"id": "25", "name": "pikachu", "size": {"weight": 6, "height": 0.4}},
-    ]  # <--- weight has changed back
+    ]
     return (data_5,)
 
 
@@ -901,7 +897,7 @@ def _():
             "size": {"weight": 6, "height": 0.4},
             "deleted_flag": False,
         },
-    ]  # <--- should be deleted  # <--- should be kept
+    ]
     return (data_6,)
 
 
@@ -953,7 +949,7 @@ def _():
             "size": {"weight": 6, "height": 0.4},
             "deleted_flag": True,
         }
-    ]  # <--- set to True
+    ]
     return (data_7,)
 
 
@@ -1024,7 +1020,7 @@ def _():
             "size": {"weight": 8, "height": 0.4},
             "deleted_flag": None,
         },
-    ]  # <--- will be filtered out  # <--- will be removed  # <--- will be loaded
+    ]
     return (data_8,)
 
 
@@ -1136,13 +1132,13 @@ def _():
             "created_at": 3,
             "updated_at": None,
         },
-    ]  # <--- Incremental cursor is None
+    ]
     return (data_9,)
 
 
 @app.cell
 def _(TDataItems, data_9, dlt):
-    @dlt.resource
+    @dlt.resource(name="pokemon")
     def pokemon_4(
         data: TDataItems,
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
@@ -1214,7 +1210,7 @@ def _():
             "created_at": 3,
             "updated_at": None,
         },
-    ]  # <--- Incremental cursor is None
+    ]
     return (data_10,)
 
 
@@ -1231,9 +1227,7 @@ def _(TDataItem, TDataItems, dlt):
 
     def set_default_updated_at(record: TDataItem) -> TDataItems:
         if record.get("updated_at") is None:
-            record["updated_at"] = record.get(
-                "created_at"
-            )  # <--- use 'created_at' instead of missing 'updated_at'
+            record["updated_at"] = record.get("created_at")
         return record
 
     return set_default_updated_at, some_data

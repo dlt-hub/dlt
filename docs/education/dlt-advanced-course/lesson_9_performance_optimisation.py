@@ -1116,7 +1116,7 @@ def _(Dict, TDataItems, dlt):
     @dlt.resource
     def get_users() -> TDataItems:
         for user in fetch_users():
-            yield user  # yields one row at a time
+            yield user
 
     return
 
@@ -1783,11 +1783,9 @@ def _(dlt, os, time):
             yield response.json()
             if "next" not in response.links:
                 break
-            url = response.links["next"]["url"]  # Simulate delay
+            url = response.links["next"]["url"]
 
-    @dlt.resource(
-        table_name="issues", write_disposition="merge", primary_key="id"
-    )  # Here we're yielding pages
+    @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id")
     def get_issues(
         updated_at=dlt.sources.incremental(
             "updated_at", initial_value="1970-01-01T00:00:00Z"
