@@ -421,3 +421,19 @@ def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, 
     else:
         with pytest.raises(UnsupportedStorageVersionException):
             client.get_storage_versions()
+
+
+def test_list_dlt_table_files_with_separator_in_pipeline_name() -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    client.initialize_storage()
+
+    state_table_dir = client.get_table_dir(client.schema.state_table_name)
+    client.fs_client.mkdirs(state_table_dir)
+    test_file = client.pathlib.join(state_table_dir, "my__pipeline__load123__hash123.jsonl")
+    client.fs_client.touch(test_file)
+
+    results = list(client._list_dlt_table_files(client.schema.state_table_name))
+    assert len(results) == 1
+    assert results[0][0] == test_file
+    assert results[0][1] == ["my__pipeline", "load123", "hash123"]
