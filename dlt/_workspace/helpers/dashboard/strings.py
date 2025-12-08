@@ -18,6 +18,7 @@ _credentials_info = (
 #
 # App general
 #
+app_section_name = "workspace_home"
 app_title = """
 # Welcome to the dltHub workspace dashboard...
 """
@@ -179,6 +180,12 @@ state_section_name = "state_section"
 state_title = "Pipeline State"
 state_subtitle = "A raw view of the currently stored pipeline state."
 
+#
+# Data quality page
+#
+data_quality_section_name = "data_quality_section"
+data_quality_title = "Data Quality"
+data_quality_subtitle = "View the results of your data quality checks"
 
 #
 # Last trace page

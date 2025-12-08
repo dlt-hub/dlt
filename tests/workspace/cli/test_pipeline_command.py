@@ -45,7 +45,7 @@ def test_pipeline_command_operations(repo_dir: str) -> None:
         _pipeline_command.pipeline_command("list", "-", None, 0)
         _out = buf.getvalue()
         # do we have chess pipeline in the list
-        assert "chess_pipeline" in _out.splitlines()
+        assert _out.splitlines()[1].startswith("chess_pipeline")
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):

@@ -20,9 +20,20 @@ def print_profile_info(workspace_run_context: WorkspaceRunContext) -> None:
 @utils.track_command("profile", track_before=False, operation="list")
 def list_profiles(workspace_run_context: WorkspaceRunContext) -> None:
     fmt.echo("Available profiles:")
+    current_profile = workspace_run_context.profile
+    configured_profiles = workspace_run_context.configured_profiles()
     for profile in workspace_run_context.available_profiles():
         desc = BUILT_IN_PROFILES.get(profile, "Pinned custom profile")
-        fmt.echo("* %s - %s" % (fmt.bold(profile), desc))
+        markers = []
+        if profile == current_profile:
+            markers.append(fmt.bold("(current)"))
+        if profile in configured_profiles:
+            markers.append(fmt.bold("(configured)"))
+        marker_str = " ".join(markers)
+        if marker_str:
+            fmt.echo("* %s %s - %s" % (fmt.bold(profile), marker_str, desc))
+        else:
+            fmt.echo("* %s - %s" % (fmt.bold(profile), desc))
 
 
 @utils.track_command("profile", track_before=False, operation="pin")
@@ -39,7 +50,4 @@ def pin_profile(workspace_run_context: WorkspaceRunContext, profile_name: str) -
             fmt.echo("No pinned profile.")
     else:
         fmt.echo("Will pin the profile %s to current Workspace." % fmt.bold(profile_name))
-        if not fmt.confirm("Do you want to proceed?", default=True):
-            # TODO: raise exception that will exit with all required cleanups
-            exit(0)
         save_profile_pin(workspace_run_context, profile_name)

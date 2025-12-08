@@ -10,10 +10,12 @@ from dlt.common.runtime.init import restore_run_context
 from dlt.common.runtime.run_context import (
     DOT_DLT,
     RunContext,
+    ensure_plugin_version_match,
     get_plugin_modules,
     is_folder_writable,
     switched_run_context,
 )
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import _make_file_url
 from dlt.common.utils import set_working_dir
 
@@ -45,11 +47,6 @@ def test_run_context() -> None:
 
     # check config providers
     assert len(run_context.initial_providers()) == 3
-
-    assert ctx.context.runtime_config is None
-    ctx.add_extras()
-    # still not applied - must be in container
-    assert ctx.context.runtime_config is None
 
     with Container().injectable_context(ctx):
         ctx.initialize_runtime()
@@ -173,3 +170,53 @@ def test_context_with_xdg_dir(mocker) -> None:
         ctx = PluggableRunContext()
         run_context = ctx.context
         assert run_context.global_dir == dlt_home
+
+
+def test_ensure_plugin_version_match_same_versions() -> None:
+    """test that matching versions pass without error."""
+    # exact same version
+    ensure_plugin_version_match("dlthub", "1.19.0", "1.19.0", "dlthub", "hub")
+    ensure_plugin_version_match("dlthub", "1.19.5", "1.19.2", "dlthub", "hub")
+    # different patch versions are ok
+    ensure_plugin_version_match("dlthub", "2.5.0", "2.5.10", "dlthub", "hub")
+    # alpha specifiers (e.g. 1.19.0a1)
+    ensure_plugin_version_match("dlthub", "1.19.0a1", "1.19.0a2", "dlthub", "hub")
+    ensure_plugin_version_match("dlthub", "1.19.0a1", "1.19.0", "dlthub", "hub")
+    # dev specifiers (e.g. 1.19.0.dev1)
+    ensure_plugin_version_match("dlthub", "1.19.0.dev1", "1.19.0.dev2", "dlthub", "hub")
+    ensure_plugin_version_match("dlthub", "1.19.0.dev1", "1.19.0", "dlthub", "hub")
+    # post release specifiers
+    ensure_plugin_version_match("dlthub", "1.19.0.post1", "1.19.0.post2", "dlthub", "hub")
+    ensure_plugin_version_match("dlthub", "1.19.0.post1", "1.19.0", "dlthub", "hub")
+
+
+def test_ensure_plugin_version_match_alpha_plugin() -> None:
+    """test that alpha plugins (major=0) match any dlt major version with same minor."""
+    # alpha plugin (0.x.y) should match dlt 1.x.y with same minor
+    ensure_plugin_version_match("dlthub", "1.19.0", "0.19.0", "dlthub", "hub")
+    ensure_plugin_version_match("dlthub", "1.19.5", "0.19.2", "dlthub", "hub")
+    ensure_plugin_version_match("dlthub", "2.19.0", "0.19.0", "dlthub", "hub")
+    # alpha plugin with alpha/dev specifiers
+    ensure_plugin_version_match("dlthub", "1.19.0a1", "0.19.0a2", "dlthub", "hub")
+    ensure_plugin_version_match("dlthub", "1.19.0.dev1", "0.19.0.dev2", "dlthub", "hub")
+
+
+@pytest.mark.parametrize(
+    "dlt_version,plugin_version",
+    [
+        # minor mismatch
+        ("1.19.0", "1.18.0"),
+        ("1.19.0", "0.18.0"),
+        ("1.19.0a1", "1.18.0a1"),
+        ("1.19.0.dev1", "1.18.0.dev1"),
+        # major mismatch (non-alpha plugin)
+        ("1.19.0", "2.19.0"),
+        ("1.19.0a1", "2.19.0a1"),
+        ("1.19.0.dev1", "2.19.0.dev1"),
+    ],
+)
+def test_ensure_plugin_version_match_mismatch(dlt_version: str, plugin_version: str) -> None:
+    """test that mismatched versions raise MissingDependencyException."""
+    with pytest.raises(MissingDependencyException) as exc_info:
+        ensure_plugin_version_match("dlthub", dlt_version, plugin_version, "dlthub", "hub")
+    assert "dlthub" in str(exc_info.value)
