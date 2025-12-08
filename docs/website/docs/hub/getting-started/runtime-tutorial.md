@@ -67,7 +67,7 @@ invite_code="xxx-yyy"
 ```
 
 Before running pipelines remotely, you need to set up your destination credentials. The starter pack uses MotherDuck as the destination. Read how to set the correct credentials
-[here](../production/overview.md#credentials-and-configs)
+[here](../runtime/overview.md#credentials-and-configs)
 
 
 ### Log In to Runtime
@@ -256,7 +256,7 @@ uv run python jaffle_transformations.py
 Deploy and run transformations on the dltHub runtime:
 
 ```bash
-uv run dlt workspace deploy jaffle_transformations.py -p prod
+uv run dlt runtime launch jaffle_transformations.py
 ```
 
 ### Schema Evolution

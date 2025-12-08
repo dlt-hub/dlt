@@ -13,6 +13,14 @@ dltHub Runtime is a managed cloud platform for running your `dlt` pipelines and 
 - A web dashboard for monitoring runs, viewing logs, and managing jobs
 - Secure secrets management with multiple profiles
 
+dltHub Runtime creates a mirror of your local workspace (called a **workspace deployment**). You continue working with your familiar dlt pipelines, datasets, notebooks, and dashboards - they just run remotely instead of on your machine.
+
+:::caution
+Each GitHub account can have only one remote workspace. When you run `dlt runtime login`, it connects your current local workspace to this remote workspace. If you later connect a different local repository and deploy or launch a job, it will replace your existing [**deployment** and **configuration**](#deployments-and-configurations), making any previously scheduled jobs defunct.
+
+Support for multiple remote workspaces (mirroring multiple local repositories) is planned for next year.
+:::
+
 ## Credentials and configs
 
 ### Understanding Workspace Profiles
@@ -232,7 +240,7 @@ dlt runtime configuration sync
 
 A typical development flow:
 
-1. **Develop locally** with DuckDB (default profile):
+1. **Develop locally** with DuckDB (`dev` profile):
    ```sh
    uv run python fruitshop_pipeline.py
    ```
@@ -242,14 +250,14 @@ A typical development flow:
    uv run marimo edit fruitshop_notebook.py
    ```
 
-3. **Deploy to Runtime** for production runs:
+3. **Run pipeline in Runtime** (`prod` profile):
    ```sh
    uv run dlt runtime launch fruitshop_pipeline.py
    ```
 
-4. **Update code without running**:
+4. **Run notebook in Runtime** (`access` profile):
    ```sh
-   uv run dlt runtime deploy
+   uv run dlt runtime serve fruitshop_notebook.py
    ```
 
 5. **Check run status and logs**:
@@ -258,6 +266,7 @@ A typical development flow:
    ```
 
 ## Key Concepts
+
 
 ### Jobs vs Runs
 
