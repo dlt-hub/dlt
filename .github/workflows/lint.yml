@@ -52,6 +52,10 @@ jobs:
       - name: Check that cli docs are up to date
         run: make check-cli-docs
         if: ${{ matrix.python-version == '3.11' }}
+      
+      - name: Check that dlthub cli docs are up to date
+        run: cd docs/tools/dlthub_cli && make update-cli-docs
+        if: ${{ matrix.python-version == '3.11' }}      
 
       - name: Check filesizes
         uses: ppremk/lfs-warning@v3.2

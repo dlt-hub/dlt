@@ -2,10 +2,10 @@
 # this must be run from `dlthub_cli` to see workspace commands
 
 install-dlthub:
-	uv pip install dlthub
+	uv pip install dlt[hub]
 
 update-cli-docs: install-dlthub
-	uv run dlt --debug render-docs ../../website/docs/hub/command-line-interface.md --commands license workspace profile
+	uv run dlt --debug render-docs ../../website/docs/hub/command-line-interface.md --commands license workspace profile runtime
 
 check-cli-docs: install-dlthub
-	uv run dlt --debug render-docs ../../website/docs/hub/command-line-interface.md --compare --commands license workspace profile
+	uv run dlt --debug render-docs ../../website/docs/hub/command-line-interface.md --compare --commands license workspace profile runtime
