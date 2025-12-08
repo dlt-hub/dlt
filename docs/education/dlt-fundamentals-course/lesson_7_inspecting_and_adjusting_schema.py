@@ -235,7 +235,7 @@ def _(dlt):
         destination="duckdb",
         dataset_name="github_data",
         export_schema_path="schemas/export",
-    )  # <--- dir path for a schema export
+    )
     return (pipeline_1,)
 
 

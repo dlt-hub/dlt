@@ -115,9 +115,9 @@ jobs:
           git add -A
           # Check if there are any differences
           if ! git diff --staged --quiet; then
-            echo "Marimo notebooks are out of date!"
-            echo "Please run 'make build-marimo' locally, check the molabs and commit the changes."
+            echo "Molabs are out of date!"
+            echo "Please run 'make build-molabs' locally, check the molabs and commit the changes."
             exit 1
           else
-            echo "Marimo notebooks are up to date!"
+            echo "Molabs are up to date!"
           fi        
