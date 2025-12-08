@@ -1009,7 +1009,6 @@ In the example above:
 - First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
 - Then, the `map` step applies the `lower_title` function to each remaining record.
 - Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record, 
-- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record,
 yielding a set of records, one for each reaction for the given post.
 
 #### Using `filter`
