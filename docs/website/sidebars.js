@@ -500,6 +500,7 @@ const sidebars = {
         'hub/intro',
         'hub/getting-started/installation',
         { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
+        'hub/getting-started/runtime-tutorial',
       ]
     },
     {
@@ -551,6 +552,7 @@ const sidebars = {
       type: 'category',
       label: 'Runtime',
       items: [
+        'hub/production/overview',
         'hub/production/observability',
       ]
     },
