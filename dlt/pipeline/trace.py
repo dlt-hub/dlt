@@ -347,6 +347,11 @@ def load_trace(trace_dir: str, ignore_errors: bool = True) -> PipelineTrace:
     return None
 
 
+def get_trace_file_path(pipelines_dir: str, pipeline_name: str) -> str:
+    """Get the path to the pickle file for a pipeline"""
+    return os.path.join(pipelines_dir, pipeline_name, TRACE_FILE_NAME)
+
+
 def get_exception_traces(exc: BaseException, container: Container = None) -> List[ExceptionTrace]:
     """Gets exception trace chain and extend it with data available in Container context"""
     traces = get_exception_trace_chain(exc)

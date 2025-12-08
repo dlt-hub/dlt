@@ -19,7 +19,7 @@ You can run dlt within Snowflake AI Data Cloud in a few different ways.
    Package dlt into a container and run it on SPCS for in-Snowflake execution (available starting with Snowpark 1.43.0). 
 
 4. **External runner with Snowflake as destination**  
-    [Run dlt outside](../../walkthroughs/deploy-a-pipeline) Snowflake (your infra or a third party) and load into Snowflake as the destination.  
+    [Run dlt outside](../walkthroughs/deploy-a-pipeline) Snowflake (your infra or a third party) and load into Snowflake as the destination.  
 
 ## How to choose
 

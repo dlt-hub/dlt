@@ -3,11 +3,11 @@ name = "dlt-docs-tools"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.9.2, <3.14"
+requires-python = ">=3.10, <3.13" #  databind not available over 3.10, we need to update the build
 
 # NOTE: working here is always dev enviroment, so we don't need a dev group
 dependencies = [
-    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,workspace,weaviate]",
+    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,workspace,weaviate,hub]",
     "docstring-parser>=0.11",
     "flake8>=7.0.0,<8",
     "modal>=1.2.1",
@@ -42,6 +42,7 @@ dependencies = [
     "weaviate-client>=3.26.7,<4.0.0",
     "regex>=2025.10.23",
     "pytest-forked>=1.6.0",
+    "databind>=4.5.2",
 ]
 
 
