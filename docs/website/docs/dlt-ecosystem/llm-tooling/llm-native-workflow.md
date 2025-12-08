@@ -74,7 +74,7 @@ dlt init dlthub:github duckdb
 
 Several files will be added to your directory, similar to this:
 
-```
+```text
 my_project/
 ├── .cursor/  # rules for Cursor IDE
 │   ├── rules.mdc
@@ -93,7 +93,7 @@ my_project/
 
 When running `dlt init`, you will be prompted to select the IDE or agent that you want to use.
 
-```shell
+```sh
 ❯ dlt init dlthub:github duckdb
 dlt will generate useful project rules tailored to your assistant/IDE.
 Press Enter to accept the default (cursor), or type a name:
@@ -101,7 +101,7 @@ Press Enter to accept the default (cursor), or type a name:
 
 Run this command to manually setup another IDE.
 
-```shell
+```sh
 dlt ai setup {IDE}
 ```
 
@@ -120,7 +120,7 @@ To get good result and make progress, it's best to implement one REST endpoint a
 The source's page on dlthub.com/workspace includes a prompt to get you started that looks
 like this:
 
-```
+```text
 Generate a REST API Source for {source}, as specified in @{source}-docs.yaml
 Start with endpoint {endpoint_name} and skip incremental loading for now. 
 Place the code in {source}_pipeline.py and name the pipeline {source}_pipeline. 
@@ -140,9 +140,9 @@ Reference `{source}-docs.yaml` and ask what the available endpoints are.
 The LLM can quickly produce a lot of code. When reviewing its proposed changes, your role is to nudge it in the right direction. 
 
 ### Anatomy of a REST API source
-Before practical tips, let's look at a minimal REST API source:  
+Before practical tips, let's look at a minimal REST API source:
 
-```python
+```py
 import dlt
 from dlt.sources.rest_api import rest_api_resources
 from dlt.sources.rest_api.typing import RESTAPIConfig
@@ -225,9 +225,9 @@ Load package 1749667187.541553 is LOADED and contains no failed jobs
 
 ### Failure: source credentials
 
-Your first few iterations will probably trigger credentials errors. This can be easily fixed by filling the `.dlt/config.toml` and `.dlt/secrets.toml` or by using environment variables. [LINK] 
+Your first few iterations will probably trigger credentials errors. This can be easily fixed by filling the `.dlt/config.toml` and `.dlt/secrets.toml` or by using environment variables. [LINK]
 
-```shell
+```text
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Missing 1 field(s) in configuration `GithubRestApiSourceConfiguration`: `access_token`
 for field `access_token` the following (config provider, key) were tried in order:
   (Environment Variables, GITHUB_PIPELINE__SOURCES__GITHUB_PIPELINE__GITHUB_REST_API_SOURCE__ACCESS_TOKEN)
@@ -301,7 +301,7 @@ TODO: list a few example prompt / queries
 Running a `dlt` pipeline creates a **dataset**. This provides a consistent interface to interact with loaded data and removes the destination-specific friction 
 
 This snippets gives access to the GitHub data I loaded
-```python
+```py
 import dlt
 
 # this refers to my previously ran pipeline
