@@ -352,17 +352,13 @@ def table_rows(
     try:
         resource = dlt.current.resource()
         resource_columns = resource.columns
-        # Merge user-provided column hints with reflection hints
-        # We can only merge static hints (dict, Sequence, Pydantic models), not dynamic callables
-        # Callables are evaluated per-item at runtime and can't be merged statically
         if resource_columns and hints["columns"]:
             if callable(resource_columns):
-                logger.warning(
-                    f"Column hints for table '{table.name}' are defined as a callable (dynamic"
-                    " hint). Dynamic column hints cannot be merged with SQL reflection hints and"
-                    " will be applied later during extraction. The reflected column types from the"
-                    " database will be used for initial type inference by the backend."
-                )
+                if backend == "pyarrow":
+                    logger.warning(
+                        f"Dynamic column hints for '{table.name}' cannot be applied with pyarrow "
+                        "backend. Use static hints (dict/list) to override reflected types."
+                    )
             else:
                 resource_columns_as_hints = ensure_table_schema_columns(resource_columns)
                 hints["columns"] = merge_columns(hints["columns"], resource_columns_as_hints)
