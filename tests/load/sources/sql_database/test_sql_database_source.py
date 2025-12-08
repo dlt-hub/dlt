@@ -87,13 +87,31 @@ def convert_time_to_us(table):
     return new_table
 
 
+@pytest.mark.parametrize(
+    "columns_hint_type",
+    ["dict", "sequence"],
+    ids=["dict", "sequence"],
+)
 def test_pyarrow_applies_hints_before_extract(
     postgres_db: PostgresSourceDB,
+    columns_hint_type: str,
 ) -> None:
-    """Test that user-provided hints (via apply_hints) are merged with reflection hints.
-    for all backends. pyarrow used to cast rows before hints can be applied, so this is a
-    regression test for issue #2788
+    """Test that user-provided hints (via apply_hints) are merged with reflection hints
+    for all backends. pyarrow used to cast rows before hints can be applied
     """
+    # Create column hints in different formats - all should result in numeric_col being double
+    if columns_hint_type == "dict":
+        columns_hint: Any = {
+            "numeric_col": {
+                "data_type": "double",
+            },
+        }
+    elif columns_hint_type == "sequence":
+        columns_hint = [
+            {"name": "numeric_col", "data_type": "double"},
+        ]
+    else:
+        raise ValueError(f"Unknown columns_hint_type: {columns_hint_type}")
 
     table = sql_table(
         credentials=postgres_db.credentials,
@@ -107,11 +125,7 @@ def test_pyarrow_applies_hints_before_extract(
     table.apply_hints(
         write_disposition="replace",
         file_format="parquet",
-        columns={
-            "numeric_col": {
-                "data_type": "double",
-            },
-        },
+        columns=columns_hint,
     )
 
     pipeline = make_pipeline("duckdb")
@@ -121,7 +135,10 @@ def test_pyarrow_applies_hints_before_extract(
     numeric_col_schema = pipeline.default_schema.get_table("has_precision")["columns"][
         "numeric_col"
     ]
-    assert numeric_col_schema["data_type"] == "double"
+    assert numeric_col_schema["data_type"] == "double", (
+        f"Schema should have 'double' for numeric_col with {columns_hint_type} hint type, "
+        f"but got {numeric_col_schema['data_type']}"
+    )
 
     # Find the parquet file for has_precision table and check its native type is float64 (double)
     # and not reflected as decimal
@@ -138,8 +155,8 @@ def test_pyarrow_applies_hints_before_extract(
     numeric_col_type = parquet_schema.field("numeric_col").type
 
     assert pa.types.is_float64(numeric_col_type), (
-        f"Expected numeric_col to be float64 in parquet file, but got {numeric_col_type}. "
-        "This means PyArrow did not apply the user hints before extracting data."
+        f"Expected numeric_col to be float64 in parquet file with {columns_hint_type} hint type, "
+        f"but got {numeric_col_type}. "
     )
 
 
