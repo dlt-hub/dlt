@@ -560,16 +560,6 @@ def _(mo):
     **Step 3: Choose `PageNumberPaginator`**
 
     This is exactly what `PageNumberPaginator` is made for:
-
-    > ```python
-    >    paginator=PageNumberPaginator(
-    >        base_page=1,  # NewsAPI starts paging from 1
-    >        page_param="page",  # Matches the API spec
-    >        total_path=None,  # Set it to None explicitly
-    >        stop_after_empty_page=True,  # Stop if no articles returned
-    >        maximum_page=4,  # Optional limit for dev/testing
-    >    ),
-    ```
     """
     )
     return
