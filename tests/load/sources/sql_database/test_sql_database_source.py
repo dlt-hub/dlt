@@ -6,8 +6,11 @@ from importlib.metadata import version
 import pytest
 from pytest_mock import MockerFixture
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 import dlt
-from dlt.common import Decimal, logger
+from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
@@ -84,26 +87,23 @@ def convert_time_to_us(table):
     return new_table
 
 
-@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
-def test_apply_hints_merged_with_reflection(
-    backend: TableBackend,
+def test_pyarrow_applies_hints_before_extract(
     postgres_db: PostgresSourceDB,
 ) -> None:
     """Test that user-provided hints (via apply_hints) are merged with reflection hints.
-
-    The database has a Numeric column, but we apply hints to override it to double.
-    This tests the merge logic in table_rows() that combines reflection hints with
-    resource column hints from apply_hints().
+    for all backends. pyarrow used to cast rows before hints can be applied, so this is a
+    regression test for issue #2788
     """
+
     table = sql_table(
         credentials=postgres_db.credentials,
         schema=postgres_db.schema,
         table="has_precision",
-        backend=backend,
+        backend="pyarrow",
         reflection_level="full_with_precision",
     )
 
-    # Apply hints to override numeric_col to double (even though DB has Numeric type)
+    # Apply hints to override numeric_col to double (even though DB has decimal type)
     table.apply_hints(
         write_disposition="replace",
         file_format="parquet",
@@ -115,7 +115,7 @@ def test_apply_hints_merged_with_reflection(
     )
 
     pipeline = make_pipeline("duckdb")
-    pipeline.run(table.add_limit(1))
+    load_info = pipeline.run(table.add_limit(1))
 
     # Verify the schema reflects the user-provided hint (double) rather than reflection (decimal)
     numeric_col_schema = pipeline.default_schema.get_table("has_precision")["columns"][
@@ -123,12 +123,24 @@ def test_apply_hints_merged_with_reflection(
     ]
     assert numeric_col_schema["data_type"] == "double"
 
-    # Verify the data loaded successfully
-    dataset = pipeline.dataset()
-    rows = dataset.table("has_precision").select("numeric_col").limit(1).fetchall()
-    assert len(rows) == 1
-    (numeric_value,) = rows[0]
-    assert isinstance(numeric_value, float)
+    # Find the parquet file for has_precision table and check its native type is float64 (double)
+    # and not reflected as decimal
+    completed_jobs = load_info.load_packages[0].jobs["completed_jobs"]
+    has_precision_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "has_precision" and job.file_path.endswith(".parquet")
+    ]
+    assert len(has_precision_jobs) == 1, "Expected exactly one parquet file for has_precision"
+
+    parquet_path = has_precision_jobs[0].file_path
+    parquet_schema = pq.read_schema(parquet_path)
+    numeric_col_type = parquet_schema.field("numeric_col").type
+
+    assert pa.types.is_float64(numeric_col_type), (
+        f"Expected numeric_col to be float64 in parquet file, but got {numeric_col_type}. "
+        "This means PyArrow did not apply the user hints before extracting data."
+    )
 
 
 def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: MockerFixture) -> None:

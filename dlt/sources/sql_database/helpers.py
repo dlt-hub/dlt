@@ -352,13 +352,15 @@ def table_rows(
     try:
         resource = dlt.current.resource()
         resource_columns = resource.columns
-        if resource_columns and hints["columns"]:
-            print("hints from reflection: ", hints["columns"])
-            print("hints from resource: ", resource_columns)
+        # Only merge if both resource_columns and hints["columns"] are dicts (not callables)
+        if (
+            resource_columns
+            and hints["columns"]
+            and isinstance(resource_columns, dict)
+            and isinstance(hints["columns"], dict)
+        ):
             resource_columns_as_hints = ensure_table_schema_columns(resource_columns)
-            # print("resource_columns_as_hints: ", resource_columns_as_hints)
             hints["columns"] = merge_columns(hints["columns"], resource_columns_as_hints)
-            # print("hints after merge: ", hints["columns"])
 
         limit = resource.limit
     except DltException:
