@@ -123,9 +123,11 @@ uv run dlt runtime schedule fruitshop_pipeline.py cancel
 Visit [dlthub.app](https://dlthub.app) to access the web dashboard. The dashboard provides:
 
 ### Overview
+
 The workspace overview shows all your jobs and recent runs at a glance. Lists auto-refresh every 10 seconds.
 
 ### Jobs
+
 View and manage all jobs in your workspace. A **job** represents a script that can be run on demand or on a schedule.
 
 From the Jobs page you can:
@@ -143,30 +145,35 @@ Interactive jobs like notebooks and dashboards can be shared via public links. T
 Anyone with an active public link can view the running notebook or dashboard. This is useful for sharing dashboards with stakeholders who don't have Runtime access.
 
 ### Runs
+
 Monitor all job runs with:
 - Run status (pending, running, completed, failed, cancelled)
 - Start time and duration
 - Trigger type (manual, scheduled, API)
 
 ### Run Details
+
 Click on any run to see:
 - Full execution logs
 - Run metadata
 - Pipeline information
 
 ### Deployment & Config
+
 View the files deployed to Runtime:
 - Current deployment version
 - Configuration profiles
 - File listing
 
 ### Dashboard
+
 Access the dlt pipeline dashboard to visualize:
 - Pipeline schemas
 - Load information
 - Data lineage
 
 ### Settings
+
 Manage workspace settings and view workspace metadata.
 
 ## Add transformations
