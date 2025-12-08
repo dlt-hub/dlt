@@ -913,7 +913,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
 
     def _handle_missing_has_more(self, response_json: Dict[str, Any]) -> None:
         raise ValueError(
-            f"Has more value not found in the response in `{self.__class__.__name__}`."
+            f"Has more value not found in the response in `{self.__class__.__name__}`. "
             f"Expected a response with a `{self.has_more_path}` key, got"
             f" `{response_json}`."
         )
