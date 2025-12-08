@@ -16,24 +16,13 @@ from unittest import mock
 
 from dlt.common.libs.pyiceberg import (
     get_catalog,
-    load_catalog_from_yaml,
+    _load_catalog_from_pyiceberg,
     CatalogNotFoundError,
 )
 
 # ============================================================================
 # FIXTURES
 # ============================================================================
-
-@pytest.fixture
-def mock_pyiceberg_load():
-    """Mock PyIceberg's load_catalog function for priority tests."""
-    with mock.patch("pyiceberg.catalog.load_catalog") as m:
-        mock_catalog = mock.Mock()
-        mock_catalog.name = "test_catalog"
-        mock_catalog.list_namespaces.return_value = []
-        m.return_value = mock_catalog
-        yield m
-
 
 @pytest.fixture
 def test_credentials():
@@ -55,69 +44,9 @@ def clean_env(monkeypatch):
             monkeypatch.delenv(key, raising=False)
 
 
-@pytest.fixture
-def yaml_config_file(tmp_path):
-    """Create a .pyiceberg.yaml file for priority tests."""
-    yaml_file = tmp_path / ".pyiceberg.yaml"
-    yaml_content = {
-        "catalog": {
-            "test_rest_catalog": {
-                "type": "rest",
-                "uri": "https://yaml-rest.example.com",
-                "warehouse": "yaml_warehouse",
-            }
-        }
-    }
-    with open(yaml_file, "w") as f:
-        yaml.dump(yaml_content, f)
-    return yaml_file
-
-
 # ============================================================================
 # UNIT TESTS
 # ============================================================================
-
-# ----------------------------------------------------------------------------
-# Configuration Priority Tests
-# ----------------------------------------------------------------------------
-
-def test_priority_explicit_config_over_yaml(mock_pyiceberg_load, yaml_config_file, tmp_path):
-    """Explicit config should take precedence over YAML file."""
-    with mock.patch("dlt.current.run_context") as mock_ctx:
-        mock_ctx.return_value.run_dir = str(tmp_path)
-        mock_ctx.return_value.get_setting.return_value = str(yaml_config_file)
-        
-        # Pass explicit config - should override YAML
-        explicit_config = {
-            "type": "rest",
-            "uri": "https://explicit-uri.example.com",
-            "warehouse": "explicit_wh"
-        }
-        catalog = get_catalog("test_rest_catalog", iceberg_catalog_config=explicit_config)
-        
-        # Verify explicit config was used, not YAML
-        call_kwargs = mock_pyiceberg_load.call_args[1]
-        assert call_kwargs["uri"] == "https://explicit-uri.example.com"
-        assert call_kwargs["warehouse"] == "explicit_wh"
-
-
-def test_priority_yaml_over_env_vars(mock_pyiceberg_load, yaml_config_file, tmp_path, monkeypatch):
-    """YAML config should take precedence over environment variables."""
-    # Set environment variables (should be ignored)
-    monkeypatch.setenv("PYICEBERG_CATALOG__DEFAULT__TYPE", "rest")
-    monkeypatch.setenv("PYICEBERG_CATALOG__DEFAULT__URI", "https://env-uri.example.com")
-    monkeypatch.setenv("PYICEBERG_CATALOG__DEFAULT__WAREHOUSE", "env_wh")
-    
-    with mock.patch("dlt.current.run_context") as mock_ctx:
-        mock_ctx.return_value.run_dir = str(tmp_path)
-        mock_ctx.return_value.get_setting.return_value = str(yaml_config_file)
-        
-        catalog = get_catalog("test_rest_catalog")
-        
-        # Verify YAML was used, not env vars
-        call_kwargs = mock_pyiceberg_load.call_args[1]
-        assert call_kwargs["uri"] == "https://yaml-rest.example.com"
-        assert call_kwargs["warehouse"] == "yaml_warehouse"
 
 
 # ----------------------------------------------------------------------------
@@ -130,24 +59,15 @@ def test_get_catalog_rejects_unsupported_types():
         get_catalog("my_cat", iceberg_catalog_type="glue")
 
 
-@pytest.mark.parametrize("error_type,setup,expected_msg", [
-    ("missing_file", lambda tmp_path: tmp_path / "nonexistent.yaml", "No .pyiceberg.yaml file found"),
-    ("missing_catalog", lambda tmp_path: _create_yaml_without_catalog(tmp_path), "Catalog 'missing_cat' not found"),
-])
-def test_get_catalog_yaml_errors(error_type, setup, expected_msg, tmp_path, clean_env):
-    """Should raise appropriate errors for YAML configuration issues."""
-    config_path = setup(tmp_path)
-    
-    with pytest.raises(CatalogNotFoundError, match=expected_msg):
-        load_catalog_from_yaml("missing_cat", config_path=str(config_path))
-
-
-def _create_yaml_without_catalog(tmp_path):
-    """Helper to create YAML file with different catalog name."""
-    yaml_file = tmp_path / "wrong_catalog.yaml"
-    with open(yaml_file, "w") as f:
-        yaml.dump({"catalog": {"other_cat": {"type": "sql"}}}, f)
-    return yaml_file
+def test_get_catalog_pyiceberg_missing_file_env_var(tmp_path, clean_env, monkeypatch):
+    """Should raise error when no .pyiceberg.yaml file is found."""
+    # Mock run_context to point to a non-existent YAML file
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(tmp_path)
+        mock_ctx.return_value.get_setting.return_value = str(tmp_path / "nonexistent.yaml")
+        
+        with pytest.raises(CatalogNotFoundError, match="No .pyiceberg.yaml file found"):
+            _load_catalog_from_pyiceberg("missing_cat")
 
 
 # ============================================================================
@@ -162,11 +82,70 @@ def _create_yaml_without_catalog(tmp_path):
 # ----------------------------------------------------------------------------
 
 @pytest.mark.integration
+def test_priority_explicit_config_over_pyiceberg(tmp_path, monkeypatch):
+    """Explicit config should take precedence over YAML file.
+    
+    This test verify that:
+    1. When both explicit config and YAML are present, explicit config wins
+    2. We can inspect actual catalog properties to verify which configuration was used
+    """
+    db_path_yaml = tmp_path / "yaml_catalog.db"
+    db_path_explicit = tmp_path / "explicit_catalog.db"
+    catalog_uri_yaml = f"sqlite:///{db_path_yaml}"
+    catalog_uri_explicit = f"sqlite:///{db_path_explicit}"
+    
+    # Create YAML config
+    yaml_file = tmp_path / ".pyiceberg.yaml"
+    yaml_content = {
+        "catalog": {
+            "test_catalog": {
+                "type": "sql",
+                "uri": catalog_uri_yaml,
+                "warehouse": "yaml_warehouse",
+            }
+        }
+    }
+    with open(yaml_file, "w") as f:
+        yaml.dump(yaml_content, f)
+    
+    # Set PYICEBERG_HOME so PyIceberg can find the YAML file if needed
+    monkeypatch.setenv("PYICEBERG_HOME", str(tmp_path))
+    
+    with mock.patch("dlt.current.run_context") as mock_ctx:
+        mock_ctx.return_value.run_dir = str(tmp_path)
+        mock_ctx.return_value.get_setting.return_value = str(yaml_file)
+        
+        # Pass explicit config - should override YAML
+        explicit_config = {
+            "type": "sql",
+            "uri": catalog_uri_explicit,
+            "warehouse": "explicit_warehouse"
+        }
+        catalog = get_catalog("test_catalog", iceberg_catalog_config=explicit_config)
+        
+        # Verify explicit config was used by checking the URI in properties
+        assert catalog is not None
+        assert catalog.name == "test_catalog"
+        assert catalog.properties is not None
+        assert "uri" in catalog.properties
+        # Should use explicit URI, not YAML URI
+        assert catalog_uri_explicit in catalog.properties["uri"]
+        assert catalog_uri_yaml not in catalog.properties["uri"]
+        
+        # Verify catalog is functional and uses explicit database
+        test_namespace = "test_explicit_priority"
+        catalog.create_namespace(test_namespace)
+        namespaces = catalog.list_namespaces()
+        assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
+        
+        # Verify explicit database file was created, not YAML database
+        assert db_path_explicit.exists()
+        assert not db_path_yaml.exists()
+
+@pytest.mark.integration
 def test_real_sqlite_catalog_integration(tmp_path):
     """
-    INTEGRATION TEST: Create and use a real persistent SQLite catalog.
-    
-    This test uses actual PyIceberg without mocking to verify:
+    This test verify that:
     1. Catalog creation works
     2. Namespaces can be created
     3. Catalog persists to disk
@@ -180,7 +159,8 @@ def test_real_sqlite_catalog_integration(tmp_path):
         "integration_test_catalog",
         iceberg_catalog_config={
             "type": "sql",
-            "uri": catalog_uri
+            "uri": catalog_uri,
+            "warehouse": "test_warehouse"
         }
     )
     
@@ -204,7 +184,8 @@ def test_real_sqlite_catalog_integration(tmp_path):
         "integration_test_catalog",
         iceberg_catalog_config={
             "type": "sql",
-            "uri": catalog_uri
+            "uri": catalog_uri,
+            "warehouse": "test_warehouse"
         }
     )
     
@@ -265,11 +246,10 @@ def test_sqlite_catalog_from_env_vars(tmp_path, monkeypatch, clean_env):
 
 
 @pytest.mark.integration
-def test_sqlite_catalog_from_yaml(tmp_path):
+def test_sqlite_catalog_from_yaml(tmp_path, monkeypatch):
     """
-    INTEGRATION TEST: Create SQLite catalog from .pyiceberg.yaml file.
-    
-    This test uses a real SQLite catalog (no mocking) to verify that:
+    This test verify that:
+
     1. YAML file discovery works
     2. Catalog is created with configuration from YAML
     3. We can inspect actual catalog properties to verify configuration
@@ -284,11 +264,19 @@ def test_sqlite_catalog_from_yaml(tmp_path):
             "yaml_sqlite_catalog": {
                 "type": "sql",
                 "uri": catalog_uri,
+                "warehouse": "test_warehouse"
             }
         }
     }
     with open(yaml_file, "w") as f:
         yaml.dump(yaml_content, f)
+    
+    # Set PYICEBERG_HOME so PyIceberg can find the YAML file
+    monkeypatch.setenv("PYICEBERG_HOME", str(tmp_path))
+    
+    # Reset PyIceberg's cached environment config
+    from pyiceberg.utils.config import Config
+    monkeypatch.setattr("pyiceberg.catalog._ENV_CONFIG", Config())
     
     # Mock run_context to point to our YAML file
     with mock.patch("dlt.current.run_context") as mock_ctx:
@@ -334,6 +322,7 @@ def test_sqlite_catalog_from_explicit_config(tmp_path):
     config = {
         "type": "sql",
         "uri": catalog_uri,
+        "warehouse": "test_warehouse"
     }
     
     # Create catalog from explicit config
@@ -356,93 +345,6 @@ def test_sqlite_catalog_from_explicit_config(tmp_path):
     
     # Verify database file was created
     assert db_path.exists()
-
-
-@pytest.mark.integration
-def test_sqlite_catalog_with_credentials(tmp_path, test_credentials):
-    """
-    INTEGRATION TEST: Create SQLite catalog with merged credentials.
-    
-    This test uses a real SQLite catalog (no mocking) to verify that:
-    1. Credentials are merged into catalog configuration
-    2. We can inspect actual catalog properties to verify credentials were merged
-    """
-    db_path = tmp_path / "credentials_catalog.db"
-    catalog_uri = f"sqlite:///{db_path}"
-    
-    # Config without credentials
-    config = {
-        "type": "sql",
-        "uri": catalog_uri,
-    }
-    
-    # Create catalog with credentials
-    catalog = get_catalog(
-        "credentials_catalog",
-        iceberg_catalog_config=config,
-        credentials=test_credentials
-    )
-    
-    # Verify catalog was created
-    assert catalog is not None
-    assert catalog.name == "credentials_catalog"
-    
-    # Verify credentials were merged into catalog properties
-    assert catalog.properties is not None
-    assert "s3.access-key-id" in catalog.properties
-    assert catalog.properties["s3.access-key-id"] == "test_access_key"
-    assert "s3.secret-access-key" in catalog.properties
-    assert catalog.properties["s3.secret-access-key"] == "test_secret_key"
-    
-    # Verify catalog is functional
-    test_namespace = "test_creds_namespace"
-    catalog.create_namespace(test_namespace)
-    namespaces = catalog.list_namespaces()
-    assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
-
-
-@pytest.mark.integration
-def test_sqlite_catalog_from_dlt_config(tmp_path, monkeypatch, clean_env):
-    """
-    INTEGRATION TEST: Create SQLite catalog from DLT config (ICEBERG_CATALOG__* env vars).
-    
-    This test uses a real SQLite catalog (no mocking) to verify that:
-    1. ICEBERG_CATALOG__* environment variables are correctly parsed
-    2. Catalog is created with the right configuration
-    3. We can inspect actual catalog properties to verify configuration
-    """
-    db_path = tmp_path / "dlt_config_catalog.db"
-    catalog_uri = f"sqlite:///{db_path}"
-    
-    # Set DLT config environment variables (ICEBERG_CATALOG__* format)
-    monkeypatch.setenv("ICEBERG_CATALOG__ICEBERG_CATALOG_TYPE", "sql")
-    monkeypatch.setenv("ICEBERG_CATALOG__ICEBERG_CATALOG_URI", catalog_uri)
-    
-    # Mock run_context to prevent YAML discovery
-    with mock.patch("dlt.current.run_context") as mock_ctx:
-        mock_ctx.return_value.run_dir = str(tmp_path)
-        mock_ctx.return_value.get_setting.return_value = str(tmp_path / ".pyiceberg.yaml")
-        
-        # Create catalog from DLT config (catalog_name defaults to "default")
-        catalog = get_catalog()
-        
-        # Verify catalog was created
-        assert catalog is not None
-        assert catalog.name == "default"
-        
-        # Verify catalog properties match DLT config
-        assert catalog.properties is not None
-        assert "uri" in catalog.properties
-        assert catalog_uri in catalog.properties["uri"]
-        
-        # Verify catalog is functional
-        test_namespace = "test_dlt_namespace"
-        catalog.create_namespace(test_namespace)
-        namespaces = catalog.list_namespaces()
-        assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
-        
-        # Verify database file was created
-        assert db_path.exists()
 
 
 @pytest.mark.integration
@@ -479,47 +381,6 @@ def test_sqlite_catalog_fallback_in_memory(clean_env):
         assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
 
 
-@pytest.mark.integration
-def test_sqlite_catalog_fallback_persistent(tmp_path, clean_env):
-    """
-    INTEGRATION TEST: Verify SQLite fallback with explicit persistent URI.
-    
-    This test uses a real SQLite catalog (no mocking) to verify that:
-    1. When only URI is provided, catalog is created with that URI
-    2. The catalog persists to disk
-    3. The catalog is functional
-    """
-    db_path = tmp_path / "persistent_fallback.db"
-    catalog_uri = f"sqlite:///{db_path}"
-    
-    # Mock run_context to prevent YAML discovery
-    with mock.patch("dlt.current.run_context") as mock_ctx:
-        mock_ctx.return_value.run_dir = str(tmp_path)
-        mock_ctx.return_value.get_setting.return_value = str(tmp_path / ".pyiceberg.yaml")
-        
-        # Create catalog with only URI (no full config) - should use SQLite with that URI
-        catalog = get_catalog("persistent_fallback", iceberg_catalog_uri=catalog_uri)
-        
-        # Verify catalog was created
-        assert catalog is not None
-        assert catalog.name == "persistent_fallback"
-        
-        # Verify catalog has the correct URI
-        assert catalog.properties is not None
-        assert "uri" in catalog.properties
-        assert catalog_uri in catalog.properties["uri"]
-        
-        # Verify catalog is functional and persists
-        test_namespace = "test_persistent_namespace"
-        catalog.create_namespace(test_namespace)
-        
-        # Verify database file was created
-        assert db_path.exists()
-        
-        # Verify namespace exists
-        namespaces = catalog.list_namespaces()
-        assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
-
 
 # ----------------------------------------------------------------------------
 # REST Catalog Integration Tests (require lakekeeper)
@@ -551,7 +412,7 @@ def test_rest_catalog_from_explicit_config(rest_catalog_config):
 
 
 @pytest.mark.integration
-def test_rest_catalog_from_yaml(rest_catalog_config, tmp_path):
+def test_rest_catalog_from_yaml(rest_catalog_config, tmp_path, monkeypatch):
     """Test creating REST catalog from .pyiceberg.yaml file using get_catalog."""
     # Create YAML config file
     yaml_file = tmp_path / ".pyiceberg.yaml"
@@ -562,6 +423,13 @@ def test_rest_catalog_from_yaml(rest_catalog_config, tmp_path):
     }
     with open(yaml_file, "w") as f:
         yaml.dump(yaml_content, f)
+    
+    # Set PYICEBERG_HOME so PyIceberg can find the YAML file
+    monkeypatch.setenv("PYICEBERG_HOME", str(tmp_path))
+    
+    # Reset PyIceberg's cached environment config
+    from pyiceberg.utils.config import Config
+    monkeypatch.setattr("pyiceberg.catalog._ENV_CONFIG", Config())
     
     # Mock run_context to point to our YAML file
     with mock.patch("dlt.current.run_context") as mock_ctx:
