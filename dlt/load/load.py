@@ -201,13 +201,21 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     " extension could not be associated with job type and that indicates an error"
                     " in the code."
                 )
-        except (TerminalException, AssertionError):
+        except (TerminalException, AssertionError) as term_ex:
             job = FinalizedLoadJobWithFollowupJobs.from_file_path(
-                file_path, started_at=started_at, status="failed", message=pretty_format_exception()
+                file_path,
+                started_at=started_at,
+                status="failed",
+                message=pretty_format_exception(),
+                exception=term_ex,
             )
-        except Exception:
+        except Exception as retry_ex:
             job = FinalizedLoadJobWithFollowupJobs.from_file_path(
-                file_path, started_at=started_at, status="retry", message=pretty_format_exception()
+                file_path,
+                started_at=started_at,
+                status="retry",
+                message=pretty_format_exception(),
+                exception=retry_ex,
             )
 
         # move to started jobs in case this is not a restored job
@@ -427,7 +435,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # create followup jobs
                 self.create_followup_jobs(load_id, state, job, schema)
                 # try to get exception message from job
-                failed_message = job.exception()
+                failed_message = job.failed_message()
                 self.load_storage.normalized_packages.fail_job(
                     load_id, job.file_name(), failed_message
                 )
@@ -441,11 +449,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         load_id,
                         job.job_file_info().job_id(),
                         failed_message,
+                        job.exception(),
                     )
                 finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
-                retry_message = job.exception()
+                retry_message = job.failed_message()
                 # move back to new folder to try again
                 self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
                 logger.warning(
@@ -460,7 +469,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             job.job_id(),
                             r_c,
                             self.config.raise_on_max_retries,
-                            retry_message=retry_message,
+                            failed_message=retry_message,
+                            exception=job.exception(),
                         )
             elif state == "completed":
                 # create followup jobs
@@ -640,7 +650,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     f"Package {load_id} was not fully loaded. Load job pool is successfully drained"
                     f" but {len(remaining_jobs)} new jobs are left in the package."
                 )
-            raise pending_exception
+            # raise exception with continuous backtrace into client exception
+            raise pending_exception from pending_exception.client_exception
 
         # pool is drained
         if not remaining_jobs:
