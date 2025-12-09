@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug] [--no-pwd]
-    {project,license,runtime,workspace,telemetry,schema,profile,pipeline,init,render-docs,deploy,dashboard,ai}
+    {workspace,telemetry,schema,profile,pipeline,init,render-docs,deploy,dashboard,ai,license,runtime}
     ...
 ```
 
@@ -49,10 +49,248 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 
 **Available subcommands**
-* [`license`](#dlt-license) - View dlthub license status
-* [`runtime`](#dlt-runtime) - Connect to dlthub runtime and run your code remotely
 * [`workspace`](#dlt-workspace) - Manage current workspace
 * [`profile`](#dlt-profile) - Manage workspace built-in profiles
+* [`license`](#dlt-license) - View dlthub license status
+* [`runtime`](#dlt-runtime) - Connect to dlthub runtime and run your code remotely
+
+</details>
+
+## `dlt workspace`
+
+Manage current Workspace.
+
+**Usage**
+```sh
+dlt workspace [-h] [--verbose] {clean,info,mcp,show} ...
+```
+
+**Description**
+
+Commands to get info, cleanup local files and launch Workspace MCP. Run without command get
+workspace info.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--verbose, -v` - Provides more information for certain commands.
+
+**Available subcommands**
+* [`clean`](#dlt-workspace-clean) - Cleans local data for the selected profile. locally loaded data will be deleted. pipelines working directories are also deleted by default. data in remote destinations is not affected.
+* [`info`](#dlt-workspace-info) - Displays workspace info.
+* [`mcp`](#dlt-workspace-mcp) - Launch dlt mcp server in current python environment and workspace in sse transport mode by default.
+* [`show`](#dlt-workspace-show) - Shows workspace dashboard for the pipelines and data in this workspace.
+
+</details>
+
+### `dlt workspace clean`
+
+Cleans local data for the selected profile. Locally loaded data will be deleted. Pipelines working directories are also deleted by default. Data in remote destinations is not affected.
+
+**Usage**
+```sh
+dlt workspace clean [-h] [--skip-data-dir]
+```
+
+**Description**
+
+Cleans local data for the selected profile. Locally loaded data will be deleted. Pipelines working directories are also deleted by default. Data in remote destinations is not affected.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt workspace`](#dlt-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--skip-data-dir` - Do not delete pipelines working dir.
+
+</details>
+
+### `dlt workspace info`
+
+Displays workspace info.
+
+**Usage**
+```sh
+dlt workspace info [-h]
+```
+
+**Description**
+
+Displays workspace info.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt workspace`](#dlt-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt workspace mcp`
+
+Launch dlt MCP server in current Python environment and Workspace in SSE transport mode by default.
+
+**Usage**
+```sh
+dlt workspace mcp [-h] [--stdio] [--port PORT]
+```
+
+**Description**
+
+This MCP allows to attach to any pipeline that was previously ran in this workspace and then facilitates schema and data exploration in the pipeline's dataset.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt workspace`](#dlt-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--stdio` - Use stdio transport mode
+* `--port PORT` - Sse port to use (default: 43654)
+
+</details>
+
+### `dlt workspace show`
+
+Shows Workspace Dashboard for the pipelines and data in this workspace.
+
+**Usage**
+```sh
+dlt workspace show [-h] [--edit]
+```
+
+**Description**
+
+Shows Workspace Dashboard for the pipelines and data in this workspace.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt workspace`](#dlt-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--edit` - Eject dashboard and start editable version
+
+</details>
+
+## `dlt profile`
+
+Manage Workspace built-in profiles.
+
+**Usage**
+```sh
+dlt profile [-h] [profile_name] {info,list,pin} ...
+```
+
+**Description**
+
+Commands to list and pin profiles
+Run without arguments to list all profiles, the default profile and the
+pinned profile in current project.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `profile_name` - Name of the profile
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`info`](#dlt-profile-info) - Show information about the current profile.
+* [`list`](#dlt-profile-list) - Show list of built-in profiles.
+* [`pin`](#dlt-profile-pin) - Pin a profile to the workspace.
+
+</details>
+
+### `dlt profile info`
+
+Show information about the current profile.
+
+**Usage**
+```sh
+dlt profile [profile_name] info [-h]
+```
+
+**Description**
+
+Show information about the current profile.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt profile`](#dlt-profile).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt profile list`
+
+Show list of built-in profiles.
+
+**Usage**
+```sh
+dlt profile [profile_name] list [-h]
+```
+
+**Description**
+
+Show list of built-in profiles.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt profile`](#dlt-profile).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt profile pin`
+
+Pin a profile to the Workspace.
+
+**Usage**
+```sh
+dlt profile [profile_name] pin [-h]
+```
+
+**Description**
+
+Pin a profile to the Workspace, this will be the new default profile while it is pinned.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt profile`](#dlt-profile).
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 
@@ -167,7 +405,7 @@ Connect to dltHub Runtime and run your code remotely.
 **Usage**
 ```sh
 dlt runtime [-h]
-    {login,logout,launch,serve,schedule,logs,cancel,dashboard,deploy,info,deployment,job,jobs,job-run,job-runs,configuration}
+    {login,logout,launch,serve,publish,schedule,logs,cancel,dashboard,deploy,info,deployment,job,jobs,job-run,job-runs,configuration}
     ...
 ```
 
@@ -189,6 +427,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`logout`](#dlt-runtime-logout) - Logout from dlthub runtime
 * [`launch`](#dlt-runtime-launch) - Deploy code/config and run a script (follow status and logs by default)
 * [`serve`](#dlt-runtime-serve) - Deploy and serve an interactive notebook/app (read-only) and follow until ready
+* [`publish`](#dlt-runtime-publish) - Generate or revoke a public link for an interactive notebook/app
 * [`schedule`](#dlt-runtime-schedule) - Deploy and schedule a script with a cron timetable, or cancel the scheduled script from future runs
 * [`logs`](#dlt-runtime-logs) - Show logs for latest or selected job run
 * [`cancel`](#dlt-runtime-cancel) - Cancel latest or selected job run
@@ -304,6 +543,34 @@ Inherits arguments from [`dlt runtime`](#dlt-runtime).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt runtime publish`
+
+Generate or revoke a public link for an interactive notebook/app.
+
+**Usage**
+```sh
+dlt runtime publish [-h] [--cancel] script_path
+```
+
+**Description**
+
+Generate a public link for a notebook/app, or revoke it with --cancel.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt runtime`](#dlt-runtime).
+
+**Positional arguments**
+* `script_path` - Local path to the notebook/app
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--cancel` - Revoke the public link for the notebook/app
 
 </details>
 
@@ -1199,244 +1466,6 @@ Create new configuration if local config content changed.
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt runtime configuration`](#dlt-runtime-configuration).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-## `dlt workspace`
-
-Manage current Workspace.
-
-**Usage**
-```sh
-dlt workspace [-h] [--verbose] {clean,info,mcp,show} ...
-```
-
-**Description**
-
-Commands to get info, cleanup local files and launch Workspace MCP. Run without command get
-workspace info.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--verbose, -v` - Provides more information for certain commands.
-
-**Available subcommands**
-* [`clean`](#dlt-workspace-clean) - Cleans local data for the selected profile. locally loaded data will be deleted. pipelines working directories are also deleted by default. data in remote destinations is not affected.
-* [`info`](#dlt-workspace-info) - Displays workspace info.
-* [`mcp`](#dlt-workspace-mcp) - Launch dlt mcp server in current python environment and workspace in sse transport mode by default.
-* [`show`](#dlt-workspace-show) - Shows workspace dashboard for the pipelines and data in this workspace.
-
-</details>
-
-### `dlt workspace clean`
-
-Cleans local data for the selected profile. Locally loaded data will be deleted. Pipelines working directories are also deleted by default. Data in remote destinations is not affected.
-
-**Usage**
-```sh
-dlt workspace clean [-h] [--skip-data-dir]
-```
-
-**Description**
-
-Cleans local data for the selected profile. Locally loaded data will be deleted. Pipelines working directories are also deleted by default. Data in remote destinations is not affected.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt workspace`](#dlt-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--skip-data-dir` - Do not delete pipelines working dir.
-
-</details>
-
-### `dlt workspace info`
-
-Displays workspace info.
-
-**Usage**
-```sh
-dlt workspace info [-h]
-```
-
-**Description**
-
-Displays workspace info.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt workspace`](#dlt-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt workspace mcp`
-
-Launch dlt MCP server in current Python environment and Workspace in SSE transport mode by default.
-
-**Usage**
-```sh
-dlt workspace mcp [-h] [--stdio] [--port PORT]
-```
-
-**Description**
-
-This MCP allows to attach to any pipeline that was previously ran in this workspace and then facilitates schema and data exploration in the pipeline's dataset.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt workspace`](#dlt-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--stdio` - Use stdio transport mode
-* `--port PORT` - Sse port to use (default: 43654)
-
-</details>
-
-### `dlt workspace show`
-
-Shows Workspace Dashboard for the pipelines and data in this workspace.
-
-**Usage**
-```sh
-dlt workspace show [-h] [--edit]
-```
-
-**Description**
-
-Shows Workspace Dashboard for the pipelines and data in this workspace.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt workspace`](#dlt-workspace).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-* `--edit` - Eject dashboard and start editable version
-
-</details>
-
-## `dlt profile`
-
-Manage Workspace built-in profiles.
-
-**Usage**
-```sh
-dlt profile [-h] [profile_name] {info,list,pin} ...
-```
-
-**Description**
-
-Commands to list and pin profiles
-Run without arguments to list all profiles, the default profile and the
-pinned profile in current project.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt`](#dlt).
-
-**Positional arguments**
-* `profile_name` - Name of the profile
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-**Available subcommands**
-* [`info`](#dlt-profile-info) - Show information about the current profile.
-* [`list`](#dlt-profile-list) - Show list of built-in profiles.
-* [`pin`](#dlt-profile-pin) - Pin a profile to the workspace.
-
-</details>
-
-### `dlt profile info`
-
-Show information about the current profile.
-
-**Usage**
-```sh
-dlt profile [profile_name] info [-h]
-```
-
-**Description**
-
-Show information about the current profile.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt profile`](#dlt-profile).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt profile list`
-
-Show list of built-in profiles.
-
-**Usage**
-```sh
-dlt profile [profile_name] list [-h]
-```
-
-**Description**
-
-Show list of built-in profiles.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt profile`](#dlt-profile).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
-### `dlt profile pin`
-
-Pin a profile to the Workspace.
-
-**Usage**
-```sh
-dlt profile [profile_name] pin [-h]
-```
-
-**Description**
-
-Pin a profile to the Workspace, this will be the new default profile while it is pinned.
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt profile`](#dlt-profile).
 
 **Options**
 * `-h, --help` - Show this help message and exit

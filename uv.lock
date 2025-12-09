@@ -2552,15 +2552,15 @@ wheels = [
 
 [[package]]
 name = "dlthub"
-version = "0.20.0"
+version = "0.20.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-jose", marker = "python_full_version >= '3.10'" },
     { name = "ruamel-yaml", marker = "python_full_version >= '3.10'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/53/9d/3247a17fe12343e41d500422c61e1be326b8f22a1ccd6aecda17fabeaf6b/dlthub-0.20.0.tar.gz", hash = "sha256:5a7b4e9d4f5556db3f684552c5ee3296f9bc7c6920a583be34ae1d291701e182", size = 158437, upload-time = "2025-12-09T14:26:28.412Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/77/1b/2c079f22243462e914026172094411ed7ef1fc96c8089e0ca66d1a14038a/dlthub-0.20.1.tar.gz", hash = "sha256:7b3a188abc28601fd4bdf8f17e7925ef729d4f91fb67a6b4eb5c5dc5a04ac3a2", size = 158432, upload-time = "2025-12-09T15:18:10.813Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/e4/2c90acd3cfcaacd50b2be4a77e4b1449bc54f749a4e05d149d7008462edd/dlthub-0.20.0-py3-none-any.whl", hash = "sha256:ea615f91f90e550bab500fd647e7a9278553058e643cc34ab32e41f34472a5e5", size = 209767, upload-time = "2025-12-09T14:26:26.294Z" },
+    { url = "https://files.pythonhosted.org/packages/21/94/b2a87853102c6aa08606b2708d8f678b1e39855e8227fe111e37c32631b6/dlthub-0.20.1-py3-none-any.whl", hash = "sha256:c4d4e0c4515cd68f316ccd02c9ecc007332c861ae6f92a488f7e961935e7f1a0", size = 209767, upload-time = "2025-12-09T15:18:09.067Z" },
 ]
 
 [[package]]
