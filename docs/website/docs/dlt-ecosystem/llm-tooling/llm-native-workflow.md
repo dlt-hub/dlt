@@ -153,7 +153,7 @@ and await further instructions.
 ```
 
 :::tip
-Reference `{source}-docs.yaml` and ask what the available endpoints are.
+Reference `{'{'}source{'}'}-docs.yaml` and ask what the available endpoints are.
 :::
 
 ## Generate code
@@ -194,7 +194,7 @@ def github_source(
 For now, it's best to delete all the code you don't understand (e.g., paginator, incremental, data selector). This keeps the LLM focused and reduces the surface for bugs. After generating a working pipeline and committing code, you can go back configure endpoints more precisely.
 
 :::tip
-Reference `{source}-docs.yaml` and ask what the available endpoints parameters are.
+Reference `{'{'}source{'}'}-docs.yaml` and ask what the available endpoints parameters are.
 :::
 
 ### Leveraging the IDE
@@ -284,7 +284,7 @@ Getting credentials or API keys from a source system can be tedious. For popular
 
 Destination credentials are similar to source credentials errors and can be fixed via `.dlt/config.toml`  and `.dlt/secrets.toml` or environment variables ([learn more](../../general-usage/credentials/setup)). Destination-specific information can be found in [the documentation](../../dlt-ecosystem/destinations).
 
-Alternatively, you can point the LLM to the Python code that defines the configuration. It's typically found in `from dlt.destinations.impl.{destination}.configuration`. For example, this retrieves the Snowflake configuration and credentials
+Alternatively, you can point the LLM to the Python code that defines the configuration. It's typically found in `from dlt.destinations.impl.{'{'}destination{'}'}.configuration`. For example, this retrieves the Snowflake configuration and credentials
 
 ```py
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials, SnowflakeClientConfiguration
@@ -296,7 +296,7 @@ Credentials are what you typically put in `secrets.toml` and configuration in `c
 
 "Managing context" is about providing the right information to the LLM and help it focus on the right task. Below is a list of practical tips:
 
-- Specify: "I'm a data engineer using the Python library `dlt` to ingest data from {source} to {destination}. I'm also using the Python libraries X,Y,Z."
+- Specify: "I'm a data engineer using the Python library `dlt` to ingest data from {'{'}source{'}'} to {'{'}destination{'}'}. I'm also using the Python libraries X,Y,Z."
 - Specify: "Focus on a single REST API endpoint `X`."
 - In later iteration when you're tuning your pipeline, specify "The current Python code works as expected. Make minimal and focused changes to do X"
 - Use the `@` symbol to reference the terminal output after running the pipeline
