@@ -73,13 +73,8 @@ class HfClient(JobClientBase):
     def complete_load(self, load_id: str) -> None:
         """Marks the load package with `load_id` as completed in the destination. Before such commit is done, the data with `load_id` is invalid."""
 
-        file_paths_in_repo = [
-            file.path
-            for file in self.hf_api.list_repo_tree(self.dataset_name, repo_type="dataset", path_in_repo=f".load_id={load_id}")
-        ]
-
         def format_path(i):
-            return f"data/{self.split}-{i:05d}-of-{len(file_paths_in_repo):05d}.parquet"
+            return f"data/{self.split}-{i:05d}-of-{len(files_to_rename):05d}.parquet"
 
         def rename(old_path, new_path):
             if old_path != new_path:
@@ -87,13 +82,23 @@ class HfClient(JobClientBase):
                     src_path_in_repo=old_path, path_in_repo=new_path
                 )
                 yield CommitOperationDelete(path_in_repo=old_path)
-        
+
+        files_to_delete = list(self.hf_api.list_repo_tree(self.dataset_name, repo_type="dataset", path_in_repo="data"))
+        operations = [
+            CommitOperationDelete(file.path)
+            for file in files_to_delete
+            if file.path.startswith(f"data/{self.split}-")
+        ]
+
+        files_to_rename = list(self.hf_api.list_repo_tree(self.dataset_name, repo_type="dataset", path_in_repo=f".load_id={load_id}"))
+        operations += [
+            operation
+            for i, file in enumerate(files_to_rename)
+            for operation in rename(file.path, format_path(i))
+        ]
+
         self._create_commits(
-            operations=[
-                operation
-                for i, file_path_in_repo in enumerate(file_paths_in_repo)
-                for operation in rename(file_path_in_repo, format_path(i))
-            ],
+            operations=operations,
             message="Upload using dlt",
         )
 
