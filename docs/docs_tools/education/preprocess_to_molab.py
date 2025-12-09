@@ -3,11 +3,12 @@ import re
 import shlex
 import subprocess
 from pathlib import Path
-from docs_tools.education.constans import (
-    TEMP_IPYNB_FILE_PREIFX,
-    MUST_INSTALL_PACKAGES,
-    EDUCATION_NOTEBOOKS_DIR,
-)
+
+EDUCATION_NOTEBOOKS_DIR = Path(__file__).parent.parent.parent / "education"
+TEMP_IPYNB_FILE_PREIFX = "tmp"
+
+MUST_INSTALL_PACKAGES = {"numpy", "pandas", "sqlalchemy"}
+
 
 
 def convert_ipynb_to_py(original_ipynb: Path, cleaned_ipynb: Path) -> Path:
