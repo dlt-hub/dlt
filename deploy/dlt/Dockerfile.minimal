@@ -34,7 +34,7 @@ COPY dist/dlt-${IMAGE_VERSION}.tar.gz .
 RUN mkdir -p /app
 WORKDIR /app
 RUN uv venv && uv pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz --resolution lowest-direct && uv pip install typing-extensions==4.8.0
-RUN rm -r /tmp/pydlt
+# RUN rm -r /tmp/pydlt
 
 # make sure dlt can be actually imported
 RUN uv run python -c 'import dlt;import pendulum;'
@@ -50,7 +50,12 @@ RUN uv run dlt pipeline fruit_pipeline info
 
 # enable workspace
 RUN mkdir -p .dlt && touch .dlt/.workspace
-# RUN dlt pipeline fruit_pipeline info
-RUN uv run dlt workspace info
+RUN uv run dlt workspace -v info
 RUN uv run python minimal_pipeline.py
 RUN uv run dlt pipeline fruit_pipeline info
+
+# install hub
+RUN uv pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[hub] --resolution lowest-direct && uv pip install typing-extensions==4.8.0
+RUN uv run python minimal_pipeline.py
+RUN uv run dlt --non-interactive license issue dlthub.transformation
+RUN uv run dlt runtime --help
