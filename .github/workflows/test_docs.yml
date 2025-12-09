@@ -83,7 +83,7 @@ jobs:
         run: cd docs && make dev
 
       - name: Install dlthub incl alpha releases
-        run: cd docs && uv run pip install --pre dlthub
+        run: cd docs
 
       - name: lint docs
         run: cd docs && make lint

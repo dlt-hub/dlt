@@ -390,14 +390,11 @@ const sidebars = {
           type: "category",
           label: "Run in Snowflake",
           link: {
-            type: "generated-index",
-            title: "Run in Snwoflake",
-            description: "How to run dlt in Snowflake.",
-            slug: "walkthroughs/run-in-snowflake",
-            keywords: ["snowflake"]
+            type: "doc",
+            id: "walkthroughs/run-in-snowflake/index",
           },
           items: [
-            "walkthroughs/run-in-snowflake/run-in-snowflake"
+            "walkthroughs/run-in-snowflake/application-architecture"
           ]
         }
       ]
@@ -502,6 +499,7 @@ const sidebars = {
         'hub/intro',
         'hub/getting-started/installation',
         { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
+        'hub/getting-started/runtime-tutorial',
       ]
     },
     {
@@ -553,7 +551,7 @@ const sidebars = {
       type: 'category',
       label: 'Runtime',
       items: [
-        'hub/production/observability',
+        'hub/runtime/overview',
       ]
     },
     {

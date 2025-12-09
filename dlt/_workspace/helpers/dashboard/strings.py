@@ -18,6 +18,7 @@ _credentials_info = (
 #
 # App general
 #
+app_section_name = "workspace_home"
 app_title = """
 # Welcome to the dltHub workspace dashboard...
 """
@@ -124,7 +125,7 @@ schema_raw_yaml_title = "Raw Schema as YAML"
 schema_show_raw_yaml_text = "Show raw schema as YAML"
 
 # Schema UI controls
-ui_show_dlt_tables = "Show `_dlt` tables"
+ui_show_dlt_tables = "Show internal tables"
 ui_show_child_tables = "Show child tables"
 ui_load_row_counts = "Load row counts"
 ui_show_dlt_columns = "Show `_dlt` columns"
@@ -179,6 +180,12 @@ state_section_name = "state_section"
 state_title = "Pipeline State"
 state_subtitle = "A raw view of the currently stored pipeline state."
 
+#
+# Data quality page
+#
+data_quality_section_name = "data_quality_section"
+data_quality_title = "Data Quality"
+data_quality_subtitle = "View the results of your data quality checks"
 
 #
 # Last trace page

@@ -286,18 +286,25 @@ def test_toml_global_config() -> None:
     # project overwrites
     v, _ = config.get_value("param1", bool, None, "api", "params")
     assert v == "a"
-    # verify locations
+    # verify global location
     assert os.path.join(global_dir, "config.toml") in config.locations
+    assert os.path.join(global_dir, "config.toml") in config.present_locations
+    # verify local location
     assert os.path.join(settings_dir, "config.toml") in config.locations
+    assert os.path.join(settings_dir, "config.toml") in config.present_locations
 
     secrets = SecretsTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
     assert secrets._toml_paths[1] == os.path.join(global_dir, SECRETS_TOML)
     # check if values from project exist
     secrets_project = SecretsTomlProvider(settings_dir=settings_dir)
     assert secrets._config_doc == secrets_project._config_doc
-    # verify locations
+    # verify global location (secrets not present)
     assert os.path.join(global_dir, "secrets.toml") in secrets.locations
+    assert os.path.join(global_dir, "secrets.toml") not in secrets.present_locations
+    # verify local location (secrets not present)
     assert os.path.join(settings_dir, "secrets.toml") in secrets.locations
+    # CI creates secrets.toml so actually those are sometimes present
+    # assert os.path.join(settings_dir, "secrets.toml") not in secrets.present_locations
 
 
 def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
