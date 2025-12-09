@@ -94,6 +94,11 @@ jobs:
         run: pytest tests/hub
         # if: matrix.os != 'macos-latest'
 
+      - name: Test runtime client
+        run: |
+          mkdir .dlt && touch .dlt/.workspace
+          dlt runtime --help
+
   matrix_job_required_check:
     name: hub | dlthub features tests
     needs: run_hub_features

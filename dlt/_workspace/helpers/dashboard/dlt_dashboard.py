@@ -1385,7 +1385,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         label=f"<small>{strings.ui_show_dlt_tables}</small>"
     )
     dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_child_tables}</small>", value=False
+        label=f"<small>{strings.ui_show_child_tables}</small>", value=True
     )
     dlt_schema_show_row_counts: mo.ui.run_button = mo.ui.run_button(
         label=f"<small>{strings.ui_load_row_counts}</small>"

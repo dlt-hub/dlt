@@ -65,10 +65,16 @@ MTIME_DISPATCH = {
     "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
     "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
     "https": lambda f: cast(
-        pendulum.DateTime, pendulum.parse(f["Last-Modified"], exact=True, strict=False)
+        pendulum.DateTime,
+        pendulum.parse(
+            f.get("Last-Modified", pendulum.now().isoformat()), exact=True, strict=False
+        ),
     ),
     "http": lambda f: cast(
-        pendulum.DateTime, pendulum.parse(f["Last-Modified"], exact=True, strict=False)
+        pendulum.DateTime,
+        pendulum.parse(
+            f.get("Last-Modified", pendulum.now().isoformat()), exact=True, strict=False
+        ),
     ),
     "file": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime_utc(f["created"]),

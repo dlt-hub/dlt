@@ -519,7 +519,7 @@ def test_table_format_partitioning(
         with pytest.raises(PipelineStepFailed) as pip_ex:
             pipeline.run(zero_part())
         assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
-        assert "partitioning" in pip_ex.value.__context__.retry_message
+        assert "partitioning" in pip_ex.value.__context__.failed_message
     elif destination_config.table_format == "iceberg":
         # while Iceberg supports partition evolution, we don't apply it
         pipeline.run(zero_part())
