@@ -65,7 +65,7 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 - **Cursor**,
 - **Continue**,
 - **Copilot**,
-- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#prerequisites)
+- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#configure-ide)
 
 
 **Initialize your first workspace pipeline**
