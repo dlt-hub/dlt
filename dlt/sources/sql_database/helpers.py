@@ -360,8 +360,7 @@ def table_rows(
                         "backend. Use static hints (dict/list) to override reflected types."
                     )
             else:
-                resource_columns_as_hints = ensure_table_schema_columns(resource_columns)
-                hints["columns"] = merge_columns(hints["columns"], resource_columns_as_hints)
+                hints["columns"] = merge_columns(hints["columns"], resource_columns)
 
         limit = resource.limit
     except DltException:
