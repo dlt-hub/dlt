@@ -3,6 +3,7 @@ import re
 import shlex
 import subprocess
 from pathlib import Path
+from typing import Dict, Any
 
 EDUCATION_NOTEBOOKS_DIR = Path(__file__).parent.parent.parent / "education"
 TEMP_IPYNB_FILE_PREIFX = "tmp"
@@ -10,7 +11,7 @@ TEMP_IPYNB_FILE_PREIFX = "tmp"
 MUST_INSTALL_PACKAGES = {"numpy", "pandas", "sqlalchemy"}
 
 
-def replace_colab_imports_in_notebook(notebook_dict: dict) -> dict:
+def replace_colab_imports_in_notebook(notebook_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Remove Google Colab-specific imports and replace Colab API calls with standard Python.
 
@@ -44,7 +45,9 @@ def replace_colab_imports_in_notebook(notebook_dict: dict) -> dict:
     return notebook_dict
 
 
-def process_shell_commands_in_notebook(notebook_dict: dict) -> tuple[dict, set[str]]:
+def process_shell_commands_in_notebook(
+    notebook_dict: Dict[str, Any]
+) -> tuple[Dict[str, Any], set[str]]:
     """
     Convert Jupyter shell commands to Python subprocess calls and extract dependencies.
 
@@ -162,7 +165,7 @@ def add_inline_dependencies_to_content(packages: set[str], py_content: str) -> s
     return deps_block + py_content
 
 
-def read_notebook(ipynb_path: Path) -> dict:
+def read_notebook(ipynb_path: Path) -> Dict[str, Any]:
     """
     Read a Jupyter notebook file and return as a dictionary.
 
@@ -172,10 +175,11 @@ def read_notebook(ipynb_path: Path) -> dict:
     Returns:
         Notebook data as a Python dictionary
     """
-    return json.loads(ipynb_path.read_text(encoding="utf-8"))
+    data: Dict[str, Any] = json.loads(ipynb_path.read_text(encoding="utf-8"))
+    return data
 
 
-def write_notebook(notebook_dict: dict, output_path: Path) -> None:
+def write_notebook(notebook_dict: Dict[str, Any], output_path: Path) -> None:
     """
     Write a notebook dictionary to a file.
 

@@ -27,6 +27,9 @@ test-examples: ## Tests the examples in the examples folder
 test-snippets: ## Tests the snippets in the snippets folder
 	cd website/docs && uv run pytest --ignore=node_modules
 
+test_preprocess_molabs: ## Tests functions used to build Molabs
+	uv run pytest docs_tools/education/tests
+
 format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black docs_tools website examples
 	uv run black education/*/*.ipynb --ipynb 
