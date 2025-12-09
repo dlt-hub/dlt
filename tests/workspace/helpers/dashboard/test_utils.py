@@ -1,7 +1,9 @@
+from typing import cast, Set, List, Dict, Any
 import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
+import re
 
 import marimo as mo
 import pyarrow
@@ -9,13 +11,13 @@ import pytest
 
 import dlt
 from dlt.common import pendulum
+
+from dlt._workspace.cli import utils as cli_utils
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils import (
-    PICKLE_TRACE_FILE,
     get_dashboard_config_sections,
     get_query_result_cached,
     resolve_dashboard_config,
-    get_local_pipelines,
     get_pipeline,
     pipeline_details,
     create_table_list,
@@ -36,21 +38,30 @@ from dlt._workspace.helpers.dashboard.utils import (
     get_local_data_path,
     remote_state_details,
     sanitize_trace_for_display,
-    get_pipeline_last_run,
     trace_resolved_config_values,
     trace_step_details,
-    get_source_and_resouce_state_for_table,
+    get_source_and_resource_state_for_table,
     get_default_query_for_table,
     get_example_query_for_dataset,
+    _get_steps_data_and_status,
+    _get_migrations_count,
+    build_pipeline_execution_visualization,
+    _collect_load_packages_from_trace,
+    load_package_status_labels,
+    TPipelineRunStatus,
+    TVisualPipelineStep,
 )
 
+from dlt.pipeline.trace import TRACE_FILE_NAME
 from tests.workspace.helpers.dashboard.example_pipelines import (
     SUCCESS_PIPELINE_DUCKDB,
     SUCCESS_PIPELINE_FILESYSTEM,
     EXTRACT_EXCEPTION_PIPELINE,
+    NORMALIZE_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
+    create_success_pipeline_duckdb,
 )
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
@@ -73,12 +84,12 @@ def temp_pipelines_dir():
         (pipelines_dir / "_dlt_internal").mkdir()
 
         # Create trace files with different timestamps
-        trace_file_1 = pipelines_dir / "success_pipeline_1" / PICKLE_TRACE_FILE
+        trace_file_1 = pipelines_dir / "success_pipeline_1" / TRACE_FILE_NAME
         trace_file_1.touch()
         # Set modification time to 2 days ago
         os.utime(trace_file_1, (1000000, 1000000))
 
-        trace_file_2 = pipelines_dir / "success_pipeline_2" / PICKLE_TRACE_FILE
+        trace_file_2 = pipelines_dir / "success_pipeline_2" / TRACE_FILE_NAME
         trace_file_2.touch()
         # Set modification time to 1 day ago (more recent)
         os.utime(trace_file_2, (2000000, 2000000))
@@ -86,13 +97,94 @@ def temp_pipelines_dir():
         yield str(pipelines_dir)
 
 
+#
+# cli utils tests
+# TODO: move to test_cli_utils.py - pipeline fixtures should be unified for cli, dashboard and mcp tests
+#
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_pipelines(pipeline: dlt.Pipeline):
+    """Test getting local pipelines"""
+    pipelines_dir, pipelines = cli_utils.list_local_pipelines(pipeline.pipelines_dir)
+    assert pipelines_dir == pipeline.pipelines_dir
+    assert len(pipelines) == 1
+    assert pipelines[0]["name"] == pipeline.pipeline_name
+
+
+def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
+    """Test getting local pipelines with temporary directory"""
+    pipelines_dir, pipelines = cli_utils.list_local_pipelines(temp_pipelines_dir)
+
+    assert pipelines_dir == temp_pipelines_dir
+    assert len(pipelines) == 3  # success_pipeline_1, success_pipeline_2, _dlt_internal
+
+    # Should be sorted by timestamp (descending)
+    pipeline_names = [p["name"] for p in pipelines]
+    assert "success_pipeline_2" in pipeline_names
+    assert "success_pipeline_1" in pipeline_names
+    assert "_dlt_internal" in pipeline_names
+
+    # Check timestamps are present
+    for pipeline in pipelines:
+        assert "timestamp" in pipeline
+        assert isinstance(pipeline["timestamp"], (int, float))
+
+
+def test_get_local_pipelines_empty_dir():
+    """Test getting local pipelines from empty directory"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pipelines_dir, pipelines = cli_utils.list_local_pipelines(temp_dir)
+
+        assert pipelines_dir == temp_dir
+        assert pipelines == []
+
+
+def test_get_local_pipelines_nonexistent_dir():
+    """Test getting local pipelines from nonexistent directory"""
+    nonexistent_dir = "/nonexistent/directory"
+    pipelines_dir, pipelines = cli_utils.list_local_pipelines(nonexistent_dir)
+
+    assert pipelines_dir == nonexistent_dir
+    assert pipelines == []
+
+
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_pipeline_last_run(pipeline: dlt.Pipeline):
     """Test getting the last run of a pipeline"""
     if pipeline.pipeline_name in [NEVER_RAN_PIPELINE, NO_DESTINATION_PIPELINE]:
-        assert get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir) == 0
+        assert (
+            cli_utils.get_pipeline_trace_mtime(pipeline.pipelines_dir, pipeline.pipeline_name) == 0
+        )
     else:
-        assert get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir) > 1000000
+        assert (
+            cli_utils.get_pipeline_trace_mtime(pipeline.pipelines_dir, pipeline.pipeline_name)
+            > 1000000
+        )
+
+
+def test_integration_get_local_pipelines_with_sorting(temp_pipelines_dir):
+    """Test integration scenario with multiple pipelines sorted by timestamp"""
+    pipelines_dir, pipelines = cli_utils.list_local_pipelines(
+        temp_pipelines_dir, sort_by_trace=True
+    )
+
+    assert pipelines_dir == temp_pipelines_dir
+    assert len(pipelines) == 3
+
+    # Should be sorted by timestamp (descending - most recent first)
+    timestamps = [p["timestamp"] for p in pipelines]
+    assert timestamps == sorted(timestamps, reverse=True)
+
+    # Verify the most recent pipeline is first
+    most_recent = pipelines[0]
+    assert most_recent["name"] == "success_pipeline_2"
+    assert most_recent["timestamp"] == 2000000
+
+
+#
+# dashboard utils tests
+#
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -148,20 +240,11 @@ def test_resolve_dashboard_config(success_pipeline_duckdb) -> None:
         assert config.datetime_format == "workspace format"
 
 
-@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_pipelines(pipeline: dlt.Pipeline):
-    """Test getting local pipelines"""
-    pipelines_dir, pipelines = get_local_pipelines(pipeline.pipelines_dir)
-    assert pipelines_dir == pipeline.pipelines_dir
-    assert len(pipelines) == 1
-    assert pipelines[0]["name"] == pipeline.pipeline_name
-
-
 @pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
-def test_get_source_and_resouce_state_for_table(pipeline: dlt.Pipeline):
+def test_get_source_and_resource_state_for_table(pipeline: dlt.Pipeline):
     """Test getting source and resource state for a table"""
     table = pipeline.default_schema.tables["purchases"]
-    resource_name, source_state, resource_state = get_source_and_resouce_state_for_table(
+    resource_name, source_state, resource_state = get_source_and_resource_state_for_table(
         table, pipeline, pipeline.default_schema_name
     )
     assert resource_name
@@ -171,43 +254,6 @@ def test_get_source_and_resouce_state_for_table(pipeline: dlt.Pipeline):
     # check it can be rendered with marimo
     assert mo.json(resource_state).text
     assert mo.json(source_state).text
-
-
-def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
-    """Test getting local pipelines with temporary directory"""
-    pipelines_dir, pipelines = get_local_pipelines(temp_pipelines_dir)
-
-    assert pipelines_dir == temp_pipelines_dir
-    assert len(pipelines) == 3  # success_pipeline_1, success_pipeline_2, _dlt_internal
-
-    # Should be sorted by timestamp (descending)
-    pipeline_names = [p["name"] for p in pipelines]
-    assert "success_pipeline_2" in pipeline_names
-    assert "success_pipeline_1" in pipeline_names
-    assert "_dlt_internal" in pipeline_names
-
-    # Check timestamps are present
-    for pipeline in pipelines:
-        assert "timestamp" in pipeline
-        assert isinstance(pipeline["timestamp"], (int, float))
-
-
-def test_get_local_pipelines_empty_dir():
-    """Test getting local pipelines from empty directory"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        pipelines_dir, pipelines = get_local_pipelines(temp_dir)
-
-        assert pipelines_dir == temp_dir
-        assert pipelines == []
-
-
-def test_get_local_pipelines_nonexistent_dir():
-    """Test getting local pipelines from nonexistent directory"""
-    nonexistent_dir = "/nonexistent/directory"
-    pipelines_dir, pipelines = get_local_pipelines(nonexistent_dir)
-
-    assert pipelines_dir == nonexistent_dir
-    assert pipelines == []
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
@@ -228,7 +274,7 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     assert isinstance(result, list)
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert len(result) == 9
-    elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
+    elif pipeline.pipeline_name in [LOAD_EXCEPTION_PIPELINE, NORMALIZE_EXCEPTION_PIPELINE]:
         # custom destination does not support remote data info
         assert len(result) == 8
     else:
@@ -248,10 +294,10 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     else:
         assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
     assert details_dict["dataset_name"] == pipeline.dataset_name
-    if (
-        pipeline.pipeline_name in PIPELINES_WITH_LOAD
-        or pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE
-    ):
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD or pipeline.pipeline_name in [
+        LOAD_EXCEPTION_PIPELINE,
+        NORMALIZE_EXCEPTION_PIPELINE,
+    ]:
         assert details_dict["schemas"].startswith("fruitshop")
     else:
         assert "schemas" not in details_dict
@@ -497,6 +543,10 @@ def test_trace(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name == EXTRACT_EXCEPTION_PIPELINE:
         assert len(result) == 1
         assert result[0]["step"] == "extract"
+    elif pipeline.pipeline_name == NORMALIZE_EXCEPTION_PIPELINE:
+        assert len(result) == 2
+        assert result[0]["step"] == "extract"
+        assert result[1]["step"] == "normalize"
     else:
         assert len(result) == 3
         assert result[0]["step"] == "extract"
@@ -666,23 +716,6 @@ def test_dict_to_table_items():
     assert result_sorted == expected_sorted
 
 
-def test_integration_get_local_pipelines_with_sorting(temp_pipelines_dir):
-    """Test integration scenario with multiple pipelines sorted by timestamp"""
-    pipelines_dir, pipelines = get_local_pipelines(temp_pipelines_dir, sort_by_trace=True)
-
-    assert pipelines_dir == temp_pipelines_dir
-    assert len(pipelines) == 3
-
-    # Should be sorted by timestamp (descending - most recent first)
-    timestamps = [p["timestamp"] for p in pipelines]
-    assert timestamps == sorted(timestamps, reverse=True)
-
-    # Verify the most recent pipeline is first
-    most_recent = pipelines[0]
-    assert most_recent["name"] == "success_pipeline_2"
-    assert most_recent["timestamp"] == 2000000
-
-
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
     """Test integration scenario with complete pipeline workflow"""
@@ -741,3 +774,168 @@ def test_sanitize_trace_for_display(pipeline: dlt.Pipeline):
     assert isinstance(sanitized, dict)
     # check it can be rendered with marimo
     assert mo.json(sanitized).text is not None
+
+
+@pytest.mark.parametrize(
+    "pipeline, expected_steps, expected_status",
+    [
+        (SUCCESS_PIPELINE_DUCKDB, {"extract", "normalize", "load"}, "succeeded"),
+        (SUCCESS_PIPELINE_FILESYSTEM, {"extract", "normalize", "load"}, "succeeded"),
+        (EXTRACT_EXCEPTION_PIPELINE, {"extract"}, "failed"),
+        (LOAD_EXCEPTION_PIPELINE, {"extract", "normalize", "load"}, "failed"),
+    ],
+    indirect=["pipeline"],
+)
+def test_get_steps_data_and_status(
+    pipeline: dlt.Pipeline,
+    expected_steps: Set[TVisualPipelineStep],
+    expected_status: TPipelineRunStatus,
+) -> None:
+    """Test getting steps data and the pipeline execution status from trace"""
+    trace = pipeline.last_trace
+
+    steps_data, status = _get_steps_data_and_status(trace.steps)
+    assert len(steps_data) == len(expected_steps)
+    assert status == expected_status
+
+    assert all(step.duration_ms > 0 for step in steps_data)
+    if expected_status == "succeeded":
+        assert all(step.failed is False for step in steps_data)
+    else:
+        assert any(step.failed is True for step in steps_data)
+
+    assert set([step.step for step in steps_data]) == expected_steps
+
+
+def test_get_migrations_count(temp_pipelines_dir) -> None:
+    """Test getting migrations count from the pipeline's last load info"""
+    import duckdb
+
+    db_conn = duckdb.connect()
+    try:
+        pipeline = create_success_pipeline_duckdb(temp_pipelines_dir, db_conn=db_conn)
+
+        migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+        assert migrations_count == 1
+
+        # Trigger multiple migrations
+        pipeline.extract([{"id": 1, "name": "test"}], table_name="my_table")
+        pipeline.extract([{"id": 2, "name": "test2", "new_column": "value"}], table_name="my_table")
+        pipeline.extract(
+            [{"id": 3, "name": "test3", "new_column": "value", "another_column": 100}],
+            table_name="my_table",
+        )
+        pipeline.normalize()
+        pipeline.load()
+        migrations_count = _get_migrations_count(pipeline.last_trace.last_load_info)
+        assert migrations_count == 3
+    finally:
+        db_conn.close()
+
+
+@pytest.mark.parametrize(
+    "pipeline, expected_steps, expected_status",
+    [
+        (SUCCESS_PIPELINE_DUCKDB, {"extract", "normalize", "load"}, "succeeded"),
+        (SUCCESS_PIPELINE_FILESYSTEM, {"extract", "normalize", "load"}, "succeeded"),
+        (EXTRACT_EXCEPTION_PIPELINE, {"extract"}, "failed"),
+        (LOAD_EXCEPTION_PIPELINE, {"extract", "normalize", "load"}, "failed"),
+    ],
+    indirect=["pipeline"],
+)
+def test_build_pipeline_execution_visualization(
+    pipeline: dlt.Pipeline,
+    expected_steps: Set[TVisualPipelineStep],
+    expected_status: TPipelineRunStatus,
+) -> None:
+    """Test overall pipeline execution visualization logic"""
+
+    trace = pipeline.last_trace
+
+    html = build_pipeline_execution_visualization(trace)
+    html_str = str(html.text)
+
+    # Check for CSS class structure
+    assert 'class="pipeline-execution-container"' in html_str
+    assert 'class="pipeline-execution-layout"' in html_str
+    assert 'class="pipeline-execution-timeline"' in html_str
+    assert 'class="pipeline-execution-badges"' in html_str
+
+    assert f"Last execution ID: <strong>{trace.transaction_id[:8]}</strong>" in html_str
+    total_time_match = re.search(
+        r"<div>Total time: <strong>([\d.]+)(ms|s)?</strong></div>", html_str
+    )
+    assert total_time_match is not None
+
+    # Check for status badge using CSS classes (not inline styles)
+    status_badge_class = (
+        "status-badge-green" if expected_status == "succeeded" else "status-badge-red"
+    )
+    assert (
+        f'<div class="status-badge {status_badge_class}"><strong>{expected_status}</strong></div>'
+        in html_str
+    )
+
+    # Check for migration badge using CSS classes (not inline styles)
+    migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
+    migration_badge = (
+        f'<div class="status-badge status-badge-yellow"><strong>{migrations_count} dataset'
+        " migration(s)</strong></div>"
+    )
+    if migrations_count != 0:
+        assert migration_badge in html_str
+    else:
+        assert migration_badge not in html_str
+
+    steps_data, _ = _get_steps_data_and_status(trace.steps)
+    for step_data in steps_data:
+        duration_pattern = re.search(rf"{step_data.step.capitalize()}\s+([\d.]+)(ms|s)?", html_str)
+        assert duration_pattern is not None
+
+    if "extract" in expected_steps:
+        assert "var(--dlt-color-lime)" in html_str
+    if "normalize" in expected_steps:
+        assert "var(--dlt-color-aqua)" in html_str
+    if "load" in expected_steps:
+        assert "var(--dlt-color-pink)" in html_str
+
+
+@pytest.mark.parametrize(
+    "pipeline",
+    [
+        SUCCESS_PIPELINE_DUCKDB,
+        SUCCESS_PIPELINE_FILESYSTEM,
+        EXTRACT_EXCEPTION_PIPELINE,
+        NORMALIZE_EXCEPTION_PIPELINE,
+        LOAD_EXCEPTION_PIPELINE,
+    ],
+    indirect=["pipeline"],
+)
+def test_collect_load_packages_from_trace(
+    pipeline: dlt.Pipeline,
+) -> None:
+    """Test getting load package status labels from trace"""
+
+    trace = pipeline.last_trace
+    table = load_package_status_labels(trace)
+
+    list_of_load_package_info = cast(List[Dict[str, Any]], table.data)
+
+    if pipeline.pipeline_name in ["success_pipeline_duckdb", "success_pipeline_filesystem"]:
+        assert len(list_of_load_package_info) == 2
+        assert all(
+            "loaded" in str(load_package_info["status"].text)
+            for load_package_info in list_of_load_package_info
+        )
+
+    elif pipeline.pipeline_name == "extract_exception_pipeline":
+        assert len(list_of_load_package_info) == 1
+        assert "discarded" in str(list_of_load_package_info[0]["status"].text)
+
+    elif pipeline.pipeline_name == "load_exception_pipeline":
+        assert len(list_of_load_package_info) == 1
+        assert "aborted" in str(list_of_load_package_info[0]["status"].text)
+
+    elif pipeline.pipeline_name == "normalize_exception_pipeline":
+        assert len(list_of_load_package_info) == 1
+        assert "pending" in str(list_of_load_package_info[0]["status"].text)

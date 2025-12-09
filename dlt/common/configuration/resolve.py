@@ -607,8 +607,8 @@ def _emit_placeholder_warning(
         "Most likely, this comes from `init`-command, which creates basic templates for "
         f"non-complex configs and secrets. The provider to adjust is {provider.name}"
     )
-    if bool(provider.locations):
-        locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
+    if bool(provider.present_locations):
+        locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.present_locations])
         msg += f" at one of these locations:\n{locations}"
     logger.warning(msg=msg)
 

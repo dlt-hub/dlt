@@ -1,6 +1,8 @@
 from typing import ClassVar
 
-from dlt.common.normalizers.naming.sql_cs_v1 import NamingConvention as SqlNamingConvention
+from dlt.common.normalizers.naming.sql_cs_v1 import (
+    NamingConvention as SqlNamingConvention,
+)
 from dlt.common.schema.typing import DLT_NAME_PREFIX
 
 

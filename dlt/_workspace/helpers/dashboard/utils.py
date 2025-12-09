@@ -2,7 +2,21 @@ import shutil
 import functools
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union, cast
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+    Literal,
+    NamedTuple,
+    get_args,
+)
+from typing_extensions import TypeAlias
 import os
 import platform
 import subprocess
@@ -13,16 +27,16 @@ import marimo as mo
 import pyarrow
 import traceback
 
-
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.destination.client import WithStateSync
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.pipeline import LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.storages import FileStorage
+from dlt.common.storages import LoadPackageInfo
+from dlt.common.storages.load_package import PackageStorage, TLoadPackageStatus
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.storages.configuration import WithLocalFiles
@@ -32,32 +46,15 @@ from dlt.common.utils import map_nested_keys_in_place
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.cli import utils as cli_utils
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
-from dlt.pipeline.exceptions import CannotRestorePipelineException
-from dlt.pipeline.trace import PipelineTrace
-
-
-PICKLE_TRACE_FILE = "trace.pickle"
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 
 
 #
 # App helpers
 #
-
-
-def _exception_to_string(exception: Exception) -> str:
-    """Convert an exception to a string"""
-    if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
-        return "Could not connect to destination, configuration values are missing."
-    elif isinstance(exception, (SqlClientNotAvailable)):
-        return "The destination of this pipeline does not support querying data with sql."
-    elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
-        return (
-            "Could connect to destination, but the required table or dataset does not exist in the"
-            " destination."
-        )
-    return str(exception)
 
 
 def get_dashboard_config_sections(p: Optional[dlt.Pipeline]) -> Tuple[str, ...]:
@@ -88,57 +85,8 @@ def resolve_dashboard_config(p: Optional[dlt.Pipeline]) -> DashboardConfiguratio
     )
 
 
-def get_trace_file_path(pipeline_name: str, pipelines_dir: str) -> Path:
-    """Get the path to the pickle file for a pipeline"""
-    return Path(pipelines_dir) / pipeline_name / PICKLE_TRACE_FILE
-
-
-def get_pipeline_last_run(pipeline_name: str, pipelines_dir: str) -> float:
-    """Get the last run of a pipeline"""
-    trace_file = get_trace_file_path(pipeline_name, pipelines_dir)
-    if trace_file.exists():
-        return os.path.getmtime(trace_file)
-    return 0
-
-
-def get_local_pipelines(
-    pipelines_dir: str = None, sort_by_trace: bool = True, addtional_pipelines: List[str] = None
-) -> Tuple[str, List[Dict[str, Any]]]:
-    """Get the local pipelines directory and the list of pipeline names in it.
-
-    Args:
-        pipelines_dir (str, optional): The local pipelines directory. Defaults to get_dlt_pipelines_dir().
-        sort_by_trace (bool, optional): Whether to sort the pipelines by the latet timestamp of trace. Defaults to True.
-    Returns:
-        Tuple[str, List[str]]: The local pipelines directory and the list of pipeline names in it.
-    """
-    pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
-    storage = FileStorage(pipelines_dir)
-
-    try:
-        pipelines = storage.list_folder_dirs(".", to_root=False)
-    except Exception:
-        pipelines = []
-
-    if addtional_pipelines:
-        for pipeline in addtional_pipelines:
-            if pipeline and pipeline not in pipelines:
-                pipelines.append(pipeline)
-
-    # check last trace timestamp and create dict
-    pipelines_with_timestamps = []
-    for pipeline in pipelines:
-        pipelines_with_timestamps.append(
-            {"name": pipeline, "timestamp": get_pipeline_last_run(pipeline, pipelines_dir)}
-        )
-
-    pipelines_with_timestamps.sort(key=lambda x: cast(float, x["timestamp"]), reverse=True)
-
-    return pipelines_dir, pipelines_with_timestamps
-
-
 def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
-    """Get a pipeline by name.
+    """Get a pipeline by name. Attach exceptions must be handled by the caller
 
     Args:
         pipeline_name (str): The name of the pipeline to get.
@@ -146,12 +94,9 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     Returns:
         dlt.Pipeline: The pipeline.
     """
-    try:
-        p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
-        p.config.use_single_dataset = False
-        return p
-    except CannotRestorePipelineException:
-        return None
+    p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
+    p.config.use_single_dataset = False
+    return p
 
 
 #
@@ -204,7 +149,11 @@ def pipeline_details(
         credentials = "Could not resolve credentials."
 
     # find the pipeline in all_pipelines and get the timestamp
-    pipeline_timestamp = get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir)
+    trace = pipeline.last_trace
+
+    last_executed = "No trace found"
+    if trace and hasattr(trace, "started_at"):
+        last_executed = cli_utils.date_from_timestamp_with_ago(trace.started_at, c.datetime_format)
 
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,
@@ -213,7 +162,7 @@ def pipeline_details(
             if pipeline.destination
             else "No destination set"
         ),
-        "last executed": _date_from_timestamp_with_ago(c, pipeline_timestamp),
+        "last executed": last_executed,
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
@@ -346,7 +295,7 @@ def create_column_list(
     return _align_dict_keys(column_list)
 
 
-def get_source_and_resouce_state_for_table(
+def get_source_and_resource_state_for_table(
     table: TTableSchema, pipeline: dlt.Pipeline, schema_name: str
 ) -> Tuple[str, DictStrAny, DictStrAny]:
     if "resource" not in table:
@@ -652,13 +601,17 @@ def build_pipeline_link_list(
 ) -> str:
     """Build a list of links to the pipeline."""
     if not pipelines:
-        return "No local pipelines found."
+        return "No pipelines found."
 
     count = 0
     link_list: str = ""
     for _p in pipelines:
         link = f"* [{_p['name']}](?pipeline={_p['name']})"
-        link = link + " - last executed: " + _date_from_timestamp_with_ago(config, _p["timestamp"])
+        link = (
+            link
+            + " - last executed: "
+            + cli_utils.date_from_timestamp_with_ago(_p["timestamp"], config.datetime_format)
+        )
 
         link_list += f"{link}\n"
         count += 1
@@ -695,10 +648,13 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
     if not exception_step:
         return []
 
+    last_exception = exception_step.exception_traces[-1]
+    title = f"{last_exception['exception_type']}: {last_exception['message']}"
+
     _result = []
     _result.append(
         ui.build_title_and_subtitle(
-            f"Exception encountered during last pipeline run in step '{step.step}'",
+            title,
             title_level=2,
         )
     )
@@ -731,16 +687,18 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 #
 
 
-def _date_from_timestamp_with_ago(
-    config: DashboardConfiguration, timestamp: Union[int, float]
-) -> str:
-    """Return a date with ago section"""
-    if not timestamp or timestamp == 0:
-        return "never"
-    p_ts = pendulum.from_timestamp(timestamp)
-    time_formatted = p_ts.format(config.datetime_format)
-    ago = p_ts.diff_for_humans()
-    return f"{ago} ({time_formatted})"
+def _exception_to_string(exception: Exception) -> str:
+    """Convert an exception to a string"""
+    if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
+        return "Could not connect to destination, configuration values are missing."
+    elif isinstance(exception, (SqlClientNotAvailable)):
+        return "The destination of this pipeline does not support querying data with sql."
+    elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
+        return (
+            "Could connect to destination, but the required table or dataset does not exist in the"
+            " destination."
+        )
+    return str(exception)
 
 
 def _without_none_or_empty_string(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
@@ -809,3 +767,249 @@ def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> D
 def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Convert a dict to a list of dicts with name and value keys"""
     return [{"name": k, "value": v} for k, v in d.items()]
+
+
+#
+# last pipeline execution helpers
+#
+
+TPipelineRunStatus: TypeAlias = Literal["succeeded", "failed"]
+TVisualPipelineStep: TypeAlias = Literal["extract", "normalize", "load"]
+VISUAL_PIPELINE_STEPS: List[TVisualPipelineStep] = ["extract", "normalize", "load"]
+
+PIPELINE_RUN_STEP_COLORS: Dict[TVisualPipelineStep, str] = {
+    "extract": "var(--dlt-color-lime)",
+    "normalize": "var(--dlt-color-aqua)",
+    "load": "var(--dlt-color-pink)",
+}
+
+
+class PipelineStepData(NamedTuple):
+    step: TVisualPipelineStep
+    duration_ms: float
+    failed: bool
+
+
+def _format_duration(ms: float) -> str:
+    """Format duration as human-readable string"""
+    if ms < 1000:
+        return f"{int(ms)}ms"
+    elif ms < 60000:
+        return f"{round(ms / 100) / 10}s"
+    else:
+        return f"{round(ms / 6000) / 10}"
+
+
+def _build_migration_badge(count: int) -> str:
+    """Build migration badge HTML using CSS classes"""
+    if count == 0:
+        return ""
+    return (
+        '<div class="status-badge status-badge-yellow">'
+        f"<strong>{count} dataset migration(s)</strong>"
+        "</div>"
+    )
+
+
+def _build_status_badge(status: TPipelineRunStatus) -> str:
+    """Build status badge HTML using CSS classes"""
+    badge_class = "status-badge-green" if status == "succeeded" else "status-badge-red"
+    return f'<div class="status-badge {badge_class}"><strong>{status}</strong></div>'
+
+
+def _build_pipeline_execution_html(
+    transaction_id: str,
+    status: TPipelineRunStatus,
+    steps_data: List[PipelineStepData],
+    migrations_count: int = 0,
+) -> mo.Html:
+    """
+    Build an HTML visualization for a pipeline execution using CSS classes
+    """
+    total_ms = sum(step.duration_ms for step in steps_data)
+    last = len(steps_data) - 1
+
+    # Build the general info of the execution
+    general_info = f"""
+    <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
+    <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
+    """
+
+    # Build the pipeline execution timeline bar and labels
+    segments, labels = [], []
+    for i, step in enumerate(steps_data):
+        percentage = step.duration_ms / total_ms * 100
+        color = PIPELINE_RUN_STEP_COLORS.get(step.step)
+        radius = (
+            "6px"
+            if i == 0 and i == last
+            else "6px 0 0 6px" if i == 0 else "0 6px 6px 0" if i == last else "0"
+        )
+        segments.append(
+            '<div class="pipeline-execution-timeline-segment" '
+            f'style="width:{percentage}%;background-color:{color};border-radius:{radius};"></div>'
+        )
+        labels.append(
+            f'<span><span style="color:{color};">●</span> '
+            f"{step.step.capitalize()} {_format_duration(step.duration_ms)}</span>"
+        )
+
+    # Build the whole html using CSS classes
+    html = f"""
+    <div class="pipeline-execution-container">
+        <!-- Main 3-column flex container -->
+        <div class="pipeline-execution-layout">
+
+            <!-- LEFT COLUMN: Run ID, Total time -->
+            <div class="pipeline-execution-info">
+                {general_info}
+            </div>
+
+            <!-- CENTER COLUMN: Timeline bar and legend -->
+            <div class="pipeline-execution-timeline">
+                <div class="pipeline-execution-timeline-bar">
+                    {''.join(segments)}
+                </div>
+                <div class="pipeline-execution-labels">
+                    {''.join(labels)}
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Status badges -->
+            <div class="pipeline-execution-badges">
+                {_build_migration_badge(migrations_count)}
+                {_build_status_badge(status)}
+            </div>
+        </div>
+    </div>
+    """
+    return mo.Html(html)
+
+
+def _get_steps_data_and_status(
+    trace_steps: List[PipelineStepTrace],
+) -> Tuple[List[PipelineStepData], TPipelineRunStatus]:
+    """Gets trace steps data and the status of the corresponding pipeline execution"""
+    steps_data: List[PipelineStepData] = []
+
+    for step in trace_steps:
+        if step.step not in get_args(TVisualPipelineStep):
+            continue
+
+        if not step.finished_at:
+            continue
+
+        duration_ms = (step.finished_at - step.started_at).total_seconds() * 1000
+
+        steps_data.append(
+            PipelineStepData(
+                step=cast(TVisualPipelineStep, step.step),
+                duration_ms=duration_ms,
+                failed=step.step_exception is not None,
+            )
+        )
+    is_failed = any(s.failed for s in steps_data)
+    status: TPipelineRunStatus = "failed" if is_failed else "succeeded"
+    return steps_data, status
+
+
+def _get_migrations_count(last_load_info: LoadInfo) -> int:
+    """Counts the number of unique migrations (schema versions) from load packages"""
+    migrations_count: int = 0
+    seen_schema_hashes = set()
+    for package in last_load_info.load_packages:
+        # Only count if there are schema updates
+        if len(package.schema_update) > 0:
+            if package.schema_hash not in seen_schema_hashes:
+                migrations_count += 1
+                seen_schema_hashes.add(package.schema_hash)
+    return migrations_count
+
+
+def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.Html]:
+    """Creates a visual timeline of pipeline run showing extract, normalize and load steps"""
+
+    steps_data, status = _get_steps_data_and_status(trace.steps)
+    migrations_count = _get_migrations_count(trace.last_load_info) if trace.last_load_info else 0
+
+    return _build_pipeline_execution_html(
+        trace.transaction_id,
+        status,
+        steps_data,
+        migrations_count,
+    )
+
+
+#
+# last pipeline executions load packages helpers
+#
+
+
+PENDING_LOAD_STATUSES: Dict[TLoadPackageStatus, str] = {
+    "extracted": "pending to normalize",
+    "normalized": "pending to load",
+}
+
+LOAD_PACKAGE_STATUS_COLORS: Dict[TLoadPackageStatus, str] = {
+    "new": "grey",
+    "extracted": "yellow",
+    "normalized": "yellow",
+    "loaded": "green",
+    "aborted": "red",
+}
+
+
+def _collect_load_packages_from_trace(
+    trace: PipelineTrace,
+) -> List[LoadPackageInfo]:
+    """Collect all unique load packages from all steps."""
+    packages_by_load_id: Dict[str, LoadPackageInfo] = {}
+
+    for step in trace.steps:
+        if step.step in VISUAL_PIPELINE_STEPS and step.step_info and step.step_info.load_packages:
+            for package in step.step_info.load_packages:
+                packages_by_load_id[package.load_id] = package
+
+    return list(packages_by_load_id.values())
+
+
+def load_package_status_labels(trace: PipelineTrace) -> mo.ui.table:
+    """
+    For each package in the trace, determine its visual status badge based on
+    whether the package is partially loaded, pending (extracted or normalized),
+    or in a final state (loaded, aborted, etc.). Returns a marimo table
+    containing the load id and a badge representing its status.
+    """
+    packages = _collect_load_packages_from_trace(trace)
+    result: List[Dict[str, Any]] = []
+
+    for package in packages:
+        is_partial = PackageStorage.is_package_partially_loaded(package)
+        badge_color_key = "red" if is_partial else LOAD_PACKAGE_STATUS_COLORS.get(package.state)
+        if is_partial:
+            badge_text = f"partially {package.state}"
+        elif package.state in PENDING_LOAD_STATUSES:
+            badge_text = PENDING_LOAD_STATUSES.get(package.state)
+        elif package.state == "new":
+            badge_text = "discarded"
+        else:
+            badge_text = package.state
+
+        status_html = (
+            '<div class="status-badge'
+            f' status-badge-{badge_color_key}"><strong>{badge_text}</strong></div>'
+        )
+        result.append(
+            {
+                "load_id": package.load_id,
+                "status": mo.Html(status_html),
+            }
+        )
+
+    return mo.ui.table(
+        result,
+        selection=None,
+        pagination=True,
+        show_download=False,
+        style_cell=style_cell,
+    )

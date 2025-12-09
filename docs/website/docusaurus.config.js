@@ -179,6 +179,16 @@ const config = {
               }
             ],
           },
+          {
+            title: 'Workspace',
+            items: [
+              {
+                label: 'Scaffoldings',
+                href: 'https://dlthub.com/workspace',
+                className: 'footer-link'
+              }
+            ],
+          },
         ],
         copyright: `Copyright © ${new Date().getFullYear()} dltHub, Inc.`,
       },

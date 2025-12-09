@@ -117,8 +117,39 @@ will create `sql_database` folder with the source code that you can import and u
         print(info)
 
     ```
+4. **Prefix table names using `apply_hints`**
 
-4. **Configuring table and column selection in `config.toml`**
+   You can rename tables before loading them into the destination by applying the `apply_hints` method to each resource. This is useful for avoiding naming collisions or organizing data.
+
+   ```py
+   import dlt
+   from dlt.sources.sql_database import sql_database
+   
+   def load_prefixed_tables_from_database() -> None:
+       
+       # Define the pipeline
+       pipeline = dlt.pipeline(
+           pipeline_name="rfam",
+           destination="duckdb",
+           dataset_name="rfam_data",
+       )
+       
+       # Fetch specific tables from the database
+       source = sql_database(table_names=["family", "clan"])
+       
+       # Prefix tables before loading to avoid collisions
+       source_system = "prefix"  # Your desired prefix
+       for _resource_name, resource in source.resources.items():
+           resource.apply_hints(table_name=f"{source_system}__{resource.name}")
+       
+       # Run the pipeline
+       load_info = pipeline.run(source)
+       print(load_info)
+
+   ```
+   This renames the tables before insertion. For example, the table "family" will be loaded as "prefix__family".
+   
+5. **Configuring table and column selection in `config.toml`**
 
    To manage table and column selections outside of your Python scripts, you can configure them directly in the `config.toml` file. This approach is especially beneficial when dealing with multiple tables or when you prefer to keep configuration separate from code.
 
@@ -463,7 +494,7 @@ print(info)
 The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend completely skips `SQLALchemy` when reading table rows, in favor of doing that in Rust. This is claimed to be significantly faster than any other method (validated only on PostgreSQL). With the default settings, it will emit `PyArrow` tables, but you can configure this by specifying the `return_type` in `backend_kwargs`. (See the [`ConnectorX` docs](https://sfu-db.github.io/connector-x/api.html) for a full list of configurable parameters.)
 
 There are certain limitations when using this backend:
-* It will ignore `chunk_size`. `ConnectorX` cannot yield data in batches.
+* Unless `return_type` is set to `arrow_stream` in `backend_kwargs`, it will ignore `chunk_size`. Please note that certain data types such as arrays and high-precision time types are not supported in streaming mode by `ConnectorX`. We also observer that timestamps are not properly returned: tz-aware timestamps are passed without timezone, naive timestamps are passed as date64 which we internally cast back to naive timestamps.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
 * For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
     * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.

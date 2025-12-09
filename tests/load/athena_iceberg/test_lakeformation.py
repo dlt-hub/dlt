@@ -148,20 +148,19 @@ def _grant_lf_permissions(
 @pytest.fixture(scope="module")
 def lf_tags_config(
     lf_client: LakeFormationClient, botocore_session: Session
-) -> Iterator[LakeformationConfig]:
+) -> Iterator[Tuple[LakeformationConfig, str]]:
     """Setup lakeformation tags and permissions to the current user."""
     user_arn = botocore_session.create_client("sts").get_caller_identity()["Arn"]  # type: ignore
 
-    key = "test"
+    key = "test_" + uniq_id(4)
     values = ["true", "false"]
     lf_client.create_lf_tag(TagKey=key, TagValues=values)
-    _grant_lf_permissions(user_arn, lf_client, key, values)
 
-    yield LakeformationConfig(enabled=True, tags={"test": "true"})
-
-    lf_client.delete_lf_tag(
-        TagKey="test",
-    )
+    try:
+        _grant_lf_permissions(user_arn, lf_client, key, values)
+        yield LakeformationConfig(enabled=True, tags={key: "true"}), key
+    finally:
+        lf_client.delete_lf_tag(TagKey=key)
 
 
 def create_pipelines(
@@ -172,6 +171,9 @@ def create_pipelines(
     """Create two identical pipelines with and without lakeformation enabled. Test fixtures will
     drop pipelines at the end
     """
+    if destination_config.force_iceberg:
+        pytest.skip("skip test on iceberg - pure athena test is sufficient")
+
     uid = uniq_id()
     dataset_name = "lakeformation_test" + uid
     pipeline_name = "lakeformation_test" + uid
@@ -186,7 +188,9 @@ def create_pipelines(
     )
     lf_disabled_pipeline = destination_config.setup_pipeline(
         pipeline_name,
-        destination=destination_config.destination_factory(),
+        destination=destination_config.destination_factory(
+            lakeformation_config=LakeformationConfig(enabled=False)
+        ),
         dataset_name=dataset_name,
         staging=staging_destination,
     )
@@ -239,14 +243,14 @@ def _verify_tags_on_table(
 )
 def test_new_pipeline_with_lakeformation_tags(
     lf_client: LakeFormationClient,
-    lf_tags_config: LakeformationConfig,
+    lf_tags_config: Tuple[LakeformationConfig, str],
     s3_bucket: str,
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Test that a new pipeline with LakeFormation configuration has tags applied to database and tables."""
-    lf_enabled_pipeline, _ = create_pipelines(lf_tags_config, s3_bucket, destination_config)
+    lf_enabled_pipeline, _ = create_pipelines(lf_tags_config[0], s3_bucket, destination_config)
 
-    # Create a simple table
+    # create a simple table
     table_name = "test_table"
 
     @dlt.resource(name=table_name)
@@ -257,8 +261,12 @@ def test_new_pipeline_with_lakeformation_tags(
     lf_enabled_pipeline.run(test_data)
 
     # Verify tags are applied to the database and tables
-    _verify_tags_on_database(lf_client, lf_enabled_pipeline.dataset_name, "test", ["true"])
-    _verify_tags_on_table(lf_client, lf_enabled_pipeline.dataset_name, table_name, "test", ["true"])
+    _verify_tags_on_database(
+        lf_client, lf_enabled_pipeline.dataset_name, lf_tags_config[1], ["true"]
+    )
+    _verify_tags_on_table(
+        lf_client, lf_enabled_pipeline.dataset_name, table_name, lf_tags_config[1], ["true"]
+    )
 
     # Verify that we can run the pipeline again without errors
     lf_enabled_pipeline.run(test_data)
@@ -274,13 +282,13 @@ def test_new_pipeline_with_lakeformation_tags(
 )
 def test_apply_tags_to_existing_pipeline_resource(
     lf_client: LakeFormationClient,
-    lf_tags_config: LakeformationConfig,
+    lf_tags_config: Tuple[LakeformationConfig, str],
     s3_bucket: str,
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Test applying LakeFormation tags schema/tables from a pipeline with lakeformation disabled."""
     lf_enabled_pipeline, lf_disabled_pipeline = create_pipelines(
-        lf_tags_config, s3_bucket, destination_config
+        lf_tags_config[0], s3_bucket, destination_config
     )
 
     # Create a table without LakeFormation
@@ -288,7 +296,7 @@ def test_apply_tags_to_existing_pipeline_resource(
 
     @dlt.resource(name=table_name)
     def test_data():
-        yield {"id": 1, "name": "test"}
+        yield {"id": 1, "name": lf_tags_config[1]}
 
     # Run the pipeline without LakeFormation
     lf_disabled_pipeline.run(test_data)
@@ -301,8 +309,12 @@ def test_apply_tags_to_existing_pipeline_resource(
     lf_enabled_pipeline.run(test_data)
 
     # Verify tags are applied to the database and tables
-    _verify_tags_on_database(lf_client, lf_enabled_pipeline.dataset_name, "test", ["true"])
-    _verify_tags_on_table(lf_client, lf_enabled_pipeline.dataset_name, table_name, "test", ["true"])
+    _verify_tags_on_database(
+        lf_client, lf_enabled_pipeline.dataset_name, lf_tags_config[1], ["true"]
+    )
+    _verify_tags_on_table(
+        lf_client, lf_enabled_pipeline.dataset_name, table_name, lf_tags_config[1], ["true"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -315,13 +327,13 @@ def test_apply_tags_to_existing_pipeline_resource(
 )
 def test_remove_lakeformation_tags_from_resource(
     lf_client: LakeFormationClient,
-    lf_tags_config: LakeformationConfig,
+    lf_tags_config: Tuple[LakeformationConfig, str],
     s3_bucket: str,
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Test removing lakeformation tags from a resource"""
     lf_enabled_pipeline, lf_disabled_pipeline = create_pipelines(
-        lf_tags_config, s3_bucket, destination_config
+        lf_tags_config[0], s3_bucket, destination_config
     )
 
     # Create a table with LakeFormation enabled
@@ -329,14 +341,18 @@ def test_remove_lakeformation_tags_from_resource(
 
     @dlt.resource(name=table_name)
     def test_data():
-        yield {"id": 1, "name": "test"}
+        yield {"id": 1, "name": lf_tags_config[1]}
 
     # Run the pipeline with LakeFormation enabled
     lf_enabled_pipeline.run(test_data)
 
     # Verify tags are applied to the database and tables
-    _verify_tags_on_database(lf_client, lf_enabled_pipeline.dataset_name, "test", ["true"])
-    _verify_tags_on_table(lf_client, lf_enabled_pipeline.dataset_name, table_name, "test", ["true"])
+    _verify_tags_on_database(
+        lf_client, lf_enabled_pipeline.dataset_name, lf_tags_config[1], ["true"]
+    )
+    _verify_tags_on_table(
+        lf_client, lf_enabled_pipeline.dataset_name, table_name, lf_tags_config[1], ["true"]
+    )
 
     # Run the pipeline with LakeFormation disabled
     lf_disabled_pipeline.run(test_data)

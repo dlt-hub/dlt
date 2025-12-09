@@ -11,7 +11,9 @@ from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import 
 def pipeline() -> dlt.Pipeline:
     pipeline_name = "dataset_snippets_test"
     pipeline = dlt.pipeline(
-        pipeline_name=pipeline_name, destination="duckdb", dataset_name="dataset_snippets_data"
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name="dataset_snippets_data",
     )
 
     pipeline.run(fruitshop_source())
@@ -218,7 +220,8 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
 
     # join them using an ibis expression
     join_expression = customers_expression.join(
-        purchases_expression, customers_expression.id == purchases_expression.customer_id
+        purchases_expression,
+        customers_expression.id == purchases_expression.customer_id,
     )
 
     # now we can use the ibis expression to filter the data
@@ -235,7 +238,9 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     # a few more examples
 
     # get all customers from berlin and london and load them as a dataframe
-    expr = customers_expression.filter(customers_expression.city.isin(["berlin", "london"]))
+    expr = customers_expression.filter(
+        customers_expression.city.isin(["berlin", "london"])
+    )
     print(dataset(expr).df())
 
     # limit and offset, then load as an arrow table
@@ -261,7 +266,9 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     print(dataset(expr).df())
 
     # subqueries
-    expr = customers_expression.filter(customers_expression.city.isin(["berlin", "london"]))
+    expr = customers_expression.filter(
+        customers_expression.city.isin(["berlin", "london"])
+    )
     print(dataset(expr).df())
     # @@@DLT_SNIPPET_END ibis_expressions
 
@@ -284,15 +291,21 @@ def iterating_with_limit_and_select_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START iterating_with_limit_and_select
     # Dataframes
-    for df_chunk in customers_relation.select("id", "name").limit(100).iter_df(chunk_size=20): ...
+    for df_chunk in (
+        customers_relation.select("id", "name").limit(100).iter_df(chunk_size=20)
+    ):
+        ...
 
     # Arrow tables
     for arrow_table in (
         customers_relation.select("id", "name").limit(100).iter_arrow(chunk_size=20)
-    ): ...
+    ):
+        ...
 
     # Python tuples
-    for records in customers_relation.select("id", "name").limit(100).iter_fetch(chunk_size=20):
+    for records in (
+        customers_relation.select("id", "name").limit(100).iter_fetch(chunk_size=20)
+    ):
         # Process each modified DataFrame chunk
         ...
     # @@@DLT_SNIPPET_END iterating_with_limit_and_select
@@ -322,6 +335,7 @@ def loading_to_pipeline_snippet(dataset: dlt.Dataset) -> None:
 
     # We can now load these 1m rows into this pipeline in 10k chunks
     other_pipeline.run(
-        limited_customers_relation.iter_arrow(chunk_size=10_000), table_name="limited_customers"
+        limited_customers_relation.iter_arrow(chunk_size=10_000),
+        table_name="limited_customers",
     )
     # @@@DLT_SNIPPET_END loading_to_pipeline

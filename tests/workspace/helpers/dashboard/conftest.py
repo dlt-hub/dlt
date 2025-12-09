@@ -5,6 +5,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     create_success_pipeline_duckdb,
     create_success_pipeline_filesystem,
     create_extract_exception_pipeline,
+    create_normalize_exception_pipeline,
     create_never_ran_pipeline,
     create_load_exception_pipeline,
     create_no_destination_pipeline,
@@ -27,7 +28,13 @@ def no_destination_pipeline():
 @pytest.fixture(scope="session")
 def success_pipeline_duckdb():
     with tempfile.TemporaryDirectory() as temp_dir:
-        yield create_success_pipeline_duckdb(temp_dir, ":memory:")
+        import duckdb
+
+        db_conn = duckdb.connect()
+        try:
+            yield create_success_pipeline_duckdb(temp_dir, db_conn=db_conn)
+        finally:
+            db_conn.close()
 
 
 @pytest.fixture(scope="session")
@@ -41,6 +48,13 @@ def success_pipeline_filesystem():
 def extract_exception_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_extract_exception_pipeline(temp_dir)
+
+
+@pytest.fixture(scope="session")
+def normalize_exception_pipeline():
+    """Fixture that creates a normalize exception pipeline"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield create_normalize_exception_pipeline(temp_dir)
 
 
 @pytest.fixture(scope="session")
