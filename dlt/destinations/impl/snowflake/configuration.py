@@ -77,14 +77,16 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         elif not self.host and not self.username:
             if snowflake_session_token_available():
                 logger.info(
-                    "`host` and `username` missing in SnowflakeCredentials. Use Snowflake-provided"
-                    " OAuth token instead."
+                    "`host` and `username` missing in SnowflakeCredentials. Using"
+                    " Snowflake-provided OAuth token instead."
                 )
                 self._set_use_snowflake_session_token()
             else:
                 raise ConfigurationValueError(
-                    "`host` and `username` not provided in SnowflakeCredentials, but there is no"
-                    " Snowflake-provided OAuth token available."
+                    "`host` and `username` not provided in SnowflakeCredentials. Snowflake-provided"
+                    " OAuth token authentication (for Snowpark Container Services) was attempted"
+                    " but failed. If running in Snowpark Container Services, ensure the token file"
+                    " exists."
                 )
 
         if self.private_key_path:
