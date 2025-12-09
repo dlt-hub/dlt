@@ -88,30 +88,20 @@ def convert_time_to_us(table):
 
 
 @pytest.mark.parametrize(
-    "columns_hint_type",
-    ["dict", "sequence"],
-    ids=["dict", "sequence"],
+    "defer_table_reflect",
+    [False, True],
+    ids=["hints_applied", "hints_not_applied"],
 )
 def test_pyarrow_applies_hints_before_extract(
     postgres_db: PostgresSourceDB,
-    columns_hint_type: str,
+    defer_table_reflect: bool,
 ) -> None:
     """Test that user-provided hints (via apply_hints) are merged with reflection hints
-    for all backends. pyarrow used to cast rows before hints can be applied
+    for all backends. pyarrow used to cast rows before hints can be applied.
+    
+    After the fix, hints should be applied in both cases (double type).
+    Previously, when defer_table_reflect=True, hints were not applied (decimal type).
     """
-    # Create column hints in different formats - all should result in numeric_col being double
-    if columns_hint_type == "dict":
-        columns_hint: Any = {
-            "numeric_col": {
-                "data_type": "double",
-            },
-        }
-    elif columns_hint_type == "sequence":
-        columns_hint = [
-            {"name": "numeric_col", "data_type": "double"},
-        ]
-    else:
-        raise ValueError(f"Unknown columns_hint_type: {columns_hint_type}")
 
     table = sql_table(
         credentials=postgres_db.credentials,
@@ -119,43 +109,65 @@ def test_pyarrow_applies_hints_before_extract(
         table="has_precision",
         backend="pyarrow",
         reflection_level="full_with_precision",
+        defer_table_reflect=defer_table_reflect,
     )
 
     # Apply hints to override numeric_col to double (even though DB has decimal type)
     table.apply_hints(
         write_disposition="replace",
         file_format="parquet",
-        columns=columns_hint,
+        columns={
+            "numeric_col": {
+                "data_type": "double",
+            },
+        }
     )
 
     pipeline = make_pipeline("duckdb")
     load_info = pipeline.run(table.add_limit(1))
 
-    # Verify the schema reflects the user-provided hint (double) rather than reflection (decimal)
+    # Verify the schema reflects the expected type based on defer_table_reflect
     numeric_col_schema = pipeline.default_schema.get_table("has_precision")["columns"][
         "numeric_col"
     ]
-    assert numeric_col_schema["data_type"] == "double", (
-        f"Schema should have 'double' for numeric_col with {columns_hint_type} hint type, "
-        f"but got {numeric_col_schema['data_type']}"
-    )
-
-    # Find the parquet file for has_precision table and check its native type is float64 (double)
-    # and not reflected as decimal
-    completed_jobs = load_info.load_packages[0].jobs["completed_jobs"]
+    
+    # Verify parquet file exists in both cases (file_format="parquet" was set via apply_hints)
+    load_package = pipeline.get_load_package_info(load_info.loads_ids[0])
+    completed_jobs = load_package.jobs["completed_jobs"]
     has_precision_jobs = [
         job
         for job in completed_jobs
         if job.job_file_info.table_name == "has_precision" and job.file_path.endswith(".parquet")
     ]
-    assert len(has_precision_jobs) == 1, "Expected exactly one parquet file for has_precision"
-
+    
+    # Check what file format was actually used
+    all_has_precision_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "has_precision"
+    ]
+    actual_file_formats = [job.job_file_info.file_format for job in all_has_precision_jobs]
+    
+    assert len(has_precision_jobs) == 1, (
+        f"Expected exactly one parquet file for has_precision "
+        f"(defer_table_reflect={defer_table_reflect}). "
+        f"Found {len(all_has_precision_jobs)} file(s) with format(s): {actual_file_formats}. "
+        f"This indicates that file_format hint is not being applied when defer_table_reflect=True."
+    )
+    
     parquet_path = has_precision_jobs[0].file_path
     parquet_schema = pq.read_schema(parquet_path)
     numeric_col_type = parquet_schema.field("numeric_col").type
-
+    
+    # After the fix, hints should be applied in both cases
+    # When defer_table_reflect=False or True, hints should be applied, so type should be double
+    assert numeric_col_schema["data_type"] == "double", (
+        f"Schema should have 'double' for numeric_col (defer_table_reflect={defer_table_reflect}), "
+        f"but got {numeric_col_schema['data_type']}"
+    )
+    # Verify parquet file has float64 type (double)
     assert pa.types.is_float64(numeric_col_type), (
-        f"Expected numeric_col to be float64 in parquet file with {columns_hint_type} hint type, "
+        f"Expected numeric_col to be float64 in parquet file (defer_table_reflect={defer_table_reflect}), "
         f"but got {numeric_col_type}. "
     )
 
