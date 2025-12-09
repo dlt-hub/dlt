@@ -66,7 +66,6 @@ lint-core:
 
 format:
 	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
-	uv run black docs/education/*/*.ipynb
 
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
