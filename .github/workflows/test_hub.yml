@@ -96,7 +96,7 @@ jobs:
 
       - name: Test runtime client
         run: |
-          touch .dlt/.workspace
+          mkdir .dlt && touch .dlt/.workspace
           dlt runtime --help
 
   matrix_job_required_check:
