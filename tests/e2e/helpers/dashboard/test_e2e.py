@@ -193,7 +193,7 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     page.get_by_role("button", name="Run Query").click()
 
     # enable dlt tables
-    page.get_by_role("switch", name="Show _dlt tables").check()
+    page.get_by_role("switch", name="Show internal tables").check()
 
     # state page
     _open_section(page, "state")

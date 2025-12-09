@@ -125,7 +125,7 @@ schema_raw_yaml_title = "Raw Schema as YAML"
 schema_show_raw_yaml_text = "Show raw schema as YAML"
 
 # Schema UI controls
-ui_show_dlt_tables = "Show `_dlt` tables"
+ui_show_dlt_tables = "Show internal tables"
 ui_show_child_tables = "Show child tables"
 ui_load_row_counts = "Load row counts"
 ui_show_dlt_columns = "Show `_dlt` columns"
