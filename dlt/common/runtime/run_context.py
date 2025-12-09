@@ -6,7 +6,7 @@ from types import ModuleType
 from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urlencode
 
-from packaging.version import Version
+from packaging.specifiers import SpecifierSet
 
 from dlt.common import known_env
 from dlt.common.configuration.container import Container
@@ -246,9 +246,14 @@ def ensure_plugin_version_match(
     plugin_version: str,
     plugin_module_name: str,
     dlt_extra: str,
+    dlt_version_specifier: Optional[SpecifierSet] = None,
 ) -> None:
-    """Ensures that installed dlt version matches plugin version. Plugins are tightly bound to `dlt`
-    and released together. Both major and minor version must match. For alpha plugins version may be 0.
+    """Ensures that installed plugin version matches dlt requirements. Plugins are tightly bound
+    to `dlt` and released together.
+
+    If `dlt_version_specifier` is provided, it is used to check if the plugin version satisfies
+    the specifier. Otherwise, the specifier is read from dlt's package metadata (Requires-Dist).
+    If specifier cannot be determined, the function returns without checking.
 
     Args:
         pkg_name: Name of the plugin package (e.g., "dlthub")
@@ -256,30 +261,37 @@ def ensure_plugin_version_match(
         plugin_version: The installed plugin version string
         plugin_module_name: The module name for MissingDependencyException (e.g., "dlthub")
         dlt_extra: The dlt extra to install the plugin (e.g., "hub")
+        dlt_version_specifier: Optional version specifier for the plugin. If not provided,
+            reads from dlt's package metadata.
 
     Raises:
         MissingDependencyException: If version mismatch is detected
     """
-    installed = Version(plugin_version)
-    dlt_installed = Version(dlt_version)
+    # Get specifier from dlt's package metadata if not provided
+    if dlt_version_specifier is None:
+        from dlt.version import get_dependency_requirement
 
-    # currently packages must match on minor version
-    if installed.minor != dlt_installed.minor or (
-        installed.major != dlt_installed.major and installed.major != 0
-    ):
+        req = get_dependency_requirement(pkg_name)
+        if req is not None:
+            dlt_version_specifier = req.specifier
+
+    # If specifier still not available, exit without checking
+    if dlt_version_specifier is None or len(dlt_version_specifier) == 0:
+        return
+
+    # Use specifier.contains() for proper version check (allowing prereleases)
+    if not dlt_version_specifier.contains(plugin_version, prereleases=True):
         from dlt.common.exceptions import MissingDependencyException
 
         custom_msg = (
-            f"`{pkg_name}` is a `dlt` plugin and must be installed together with `dlt` with a "
-            f"matching version. `dlt` {dlt_installed.major}.{dlt_installed.minor}.x requires "
-            f"`{pkg_name}` 0.{dlt_installed.minor}.x but you have "
-            f"{plugin_version}. Please install the right version of {pkg_name} with:\n\n"
+            f"`{pkg_name}` is a `dlt` plugin and must satisfy version requirement "
+            f"`{dlt_version_specifier}` but you have {plugin_version}. "
+            f"Please install the right version of {pkg_name} with:\n\n"
             f'pip install "dlt[{dlt_extra}]=={dlt_version}"\n\n'
             "or if you are upgrading the plugin:\n\n"
             f'pip install "dlt[{dlt_extra}]=={dlt_version}" -U {pkg_name}'
         )
         missing_dep_ex = MissingDependencyException(plugin_module_name, [])
-        # ImportError uses `msg` attribute for __str__, not just args
         missing_dep_ex.args = (custom_msg,)
         missing_dep_ex.msg = custom_msg
         raise missing_dep_ex
