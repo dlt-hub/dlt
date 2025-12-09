@@ -14,6 +14,7 @@ It provides:
 * powerful transformation with [`@dlt.hub.transformation`](../features/transformations/index.md) and [dbt integration](../features/transformations/dbt-transformations.md)
 * [dashboard](../../general-usage/dashboard.md) as a comprehensive observability tool
 * [MCP](../features/mcp-server.md) for data exploration and semantic modeling
+* [dltHub Runtime Integration](../runtime/overview.md) for easy deployment of pipelines, transformations and notebooks with no configuration
 
 It automates essential tasks like data loading, quality checks, and governance while enabling seamless collaboration across teams and providing a consistent development-to-production workflow.
 
