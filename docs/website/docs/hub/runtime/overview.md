@@ -1,5 +1,5 @@
 ---
-title: dltHub Runtime
+title: Overview
 description: Deploy and run dlt pipelines and notebooks in the cloud
 keywords: [runtime, deployment, cloud, scheduling, notebooks, dashboard]
 ---
@@ -23,7 +23,7 @@ Support for multiple remote workspaces (mirroring multiple local repositories) i
 
 ## Credentials and configs
 
-### Understanding Workspace Profiles
+### Understanding workspace profiles
 
 dlt Runtime uses **profiles** to manage different configurations for different environments. The two main profiles are:
 
@@ -32,11 +32,11 @@ dlt Runtime uses **profiles** to manage different configurations for different e
 | `prod` | Production/batch jobs | Read/write access to your destination |
 | `access` | Interactive notebooks and dashboards | Read-only access (for safe data exploration) |
 
-### Setting Up Configuration Files
+### Setting up configuration files
 
 Configuration files live in the `.dlt/` directory:
 
-```
+```text
 .dlt/
 ├── config.toml           # Default config (local development)
 ├── secrets.toml          # Default secrets (gitignored, local only)
@@ -45,6 +45,11 @@ Configuration files live in the `.dlt/` directory:
 ├── access.config.toml    # Access profile config
 └── access.secrets.toml   # Access secrets (gitignored)
 ```
+
+Below you will find an example with the credentials set for the MotherDuck destination. You can swap it for any other cloud destination you prefer (for example
+   [BigQuery](../../dlt-ecosystem/destinations/bigquery.md),
+   [Snowflake](../../dlt-ecosystem/destinations/snowflake.md),
+   [AWS S3](../../dlt-ecosystem/destinations/filesystem.md), …).
 
 **Default `config.toml`** (for local development with DuckDB):
 
@@ -92,14 +97,6 @@ database = "your_database"
 password = "your-motherduck-read-only-token"  # Read-only token
 ```
 
-:::tip Getting MotherDuck Credentials
-1. Sign up at [motherduck.com](https://motherduck.com)
-2. Go to Settings > Service Tokens
-3. Create two tokens:
-   - A **read/write** token for the `prod` profile
-   - A **read-only** token for the `access` profile
-:::
-
 :::warning Security
 Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. The Runtime securely stores your secrets when you sync your configuration.
 :::
@@ -119,7 +116,7 @@ From the Jobs page you can:
 - Change or cancel schedules for batch jobs
 - Create and manage **public links** for interactive jobs (notebooks/dashboards)
 
-#### Public Links for Interactive Jobs
+#### Public kinks for interactive jobs
 
 Interactive jobs like notebooks and dashboards can be shared via public links. To manage public links:
 1. Open the context menu on a job in the job list, or go to the job detail page
@@ -134,13 +131,13 @@ Monitor all job runs with:
 - Start time and duration
 - Trigger type (manual, scheduled, API)
 
-### Run Details
+### Run details
 Click on any run to see:
 - Full execution logs
 - Run metadata
 - Pipeline information
 
-### Deployment & Config
+### Deployment & config
 View the files deployed to Runtime:
 - Current deployment version
 - Configuration profiles
@@ -155,11 +152,11 @@ Access the dlt pipeline dashboard to visualize:
 ### Settings
 Manage workspace settings and view workspace metadata.
 
-## CLI Reference
+## CLI reference
 
-For detailed CLI documentation, see [cli](../command-line-interface.md).
+For detailed CLI documentation, see [CLI](../command-line-interface.md).
 
-### Common Commands
+### Common commands
 
 | Command | Description |
 |---------|-------------|
@@ -191,7 +188,7 @@ dlt runtime deployment list
 dlt runtime deployment info [version_number]
 ```
 
-### Job Commands
+### Job commands
 
 ```sh
 # List all jobs
@@ -204,7 +201,7 @@ dlt runtime job info <script_path_or_job_name>
 dlt runtime job create <script_path> [--name NAME] [--schedule "CRON"] [--interactive]
 ```
 
-### Job Run Commands
+### Job run commands
 
 ```sh
 # List all runs
@@ -223,7 +220,7 @@ dlt runtime job-run logs <script_path_or_job_name> [run_number] [-f/--follow]
 dlt runtime job-run cancel <script_path_or_job_name> [run_number]
 ```
 
-### Configuration Commands
+### Configuration commands
 
 ```sh
 # List configuration versions
@@ -236,7 +233,7 @@ dlt runtime configuration info [version_number]
 dlt runtime configuration sync
 ```
 
-## Development Workflow
+## Development workflow
 
 A typical development flow:
 
@@ -265,15 +262,14 @@ A typical development flow:
    uv run dlt runtime logs fruitshop_pipeline.py
    ```
 
-## Key Concepts
+## Key concepts
 
-
-### Jobs vs Runs
+### Jobs vs runs
 
 - A **Job** is a script registered in your workspace. It defines what code to run and optionally a schedule.
 - A **Run** is a single execution of a job. Each run has its own logs, status, and metadata.
 
-### Batch vs Interactive
+### Batch vs interactive
 
 - **Batch jobs** run with the `prod` profile and are meant for scheduled data loading
 - **Interactive jobs** run with the `access` profile and are meant for notebooks and dashboards
@@ -286,14 +282,14 @@ Profiles allow you to have different configurations for different environments:
 - Production runs use MotherDuck (or other destinations) with full read/write access
 - Interactive sessions use read-only credentials for safety
 
-### Deployments and Configurations
+### Deployments and configurations
 
 - **Deployment**: Your code files (`.py` scripts, notebooks)
 - **Configuration**: Your `.dlt/*.toml` files (settings and secrets)
 
 Both are versioned separately, allowing you to update code without changing secrets and vice versa.
 
-## Current Limitations
+## Current limitations
 
 - **Runtime limits**: Jobs are limited to 120 minutes maximum execution time
 - **Interactive timeout**: Notebooks are killed after about 5 minutes of inactivity (no open browser tab)

@@ -212,7 +212,7 @@ You'll see your pipeline connected to the remote MotherDuck dataset and ready fo
 
 #### Schedule the pipeline to run on Runtime
 
-Now you're ready to deploy your Workspace to Runtime and [schedule your pipeline to run](../getting-started/runtime-tutorial.md#schedule-a-pipeline).
+Now you're ready to deploy your Workspace to Runtime and [schedule your pipeline to run](../getting-started/runtime-tutorial.md#7-schedule-a-pipeline).
 Note that Runtime will automatically use the `prod` profile you just created.
 
 ## Inspecting and managing profiles
@@ -247,5 +247,5 @@ Note that Runtime will automatically use the `prod` profile you just created.
 ## Next steps
 
 * [Configure the workspace](../workspace/overview.md)
-* [Deploy your pipeline](../getting-started/runtime-tutorial.md#run-your-first-pipeline)
+* [Deploy your pipeline](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline-on-runtime)
 * [Monitor and debug pipelines](../../general-usage/pipeline#monitor-the-loading-progress)

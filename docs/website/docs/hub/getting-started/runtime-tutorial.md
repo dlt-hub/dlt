@@ -7,20 +7,20 @@ keywords: [deployment, runtime, dashboard, dlt pipeline]
 With the dltHub you can not only build data ingestion pipelines and dashboards, but also **run and manage them on a fully managed dltHub Runtime**.
 See the [Runtime overview](../runtime/overview.md) for more details. You get:
 
-- The flexibility and developer experience of **dlt**
-- The simplicity and reliability of **managed infrastructure**
+- the flexibility and developer experience of dlt
+- the simplicity and reliability of managed infrastructure
 
 ## What you will learn
 
 In this tutorial you will:
 
-- Deploy a dlt pipeline on the **dltHub managed Runtime**
-- Deploy an **always-fresh dashboard** on the dltHub managed Runtime
-- Add **Python transformations** to your ELT jobs
+- Deploy a dlt pipeline on the dltHub managed Runtime
+- Deploy an always-fresh dashboard on the dltHub managed Runtime
+- Add Python transformations to your ELT jobs
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.13+
 - A [MotherDuck](https://motherduck.com) account (for the starter pack example)
 - [uv](https://docs.astral.sh/uv/) package manager (recommended for dependency management)
 
@@ -30,13 +30,13 @@ To make things easier, we provide a starter repository with a preconfigured dltH
 
 This starter pack includes:
 
-1. A **dlt pipeline** that loads data from the **jaffle shop API** into a local **DuckDB** destination.
-2. A **remote destination** configured as **MotherDuck**. You can swap it for any other cloud destination you prefer (for example
+1. A dlt pipeline that loads data from the jaffle shop API into a local DuckDB destination.
+2. A remote destination configured as MotherDuck. You can swap it for any other cloud destination you prefer (for example
    [BigQuery](../../dlt-ecosystem/destinations/bigquery.md),
    [Snowflake](../../dlt-ecosystem/destinations/snowflake.md),
    [AWS S3](../../dlt-ecosystem/destinations/filesystem.md), …).
-3. A simple **Marimo dashboard** that you can use to explore and analyze the data.
-4. A set of **custom transformations** that are executed after the raw data is loaded.
+3. A simple Marimo dashboard that you can use to explore and analyze the data.
+4. A set of custom transformations that are executed after the raw data is loaded.
 
 We’ll walk through cloning the repo, installing dependencies, connecting to Runtime, and then deploying both pipelines and dashboards.
 
@@ -77,7 +77,7 @@ source .venv/bin/activate
 
 ### 3. Configure your credentials
 
-If you are running this tutorial as part of the early access program, you need to add your Runtime invite code to `.dlt/secrets.toml`:
+If you are running this tutorial as part of the early access program, you need to create `.dlt/secrets.toml` file and add your Runtime invite code there:
 
 ```toml
 [runtime]
@@ -86,7 +86,49 @@ invite_code="xxx-yyy"
 
 Next, configure your destination credentials. The starter pack uses MotherDuck as the destination, but you can switch to any other destination you prefer.
 Details on configuring credentials for Runtime are available [here](../runtime/overview.md#credentials-and-configs).
-Make sure your destination credentials are valid before running pipelines remotely.
+Make sure your destination credentials are valid before running pipelines remotely. Below you can find instructions for configuring credentials for MotherDuck destination.
+
+**`prod.config.toml`** (for batch jobs running on Runtime):
+
+```toml
+[destination.fruitshop_destination]
+destination_type = "motherduck"
+```
+
+**`prod.secrets.toml`** (for batch jobs - read/write credentials):
+
+```toml
+[destination.fruitshop_destination.credentials]
+database = "your_database"
+password = "your-motherduck-service-token"  # Read/write token
+```
+
+**`access.config.toml`** (for interactive notebooks):
+
+```toml
+[destination.fruitshop_destination]
+destination_type = "motherduck"
+```
+
+**`access.secrets.toml`** (for interactive notebooks - read-only credentials):
+
+```toml
+[destination.fruitshop_destination.credentials]
+database = "your_database"
+password = "your-motherduck-read-only-token"  # Read-only token
+```
+
+:::tip Getting MotherDuck Credentials
+1. Sign up at [motherduck.com](https://motherduck.com)
+2. Go to Settings > Service Tokens
+3. Create two tokens:
+   - A **read/write** token for the `prod` profile
+   - A **read-only** token for the `access` profile
+:::
+
+:::warning Security
+Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. The Runtime securely stores your secrets when you sync your configuration.
+:::
 
 ### 4. Log in to dltHub Runtime
 
@@ -100,9 +142,27 @@ This will:
 
 1. Open a browser window.
 2. Use GitHub OAuth for authentication.
-3. Link your local workspace to your dltHub Runtime account.
+3. Link your local workspace to your dltHub Runtime account through automatically generated workspace id. You can find this id in your `config.toml`.
 
 Currently, GitHub-based authentication is the only supported method. Additional authentication options will be added later.
+
+:::tip
+For a full list of available commands and options, see the [Runtime CLI reference](../runtime/overview.md#common-commands).
+:::
+
+### Job types in dltHub Runtime
+
+dltHub Runtime supports two types of jobs:
+
+- **Batch jobs** – Python scripts that are meant to be run once or on a schedule.
+  - Created with commands like `dlt runtime launch <script>` (and scheduled with `dlt runtime schedule <script>`).
+  - Typical use cases: ELT pipelines, transformation runs, backfills.
+  - Runs with the `prod` profile.
+
+- **Interactive jobs** – long-running jobs that serve an interactive notebook or app.
+  - Started with `dlt runtime <script>`.
+  - Typical use cases: Marimo notebooks, dashboards, and (in the future) apps like Streamlit.
+  - Runs with the `access` profile.
 
 ### 5. Run your first pipeline on Runtime
 
@@ -122,7 +182,7 @@ dltHub supports two types of jobs:
 * batch job, which are Python scripts, which are supposed to be run once or scheduled
 * interactive job, which basically serves the interactive notebook
 
-### 6. Open an interactive notebookk
+### 6. Open an interactive notebook
 
 ```sh
 uv run dlt runtime serve fruitshop_notebook.py
@@ -136,6 +196,7 @@ This command:
 
 :::note
 Interactive notebooks use the `access` profile with read-only credentials, so they are safe for data exploration and dashboarding without the risk of accidental writes.
+Read more about profiles in the [Runtime profiles docs](../runtime/overview.md#profiles).
 :::
 
 Interactive jobs are the building block for serving notebooks, dashboards , streamlit or similar apps (in the future).
@@ -272,9 +333,18 @@ The starter pack includes a predefined `jaffle_transformations.py` script that:
 2. Loads them into a local DuckDB (default dev profile).
 3. Creates aggregations and loads them into the remote destination.
 
+:::tip
+Before running transformations locally, you need to issue a license for the transformations feature:
+
+```sh
+dlt license issue dlthub.transformation
+```
+You can find more details in the [license section](../getting-started/installation.md#self-licensing) of the docs.
+:::
+
 To run transformations locally (using the default `dev` profile):
 
-```bash
+```sh
 uv run python jaffle_transformations.py
 ```
 
@@ -282,7 +352,7 @@ uv run python jaffle_transformations.py
 
 To run the same transformations against your production destination:
 
-```bash
+```sh
 uv run dlt profile prod pin
 uv run python jaffle_transformations.py
 ```
@@ -294,7 +364,7 @@ uv run python jaffle_transformations.py
 
 You can deploy and orchestrate transformations on dltHub Runtime just like any other pipeline:
 
-```bash
+```sh
 uv run dlt runtime launch jaffle_transformations.py
 ```
 
