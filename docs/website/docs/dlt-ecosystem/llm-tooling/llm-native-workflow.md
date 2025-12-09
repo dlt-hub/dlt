@@ -385,7 +385,7 @@ For example, this configuration allows to add new tables, raises on new columns,
 
 ```py
 @dlt.source(
-    schema_contact={
+    schema_contract={
         "tables": "evolve",
         "columns": "freeze",
         "data_type": "discard_row",
@@ -414,9 +414,9 @@ def github_source(): ...
 if __name__ == "__main__":
     source = github_source()
     # "pull_requests" would be one of the endpoints defined by `github_source`
-    source["pull_requests"].apply_hints(columns=PullRequestModel)
+    source.resources["pull_requests"].apply_hints(columns=PullRequestModel)
 
-    pipeline = dlt.pipeline(...)
+    pipeline = dlt.pipeline("github_pipeline")
     pipeline.run(source)
 ```
 
@@ -426,7 +426,7 @@ A [data quality check](../../hub/features/quality/data-quality) declares how the
 ```py
 from dlt.hub import data_quality as dq
 
-pipeline = dlt.pipeline(...)
+pipeline = dlt.pipeline("github_pipeline")
 pipeline.run(github_source())
 
 dataset = pipeline.dataset()
@@ -437,7 +437,7 @@ pull_requests_checks = [
     dq.checks.case("created_at > 2025-01-01"),
 ]
 
-dq.run_checks(dataset, {"pull_requests": pull_requests_checks})
+dq.run_checks(dataset, checks={"pull_requests": pull_requests_checks})
 ```
 
 :::tip
