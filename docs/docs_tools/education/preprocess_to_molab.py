@@ -10,7 +10,6 @@ TEMP_IPYNB_FILE_PREIFX = "tmp"
 MUST_INSTALL_PACKAGES = {"numpy", "pandas", "sqlalchemy"}
 
 
-
 def convert_ipynb_to_py(original_ipynb: Path, cleaned_ipynb: Path) -> Path:
     """
     Convert a preprocessed Jupyter notebook to a Marimo Python file.
@@ -104,9 +103,7 @@ def replace_google_colab_imports(ipynb_file: Path) -> Path:
 
     Note: The original file is NOT modified; a temporary copy with prefix is created.
     """
-
-    with open(ipynb_file, "r", encoding="utf-8") as f:
-        notebook = json.load(f)
+    notebook = json.loads(Path(ipynb_file).read_text())
 
     for cell in notebook.get("cells", []):
         if cell.get("cell_type") == "code":
@@ -151,8 +148,7 @@ def process_shell_commands(ipynb_file: Path) -> set[str]:
 
     Note: This modifies the notebook file in-place.
     """
-    with open(ipynb_file, "r", encoding="utf-8") as f:
-        notebook = json.load(f)
+    notebook = json.loads(Path(ipynb_file).read_text())
 
     packages: set[str] = set()
     subprocess_imported: bool = False
