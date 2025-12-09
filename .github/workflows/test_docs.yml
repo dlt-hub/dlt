@@ -107,6 +107,9 @@ jobs:
       - name: run docs preprocessor
         run: cd docs && make preprocess-docs
 
+      - name: test preprocess_to_molab
+        run: cd docs && make test_preprocess_molabs
+
       - name: Ensure marimo notebooks are up-to-date
         shell: bash
         run: |
