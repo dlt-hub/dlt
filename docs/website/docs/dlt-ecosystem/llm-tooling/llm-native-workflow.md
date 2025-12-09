@@ -110,8 +110,29 @@ dlt ai setup {IDE}
 Your experience will greatly depend on the capabilities of the LLM you use. We suggest minimally using `GPT-4.1` from OpenAI or `Claude Sonnet 4` from Anthropic.
 
 
-<!--TODO setup MCP server-->
+### Install MCP server (optional)
 
+You can install the [dlt MCP server ](https://github.com/dlt-hub/dlt-mcp) by adding this snippet to your IDE's configuration.
+
+This default configuration will support local DuckDB destination
+```json
+{
+  "name": "dlt",
+  "command": "uv",
+  "args": [
+    "run",
+    "--with",
+    "dlt-mcp[search]",
+    "python",
+    "-m",
+    "dlt_mcp"
+  ]
+}
+```
+
+:::note
+The configuration file format varies slightly across IDEs
+:::
 
 ## Initial instructions
 
@@ -225,7 +246,7 @@ Load package 1749667187.541553 is LOADED and contains no failed jobs
 
 ### Failure: source credentials
 
-Your first few iterations will probably trigger credentials errors. This can be easily fixed by filling the `.dlt/config.toml` and `.dlt/secrets.toml` or by using environment variables.
+Your first iterations will likely trigger credentials errors similar to the one below. The error message indicates how you can set credential values using `.dlt/config.toml`  and `.dlt/secrets.toml` or environment variables ([learn more](../../general-usage/credentials/setup))
 
 ```text
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Missing 1 field(s) in configuration `GithubRestApiSourceConfiguration`: `access_token`
@@ -254,70 +275,175 @@ Provider `config.toml` loaded values from locations:
         - /home/user/.dlt/config.toml
 ```
 
-Unfortunately, getting your credentials or your API key from a source system can be tedious. For popular sources, the LLM can sometimes provide helpful step-by-step instructions to obtain credentials.
+:::tip
+Getting credentials or API keys from a source system can be tedious. For popular sources, LLMs can provide step-by-step instructions
+:::
+
 
 ### Failure: destination credentials
 
+Destination credentials are similar to source credentials errors and can be fixed via `.dlt/config.toml`  and `.dlt/secrets.toml` or environment variables ([learn more](../../general-usage/credentials/setup)). Destination-specific information can be found in [the documentation](../../dlt-ecosystem/destinations).
+
+Alternatively, you can point the LLM to the Python code that defines the configuration. It's typically found in `from dlt.destinations.impl.{destination}.configuration`. For example, this retrieves the Snowflake configuration and credentials
+
+```py
+from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials, SnowflakeClientConfiguration
+```
+
+Credentials are what you typically put in `secrets.toml` and configuration in `config.toml`.
 
 ## Manage context
 
-If you're looking to ingest from specific endpoints or implement specific `dlt` features,
-you can use TODO
+"Managing context" is about providing the right information to the LLM and help it focus on the right task. Below is a list of practical tips:
 
-- use `@` to refer to documentation
-- use `@` to refer to the terminal output (if you ran a command and it produced an error)
-- ask the LLM to use a specific MCP tool (e.g., check if data is loaded, what is the schema, how many rows)
+- Specify: "I'm a data engineer using the Python library `dlt` to ingest data from {source} to {destination}. I'm also using the Python libraries X,Y,Z."
+- Specify: "Focus on a single REST API endpoint `X`."
+- In later iteration when you're tuning your pipeline, specify "The current Python code works as expected. Make minimal and focused changes to do X"
+- Use the `@` symbol to reference the terminal output after running the pipeline
+- Use the `@` symbol to reference to the LLM scaffolds
+- Ingest documentation and index your code using your IDE. Refer to it explicitly using `@`
+- Ask the LLM to list available tools and explain them.
+- If the LLM goes on a tangent, trim the conversation history or create a new conversation
+
+:::note
+These tips will differ slightly across IDEs
+:::
 
 ## Check data
 
 ### dlt Dashboard
 
-You can use launch locally the interactive dlt dashboard [LINK] to view your pipeline execution.
+Lauch the local [dlt Dashboard](../../general-usage/dashboard) to inspect your pipeline execution including:
+- pipeline state and metrics
+- data schema
+- SQL data explorer
 
 ```sh
 dlt pipeline github_pipeline show
 ```
 
-You can quickly view:
-- Pipeline state and metrics
-- Data schema (tables, columns, types)
-- SQL data explorer
-
-The dashboard helps detect silent failures due to pagination errors, schema drift, or incremental load misconfigurations.
-
 <div style={{textAlign: 'center'}}>
 ![dashboard](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
 </div>
 
+The dashboard helps detect silent failures due to pagination errors, schema drift, or incremental load misconfigurations.
 
-### Ask the MCP server
-If the [dlt MCP server](../../hub/features/mcp-server) is connected, you can directly ask in the IDE chat window if the data was successfully loaded.
+:::tip
+Inside Cursor 2.0, you can open the [dashboard's web page inside the IDE](https://cursor.com/docs/agent/browser) and directly reference visual elements inside the chat.
+:::
 
-TODO: list a few example prompt / queries
+
+### Ask the dlt MCP server
+If the [dlt MCP server](https://github.com/dlt-hub/dlt-mcp) is connected, you can directly ask in the IDE chat window if the data was successfully loaded. Based on your MCP configuration, it can have access to:
+- pipeline metadata
+- loaded data
+- dlt documentation and source code
+
+It can answer questions such as:
+- What are the available pipelines?
+- What are the available tables?
+- What's table X's schema?
+- When was data last loaded?
+- Did schema change last run?
+- Display the pipeline's schema
+- How many rows are in table X?
+- Give me a data sample of table X
 
 
 ### Python data exploration
 
-Running a `dlt` pipeline creates a **dataset**. This provides a consistent interface to interact with loaded data and removes the destination-specific friction
+Running a `dlt` pipeline creates a dataset, which can be accessed via Python code:
 
-This snippets gives access to the GitHub data I loaded
 ```py
 import dlt
 
 # this refers to my previously ran pipeline
 github_pipeline = dlt.pipeline("github_pipeline")
 github_dataset = github_pipeline.dataset()
-
-# call `.df()` to load the results as a pandas dataframe
+# list tables
+github_dataset.tables
+# list columns
+github_dataset.table("pull_requests").columns
+# load the results as a pandas dataframe
 github_dataset.table("pull_requests").df()
 ```
 
-The dataset truly shines in interactive environments like [marimo](../../general-usage/dataset-access/marimo) or Jupyter for data explorations, defining data quality checks, or writing data transformations ([Learn more](../../general-usage/dataset-access/dataset)).
+This shines in interactive environments like [marimo](../../general-usage/dataset-access/marimo) and Jupyter for data explorations. It's a great way to add data quality checks.
 
-### Data quality
-- data validation
-- schema contract
-- data quality checks
+### Automated data quality
+
+Once you're familiar with the data, you can write expectations about the data in code. This section is an introduction to deep topics with their own documentation page.
+
+:::tip
+Instead of asking the LLM to make data a certain way, you can ask the LLM to help you write automated data quality. Then, you can feedback the data quality information back to the LLM after each pipeline run.
+:::
+
+#### Schema contract
+Enabling [schema contracts](../../general-usage/schema-contracts) lets you configure what aspect of the data can change or not between pipeline runs.
+
+For example, this configuration allows to add new tables, raises on new columns, and drops records with incorrect data type:
+
+```py
+@dlt.source(
+    schema_contact={
+        "tables": "evolve",
+        "columns": "freeze",
+        "data_type": "discard_row",
+    }
+)
+def github_source(): ...
+```
+
+#### Data validation
+Using [Pydantic](https://docs.pydantic.dev), you can define extend schema contract features and validate individual records one-by-one ([learn more](../../general-usage/resource#define-a-schema-with-pydantic)).
+
+This allows to catch invalid data early, cancel the pipeline run, and prevent data being written to the destination
+
+Data validation needs to be set on the **resource** rather than the **source**. We need a few more lines of code to retrieve them.
+
+```py
+import dlt
+from pydantic import BaseModel
+
+class PullRequestModel(BaseModel):
+    ...
+
+@dlt.source
+def github_source(): ...
+
+if __name__ == "__main__":
+    source = github_source()
+    # "pull_requests" would be one of the endpoints defined by `github_source`
+    source["pull_requests"].apply_hints(columns=PullRequestModel)
+
+    pipeline = dlt.pipeline(...)
+    pipeline.run(source)
+```
+
+#### Data quality checks
+A [data quality check](../../hub/features/quality/data-quality) declares how the data on the destination should look like. It can be executed on the destination and efficiently process large data volume.
+
+```py
+from dlt.hub import data_quality as dq
+
+pipeline = dlt.pipeline(...)
+pipeline.run(github_source())
+
+dataset = pipeline.dataset()
+
+pull_requests_checks = [
+    dq.checks.is_not_null("id"),
+    dq.checks.is_in("author", ["Romeo", "Foxtrot", "Tango"]),
+    dq.checks.case("created_at > 2025-01-01"),
+]
+
+dq.run_checks(dataset, {"pull_requests": pull_requests_checks})
+```
+
+:::tip
+Data quality checks write results to the destination, which can be inspected via the dashboard, MCP server, and manual exploration
+:::
+
 
 ## Conclusion
 By the end of this guide, you should have:
