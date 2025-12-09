@@ -104,7 +104,7 @@ password = "your-motherduck-read-only-token"  # Read-only token
 Files matching `*.secrets.toml` and `secrets.toml` are gitignored by default. Never commit secrets to version control. The Runtime securely stores your secrets when you sync your configuration.
 :::
 
-## Web Dashboard
+## Web UI
 
 Visit [dlthub.app](https://dlthub.app) to access the web dashboard. The dashboard provides:
 
