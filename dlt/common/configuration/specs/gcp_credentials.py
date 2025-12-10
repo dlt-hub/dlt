@@ -32,20 +32,20 @@ def _get_pyiceberg_fileio_config_from_adc(
     This refreshes the ADC credentials to get a valid OAuth2 token and returns
     the configuration dict that pyiceberg expects for GCS access.
     """
+    import google.auth
     from google.auth.transport.requests import Request
 
-    # Refresh credentials to ensure we have a valid token
-    credentials.refresh(Request())
+    native_credentials, project = google.auth.default()
+    native_credentials.refresh(Request())
+
+    if not credentials.token:
+        credentials.refresh(Request())
 
     config: Dict[str, Any] = {}
-    if project_id:
-        config["gcs.project-id"] = project_id
-    if credentials.token:
-        config["gcs.oauth2.token"] = credentials.token
-    if credentials.expiry:
-        # pyiceberg expects expiry in milliseconds
-        expiry_ms = int(credentials.expiry.timestamp() * 1000)
-        config["gcs.oauth2.token-expires-at"] = str(expiry_ms)
+    config["gcs.project-id"] = project_id if project_id else project
+    config["gcs.oauth2.token"] = (
+        credentials.token if credentials.token else native_credentials.token
+    )
 
     return config
 
