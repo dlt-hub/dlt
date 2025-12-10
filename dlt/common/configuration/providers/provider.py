@@ -51,8 +51,13 @@ class ConfigProvider(abc.ABC):
 
     @property
     def locations(self) -> Sequence[str]:
-        """Returns a list of locations where secrets are stored, human readable"""
+        """Returns a all possible locations where secrets may be stored, human readable"""
         return []
+
+    @property
+    def present_locations(self) -> Sequence[str]:
+        """Returns a list of locations that were present and contained secrets, human readable"""
+        return self.locations
 
     def __repr__(self) -> str:
         kwargs = {

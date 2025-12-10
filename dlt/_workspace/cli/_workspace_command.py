@@ -9,11 +9,12 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace._workspace_context import WorkspaceRunContext
 from dlt._workspace.cli.utils import check_delete_local_data, delete_local_data
+from dlt._workspace.cli._pipeline_command import list_pipelines
 from dlt._workspace.profile import read_profile_pin
 
 
 @utils.track_command("workspace", track_before=False, operation="info")
-def print_workspace_info(run_context: WorkspaceRunContext) -> None:
+def print_workspace_info(run_context: WorkspaceRunContext, verbosity: int = 0) -> None:
     fmt.echo("Workspace %s:" % fmt.bold(run_context.name))
     fmt.echo("Workspace dir: %s" % fmt.bold(run_context.run_dir))
     fmt.echo("Settings dir: %s" % fmt.bold(run_context.settings_dir))
@@ -24,16 +25,41 @@ def print_workspace_info(run_context: WorkspaceRunContext) -> None:
     fmt.echo("  Locally loaded data: %s" % fmt.bold(run_context.local_dir))
     if run_context.profile == read_profile_pin(run_context):
         fmt.echo("  Profile is %s" % fmt.bold("pinned"))
+    configured_profiles = run_context.configured_profiles()
+    if configured_profiles:
+        fmt.echo(
+            "Profiles with configs or pipelines: %s" % fmt.bold(", ".join(configured_profiles))
+        )
+
     # provider info
     providers_context = Container()[PluggableRunContext].providers
     fmt.echo()
-    fmt.echo("dlt reads configuration from following locations:")
+    fmt.echo("dlt found configuration in following locations:")
+    total_not_found_count = 0
     for provider in providers_context.providers:
         fmt.echo("* %s" % fmt.bold(provider.name))
-        for location in provider.locations:
+        for location in provider.present_locations:
             fmt.echo("    %s" % location)
         if provider.is_empty:
             fmt.echo("    provider is empty")
+        # check for locations that were not found
+        not_found_locations = set(provider.locations).difference(provider.present_locations)
+        if not_found_locations:
+            if verbosity > 0:
+                # display details of not found locations
+                for location in not_found_locations:
+                    fmt.echo("    %s (not found)" % fmt.style(location, fg="yellow"))
+            else:
+                total_not_found_count += len(not_found_locations)
+    # at verbosity 0, show summary of not found locations
+    if verbosity == 0 and total_not_found_count > 0:
+        fmt.echo(
+            "%s location(s) were probed but not found. Use %s to see details."
+            % (fmt.bold(str(total_not_found_count)), fmt.bold("-v"))
+        )
+    # list pipelines in the workspace
+    fmt.echo()
+    list_pipelines(run_context.get_data_entity("pipelines"), verbosity)
 
 
 @utils.track_command("workspace", track_before=False, operation="clean")

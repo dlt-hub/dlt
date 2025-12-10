@@ -1,5 +1,8 @@
-from typing import Any, List
+from typing import List
+
 from dlt.common.exceptions import DltException
+from dlt.common.metrics import DataWriterMetrics
+from dlt.common.destination.exceptions import WithJobError
 
 
 class NormalizeException(DltException):
@@ -7,9 +10,13 @@ class NormalizeException(DltException):
         super().__init__(msg)
 
 
-class NormalizeJobFailed(NormalizeException):
+class NormalizeJobFailed(NormalizeException, WithJobError):
     def __init__(
-        self, load_id: str, job_id: str, failed_message: str, writer_metrics: List[Any]
+        self,
+        load_id: str,
+        job_id: str,
+        failed_message: str,
+        writer_metrics: List[DataWriterMetrics],
     ) -> None:
         self.load_id = load_id
         self.job_id = job_id

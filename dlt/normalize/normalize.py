@@ -1,6 +1,6 @@
 import os
 import itertools
-from typing import List, Dict, Sequence, Optional, Callable
+from typing import List, Dict, NamedTuple, Sequence, Optional, Callable
 from concurrent.futures import Future, Executor
 
 from dlt.common import logger
@@ -12,7 +12,7 @@ from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.schema.typing import TStoredSchema, TTableSchema
+from dlt.common.schema.typing import TSchemaUpdate, TStoredSchema, TTableSchema
 from dlt.common.schema.utils import (
     merge_schema_updates,
     has_seen_null_first_hint,
@@ -41,10 +41,22 @@ from dlt.normalize.worker import w_normalize_files, group_worker_files, TWorkerR
 from dlt.normalize.validate import validate_and_update_schema, verify_normalized_table
 
 
+class SubmitRV(NamedTuple):
+    schema_updates: List[TSchemaUpdate]
+    file_metrics: List[DataWriterMetrics]
+    pending_exc: BaseException
+
+
 # normalize worker wrapping function signature
 TMapFuncType = Callable[
-    [Schema, str, Sequence[str]], TWorkerRV
+    [Schema, str, Sequence[str]], SubmitRV
 ]  # input parameters: (schema name, load_id, list of files to process)
+
+
+def remove_files_from_metrics(file_metrics: List[DataWriterMetrics]) -> None:
+    """Deletes files in a list of metrics"""
+    for metrics in file_metrics:
+        os.remove(metrics.file_path)
 
 
 class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo]):
@@ -84,8 +96,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             config=self.config._load_storage_config,
         )
 
-    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TWorkerRV:
+    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> SubmitRV:
         workers: int = getattr(self.pool, "_max_workers", 1)
+        # group files to process into as many groups as there are workers. prefer to send same tables
+        # to the same worker
         chunk_files = group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
         param_chunk = [
@@ -103,6 +117,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         summary = TWorkerRV([], [])
         # push all tasks to queue
         tasks = [(self.pool.submit(w_normalize_files, *params), params) for params in param_chunk]
+        pending_exc: BaseException = None
+        logger.info(f"Filled {len(tasks)} out of {len(files)} files")
 
         while len(tasks) > 0:
             sleep(0.3)
@@ -110,58 +126,78 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             for task in list(tasks):
                 pending, params = task
                 if pending.done():
-                    # collect metrics from the exception (if any)
-                    if isinstance(pending.exception(), NormalizeJobFailed):
-                        summary.file_metrics.extend(pending.exception().writer_metrics)  # type: ignore[attr-defined]
-                    # Exception in task (if any) is raised here
-                    result: TWorkerRV = pending.result()
-                    try:
-                        # gather schema from all manifests, validate consistency and combine
-                        validate_and_update_schema(schema, result[0])
-                        summary.schema_updates.extend(result.schema_updates)
-                        summary.file_metrics.extend(result.file_metrics)
-                        # update metrics
-                        self.collector.update("Files", len(result.file_metrics))
-                        self.collector.update(
-                            "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
-                        )
-                    except CannotCoerceColumnException as exc:
-                        # schema conflicts resulting from parallel executing
-                        logger.warning(
-                            f"Parallel schema update conflict, retrying task ({str(exc)}"
-                        )
-                        # delete all files produced by the task
-                        for metrics in result.file_metrics:
-                            os.remove(metrics.file_path)
-                        # schedule the task again
-                        schema_dict = schema.to_dict()
-                        # TODO: it's time for a named tuple
-                        params = params[:3] + (schema_dict,) + params[4:]
-                        retry_pending: Future[TWorkerRV] = self.pool.submit(
-                            w_normalize_files, *params
-                        )
-                        tasks.append((retry_pending, params))
+                    exc = pending.exception()
+                    if exc is not None:
+                        # collect metrics from NormalizeJobFailed (if any), then cancel others and propagate
+                        if isinstance(exc, NormalizeJobFailed):
+                            summary.file_metrics.extend(exc.writer_metrics)
+                        logger.warning("Received exception from worker: %s" % str(exc))
+                        if not pending_exc:
+                            # store to raise when pool is drained
+                            pending_exc = exc
+                            # cancel workers on any error
+                            logger.warning(f"Cancelling package {load_id}")
+                            self.load_storage.new_packages.cancel(load_id)
+                    else:
+                        result: TWorkerRV = pending.result()
+                        try:
+                            # gather schema from all manifests, validate consistency and combine
+                            validate_and_update_schema(schema, result[0])
+                            summary.schema_updates.extend(result.schema_updates)
+                            summary.file_metrics.extend(result.file_metrics)
+                            # update metrics
+                            self.collector.update("Files", len(result.file_metrics))
+                            self.collector.update(
+                                "Items",
+                                sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count,
+                            )
+                        except CannotCoerceColumnException as exc:
+                            # schema conflicts resulting from parallel executing
+                            logger.warning(
+                                f"Parallel schema update conflict, retrying task ({str(exc)}"
+                            )
+                            # delete all files produced by the task
+                            remove_files_from_metrics(result.file_metrics)
+                            # schedule the task again with the schema updated by other workers
+                            schema_dict = schema.to_dict()
+                            # TODO: it's time for a named tuple
+                            params = params[:3] + (schema_dict,) + params[4:]
+                            retry_pending: Future[TWorkerRV] = self.pool.submit(
+                                w_normalize_files, *params
+                            )
+                            tasks.append((retry_pending, params))
                     # remove finished tasks
                     tasks.remove(task)
-                logger.debug(f"{len(tasks)} tasks still remaining for {load_id}...")
+                    logger.debug(f"{len(tasks)} tasks still remaining for {load_id}...")
+            # raise on signal
+            if signals.was_signal_received() and not pending_exc:
+                pending_exc = signals.exception_for_signal()
+                logger.warning(f"Cancelling package {load_id} due to signal")
+                self.load_storage.new_packages.cancel(load_id)
 
-        return summary
+        return SubmitRV(summary.schema_updates, summary.file_metrics, pending_exc)
 
-    def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TWorkerRV:
-        result = w_normalize_files(
-            self.config,
-            self.normalize_storage.config,
-            self.load_storage.config,
-            schema.to_dict(),
-            load_id,
-            files,
-        )
-        validate_and_update_schema(schema, result.schema_updates)
-        self.collector.update("Files", len(result.file_metrics))
-        self.collector.update(
-            "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
-        )
-        return result
+    def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> SubmitRV:
+        pending_exc: Exception = None
+        try:
+            result = w_normalize_files(
+                self.config,
+                self.normalize_storage.config,
+                self.load_storage.config,
+                schema.to_dict(),
+                load_id,
+                files,
+            )
+            validate_and_update_schema(schema, result.schema_updates)
+            self.collector.update("Files", len(result.file_metrics))
+            self.collector.update(
+                "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
+            )
+        except NormalizeJobFailed as job_failed_ex:
+            pending_exc = job_failed_ex
+            result = TWorkerRV(None, job_failed_ex.writer_metrics)
+
+        return SubmitRV(result.schema_updates, result.file_metrics, pending_exc)
 
     def clean_x_normalizer(
         self, load_id: str, table_name: str, table_schema: TTableSchema, path_separator: str
@@ -197,7 +233,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
     ) -> None:
         # process files in parallel or in single thread, depending on map_f
-        schema_updates, writer_metrics = map_f(schema, load_id, files)
+        schema_updates, writer_metrics, pending_exc = map_f(schema, load_id, files)
         # compute metrics
         job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
         table_metrics: Dict[str, DataWriterMetrics] = {
@@ -206,6 +242,19 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 job_metrics.items(), lambda pair: pair[0].table_name
             )
         }
+        self._step_info_update_metrics(
+            load_id,
+            {
+                "started_at": None,
+                "finished_at": None,
+                "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
+                "table_metrics": table_metrics,
+            },
+        )
+        # raise pending exception after computing metrics
+        if pending_exc:
+            raise pending_exc
+
         # update normalizer specific info
         for table_name in table_metrics:
             table = schema.tables[table_name]
@@ -238,15 +287,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.normalize_storage.extracted_packages.delete_package(load_id)
         # log and update metrics
         logger.info(f"Extracted package {load_id} processed")
-        self._step_info_update_metrics(
-            load_id,
-            {
-                "started_at": None,
-                "finished_at": None,
-                "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
-                "table_metrics": table_metrics,
-            },
-        )
         self._step_info_complete_load_id(load_id)
 
     def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
@@ -256,7 +296,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.load_storage.import_extracted_package(
             load_id, self.normalize_storage.extracted_packages
         )
-        logger.info(f"Created new load package {load_id} on loading volume with ")
+        logger.info(f"Created new load package {load_id} on loading volume with {len(files)} files")
         # get number of workers with default == 1 if not set (ie. NullExecutor)
         workers: int = getattr(self.pool, "_max_workers", 1)
         map_f: TMapFuncType = self.map_parallel if workers > 1 else self.map_single
@@ -321,7 +361,13 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         try:
             return self.load_storage.get_load_package_info(load_id)
         except LoadPackageNotFound:
-            return self.normalize_storage.extracted_packages.get_load_package_info(load_id)
+            # combine new extracted package and new load package that will be discarded
+            new_package = self.load_storage.new_packages.get_load_package_info(load_id)
+            extracted_package = self.normalize_storage.extracted_packages.get_load_package_info(
+                load_id
+            )
+            extracted_package.jobs["completed_jobs"] = new_package.jobs["new_jobs"]
+            return extracted_package
 
     def get_step_info(
         self,
