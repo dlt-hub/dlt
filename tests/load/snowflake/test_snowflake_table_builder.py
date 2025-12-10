@@ -11,7 +11,11 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.destinations import snowflake
-from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient, SUPPORTED_HINTS
+from dlt.destinations.impl.snowflake.snowflake import (
+    SnowflakeClient,
+    SUPPORTED_HINTS,
+    COLUMN_COMMENT_HINT,
+)
 from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
@@ -259,3 +263,54 @@ def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClie
 
     # clustering must be the last
     assert sql.endswith('CLUSTER BY ("COL2","COL5")')
+
+
+def test_create_table_with_column_comments(snowflake_client: SnowflakeClient) -> None:
+    """Test that column comments are added to CREATE TABLE SQL."""
+    mod_update = deepcopy(TABLE_UPDATE[:3])
+
+    # Add description (generic field) to first column
+    mod_update[0]["description"] = "This is the first column"
+
+    # Add snowflake-specific column comment hint to second column
+    mod_update[1][COLUMN_COMMENT_HINT] = "Snowflake specific comment"  # type: ignore[typeddict-unknown-key]
+
+    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    assert len(statements) == 1
+    sql = statements[0]
+
+    # Verify column comments are in the SQL
+    assert "COMMENT 'This is the first column'" in sql
+    assert "COMMENT 'Snowflake specific comment'" in sql
+
+    # Third column should not have a comment
+    assert '"COL3" BOOLEAN  NOT NULL' in sql
+    assert sql.count("COMMENT") == 2
+
+
+def test_column_comment_escaping(snowflake_client: SnowflakeClient) -> None:
+    """Test that special characters in column comments are properly escaped."""
+    mod_update = deepcopy(TABLE_UPDATE[:1])
+
+    # Add comment with special characters that need escaping
+    mod_update[0]["description"] = "User's \"data\" with 'quotes'"
+
+    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    sql = statements[0]
+
+    # Snowflake escapes single quotes by doubling them
+    assert "COMMENT 'User''s \"data\" with ''quotes'''" in sql
+
+
+def test_alter_table_with_column_comments(snowflake_client: SnowflakeClient) -> None:
+    """Test that column comments work with ALTER TABLE."""
+    new_columns = deepcopy(TABLE_UPDATE[1:3])
+    new_columns[0]["description"] = "Added column with comment"
+
+    statements = snowflake_client._get_table_update_sql("event_test_table", new_columns, True)
+
+    # First statement should be ADD COLUMN
+    add_column_sql = statements[0]
+    assert add_column_sql.startswith("ALTER TABLE")
+    assert "ADD COLUMN" in add_column_sql
+    assert "COMMENT 'Added column with comment'" in add_column_sql
