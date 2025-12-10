@@ -46,6 +46,9 @@ def _get_pyiceberg_fileio_config_from_adc(
     config["gcs.oauth2.token"] = (
         credentials.token if credentials.token else native_credentials.token
     )
+    if credentials.expiry:
+        expiry_ms = int(credentials.expiry.timestamp() * 1000)
+        config["gcs.oauth2.token-expires-at"] = str(expiry_ms)
 
     return config
 
