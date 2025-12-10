@@ -36,6 +36,19 @@ COL_1_HINTS_NO_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key
 COL_2_HINTS: TColumnSchema = {"nullable": True, "name": "test_2", "primary_key": False}
 
 
+COL_3_HINTS: TColumnSchema = {
+    "name": "test_3",
+    "merge_key": True,
+    "nullable": False,
+}
+
+COL_4_HINTS: TColumnSchema = {
+    "name": "test_4",
+    "merge_key": True,
+    "nullable": False,
+}
+
+
 @pytest.mark.parametrize(
     "prop,value,is_default",
     (
@@ -219,26 +232,35 @@ def test_none_resets_on_merge_column() -> None:
     assert col_a == {"name": "col1", "x-prop": None}
 
 
-def test_merge_columns() -> None:
-    columns = utils.merge_columns({"test": deepcopy(COL_1_HINTS)}, {"test_2": COL_2_HINTS})
-    # new columns added ad the end
+@pytest.mark.parametrize(
+    "for_diff",
+    [True, False],
+)
+def test_merge_columns(for_diff: bool) -> None:
+    columns = utils.merge_columns(
+        {"test": deepcopy(COL_1_HINTS)}, {"test_2": COL_2_HINTS}, for_diff
+    )
+    # new columns added at the end
     assert list(columns.keys()) == ["test", "test_2"]
     assert columns["test"] == COL_1_HINTS
     assert columns["test_2"] == COL_2_HINTS
 
-    # replace test with new test
+    # merging a subset does nothing
     columns = utils.merge_columns(
-        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=False
+        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, for_diff
     )
     assert list(columns.keys()) == ["test"]
-    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
+    assert columns["test"] == COL_1_HINTS
 
-    # merge
     columns = utils.merge_columns(
-        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=True
+        columns_a={"test_3": deepcopy(COL_3_HINTS)},
+        columns_b={"test_4": COL_4_HINTS},
+        keep_compound_props=for_diff,
     )
-    assert list(columns.keys()) == ["test"]
-    assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+    if for_diff:
+        assert columns["test_3"].get("merge_key") is True
+    else:
+        assert not columns["test_3"].get("merge_key")
 
 
 def test_merge_incomplete_columns() -> None:
@@ -262,13 +284,12 @@ def test_merge_incomplete_columns() -> None:
         {"test": COL_1_HINTS_NO_DEFAULTS},
     )
     assert list(columns.keys()) == ["test_2", "test"]
-    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
+    assert columns["test"] == COL_1_HINTS
     assert columns["test_2"] == COL_2_HINTS
 
     columns = utils.merge_columns(
         {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
         {"test": COL_1_HINTS_NO_DEFAULTS},
-        merge_columns=True,
     )
     assert list(columns.keys()) == ["test_2", "test"]
     assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
@@ -278,7 +299,7 @@ def test_merge_incomplete_columns() -> None:
         {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS}, {"test": incomplete_col_1_nd}
     )
     assert list(columns.keys()) == ["test", "test_2"]
-    assert columns["test"] == incomplete_col_1_nd
+    assert columns["test"] == incomplete_col_1
     assert columns["test_2"] == COL_2_HINTS
 
 
