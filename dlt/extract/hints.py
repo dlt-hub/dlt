@@ -493,15 +493,9 @@ class DltResourceHints:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
             if primary_key is not None:
-                if primary_key:
-                    t["primary_key"] = primary_key
-                else:
-                    t.pop("primary_key", None)
+                t["primary_key"] = primary_key
             if merge_key is not None:
-                if merge_key:
-                    t["merge_key"] = merge_key
-                else:
-                    t.pop("merge_key", None)
+                t["merge_key"] = merge_key
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
@@ -632,6 +626,9 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
+        if keys is not None and not keys:
+            partial.setdefault("x-extractor", {}).setdefault("empty_prop_hints", {})[hint] = keys
+            return
         if isinstance(keys, str):
             keys = [keys]
         for key in keys:
