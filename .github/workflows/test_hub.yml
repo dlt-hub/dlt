@@ -94,6 +94,17 @@ jobs:
         run: pytest tests/hub
         # if: matrix.os != 'macos-latest'
 
+      - name: Test runtime client
+        run: |
+          mkdir .dlt && touch .dlt/.workspace
+          dlt runtime --help
+
+      # DISABLED: because docs rendering happens in non-deterministic order (of plugin discovery)
+      # must be fixed
+      # - name: Check that dlthub cli docs are up to date
+      #   run: cd docs/tools/dlthub_cli && make check-cli-docs
+      #   if: ${{ matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest' }}
+
   matrix_job_required_check:
     name: hub | dlthub features tests
     needs: run_hub_features

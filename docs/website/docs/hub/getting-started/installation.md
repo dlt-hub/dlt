@@ -5,23 +5,50 @@ description: Installation information for the dlthub package
 
 :::info Supported Python versions
 
-dltHub currently supports Python versions 3.9-3.13.
+dltHub currently supports Python versions 3.10-3.13.
 
 :::
 
 ## Quickstart
 
-To install the `dlt[workspace]` package, create a new [Python virtual environment](#setting-up-your-environment) and run:
+To install the `dlt[hub]` package, create a new [Python virtual environment](#setting-up-your-environment) and run:
+```sh
+uv pip install "dlt[hub]"
+```
+This will install `dlt` with two additional extras:
+* `dlthub` which enables features that require a [license](#self-licensing)
+* `dlt-runtime` which enables access to [dltHub Runtime](../runtime/overview.md)
+
+When working with locally you'll need several dependencies like `duckdb`, `marimo`, `pyarrow` or `fastmcp`. You can install them all with:
 ```sh
 uv pip install "dlt[workspace]"
 ```
-This will install `dlt` with several additional dependencies you'll need for local development: `arrow`, `marimo`, `mcp`, and a few others.
+
 If you need to install `uv` (a modern package manager), [please refer to the next section](#configuration-of-the-python-environment).
 
-### Enable dltHub Free tier features
+### Upgrade existing installation
+
+To upgrade just the `hub` extra without upgrading `dlt` itself run:
+```sh
+uv pip install -U "dlt[hub]==1.20.0"
+```
+This will keep current `1.20.0` `dlt` and upgrade `dlthub` and `dlt-runtime` to their newest matching versions.
+
+:::tip
+Note that particular `dlt` version expects `dlthub` and `dlt-runtime` versions in a matching range. For example: `1.20.x` versions expects
+`0.20.x` version of a plugin. This is enforced via dependencies in `hub` extra and at import time. Installing plugin directly will not affect
+installed `dlt` version to prevent unwanted upgrades. For example if you run:
+```sh
+uv pip install dlthub
+```
+and it downloads `0.21.0` version of a plugin, `dlt` `1.20.0` will still be there but it will report a wrong plugin version on import (with instructions
+how to install valid plugin version).
+:::
+
+### Enable dltHub Free and Paid features
 
 :::info
-The most recent [dltHub Free tier features](../intro.md#tiers--licensing) like profiles are hidden behind a feature flag,
+The most recent [dltHub features](../intro.md#tiers--licensing) like profiles and runtime access are hidden behind a feature flag,
 which means you need to manually enable them before use.
 
 To activate these features, create an empty `.dlt/.workspace` file in your project directory; this tells `dlt` to switch from the classic project mode to the Workspace mode.
@@ -52,16 +79,6 @@ type nul > .dlt\.workspace
 </Tabs>
 
 :::
-
-### Enable features that require a license
-
-Licensed features come with a commercial Python `dlthub` package:
-
-```sh
-uv pip install -U dlthub
-```
-
-Please install a valid license before proceeding, as described under [licensing](#self-licensing).
 
 ## Setting up your environment
 
@@ -127,6 +144,7 @@ export DLT_LICENSE_KEY="your-dlthub-license-key"
 - [@dlt.hub.transformation](../features/transformations/index.md) - a powerful Python decorator to build transformation pipelines and notebooks
 - [dbt transformations](../features/transformations/dbt-transformations.md) - a staging layer for data transformations, combining a local cache with schema enforcement, debugging tools, and integration with existing data workflows.
 - [Iceberg support](../ecosystem/iceberg.md).
+- [Data Checks](../features/quality/data-quality.md).
 - [MSSQL Change Tracking source](../ecosystem/ms-sql.md).
 
 For more information about the feature scopes, see [Scopes](#scopes).
