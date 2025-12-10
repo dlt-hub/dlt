@@ -31,7 +31,6 @@ from dlt.common.utils import is_typeerror_due_to_wrong_call
 
 from dlt.extract import Incremental
 from dlt.extract.items_transform import LimitItem
-from dlt.extract.utils import ensure_table_schema_columns
 
 from .arrow_helpers import row_tuples_to_arrow
 from .schema_types import (
@@ -306,6 +305,24 @@ def table_rows(
     query_adapter_callback: Optional[TQueryAdapter],
     resolve_foreign_keys: bool,
 ) -> Iterator[TDataItem]:
+    resource = None
+    limit = None
+    resource_columns_hints = None
+    resource_columns_hints_require_data = False
+    try:
+        resource = dlt.current.resource()
+        limit = resource.limit
+        resource_columns_hints = resource.columns
+        resource_columns_hints_require_data = callable(resource.columns)
+        if resource_columns_hints_require_data and backend == "pyarrow":
+            table_name = table.name if isinstance(table, Table) else table
+            logger.warning(
+                f"Dynamic column hints for '{table_name}' cannot be applied with pyarrow "
+                "backend. Use static hints (dict/list) to override reflected types."
+            )
+    except DltException:
+        # in old versions of dlt, resource is not available, so we need to reflect the table again
+        pass
     if isinstance(table, str):  # Reflection is deferred
         table = Table(
             table,
@@ -331,46 +348,43 @@ def table_rows(
             if primary_key is not None:
                 incremental.primary_key = primary_key
 
-        # yield empty record to set hints
+        # Merge resource hints with reflection hints before yielding
+        if resource and hints.get("columns") and not callable(resource.columns):
+            hints["columns"] = merge_columns(hints["columns"], resource.columns)
+
+        # yield empty record to set hints and create schema
+        # Note: Empty list [] will be written as typed-jsonl (object format), but actual
+        # data rows will be written in their native format (e.g., parquet for arrow backend).
         yield dlt.mark.with_hints(
             [],
             dlt.mark.make_hints(
                 **hints,
             ),
         )
+        # Set columns_hints for TableLoader
+        columns_hints = hints["columns"]
     else:
-        # table was already reflected
-        hints = table_to_resource_hints(
-            table,
-            reflection_level,
-            type_adapter_callback,
-            backend == "sqlalchemy",  # skip nested types
-            resolve_foreign_keys=resolve_foreign_keys,
-        )
+        # table was already reflected -> try to use resource hints
+        if not resource or callable(resource.columns):
+            hints = table_to_resource_hints(
+                table,
+                reflection_level,
+                type_adapter_callback,
+                backend == "sqlalchemy",  # skip nested types
+                resolve_foreign_keys=resolve_foreign_keys,
+            )
+            columns_hints = hints["columns"]
 
-    limit = None
-    try:
-        resource = dlt.current.resource()
-        resource_columns = resource.columns
-        if resource_columns and hints["columns"]:
-            if callable(resource_columns):
-                if backend == "pyarrow":
-                    logger.warning(
-                        f"Dynamic column hints for '{table.name}' cannot be applied with pyarrow "
-                        "backend. Use static hints (dict/list) to override reflected types."
-                    )
-            else:
-                hints["columns"] = merge_columns(hints["columns"], resource_columns)
-
-        limit = resource.limit
-    except DltException:
-        pass
+        else:
+            # take column hints from resource (which includes user applied hints)
+            # Handle callable columns hint (can't resolve without data item)
+            columns_hints = resource.columns
 
     loader = TableLoader(
         engine,
         backend,
         table,
-        hints["columns"],
+        columns_hints,
         incremental=incremental,
         chunk_size=chunk_size,
         limit=limit,
