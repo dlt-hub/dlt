@@ -381,6 +381,7 @@ const sidebars = {
           },
           items: [
             'running-in-production/running',
+            'running-in-production/data-quality-lifecycle',
             'running-in-production/monitoring',
             'running-in-production/alerting',
             'running-in-production/tracing',

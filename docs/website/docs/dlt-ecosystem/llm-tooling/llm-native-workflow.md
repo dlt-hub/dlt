@@ -313,20 +313,37 @@ These tips will differ slightly across IDEs
 
 ### dlt Dashboard
 
-Lauch the local [dlt Dashboard](../../general-usage/dashboard) to inspect your pipeline execution including:
-- pipeline state and metrics
-- data schema
-- SQL data explorer
+ Don't vibe into production. A pipeline that runs without errors isn't necessarily correct. The LLM doesn't know:
+- How many records your source should have
+- Whether the schema matches your business needs
+- If the data types work for your downstream analytics
+- Whether incremental loading is actually working
+
+Before deploying, you need to answer five questions that only you can validate.
+
+### Development checklist
+
+Open the [dlt Dashboard](../../general-usage/dashboard) to validate your pipeline:
 
 ```sh
 dlt pipeline github_pipeline show
 ```
 
-<div style={{textAlign: 'center'}}>
-![dashboard](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
-</div>
+| Question | What to check |
+|----------|---------------|
+| 1) Am I grabbing data correctly? | Row counts match expected volume (not just page 1) |
+| 2) Am I loading data correctly? | Incremental cursor advances between runs |
+| 3) Is my schema correct? | No unexpected child tables or missing columns |
+| 4) Do I have the right business data? | Required entities and attributes are present |
+| 5) Are my data types correct? | Numbers, dates, booleans aren't stored as strings |
 
-The dashboard helps detect silent failures due to pagination errors, schema drift, or incremental load misconfigurations.
+See the [full checklist](../../general-usage/dashboard#using-the-dashboard) for detailed steps.
+
+<div style={{textAlign: 'center'}}>
+
+![dashboard](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
+
+</div>
 
 :::tip
 Inside Cursor 2.0, you can open the [dashboard's web page inside the IDE](https://cursor.com/docs/agent/browser) and directly reference visual elements inside the chat.
