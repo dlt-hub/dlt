@@ -307,12 +307,9 @@ def table_rows(
 ) -> Iterator[TDataItem]:
     resource = None
     limit = None
-    resource_columns_hints = None
-    resource_columns_hints_require_data = False
     try:
         resource = dlt.current.resource()
         limit = resource.limit
-        resource_columns_hints = resource.columns
         resource_columns_hints_require_data = callable(resource.columns)
         if resource_columns_hints_require_data and backend == "pyarrow":
             table_name = table.name if isinstance(table, Table) else table
@@ -343,6 +340,7 @@ def table_rows(
         )
 
         # set the primary_key in the incremental
+        # TODO: check for primary key in resource._hints
         if incremental and incremental.primary_key is None:
             primary_key = hints["primary_key"]
             if primary_key is not None:
