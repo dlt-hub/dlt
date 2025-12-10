@@ -579,10 +579,8 @@ def test_pipeline_data_writer_compression(
 def test_normalize_compression_with_spawn_workers(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Test that NORMALIZE__DATA_WRITER__DISABLE_COMPRESSION works with multiple workers and spawn method.
-
-    This test reproduces issue #3353 where compression settings were ignored when using
-    multiple normalize workers with spawn start method.
+    """Disabling compression should work with multiple workers and spawn method,
+    because ConfigSectionContext is restored in worker processes.
     """
     # Set compression disabled via normalize section
     workers = 4
