@@ -24,6 +24,32 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.utils import is_interactive
 
 
+def _get_pyiceberg_fileio_config_from_adc(
+    credentials: Any, project_id: Optional[str]
+) -> Dict[str, Any]:
+    """Get pyiceberg FileIO config from Google Application Default Credentials.
+
+    This refreshes the ADC credentials to get a valid OAuth2 token and returns
+    the configuration dict that pyiceberg expects for GCS access.
+    """
+    from google.auth.transport.requests import Request
+
+    # Refresh credentials to ensure we have a valid token
+    credentials.refresh(Request())
+
+    config: Dict[str, Any] = {}
+    if project_id:
+        config["gcs.project-id"] = project_id
+    if credentials.token:
+        config["gcs.oauth2.token"] = credentials.token
+    if credentials.expiry:
+        # pyiceberg expects expiry in milliseconds
+        expiry_ms = int(credentials.expiry.timestamp() * 1000)
+        config["gcs.oauth2.token-expires-at"] = str(expiry_ms)
+
+    return config
+
+
 @configspec
 class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials):
     token_uri: Final[str] = dataclasses.field(
@@ -364,6 +390,14 @@ class GcpServiceAccountCredentials(
             pass
         GcpServiceAccountCredentialsWithoutDefaults.parse_native_representation(self, native_value)
 
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        if self.has_default_credentials():
+            return _get_pyiceberg_fileio_config_from_adc(
+                self.default_credentials(), self.project_id
+            )
+        else:
+            return GcpServiceAccountCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
+
 
 @configspec
 class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefaults):
@@ -376,6 +410,8 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            raise NotImplementedError()
+            return _get_pyiceberg_fileio_config_from_adc(
+                self.default_credentials(), self.project_id
+            )
         else:
             return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
