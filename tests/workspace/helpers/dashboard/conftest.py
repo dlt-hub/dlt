@@ -28,7 +28,13 @@ def no_destination_pipeline():
 @pytest.fixture(scope="session")
 def success_pipeline_duckdb():
     with tempfile.TemporaryDirectory() as temp_dir:
-        yield create_success_pipeline_duckdb(temp_dir, ":memory:")
+        import duckdb
+
+        db_conn = duckdb.connect()
+        try:
+            yield create_success_pipeline_duckdb(temp_dir, db_conn=db_conn)
+        finally:
+            db_conn.close()
 
 
 @pytest.fixture(scope="session")

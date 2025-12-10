@@ -378,7 +378,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "No such field: _unk_" in job.exception()
+    assert "No such field: _unk_" in job.failed_message()
+    assert job.exception() is not None
 
     # insert null value
     insert_json = copy(load_json)
@@ -386,7 +387,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "Only optional fields can be set to NULL. Field: timestamp;" in job.exception()
+    assert "Only optional fields can be set to NULL. Field: timestamp;" in job.failed_message()
+    assert job.exception() is not None
 
     # insert a wrong type
     insert_json = copy(load_json)
@@ -394,7 +396,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "Could not parse 'AA' as a timestamp" in job.exception()
+    assert "Could not parse 'AA' as a timestamp" in job.failed_message()
+    assert job.exception() is not None
 
     # numeric overflow on bigint
     insert_json = copy(load_json)
@@ -403,7 +406,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "Could not convert value" in job.exception()
+    assert "Could not convert value" in job.failed_message()
+    assert job.exception() is not None
 
     # numeric overflow on NUMERIC
     insert_json = copy(load_json)
@@ -421,8 +425,9 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     )
     assert (
         "Invalid NUMERIC value: 100000000000000000000000000000 Field: parse_data__intent__id;"
-        in job.exception()
+        in job.failed_message()
     )
+    assert job.exception() is not None
 
     # max bigquery decimal is (76, 76) (256 bit) = 5.7896044618658097711785492504343953926634992332820282019728792003956564819967E+38
     insert_json = copy(load_json)
@@ -436,8 +441,9 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
         "Invalid BIGNUMERIC value:"
         " 578960446186580977117854925043439539266.34992332820282019728792003956564819968 Field:"
         " parse_data__metadata__rasa_x_id;"
-        in job.exception()
+        in job.failed_message()
     )
+    assert job.exception() is not None
 
 
 def prepare_oauth_json() -> Tuple[str, str]:

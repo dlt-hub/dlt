@@ -1,14 +1,18 @@
 import pathlib
 import sys
 from typing import Any
-import pytest
+import pickle
+import os
 
+import pytest
 
 import dlt
 from dlt._workspace.helpers.dashboard.runner import start_dashboard
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
+from dlt._workspace.helpers.dashboard import utils as dashboard_utils
+from dlt.pipeline.trace import get_trace_file_path
 
 
 def _normpath(path: str) -> str:
@@ -81,6 +85,23 @@ def failed_pipeline() -> Any:
     with pytest.raises(Exception):
         fp.run(broken_resource())
     return fp
+
+
+@pytest.fixture()
+def broken_trace_pipeline() -> Any:
+    """Pipeline with a deliberately corrupted trace file to test dashboard robustness."""
+    bp = dlt.pipeline(
+        pipeline_name="broken_trace_pipeline",
+        destination="duckdb",
+    )
+    bp.run(fruitshop_source())
+
+    trace_file = get_trace_file_path(bp.pipelines_dir, bp.pipeline_name)
+    os.makedirs(os.path.dirname(trace_file), exist_ok=True)
+    with open(trace_file, mode="wb") as f:
+        pickle.dump({"not": "a real PipelineTrace"}, f)
+
+    return bp
 
 
 @pytest.fixture(scope="module", autouse=True)

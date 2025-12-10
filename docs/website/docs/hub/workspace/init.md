@@ -24,7 +24,7 @@ You can create one in three CLI-based ways:
 
 ## Step 0: Install dlt with workspace support
 
-Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-tier-features)
+Before you start, make sure that you followed [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-dlthub-free-and-paid-features)
 
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines — from local development to production.
 
@@ -65,7 +65,7 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 - **Cursor**,
 - **Continue**,
 - **Copilot**,
-- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#prerequisites)
+- [the full list](../../dlt-ecosystem/llm-tooling/llm-native-workflow#configure-ide)
 
 
 **Initialize your first workspace pipeline**
@@ -301,4 +301,4 @@ dlt pipeline {pipeline_name} trace           # last run trace & errors
 Once your pipeline runs locally:
 * [Monitor via the workspace dashboard](../../general-usage/dataset-access/data-quality-dashboard)
 * Set up [Profiles](../core-concepts/profiles-dlthub.md) to manage separate dev, prod, and test environments
-* [Deploy a pipeline](../../walkthroughs/deploy-a-pipeline/)
+* [Deploy to runtime](../getting-started/runtime-tutorial.md#5-run-your-first-pipeline-on-runtime)

@@ -71,11 +71,11 @@ The dashboard app should mostly be self-explanatory. Go to the section that corr
 The following sections are available:
 
 
-### Pipeline overview
+### Pipeline Info
 
 The overview section gives you a general sense of the state of your pipeline and will also display exception information if the last run of your pipeline failed.
 
-![Pipeline overview](https://storage.googleapis.com/dlt-blog-images/dashboard-pipeline-overview.png)
+![Pipeline Info](https://storage.googleapis.com/dlt-blog-images/dashboard-pipeline-overview.png)
 
 ### Schema explorer
 

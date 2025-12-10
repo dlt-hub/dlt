@@ -11,6 +11,8 @@ from dlt.common.typing import (
     TSecretValue,
     Annotated,
     SecretSentinel,
+    get_type_globals,
+    resolve_single_annotation,
 )
 from dlt.common.configuration import configspec, is_valid_hint, is_secret_hint
 from dlt.common.configuration.specs import BaseConfiguration
@@ -56,6 +58,7 @@ def spec_from_signature(
     new_fields: Dict[str, Any] = {}
     sig_base_fields: Dict[str, Any] = {}
     annotations: Dict[str, Any] = {}
+    globalns = get_type_globals(f)
 
     for p in sig.parameters.values():
         # skip *args and **kwargs, skip typical method params
@@ -63,7 +66,11 @@ def spec_from_signature(
             "self",
             "cls",
         ]:
-            field_type = AnyType if p.annotation == Parameter.empty else p.annotation
+            field_type = (
+                AnyType
+                if p.annotation == Parameter.empty
+                else resolve_single_annotation(p.annotation, globalns=globalns)
+            )
             # keep the base fields if sig not annotated
             if (
                 p.name in base_fields
@@ -101,7 +108,10 @@ def spec_from_signature(
                     annotations[p.name] = field_type
                     # set field with default value
                     new_fields[p.name] = p.default
-                    # print(f"Param {p.name} is {field_type}: {p.default} due to {include_defaults} or {type_from_literal}")
+                    # print(
+                    #     f"Param {p.name} is {field_type}: {p.default} due to {include_defaults} or"
+                    #     f" {type_from_literal}"
+                    # )
 
     signature_fields = {**sig_base_fields, **new_fields}
 

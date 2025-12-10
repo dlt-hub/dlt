@@ -92,6 +92,8 @@ class LoadStorage(VersionedStorage):
         self.new_packages.create_package(
             load_id, extract_package_storage.get_load_package_state(load_id)
         )
+        # import schema
+        self.new_packages.save_schema(load_id, extract_package_storage.load_schema(load_id))
 
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""

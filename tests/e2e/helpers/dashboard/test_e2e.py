@@ -51,10 +51,14 @@ def _open_section(
     close_other_sections: bool = True,
 ) -> None:
     if close_other_sections:
-        for s in known_sections:
-            if s != section:
-                page.get_by_role("switch", name=s).uncheck()
+        _close_sections(page, section)
     page.get_by_role("switch", name=section).check()
+
+
+def _close_sections(page: Page, skip_section: str = None) -> None:
+    for s in known_sections:
+        if s != skip_section:
+            page.get_by_role("switch", name=s).uncheck()
 
 
 def test_page_overview(page: Page):
@@ -120,21 +124,33 @@ def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
     for section in ["schema", "data"]:
         _open_section(page, section)  # type: ignore[arg-type]
 
+        # NOTE: this is using unspecific selector and may select other dropdowns id present (?)
         schema_selector = page.get_by_test_id("marimo-plugin-dropdown")
         schema_selector.select_option("fruitshop_customers")
+        expect(schema_selector).to_have_value("fruitshop_customers")
+        schema_selector.scroll_into_view_if_needed()
+
         expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
         expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
 
         schema_selector.select_option("fruitshop_inventory")
+        expect(schema_selector).to_have_value("fruitshop_inventory")
+
         expect(page.get_by_text("inventory", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("customers", exact=True)).to_have_count(0)
         expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
 
         schema_selector.select_option("fruitshop_purchases")
+        expect(schema_selector).to_have_value("fruitshop_purchases")
+
         expect(page.get_by_text("purchases", exact=True).nth(0)).to_be_visible()
         expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
         expect(page.get_by_text("customers", exact=True)).to_have_count(0)
+
+        _close_sections(page)
+        # make sure schema selector removed from page
+        expect(schema_selector).not_to_be_attached()
 
 
 def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: Any):
@@ -177,7 +193,7 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     page.get_by_role("button", name="Run Query").click()
 
     # enable dlt tables
-    page.get_by_role("switch", name="Show _dlt tables").check()
+    page.get_by_role("switch", name="Show internal tables").check()
 
     # state page
     _open_section(page, "state")
@@ -249,6 +265,8 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
+    # info closed by default
+    _open_section(page, "overview")
     expect(
         page.get_by_text(_normpath("_storage/.dlt/pipelines/never_run_pipeline"))
     ).to_be_visible()
@@ -281,6 +299,8 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
 
+    # info closed by default
+    _open_section(page, "overview")
     expect(
         page.get_by_text(_normpath("_storage/.dlt/pipelines/no_destination_pipeline"))
     ).to_be_visible()
@@ -347,6 +367,21 @@ def test_workspace_profile_dev(page: Page):
 
             page.goto(f"http://localhost:{test_port}/?profile=dev&pipeline=fruit_pipeline")
 
-            expect(page.get_by_role("switch", name="overview")).to_be_visible()
+            expect(page.get_by_role("switch", name="overview")).to_be_visible(timeout=20000)
             page.get_by_role("switch", name="loads").check()
             expect(page.get_by_role("row", name="fruitshop").first).to_be_visible()
+
+
+def test_broken_trace_pipeline(page: Page, broken_trace_pipeline: Any):
+    """Dashboard should still render overview even if the last trace file is corrupted."""
+    _go_home(page)
+    page.get_by_role("link", name="broken_trace_pipeline").click()
+
+    # overview page should still be accessible and show the working dir path
+    _open_section(page, "overview")
+    expect(
+        page.get_by_text(_normpath("_storage/.dlt/pipelines/broken_trace_pipeline"))
+    ).to_be_visible()
+    # should also render the trace section, but there should be an error message
+    _open_section(page, "trace")
+    expect(page.get_by_text("Error while building trace section:")).to_be_visible()

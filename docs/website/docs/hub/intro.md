@@ -52,7 +52,7 @@ To get started quickly, follow the [installation instructions](getting-started/i
 3. **[Data quality](features/quality/data-quality.md)**: define correctness rules, run checks, and fail fast with actionable messages.
 4. **[Data apps & sharing](../general-usage/dataset-access/marimo)**: build lightweight, shareable data apps and notebooks for consumers.
 5. **[AI agentic support](features/mcp-server.md)**: use MCP servers to analyze pipelines and datasets.
-6. **Managed runtime**: deploy and run with a single command—no infra to provision or patch.
+6. **[Managed runtime](runtime/overview.md)**: deploy and run with a single command—no infra to provision or patch.
 7. **[Storage choice](ecosystem/iceberg.md)**: pick managed Iceberg-based lakehouse, DuckLake, or bring your own storage.
 
 ### How dltHub fits with dlt (OSS)
@@ -81,7 +81,7 @@ dltHub consists of three main products. You can use them together or compose the
 
 ### Runtime
 
-**Runtime [Private preview]** - a managed cloud runtime operated by dltHub:
+**[Runtime](runtime/overview.md)** - a managed cloud runtime operated by dltHub:
 
 * Scalable execution for pipelines and transformations.
 * APIs, web interfaces, and auxiliary services.

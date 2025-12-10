@@ -42,7 +42,7 @@ from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -593,6 +593,10 @@ def test_destination_explicit_invalid_credentials_filesystem(environment: Any) -
     )
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run([1, 2, 3], table_name="data", credentials="PR8BLEM")
+    assert pip_ex.value.step == "sync"
+    assert pip_ex.value.load_id is None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
     assert isinstance(pip_ex.value.__cause__, InvalidNativeValue)
 
 
@@ -1068,8 +1072,10 @@ def test_pipeline_state_on_extract_exception() -> None:
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run([data_piece_1, data_piece_2], write_disposition="replace")
-    # male sure that exception has right step info
+    # make sure that exception has right step info
     assert pip_ex.value.load_id in pip_ex.value.step_info.loads_ids
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
     # print(pip_ex.value.load_id)
     # print(pip_ex.value.step_info.asdict())
     # print(p._last_trace.last_pipeline_step_trace("extract").exception_traces)
@@ -1138,6 +1144,12 @@ def test_raise_on_failed_job() -> None:
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.run([1, 2, 3], table_name="numbers")
     assert py_ex.value.step == "load"
+    assert py_ex.value.load_id is not None
+    assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
+    # loaded
+    assert py_ex.value.has_pending_data is False
+    # all packages failed
+    assert py_ex.value.is_package_partially_loaded is False
     # get package info
     package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
     assert package_info.state == "aborted"
@@ -1848,12 +1860,9 @@ def test_invalid_data_edge_cases() -> None:
     def my_source():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    # this function will be evaluated like any other. it returns resource which in the pipe
-    # is just an iterator and it will be iterated
-    # TODO: we should probably block that behavior
     pipeline.run(my_source)
 
-    assert pipeline.last_trace.last_normalize_info.row_counts["my_source"] == 5
+    assert pipeline.last_trace.last_normalize_info.row_counts["infinity"] == 5
 
     def res_return():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
@@ -1876,7 +1885,7 @@ def test_invalid_data_edge_cases() -> None:
         yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
     pipeline.run(my_source_yield)
-    assert pipeline.last_trace.last_normalize_info.row_counts["my_source_yield"] == 5
+    assert pipeline.last_trace.last_normalize_info.row_counts["infinity"] == 5
 
     # pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
     # with pytest.raises(PipelineStepFailed) as pip_ex:
@@ -4345,6 +4354,123 @@ def test_signal_extract_step_shutdown(sig: int) -> None:
 
     # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
     _done = True
+
+
+def test_uninitialized_source_factory() -> None:
+    """Test that passing an uncalled source factory preserves resource-level hints such as write_disposition"""
+    data = [
+        {"id": 1, "name": "bulbasaur", "size": {"weight": 6.9, "height": 0.7}},
+        {"id": 4, "name": "charmander", "size": {"weight": 8.5, "height": 0.6}},
+        {"id": 25, "name": "pikachu", "size": {"weight": 6, "height": 0.4}},
+    ]
+
+    @dlt.resource(
+        name="pokemon_resource",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def pokemon() -> TDataItems:
+        yield data
+
+    @dlt.source(name="pokemon_source")
+    def pokemon_source():
+        yield pokemon
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination="duckdb",
+        dataset_name="pokemon_data",
+    )
+
+    pipeline.run(pokemon_source)
+    pipeline.run(pokemon_source)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT * FROM pokemon_resource")
+
+    assert len(rows) == 3
+
+
+def test_pending_package_exception_warning() -> None:
+    partially = False
+    terminally = False
+
+    @dlt.destination
+    def fail_load(item, schema):
+        signals.sleep(0.1)
+
+        # fail one of the resources
+        if partially and terminally and schema["name"] == "letters":
+            raise DestinationTerminalException("load job failed")
+        if partially and schema["name"] == "emojis":
+            return
+
+        raise RuntimeError("load job retry")
+
+    @dlt.resource
+    def fail_extract():
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "fail_at_every_step",
+        destination=fail_load(),
+        dataset_name="_data",
+    )
+    pipeline.config.restore_from_destination = False
+
+    # fail in extract should not generate any warnings: nothing is pending in the pipeline
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(fail_extract())
+
+    assert pip_ex.value.step == "extract"
+    assert "Pending packages" not in str(pip_ex.value)
+    assert "partially loaded" not in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [
+                dlt.resource([1, 2, 3], name="digits"),
+                dlt.resource(["a", "b", "c"], name="letters"),
+                dlt.resource(["🤷", "⭐", "🐬"], name="emojis"),
+            ]
+        )
+
+    # none of the jobs passed so we have pending package but not partial
+    assert pip_ex.value.step == "load"
+    assert "Pending packages" in str(pip_ex.value)
+    assert "partially loaded" not in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is True
+
+    partially = True
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run()
+
+    # some job passed some not, still not aborted
+    assert pip_ex.value.step == "load"
+    assert "Pending packages" in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is True
+    assert pip_ex.value.has_pending_data is True
+
+    terminally = True
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run()
+
+    # one of the job failed and package is aborted. sometimes the other
+    # job completed, sometimes is still pending so we disable pending test
+    assert pip_ex.value.step == "load"
+    # assert "Pending packages" not in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is True
+    # assert pip_ex.value.has_pending_data is False
 
 
 def test_cleanup() -> None:
