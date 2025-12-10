@@ -66,12 +66,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.11"
+          python-version: "3.10"
           activate-environment: true
           enable-cache: true
 
@@ -83,7 +83,7 @@ jobs:
         run: cd docs && make dev
 
       - name: Install dlthub incl alpha releases
-        run: cd docs && uv run pip install --pre dlthub
+        run: cd docs
 
       - name: lint docs
         run: cd docs && make lint

@@ -1,3 +1,7 @@
+# /// script
+# [tool.marimo.display]
+# theme = "light"
+# ///
 # flake8: noqa: F841
 # mypy: disable-error-code=no-untyped-def
 
@@ -9,16 +13,212 @@ app = marimo.App(
 )
 
 with app.setup:
-    from typing import Any, Dict, List, cast
+    from typing import Any, Dict, List, cast, Union
 
     import marimo as mo
 
     import dlt
     import pyarrow
+    import traceback
+    from dlt.common import logger
     from dlt._workspace.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
     from dlt.common.configuration.specs.pluggable_run_context import ProfilesRunContext
     from dlt._workspace.run_context import switch_profile
+
+
+@app.function
+def build_header_controls(dlt_profile_select: mo.ui.dropdown) -> Union[List[Any], None]:
+    """Build profile-related header controls if profiles are enabled."""
+    if isinstance(dlt.current.run_context(), ProfilesRunContext):
+        return [
+            dlt_profile_select,
+            mo.md(f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"),
+        ]
+    return None
+
+
+@app.function(hide_code=True)
+def detect_dlt_hub():
+    try:
+        return dlt.hub.__found__
+    except ImportError:
+        return False
+
+
+@app.function
+def build_home_header_row(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline_select: mo.ui.multiselect,
+) -> Any:
+    """Shared header row with logo, profile/workspace info and pipeline select."""
+    _header_controls = build_header_controls(dlt_profile_select)
+    return mo.hstack(
+        [
+            mo.hstack(
+                [
+                    mo.image(
+                        "https://dlthub.com/docs/img/dlthub-logo.png",
+                        width=100,
+                        alt="dltHub logo",
+                    ),
+                    _header_controls[0] if _header_controls else "",
+                ],
+                justify="start",
+                gap=2,
+            ),
+            mo.hstack(
+                [
+                    _header_controls[1] if _header_controls else "",
+                ],
+                justify="center",
+            ),
+            mo.hstack(
+                [
+                    dlt_pipeline_select,
+                ],
+                justify="end",
+            ),
+        ],
+        justify="space-between",
+    )
+
+
+@app.function
+def render_workspace_home(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_all_pipelines: List[Dict[str, Any]],
+    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_pipelines_dir: str,
+    dlt_config: DashboardConfiguration,
+) -> List[Any]:
+    """Render the workspace-level home view (no pipeline selected)."""
+    return [
+        ui.section_marker(strings.app_section_name, has_content=True),
+        build_home_header_row(dlt_profile_select, dlt_pipeline_select),
+        mo.md(strings.app_title).center(),
+        mo.md(strings.app_intro).center(),
+        mo.callout(
+            mo.vstack(
+                [
+                    mo.md(
+                        strings.home_quick_start_title.format(
+                            utils.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
+                        )
+                    ),
+                    dlt_pipeline_select,
+                ]
+            ),
+            kind="info",
+        ),
+        mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
+    ]
+
+
+@app.function
+def render_pipeline_header_row(
+    dlt_pipeline_name: str,
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline_select: mo.ui.multiselect,
+    buttons: List[Any],
+) -> List[Any]:
+    header_row = build_home_header_row(dlt_profile_select, dlt_pipeline_select)
+    pipeline_title = mo.center(
+        mo.hstack(
+            [
+                mo.md(strings.app_title_pipeline.format(dlt_pipeline_name)),
+            ],
+            align="center",
+        ),
+    )
+
+    return [
+        mo.vstack(
+            [
+                mo.hstack(
+                    [
+                        mo.vstack(
+                            [
+                                header_row,
+                                pipeline_title,
+                            ]
+                        ),
+                    ],
+                    justify="space-between",
+                ),
+            ]
+        ),
+        mo.hstack(buttons, justify="start"),
+    ]
+
+
+@app.function
+def render_pipeline_home(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline: dlt.Pipeline,
+    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_pipelines_dir: str,
+    dlt_refresh_button: mo.ui.run_button,
+    dlt_pipeline_name: str,
+) -> List[Any]:
+    """Render the pipeline-level home view (pipeline selected or requested)."""
+    _buttons: List[Any] = [dlt_refresh_button]
+    _pipeline_execution_exception: List[Any] = []
+    _pipeline_execution_summary: Any = None
+    _last_load_packages_info: Any = None
+    _errors: List[Any] = []
+
+    _buttons.append(
+        mo.ui.button(
+            label="<small>Open pipeline working dir</small>",
+            on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
+        )
+    )
+    if local_dir := utils.get_local_data_path(dlt_pipeline):
+        _buttons.append(
+            mo.ui.button(
+                label="<small>Open local data location</small>",
+                on_click=lambda _: utils.open_local_folder(local_dir),
+            )
+        )
+
+    # NOTE: last_trace does not raise on broken traces
+    if trace := dlt_pipeline.last_trace:
+        # trace viz and run exception require last trace
+        _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
+        _last_load_packages_info = mo.vstack(
+            [
+                mo.md(f"<small>{strings.view_load_packages_text}</small>"),
+                utils.load_package_status_labels(trace),
+            ]
+        )
+        _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
+
+    _stack = [ui.section_marker(strings.home_section_name, has_content=dlt_pipeline is not None)]
+    _stack.extend(
+        render_pipeline_header_row(
+            dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, _buttons
+        )
+    )
+
+    if _pipeline_execution_summary:
+        _stack.append(_pipeline_execution_summary)
+    if _last_load_packages_info:
+        _stack.append(_last_load_packages_info)
+    if _pipeline_execution_exception:
+        _stack.extend(_pipeline_execution_exception)
+    if _errors:
+        _stack.extend(_errors)
+
+    if not dlt_pipeline and dlt_pipeline_name:
+        _stack.append(
+            mo.callout(
+                mo.md(strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)),
+                kind="warn",
+            )
+        )
+
+    return _stack
 
 
 @app.cell(hide_code=True)
@@ -39,188 +239,72 @@ def home(
     dlt_refresh_button
     dlt_file_watcher
 
+    # returned by cell
     dlt_pipeline: dlt.Pipeline = None
-    if dlt_pipeline_name:
-        dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
+    dlt_config: DashboardConfiguration = None
 
-    dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
-    _header_controls = (
-        [
-            dlt_profile_select,
-            mo.md(f"<small> Workspace: {getattr(dlt.current.run_context(), 'name', None)}</small>"),
-        ]
-        if isinstance(dlt.current.run_context(), ProfilesRunContext)
-        else None
-    )
-    if not dlt_pipeline and not dlt_pipeline_name:
-        _stack = [
-            mo.hstack(
-                [
-                    mo.hstack(
-                        [
-                            mo.image(
-                                "https://dlthub.com/docs/img/dlthub-logo.png",
-                                width=100,
-                                alt="dltHub logo",
-                            ),
-                            _header_controls[0] if _header_controls else "",
-                        ],
-                        justify="start",
-                        gap=2,
-                    ),
-                    mo.hstack(
-                        [
-                            _header_controls[1] if _header_controls else "",
-                        ],
-                        justify="center",
-                    ),
-                    mo.hstack(
-                        [
-                            dlt_pipeline_select,
-                        ],
-                        justify="end",
-                    ),
-                ],
-                justify="space-between",
-            ),
-            mo.md(strings.app_title).center(),
-            mo.md(strings.app_intro).center(),
-            mo.callout(
-                mo.vstack(
-                    [
-                        mo.md(
-                            strings.home_quick_start_title.format(
-                                utils.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
-                            )
-                        ),
-                        dlt_pipeline_select,
-                    ]
-                ),
-                kind="info",
-            ),
-            mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
-        ]
-    else:
-        _buttons: List[Any] = []
-        _buttons.append(dlt_refresh_button)
-        _pipeline_execution_exception: List[Any] = []
-        _pipeline_execution_summary: mo.Html = None
-        _last_load_packages_info: mo.Html = None
-        if dlt_pipeline:
-            _buttons.append(
-                mo.ui.button(
-                    label="<small>Open pipeline working dir</small>",
-                    on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
-                )
+    if dlt_pipeline_name:
+        try:
+            dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
+            dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+        except Exception:
+            # render navigation and display error
+            _stack = render_pipeline_header_row(
+                dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, [dlt_refresh_button]
             )
-            if local_dir := utils.get_local_data_path(dlt_pipeline):
-                _buttons.append(
-                    mo.ui.button(
-                        label="<small>Open local data location</small>",
-                        on_click=lambda _: utils.open_local_folder(local_dir),
-                    )
-                )
-            if trace := dlt_pipeline.last_trace:
-                _pipeline_execution_summary = utils.build_pipeline_execution_visualization(trace)
-                _last_load_packages_info = mo.vstack(
-                    [
-                        mo.md(f"<small>{strings.view_load_packages_text}</small>"),
-                        utils.load_package_status_labels(trace),
-                    ]
-                )
-            _pipeline_execution_exception = utils.build_exception_section(dlt_pipeline)
-        _stack = [
-            mo.vstack(
-                [
-                    mo.hstack(
-                        [
-                            mo.vstack(
-                                [
-                                    mo.hstack(
-                                        [
-                                            mo.hstack(
-                                                [
-                                                    mo.hstack(
-                                                        [
-                                                            mo.image(
-                                                                "https://dlthub.com/docs/img/dlthub-logo.png",
-                                                                width=100,
-                                                                alt="dltHub logo",
-                                                            ),
-                                                            (
-                                                                _header_controls[0]
-                                                                if _header_controls
-                                                                else ""
-                                                            ),
-                                                        ],
-                                                        justify="start",
-                                                        gap=2,
-                                                    ),
-                                                    mo.hstack(
-                                                        [
-                                                            (
-                                                                _header_controls[1]
-                                                                if _header_controls
-                                                                else ""
-                                                            ),
-                                                        ],
-                                                        justify="center",
-                                                    ),
-                                                    mo.hstack(
-                                                        [
-                                                            dlt_pipeline_select,
-                                                        ],
-                                                        justify="end",
-                                                    ),
-                                                ],
-                                                justify="center",
-                                            ),
-                                        ],
-                                    ),
-                                    mo.center(
-                                        mo.hstack(
-                                            [
-                                                mo.md(
-                                                    strings.app_title_pipeline.format(
-                                                        dlt_pipeline_name
-                                                    )
-                                                ),
-                                            ],
-                                            align="center",
-                                        ),
-                                    ),
-                                ]
-                            ),
-                        ],
-                        justify="space-between",
-                    ),
-                ]
-            ),
-            mo.hstack(_buttons, justify="start"),
-        ]
-        if _pipeline_execution_summary:
-            _stack.append(_pipeline_execution_summary)
-        if _last_load_packages_info:
-            _stack.append(_last_load_packages_info)
-        if _pipeline_execution_exception:
-            _stack.extend(_pipeline_execution_exception)
-        if not dlt_pipeline and dlt_pipeline_name:
             _stack.append(
-                mo.callout(
-                    mo.md(
-                        strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)
-                    ),
-                    kind="warn",
+                ui.build_error_callout(
+                    f"Could not attach to pipeline {dlt_pipeline_name}.",
+                    traceback_string=traceback.format_exc(),
                 )
             )
+        else:
+            # pipeline exists, render full dashboard
+            try:
+                _stack = render_pipeline_home(
+                    dlt_profile_select,
+                    dlt_pipeline,
+                    dlt_pipeline_select,
+                    dlt_pipelines_dir,
+                    dlt_refresh_button,
+                    dlt_pipeline_name,
+                )
+            except Exception:
+                _stack = [
+                    ui.build_error_callout(
+                        "Error while rendering the pipeline dashboard.",
+                        "Some sections may work, but not all functionality may be available.",
+                        traceback_string=traceback.format_exc(),
+                    )
+                ]
+    else:
+        try:
+            dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
+            is_workspace_dashboard = not dlt_pipeline and not dlt_pipeline_name
+            if is_workspace_dashboard:
+                _stack = render_workspace_home(
+                    dlt_profile_select,
+                    dlt_all_pipelines,
+                    dlt_pipeline_select,
+                    dlt_pipelines_dir,
+                    dlt_config,
+                )
+        except Exception:
+            _stack = [
+                ui.build_error_callout(
+                    "Error while rendering the home dashboard.",
+                    traceback_string=traceback.format_exc(),
+                )
+            ]
+
     mo.vstack(_stack)
-    return (dlt_pipeline,)
+    return (dlt_pipeline, dlt_config)
 
 
 @app.cell(hide_code=True)
-def section_overview(
+def section_info(
     dlt_pipeline: dlt.Pipeline,
-    dlt_section_overview_switch: mo.ui.switch,
+    dlt_section_info_switch: mo.ui.switch,
     dlt_all_pipelines: List[Dict[str, Any]],
     dlt_config: DashboardConfiguration,
     dlt_pipelines_dir: str,
@@ -229,15 +313,20 @@ def section_overview(
     Overview page of currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.overview_title,
-        strings.overview_subtitle,
-        strings.overview_subtitle,
-        dlt_section_overview_switch,
+    _result = [
+        ui.section_marker(strings.overview_section_name, has_content=dlt_pipeline is not None)
+    ]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.overview_title,
+            strings.overview_subtitle,
+            strings.overview_subtitle,
+            dlt_section_info_switch,
+        )
     )
 
-    if dlt_pipeline and dlt_section_overview_switch.value:
+    if dlt_pipeline and dlt_section_info_switch.value:
         _result += [
             mo.ui.table(
                 utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
@@ -262,7 +351,7 @@ def section_overview(
                 lazy=True,
             )
         )
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result)
     return
 
 
@@ -285,12 +374,15 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.schema_title,
-        strings.schema_subtitle,
-        strings.schema_subtitle_long,
-        dlt_section_schema_switch,
+    _result = [ui.section_marker(strings.schema_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.schema_title,
+            strings.schema_subtitle,
+            strings.schema_subtitle_long,
+            dlt_section_schema_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
@@ -363,6 +455,223 @@ def section_schema(
 
 
 @app.cell(hide_code=True)
+def ui_data_quality_controls(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+):
+    """
+    Create data quality filter controls (separate cell for marimo reactivity)
+
+    Import the function from the dashboard module and call it.
+    """
+    dlt_data_quality_show_failed_filter: mo.ui.checkbox = None
+    dlt_data_quality_table_filter: mo.ui.dropdown = None
+    dlt_data_quality_rate_filter: mo.ui.slider = None
+    dlt_data_quality_checks_arrow = None
+
+    # Create controls whenever dlthub is detected and pipeline exists
+    # The switch controls whether widget content is shown, not whether controls exist
+    if detect_dlt_hub() and dlt_pipeline:
+        try:
+            # Import the function from the dashboard module
+            from dlthub.data_quality._dashboard import create_data_quality_controls
+
+            # Call the function - returns (checkbox, dropdown, slider, checks_arrow)
+            (
+                dlt_data_quality_show_failed_filter,
+                dlt_data_quality_table_filter,
+                dlt_data_quality_rate_filter,
+                dlt_data_quality_checks_arrow,
+            ) = create_data_quality_controls(dlt_pipeline)
+        except Exception:
+            pass
+
+    return (
+        dlt_data_quality_show_failed_filter,
+        dlt_data_quality_table_filter,
+        dlt_data_quality_rate_filter,
+        dlt_data_quality_checks_arrow,
+    )
+
+
+@app.cell(hide_code=True)
+def section_data_quality(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_failed_filter: mo.ui.checkbox,
+    dlt_data_quality_table_filter: mo.ui.dropdown,
+    dlt_data_quality_rate_filter: mo.ui.slider,
+    dlt_data_quality_checks_arrow,
+):
+    """
+    Show data quality of the currently selected pipeline
+    only if dlt.hub is installed
+
+    Import the widget function from the dashboard module and call it.
+    """
+    if not detect_dlt_hub():
+        _result = None
+    else:
+        _result = [
+            ui.section_marker(
+                strings.data_quality_section_name, has_content=dlt_pipeline is not None
+            )
+        ]
+        _result.extend(
+            ui.build_page_header(
+                dlt_pipeline,
+                strings.data_quality_title,
+                strings.data_quality_subtitle,
+                strings.data_quality_subtitle,
+                dlt_section_data_quality_switch,
+            )
+        )
+        if dlt_pipeline and dlt_section_data_quality_switch.value:
+            try:
+                # Import the widget function from the dashboard module
+                from dlthub.data_quality._dashboard import data_quality_widget
+
+                # Extract values from controls (must be in separate cell from where controls are created)
+                show_failed_value = (
+                    dlt_data_quality_show_failed_filter.value
+                    if dlt_data_quality_show_failed_filter is not None
+                    else False
+                )
+                table_value = None
+                if (
+                    dlt_data_quality_table_filter is not None
+                    and dlt_data_quality_table_filter.value != "All"
+                ):
+                    table_value = dlt_data_quality_table_filter.value
+                rate_value = (
+                    dlt_data_quality_rate_filter.value
+                    if dlt_data_quality_rate_filter is not None
+                    else None
+                )
+
+                # Call the widget function
+                widget_output = data_quality_widget(
+                    dlt_pipeline=dlt_pipeline,
+                    failure_rate_slider=dlt_data_quality_rate_filter,
+                    failure_rate_filter_value=rate_value,
+                    show_only_failed_checkbox=dlt_data_quality_show_failed_filter,
+                    show_only_failed_value=show_failed_value,
+                    table_dropdown=dlt_data_quality_table_filter,
+                    table_name_filter_value=table_value,
+                    checks_arrow=dlt_data_quality_checks_arrow,
+                )
+                if widget_output is not None:
+                    _result.append(widget_output)
+
+                # Only show raw table switch if there is data to display
+                if (
+                    dlt_data_quality_checks_arrow is not None
+                    and dlt_data_quality_checks_arrow.num_rows > 0
+                ):
+                    dlt_data_quality_show_raw_table_switch: mo.ui.switch = mo.ui.switch(
+                        value=False,
+                        label="<small>Show Raw Table</small>",
+                    )
+                    _result.append(
+                        mo.hstack([dlt_data_quality_show_raw_table_switch], justify="start")
+                    )
+                else:
+                    dlt_data_quality_show_raw_table_switch = None
+            except ImportError:
+                _result.append(mo.md("**DLT Hub data quality module is not available.**"))
+                dlt_data_quality_show_raw_table_switch = None
+            except Exception as exc:
+                _result.append(
+                    ui.build_error_callout(
+                        f"Error loading data quality checks: {exc}",
+                        traceback_string=traceback.format_exc(),
+                    )
+                )
+                dlt_data_quality_show_raw_table_switch = None
+        else:
+            dlt_data_quality_show_raw_table_switch = None
+    mo.vstack(_result) if _result else None
+    return dlt_data_quality_show_raw_table_switch
+
+
+@app.cell(hide_code=True)
+def section_data_quality_raw_table(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_data_quality_switch: mo.ui.switch,
+    dlt_data_quality_show_raw_table_switch: mo.ui.switch,
+    dlt_get_last_query_result,
+    dlt_set_last_query_result,
+):
+    """
+    Display the raw data quality checks table with _dlt_load_id column
+    """
+    _result = []
+
+    if (
+        dlt_pipeline
+        and dlt_section_data_quality_switch.value
+        and dlt_data_quality_show_raw_table_switch is not None
+        and dlt_data_quality_show_raw_table_switch.value
+    ):
+        try:
+            # Import constants from data_quality module (using private names to avoid conflicts)
+            from dlthub.data_quality.storage import (
+                DLT_CHECKS_RESULTS_TABLE_NAME as _DLT_CHECKS_RESULTS_TABLE_NAME,
+                DLT_DATA_QUALITY_SCHEMA_NAME as _DLT_DATA_QUALITY_SCHEMA_NAME,
+            )
+
+            _error_message: str = None
+            with mo.status.spinner(title="Loading raw data quality checks table..."):
+                try:
+                    # Build query to select all columns including _dlt_load_id
+                    _raw_dataset = dlt_pipeline.dataset(schema=_DLT_DATA_QUALITY_SCHEMA_NAME)
+                    _raw_sql_query = (
+                        _raw_dataset.table(_DLT_CHECKS_RESULTS_TABLE_NAME)
+                        .limit(1000)
+                        .to_sql(pretty=True, _raw_query=True)
+                    )
+
+                    # Execute query
+                    _raw_query_result, _error_message, _traceback_string = utils.get_query_result(
+                        dlt_pipeline, _raw_sql_query
+                    )
+                    dlt_set_last_query_result(_raw_query_result)
+                except Exception as exc:
+                    _error_message = str(exc)
+                    _traceback_string = traceback.format_exc()
+
+            # Display error message if encountered
+            if _error_message:
+                _result.append(
+                    ui.build_error_callout(
+                        f"Error loading raw table: {_error_message}",
+                        traceback_string=_traceback_string,
+                    )
+                )
+
+            # Always display result table
+            _last_result = dlt_get_last_query_result()
+            if _last_result is not None:
+                _result.append(mo.ui.table(_last_result, selection=None))
+        except ImportError:
+            _result.append(
+                mo.callout(
+                    mo.md("DLT Hub data quality module is not available."),
+                    kind="warn",
+                )
+            )
+        except Exception as exc:
+            _result.append(
+                ui.build_error_callout(
+                    f"Error loading raw table: {exc}",
+                    traceback_string=traceback.format_exc(),
+                )
+            )
+    mo.vstack(_result) if _result else None
+    return
+
+
+@app.cell(hide_code=True)
 def section_browse_data_table_list(
     dlt_clear_query_cache: mo.ui.run_button,
     dlt_data_table_list: mo.ui.table,
@@ -379,12 +688,17 @@ def section_browse_data_table_list(
     Show data of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.browse_data_title,
-        strings.browse_data_subtitle,
-        strings.browse_data_subtitle_long,
-        dlt_section_browse_data_switch,
+    _result = [
+        ui.section_marker(strings.browse_data_section_name, has_content=dlt_pipeline is not None)
+    ]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.browse_data_title,
+            strings.browse_data_subtitle,
+            strings.browse_data_subtitle_long,
+            dlt_section_browse_data_switch,
+        )
     )
 
     dlt_query_editor: mo.ui.code_editor = None
@@ -409,7 +723,7 @@ def section_browse_data_table_list(
 
             # we only show resource state if the table has resource set, child tables do not have a resource set
             _resource_name, _source_state, _resource_state = (
-                utils.get_source_and_resouce_state_for_table(
+                utils.get_source_and_resource_state_for_table(
                     _schema_table, dlt_pipeline, dlt_selected_schema_name
                 )
             )
@@ -621,12 +935,15 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.state_title,
-        strings.state_subtitle,
-        strings.state_subtitle,
-        dlt_section_state_switch,
+    _result = [ui.section_marker(strings.state_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.state_title,
+            strings.state_subtitle,
+            strings.state_subtitle,
+            dlt_section_state_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_state_switch.value:
@@ -650,87 +967,102 @@ def section_trace(
     Show last trace of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.trace_title,
-        strings.trace_subtitle,
-        strings.trace_subtitle,
-        dlt_section_trace_switch,
+    _result = [ui.section_marker(strings.trace_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.trace_title,
+            strings.trace_subtitle,
+            strings.trace_subtitle,
+            dlt_section_trace_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
-        if _exception_section := utils.build_exception_section(dlt_pipeline):
-            _result.extend(_exception_section)
-        dlt_trace = dlt_pipeline.last_trace
-        if not dlt_trace:
-            _result.append(
-                mo.callout(
-                    mo.md(strings.trace_no_trace_text),
-                    kind="warn",
+        try:
+            if _exception_section := utils.build_exception_section(dlt_pipeline):
+                _result.extend(_exception_section)
+            dlt_trace = dlt_pipeline.last_trace
+            if not dlt_trace:
+                _result.append(
+                    mo.callout(
+                        mo.md(strings.trace_no_trace_text),
+                        kind="warn",
+                    )
                 )
-            )
-        else:
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_overview_title,
-                    title_level=3,
-                )
-            )
-            _result.append(mo.ui.table(utils.trace_overview(dlt_config, dlt_trace), selection=None))
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_execution_context_title,
-                    strings.trace_execution_context_subtitle,
-                    title_level=3,
-                )
-            )
-            _result.append(
-                mo.ui.table(utils.trace_execution_context(dlt_config, dlt_trace), selection=None)
-            )
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_steps_overview_title,
-                    strings.trace_steps_overview_subtitle,
-                    title_level=3,
-                )
-            )
-            _result.append(dlt_trace_steps_table)
-            for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
-                step_id = item["step"]  # type: ignore[unused-ignore,index]
+            else:
                 _result.append(
                     ui.build_title_and_subtitle(
-                        strings.trace_step_details_title.format(step_id.capitalize()),
+                        strings.trace_overview_title,
                         title_level=3,
                     )
                 )
-                _result += utils.trace_step_details(dlt_config, dlt_trace, step_id)
-
-            # config values
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_resolved_config_title,
-                    strings.trace_resolved_config_subtitle,
-                    title_level=3,
+                _result.append(
+                    mo.ui.table(utils.trace_overview(dlt_config, dlt_trace), selection=None)
                 )
-            )
-            _result.append(
-                mo.ui.table(
-                    utils.trace_resolved_config_values(dlt_config, dlt_trace), selection=None
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_execution_context_title,
+                        strings.trace_execution_context_subtitle,
+                        title_level=3,
+                    )
                 )
-            )
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.trace_raw_trace_title,
-                    title_level=3,
+                _result.append(
+                    mo.ui.table(
+                        utils.trace_execution_context(dlt_config, dlt_trace), selection=None
+                    )
                 )
-            )
-            _result.append(
-                mo.accordion(
-                    {
-                        strings.trace_show_raw_trace_text: mo.json(
-                            utils.sanitize_trace_for_display(dlt_trace)
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_steps_overview_title,
+                        strings.trace_steps_overview_subtitle,
+                        title_level=3,
+                    )
+                )
+                _result.append(dlt_trace_steps_table)
+                for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
+                    step_id = item["step"]  # type: ignore[unused-ignore,index]
+                    _result.append(
+                        ui.build_title_and_subtitle(
+                            strings.trace_step_details_title.format(step_id.capitalize()),
+                            title_level=3,
                         )
-                    }
+                    )
+                    _result += utils.trace_step_details(dlt_config, dlt_trace, step_id)
+
+                # config values
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_resolved_config_title,
+                        strings.trace_resolved_config_subtitle,
+                        title_level=3,
+                    )
+                )
+                _result.append(
+                    mo.ui.table(
+                        utils.trace_resolved_config_values(dlt_config, dlt_trace), selection=None
+                    )
+                )
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        strings.trace_raw_trace_title,
+                        title_level=3,
+                    )
+                )
+                _result.append(
+                    mo.accordion(
+                        {
+                            strings.trace_show_raw_trace_text: mo.json(
+                                utils.sanitize_trace_for_display(dlt_trace)
+                            )
+                        }
+                    )
+                )
+        except Exception as exc:
+            _result.append(
+                ui.build_error_callout(
+                    f"Error while building trace section: {exc}",
+                    traceback_string=traceback.format_exc(),
                 )
             )
     mo.vstack(_result) if _result else None
@@ -749,12 +1081,15 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.loads_title,
-        strings.loads_subtitle,
-        strings.loads_subtitle_long,
-        dlt_section_loads_switch,
+    _result = [ui.section_marker(strings.loads_section_name, has_content=dlt_pipeline is not None)]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.loads_title,
+            strings.loads_subtitle,
+            strings.loads_subtitle_long,
+            dlt_section_loads_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_loads_switch.value:
@@ -859,12 +1194,17 @@ def section_ibis_backend(
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.ibis_backend_title,
-        strings.ibis_backend_subtitle,
-        strings.ibis_backend_subtitle,
-        dlt_section_ibis_browser_switch,
+    _result = [
+        ui.section_marker(strings.ibis_backend_section_name, has_content=dlt_pipeline is not None)
+    ]
+    _result.extend(
+        ui.build_page_header(
+            dlt_pipeline,
+            strings.ibis_backend_title,
+            strings.ibis_backend_subtitle,
+            strings.ibis_backend_subtitle,
+            dlt_section_ibis_browser_switch,
+        )
     )
 
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:
@@ -890,6 +1230,15 @@ def utils_discover_pipelines(
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
+    from dlt._workspace.cli.utils import list_local_pipelines
+
+    # sync from runtime if enabled
+    _tmp_config = utils.resolve_dashboard_config(None)
+    if _tmp_config.sync_from_runtime:
+        from dlt._workspace.helpers.runtime.runtime_artifacts import sync_from_runtime
+
+        with mo.status.spinner(title="Syncing pipeline list from runtime"):
+            sync_from_runtime()
 
     _run_context = dlt.current.run_context()
     if (
@@ -901,9 +1250,9 @@ def utils_discover_pipelines(
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
-    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
+    dlt_pipelines_dir, dlt_all_pipelines = list_local_pipelines(
         mo_cli_arg_pipelines_dir,
-        addtional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
+        additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
@@ -931,7 +1280,7 @@ def utils_discover_profiles(mo_query_var_profile: str, mo_cli_arg_profile: str):
     selected_profile = None
 
     if isinstance(run_context, ProfilesRunContext):
-        options = run_context.available_profiles() or []
+        options = run_context.configured_profiles() or []
         current = run_context.profile if options and run_context.profile in options else None
 
         selected_profile = current
@@ -1006,8 +1355,8 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(
         value=True, label="sync" if mo_cli_arg_with_test_identifiers else ""
     )
-    dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(
-        value=True, label="overview" if mo_cli_arg_with_test_identifiers else ""
+    dlt_section_info_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="overview" if mo_cli_arg_with_test_identifiers else ""
     )
     dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="schema" if mo_cli_arg_with_test_identifiers else ""
@@ -1027,13 +1376,16 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_section_ibis_browser_switch: mo.ui.switch = mo.ui.switch(
         value=False, label="ibis" if mo_cli_arg_with_test_identifiers else ""
     )
+    dlt_section_data_quality_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="data_quality" if mo_cli_arg_with_test_identifiers else ""
+    )
 
     # other switches
     dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
         label=f"<small>{strings.ui_show_dlt_tables}</small>"
     )
     dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_child_tables}</small>", value=False
+        label=f"<small>{strings.ui_show_child_tables}</small>", value=True
     )
     dlt_schema_show_row_counts: mo.ui.run_button = mo.ui.run_button(
         label=f"<small>{strings.ui_load_row_counts}</small>"
@@ -1067,9 +1419,10 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_schema_show_row_counts,
         dlt_schema_show_type_hints,
         dlt_section_browse_data_switch,
+        dlt_section_data_quality_switch,
         dlt_section_ibis_browser_switch,
         dlt_section_loads_switch,
-        dlt_section_overview_switch,
+        dlt_section_info_switch,
         dlt_section_schema_switch,
         dlt_section_state_switch,
         dlt_section_sync_switch,
@@ -1085,15 +1438,15 @@ def watch_changes(
     """
     Watch changes in the trace file and trigger reload in the home cell and all following cells on change
     """
+    from dlt.pipeline.trace import get_trace_file_path
+
     # provide pipeline object to the following cells
     dlt_pipeline_name: str = (
         str(dlt_pipeline_select.value[0]) if dlt_pipeline_select.value else None
     )
     dlt_file_watcher = None
     if dlt_pipeline_name:
-        dlt_file_watcher = mo.watch.file(
-            utils.get_trace_file_path(dlt_pipeline_name, dlt_pipelines_dir)
-        )
+        dlt_file_watcher = mo.watch.file(get_trace_file_path(dlt_pipelines_dir, dlt_pipeline_name))
     return dlt_pipeline_name, dlt_file_watcher
 
 
@@ -1161,10 +1514,13 @@ def ui_primary_controls(
     # Trace steps table
     #
     dlt_trace_steps_table: mo.ui.table = None
-    if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
-        dlt_trace_steps_table = mo.ui.table(
-            utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace)
-        )
+    try:
+        if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
+            dlt_trace_steps_table = mo.ui.table(
+                utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace)
+            )
+    except Exception as exc:
+        logger.error(f"Error while building trace steps table: {exc}")
     return (
         dlt_data_table_list,
         dlt_schema_table_list,

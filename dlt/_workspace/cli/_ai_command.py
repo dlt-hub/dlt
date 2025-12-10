@@ -119,7 +119,9 @@ def vibe_source_setup(
     """Copies files from vibe sources repo into the current working folder"""
 
     fmt.echo("Looking up in dltHub for rules, docs and snippets for %s..." % fmt.bold(source))
-    src_storage = git.get_fresh_repo_files(location, get_dlt_repos_dir(), branch=branch)
+    src_storage = git.get_fresh_repo_files(
+        location, get_dlt_repos_dir(), branch=branch, path=source
+    )
     if not src_storage.has_folder(source):
         fmt.warning("We have nothing for %s at dltHub yet." % fmt.bold(source))
         return

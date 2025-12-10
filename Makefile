@@ -44,10 +44,13 @@ has-uv:
 	uv --version
 
 dev: has-uv
-	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv
-	uv sync --all-extras --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
+	uv sync --all-extras --no-extra hub --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
+
+dev-hub: has-uv
+	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 lint: lint-core lint-security lint-docstrings
 
