@@ -175,7 +175,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps.max_text_data_type_length = 1024 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",

@@ -159,7 +159,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.timestamp_precision = 3
         caps.max_timestamp_precision = 3
         caps.supports_truncate_command = False
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
         caps.replace_strategies_selector = athena_replace_strategies_selector
