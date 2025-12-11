@@ -131,10 +131,10 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps = DestinationCapabilitiesContext()
         # athena only supports loading from staged files on s3 for now
         caps.preferred_loader_file_format = None
-        caps.supported_loader_file_formats = []
+        caps.supported_loader_file_formats = ["model"]
         caps.supported_table_formats = ["iceberg", "hive"]
         caps.preferred_staging_file_format = "parquet"
-        caps.supported_staging_file_formats = ["parquet", "model"]
+        caps.supported_staging_file_formats = ["parquet"]
         caps.type_mapper = AthenaTypeMapper
 
         # athena is storing all identifiers in lower case and is case insensitive
