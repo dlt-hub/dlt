@@ -14,6 +14,8 @@ from dlt.common.data_writers.escape import (
     escape_redshift_literal,
     escape_postgres_literal,
     escape_duckdb_literal,
+    escape_bigquery_literal,
+    escape_bigquery_identifier,
 )
 
 # import all writers here to check if it can be done without all the dependencies
@@ -173,6 +175,32 @@ def test_string_literal_escape_unicode() -> None:
         escape_redshift_identifier('イロハニホヘト チリヌルヲ "ワカヨタレソ ツネナラム')
         == '"イロハニホヘト チリヌルヲ ""ワカヨタレソ ツネナラム"'
     )
+
+
+def test_string_literal_escape_bigquery() -> None:
+    # BigQuery uses backslash-escaped single quotes
+    assert escape_bigquery_literal(", NULL'); DROP TABLE --") == "', NULL\\'); DROP TABLE --'"
+    assert escape_bigquery_literal(", NULL');\n DROP TABLE --") == "', NULL\\');\\n DROP TABLE --'"
+    # test control characters
+    assert escape_bigquery_literal("hello\tworld") == "'hello\\tworld'"
+    assert escape_bigquery_literal("bell\a") == "'bell\\a'"
+    assert escape_bigquery_literal("vertical\vtab") == "'vertical\\vtab'"
+    assert escape_bigquery_literal("form\ffeed") == "'form\\ffeed'"
+    assert escape_bigquery_literal("back\bspace") == "'back\\bspace'"
+    # test backslash escaping
+    assert escape_bigquery_literal("path\\to\\file") == "'path\\\\to\\\\file'"
+    # test unicode passthrough
+    assert (
+        escape_bigquery_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム")
+        == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"
+    )
+
+
+def test_identifier_escape_bigquery_literal() -> None:
+    # BigQuery identifier escaping uses backticks (same as Hive)
+    assert escape_bigquery_identifier("table_name") == "`table_name`"
+    assert escape_bigquery_identifier("table`name") == "`table\\`name`"
+    assert escape_bigquery_identifier("table\\name") == "`table\\\\name`"
 
 
 def test_data_writer_metrics_add() -> None:
