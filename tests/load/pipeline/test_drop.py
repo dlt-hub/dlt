@@ -167,7 +167,7 @@ def test_drop_command_resources_and_state(
     if not in_source:
         source = list(source.selected_resources.values())
 
-    pipeline = destination_config.setup_pipeline("droppable", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("droppable")
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
 
@@ -286,7 +286,7 @@ def test_drop_command_only_state(destination_config: DestinationTestConfiguratio
 def test_drop_command_only_tables(destination_config: DestinationTestConfiguration) -> None:
     """Test drop only tables and makes sure that schema and state are synced"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(source, **destination_config.run_kwargs)
     sources_state = pipeline.state["sources"]
 
@@ -314,7 +314,7 @@ def test_drop_command_only_tables(destination_config: DestinationTestConfigurati
 def test_drop_destination_tables_fails(destination_config: DestinationTestConfiguration) -> None:
     """Fail on DROP TABLES in destination init. Command runs again."""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(source, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
@@ -348,7 +348,7 @@ def test_drop_destination_tables_fails(destination_config: DestinationTestConfig
 def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration) -> None:
     """Fail directly after drop tables. Command runs again ignoring destination tables missing."""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(source, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
@@ -385,7 +385,7 @@ def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration
 def test_load_step_fails(destination_config: DestinationTestConfiguration) -> None:
     """Test idempotence. pipeline.load() fails. Command can be run again successfully"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(source, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
@@ -409,7 +409,7 @@ def test_load_step_fails(destination_config: DestinationTestConfiguration) -> No
 )
 def test_resource_regex(destination_config: DestinationTestConfiguration) -> None:
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(source, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
@@ -434,7 +434,7 @@ def test_resource_regex(destination_config: DestinationTestConfiguration) -> Non
 def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
     """No resources, no state keys. Nothing is changed."""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(source, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
@@ -454,7 +454,7 @@ def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
 def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None:
     """Using drop_all flag. Destination dataset and all local state is deleted"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(source, **destination_config.run_kwargs)
     dlt_tables = [
         t["name"] for t in pipeline.default_schema.dlt_tables()
@@ -485,7 +485,7 @@ def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None
 )
 def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConfiguration) -> None:
     """Pipeline can be run again after dropping some resources"""
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(droppable_source(), **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
@@ -510,7 +510,7 @@ def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConf
 )
 def test_drop_state_only(destination_config: DestinationTestConfiguration) -> None:
     """Pipeline can be run again after dropping some resources"""
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id())
     pipeline.run(droppable_source(), **destination_config.run_kwargs)
 
     attached = _attach(pipeline)

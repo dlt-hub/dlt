@@ -7,6 +7,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Dict,
     List,
     Iterator,
     Optional,
@@ -1231,6 +1232,29 @@ class Pipeline(SupportsPipeline):
         if self.dev_mode:
             self._wipe_working_folder()
 
+    def _recreate_initial_state(self) -> None:
+        injected_state = self._container[StateInjectableContext].state
+        state_map = cast("Dict[str, Any]", injected_state)
+        state_map.clear()
+
+        state = cast(TPipelineState, state_map)
+        state.update(default_pipeline_state())
+        self._set_dataset_name(None)
+        self._save_state(state)
+
+    def _get_prev_dev_mode_from_state(self) -> bool:
+        """Reads previous dev_mode from raw state.json only if engine supports it (>=2)."""
+        try:
+            raw = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
+        except FileNotFoundError:
+            return False
+        engine = int(raw.get("_state_engine_version", 1))
+        if engine >= 2:
+            return bool(raw.get("_local", {}).get("dev_mode", False))
+        else:
+            # legacy engine does not record dev flag
+            return False
+
     def _configure(
         self, import_schema_path: str, export_schema_path: str, must_attach_to_local_pipeline: bool
     ) -> None:
@@ -1254,13 +1278,15 @@ class Pipeline(SupportsPipeline):
             )
 
         self.must_attach_to_local_pipeline = must_attach_to_local_pipeline
-        # attach to pipeline if folder exists and contains state
-        if has_state:
+        prev_dev_mode: bool = self._get_prev_dev_mode_from_state() if has_state else False
+        should_recreate_pipeline: bool = prev_dev_mode and not self.dev_mode
+        if has_state and not should_recreate_pipeline:
             self._attach_pipeline()
         else:
-            # this will erase the existing working folder
             self._create_pipeline()
-
+        self.set_local_state_val("dev_mode", self.dev_mode)
+        if should_recreate_pipeline:
+            self._recreate_initial_state()
         # create schema storage
         self._schema_storage = LiveSchemaStorage(self._schema_storage_config, makedirs=True)
 
@@ -1532,6 +1558,7 @@ class Pipeline(SupportsPipeline):
         3. we add serial number in dev mode
         4. we apply layout from pipeline config if present
         """
+        # TODO: update this function to differentiate between the new_dataset_name parameter and the dataset_name property created by the function
         if not new_dataset_name:
             # dataset name is required but not provided - generate the default now
             destination_needs_dataset = False
