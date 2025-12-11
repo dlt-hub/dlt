@@ -14,7 +14,6 @@ from dlt.common.configuration.specs import (
     GcpOAuthCredentials,
     GcpOAuthCredentialsWithoutDefaults,
 )
-from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
 from dlt.common.configuration.specs import gcp_credentials
 from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType
 from dlt.common.schema.utils import new_table
@@ -478,6 +477,8 @@ def test_bigquery_configuration_accepts_oauth_credentials() -> None:
 
 
 def test_bigquery_configuration_accepts_base_gcp_credentials() -> None:
+    from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
+
     # Create a wrapper that uses base GcpCredentials type
     # This mimics what happens with Workload Identity Federation
     native_credentials = GoogleOAuth2Credentials(token="test-token")
