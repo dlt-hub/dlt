@@ -9,7 +9,7 @@ keywords: [snowflake, native app, database connector app]
 The dltHub Database Connector App is a Snowflake Native App that lets you move data from your source database into Snowflake using a simple UI. 
 
 You can: 
-- connect an external SQL database to Snowflake
+- connect an external [SQL database](../../dlt-ecosystem/verified-sources/sql_database) to Snowflake
 - create one or more pipelines (each pipeline defines what to load and where)
 - run pipelines on demand
 - schedule pipelines to run automatically
@@ -42,6 +42,9 @@ Use the link we provided to you or download the app via the [Snowflake Marketpla
 2. Enter a pipeline name
 3. Click the **+** button to create the pipeline
 4. Fill in the configurations
+
+![add a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_add_pipeline.png)
+
 
 
 ## Fill in the configuration
@@ -98,6 +101,8 @@ Source settings define **what to ingest** from your external SQL database and **
 ### Table Settings
 Table settings control **which tables are ingested** and allow **per-table configuration**.
 
+![tables setting](https://storage.googleapis.com/dlt-blog-images/sna_table_settings.png)
+
 #### Tables to ingest
 Choose whether to ingest:
 
@@ -145,6 +150,9 @@ Destination settings define where in Snowflake the data is loaded and allow adva
     Name of the Snowflake database to load into.
 - **Check privileges**:
     Validates that the app has access to the destination database. If permissions are missing, the app will request/grant the required access.
+
+![destination settings](https://storage.googleapis.com/dlt-blog-images/sna_destination_settings.png)
+
 - **Destination JSON configuration**:
     Provide additional destination options not exposed in the UI. Values override UI settings when the same option is set in both places. These are passed as keyword arguments to dlt’s Snowflake destination factory.
     
@@ -196,27 +204,37 @@ Fields may vary depending on what the app exposes in your environment.
 
 ## Monitor runs and logs
 
-Go to the **Runs** tab
-You’ll see a history list of the Jobs. 
+Go to the **Runs** tab to see a history list of the Jobs. 
+
+Click the **view details** button to view:
 - pipeline name
 - Job ID
-- triggered by (manual / task)
-- timestamps
+- triggered by 
+- triggered at
+- started at
+- ended at
 - status
-
-Click a run to open details:
-- current stage / progress
-- warnings or errors
-- log output
-
 Statuses typically move through:
 `STARTING → RUNNING → SUCCESS or FAILED`.
+
+Click the **view logs** tab to see the logs of the job:
+- When each pipeline stage (extract, normalize, load) starts and finishes
+- Progress information for each stage 
+- Performance metrics (processing time, memoray usage, CPU, ...)
+
+![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_runs_button.png)
+
+
+
 
 ## Schedule a pipeline
 Open a pipeline tab and click the **scheduling** button.
 1. Enable scheduling
 2. Choose a schedule string
 3. Save
+
+![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_scheduling_button.png)
+
 
 This creates or updates a Snowflake task that triggers the pipeline on the given schedule. If you want to stop it, change the status to `suspended`.
 
