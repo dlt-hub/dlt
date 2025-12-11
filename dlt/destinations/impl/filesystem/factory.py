@@ -61,9 +61,15 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             supported_merge_strategies=["upsert"],
             merge_strategies_selector=filesystem_merge_strategies_selector,
         )
-        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
+        # all generic - model + reference
+        caps.supported_loader_file_formats = [
+            "jsonl",
+            "insert_values",
+            "parquet",
+            "csv",
             "reference",
         ]
+
         caps.has_case_sensitive_identifiers = True
         # for delta and iceberg this is copy from staging, use replace strategy selector
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
