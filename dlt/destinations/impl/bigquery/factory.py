@@ -6,7 +6,11 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.data_writers.escape import escape_hive_identifier, format_bigquery_datetime_literal
+from dlt.common.data_writers.escape import (
+    escape_bigquery_identifier,
+    escape_bigquery_literal,
+    format_bigquery_datetime_literal,
+)
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.typing import TLoaderFileFormat
@@ -131,8 +135,8 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.type_mapper = BigQueryTypeMapper
         # BigQuery is by default case sensitive but that cannot be turned off for a dataset
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#case_sensitivity
-        caps.escape_identifier = escape_hive_identifier
-        caps.escape_literal = None
+        caps.escape_identifier = escape_bigquery_identifier
+        caps.escape_literal = escape_bigquery_literal
         caps.has_case_sensitive_identifiers = True
         caps.casefold_identifier = str
         # BQ limit is 4GB but leave a large headroom since buffered writer does not preemptively check size
