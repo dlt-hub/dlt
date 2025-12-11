@@ -14,6 +14,7 @@ from dlt.common.configuration.specs import (
     GcpOAuthCredentials,
     GcpOAuthCredentialsWithoutDefaults,
 )
+from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
 from dlt.common.configuration.specs import gcp_credentials
 from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType
 from dlt.common.schema.utils import new_table
@@ -459,9 +460,6 @@ def prepare_service_json() -> Tuple[str, str]:
 
 
 def test_bigquery_configuration_accepts_oauth_credentials() -> None:
-    """Test that BigQueryClientConfiguration accepts OAuth credentials (issue #3380)"""
-    from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
-    
     # Create OAuth credentials
     oauth_creds = GcpOAuthCredentials()
     oauth_creds.project_id = "test-project"
@@ -469,41 +467,33 @@ def test_bigquery_configuration_accepts_oauth_credentials() -> None:
     oauth_creds.client_id = ""
     oauth_creds.refresh_token = ""
     oauth_creds.resolve()
-    
+
     # Test that configuration accepts OAuth credentials
-    config = BigQueryClientConfiguration(
-        destination_name="bigquery",
-        credentials=oauth_creds,
+    config = BigQueryClientConfiguration(credentials=oauth_creds)._bind_dataset_name(
         dataset_name="test_dataset"
     )
-    
+
     assert config.credentials == oauth_creds
     assert config.credentials.project_id == "test-project"
 
 
 def test_bigquery_configuration_accepts_base_gcp_credentials() -> None:
-    """Test that BigQueryClientConfiguration accepts base GcpCredentials (issue #3380)"""
-    from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
-    from dlt.common.configuration.specs.gcp_credentials import GcpCredentials
-    
     # Create a wrapper that uses base GcpCredentials type
     # This mimics what happens with Workload Identity Federation
     native_credentials = GoogleOAuth2Credentials(token="test-token")
     native_credentials.expiry = None  # Non-refreshable
-    
+
     # Wrap in GcpServiceAccountCredentials (which extends GcpCredentials)
     wrapper_creds = GcpServiceAccountCredentials()
     wrapper_creds.project_id = "test-project"
     wrapper_creds._set_default_credentials(native_credentials)
     wrapper_creds.__is_resolved__ = True
-    
+
     # Test that configuration accepts wrapped credentials
-    config = BigQueryClientConfiguration(
-        destination_name="bigquery",
-        credentials=wrapper_creds,
+    config = BigQueryClientConfiguration(credentials=wrapper_creds)._bind_dataset_name(
         dataset_name="test_dataset"
     )
-    
+
     assert config.credentials == wrapper_creds
     assert config.credentials.project_id == "test-project"
     assert config.credentials.has_default_credentials()
