@@ -140,7 +140,7 @@ pipeline.run(
 )
 ```
 
-`engine_args` configures only the engine used by the **destination**. It does not affect sources (use `engine_kwargs` for sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options)).
+`engine_args` configures only the engine used by the **destination**. It does not affect sources (use `engine_kwargs` for sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
 
 ## Notes on SQLite
 
