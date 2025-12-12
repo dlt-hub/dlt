@@ -34,7 +34,9 @@ def client(empty_schema: Schema) -> FabricJobClient:
     config = FabricClientConfiguration(credentials=creds)._bind_dataset_name(
         dataset_name="test_" + uniq_id()
     )
-    return fabric().client(empty_schema, config)
+    client_instance = fabric().client(empty_schema, config)
+    assert isinstance(client_instance, FabricJobClient)
+    return client_instance
 
 
 def test_create_table_uses_varchar(client: FabricJobClient) -> None:
@@ -120,11 +122,13 @@ def test_create_dlt_version_table_uses_varchar(client: FabricJobClient) -> None:
 
 def test_unique_column_uses_varchar(client: FabricJobClient) -> None:
     """Test that unique text columns use varchar with proper length"""
+    from dlt.common.schema.typing import TColumnSchema
+    
     # Create a table schema with a unique text column
     prepared_table = client.prepare_load_table("event_test_table")
     
     # Add a unique text column to test
-    unique_column = {
+    unique_column: TColumnSchema = {
         "name": "unique_text_col",
         "data_type": "text",
         "nullable": False,
