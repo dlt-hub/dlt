@@ -39,7 +39,7 @@ jobs:
 
       - name: Install dependencies
         # install dlt with postgres support
-        run: uv sync --extra postgres --extra postgis --group sentry-sdk --group dbt --group providers
+        run: uv sync --extra postgres --extra postgis --group dbt --group providers
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

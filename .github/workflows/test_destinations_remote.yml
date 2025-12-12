@@ -200,7 +200,7 @@ jobs:
         if: ${{ matrix.pre_install_commands }}
 
       - name: Install dependencies
-        run: uv sync --group sentry-sdk --group pipeline --group ibis --group providers ${{ matrix.extras }}
+        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}
