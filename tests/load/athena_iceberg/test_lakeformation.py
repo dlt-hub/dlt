@@ -1,9 +1,10 @@
-from typing import Iterator, Tuple, List, Generator, Optional
+from typing import Iterator, Tuple, List, Generator, Optional, cast
 
 from mypy_boto3_lakeformation import LakeFormationClient
 from mypy_boto3_lakeformation.type_defs import (
     GetResourceLFTagsResponseTypeDef,
     GrantPermissionsRequestTypeDef,
+    ResourceTypeDef,
 )
 import pytest
 import boto3
@@ -14,8 +15,10 @@ from dlt.common.utils import uniq_id
 
 from dlt.sources.credentials import AwsCredentials
 
-from dlt.destinations import filesystem, athena
+from dlt.destinations import filesystem
+from dlt.destinations.impl.athena.athena import LfTagsManager
 from dlt.destinations.impl.athena.configuration import LakeformationConfig
+from dlt.destinations.impl.athena.utils import is_s3_tables_catalog
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.utils import (
@@ -198,15 +201,24 @@ def create_pipelines(
     return lf_enabled_pipeline, lf_disabled_pipeline
 
 
+def _get_table_resource(catalog_name: str, dataset_name: str, table_name: str) -> ResourceTypeDef:
+    table_dict = {"DatabaseName": dataset_name, "Name": table_name}
+    if is_s3_tables_catalog(catalog_name):
+        table_dict["CatalogId"] = catalog_name
+    table_resource = {"Table": table_dict}
+    return cast(ResourceTypeDef, table_resource)
+
+
 def _verify_tags_on_database(
     lf_client: LakeFormationClient,
+    catalog_name: str,
     dataset_name: str,
     key: Optional[str],
     values: Optional[List[str]],
 ) -> None:
     """Verify that the database has the expected tags."""
     db_tags: GetResourceLFTagsResponseTypeDef = lf_client.get_resource_lf_tags(
-        Resource={"Database": {"Name": dataset_name}}
+        Resource=LfTagsManager._get_database_resource(dataset_name, catalog_name)
     )
     if key is None:
         assert "LFTagOnDatabase" not in db_tags
@@ -217,6 +229,7 @@ def _verify_tags_on_database(
 
 def _verify_tags_on_table(
     lf_client: LakeFormationClient,
+    catalog_name: str,
     dataset_name: str,
     table_name: str,
     key: Optional[str],
@@ -224,7 +237,7 @@ def _verify_tags_on_table(
 ) -> None:
     """Verify that the table has the expected tags."""
     db_tags: GetResourceLFTagsResponseTypeDef = lf_client.get_resource_lf_tags(
-        Resource={"Table": {"DatabaseName": dataset_name, "Name": table_name}}
+        Resource=_get_table_resource(catalog_name, dataset_name, table_name)
     )
     if key is None:
         assert "LFTagsOnTable" not in db_tags
@@ -261,12 +274,12 @@ def test_new_pipeline_with_lakeformation_tags(
     lf_enabled_pipeline.run(test_data)
 
     # Verify tags are applied to the database and tables
-    _verify_tags_on_database(
-        lf_client, lf_enabled_pipeline.dataset_name, lf_tags_config[1], ["true"]
-    )
-    _verify_tags_on_table(
-        lf_client, lf_enabled_pipeline.dataset_name, table_name, lf_tags_config[1], ["true"]
-    )
+    catalog_name = lf_enabled_pipeline.sql_client().catalog_name(quote=False)
+    dataset_name = lf_enabled_pipeline.dataset_name
+    key = lf_tags_config[1]
+    values = ["true"]
+    _verify_tags_on_database(lf_client, catalog_name, dataset_name, key, values)
+    _verify_tags_on_table(lf_client, catalog_name, dataset_name, table_name, key, values)
 
     # Verify that we can run the pipeline again without errors
     lf_enabled_pipeline.run(test_data)
@@ -302,19 +315,21 @@ def test_apply_tags_to_existing_pipeline_resource(
     lf_disabled_pipeline.run(test_data)
 
     # Verify no tags exists
-    _verify_tags_on_database(lf_client, lf_disabled_pipeline.dataset_name, None, None)
-    _verify_tags_on_table(lf_client, lf_disabled_pipeline.dataset_name, table_name, None, None)
+    catalog_name = lf_enabled_pipeline.sql_client().catalog_name(quote=False)
+    dataset_name = lf_disabled_pipeline.dataset_name
+    key = None
+    values = None
+    _verify_tags_on_database(lf_client, catalog_name, dataset_name, key, values)
+    _verify_tags_on_table(lf_client, catalog_name, dataset_name, table_name, key, values)
 
     # Run the pipeline again with LakeFormation enabled
     lf_enabled_pipeline.run(test_data)
 
     # Verify tags are applied to the database and tables
-    _verify_tags_on_database(
-        lf_client, lf_enabled_pipeline.dataset_name, lf_tags_config[1], ["true"]
-    )
-    _verify_tags_on_table(
-        lf_client, lf_enabled_pipeline.dataset_name, table_name, lf_tags_config[1], ["true"]
-    )
+    key = lf_tags_config[1]
+    values = ["true"]
+    _verify_tags_on_database(lf_client, catalog_name, dataset_name, key, values)
+    _verify_tags_on_table(lf_client, catalog_name, dataset_name, table_name, key, values)
 
 
 @pytest.mark.parametrize(
@@ -347,16 +362,18 @@ def test_remove_lakeformation_tags_from_resource(
     lf_enabled_pipeline.run(test_data)
 
     # Verify tags are applied to the database and tables
-    _verify_tags_on_database(
-        lf_client, lf_enabled_pipeline.dataset_name, lf_tags_config[1], ["true"]
-    )
-    _verify_tags_on_table(
-        lf_client, lf_enabled_pipeline.dataset_name, table_name, lf_tags_config[1], ["true"]
-    )
+    catalog_name = lf_enabled_pipeline.sql_client().catalog_name(quote=False)
+    dataset_name = lf_enabled_pipeline.dataset_name
+    key = lf_tags_config[1]
+    values = ["true"]
+    _verify_tags_on_database(lf_client, catalog_name, dataset_name, key, values)
+    _verify_tags_on_table(lf_client, catalog_name, dataset_name, table_name, key, values)
 
     # Run the pipeline with LakeFormation disabled
     lf_disabled_pipeline.run(test_data)
 
     # Verify tags are removed
-    _verify_tags_on_database(lf_client, lf_enabled_pipeline.dataset_name, None, None)
-    _verify_tags_on_table(lf_client, lf_enabled_pipeline.dataset_name, table_name, None, None)
+    key = None
+    values = None
+    _verify_tags_on_database(lf_client, catalog_name, dataset_name, key, values)
+    _verify_tags_on_table(lf_client, catalog_name, dataset_name, table_name, key, values)

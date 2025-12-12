@@ -18,6 +18,7 @@ pytestmark = pytest.mark.essential
         default_sql_configs=True,
         with_table_format="iceberg",
         subset=["athena"],
+        aws_data_catalog=None,  # only test default catalog
     ),
     ids=lambda x: x.name,
 )
@@ -79,6 +80,7 @@ def test_iceberg(destination_config: DestinationTestConfiguration) -> None:
         default_sql_configs=True,
         with_table_format="iceberg",
         subset=["athena"],
+        aws_data_catalog=None,  # only test default catalog
     ),
     ids=lambda x: x.name,
 )
@@ -133,6 +135,7 @@ def test_force_iceberg(destination_config: DestinationTestConfiguration) -> None
         default_sql_configs=True,
         with_table_format="iceberg",
         subset=["athena"],
+        is_athena_s3_tables=False,  # location tag not used with S3 Tables Catalog
     ),
     ids=lambda x: x.name,
 )

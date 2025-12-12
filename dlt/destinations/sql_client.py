@@ -109,9 +109,9 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         pass
 
     def has_dataset(self) -> bool:
-        query = """
+        query = f"""
 SELECT 1
-    FROM INFORMATION_SCHEMA.SCHEMATA
+    FROM {self._qualify_info_schema_table_name("SCHEMATA")}
     WHERE """
         catalog_name, schema_name, _ = self._get_information_schema_components()
         db_params: List[str] = []
@@ -308,6 +308,9 @@ SELECT 1
         # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
         mro = type.mro(type(ex))
         return any(t.__name__ in ("DatabaseError", "DataError") for t in mro)
+
+    def _qualify_info_schema_table_name(self, table_name: str) -> str:
+        return f"INFORMATION_SCHEMA.{table_name}"
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
         """Gets catalog name, schema name and name of the tables in format that can be directly

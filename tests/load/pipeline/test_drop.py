@@ -171,16 +171,17 @@ def test_drop_command_resources_and_state(
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
 
-    all_tables = list(pipeline.default_schema.tables.keys())
+    schema = pipeline.default_schema
+    all_tables = list(schema.tables.keys())
     assert load_table_counts(pipeline, *all_tables) == {
-        "_dlt_version": 1,
-        "_dlt_loads": 1,
+        schema.version_table_name: 1,
+        schema.loads_table_name: 1,
+        schema.state_table_name: 1,
         "droppable_a": 2,
         "droppable_b": 1,
         "droppable_c": 1,
         "droppable_d": 2,
         "droppable_no_state": 3,
-        "_dlt_pipeline_state": 1,
         "droppable_b__items": 2,
         "droppable_c__items": 1,
         "droppable_c__items__labels": 2,
@@ -213,13 +214,14 @@ def test_drop_command_resources_and_state(
     # 3 loads (one for drop)
     # droppable_no_state correctly replaced
     # all other resources stay at the same count (they are incremental so they got loaded again or not loaded at all ie droppable_a)
-    all_tables = list(pipeline.default_schema.tables.keys())
+    schema = pipeline.default_schema
+    all_tables = list(schema.tables.keys())
     assert load_table_counts(pipeline, *all_tables) == {
-        "_dlt_version": 2,
-        "_dlt_loads": 3,
+        schema.version_table_name: 2,
+        schema.loads_table_name: 3,
+        schema.state_table_name: 3,
         "droppable_a": 2,
         "droppable_b": 1,
-        "_dlt_pipeline_state": 3,
         "droppable_b__items": 2,
         "droppable_c": 1,
         "droppable_d": 2,

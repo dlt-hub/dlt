@@ -1080,6 +1080,9 @@ lakeformation = [
 s3 = [
     { name = "mypy-boto3-s3" },
 ]
+s3tables = [
+    { name = "mypy-boto3-s3tables" },
+]
 sts = [
     { name = "mypy-boto3-sts" },
 ]
@@ -2259,7 +2262,7 @@ dbt = [
 dev = [
     { name = "bandit" },
     { name = "black", extra = ["jupyter"] },
-    { name = "boto3-stubs", extra = ["lakeformation", "s3"] },
+    { name = "boto3-stubs", extra = ["lakeformation", "s3", "s3tables"] },
     { name = "flake8" },
     { name = "flake8-bugbear" },
     { name = "flake8-builtins" },
@@ -2464,7 +2467,7 @@ dbt = [
 dev = [
     { name = "bandit", specifier = ">=1.7.0,<2" },
     { name = "black", extras = ["jupyter"], specifier = ">=23.7.0,<24" },
-    { name = "boto3-stubs", extras = ["lakeformation", "s3"], specifier = ">=1.28.28,<2" },
+    { name = "boto3-stubs", extras = ["lakeformation", "s3", "s3tables"], specifier = ">=1.28.28,<2" },
     { name = "flake8", specifier = ">=7.0.0,<8" },
     { name = "flake8-bugbear", specifier = ">=22.0.0,<23" },
     { name = "flake8-builtins", specifier = ">=1.5.3,<2" },
@@ -5352,6 +5355,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/66/a7/cc2a5b095401b4d937ece53819ab9323572a82a6bbdc5a699b815fabe76b/mypy_boto3_s3-1.38.39.tar.gz", hash = "sha256:b272d1c9b359017ea7c5d79b4610ba93e91f557ad01da0d6e302bd7b7804f73b", size = 74169, upload-time = "2025-06-18T22:35:04.391Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/67/ba/be2f8f3522b2239be1a35e68fc0a99fbaa5871e1b28e0519c26c14a37b59/mypy_boto3_s3-1.38.39-py3-none-any.whl", hash = "sha256:9b003a3d4f4e01c6f3a7dc01e6bdcf9cc58e74c48cfbccd7cf80328b5b3ef4c7", size = 80870, upload-time = "2025-06-18T22:35:01.427Z" },
+]
+
+[[package]]
+name = "mypy-boto3-s3tables"
+version = "1.38.42"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3b/8c/c8d129f32737d09d2c23db5110a43164085b47c843460a5c89c748bf3f3f/mypy_boto3_s3tables-1.38.42.tar.gz", hash = "sha256:b3b24401f0e5e21f6c8ab35560a76a72e78983cf59f0b1adf6b7d07d9a6dabe5", size = 19731, upload-time = "2025-06-23T19:28:16.273Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/22/b2/b1f867226e95e2fad739b9bd781fe967d2cb276c4f60bf698d6d0a7eba39/mypy_boto3_s3tables-1.38.42-py3-none-any.whl", hash = "sha256:a24e5768e9773c963d8e1f6a7334488a107440fbeda040c71df1516aece88533", size = 26160, upload-time = "2025-06-23T19:28:14.971Z" },
 ]
 
 [[package]]

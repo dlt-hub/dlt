@@ -457,36 +457,37 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         ),
     }
     # get all dlt tables
+    schema = populated_pipeline.default_schema
     assert set(
         dataset.row_counts(dlt_tables=True, data_tables=False)
         .df()
         .itertuples(index=False, name=None)
     ) == {
         (
-            "_dlt_version",
+            schema.version_table_name,
             2,
         ),
         (
-            "_dlt_loads",
+            schema.loads_table_name,
             3,
         ),
         (
-            "_dlt_pipeline_state",
+            schema.state_table_name,
             2,
         ),
     }
     # get them all
     assert set(dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)) == {
         (
-            "_dlt_version",
+            schema.version_table_name,
             2,
         ),
         (
-            "_dlt_loads",
+            schema.loads_table_name,
             3,
         ),
         (
-            "_dlt_pipeline_state",
+            schema.state_table_name,
             2,
         ),
         (
@@ -1345,15 +1346,16 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         # databricks can't list tables (looks like internal ibis bug)
         if populated_pipeline.destination.destination_type != "dlt.destinations.databricks":
             # just do a basic check to see wether ibis can connect
+            schema = populated_pipeline.default_schema
             assert set(
                 ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
             ) == {
                 add_table_prefix(map_i(x))
                 for x in (
                     [
-                        "_dlt_loads",
-                        "_dlt_pipeline_state",
-                        "_dlt_version",
+                        schema.loads_table_name,
+                        schema.state_table_name,
+                        schema.version_table_name,
                         "double_items",
                         "items",
                         "items__children",

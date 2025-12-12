@@ -9,6 +9,7 @@ from dlt.common.normalizers.naming import (
     duck_case,
     sql_ci_v1,
     sql_cs_v1,
+    s3_tables,
 )
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
@@ -20,6 +21,7 @@ ALL_NAMING_CONVENTIONS = {
     duck_case.NamingConvention,
     sql_ci_v1.NamingConvention,
     sql_cs_v1.NamingConvention,
+    s3_tables.NamingConvention,
 }
 
 ALL_UNDERSCORE_PATH_CONVENTIONS = ALL_NAMING_CONVENTIONS - {direct.NamingConvention}
@@ -307,6 +309,11 @@ def test_normalize_make_path(convention: Type[NamingConvention]) -> None:
 def test_naming_convention_name() -> None:
     assert snake_case.NamingConvention.name() == "snake_case"
     assert direct.NamingConvention.name() == "direct"
+
+
+def test_remove_leading_underscores() -> None:
+    assert NamingConvention._remove_leading_underscores("_foo") == "foo"
+    assert NamingConvention._remove_leading_underscores("__foo") == "foo"
 
 
 def assert_short_path(norm_path: str, naming: NamingConvention) -> None:

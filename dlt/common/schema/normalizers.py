@@ -47,7 +47,7 @@ def configured_normalizers(
     use_break_path_on_normalize: Optional[bool] = None,
     schema_name: Optional[str] = None,
 ) -> TNormalizersConfig:
-    """Gets explicitly onfigured normalizers without any defaults or capabilities injection. If `naming`
+    """Gets explicitly configured normalizers without any defaults or capabilities injection. If `naming`
     is a module or a type it will get converted into string form via import.
 
     If `schema_name` is present, a section ("sources", schema_name, "schema") is used to inject the config

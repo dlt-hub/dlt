@@ -18,6 +18,8 @@ bucket_url_r2="s3://dlt-ci-test-bucket"
 bucket_url_gdrive="gdrive://15eC3e5MNew2XAIefWNlG8VlEa0ISnnaG"
 bucket_url_sftp="sftp://localhost/data"
 memory="memory:///m"
+s3_table_bucket_arn="arn:aws:s3tables:eu-central-1:267388281016:bucket/dlt-ci-test-table-bucket"
+s3_tables_catalog="s3tablescatalog/dlt-ci-test-table-bucket"
 
 [destination.custom_name]
 destination_type = "duckdb"

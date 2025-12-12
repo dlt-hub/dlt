@@ -233,7 +233,7 @@ dev = [
     "flake8-tidy-imports>=4.8.0",
     "flake8-encodings",
     "flake8-builtins>=1.5.3,<2",
-    "boto3-stubs[lakeformation,s3]>=1.28.28,<2",
+    "boto3-stubs[lakeformation,s3,s3tables]>=1.28.28,<2",
     "types-tqdm>=4.66.0.2,<5",
     "types-psutil>=5.9.5.16,<6",
     "types-psycopg2>=2.9.21.14,<3",
