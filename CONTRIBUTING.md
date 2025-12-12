@@ -249,17 +249,24 @@ The source of truth for the current version is `pyproject.toml`, managed with `u
 
 1. Check out the **devel** branch.
 2. Bump the version with `uv version --bump patch` (or `minor`/`major`).
-3. Run `make build-library` to apply changes.
-4. Create a new branch and PR targeting **devel**, then merge it.
+3. For minor / major bump the **hub** extra dependencies (see below)
+4. Run `make build-library` to apply changes.
+5. Create a new branch and PR targeting **devel**, then merge it.
+6. Merge **devel** into **master** with a ❗ **merge commit** (not squash).
 
-To publish:
+**To publish**
 
-1. Merge **devel** into **master** with a ❗ **merge commit** (not squash).
-2. Ensure **master** has the latest passing code.
-3. Verify the version with `uv version`.
-4. Obtain a PyPI access token.
-5. Run `make publish-library` and provide the token.
-6. Create a GitHub release using the version and git tag.
+1. Check out **master** and pull the latest code.
+2. Verify the version with `uv version`.
+3. Obtain a PyPI access token.
+4. Run `make publish-library` and provide the token.
+5. Create a GitHub release using the version and git tag.
+
+**bump hub extra dependencies on minor/major bump**: 
+
+1. Find the `hub` extra in `pyproject.toml` and bump the **upper bound** minor version on each plugin.
+2. You may keep the lower bound if this `dlt` version is compatible
+with plugin versions in allowed range.
 
 ### Hotfix Release
 
@@ -268,6 +275,8 @@ To publish:
 3. Run `make build-library`.
 4. Create a new branch and PR targeting **master**, then merge it.
 5. Re-submit the same fix to **devel**.
+
+Then follow the "publish" from Regular release
 
 ### Pre-release
 
