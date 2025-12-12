@@ -2143,6 +2143,10 @@ ducklake = [
     { name = "duckdb", version = "1.3.2", source = { registry = "https://pypi.org/simple" }, marker = "os_name != 'nt'" },
     { name = "pyarrow" },
 ]
+fabric = [
+    { name = "pyodbc", version = "5.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "pyodbc", version = "5.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+]
 filesystem = [
     { name = "botocore" },
     { name = "s3fs" },
@@ -2411,6 +2415,7 @@ requires-dist = [
     { name = "pydbml", marker = "extra == 'dbml'" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
+    { name = "pyodbc", marker = "extra == 'fabric'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=4.0.39" },
     { name = "pyodbc", marker = "extra == 'synapse'", specifier = ">=4.0.39" },
     { name = "pytz", specifier = ">=2022.6" },
@@ -2440,7 +2445,7 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.26.7,<4.0.0" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
-provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "hub", "dbml"]
+provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "fabric", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "hub", "dbml"]
 
 [package.metadata.requires-dev]
 adbc = [
