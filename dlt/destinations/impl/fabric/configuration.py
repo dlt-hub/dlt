@@ -85,7 +85,7 @@ class FabricClientConfiguration(MsSqlClientConfiguration):
     Example usage:
         fabric(
             credentials={
-                "host": "mywarehouse.datawarehouse.fabric.microsoft.com",
+                "host": "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com",
                 "database": "mydb",
                 "tenant_id": "your-tenant-id",
                 "client_id": "your-client-id",
