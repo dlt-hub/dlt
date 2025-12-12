@@ -863,23 +863,23 @@ def test_null_in_non_null_arrow() -> None:
 def test_pydantic_return_validated_models(return_models, yield_models, yield_list):
 
     class TempModel(BaseModel):
-        id: int
+        _id: int
         dlt_config: ClassVar[DltConfig] = {"return_validated_models": return_models}
 
     @dlt.resource(columns=TempModel)
     def data():
         if yield_list:
             if yield_models:
-                yield [TempModel(id=i) for i in range(3)]
+                yield [TempModel(_id=i) for i in range(3)]
             else:
-                yield [{"id": i} for i in range(3)]
+                yield [{"_id": i} for i in range(3)]
         else:
             if yield_models:
                 for i in range(3):
-                    yield TempModel(id=i)
+                    yield TempModel(_id=i)
             else:
                 for i in range(3):
-                    yield {"id": i}
+                    yield {"_id": i}
 
     seen_outer: list[type] = []
     seen_inner: list[Union[type, None]] = []

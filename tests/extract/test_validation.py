@@ -261,7 +261,7 @@ def test_validation_with_contracts(yield_list: bool) -> None:
 def test_pydantic_validator_return_models(return_models, yield_models, yield_list):
 
     class TempModel(BaseModel):
-        id: int
+        _id: int
         dlt_config: t.ClassVar[DltConfig] = {"return_validated_models": return_models}
 
     validator = PydanticValidator(
@@ -276,14 +276,14 @@ def test_pydantic_validator_return_models(return_models, yield_models, yield_lis
     item: t.Any
     if yield_list:
         if yield_models:
-            item = [VM(id=i) for i in range(3)]
+            item = [VM(_id=i) for i in range(3)]
         else:
-            item = [{"id": i} for i in range(3)]
+            item = [{"_id": i} for i in range(3)]
     else:
         if yield_models:
-            item = VM(id=1)
+            item = VM(_id=1)
         else:
-            item = {"id": 1}
+            item = {"_id": 1}
 
     validated = validator(item)
 
