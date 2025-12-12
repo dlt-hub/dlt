@@ -568,6 +568,60 @@ def test_pipeline_data_writer_compression(
     assert_table_column(p, "data", data, info=info)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_normalize_compression_with_spawn_workers(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Disabling compression should work with multiple workers and spawn method,
+    because ConfigSectionContext is restored in worker processes.
+    """
+    # Set compression disabled via normalize section
+    workers = 4
+    os.environ["NORMALIZE__DATA_WRITER__DISABLE_COMPRESSION"] = "true"
+    os.environ["NORMALIZE__WORKERS"] = str(workers)
+    os.environ["NORMALIZE__START_METHOD"] = "spawn"
+
+    data = ["a", "b", "c", "d", "e"]
+    dataset_name = "compression_spawn_test_" + uniq_id()
+
+    p = destination_config.setup_pipeline("compression_spawn_test", dataset_name=dataset_name)
+    p.extract(
+        dlt.resource(data, name="data"),
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
+
+    # Normalize with multiple workers and spawn method
+    p.normalize(workers=workers)
+
+    # Check that normalized files are not compressed
+    load_storage = p._get_load_storage()
+    normalized_packages = load_storage.list_normalized_packages()
+    assert len(normalized_packages) > 0, "Should have at least one normalized package"
+
+    for load_id in normalized_packages:
+        # Get all job files from the normalized package
+        job_files = load_storage.normalized_packages.list_new_jobs(load_id)
+        assert len(job_files) > 0, f"Should have at least one job file in package {load_id}"
+
+        for job_file_name in job_files:
+            file_path = load_storage.normalized_packages.storage.make_full_path(job_file_name)
+            # If compression is disabled, file should NOT be gzipped
+            with pytest.raises(gzip.BadGzipFile):
+                with gzip.open(file_path, "rb") as f:
+                    f.read()
+
+    info = p.load()
+    assert_table_column(p, "data", data, info=info)
+
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
