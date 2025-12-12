@@ -7,7 +7,7 @@ import dlt
 from dlt.common import json
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.typing import TDataItems
-from dlt.common.libs.pydantic import BaseModel
+from dlt.common.libs.pydantic import BaseModel, DltConfig
 
 from dlt.extract import DltResource
 from dlt.extract.items_transform import ValidateItem
@@ -253,3 +253,52 @@ def test_validation_with_contracts(yield_list: bool) -> None:
     assert len(items) == 3
     # c is gone from the last model
     assert "c" not in items[2]
+
+
+@pytest.mark.parametrize("return_models", [True, False])
+@pytest.mark.parametrize("yield_models", [True, False])
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_pydantic_validator_return_models(return_models, yield_models, yield_list):
+
+    class TempModel(BaseModel):
+        id: int
+        dlt_config: t.ClassVar[DltConfig] = {"return_validated_models": return_models}
+
+    validator = PydanticValidator(
+        TempModel,
+        column_mode="freeze",
+        data_mode="freeze"
+    )
+
+    validator.table_name = "temp_table"
+    VM = validator.model
+
+    item: t.Any
+    if yield_list:
+        if yield_models:
+            item = [VM(id=i) for i in range(3)]
+        else:
+            item = [{"id": i} for i in range(3)]
+    else:
+        if yield_models:
+            item = VM(id=1)
+        else:
+            item = {"id": 1}
+
+    validated = validator(item)
+
+    if yield_list:
+        assert isinstance(validated, list)
+
+        first = validated[0]
+
+        if return_models:
+            assert isinstance(first, VM)
+        else:
+            assert isinstance(first, dict)
+
+    else:
+        if return_models:
+            assert isinstance(validated, VM)
+        else:
+            assert isinstance(validated, dict)

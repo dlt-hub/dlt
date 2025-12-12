@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from typing import Any, ClassVar, Dict, Iterator, List, Optional
+from typing import Any, ClassVar, Dict, Iterator, List, Optional, Union
 import pytest
 
 from dlt.common.destination.client import SupportsOpenTables
@@ -857,51 +857,54 @@ def test_null_in_non_null_arrow() -> None:
     assert pip_ex.value.step == "normalize"
 
 
-@pytest.mark.parametrize(
-    "as_model, as_list",
-    [
-        (False, False),
-        (True, False),
-        (False, True),
-        (True, True),
-    ],
-)
-def test_pydantic_validator_preserves_model_instances(as_model, as_list):
-    class Result(BaseModel):
-        number: int
+@pytest.mark.parametrize("return_models", [True, False])
+@pytest.mark.parametrize("yield_models", [True, False])
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_pydantic_return_validated_models(return_models, yield_models, yield_list):
 
-    @dlt.resource(columns=Result)
+    class TempModel(BaseModel):
+        id: int
+        dlt_config: ClassVar[DltConfig] = {"return_validated_models": return_models}
+
+    @dlt.resource(columns=TempModel)
     def data():
-        if as_model:
-            item = Result(number=1)
+        if yield_list:
+            if yield_models:
+                yield [TempModel(id=i) for i in range(3)]
+            else:
+                yield [{"id": i} for i in range(3)]
         else:
-            item = {"number": 1}# type: ignore[assignment]
-        if as_list:
-            yield [item, item, item]
-        else:
-            yield item
+            if yield_models:
+                for i in range(3):
+                    yield TempModel(id=i)
+            else:
+                for i in range(3):
+                    yield {"id": i}
 
-    seen = []
+    seen_outer: list[type] = []
+    seen_inner: list[Union[type, None]] = []
 
     @dlt.transformer(data_from=data)
-    def check(x):
-        seen.append(x)
+    def inspect(x):
+        seen_outer.append(type(x))
+        if isinstance(x, list) and x:
+            seen_inner.append(type(x[0]))
+        else:
+            seen_inner.append(None)
         yield x
 
     pipeline = dlt.pipeline(destination="duckdb", dev_mode=True)
-    pipeline.run(check)
+    pipeline.run(inspect)
 
-    assert len(seen) == 1
-    v = seen[0]
-
-    if as_list:
-        assert isinstance(v, list)
-        if as_model:
-            assert all(isinstance(el, BaseModel) for el in v)
+    if return_models:
+        if yield_list:
+            assert all(t is list for t in seen_outer)
+            assert all(issubclass(t, BaseModel) for t in seen_inner if t)
         else:
-            assert all(isinstance(el, dict) for el in v)
+            assert all(issubclass(t, BaseModel) for t in seen_outer)
     else:
-        if as_model:
-            assert isinstance(v, BaseModel)
+        if yield_list:
+            assert all(t is list for t in seen_outer)
+            assert all(t is dict for t in seen_inner if t)
         else:
-            assert isinstance(v, dict)
+            assert all(t is dict for t in seen_outer)
