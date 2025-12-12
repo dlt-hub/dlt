@@ -39,29 +39,26 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
 
         from dlt.common.libs.pydantic import validate_and_filter_item, validate_and_filter_items
 
+        cfg = getattr(self.model, "dlt_config", {}) or {}
+        return_models = cfg.get("return_validated_models", False)
+
         if isinstance(item, list):
-            input_is_model = bool(item) and isinstance(item[0], PydanticBaseModel)
             validated_list = validate_and_filter_items(
                 self.table_name, self.list_model, item, self.column_mode, self.data_mode
             )
-            if input_is_model:
-                input_fields = set(item[0].__class__.model_fields.keys())
-                validated_fields = set(validated_list[0].__class__.model_fields.keys())
-                if input_fields.issubset(validated_fields):
-                    return validated_list
+            if return_models:
+                return validated_list
             return [m.dict(by_alias=True) for m in validated_list]
 
-        input_is_model = isinstance(item, PydanticBaseModel)
         validated = validate_and_filter_item(
             self.table_name, self.model, item, self.column_mode, self.data_mode
         )
         if validated is None:
             return None
-        if input_is_model:
-            input_fields = set(item.__class__.model_fields.keys())
-            validated_fields = set(validated.__class__.model_fields.keys())
-            if input_fields.issubset(validated_fields):
-                return validated
+
+        if return_models:
+            return validated
+
         return validated.dict(by_alias=True)
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
