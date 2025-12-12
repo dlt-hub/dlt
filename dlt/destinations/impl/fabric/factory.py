@@ -17,7 +17,7 @@ from dlt.common.normalizers.naming.naming import NamingConvention
 from .configuration import FabricClientConfiguration
 
 if TYPE_CHECKING:
-    from dlt_pipelines.destinations.impl.fabric.fabric import FabricJobClient
+    from .fabric import FabricJobClient
 
 
 class FabricTypeMapper(MsSqlTypeMapper):
@@ -105,7 +105,7 @@ class FabricTypeMapper(MsSqlTypeMapper):
 class fabric(MsSqlDestination):
     """Custom MSSQL destination that uses 'fabric' sqlglot dialect instead of 'tsql'"""
     
-    spec = FabricClientConfiguration
+    spec: Type[FabricClientConfiguration] = FabricClientConfiguration
     
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = super()._raw_capabilities()
@@ -120,4 +120,4 @@ class fabric(MsSqlDestination):
 
 
 # Register the destination
-fabric.register()  # type: ignore[attr-defined]
+fabric.register()

@@ -37,7 +37,7 @@ class FabricCredentials(MsSqlCredentials):
     """Azure AD Application (Service Principal) Client Secret"""
     
     # Mark username/password as auto-generated so dlt doesn't require them
-    __config_gen_annotations__: ClassVar[list] = ["username", "password"]
+    __config_gen_annotations__: ClassVar[list[str]] = ["username", "password"]
     
     def on_partial(self) -> None:
         """Called during configuration resolution, before validation.
@@ -65,9 +65,9 @@ class FabricCredentials(MsSqlCredentials):
         # Call parent on_resolved
         super().on_resolved()
     
-    def _get_odbc_dsn_dict(self) -> Dict[str, Any]:
+    def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         """Build ODBC DSN dictionary with Fabric-specific settings."""
-        params = super()._get_odbc_dsn_dict()
+        params = super().get_odbc_dsn_dict()
         
         # Add Fabric-required parameters
         params["AUTHENTICATION"] = "ActiveDirectoryServicePrincipal"

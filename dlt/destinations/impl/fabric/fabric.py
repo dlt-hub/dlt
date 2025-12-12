@@ -1,6 +1,6 @@
 """Fabric Warehouse job client implementation"""
 
-from typing import Type
+from typing import Type, Any, Dict
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema, TTableSchema
@@ -28,7 +28,7 @@ class FabricJobClient(MsSqlJobClient):
         column_name = self.sql_client.escape_column_name(c["name"])
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
-    def prepare_load_table(self, table_name: str) -> TTableSchema:
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         """Override to ensure _dlt_version table uses varchar instead of text"""
         table = super().prepare_load_table(table_name)
         
