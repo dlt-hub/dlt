@@ -64,14 +64,17 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 setattr(self, param, self.query.get(param))
 
     def on_partial(self) -> None:
+        logger.info("on_partial")
         if (
             self.authenticator == "oauth"
             and (not self.token or not self.host)
             and snowflake_session_token_available()
         ):
+            logger.info("Using Snowflake-provided OAuth token")
             self.host = os.environ["SNOWFLAKE_ACCOUNT"]
             self._snowflake_host = os.environ["SNOWFLAKE_HOST"]
             self.token = read_snowflake_session_token()
+            self.resolve()
 
     def on_resolved(self) -> None:
         if self.private_key_path:
