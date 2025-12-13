@@ -110,6 +110,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             user=self.username,
             password=self.password,
             account=self.host,
+            host=self._snowflake_host,
             database=self.database,
         )
 
