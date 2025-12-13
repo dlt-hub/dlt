@@ -1,5 +1,3 @@
-from importlib.metadata import metadata
-from lib2to3.fixes.fix_idioms import TYPE
 from typing import ClassVar, Literal, Optional
 
 from dlt.common.configuration import configspec, known_sections
