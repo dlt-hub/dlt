@@ -57,8 +57,6 @@ class IPCFormatConfiguration(BaseConfiguration):
     """Apache Arrow IPC Feather v2 format configuration
 
     Attributes:
-        metadata_version: IPC metadata version, defaulted to V5 for current compatibility
-        use_legacy_format: whether to use pre-Arrow 0.15 IPC format for certain types, defaulted to False for current compatibility
         format_type: "stream" or "file" - IPC format type
         allow_64bit: whether to allow 64-bit types in the data
         compression: optional compression algorithm ("lz4" or "zstd")
@@ -66,11 +64,6 @@ class IPCFormatConfiguration(BaseConfiguration):
         emit_dictionary_deltas: whether to emit dictionary deltas
         unify_dictionaries: whether to unify dictionaries across batches
     """
-
-    from dlt.common.libs.pyarrow import pyarrow as pa
-
-    metadata_version: pa.MetadataVersion = pa.MetadataVersion.V5
-    use_legacy_format: bool = False
 
     format_type: Literal["stream", "file"] = "file"
     allow_64bit: bool = False
