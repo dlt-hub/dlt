@@ -48,3 +48,26 @@ class ParquetFormatConfiguration(BaseConfiguration):
         return base
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
+
+
+@configspec
+class IPCFormatConfiguration(BaseConfiguration):
+    """Apache Arrow IPC Feather v2 format configuration
+
+    Attributes:
+        format_type: "stream" or "file" - IPC format type
+        allow_64bit: whether to allow 64-bit types in the data
+        compression: optional compression algorithm ("lz4" or "zstd")
+        use_threads: whether to use multithreading for compression
+        emit_dictionary_deltas: whether to emit dictionary deltas
+        unify_dictionaries: whether to unify dictionaries across batches
+    """
+
+    format_type: Literal["stream", "file"] = "file"
+    allow_64bit: bool = False
+    compression: Optional[Literal["lz4", "zstd"]] = None
+    use_threads: bool = True
+    emit_dictionary_deltas: bool = False
+    unify_dictionaries: bool = False
+
+    __section__: ClassVar[str] = known_sections.DATA_WRITER

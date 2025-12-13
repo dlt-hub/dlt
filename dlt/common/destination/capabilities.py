@@ -6,36 +6,37 @@ from typing import (
     List,
     Literal,
     Optional,
-    Sequence,
-    Tuple,
-    Set,
     Protocol,
+    Sequence,
+    Set,
+    Tuple,
     Type,
 )
-from dlt.common.libs.sqlglot import TSqlGlotDialect
-from dlt.common.destination.configuration import ParquetFormatConfiguration
-from dlt.common.exceptions import TerminalValueError
-from dlt.common.normalizers.typing import TNamingConventionReferenceArg
-from dlt.common.typing import TLoaderFileFormat, get_args
-from dlt.common.configuration.utils import serialize_value
+
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
+from dlt.common.configuration.utils import serialize_value
+from dlt.common.destination.configuration import IPCFormatConfiguration, ParquetFormatConfiguration
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationLoadingViaStagingNotSupported,
     DestinationLoadingWithoutStagingNotSupported,
 )
 from dlt.common.destination.typing import PreparedTableSchema
-from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.libs.sqlglot import TSqlGlotDialect
+from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.schema.typing import (
     TColumnSchema,
     TColumnType,
-    TTableSchema,
     TLoaderMergeStrategy,
-    TTableFormat,
     TLoaderReplaceStrategy,
+    TTableFormat,
+    TTableSchema,
     TTableSchemaColumns,
 )
+from dlt.common.typing import TLoaderFileFormat, get_args
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
@@ -217,6 +218,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     parquet_format: Optional[ParquetFormatConfiguration] = None
     """Parquet format preferred by this destination"""
 
+    ipc_format: Optional[IPCFormatConfiguration] = None
+    """IPC format preferred by this destination"""
+
     supports_tz_aware_datetime: bool = True
     """The destination can store datetime with timezone"""
 
@@ -241,7 +245,14 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
-        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv", "model"]
+        caps.supported_loader_file_formats = [
+            "jsonl",
+            "insert_values",
+            "parquet",
+            "csv",
+            "model",
+            "ipc",
+        ]
         caps.loader_file_format_selector = loader_file_format_selector
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []

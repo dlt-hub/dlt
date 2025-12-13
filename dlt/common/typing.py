@@ -1,55 +1,54 @@
-from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence, Callable as C_Callable
-from datetime import datetime, date  # noqa: I251
 import inspect
 import os
 import sys
+from collections.abc import Callable as C_Callable
+from collections.abc import Mapping as C_Mapping
+from collections.abc import Sequence as C_Sequence
+from datetime import date, datetime  # noqa: I251
 from re import Pattern as _REPattern
 from types import FunctionType, ModuleType
 from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
     Callable,
     ClassVar,
     Dict,
-    Any,
     Final,
-    Literal,
+    Generator,
+    Iterator,
     List,
+    Literal,
     Mapping,
+    NamedTuple,
     NewType,
     Optional,
+    Protocol,
+    Sequence,
     Tuple,
     Type,
-    Protocol,
-    TYPE_CHECKING,
     Union,
     runtime_checkable,
-    IO,
-    Iterator,
-    Generator,
-    NamedTuple,
-    Sequence,
 )
 
 from typing_extensions import (
-    ForwardRef,
     Annotated,
+    Concatenate,
+    ForwardRef,
+    Generic,
     Never,
     ParamSpec,
-    TypeAlias,
-    Concatenate,
-    Unpack,
     Self,
-    Generic,
-    get_args,
+    TypeAlias,
+    TypedDict,  # noqa: I251
     TypeVar,
-    get_origin,
-    get_type_hints,
+    Unpack,
+    get_args,
     get_origin,
     get_original_bases,
+    get_type_hints,
 )
-
 from typing_extensions import is_typeddict as _is_typeddict
-
-from typing_extensions import TypedDict  # noqa: I251
 
 try:
     from types import UnionType  # type: ignore[attr-defined]
@@ -61,17 +60,18 @@ except ImportError:
     # in versions of Python>=3.10.
     UnionType = Never
 
-from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
 from types import GenericAlias
+from typing import _GenericAlias, _SpecialGenericAlias  # type: ignore[attr-defined]
 
 typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
 
 
-from dlt.common.pendulum import timedelta, pendulum
+from dlt.common.pendulum import pendulum, timedelta
 
 if TYPE_CHECKING:
-    from _typeshed import StrOrBytesPath
     from typing import _TypedDict
+
+    from _typeshed import StrOrBytesPath
 
     REPattern = _REPattern[str]
     PathLike = os.PathLike[str]
@@ -132,7 +132,7 @@ VARIANT_FIELD_FORMAT = "v_%s"
 TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
 TLoaderFileFormat = Literal[
-    "jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference", "model"
+    "jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference", "model, ipc"
 ]
 """known loader file formats"""
 
@@ -515,7 +515,7 @@ def copy_sig_any(
     """
 
     def decorator(
-        func: Callable[..., TReturnVal]
+        func: Callable[..., TReturnVal],
     ) -> Callable[Concatenate[Any, TInputArgs], TReturnVal]:
         func.__doc__ = wrapper.__doc__
         return func
