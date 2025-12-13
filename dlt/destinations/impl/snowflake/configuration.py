@@ -25,7 +25,7 @@ SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 class SnowflakeCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     database: str = None
-    host: Optional[str] = None
+    host: str = None
     """Snowflake account identifier, e.g. `kgiotue-wn98412`"""
     username: Optional[str] = None
     warehouse: Optional[str] = None
@@ -39,7 +39,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
     _snowflake_host: Optional[str] = None
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
-    _use_snowflake_session_token: bool = False
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -64,31 +63,17 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             if param in self.query:
                 setattr(self, param, self.query.get(param))
 
-    def on_resolved(self) -> None:
-        # host and username should be both present or both missing
-        if self.host and not self.username:
-            raise ConfigurationValueError(
-                "`username` is required in SnowflakeCredentials when `host` is provided."
-            )
-        elif self.username and not self.host:
-            raise ConfigurationValueError(
-                "`host` is required in SnowflakeCredentials when `username` is provided."
-            )
-        elif not self.host and not self.username:
-            if snowflake_session_token_available():
-                logger.info(
-                    "`host` and `username` missing in SnowflakeCredentials. Using"
-                    " Snowflake-provided OAuth token instead."
-                )
-                self._set_use_snowflake_session_token()
-            else:
-                raise ConfigurationValueError(
-                    "`host` and `username` not provided in SnowflakeCredentials. Snowflake-provided"
-                    " OAuth token authentication (for Snowpark Container Services) was attempted"
-                    " but failed. If running in Snowpark Container Services, ensure the token file"
-                    " exists."
-                )
+    def on_partial(self) -> None:
+        if (
+            self.authenticator == "oauth"
+            and (not self.token or not self.host)
+            and snowflake_session_token_available()
+        ):
+            self.host = os.environ["SNOWFLAKE_ACCOUNT"]
+            self._snowflake_host = os.environ["SNOWFLAKE_HOST"]
+            self.token = read_snowflake_session_token()
 
+    def on_resolved(self) -> None:
         if self.private_key_path:
             try:
                 self.private_key = Path(self.private_key_path).read_text("ascii")
@@ -122,28 +107,16 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
         conn_params: Dict[str, Any] = dict(
             query,
+            user=self.username,
+            password=self.password,
             account=self.host,
             database=self.database,
         )
-
-        if self._use_snowflake_session_token:
-            assert conn_params["authenticator"] == "oauth"
-            conn_params["host"] = self._snowflake_host
-            conn_params["token"] = read_snowflake_session_token()
-        else:
-            conn_params["user"] = self.username
-            conn_params["password"] = self.password
 
         if self.application != "" and "application" not in conn_params:
             conn_params["application"] = self.application
 
         return conn_params
-
-    def _set_use_snowflake_session_token(self) -> None:
-        self.host = os.environ["SNOWFLAKE_ACCOUNT"]
-        self._snowflake_host = os.environ["SNOWFLAKE_HOST"]
-        self.authenticator = "oauth"
-        self._use_snowflake_session_token = True
 
 
 @configspec
