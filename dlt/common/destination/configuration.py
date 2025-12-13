@@ -1,4 +1,5 @@
 from importlib.metadata import metadata
+from lib2to3.fixes.fix_idioms import TYPE
 from typing import ClassVar, Literal, Optional
 
 from dlt.common.configuration import configspec, known_sections
@@ -56,20 +57,23 @@ class IPCFormatConfiguration(BaseConfiguration):
     """Apache Arrow IPC Feather v2 format configuration
 
     Attributes:
+        metadata_version: IPC metadata version, defaulted to V5 for current compatibility
+        use_legacy_format: whether to use pre-Arrow 0.15 IPC format for certain types, defaulted to False for current compatibility
         format_type: "stream" or "file" - IPC format type
-        metadata_version: "V2", "V3", "V4", "V5" - IPC metadata version
         allow_64bit: whether to allow 64-bit types in the data
-        use_legacy_format: whether to use legacy format for certain types
         compression: optional compression algorithm ("lz4" or "zstd")
         use_threads: whether to use multithreading for compression
         emit_dictionary_deltas: whether to emit dictionary deltas
         unify_dictionaries: whether to unify dictionaries across batches
     """
 
-    format_type: Literal["stream", "file"] = "file"
-    metadata_version: Optional[str] = "V5"
-    allow_64bit: bool = False
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    metadata_version: pa.MetadataVersion = pa.MetadataVersion.V5
     use_legacy_format: bool = False
+
+    format_type: Literal["stream", "file"] = "file"
+    allow_64bit: bool = False
     compression: Optional[Literal["lz4", "zstd"]] = None
     use_threads: bool = True
     emit_dictionary_deltas: bool = False
