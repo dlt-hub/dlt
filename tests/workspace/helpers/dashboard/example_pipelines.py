@@ -5,10 +5,15 @@
 #
 
 from typing import Any
+
+import duckdb
 import dlt
 import pytest
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
+)
+from dlt._workspace._templates._single_file_templates.arrow_pipeline import (
+    resource as humans,
 )
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
@@ -121,6 +126,39 @@ def create_success_pipeline_filesystem(
     )
 
     run_success_pipeline(pipeline)
+
+    return pipeline
+
+
+def create_fruitshop_duckdb_with_shared_dataset(pipelines_dir: str = None):
+    """Create a test pipeline with in memory duckdb destination, properties see `run_success_pipeline`"""
+    import duckdb
+
+    pipeline = dlt.pipeline(
+        pipeline_name="fruits_test_pipeline",
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:/data.db")),
+        dataset_name="test_shared_dataset",
+    )
+
+    run_success_pipeline(pipeline)
+
+    return pipeline
+
+
+def create_humans_arrow_duckdb_with_shared_dataset(
+    pipelines_dir: str = None,
+):
+    """Create a test pipeline with filesystem destination, properties see `run_success_pipeline`"""
+
+    pipeline = dlt.pipeline(
+        pipeline_name="humans_test_pipeline",
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:/data.db")),
+        dataset_name="test_shared_dataset",
+    )
+
+    pipeline.run(humans())
 
     return pipeline
 

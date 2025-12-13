@@ -29,7 +29,7 @@ class Container:
 
     """
 
-    _INSTANCE: ClassVar["Container"] = None
+    _INSTANCE: ClassVar[Optional["Container"]] = None
     _LOCK: ClassVar[threading.Lock] = threading.Lock()
     _MAIN_THREAD_ID: ClassVar[int] = threading.get_ident()
     """A main thread id to which get item will fallback for contexts without default"""

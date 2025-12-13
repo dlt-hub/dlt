@@ -414,10 +414,14 @@ def get_loads(
     Get the loads of a pipeline.
     """
     try:
-        loads = pipeline.dataset()._dlt_loads
+        loads = (
+            pipeline.dataset()
+            ._dlt_loads.filter("schema_name", "in", pipeline.schema_names)
+            .order_by("inserted_at", "desc")
+        )
         if limit:
             loads = loads.limit(limit)
-        loads = loads.order_by("inserted_at", "desc")
+
         loads_list = loads.arrow().to_pylist()
         loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
         return loads_list, None, None
