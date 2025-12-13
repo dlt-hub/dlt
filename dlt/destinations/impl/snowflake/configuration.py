@@ -39,6 +39,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
     _snowflake_host: Optional[str] = None
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
+    _use_snowflake_session_token: bool = False
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -64,16 +65,17 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 setattr(self, param, self.query.get(param))
 
     def on_partial(self) -> None:
-        logger.info("on_partial")
+        logger.warning("on_partial")
         if (
             self.authenticator == "oauth"
             and (not self.token or not self.host)
             and snowflake_session_token_available()
         ):
-            logger.info("Using Snowflake-provided OAuth token")
+            logger.warning("Using Snowflake-provided OAuth token")
             self.host = os.environ["SNOWFLAKE_ACCOUNT"]
             self._snowflake_host = os.environ["SNOWFLAKE_HOST"]
             self.token = read_snowflake_session_token()
+            self._use_snowflake_session_token = True
             self.resolve()
 
     def on_resolved(self) -> None:
