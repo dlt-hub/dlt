@@ -1,17 +1,16 @@
-"""Configuration for Fabric Warehouse destination - extends MSSQL configuration"""
+"""Configuration for Fabric Warehouse destination - extends Synapse configuration with COPY INTO support"""
 
 import dataclasses
-from typing import Optional, Final, ClassVar, Dict, Any
+from typing import Optional, Final, ClassVar, Dict, Any, List
 from dlt.common.configuration import configspec
 from dlt.common.typing import TSecretStrValue
-from dlt.destinations.impl.mssql.configuration import (
-    MsSqlCredentials,
-    MsSqlClientConfiguration,
-)
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.destinations.impl.synapse.configuration import SynapseCredentials
+from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 
 @configspec(init=False)
-class FabricCredentials(MsSqlCredentials):
+class FabricCredentials(SynapseCredentials):
     """Credentials for Microsoft Fabric Warehouse with Service Principal authentication.
     
     Fabric Warehouse requires Azure AD Service Principal authentication.
@@ -23,17 +22,17 @@ class FabricCredentials(MsSqlCredentials):
     drivername: Final[str] = dataclasses.field(default="fabric", init=False, repr=False, compare=False)  # type: ignore
     
     # Override parent username/password to make them optional (will be set from Service Principal)
-    username: str = None
-    password: TSecretStrValue = None
+    username: Optional[str] = None  # type: ignore[assignment]
+    password: Optional[TSecretStrValue] = None  # type: ignore[assignment]
     
     # Service Principal credentials
-    tenant_id: str = None
+    tenant_id: Optional[str] = None
     """Azure AD Tenant ID"""
     
-    client_id: str = None
+    client_id: Optional[str] = None
     """Azure AD Application (Service Principal) Client ID"""
     
-    client_secret: TSecretStrValue = None
+    client_secret: Optional[TSecretStrValue] = None
     """Azure AD Application (Service Principal) Client Secret"""
     
     # Mark username/password as auto-generated so dlt doesn't require them
@@ -44,11 +43,11 @@ class FabricCredentials(MsSqlCredentials):
         Sets username/password from Service Principal credentials."""
         # Set username as client_id@tenant_id format for Service Principal
         if self.client_id and self.tenant_id:
-            self.username = f"{self.client_id}@{self.tenant_id}"
+            self.username = f"{self.client_id}@{self.tenant_id}"  # type: ignore[misc]
         
         # Set password to client_secret
         if self.client_secret:
-            self.password = self.client_secret
+            self.password = self.client_secret  # type: ignore[misc]
         
         # Call parent on_partial
         super().on_partial()
@@ -57,10 +56,10 @@ class FabricCredentials(MsSqlCredentials):
         """Called after configuration is fully resolved."""
         # Ensure username/password are set (should be done in on_partial already)
         if not self.username and self.client_id and self.tenant_id:
-            self.username = f"{self.client_id}@{self.tenant_id}"
+            self.username = f"{self.client_id}@{self.tenant_id}"  # type: ignore[misc]
         
         if not self.password and self.client_secret:
-            self.password = self.client_secret
+            self.password = self.client_secret  # type: ignore[misc]
         
         # Call parent on_resolved
         super().on_resolved()
@@ -71,18 +70,18 @@ class FabricCredentials(MsSqlCredentials):
         
         # Add Fabric-required parameters
         params["AUTHENTICATION"] = "ActiveDirectoryServicePrincipal"
-        params["LONGASMAX"] = "yes"  # Critical for UTF-8 collation support
         
         return params
 
+
 @configspec
-class FabricClientConfiguration(MsSqlClientConfiguration):
-    """Configuration for Fabric Warehouse destination with collation support.
+class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
+    """Configuration for Fabric Warehouse destination with staging and collation support.
     
     Uses FabricCredentials for Service Principal authentication.
-    LongAsMax=yes is automatically added to support UTF-8 collations.
+    Supports OneLake/Lakehouse or Azure Blob Storage staging with COPY INTO for efficient data loading.
     
-    Example usage:
+    Example usage with OneLake/Lakehouse staging (recommended):
         fabric(
             credentials={
                 "host": "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com",
@@ -91,13 +90,100 @@ class FabricClientConfiguration(MsSqlClientConfiguration):
                 "client_id": "your-client-id",
                 "client_secret": "your-client-secret",
             },
+            staging_config=filesystem(
+                # Use workspace and lakehouse names (easier than GUIDs)
+                bucket_url="abfss://workspace_name@onelake.dfs.fabric.microsoft.com/lakehouse_name.Lakehouse/Files",
+                # IMPORTANT: OneLake requires these specific values
+                credentials={
+                    "azure_storage_account_name": "onelake",
+                    "azure_account_host": "onelake.blob.fabric.microsoft.com",
+                },
+                # Note: Service Principal credentials are automatically inherited from warehouse credentials
+                # No need to specify AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID again
+            ),
+            collation="Latin1_General_100_BIN2_UTF8",
+        )
+    
+    Alternative: Using workspace/lakehouse GUIDs:
+        bucket_url="abfss://<workspace_id>@onelake.dfs.fabric.microsoft.com/<lakehouse_id>/Files"
+    
+    Example usage with Azure Blob Storage staging:
+        fabric(
+            credentials={
+                "host": "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com",
+                "database": "mydb",
+                "tenant_id": "your-tenant-id",
+                "client_id": "your-client-id",
+                "client_secret": "your-client-secret",
+            },
+            staging_config=filesystem(
+                bucket_url="az://your-container",
+                credentials={
+                    "azure_storage_account_name": "your-account-name",
+                    "azure_storage_account_key": "your-account-key",
+                },
+            ),
             collation="Latin1_General_100_BIN2_UTF8",
         )
     """
     destination_type: Final[str] = "fabric"  # type: ignore[misc]
-    credentials: FabricCredentials = None
+    credentials: Optional[FabricCredentials] = None  # type: ignore[assignment]
     
     collation: Optional[str] = "Latin1_General_100_BIN2_UTF8"
+    """Database collation to use for text columns."""
+    
+    # Similar to Synapse: default to heap tables for robustness
+    default_table_index_type: Optional[TTableIndexType] = "heap"
+    """
+    Table index type that is used if no table index type is specified on the resource.
+    This only affects data tables, dlt system tables ignore this setting and
+    are always created as "heap" tables.
+    """
+    
+    def on_resolved(self) -> None:
+        """Auto-configure staging credentials from warehouse Service Principal credentials.
+        
+        When using OneLake/Lakehouse staging with Fabric, the filesystem destination needs
+        Service Principal credentials (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)
+        and the OneLake blob endpoint (azure_account_host).
+        Instead of requiring users to specify these, we automatically propagate them
+        from the Fabric warehouse credentials to the staging filesystem credentials.
+        """
+        super().on_resolved()
+        
+        # If we have staging config and warehouse credentials with Service Principal
+        if self.staging_config and self.credentials:
+            staging_creds = self.staging_config.credentials
+            
+            # Check if staging is using OneLake (azure_storage_account_name == "onelake")
+            if hasattr(staging_creds, 'azure_storage_account_name'):
+                if staging_creds.azure_storage_account_name == "onelake":
+                    # OneLake staging - propagate Service Principal credentials
+                    if self.credentials.client_id and not hasattr(staging_creds, 'azure_client_id'):
+                        staging_creds.azure_client_id = self.credentials.client_id  # type: ignore[attr-defined]
+                    if self.credentials.client_secret and not hasattr(staging_creds, 'azure_client_secret'):
+                        staging_creds.azure_client_secret = self.credentials.client_secret  # type: ignore[attr-defined]
+                    if self.credentials.tenant_id and not hasattr(staging_creds, 'azure_tenant_id'):
+                        staging_creds.azure_tenant_id = self.credentials.tenant_id  # type: ignore[attr-defined]
+                    
+                    # Also set the OneLake blob endpoint if not already set
+                    if not hasattr(staging_creds, 'azure_account_host') or not staging_creds.azure_account_host:
+                        staging_creds.azure_account_host = "onelake.blob.fabric.microsoft.com"  # type: ignore[attr-defined]
+    
+    # Set to False by default because PRIMARY KEY and UNIQUE constraints
+    # are NOT ENFORCED in Fabric and can lead to inaccurate results
+    create_indexes: bool = False
+    """Whether `primary_key` and `unique` column hints are applied."""
+    
+    staging_use_msi: bool = False
+    """Whether the managed identity of the Fabric workspace is used to authorize access to the staging Storage Account."""
+    
+    __config_gen_annotations__: ClassVar[List[str]] = [
+        "default_table_index_type",
+        "create_indexes",
+        "staging_use_msi",
+    ]
+
     """Database collation for varchar columns. Fabric supports:
     - Latin1_General_100_BIN2_UTF8 (default, case-sensitive)
     - Latin1_General_100_CI_AS_KS_WS_SC_UTF8 (case-insensitive)
