@@ -155,7 +155,7 @@ def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: Mocker
     in the schema object or serialized schema file.
     """
     from sqlalchemy.sql.elements import quoted_name
-    from tests.utils import TEST_STORAGE_ROOT
+    from tests.utils import get_test_storage_root
     from dlt.common.storages.file_storage import FileStorage
     import yaml
 
@@ -170,8 +170,8 @@ def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: Mocker
     assert "quoted_table" in fixed_yaml
 
     # Test within a dlt pipeline
-    import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
-    export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
+    import_schema_path = os.path.join(get_test_storage_root(), "schemas", "import")
+    export_schema_path = os.path.join(get_test_storage_root(), "schemas", "export")
 
     sql_table_spy = mocker.spy(dlt.sources.sql_database, "sql_table")
 

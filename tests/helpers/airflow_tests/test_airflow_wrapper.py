@@ -23,7 +23,7 @@ from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed
 
 from tests.pipeline.utils import load_table_counts
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 
 @pytest.fixture(autouse=True)
@@ -176,7 +176,7 @@ def test_regular_run() -> None:
     def dag_regular():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_regular", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_dag_regular", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         pipeline_dag_regular = dlt.pipeline(
@@ -185,7 +185,7 @@ def test_regular_run() -> None:
             destination=dlt.destinations.duckdb(credentials=":pipeline:"),
         )
         assert pipeline_dag_regular.get_local_state_val("initial_cwd").startswith(
-            os.path.abspath(TEST_STORAGE_ROOT)
+            os.path.abspath(get_test_storage_root())
         )
         tasks_list = tasks.add_run(
             pipeline_dag_regular,
@@ -219,7 +219,7 @@ def test_regular_run() -> None:
     def dag_decomposed():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_decomposed", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_dag_decomposed", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -266,7 +266,7 @@ def test_run() -> None:
     def dag_regular():
         nonlocal task
         tasks = PipelineTasksGroup(
-            "pipeline_dag_regular", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_dag_regular", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -304,13 +304,13 @@ def test_parallel_run():
 
     tasks_list: List[BaseOperator] = None
 
-    quackdb_path = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "pipeline_dag_parallel.duckdb"))
+    quackdb_path = os.path.abspath(os.path.join(get_test_storage_root(), "pipeline_dag_parallel.duckdb"))
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -360,7 +360,7 @@ def test_parallel_incremental():
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -409,7 +409,7 @@ def test_parallel_isolated_run():
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -465,7 +465,7 @@ def test_parallel_run_single_resource():
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -507,7 +507,7 @@ def test_parallel_run_single_resource():
 #         default_args=default_args
 #     )
 #     def dag_fail_3():
-#         tasks = PipelineTasksGroup("pipeline_fail_3", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False)
+#         tasks = PipelineTasksGroup("pipeline_fail_3", local_data_folder=get_test_storage_root(), wipe_local_data=False)
 
 #         pipeline_fail_3 = dlt.pipeline(
 #             pipeline_name="pipeline_fail_3", dataset_name="mock_data_" + uniq_id(), destination="duckdb", credentials=":pipeline:")
@@ -530,7 +530,7 @@ def test_run_with_retry() -> None:
     def dag_fail_3():
         # by default we do not retry so this will fail
         tasks = PipelineTasksGroup(
-            "pipeline_fail_3", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "pipeline_fail_3", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         pipeline_fail_3 = dlt.pipeline(
@@ -555,7 +555,7 @@ def test_run_with_retry() -> None:
         tasks = PipelineTasksGroup(
             "pipeline_fail_3",
             retry_policy=DEFAULT_RETRY_BACKOFF,
-            local_data_folder=TEST_STORAGE_ROOT,
+            local_data_folder=get_test_storage_root(),
             wipe_local_data=False,
         )
 
@@ -583,7 +583,7 @@ def test_run_with_retry() -> None:
             "pipeline_fail_3",
             retry_policy=DEFAULT_RETRY_BACKOFF,
             retry_pipeline_steps=("load", "extract"),
-            local_data_folder=TEST_STORAGE_ROOT,
+            local_data_folder=get_test_storage_root(),
             wipe_local_data=False,
         )
 
@@ -615,7 +615,7 @@ def test_run_decomposed_with_state_wipe() -> None:
 
         tasks = PipelineTasksGroup(
             pipeline_name,
-            local_data_folder=TEST_STORAGE_ROOT,
+            local_data_folder=get_test_storage_root(),
             wipe_local_data=True,
             save_load_info=True,
             save_trace_info=True,
@@ -667,7 +667,7 @@ def test_run_multiple_sources() -> None:
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_serialize():
         tasks = PipelineTasksGroup(
-            pipeline_name, local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=True
+            pipeline_name, local_data_folder=get_test_storage_root(), wipe_local_data=True
         )
 
         pipeline_dag_regular = dlt.pipeline(
@@ -731,7 +731,7 @@ def test_run_multiple_sources() -> None:
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
         tasks = PipelineTasksGroup(
-            pipeline_name, local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=True
+            pipeline_name, local_data_folder=get_test_storage_root(), wipe_local_data=True
         )
 
         pipeline_dag_regular = dlt.pipeline(
@@ -784,7 +784,7 @@ def test_run_multiple_sources() -> None:
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_mixed():
         tasks = PipelineTasksGroup(
-            pipeline_name, local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=True
+            pipeline_name, local_data_folder=get_test_storage_root(), wipe_local_data=True
         )
 
         pipeline_dag_regular = dlt.pipeline(
@@ -926,12 +926,12 @@ def callable_source():
 
 
 def test_run_callable() -> None:
-    # quackdb_path = os.path.join(TEST_STORAGE_ROOT, "callable_dag.duckdb")
+    # quackdb_path = os.path.join(get_test_storage_root(), "callable_dag.duckdb")
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_regular():
         tasks = PipelineTasksGroup(
-            "callable_dag_group", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "callable_dag_group", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         call_dag = dlt.pipeline(
@@ -962,12 +962,12 @@ def on_before_run():
 
 
 def test_on_before_run() -> None:
-    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "callable_dag.duckdb")
+    quackdb_path = os.path.join(get_test_storage_root(), "callable_dag.duckdb")
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_regular():
         tasks = PipelineTasksGroup(
-            "callable_dag_group", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+            "callable_dag_group", local_data_folder=get_test_storage_root(), wipe_local_data=False
         )
 
         call_dag = dlt.pipeline(

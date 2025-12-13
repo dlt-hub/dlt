@@ -15,7 +15,7 @@ from dlt.common.configuration.plugins import PluginContext
 from dlt.common.runtime import run_context
 
 from dlt.sources import SourceReference
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from pytest_console_scripts import ScriptRunner
 
 
@@ -65,7 +65,7 @@ def test_example_plugin() -> None:
     assert context.name == "dlt-test"
     # run_dir is the module file path and we have profile == dev as runtime kwargs
     assert context.uri.endswith("/dlt_example_plugin?profile=dev")
-    assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
+    assert context.data_dir == os.path.abspath(get_test_storage_root())
     # top level module info should be present
     assert context.module.__name__ == "dlt_example_plugin"
     # plugin manager should contain the plugin module

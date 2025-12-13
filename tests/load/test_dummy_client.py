@@ -42,7 +42,7 @@ from tests.utils import (
     TEST_DICT_CONFIG_PROVIDER,
 )
 from tests.load.utils import prepare_load_package
-from tests.utils import skip_if_not_active, TEST_STORAGE_ROOT
+from tests.utils import skip_if_not_active, get_test_storage_root
 
 skip_if_not_active("dummy")
 
@@ -53,7 +53,7 @@ NORMALIZED_FILES = [
 
 SMALL_FILES = ["event_user.1234.0.jsonl", "event_loop_interrupted.1234.0.jsonl"]
 
-REMOTE_FILESYSTEM = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "_remote_filesystem"))
+REMOTE_FILESYSTEM = os.path.abspath(os.path.join(get_test_storage_root(), "_remote_filesystem"))
 
 
 @pytest.fixture(autouse=True)

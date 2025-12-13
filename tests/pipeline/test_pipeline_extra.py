@@ -48,7 +48,7 @@ from dlt.destinations import dummy
 
 from dlt.pipeline import TCollectorArg
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
@@ -504,7 +504,7 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
     from dlt.destinations import filesystem
     from tests.pipeline.utils import users_materialize_table_schema
 
-    local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
+    local = filesystem(os.path.abspath(get_test_storage_root()))
 
     # we have two options to materialize columns: add columns hint or use dlt.mark to emit schema
     # at runtime. below we use the second option
@@ -631,7 +631,7 @@ def test_resource_file_format() -> None:
 def test_pick_matching_file_format(test_storage: FileStorage) -> None:
     from dlt.destinations import filesystem
 
-    local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
+    local = filesystem(os.path.abspath(get_test_storage_root()))
 
     import pyarrow as pa
 
@@ -778,7 +778,8 @@ def test_json_custom_encoder(json_impl: SupportsJson):
 
 
 @pytest.mark.parametrize(
-    "data_dir", (os.path.join(TEST_STORAGE_ROOT, "_data"), os.path.abspath(TEST_STORAGE_ROOT))
+    "data_dir_kind",
+    ("data_subdir", "root"),
 )
 @pytest.mark.parametrize(
     "layout",
@@ -789,7 +790,12 @@ def test_json_custom_encoder(json_impl: SupportsJson):
         "{table_name}.{load_id}/{file_id}.{ext}",
     ),
 )
-def test_open_table_location(data_dir: str, layout: str) -> None:
+def test_open_table_location(data_dir_kind: str, layout: str) -> None:
+    if data_dir_kind == "data_subdir":
+        data_dir = os.path.join(get_test_storage_root(), "_data")
+    else:
+        data_dir = os.path.abspath(get_test_storage_root())
+
     # note that data dir is native path fs path
     pipeline = dlt.pipeline(
         "open_tables", destination=dlt.destinations.filesystem(data_dir, layout=layout)
@@ -847,7 +853,7 @@ def test_null_in_non_null_arrow() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="variant",
         pipelines_dir="_storage",
-        destination=filesystem(TEST_STORAGE_ROOT),
+        destination=filesystem(get_test_storage_root()),
     )
 
     with pytest.raises(PipelineStepFailed) as pip_ex:

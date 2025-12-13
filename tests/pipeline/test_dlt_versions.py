@@ -33,7 +33,7 @@ from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
 from tests.pipeline.utils import airtable_emojis, load_table_counts, assert_load_info
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 
 def test_simulate_default_naming_convention_change() -> None:
@@ -77,10 +77,10 @@ GITHUB_DATASET = "github_3"
 
 
 def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
-    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree("tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True)
 
     # execute in test storage
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         # store dlt data in test storage (like create_test_run_context)
         with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
             # save database outside of pipeline dir
@@ -242,7 +242,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
 def test_filesystem_with_gzip_extension_update(
     initially_compressed: bool, test_storage: FileStorage
 ) -> None:
-    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree("tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True)
 
     def assert_no_gz_files(table_names: List[str]) -> None:
         """
@@ -261,7 +261,7 @@ def test_filesystem_with_gzip_extension_update(
                     assert not test_storage.is_gzipped(file)
 
     # execute in test storage
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         # store dlt data in test storage (like create_test_run_context)
         with custom_environ(
             {
@@ -328,10 +328,10 @@ def test_filesystem_with_gzip_extension_update(
 
 
 def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
-    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree("tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True)
 
     # execute in test storage
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         # store dlt data in test storage (like create_test_run_context)
         with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
             # create virtual env with (0.4.9) where filesystem started to store state
@@ -402,10 +402,10 @@ def assert_github_pipeline_end_state(
 
 
 def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
-    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree("tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True)
 
     # execute in test storage
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         # store dlt data in test storage (like create_test_run_context)
         with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
             # save database outside of pipeline dir
@@ -479,10 +479,10 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
 
 
 def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
-    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree("tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True)
 
     # execute in test storage
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         # store dlt data in test storage (like create_test_run_context)
         with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
             # save database outside of pipeline dir
@@ -516,10 +516,10 @@ def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
 
 
 def test_scd2_pipeline_update(test_storage: FileStorage) -> None:
-    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree("tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True)
 
     # execute in test storage
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         # store dlt data in test storage (like create_test_run_context)
         with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
             # save database outside of pipeline dir
@@ -616,10 +616,10 @@ def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> 
     """Pre 1.4.1 normalized identifiers with path separators into single underscore,
     this behavior must be preserved if the schema is updated.
     """
-    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree("tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True)
 
     # execute in test storage
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         # store dlt data in test storage (like create_test_run_context)
         with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
             # save database outside of pipeline dir

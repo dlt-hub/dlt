@@ -12,7 +12,7 @@ from dlt.sources import SourceReference
 
 from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO, DEFAULT_VIBE_SOURCES_REPO
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.workspace.utils import EMPTY_WORKSPACE_DIR
 
 
@@ -21,7 +21,7 @@ INIT_REPO_BRANCH = "master"
 INIT_VIBE_REPO_LOCATION = DEFAULT_VIBE_SOURCES_REPO
 INIT_VIBE_REPO_BRANCH = "main"
 WORKSPACE_CLI_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cli", "cases"))
-REPO_ROOT = os.path.abspath(TEST_STORAGE_ROOT)
+REPO_ROOT = os.path.abspath(get_test_storage_root())
 
 
 @pytest.fixture(autouse=True)

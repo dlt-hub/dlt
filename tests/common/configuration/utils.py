@@ -109,7 +109,13 @@ class InstrumentedConfiguration(BaseConfiguration):
 @pytest.fixture(scope="function")
 def environment() -> Any:
     saved_environ = environ.copy()
+    # preserve these explicitly
+    preserved = {
+        "DLT_TEST_STORAGE_ROOT": saved_environ.get("DLT_TEST_STORAGE_ROOT"),
+        "PYTEST_XDIST_WORKER": saved_environ.get("PYTEST_XDIST_WORKER"),
+    }
     environ.clear()
+    environ.update({k: v for k, v in preserved.items() if v is not None})
     yield environ
     environ.clear()
     environ.update(saved_environ)

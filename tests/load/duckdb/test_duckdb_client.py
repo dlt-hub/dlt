@@ -21,7 +21,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.common.configuration.utils import toml_providers as toml_providers
 from tests.pipeline.utils import assert_table_column
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -519,7 +519,7 @@ def test_named_destination_path() -> None:
 
 
 def test_db_path_follows_local_dir() -> None:
-    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     # mock tmp dir
     os.environ[DLT_LOCAL_DIR] = local_dir
@@ -633,7 +633,7 @@ def test_duck_database_path_delete() -> None:
 
 def test_case_sensitive_database_name() -> None:
     # make case sensitive folder name
-    cs_quack = os.path.join(TEST_STORAGE_ROOT, "QuAcK")
+    cs_quack = os.path.join(get_test_storage_root(), "QuAcK")
     os.makedirs(cs_quack, exist_ok=True)
     db_path = os.path.join(cs_quack, "path_TEST_quack.duckdb")
     p = dlt.pipeline(pipeline_name="NOT_QUAck", destination=duckdb(credentials=db_path))

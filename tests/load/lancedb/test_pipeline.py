@@ -25,7 +25,7 @@ from dlt.extract import DltResource
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
@@ -373,7 +373,7 @@ def test_merge_github_nested(lance_location: str) -> None:
     elif lance_location == ":external:":
         import lancedb
 
-        path = os.path.join(TEST_STORAGE_ROOT, "test.lancedb")
+        path = os.path.join(get_test_storage_root(), "test.lancedb")
         destination_ = dlt.destinations.lancedb(credentials=lancedb.connect(path))
     else:
         destination_ = "lancedb"  # type: ignore[assignment]

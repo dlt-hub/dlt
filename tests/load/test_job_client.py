@@ -40,7 +40,7 @@ from dlt.common.time import ensure_pendulum_datetime_utc
 
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
@@ -67,7 +67,7 @@ TEST_NAMING_CONVENTIONS = (
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(scope="function")
