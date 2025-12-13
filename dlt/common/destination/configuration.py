@@ -1,3 +1,4 @@
+from importlib.metadata import metadata
 from typing import ClassVar, Literal, Optional
 
 from dlt.common.configuration import configspec, known_sections
@@ -46,5 +47,32 @@ class ParquetFormatConfiguration(BaseConfiguration):
         if self.coerce_timestamps:
             return min(base, get_precision_from_datetime_unit(self.coerce_timestamps))
         return base
+
+    __section__: ClassVar[str] = known_sections.DATA_WRITER
+
+
+@configspec
+class IPCFormatConfiguration(BaseConfiguration):
+    """Apache Arrow IPC Feather v2 format configuration
+
+    Attributes:
+        format_type: "stream" or "file" - IPC format type
+        metadata_version: "V2", "V3", "V4", "V5" - IPC metadata version
+        allow_64bit: whether to allow 64-bit types in the data
+        use_legacy_format: whether to use legacy format for certain types
+        compression: optional compression algorithm ("lz4" or "zstd")
+        use_threads: whether to use multithreading for compression
+        emit_dictionary_deltas: whether to emit dictionary deltas
+        unify_dictionaries: whether to unify dictionaries across batches
+    """
+
+    format_type: Literal["stream", "file"] = "file"
+    metadata_version: Optional[str] = "V5"
+    allow_64bit: bool = False
+    use_legacy_format: bool = False
+    compression: Optional[Literal["lz4", "zstd"]] = None
+    use_threads: bool = True
+    emit_dictionary_deltas: bool = False
+    unify_dictionaries: bool = False
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
