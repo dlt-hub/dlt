@@ -577,11 +577,12 @@ def test_ipc_writer_round_trip_compression() -> None:
     Verifies that compression doesn't affect data integrity and that
     all values match after decompression.
     """
+    base_timestamp = cast(pendulum.DateTime, pendulum.parse("2024-01-01T00:00:00"))
     original_data = [
         {
             "f_int": i,
             "f_float": i * 1.5,
-            "f_timestamp": pendulum.parse("2024-01-01T00:00:00").add(hours=i),
+            "f_timestamp": base_timestamp.add(hours=i),
             "f_bool": i % 2 == 0,
             "f_bool_2": i % 2 != 0,
             "f_str": f"value_{i}",
@@ -614,7 +615,7 @@ def test_ipc_writer_round_trip_compression() -> None:
 
     assert len(read_data) == len(original_data)
     # Verify data integrity after compression
-    for i, (original, read) in enumerate(zip(original_data, read_data)):
+    for _, (original, read) in enumerate(zip(original_data, read_data)):
         assert read["f_int"] == original["f_int"]
         assert read["f_str"] == original["f_str"]
         assert abs(read["f_float"] - original["f_float"]) < 1e-10
@@ -632,7 +633,7 @@ def test_ipc_writer_round_trip_compression() -> None:
 
     assert len(read_data) == len(original_data)
     # Verify data integrity after compression
-    for i, (original, read) in enumerate(zip(original_data, read_data)):
+    for _, (original, read) in enumerate(zip(original_data, read_data)):
         assert read["f_int"] == original["f_int"]
         assert read["f_str"] == original["f_str"]
         assert abs(read["f_float"] - original["f_float"]) < 1e-10
