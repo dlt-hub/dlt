@@ -11,6 +11,7 @@ from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema import Schema, TColumnHint
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import get_inherited_table_hint
+from dlt.common.destination.client import LoadJob
 from dlt.destinations.impl.synapse.synapse import (
     SynapseClient,
     HINT_TO_SYNAPSE_ATTR,
@@ -20,7 +21,7 @@ from dlt.destinations.impl.synapse.synapse import (
 from dlt.destinations.impl.synapse.synapse_adapter import TABLE_INDEX_TYPE_HINT, TTableIndexType
 from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 from dlt.destinations.impl.fabric.sql_client import FabricSqlClient
-from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
+from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, SqlJobClientBase
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.configuration.exceptions import ConfigurationException
@@ -54,15 +55,19 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
 
         # Check if this is OneLake storage
         bucket_url = urlparse(self._bucket_path)
-        is_onelake = bucket_url.scheme == "abfss" and "onelake.dfs.fabric.microsoft.com" in bucket_url.netloc
-        
+        is_onelake = (
+            bucket_url.scheme == "abfss" and "onelake.dfs.fabric.microsoft.com" in bucket_url.netloc
+        )
+
         # For OneLake with Service Principal, initialize Fabric token first
-        if is_onelake and isinstance(staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+        if is_onelake and isinstance(
+            staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults
+        ):
             self._initialize_fabric_token(staging_credentials)
-        
+
         # Build WITH clause options
         with_options = [f"FILE_TYPE = '{file_type}'"]
-        
+
         if not is_onelake:
             # For Azure Storage (non-OneLake), add credential
             if self.staging_use_msi:
@@ -71,7 +76,9 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
                 if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
                     sas_token = staging_credentials.azure_storage_sas_token
                     credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
-                elif isinstance(staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+                elif isinstance(
+                    staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults
+                ):
                     tenant_id = staging_credentials.azure_tenant_id
                     endpoint = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
                     identity = f"{staging_credentials.azure_client_id}@{endpoint}"
@@ -97,7 +104,9 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
             """)
             self._sql_client.execute_sql(sql)
 
-    def _initialize_fabric_token(self, credentials: AzureServicePrincipalCredentialsWithoutDefaults) -> None:
+    def _initialize_fabric_token(
+        self, credentials: AzureServicePrincipalCredentialsWithoutDefaults
+    ) -> None:
         """
         Initialize Fabric token for Service Principal by calling Fabric REST API.
         This is required before the SP can access OneLake through COPY INTO or OPENROWSET.
@@ -111,7 +120,7 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
                 "authentication with Fabric OneLake. Install them with: "
                 "pip install azure-identity requests"
             )
-        
+
         # Create credential and get token
         cred = ClientSecretCredential(
             tenant_id=credentials.azure_tenant_id,
@@ -119,17 +128,14 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
             client_secret=credentials.azure_client_secret,
         )
         token = cred.get_token("https://api.fabric.microsoft.com/.default").token
-        
+
         # Call Fabric API to initialize token (list workspaces as a simple test)
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         resp = requests.get("https://api.fabric.microsoft.com/v1/workspaces", headers=headers)
-        
+
         if resp.status_code != 200:
             raise ConfigurationException(
-                f"Failed to initialize Fabric token for Service Principal. "
+                "Failed to initialize Fabric token for Service Principal. "
                 f"Status: {resp.status_code}, Response: {resp.text}"
             )
 
@@ -139,7 +145,7 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
         For regular Azure Storage (az://), use the standard blob endpoint conversion.
         """
         bucket_url = urlparse(bucket_path)
-        
+
         # Check if this is a OneLake path (abfss:// scheme or onelake in the hostname)
         if bucket_url.scheme == "abfss" and "onelake.dfs.fabric.microsoft.com" in bucket_url.netloc:
             # OneLake abfss path: abfss://workspace@onelake.dfs.fabric.microsoft.com/item/path/file
@@ -163,11 +169,12 @@ class FabricClient(SynapseClient):
     ) -> None:
         # Call grandparent init (MsSqlJobClient) but set up Fabric-specific client
         # We'll initialize our own sql_client below
-        super(SynapseClient, self).__init__(schema, config, capabilities)
-        self.config: FabricClientConfiguration = config
-        
+        super(SynapseClient, self).__init__(schema, config, capabilities)  # type: ignore[arg-type]
+        self.config: FabricClientConfiguration = config  # type: ignore[assignment]
+
         # Create Fabric-specific SQL client
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
+
         dataset_name, staging_dataset_name = MsSqlJobClient.create_dataset_names(schema, config)
         self.sql_client = FabricSqlClient(
             dataset_name,
@@ -189,10 +196,10 @@ class FabricClient(SynapseClient):
             db_type = "varchar(%i)" % (c.get("precision") or 900)
         else:
             db_type = self.type_mapper.to_destination_type(c, table)
-        
+
         # Don't add COLLATE clause here - let the database default handle it
         # The warehouse-level collation will be applied automatically
-        
+
         hints_str = self._get_column_hints_sql(c)
         column_name = self.sql_client.escape_column_name(c["name"])
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
@@ -200,12 +207,12 @@ class FabricClient(SynapseClient):
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         """Override to ensure proper table configuration for Fabric"""
         table = super(SynapseClient, self).prepare_load_table(table_name)
-        
+
         if self.in_staging_dataset_mode:
             # Staging tables should always be heap tables
             table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
 
-        table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
+        # table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
         if table_name in self.schema.dlt_table_names():
             # dlt tables should always be heap tables
             table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
@@ -218,7 +225,7 @@ class FabricClient(SynapseClient):
         if table[TABLE_INDEX_TYPE_HINT] is None:  # type: ignore[typeddict-item]
             # Hint still not defined, fall back to default
             table[TABLE_INDEX_TYPE_HINT] = self.config.default_table_index_type  # type: ignore[typeddict-unknown-key]
-        
+
         # For _dlt_version table, convert all text columns to varchar(max) to avoid
         # pyodbc binding them as legacy text/ntext types which don't support UTF-8 collations
         if table_name == self.schema.version_table_name:
@@ -227,7 +234,7 @@ class FabricClient(SynapseClient):
                     # Override type mapper behavior for this specific table
                     # Use varchar(max) with explicit precision to avoid text/ntext binding
                     column["precision"] = 2147483647  # max value for varchar(max)
-        
+
         return table
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
@@ -235,12 +242,11 @@ class FabricClient(SynapseClient):
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
-    ) -> "LoadJob":
+    ) -> LoadJob:
         """Override to use FabricCopyFileLoadJob instead of SynapseCopyFileLoadJob"""
         from dlt.common.storages.load_package import ParsedLoadJobFileName
         from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-        from dlt.common.destination.client import LoadJob
-        
+
         job = super(SynapseClient, self).create_load_job(table, file_path, load_id, restore)
         if not job:
             assert ReferenceFollowupJobRequest.is_reference_job(
@@ -253,22 +259,13 @@ class FabricClient(SynapseClient):
             )
         return job
 
-
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         """Override to remove WITH clause that Fabric doesn't support.
-        
+
         Fabric Warehouse doesn't support specifying HEAP or CLUSTERED COLUMNSTORE INDEX
         in the CREATE TABLE statement. The system automatically manages storage.
         """
-        table = self.prepare_load_table(table_name)
-        
-        # Get base SQL from grandparent (SqlJobClientBase) to avoid Synapse's WITH clause
-        from dlt.destinations.job_client_impl import SqlJobClientBase
-        sql_result = SqlJobClientBase._get_table_update_sql(
-            self, table_name, new_columns, generate_alter
-        )
-        
         # For Fabric, we don't add any WITH clause - just return the base SQL
-        return sql_result
+        return SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)

@@ -8,10 +8,10 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 class FabricSqlClient(SynapseSqlClient):
     """SQL client for Microsoft Fabric Warehouse
-    
+
     Inherits all behavior from Synapse since Fabric Warehouse is built on Synapse technology.
     """
-    
+
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
