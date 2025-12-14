@@ -26,13 +26,13 @@ class FabricCredentials(SynapseCredentials):
     password: Optional[TSecretStrValue] = None  # type: ignore[assignment]
     
     # Service Principal credentials
-    tenant_id: Optional[str] = None
+    azure_tenant_id: Optional[str] = None
     """Azure AD Tenant ID"""
     
-    client_id: Optional[str] = None
+    azure_client_id: Optional[str] = None
     """Azure AD Application (Service Principal) Client ID"""
     
-    client_secret: Optional[TSecretStrValue] = None
+    azure_client_secret: Optional[TSecretStrValue] = None
     """Azure AD Application (Service Principal) Client Secret"""
     
     # Mark username/password as auto-generated so dlt doesn't require them
@@ -42,12 +42,12 @@ class FabricCredentials(SynapseCredentials):
         """Called during configuration resolution, before validation.
         Sets username/password from Service Principal credentials."""
         # Set username as client_id@tenant_id format for Service Principal
-        if self.client_id and self.tenant_id:
-            self.username = f"{self.client_id}@{self.tenant_id}"  # type: ignore[misc]
+        if self.azure_client_id and self.azure_tenant_id:
+            self.username = f"{self.azure_client_id}@{self.azure_tenant_id}"  # type: ignore[misc]
         
         # Set password to client_secret
-        if self.client_secret:
-            self.password = self.client_secret  # type: ignore[misc]
+        if self.azure_client_secret:
+            self.password = self.azure_client_secret  # type: ignore[misc]
         
         # Call parent on_partial
         super().on_partial()
@@ -55,11 +55,11 @@ class FabricCredentials(SynapseCredentials):
     def on_resolved(self) -> None:
         """Called after configuration is fully resolved."""
         # Ensure username/password are set (should be done in on_partial already)
-        if not self.username and self.client_id and self.tenant_id:
-            self.username = f"{self.client_id}@{self.tenant_id}"  # type: ignore[misc]
+        if not self.username and self.azure_client_id and self.azure_tenant_id:
+            self.username = f"{self.azure_client_id}@{self.azure_tenant_id}"  # type: ignore[misc]
         
-        if not self.password and self.client_secret:
-            self.password = self.client_secret  # type: ignore[misc]
+        if not self.password and self.azure_client_secret:
+            self.password = self.azure_client_secret  # type: ignore[misc]
         
         # Call parent on_resolved
         super().on_resolved()
@@ -158,12 +158,12 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             if hasattr(staging_creds, 'azure_storage_account_name'):
                 if staging_creds.azure_storage_account_name == "onelake":
                     # OneLake staging - propagate Service Principal credentials
-                    if self.credentials.client_id and not hasattr(staging_creds, 'azure_client_id'):
-                        staging_creds.azure_client_id = self.credentials.client_id  # type: ignore[attr-defined]
-                    if self.credentials.client_secret and not hasattr(staging_creds, 'azure_client_secret'):
-                        staging_creds.azure_client_secret = self.credentials.client_secret  # type: ignore[attr-defined]
-                    if self.credentials.tenant_id and not hasattr(staging_creds, 'azure_tenant_id'):
-                        staging_creds.azure_tenant_id = self.credentials.tenant_id  # type: ignore[attr-defined]
+                    if self.credentials.azure_client_id and not hasattr(staging_creds, 'azure_client_id'):
+                        staging_creds.azure_client_id = self.credentials.azure_client_id  # type: ignore[attr-defined]
+                    if self.credentials.azure_client_secret and not hasattr(staging_creds, 'azure_client_secret'):
+                        staging_creds.azure_client_secret = self.credentials.azure_client_secret  # type: ignore[attr-defined]
+                    if self.credentials.azure_tenant_id and not hasattr(staging_creds, 'azure_tenant_id'):
+                        staging_creds.azure_tenant_id = self.credentials.azure_tenant_id  # type: ignore[attr-defined]
                     
                     # Also set the OneLake blob endpoint if not already set
                     if not hasattr(staging_creds, 'azure_account_host') or not staging_creds.azure_account_host:
