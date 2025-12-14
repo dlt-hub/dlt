@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 import re
 
+import duckdb
 import marimo as mo
 import pyarrow
 import pytest
@@ -62,6 +63,8 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
     create_success_pipeline_duckdb,
+    create_fruitshop_duckdb_with_shared_dataset,
+    create_humans_arrow_duckdb_with_shared_dataset,
 )
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
@@ -939,3 +942,28 @@ def test_collect_load_packages_from_trace(
     elif pipeline.pipeline_name == "normalize_exception_pipeline":
         assert len(list_of_load_package_info) == 1
         assert "pending" in str(list_of_load_package_info[0]["status"].text)
+
+
+def test_pipeline_loads_are_isolated_in_shared_dataset() -> None:
+    config = DashboardConfiguration()
+
+    duckdb_p = create_fruitshop_duckdb_with_shared_dataset()
+    filesystem_p = create_humans_arrow_duckdb_with_shared_dataset()
+
+    fruits_loads, _, _ = get_loads(config, duckdb_p, limit=100)
+    humans_loads, _, _ = get_loads(config, filesystem_p, limit=100)
+
+    assert mo.ui.table(fruits_loads).text is not None
+    assert mo.ui.table(humans_loads).text is not None
+
+    assert len(fruits_loads) >= 1
+    assert len(humans_loads) >= 1
+
+    fruit_schemas = set(duckdb_p.schema_names)
+    human_schemas = set(filesystem_p.schema_names)
+
+    # humans_loads must not contain fruits schemas
+    assert all(row["schema_name"] not in fruit_schemas for row in humans_loads)
+
+    # fruits_loads must not contain human schemas
+    assert all(row["schema_name"] not in human_schemas for row in fruits_loads)
