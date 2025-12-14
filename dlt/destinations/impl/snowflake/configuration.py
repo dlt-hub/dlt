@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
-from dlt.common import logger
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.libs.cryptography import decode_private_key
 from dlt.common.typing import TSecretStrValue
@@ -22,10 +21,10 @@ SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 
 
 @configspec(init=False)
-class SnowflakeCredentials(ConnectionStringCredentials):
+class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     database: str = None
-    host: Optional[str] = None
+    host: str = None
     """Snowflake account identifier, e.g. `kgiotue-wn98412`"""
     username: Optional[str] = None
     warehouse: Optional[str] = None
@@ -39,10 +38,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
     _snowflake_host: Optional[str] = None
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
-    _use_snowflake_session_token: bool = False
 
     __config_gen_annotations__: ClassVar[List[str]] = [
-        "host",
         "username",
         "password",
         "warehouse",
@@ -65,30 +62,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 setattr(self, param, self.query.get(param))
 
     def on_resolved(self) -> None:
-        # host and username should be both present or both missing
-        if self.host and not self.username:
-            raise ConfigurationValueError(
-                "`username` is required in SnowflakeCredentials when `host` is provided."
-            )
-        elif self.username and not self.host:
-            raise ConfigurationValueError(
-                "`host` is required in SnowflakeCredentials when `username` is provided."
-            )
-        elif not self.host and not self.username:
-            if snowflake_session_token_available():
-                logger.info(
-                    "`host` and `username` missing in SnowflakeCredentials. Using"
-                    " Snowflake-provided OAuth token instead."
-                )
-                self._set_use_snowflake_session_token()
-            else:
-                raise ConfigurationValueError(
-                    "`host` and `username` not provided in SnowflakeCredentials. Snowflake-provided"
-                    " OAuth token authentication (for Snowpark Container Services) was attempted"
-                    " but failed. If running in Snowpark Container Services, ensure the token file"
-                    " exists."
-                )
-
         if self.private_key_path:
             try:
                 self.private_key = Path(self.private_key_path).read_text("ascii")
@@ -98,11 +71,12 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                     f" `{self.private_key_path}`. Note that binary formats are not supported"
                 )
 
-        if not self.password and not self.private_key and not self.authenticator:
-            raise ConfigurationValueError(
-                "`SnowflakeCredentials` requires one of the following to be specified: `password`,"
-                " `private_key`, `authenticator` (OAuth2)."
-            )
+        if self._is_snowflake_auth and not self.private_key:
+            if not self.username or not self.password:
+                raise ConfigurationValueError(
+                    "`SnowflakeCredentials` requires `username` and `password` to be specified when"
+                    " using `snowflake` (username/password) authentication."
+                )
 
     def get_query(self) -> Dict[str, Any]:
         query = dict(super().get_query() or {})
@@ -122,28 +96,59 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
         conn_params: Dict[str, Any] = dict(
             query,
+            user=self.username,
+            password=self.password,
             account=self.host,
             database=self.database,
         )
 
-        if self._use_snowflake_session_token:
-            assert conn_params["authenticator"] == "oauth"
-            conn_params["host"] = self._snowflake_host
-            conn_params["token"] = read_snowflake_session_token()
-        else:
-            conn_params["user"] = self.username
-            conn_params["password"] = self.password
-
         if self.application != "" and "application" not in conn_params:
             conn_params["application"] = self.application
 
+        # snowflake-connector-python fails if `host` is None, so we only set it if it's not None
+        if self._snowflake_host:
+            conn_params["host"] = self._snowflake_host
+
         return conn_params
 
-    def _set_use_snowflake_session_token(self) -> None:
+    @property
+    def _is_snowflake_auth(self) -> bool:
+        return not self.authenticator or self.authenticator == "snowflake"
+
+
+@configspec(init=False)
+class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults):
+    _use_snowflake_session_token: bool = False
+
+    def on_partial(self) -> None:
+        if self.authenticator == "oauth" and not self.host:
+            self._from_snowflake_session_token()
+
+        if not self.is_partial():
+            self.resolve()
+
+    def on_resolved(self) -> None:
+        if self.authenticator == "oauth" and not self.token:
+            self._from_snowflake_session_token()
+
+    def get_query(self) -> Dict[str, Any]:
+        self._ensure_fresh_token()
+        return super().get_query()
+
+    def _from_snowflake_session_token(self) -> None:
+        if not snowflake_session_token_available():
+            raise ConfigurationValueError(
+                "Snowflake-provided OAuth token not available. `dlt` expects this token to be"
+                " available when `authenticator` is set to `oauth` and either `token` or `host` are"
+                " not provided. "
+            )
         self.host = os.environ["SNOWFLAKE_ACCOUNT"]
         self._snowflake_host = os.environ["SNOWFLAKE_HOST"]
-        self.authenticator = "oauth"
         self._use_snowflake_session_token = True
+
+    def _ensure_fresh_token(self) -> None:
+        if self._use_snowflake_session_token:
+            self.token = read_snowflake_session_token()
 
 
 @configspec

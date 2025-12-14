@@ -133,14 +133,16 @@ or in the connection string as query parameters.
 
 In the case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
 
-**Snowflake-provided OAuth token authentication** is the recommended way to authenticate when running `dlt` in Snowpark Container Services. If both the host and username are **not** passed, `dlt` will look for the [Snowflake-provided OAuth token](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs#connecting-with-a-snowflake-provided-oauth-token). Hence, to use this form of authentication, do **not** pass a host and username. For example:
+**Snowflake-provided OAuth token authentication** is the recommended way to authenticate when running `dlt` in Snowpark Container Services. If `authenticator` is set to `oauth` and `host` or `token` is **not** passed, `dlt` will look for the [Snowflake-provided OAuth token](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs#connecting-with-a-snowflake-provided-oauth-token):
  ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
+authenticator = "oauth"
+# host and token not specified
 ```
 or
 ```toml
-destination.snowflake.credentials="snowflake:///dlt_data"
+destination.snowflake.credentials="snowflake:///dlt_data?authenticator=oauth"  # host and token not specified
 ```
 
 ### Additional connection options
