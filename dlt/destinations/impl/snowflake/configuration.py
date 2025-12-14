@@ -70,6 +70,9 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             self.resolve()
 
     def on_resolved(self) -> None:
+        if self.authenticator == "oauth" and not self.token:
+            self._try_snowflake_session_token()
+
         if self.private_key_path:
             try:
                 self.private_key = Path(self.private_key_path).read_text("ascii")
@@ -79,11 +82,12 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                     f" `{self.private_key_path}`. Note that binary formats are not supported"
                 )
 
-        if not self.password and not self.private_key and not self.authenticator:
-            raise ConfigurationValueError(
-                "`SnowflakeCredentials` requires one of the following to be specified: `password`,"
-                " `private_key`, `authenticator` (OAuth2)."
-            )
+        if self._is_snowflake_auth and not self.private_key:
+            if not self.username or not self.password:
+                raise ConfigurationValueError(
+                    "`SnowflakeCredentials` requires `username` and `password` to be specified when"
+                    " using default (username/password) authentication."
+                )
 
     def get_query(self) -> Dict[str, Any]:
         query = dict(super().get_query() or {})
@@ -107,12 +111,14 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             user=self.username,
             password=self.password,
             account=self.host,
-            host=self._snowflake_host,
             database=self.database,
         )
 
         if self.application != "" and "application" not in conn_params:
             conn_params["application"] = self.application
+
+        if self._snowflake_host:
+            conn_params["host"] = self._snowflake_host
 
         return conn_params
 
@@ -130,6 +136,10 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     def _ensure_fresh_token(self) -> None:
         if self._use_snowflake_session_token:
             self.token = read_snowflake_session_token()
+
+    @property
+    def _is_snowflake_auth(self) -> bool:
+        return not self.authenticator or self.authenticator == "snowflake"
 
 
 @configspec
