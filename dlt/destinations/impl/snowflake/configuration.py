@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
+from dlt.common.configuration.specs.base_configuration import CredentialsWithDefault
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.libs.cryptography import decode_private_key
 from dlt.common.typing import TSecretStrValue
@@ -21,7 +22,7 @@ SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 
 
 @configspec(init=False)
-class SnowflakeCredentials(ConnectionStringCredentials):
+class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     database: str = None
     host: str = None
@@ -38,7 +39,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
     _snowflake_host: Optional[str] = None
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
-    _use_snowflake_session_token: bool = False
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "username",
@@ -62,17 +62,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             if param in self.query:
                 setattr(self, param, self.query.get(param))
 
-    def on_partial(self) -> None:
-        if self.authenticator == "oauth" and (not self.token or not self.host):
-            self._try_snowflake_session_token()
-
-        if not self.is_partial():
-            self.resolve()
-
     def on_resolved(self) -> None:
-        if self.authenticator == "oauth" and not self.token:
-            self._try_snowflake_session_token()
-
         if self.private_key_path:
             try:
                 self.private_key = Path(self.private_key_path).read_text("ascii")
@@ -91,7 +81,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
     def get_query(self) -> Dict[str, Any]:
         query = dict(super().get_query() or {})
-        self._ensure_fresh_token()
         for param in self.__query_params__:
             if self.get(param, None) is not None:
                 query[param] = self[param]
@@ -122,6 +111,30 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
         return conn_params
 
+    @property
+    def _is_snowflake_auth(self) -> bool:
+        return not self.authenticator or self.authenticator == "snowflake"
+
+
+@configspec
+class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithDefault):
+    _use_snowflake_session_token: bool = False
+
+    def on_partial(self) -> None:
+        if self.authenticator == "oauth" and not self.host:
+            self._try_snowflake_session_token()
+
+        if not self.is_partial():
+            self.resolve()
+
+    def on_resolved(self) -> None:
+        if self.authenticator == "oauth" and not self.token:
+            self._try_snowflake_session_token()
+
+    def get_query(self) -> Dict[str, Any]:
+        self._ensure_fresh_token()
+        return super().get_query()
+
     def _try_snowflake_session_token(self) -> None:
         if not snowflake_session_token_available():
             raise ConfigurationValueError(
@@ -136,10 +149,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     def _ensure_fresh_token(self) -> None:
         if self._use_snowflake_session_token:
             self.token = read_snowflake_session_token()
-
-    @property
-    def _is_snowflake_auth(self) -> bool:
-        return not self.authenticator or self.authenticator == "snowflake"
 
 
 @configspec
