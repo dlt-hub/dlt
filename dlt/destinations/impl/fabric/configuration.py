@@ -6,7 +6,6 @@ from dlt.common.configuration import configspec
 from dlt.common.typing import TSecretStrValue
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.destinations.impl.synapse.configuration import SynapseCredentials
-from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 
 @configspec(init=False)
@@ -130,14 +129,9 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: Optional[FabricCredentials] = None
 
     collation: Optional[str] = "Latin1_General_100_BIN2_UTF8"
-    """Database collation to use for text columns."""
+    """Database collation to use for text columns.
 
-    # Similar to Synapse: default to heap tables for robustness
-    default_table_index_type: Optional[TTableIndexType] = "heap"
-    """
-    Table index type that is used if no table index type is specified on the resource.
-    This only affects data tables, dlt system tables ignore this setting and
-    are always created as "heap" tables.
+    Note: Fabric Warehouse does not support table indexing. Storage is automatically managed by the system.
     """
 
     def on_resolved(self) -> None:

@@ -205,26 +205,11 @@ class FabricClient(SynapseClient):
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
-        """Override to ensure proper table configuration for Fabric"""
+        """Override to ensure proper table configuration for Fabric
+
+        Note: Fabric doesn't support table indexing - it automatically manages storage.
+        """
         table = super(SynapseClient, self).prepare_load_table(table_name)
-
-        if self.in_staging_dataset_mode:
-            # Staging tables should always be heap tables
-            table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
-
-        # table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
-        if table_name in self.schema.dlt_table_names():
-            # dlt tables should always be heap tables
-            table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
-        else:
-            if TABLE_INDEX_TYPE_HINT not in table:
-                # If present in parent table, fetch hint from there
-                table[TABLE_INDEX_TYPE_HINT] = get_inherited_table_hint(  # type: ignore[typeddict-unknown-key]
-                    self.schema.tables, table_name, TABLE_INDEX_TYPE_HINT, allow_none=True
-                )
-        if table[TABLE_INDEX_TYPE_HINT] is None:  # type: ignore[typeddict-item]
-            # Hint still not defined, fall back to default
-            table[TABLE_INDEX_TYPE_HINT] = self.config.default_table_index_type  # type: ignore[typeddict-unknown-key]
 
         # For _dlt_version table, convert all text columns to varchar(max) to avoid
         # pyodbc binding them as legacy text/ntext types which don't support UTF-8 collations
@@ -243,29 +228,39 @@ class FabricClient(SynapseClient):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        """Override to use FabricCopyFileLoadJob instead of SynapseCopyFileLoadJob"""
+        """Override to handle file loading - Fabric requires staging for parquet files
+
+        Fabric doesn't use ADBC for direct parquet loading. Instead, it requires staging
+        storage (OneLake or Azure Blob) and uses COPY INTO for efficient bulk loading.
+        """
         from dlt.common.storages.load_package import ParsedLoadJobFileName
         from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 
-        job = super(SynapseClient, self).create_load_job(table, file_path, load_id, restore)
-        if not job:
-            assert ReferenceFollowupJobRequest.is_reference_job(
-                file_path
-            ), "Fabric must use staging to load files"
+        # Check for reference jobs (staging files)
+        if ReferenceFollowupJobRequest.is_reference_job(file_path):
             job = FabricCopyFileLoadJob(
                 file_path,
                 self.config.staging_config.credentials,  # type: ignore[arg-type]
                 self.config.staging_use_msi,
             )
-        return job
+            return job
+
+        # For non-reference jobs, only handle insert-values (sql files)
+        parsed_file = ParsedLoadJobFileName.parse(file_path)
+        if parsed_file.file_format == "insert_values":
+            # Use parent's insert job handling
+            return super(SynapseClient, self).create_load_job(table, file_path, load_id, restore)
+
+        # Parquet and other file formats require staging
+        raise ValueError(
+            f"Fabric requires staging storage for {parsed_file.file_format} files. "
+            "Configure staging with filesystem destination (OneLake or Azure Blob Storage)."
+        )
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        """Override to remove WITH clause that Fabric doesn't support.
-
-        Fabric Warehouse doesn't support specifying HEAP or CLUSTERED COLUMNSTORE INDEX
-        in the CREATE TABLE statement. The system automatically manages storage.
-        """
-        # For Fabric, we don't add any WITH clause - just return the base SQL
+        """Override to remove WITH clause - Fabric automatically manages storage"""
+        # Fabric doesn't support WITH (HEAP) or WITH (CLUSTERED COLUMNSTORE INDEX)
+        # Just return the base SQL without any WITH clause
         return SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
