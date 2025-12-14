@@ -257,7 +257,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert isinstance(pipeline.last_trace.last_normalize_info, NormalizeInfo)
     assert isinstance(pipeline.last_trace.last_extract_info, ExtractInfo)
 
-
+@pytest.mark.forked
 def test_trace_schema() -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
