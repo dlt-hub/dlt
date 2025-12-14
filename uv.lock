@@ -2144,6 +2144,8 @@ ducklake = [
     { name = "pyarrow" },
 ]
 fabric = [
+    { name = "adlfs" },
+    { name = "pyarrow" },
     { name = "pyodbc", version = "5.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "pyodbc", version = "5.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
 ]
@@ -2345,6 +2347,7 @@ streamlit = [
 requires-dist = [
     { name = "adlfs", marker = "extra == 'az'", specifier = ">=2024.7.0" },
     { name = "adlfs", marker = "extra == 'clickhouse'", specifier = ">=2024.7.0" },
+    { name = "adlfs", marker = "extra == 'fabric'", specifier = ">=2024.7.0" },
     { name = "adlfs", marker = "extra == 'synapse'", specifier = ">=2024.7.0" },
     { name = "aiohttp", marker = "extra == 'http'", specifier = ">3.9.0" },
     { name = "alembic", marker = "extra == 'sqlalchemy'", specifier = ">1.10.0" },
@@ -2405,6 +2408,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'deltalake'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "extra == 'dremio'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "extra == 'ducklake'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'fabric'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "extra == 'lancedb'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "extra == 'motherduck'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "extra == 'parquet'", specifier = ">=16.0.0" },

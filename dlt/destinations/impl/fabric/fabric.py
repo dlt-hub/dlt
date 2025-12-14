@@ -1,17 +1,155 @@
 """Fabric Warehouse job client implementation - based on Synapse with COPY INTO support"""
 
+import os
 from typing import Type, Sequence, List, cast
 from copy import deepcopy
+from textwrap import dedent
+from urllib.parse import urlparse
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema import Schema, TColumnHint
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import get_inherited_table_hint
-from dlt.destinations.impl.synapse.synapse import SynapseClient, HINT_TO_SYNAPSE_ATTR, TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR
+from dlt.destinations.impl.synapse.synapse import (
+    SynapseClient,
+    HINT_TO_SYNAPSE_ATTR,
+    TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR,
+    SynapseCopyFileLoadJob,
+)
 from dlt.destinations.impl.synapse.synapse_adapter import TABLE_INDEX_TYPE_HINT, TTableIndexType
 from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 from dlt.destinations.impl.fabric.sql_client import FabricSqlClient
+from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
+from dlt.destinations.type_mapping import TypeMapperImpl
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.configuration.exceptions import ConfigurationException
+from dlt.common.configuration.specs import (
+    AzureCredentialsWithoutDefaults,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+)
+
+
+class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
+    """Custom COPY INTO job for Fabric that removes AUTO_CREATE_TABLE parameter"""
+
+    def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
+        # Get file type
+        ext = os.path.splitext(self._bucket_path)[1][1:]
+        if ext == "parquet":
+            file_type = "PARQUET"
+        else:
+            raise ValueError(f"Unsupported file type `{ext}` for Fabric.")
+
+        staging_credentials = self._staging_credentials
+        assert staging_credentials is not None
+        assert isinstance(
+            staging_credentials,
+            (AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults),
+        )
+        azure_storage_account_name = staging_credentials.azure_storage_account_name
+        https_path = self._get_https_path(self._bucket_path, azure_storage_account_name)
+        table_name = self._load_table["name"]
+
+        # Check if this is OneLake storage
+        bucket_url = urlparse(self._bucket_path)
+        is_onelake = bucket_url.scheme == "abfss" and "onelake.dfs.fabric.microsoft.com" in bucket_url.netloc
+        
+        # For OneLake with Service Principal, initialize Fabric token first
+        if is_onelake and isinstance(staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+            self._initialize_fabric_token(staging_credentials)
+        
+        # Build WITH clause options
+        with_options = [f"FILE_TYPE = '{file_type}'"]
+        
+        if not is_onelake:
+            # For Azure Storage (non-OneLake), add credential
+            if self.staging_use_msi:
+                credential = "IDENTITY = 'Managed Identity'"
+            else:
+                if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+                    sas_token = staging_credentials.azure_storage_sas_token
+                    credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
+                elif isinstance(staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+                    tenant_id = staging_credentials.azure_tenant_id
+                    endpoint = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+                    identity = f"{staging_credentials.azure_client_id}@{endpoint}"
+                    secret = staging_credentials.azure_client_secret
+                    credential = f"IDENTITY = '{identity}', SECRET = '{secret}'"
+                else:
+                    raise ConfigurationException(
+                        f"Credentials of type `{type(staging_credentials)}` not supported"
+                        " when loading data from staging into Fabric using `COPY INTO`."
+                    )
+            with_options.append(f"CREDENTIAL = ({credential})")
+
+        # Copy data from staging file into Fabric table
+        with self._sql_client.begin_transaction():
+            dataset_name = self._sql_client.dataset_name
+            with_clause = ",\n                    ".join(with_options)
+            sql = dedent(f"""
+                COPY INTO [{dataset_name}].[{table_name}]
+                FROM '{https_path}'
+                WITH (
+                    {with_clause}
+                )
+            """)
+            self._sql_client.execute_sql(sql)
+
+    def _initialize_fabric_token(self, credentials: AzureServicePrincipalCredentialsWithoutDefaults) -> None:
+        """
+        Initialize Fabric token for Service Principal by calling Fabric REST API.
+        This is required before the SP can access OneLake through COPY INTO or OPENROWSET.
+        """
+        try:
+            import requests
+            from azure.identity import ClientSecretCredential
+        except ImportError:
+            raise ConfigurationException(
+                "azure-identity and requests packages are required for Service Principal "
+                "authentication with Fabric OneLake. Install them with: "
+                "pip install azure-identity requests"
+            )
+        
+        # Create credential and get token
+        cred = ClientSecretCredential(
+            tenant_id=credentials.azure_tenant_id,
+            client_id=credentials.azure_client_id,
+            client_secret=credentials.azure_client_secret,
+        )
+        token = cred.get_token("https://api.fabric.microsoft.com/.default").token
+        
+        # Call Fabric API to initialize token (list workspaces as a simple test)
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        resp = requests.get("https://api.fabric.microsoft.com/v1/workspaces", headers=headers)
+        
+        if resp.status_code != 200:
+            raise ConfigurationException(
+                f"Failed to initialize Fabric token for Service Principal. "
+                f"Status: {resp.status_code}, Response: {resp.text}"
+            )
+
+    def _get_https_path(self, bucket_path: str, storage_account_name: str) -> str:
+        """
+        For OneLake paths (abfss://), convert to https://onelake.dfs.fabric.microsoft.com format.
+        For regular Azure Storage (az://), use the standard blob endpoint conversion.
+        """
+        bucket_url = urlparse(bucket_path)
+        
+        # Check if this is a OneLake path (abfss:// scheme or onelake in the hostname)
+        if bucket_url.scheme == "abfss" and "onelake.dfs.fabric.microsoft.com" in bucket_url.netloc:
+            # OneLake abfss path: abfss://workspace@onelake.dfs.fabric.microsoft.com/item/path/file
+            # Convert to: https://onelake.dfs.fabric.microsoft.com/workspace/item/path/file
+            workspace = bucket_url.netloc.split("@")[0]
+            path = bucket_url.path
+            return f"https://onelake.dfs.fabric.microsoft.com/{workspace}{path}"
+        else:
+            # Regular Azure Storage path - use parent implementation
+            return super()._get_https_path(bucket_path, storage_account_name)
 
 
 class FabricClient(SynapseClient):
@@ -94,3 +232,43 @@ class FabricClient(SynapseClient):
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
+
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> "LoadJob":
+        """Override to use FabricCopyFileLoadJob instead of SynapseCopyFileLoadJob"""
+        from dlt.common.storages.load_package import ParsedLoadJobFileName
+        from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+        from dlt.common.destination.client import LoadJob
+        
+        job = super(SynapseClient, self).create_load_job(table, file_path, load_id, restore)
+        if not job:
+            assert ReferenceFollowupJobRequest.is_reference_job(
+                file_path
+            ), "Fabric must use staging to load files"
+            job = FabricCopyFileLoadJob(
+                file_path,
+                self.config.staging_config.credentials,  # type: ignore[arg-type]
+                self.config.staging_use_msi,
+            )
+        return job
+
+
+    def _get_table_update_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> List[str]:
+        """Override to remove WITH clause that Fabric doesn't support.
+        
+        Fabric Warehouse doesn't support specifying HEAP or CLUSTERED COLUMNSTORE INDEX
+        in the CREATE TABLE statement. The system automatically manages storage.
+        """
+        table = self.prepare_load_table(table_name)
+        
+        # Get base SQL from grandparent (SqlJobClientBase) to avoid Synapse's WITH clause
+        from dlt.destinations.job_client_impl import SqlJobClientBase
+        sql_result = SqlJobClientBase._get_table_update_sql(
+            self, table_name, new_columns, generate_alter
+        )
+        
+        # For Fabric, we don't add any WITH clause - just return the base SQL
+        return sql_result

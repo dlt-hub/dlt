@@ -149,7 +149,6 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         Instead of requiring users to specify these, we automatically propagate them
         from the Fabric warehouse credentials to the staging filesystem credentials.
         """
-        super().on_resolved()
         
         # If we have staging config and warehouse credentials with Service Principal
         if self.staging_config and self.credentials:
@@ -177,6 +176,9 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     
     staging_use_msi: bool = False
     """Whether the managed identity of the Fabric workspace is used to authorize access to the staging Storage Account."""
+    
+    has_case_sensitive_identifiers: bool = False
+    """Whether identifiers (table/column names) are case-sensitive. Depends on database collation."""
     
     __config_gen_annotations__: ClassVar[List[str]] = [
         "default_table_index_type",
