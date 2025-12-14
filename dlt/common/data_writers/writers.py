@@ -408,17 +408,19 @@ class ParquetDataWriter(DataWriter):
 class IPCDataWriter(DataWriter):
     """Apache Arrow IPC Feather v2 format writer for Python object data.
 
+    This writer focuses on the IPC File Format only, not the IPC Stream Format.
+
     Converts Python dictionaries/objects to Arrow format and writes to IPC files.
     Input: Python objects (dicts)
     Output: Arrow IPC format
     """
+
     @with_config(spec=IPCFormatConfiguration)
     def __init__(
         self,
         f: IO[Any],
         caps: DestinationCapabilitiesContext = None,
         *,
-        format_type: Literal["stream", "file"] = "file",
         allow_64bit: bool = False,
         compression: Optional[Literal["lz4", "zstd"]] = None,
         use_threads: bool = True,
@@ -426,13 +428,11 @@ class IPCDataWriter(DataWriter):
         unify_dictionaries: bool = False,
         _format: IPCFormatConfiguration = None,  # will receive the full config
     ) -> None:
-    """Initialises the IPC data writer with the given configuration"""
+        """Initialises the IPC data writer with the given configuration"""
         super().__init__(f, caps or DestinationCapabilitiesContext.generic_capabilities("ipc"))
         from dlt.common.libs.pyarrow import pyarrow
 
-        self.writer: Optional[
-            Union[pyarrow.ipc.RecordBatchStreamWriter, pyarrow.ipc.RecordBatchFileWriter]
-        ] = None
+        self.writer: Optional[Union[pyarrow.ipc.RecordBatchFileWriter]] = None
         self.schema: Optional[pyarrow.Schema] = None
         self.nested_indices: List[str] = None
         self.file_metadata: Optional[Dict[str, str]] = None
@@ -461,12 +461,9 @@ class IPCDataWriter(DataWriter):
             unify_dictionaries=self.ipc_format.unify_dictionaries,
         )
 
-        if self.ipc_format.format_type == "stream":
-            self.writer = pyarrow.ipc.new_stream(self._f, self.schema, options=options)
-        else:
-            self.writer = pyarrow.ipc.new_file(
-                self._f, self.schema, options=options, metadata=self.file_metadata
-            )
+        self.writer = pyarrow.ipc.new_file(
+            self._f, self.schema, options=options, metadata=self.file_metadata
+        )
 
     def write_data(self, items: Sequence[TDataItem]) -> None:
         """Writes data rows into the IPC file"""
@@ -503,7 +500,7 @@ class IPCDataWriter(DataWriter):
             is_binary_format=True,
             supports_schema_changes="Buffer",
             requires_destination_capabilities=True,
-            supports_compression=True,
+            supports_compression=False,  # IPC compression is handled internally
         )
 
 
@@ -649,10 +646,13 @@ class ArrowToParquetWriter(ParquetDataWriter):
 class ArrowToIPCWriter(IPCDataWriter):
     """Apache Arrow IPC Feather v2 format writer for Arrow data.
 
+    This writer focuses on the IPC File Format only, not the IPC Stream Format.
+
     Writes Arrow tables/batches directly to IPC format without conversion.
     Input: Arrow tables/batches
     Output: Arrow IPC format
     """
+
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         """Writes the IPC file header and prepares the writer for data rows
 
@@ -690,12 +690,10 @@ class ArrowToIPCWriter(IPCDataWriter):
                 emit_dictionary_deltas=self.ipc_format.emit_dictionary_deltas,
                 unify_dictionaries=self.ipc_format.unify_dictionaries,
             )
-            if self.ipc_format.format_type == "stream":
-                self.writer = pyarrow.ipc.new_stream(self._f, table.schema, options=options)
-            else:
-                self.writer = pyarrow.ipc.new_file(
-                    self._f, table.schema, options=options, metadata=self.file_metadata
-                )
+
+            self.writer = pyarrow.ipc.new_file(
+                self._f, table.schema, options=options, metadata=self.file_metadata
+            )
 
         self.writer.write_table(table)
 
@@ -716,9 +714,9 @@ class ArrowToIPCWriter(IPCDataWriter):
             data_item_format="arrow",
             file_extension="arrow",
             is_binary_format=True,
-            supports_schema_changes="False",
-            requires_destination_capabilities=False,
-            supports_compression=True,
+            supports_schema_changes="Buffer",
+            requires_destination_capabilities=True,
+            supports_compression=False,  # IPC compression is handled internally
         )
 
 
@@ -921,7 +919,7 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     TypedJsonlListWriter,
     InsertValuesWriter,
     ParquetDataWriter,
-    IPCDataWriter
+    IPCDataWriter,
     CsvWriter,
     ArrowToParquetWriter,
     ArrowToIPCWriter,

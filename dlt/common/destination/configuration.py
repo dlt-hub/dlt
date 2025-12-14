@@ -54,8 +54,9 @@ class ParquetFormatConfiguration(BaseConfiguration):
 class IPCFormatConfiguration(BaseConfiguration):
     """Apache Arrow IPC Feather v2 format configuration
 
+    This configuration focuses on the IPC File Format only, not the IPC Stream Format.
+
     Attributes:
-        format_type: "stream" or "file" - IPC format type
         allow_64bit: whether to allow 64-bit types in the data
         compression: optional compression algorithm ("lz4" or "zstd")
         use_threads: whether to use multithreading for compression
@@ -63,7 +64,6 @@ class IPCFormatConfiguration(BaseConfiguration):
         unify_dictionaries: whether to unify dictionaries across batches
     """
 
-    format_type: Literal["stream", "file"] = "file"
     allow_64bit: bool = False
     compression: Optional[Literal["lz4", "zstd"]] = None
     use_threads: bool = True
