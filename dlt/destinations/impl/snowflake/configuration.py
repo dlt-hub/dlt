@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
-from dlt.common.configuration.specs.base_configuration import CredentialsWithDefault
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.libs.cryptography import decode_private_key
 from dlt.common.typing import TSecretStrValue
@@ -116,26 +115,26 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         return not self.authenticator or self.authenticator == "snowflake"
 
 
-@configspec
-class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults, CredentialsWithDefault):
+@configspec(init=False)
+class SnowflakeCredentials(SnowflakeCredentialsWithoutDefaults):
     _use_snowflake_session_token: bool = False
 
     def on_partial(self) -> None:
         if self.authenticator == "oauth" and not self.host:
-            self._try_snowflake_session_token()
+            self._from_snowflake_session_token()
 
         if not self.is_partial():
             self.resolve()
 
     def on_resolved(self) -> None:
         if self.authenticator == "oauth" and not self.token:
-            self._try_snowflake_session_token()
+            self._from_snowflake_session_token()
 
     def get_query(self) -> Dict[str, Any]:
         self._ensure_fresh_token()
         return super().get_query()
 
-    def _try_snowflake_session_token(self) -> None:
+    def _from_snowflake_session_token(self) -> None:
         if not snowflake_session_token_available():
             raise ConfigurationValueError(
                 "Snowflake-provided OAuth token not available. `dlt` expects this token to be"
