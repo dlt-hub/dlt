@@ -7,7 +7,7 @@ Tests Arrow IPC Feather v2 format writing capabilities for both Python objects
 import io
 import math
 import time
-from typing import Iterator
+from typing import Iterator, cast
 
 import pyarrow
 import pytest
@@ -17,6 +17,7 @@ from dlt.common.data_writers.writers import (
     IPCDataWriter,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import new_column
 from tests.cases import (
     TABLE_ROW_ALL_DATA_TYPES_DATETIMES,
@@ -27,36 +28,34 @@ from tests.common.utils import load_json_case
 
 
 @pytest.fixture
-def ipc_writer_batch() -> Iterator[IPCDataWriter]:
+def ipc_file_writer() -> Iterator[IPCDataWriter]:
     """Create an IPCDataWriter with file format mode."""
     f = io.BytesIO()
     yield IPCDataWriter(f)
 
 
 @pytest.fixture
-def ipc_writer_stream() -> Iterator[IPCDataWriter]:
-    """Create an IPCDataWriter with stream format mode."""
-    f = io.BytesIO()
-    yield IPCDataWriter(f, format_type="stream")
-
-
-@pytest.fixture
-def columns_schema() -> dict:
+def columns_schema() -> dict[str, TColumnSchema]:
     """Define a test schema with various column types."""
-    return {
-        "f_int": {"name": "f_int", "data_type": "bigint", "nullable": False},
-        "f_float": {"name": "f_float", "data_type": "double", "nullable": False},
-        "f_timestamp": {"name": "f_timestamp", "data_type": "timestamp", "nullable": False},
-        "f_bool": {"name": "f_bool", "data_type": "bool", "nullable": True},
-        "f_bool_2": {"name": "f_bool_2", "data_type": "bool", "nullable": False},
-        "f_str": {"name": "f_str", "data_type": "text", "nullable": True},
-    }
+    return cast(
+        dict[str, TColumnSchema],
+        {
+            "f_int": {"name": "f_int", "data_type": "bigint", "nullable": False},
+            "f_float": {"name": "f_float", "data_type": "double", "nullable": False},
+            "f_timestamp": {"name": "f_timestamp", "data_type": "timestamp", "nullable": False},
+            "f_bool": {"name": "f_bool", "data_type": "bool", "nullable": True},
+            "f_bool_2": {"name": "f_bool_2", "data_type": "bool", "nullable": False},
+            "f_str": {"name": "f_str", "data_type": "text", "nullable": True},
+        },
+    )
 
 
 class TestIPCDataWriter:
     """Tests for IPCDataWriter - IPC format writer for Python object data."""
 
-    def test_ipc_writer_batch(self, ipc_writer_batch: IPCDataWriter, columns_schema: dict) -> None:
+    def test_ipc_file_writer(
+        self, ipc_file_writer: IPCDataWriter, columns_schema: dict[str, TColumnSchema]
+    ) -> None:
         """Test IPCDataWriter in file format mode.
 
         Verifies that Python objects are correctly converted to Arrow IPC file format
@@ -65,48 +64,30 @@ class TestIPCDataWriter:
         rows = load_json_case("simple_row")
         for row in rows:
             row["f_timestamp"] = pendulum.parse(row["f_timestamp"])
-        ipc_writer_batch.write_all(columns_schema, rows)
-        ipc_writer_batch.close()
+        ipc_file_writer.write_all(columns_schema, rows)
+        ipc_file_writer.close()
 
-        f = ipc_writer_batch._f
+        f = ipc_file_writer._f
         f.seek(0)
         reader = pyarrow.ipc.open_file(f)
         table = reader.read_all()
         assert table.num_rows == len(rows)
         assert set(table.column_names) == set(columns_schema.keys())
 
-    def test_ipc_writer_stream(
-        self, ipc_writer_stream: IPCDataWriter, columns_schema: dict
-    ) -> None:
-        """Test IPCDataWriter in stream format mode.
-
-        Verifies that Python objects are correctly converted to Arrow IPC stream format
-        with proper schema and row count.
-        """
-        rows = load_json_case("simple_row")
-        for row in rows:
-            row["f_timestamp"] = pendulum.parse(row["f_timestamp"])
-        ipc_writer_stream.write_all(columns_schema, rows)
-        ipc_writer_stream.close()
-
-        f = ipc_writer_stream._f
-        f.seek(0)
-        reader = pyarrow.ipc.open_stream(f)
-        table = reader.read_all()
-        assert table.num_rows == len(rows)
-        assert set(table.column_names) == set(columns_schema.keys())
-
-    def test_ipc_writer_json_serialisation(self, columns_schema: dict) -> None:
+    def test_ipc_writer_json_serialisation(self, columns_schema: dict[str, TColumnSchema]) -> None:
         """Test that JSON fields are properly serialised in IPC format.
 
         Verifies that complex JSON objects are converted to strings and can be
         read back from the IPC file.
         """
         # Update schema to include JSON column
-        json_schema = {
-            **columns_schema,
-            "f_json": {"name": "f_json", "data_type": "json", "nullable": True},
-        }
+        json_schema = cast(
+            dict[str, TColumnSchema],
+            {
+                **columns_schema,
+                "f_json": {"name": "f_json", "data_type": "json", "nullable": True},
+            },
+        )
 
         rows = [
             {
@@ -147,7 +128,7 @@ class TestIPCDataWriter:
 class TestArrowToIPCWriter:
     """Tests for ArrowToIPCWriter - IPC format writer for Arrow data."""
 
-    def test_arrow_to_ipc_writer_batch(self, columns_schema: dict) -> None:
+    def test_arrow_to_ipc_file_writer(self, columns_schema: dict[str, TColumnSchema]) -> None:
         """Test ArrowToIPCWriter in file format mode.
 
         Verifies that Arrow tables are correctly written to IPC file format
@@ -166,26 +147,9 @@ class TestArrowToIPCWriter:
         read_table = reader.read_all()
         assert read_table.num_rows == len(rows)
 
-    def test_arrow_to_ipc_writer_stream(self, columns_schema: dict) -> None:
-        """Test ArrowToIPCWriter in stream format mode.
-
-        Verifies that Arrow tables are correctly written to IPC stream format
-        without conversion, preserving table structure and data.
-        """
-        rows = load_json_case("simple_row")
-        table = pyarrow.Table.from_pylist(rows)
-
-        f = io.BytesIO()
-        writer = ArrowToIPCWriter(f, format_type="stream")
-        writer.write_all(columns_schema, [table])
-        writer.close()
-
-        f.seek(0)
-        reader = pyarrow.ipc.open_stream(f)
-        read_table = reader.read_all()
-        assert read_table.num_rows == len(rows)
-
-    def test_arrow_to_ipc_writer_multiple_batches(self, columns_schema: dict) -> None:
+    def test_arrow_to_ipc_writer_multiple_batches(
+        self, columns_schema: dict[str, TColumnSchema]
+    ) -> None:
         """Test ArrowToIPCWriter with multiple record batches.
 
         Verifies that multiple Arrow batches are correctly concatenated and written
@@ -207,7 +171,9 @@ class TestArrowToIPCWriter:
         read_table = reader.read_all()
         assert read_table.num_rows == len(rows1) + len(rows2)
 
-    def test_arrow_to_ipc_writer_empty_raises(self, columns_schema: dict) -> None:
+    def test_arrow_to_ipc_writer_empty_raises(
+        self, columns_schema: dict[str, TColumnSchema]
+    ) -> None:
         """Test that ArrowToIPCWriter raises error for empty files.
 
         Verifies that attempting to finalise an IPC file without writing any data
@@ -220,7 +186,9 @@ class TestArrowToIPCWriter:
         with pytest.raises(NotImplementedError, match="does not support writing empty files"):
             writer.write_footer()
 
-    def test_arrow_to_ipc_writer_compression_options(self, columns_schema: dict) -> None:
+    def test_arrow_to_ipc_writer_compression_options(
+        self, columns_schema: dict[str, TColumnSchema]
+    ) -> None:
         """Test ArrowToIPCWriter with compression options.
 
         Verifies that compression options are correctly applied when writing IPC format.
@@ -454,9 +422,9 @@ class TestIPCWriterEmptyData:
 
         f = io.BytesIO()
         writer = ArrowToIPCWriter(f)
-        writer.write_data_item(empty_batch, columns=c1)
-        writer.write_data_item(empty_batch, columns=c1)
-        writer.write_data_item(single_elem_table, columns=c1)
+        writer.write_all(c1, [empty_batch])
+        writer.write_all(c1, [empty_batch])
+        writer.write_all(c1, [single_elem_table])
         writer.close()
 
         f.seek(0)
