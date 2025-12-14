@@ -5,7 +5,6 @@ import dlt
 from dlt.common.typing import TDataItem
 from dlt.common import json, pendulum
 
-
 def convert_dates(item: TDataItem) -> TDataItem:
     item["created_at"] = pendulum.parse(item["created_at"])
     return item

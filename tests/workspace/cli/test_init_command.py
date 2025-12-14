@@ -11,6 +11,7 @@ from unittest import mock
 import re
 from packaging.requirements import Requirement
 from typing import Dict
+import shutil
 from dlt.common.libs.hexbytes import HexBytes
 
 # import that because O3 modules cannot be unloaded
@@ -59,7 +60,7 @@ from tests.workspace.cli.utils import (
     get_workspace_files,
 )
 from tests.common.utils import modify_and_commit_file
-from tests.utils import IMPLEMENTED_DESTINATIONS
+from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root
 from tests.workspace.utils import restore_clean_workspace
 
 # we hardcode the core sources here so we can check that the init script picks
@@ -297,14 +298,26 @@ def test_init_all_sources_together(repo_dir: str, workspace_files: FileStorage) 
 
 
 def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
-    repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
+    # Get initial repo dir for source candidates enumeration
+    initial_repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
     # ensure we test both sources form verified sources and core sources
     source_candidates = (
-        set(get_source_candidates(repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
+        set(get_source_candidates(initial_repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
     )
+    
+    # Clean up the initial repo dir as we don't need it anymore
+    shutil.rmtree(initial_repo_dir)
+    
     for candidate in source_candidates:
-        # this is not really changing chdir - we are setting the same folder on a new inode
-        os.chdir(restore_clean_workspace("empty"))
+        # Clean workspace by removing all files except .dlt and .global_dir
+        for item in os.listdir(os.getcwd()):
+            if item not in ['.dlt', '.global_dir']:
+                item_path = os.path.join(os.getcwd(), item)
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
+        
         repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
         files = get_workspace_files(clear_all_sources=False)
         _init_command.init_command(candidate, "bigquery", repo_dir)
@@ -315,12 +328,24 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
 
 
 def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
-    repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
+    # Get initial repo dir for source candidates enumeration
+    initial_repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
     # ensure we test both sources form verified sources and core sources
     source_candidates = set(CORE_SOURCES)
+    
+    # Clean up the initial repo dir as we don't need it anymore
+    shutil.rmtree(initial_repo_dir)
+    
     for candidate in source_candidates:
-        # this is not really changing chdir - we are setting the same folder on a new inode
-        os.chdir(restore_clean_workspace("empty"))
+        # Clean workspace by removing all files except .dlt and .global_dir
+        for item in os.listdir(os.getcwd()):
+            if item not in ['.dlt', '.global_dir']:
+                item_path = os.path.join(os.getcwd(), item)
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
+        
         repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
         files = get_workspace_files(clear_all_sources=False)
         _init_command.init_command(candidate, "bigquery", repo_dir, eject_source=True)
@@ -496,7 +521,7 @@ def test_init_code_update_no_conflict(repo_dir: str, workspace_files: FileStorag
     # get local index
     local_index = files_ops.load_verified_sources_local_index("pipedrive")
     # modify file in original dir
-    assert "_storage" in repo_dir
+    assert get_test_storage_root() in repo_dir
     new_content = '"""New docstrings"""'
     mod_local_path = os.path.join("pipedrive", "__init__.py")
     mod_remote_path = os.path.join(SOURCES_MODULE_NAME, mod_local_path)

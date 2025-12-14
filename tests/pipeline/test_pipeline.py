@@ -2901,7 +2901,7 @@ def test_local_filesystem_destination(local_path_kind: str) -> None:
     assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 1
 
     fs_client = pipeline._fs_client()
-    # all path formats we use must lead to "_storage" relative to tests
+    # all path formats we use must lead to test storage root relative to tests
     expect_path_fragment = str(pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve())
     expect_path_fragment = expect_path_fragment[expect_path_fragment.index(get_test_storage_root()) :]
     # TODO: restore on windows

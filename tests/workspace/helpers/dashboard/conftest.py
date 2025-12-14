@@ -19,13 +19,13 @@ def pipeline(request):
     return request.getfixturevalue(request.param)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def no_destination_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_no_destination_pipeline(temp_dir)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def success_pipeline_duckdb():
     with tempfile.TemporaryDirectory() as temp_dir:
         import duckdb
@@ -37,33 +37,33 @@ def success_pipeline_duckdb():
             db_conn.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def success_pipeline_filesystem():
     with tempfile.TemporaryDirectory() as temp_dir:
         with tempfile.TemporaryDirectory() as storage:
             yield create_success_pipeline_filesystem(temp_dir, storage)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def extract_exception_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_extract_exception_pipeline(temp_dir)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def normalize_exception_pipeline():
     """Fixture that creates a normalize exception pipeline"""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_normalize_exception_pipeline(temp_dir)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def never_ran_pipline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_never_ran_pipeline(temp_dir)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def load_exception_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_load_exception_pipeline(temp_dir)

@@ -31,7 +31,7 @@ pytestmark = pytest.mark.essential
 def run_in_storage(
     autouse_test_storage, toml_providers: ConfigProvidersContainer
 ) -> Iterator[None]:
-    with set_working_dir("_storage"):
+    with set_working_dir(get_test_storage_root()):
         yield
 
 

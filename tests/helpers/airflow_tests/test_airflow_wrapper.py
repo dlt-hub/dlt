@@ -28,7 +28,7 @@ from tests.utils import get_test_storage_root
 
 @pytest.fixture(autouse=True)
 def run_in_storage(autouse_test_storage) -> Iterator[None]:
-    with set_working_dir("_storage"):
+    with set_working_dir(get_test_storage_root()):
         yield
 
 
@@ -856,10 +856,11 @@ def test_task_already_added():
     @dag(schedule=None, start_date=pendulum.today(), catchup=False)
     def dag_parallel():
         nonlocal tasks_list
+        test_storage_root = get_test_storage_root()
 
         tasks = PipelineTasksGroup(
             "test_pipeline",
-            local_data_folder="_storage",
+            local_data_folder=test_storage_root,
             wipe_local_data=False,
         )
 
@@ -869,7 +870,7 @@ def test_task_already_added():
             pipeline_name="test_pipeline",
             dataset_name="mock_data",
             destination=dlt.destinations.duckdb(
-                credentials=os.path.join("_storage", "test_pipeline.duckdb")
+                credentials=os.path.join(test_storage_root, "test_pipeline.duckdb")
             ),
         )
         task = tasks.add_run(

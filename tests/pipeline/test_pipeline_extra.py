@@ -533,7 +533,7 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
 def test_parquet_with_flattened_columns() -> None:
     # normalize json, write parquet file to filesystem
     pipeline = dlt.pipeline(
-        "test_parquet_with_flattened_columns", destination=dlt.destinations.filesystem("_storage")
+        "test_parquet_with_flattened_columns", destination=dlt.destinations.filesystem(get_test_storage_root())
     )
     info = pipeline.run(
         [load_json_case("github_events")], table_name="events", loader_file_format="parquet"
@@ -682,7 +682,7 @@ def test_filesystem_column_hint_timezone() -> None:
     import pyarrow.parquet as pq
     import posixpath
 
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
 
     # talbe: events_timezone_off
     @dlt.resource(
@@ -852,7 +852,7 @@ def test_null_in_non_null_arrow() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="variant",
-        pipelines_dir="_storage",
+        pipelines_dir=get_test_storage_root(),
         destination=filesystem(get_test_storage_root()),
     )
 
