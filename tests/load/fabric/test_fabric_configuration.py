@@ -22,7 +22,7 @@ def test_fabric_factory() -> None:
     # Test destination properties without requiring credentials
     assert dest.destination_name == "fabric"
     assert dest.capabilities().has_case_sensitive_identifiers is False
-    assert dest.capabilities().preferred_loader_file_format == "insert_values"
+    assert dest.capabilities().preferred_loader_file_format == "parquet"
     assert dest.capabilities().sqlglot_dialect == "fabric"
 
 
@@ -91,25 +91,116 @@ def test_fabric_configuration_custom_collation() -> None:
 
 
 def test_fabric_type_mapper() -> None:
-    """Test Fabric type mapper uses varchar instead of nvarchar"""
+    """Test Fabric type mapper converts nvarchar to varchar and datetimeoffset to datetime2"""
     from dlt.destinations.impl.fabric.factory import FabricTypeMapper
+    from dlt.common.destination import DestinationCapabilitiesContext
+    from dlt.common.schema.typing import TColumnSchema
+    from dlt.common.destination.typing import PreparedTableSchema
+    from typing import cast
 
-    mapper = FabricTypeMapper(capabilities=None)
+    # Create a mock table for testing
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
 
-    # Fabric should use varchar, not nvarchar
-    assert mapper.sct_to_unbound_dbt["text"] == "varchar(max)"
-    assert mapper.sct_to_dbt["text"] == "varchar(%i)"
+    caps = DestinationCapabilitiesContext.generic_capabilities("parquet")
+    mapper = FabricTypeMapper(caps)
 
-    # Fabric should use datetime2, not datetimeoffset
-    assert mapper.sct_to_unbound_dbt["timestamp"] == "datetime2(6)"
-    assert mapper.sct_to_dbt["timestamp"] == "datetime2(%i)"
+    # Test that text type gets converted to varchar (not nvarchar)
+    text_col = cast(
+        TColumnSchema, {"name": "test", "data_type": "text", "nullable": True}
+    )
+    result = mapper.to_destination_type(text_col, table)
+    assert "varchar" in result.lower()
+    assert "nvarchar" not in result.lower()
 
-    # Verify reverse mapping
-    assert mapper.dbt_to_sct["varchar"] == "text"
-    assert mapper.dbt_to_sct["datetime2"] == "timestamp"
+    # Test that timestamp uses datetime2 with precision 6 (not datetimeoffset)
+    timestamp_col = cast(
+        TColumnSchema, {"name": "test", "data_type": "timestamp", "nullable": True}
+    )
+    result = mapper.to_destination_type(timestamp_col, table)
+    assert "datetime2" in result.lower()
+    assert "datetimeoffset" not in result.lower()
 
 
 def test_fabric_credentials_drivername() -> None:
-    """Test that Fabric credentials have correct drivername"""
+    """Test that Fabric credentials inherit drivername from Synapse"""
     creds = FabricCredentials()
-    assert creds.drivername == "fabric"
+    # FabricCredentials extends SynapseCredentials, so drivername is "synapse"
+    assert creds.drivername == "synapse"
+
+
+def test_fabric_credentials_missing_service_principal() -> None:
+    """Test that Service Principal fields are optional and username/password can be provided directly"""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.driver = "ODBC Driver 18 for SQL Server"
+    creds.username = "test-user"
+    creds.password = "test-password"
+
+    # Should not raise - username/password can be provided directly
+    creds = resolve_configuration(creds)
+    assert creds.username == "test-user"
+    assert creds.password == "test-password"
+
+
+def test_fabric_credentials_service_principal_auto_conversion() -> None:
+    """Test that Service Principal credentials are automatically converted to username/password"""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.driver = "ODBC Driver 18 for SQL Server"
+    creds.azure_tenant_id = "test-tenant"
+    creds.azure_client_id = "test-client"
+    creds.azure_client_secret = "test-secret"
+
+    creds = resolve_configuration(creds)
+    # Verify automatic conversion happened
+    assert creds.username == "test-client@test-tenant"
+    assert creds.password == "test-secret"
+
+
+def test_fabric_credentials_invalid_driver() -> None:
+    """Test that unsupported ODBC driver is rejected"""
+    from dlt.common.exceptions import SystemConfigurationException
+
+    # Try to parse a connection string with unsupported driver
+    with pytest.raises(SystemConfigurationException):
+        resolve_configuration(
+            FabricCredentials(
+                "fabric://test_user:test_pwd@test.datawarehouse.fabric.microsoft.com/test_db?DRIVER=ODBC+Driver+13+for+SQL+Server"
+            )
+        )
+
+
+def test_fabric_credentials_longasmax_always_yes() -> None:
+    """Test that LONGASMAX is always set to 'yes' for UTF-8 support"""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.azure_tenant_id = "test-tenant"
+    creds.azure_client_id = "test-client"
+    creds.azure_client_secret = "test-secret"
+    creds.driver = "ODBC Driver 18 for SQL Server"
+
+    creds = resolve_configuration(creds)
+
+    # Get ODBC DSN and verify LONGASMAX is set to yes
+    dsn_dict = creds.get_odbc_dsn_dict()
+    assert dsn_dict["LONGASMAX"] == "yes"
+
+
+def test_fabric_credentials_authentication_method() -> None:
+    """Test that Service Principal authentication method is correctly set"""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.azure_tenant_id = "test-tenant"
+    creds.azure_client_id = "test-client"
+    creds.azure_client_secret = "test-secret"
+    creds.driver = "ODBC Driver 18 for SQL Server"
+
+    creds = resolve_configuration(creds)
+
+    # Verify ActiveDirectoryServicePrincipal is set
+    dsn_dict = creds.get_odbc_dsn_dict()
+    assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"

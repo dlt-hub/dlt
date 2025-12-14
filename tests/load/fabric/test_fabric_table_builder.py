@@ -155,3 +155,98 @@ def test_fabric_capabilities() -> None:
     from dlt.destinations.impl.fabric.factory import FabricTypeMapper
 
     assert isinstance(caps.type_mapper, type) and issubclass(caps.type_mapper, FabricTypeMapper)
+
+
+@pytest.fixture
+def client_with_indexes_enabled(empty_schema: Schema) -> FabricClient:
+    """Return Fabric client with indexes enabled"""
+    creds = FabricCredentials()
+    creds.host = "test.datawarehouse.fabric.microsoft.com"
+    creds.database = "testdb"
+    creds.azure_tenant_id = "test-tenant"
+    creds.azure_client_id = "test-client"
+    creds.azure_client_secret = "test-secret"
+    creds.driver = "ODBC Driver 18 for SQL Server"
+    creds.username = "test-client@test-tenant"
+    creds.password = "test-secret"
+
+    config = FabricClientConfiguration(credentials=creds, create_indexes=True)._bind_dataset_name(
+        dataset_name="test_" + uniq_id()
+    )
+    client_instance = fabric().client(empty_schema, config)  # type: ignore[arg-type]
+    assert isinstance(client_instance, FabricClient)
+    assert client_instance.config.create_indexes is True
+    return client_instance
+
+
+def test_create_table_with_primary_key_hint(
+    client: FabricClient, client_with_indexes_enabled: FabricClient
+) -> None:
+    """Test that primary_key hint creates proper constraint when indexes are enabled"""
+    from dlt.common.schema.typing import TColumnSchema
+    from copy import deepcopy
+
+    # Case: table without hint
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+    assert "PRIMARY KEY NONCLUSTERED NOT ENFORCED" not in sql
+
+    # Case: table with hint, but client does not have indexes enabled
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[0]["primary_key"] = True
+    sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    assert "PRIMARY KEY NONCLUSTERED NOT ENFORCED" not in sql
+
+    # Case: table with hint, client has indexes enabled
+    sql = client_with_indexes_enabled._get_table_update_sql("event_test_table", mod_update, False)[
+        0
+    ]
+    assert '"col1" bigint PRIMARY KEY NONCLUSTERED NOT ENFORCED NOT NULL' in sql
+
+
+def test_create_table_with_unique_hint(
+    client: FabricClient, client_with_indexes_enabled: FabricClient
+) -> None:
+    """Test that unique hint creates proper constraint when indexes are enabled"""
+    from copy import deepcopy
+
+    # Case: table without hint
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+    assert "UNIQUE NOT ENFORCED" not in sql
+
+    # Case: table with hint, but client does not have indexes enabled
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[0]["unique"] = True
+    sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    assert "UNIQUE NOT ENFORCED" not in sql
+
+    # Case: table with hint, client has indexes enabled
+    sql = client_with_indexes_enabled._get_table_update_sql("event_test_table", mod_update, False)[
+        0
+    ]
+    assert '"col1" bigint UNIQUE NOT ENFORCED NOT NULL' in sql
+
+
+def test_hints_disabled_by_default(client: FabricClient) -> None:
+    """Test that indexes/hints are disabled by default"""
+    assert client.config.create_indexes is False
+
+    # Even with hints in columns, they should not appear in SQL
+    from copy import deepcopy
+
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[0]["primary_key"] = True
+    mod_update[1]["unique"] = True
+
+    sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    assert "PRIMARY KEY" not in sql
+    assert "UNIQUE NOT ENFORCED" not in sql
+
+
+def test_fabric_no_with_clause_in_create_table(client: FabricClient) -> None:
+    """Test that Fabric does not add WITH clause for HEAP or CLUSTERED COLUMNSTORE INDEX"""
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+
+    # Fabric should not have any WITH clause
+    assert "WITH (" not in sql
+    assert "HEAP" not in sql
+    assert "CLUSTERED COLUMNSTORE INDEX" not in sql
