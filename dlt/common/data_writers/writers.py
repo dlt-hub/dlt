@@ -461,9 +461,7 @@ class IPCDataWriter(DataWriter):
             unify_dictionaries=self.ipc_format.unify_dictionaries,
         )
 
-        self.writer = pyarrow.ipc.new_file(
-            self._f, self.schema, options=options, metadata=self.file_metadata
-        )
+        self.writer = pyarrow.ipc.new_file(self._f, self.schema, options=options)
 
     def write_data(self, items: Sequence[TDataItem]) -> None:
         """Writes data rows into the IPC file"""
@@ -498,7 +496,7 @@ class IPCDataWriter(DataWriter):
             data_item_format="object",
             file_extension="arrow",
             is_binary_format=True,
-            supports_schema_changes="Buffer",
+            supports_schema_changes="False",  # IPC is fixed once the schema is written
             requires_destination_capabilities=True,
             supports_compression=False,  # IPC compression is handled internally
         )
@@ -691,9 +689,7 @@ class ArrowToIPCWriter(IPCDataWriter):
                 unify_dictionaries=self.ipc_format.unify_dictionaries,
             )
 
-            self.writer = pyarrow.ipc.new_file(
-                self._f, table.schema, options=options, metadata=self.file_metadata
-            )
+            self.writer = pyarrow.ipc.new_file(self._f, table.schema, options=options)
 
         self.writer.write_table(table)
 
@@ -714,7 +710,7 @@ class ArrowToIPCWriter(IPCDataWriter):
             data_item_format="arrow",
             file_extension="arrow",
             is_binary_format=True,
-            supports_schema_changes="Buffer",
+            supports_schema_changes="False",  # IPC is fixed once the schema is written
             requires_destination_capabilities=True,
             supports_compression=False,  # IPC compression is handled internally
         )
