@@ -14,6 +14,7 @@ from dlt.common.libs.git import (
 )
 
 from tests.utils import test_storage, skipifwindows
+from tests.libs.test_utils import decode_b64b64
 from tests.common.utils import load_secret, modify_and_commit_file, restore_secret_storage_path
 
 
@@ -25,7 +26,7 @@ CONTEXT_REPO = "https://github.com/dlt-hub/vibe-hub.git"
 
 
 def test_ssh_key_context() -> None:
-    secret = load_secret("deploy_key")
+    secret = decode_b64b64(load_secret("deploy-key-b64-b64"))
     with git_custom_key_command(secret) as git_command:
         assert len(git_command) > 0
         file_path = git_command.split(" ")[-1]
@@ -73,7 +74,7 @@ def test_clone_with_wrong_branch(test_storage: FileStorage) -> None:
 
 
 def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
-    secret = load_secret("deploy_key")
+    secret = decode_b64b64(load_secret("deploy_key_b64_b64"))
     repo_path = test_storage.make_full_path("private_repo")
     with git_custom_key_command(secret) as git_command:
         with pytest.raises(GitCommandError):
@@ -82,7 +83,7 @@ def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
 
 @skipifwindows
 def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
-    secret = load_secret("deploy_key")
+    secret = decode_b64b64(load_secret("deploy_key_b64_b64"))
     repo_path = test_storage.make_full_path("private_repo_access")
     with git_custom_key_command(secret) as git_command:
         clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command).close()
@@ -92,7 +93,7 @@ def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
 @pytest.mark.skip("disabled due to something locking in github")
 @skipifwindows
 def test_repo_status_update(test_storage: FileStorage) -> None:
-    secret = load_secret("deploy_key")
+    secret = decode_b64b64(load_secret("deploy_key_b64_b64"))
     repo_path = test_storage.make_full_path("private_repo_access")
     with git_custom_key_command(secret) as git_command:
         clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command).close()
