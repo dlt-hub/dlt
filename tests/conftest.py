@@ -61,7 +61,7 @@ def pytest_configure(config):
     os.environ["DLT_TEST_STORAGE_ROOT"] = f"_storage_{worker}" if worker else "_storage"
     test_storage_root = os.environ["DLT_TEST_STORAGE_ROOT"]
     if os.path.exists(test_storage_root):
-        shutil.rmtree(test_storage_root)
+        shutil.rmtree(test_storage_root, ignore_errors=True)
 
     os.makedirs(test_storage_root, exist_ok=True)
 
