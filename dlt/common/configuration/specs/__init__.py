@@ -26,6 +26,7 @@ from .azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
     AnyAzureCredentials,
 )
+from .hf_credentials import HfCredentials
 
 from .sftp_credentials import SFTPCredentials
 
@@ -67,5 +68,6 @@ __all__ = [
     "AnyAzureCredentials",
     "GcpClientCredentials",
     "GcpClientCredentialsWithDefault",
+    "HfCredentials",
     "SFTPCredentials",
 ]
