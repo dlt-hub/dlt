@@ -304,20 +304,20 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
     source_candidates = (
         set(get_source_candidates(initial_repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
     )
-    
+
     # Clean up the initial repo dir as we don't need it anymore
     shutil.rmtree(initial_repo_dir)
-    
+
     for candidate in source_candidates:
         # Clean workspace by removing all files except .dlt and .global_dir
         for item in os.listdir(os.getcwd()):
-            if item not in ['.dlt', '.global_dir']:
+            if item not in [".dlt", ".global_dir"]:
                 item_path = os.path.join(os.getcwd(), item)
                 if os.path.isdir(item_path):
                     shutil.rmtree(item_path)
                 else:
                     os.remove(item_path)
-        
+
         repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
         files = get_workspace_files(clear_all_sources=False)
         _init_command.init_command(candidate, "bigquery", repo_dir)
@@ -332,20 +332,20 @@ def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
     initial_repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
     # ensure we test both sources form verified sources and core sources
     source_candidates = set(CORE_SOURCES)
-    
+
     # Clean up the initial repo dir as we don't need it anymore
     shutil.rmtree(initial_repo_dir)
-    
+
     for candidate in source_candidates:
         # Clean workspace by removing all files except .dlt and .global_dir
         for item in os.listdir(os.getcwd()):
-            if item not in ['.dlt', '.global_dir']:
+            if item not in [".dlt", ".global_dir"]:
                 item_path = os.path.join(os.getcwd(), item)
                 if os.path.isdir(item_path):
                     shutil.rmtree(item_path)
                 else:
                     os.remove(item_path)
-        
+
         repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
         files = get_workspace_files(clear_all_sources=False)
         _init_command.init_command(candidate, "bigquery", repo_dir, eject_source=True)

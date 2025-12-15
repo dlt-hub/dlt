@@ -68,7 +68,9 @@ def test_all_catalogs(catalog: str) -> None:
     assert ds.table_foo["foo"].fetchall() == [(1,), (2,)]
 
     # test lake location
-    expected_location = pathlib.Path(get_test_storage_root(), DUCKLAKE_STORAGE_PATTERN % ducklake_name)
+    expected_location = pathlib.Path(
+        get_test_storage_root(), DUCKLAKE_STORAGE_PATTERN % ducklake_name
+    )
     assert expected_location.exists()
     # test dataset in lake
     assert (expected_location / pipeline.dataset_name).exists()

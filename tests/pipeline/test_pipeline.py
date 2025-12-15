@@ -94,7 +94,9 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(get_test_storage_root(), ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     # default dataset name is not created until a destination that requires it is set
     assert p.dataset_name is None
     assert p.destination is None
@@ -144,7 +146,9 @@ def test_default_pipeline_dataset_layout(environment) -> None:
         dataset_name_layout % "dlt_pipeline_dataset",
     ]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(get_test_storage_root(), ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
     assert p.default_schema_name is None
@@ -263,8 +267,12 @@ def test_pipeline_configuration_top_level_section(environment) -> None:
 def test_pipeline_configuration_named_section(environment) -> None:
     environment["PIPELINES__NAMED__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__NAMED__DESTINATION_TYPE"] = "dummy"
-    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
-    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
+    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
+    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
 
     pipeline = dlt.pipeline(pipeline_name="named")
     assert pipeline.dataset_name == "pipeline_dataset"
@@ -2829,6 +2837,7 @@ def test_yielding_empty_list_creates_table() -> None:
             assert len(rows) == 1
             assert rows[0] == (1, None)
 
+
 @pytest.mark.parametrize(
     "local_path_kind",
     (
@@ -2881,11 +2890,7 @@ def test_local_filesystem_destination(local_path_kind: str) -> None:
 
     # check all the files, paths may get messed up in many different ways
     # and data may land anywhere especially on Windows
-    expected_dataset = (
-        pathlib.Path(get_test_storage_root())
-        .joinpath(dataset_name)
-        .resolve()
-    )
+    expected_dataset = pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
     assert expected_dataset.exists()
     assert expected_dataset.is_dir()
 
@@ -2902,8 +2907,12 @@ def test_local_filesystem_destination(local_path_kind: str) -> None:
 
     fs_client = pipeline._fs_client()
     # all path formats we use must lead to test storage root relative to tests
-    expect_path_fragment = str(pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve())
-    expect_path_fragment = expect_path_fragment[expect_path_fragment.index(get_test_storage_root()) :]
+    expect_path_fragment = str(
+        pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
+    )
+    expect_path_fragment = expect_path_fragment[
+        expect_path_fragment.index(get_test_storage_root()) :
+    ]
     # TODO: restore on windows
     assert str(pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()).endswith(
         expect_path_fragment

@@ -130,30 +130,3 @@ def test_get_row_counts_list(pipeline: dlt.Pipeline):
         }
     else:
         reverted_result = {}
-
-
-@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_row_counts_list(pipeline: dlt.Pipeline):
-    """Test getting row counts from real pipeline"""
-    result = get_row_counts_list(pipeline)
-
-    # check it can be rendered as table with marimo
-    assert mo.ui.table(result).text is not None
-
-    reverted_result = {i["name"]: i["row_count"] for i in result}
-
-    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
-        assert reverted_result == {
-            "customers": 13,
-            "inventory": 6,
-            "purchases": (
-                100 if pipeline.pipeline_name == SUCCESS_PIPELINE_DUCKDB else 103
-            ),  #  merge does not work on filesystem
-            "purchases__child": 3,
-            "inventory_categories": 3,
-            "_dlt_version": 3,
-            "_dlt_loads": 4,
-            "_dlt_pipeline_state": 3,
-        }
-    else:
-        reverted_result = {}

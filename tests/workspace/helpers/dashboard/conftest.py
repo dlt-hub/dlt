@@ -76,7 +76,7 @@ def temp_pipelines_dir():
         from pathlib import Path
         import os
         from dlt.pipeline.trace import TRACE_FILE_NAME
-        
+
         pipelines_dir = Path(temp_dir) / "pipelines"
         pipelines_dir.mkdir()
 

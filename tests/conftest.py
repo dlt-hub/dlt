@@ -58,13 +58,11 @@ def pytest_configure(config):
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching). this is needed by common storage tests
     worker = os.environ.get("PYTEST_XDIST_WORKER")
-    os.environ["DLT_TEST_STORAGE_ROOT"] = (
-        f"_storage_{worker}" if worker else "_storage"
-    )
+    os.environ["DLT_TEST_STORAGE_ROOT"] = f"_storage_{worker}" if worker else "_storage"
     test_storage_root = os.environ["DLT_TEST_STORAGE_ROOT"]
     if os.path.exists(test_storage_root):
         shutil.rmtree(test_storage_root)
-    
+
     os.makedirs(test_storage_root, exist_ok=True)
 
     from dlt.common.configuration.specs import runtime_configuration

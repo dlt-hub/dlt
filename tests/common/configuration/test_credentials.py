@@ -327,7 +327,6 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     [
         # Non-interactive: prod / xdist / services
         (False, False, True),
-
         # Interactive: CLI / REPL
         (True, True, False),
     ],
@@ -345,9 +344,13 @@ def test_gcp_oauth_credentials_resolution_modes(
     assert gcpc.is_partial()
     assert not gcpc.is_resolved()
 
-    with patch("sys.stdin.isatty", return_value=isatty), \
-         patch("dlt.common.configuration.specs.gcp_credentials.is_interactive", return_value=interactive):
-
+    with (
+        patch("sys.stdin.isatty", return_value=isatty),
+        patch(
+            "dlt.common.configuration.specs.gcp_credentials.is_interactive",
+            return_value=interactive,
+        ),
+    ):
         resolve_configuration(gcpc, accept_partial=True)
 
         assert gcpc.is_partial() is expect_partial_after_resolve
@@ -380,7 +383,7 @@ def test_requires_refresh_token_no_tty():
     # We explicitly patch `_get_refresh_token` to prevent any interactive OAuth
     # flow and assert that authentication fails when no refresh token is present.
     # This keeps the test deterministic and consistent across pytest and xdist.
-    
+
     c = GcpOAuthCredentialsWithoutDefaults()
     # without refresh token
     c.parse_native_representation(OAUTH_USER_INFO % "")

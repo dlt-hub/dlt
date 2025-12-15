@@ -43,8 +43,10 @@ from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny, TDataItem, PathLike
 from dlt.common.utils import set_working_dir
 
+
 def get_test_storage_root() -> str:
     return os.environ.get("DLT_TEST_STORAGE_ROOT", "_storage")
+
 
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
     "duckdb",

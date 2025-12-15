@@ -533,7 +533,8 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
 def test_parquet_with_flattened_columns() -> None:
     # normalize json, write parquet file to filesystem
     pipeline = dlt.pipeline(
-        "test_parquet_with_flattened_columns", destination=dlt.destinations.filesystem(get_test_storage_root())
+        "test_parquet_with_flattened_columns",
+        destination=dlt.destinations.filesystem(get_test_storage_root()),
     )
     info = pipeline.run(
         [load_json_case("github_events")], table_name="events", loader_file_format="parquet"

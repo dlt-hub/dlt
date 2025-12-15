@@ -10,7 +10,7 @@ from dlt._workspace.helpers.dashboard.utils import (
 )
 from tests.workspace.helpers.dashboard.example_pipelines import (
     PIPELINES_WITH_LOAD,
-    SUCCESS_PIPELINE_DUCKDB
+    SUCCESS_PIPELINE_DUCKDB,
 )
 
 

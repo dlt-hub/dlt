@@ -219,7 +219,9 @@ def test_regular_run() -> None:
     def dag_decomposed():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_decomposed", local_data_folder=get_test_storage_root(), wipe_local_data=False
+            "pipeline_dag_decomposed",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -304,13 +306,17 @@ def test_parallel_run():
 
     tasks_list: List[BaseOperator] = None
 
-    quackdb_path = os.path.abspath(os.path.join(get_test_storage_root(), "pipeline_dag_parallel.duckdb"))
+    quackdb_path = os.path.abspath(
+        os.path.join(get_test_storage_root(), "pipeline_dag_parallel.duckdb")
+    )
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
+            "pipeline_dag_parallel",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -360,7 +366,9 @@ def test_parallel_incremental():
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
+            "pipeline_dag_parallel",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -409,7 +417,9 @@ def test_parallel_isolated_run():
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
+            "pipeline_dag_parallel",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task
@@ -465,7 +475,9 @@ def test_parallel_run_single_resource():
     def dag_parallel():
         nonlocal tasks_list
         tasks = PipelineTasksGroup(
-            "pipeline_dag_parallel", local_data_folder=get_test_storage_root(), wipe_local_data=False
+            "pipeline_dag_parallel",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
         )
 
         # set duckdb to be outside of pipeline folder which is dropped on each task

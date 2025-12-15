@@ -68,7 +68,9 @@ def test_default_pipeline_names(
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(get_test_storage_root(), ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
@@ -1228,7 +1230,9 @@ def test_pipeline_with_named_destination_via_factory_initializer() -> None:
 
     info = pipeline.run(test_data())
     assert_load_info(info)
-    assert (Path(get_test_storage_root()) / FILE_BUCKET / pipeline.dataset_name / "test_data").exists()
+    assert (
+        Path(get_test_storage_root()) / FILE_BUCKET / pipeline.dataset_name / "test_data"
+    ).exists()
 
     # 9. Should automatically infer destination type as 'dlt.destinations.destination' (custom destination implementation),
     # if destination_callable is provided

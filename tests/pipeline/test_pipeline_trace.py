@@ -257,6 +257,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert isinstance(pipeline.last_trace.last_normalize_info, NormalizeInfo)
     assert isinstance(pipeline.last_trace.last_extract_info, ExtractInfo)
 
+
 @pytest.mark.forked
 def test_trace_schema() -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
@@ -337,7 +338,9 @@ def test_trace_schema() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema",
         destination=dummy_dest,
-        staging=filesystem(os.path.abspath(os.path.join(get_test_storage_root(), "_remote_filesystem"))),
+        staging=filesystem(
+            os.path.abspath(os.path.join(get_test_storage_root(), "_remote_filesystem"))
+        ),
         dataset_name="various",
     )
 

@@ -14,6 +14,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     PIPELINES_WITH_LOAD,
 )
 
+
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
     """Test integration scenario with complete pipeline workflow"""

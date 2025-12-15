@@ -47,6 +47,7 @@ def test_get_loads(pipeline: dlt.Pipeline):
         assert error_message
         assert traceback_string
 
+
 @pytest.mark.parametrize(
     "pipeline",
     [

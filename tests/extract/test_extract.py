@@ -42,7 +42,9 @@ NESTED_DATA = [
 def extract_step() -> Extract:
     clean_test_storage(init_normalize=True)
     schema_storage = SchemaStorage(
-        SchemaStorageConfiguration(schema_volume_path=os.path.join(get_test_storage_root(), "schemas")),
+        SchemaStorageConfiguration(
+            schema_volume_path=os.path.join(get_test_storage_root(), "schemas")
+        ),
         makedirs=True,
     )
     return Extract(schema_storage, NormalizeStorageConfiguration())

@@ -17,6 +17,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     LOAD_EXCEPTION_PIPELINE,
 )
 
+
 @pytest.mark.parametrize(
     "pipeline, expected_steps, expected_status",
     [

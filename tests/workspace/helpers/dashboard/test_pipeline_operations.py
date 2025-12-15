@@ -106,6 +106,7 @@ def test_get_remote_state_details(pipeline: dlt.Pipeline):
     # check it can be rendered as table with marimo
     assert mo.ui.table(remote_state).text is not None
 
+
 @pytest.mark.parametrize(
     "pipeline, expected_steps, expected_status",
     [
