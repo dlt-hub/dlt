@@ -25,9 +25,11 @@ def test_copy_file_load_job_credentials() -> None:
 
 
 def test_copy_into_onelake_service_principal() -> None:
-    """Test COPY INTO with OneLake staging using Service Principal credentials"""
-    import time
+    """Test COPY INTO with OneLake staging using Service Principal credentials
     
+    Note: OneLake has an API quirk where delete operations return HTTP 200 instead of HTTP 202,
+    which the Azure SDK treats as an error. The filesystem client now handles this gracefully.
+    """
     # Get Fabric warehouse and filesystem credentials
     fabric_creds: Dict[str, Any] = dlt.secrets.get("destination.fabric.credentials")
     fs_creds: Dict[str, Any] = dlt.secrets.get("destination.filesystem.credentials")
@@ -35,15 +37,8 @@ def test_copy_into_onelake_service_principal() -> None:
     # OneLake bucket URL format: abfss://workspace_guid@onelake.dfs.fabric.microsoft.com/lakehouse_guid/Files/path
     onelake_bucket: str = dlt.secrets.get("destination.fabric.onelake_bucket_url")
 
-    # Use unique pipeline name and dataset to avoid OneLake truncation API quirk
-    # OneLake returns HTTP 200 instead of HTTP 202 when deleting files, which the Azure SDK treats as error
-    pipeline_name = f"onelake_test_{int(time.time())}"
-    dataset_name = f"test_dataset_{int(time.time())}"
-
     # OneLake staging with Service Principal authentication
     pipeline = dlt.pipeline(
-        pipeline_name=pipeline_name,
-        dataset_name=dataset_name,
         staging=filesystem(
             bucket_url=onelake_bucket,
             credentials=AzureServicePrincipalCredentialsWithoutDefaults(
@@ -57,8 +52,12 @@ def test_copy_into_onelake_service_principal() -> None:
         destination=fabric(credentials=fabric_creds),
     )
 
-    # Test with simple data
-    info = pipeline.run([{"id": 1, "name": "test"}], table_name="onelake_test")
+    # Test with simple data using 'replace' disposition to handle reruns
+    info = pipeline.run(
+        [{"id": 1, "name": "test"}],
+        table_name="onelake_test",
+        write_disposition="replace",
+    )
     assert_load_info(info)
 
 
