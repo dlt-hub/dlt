@@ -6,7 +6,7 @@ keywords: [pipeline, schema, data, inspect]
 
 # Inspect your pipeline with the workspace dashboard
 
-Once you have run a pipeline locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the Marimo Python notebook framework. For this to work, you will need to have the `marimo` package installed.
+Once you have run a pipeline locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the marimo Python notebook framework. For this to work, you will need to have the `marimo` package installed.
 
 :::tip
 The workspace dashboard app works with all destinations that are supported by our dataset. Vector databases are generally unsupported at this point; however, you can still inspect metadata such as run traces, schemas, and pipeline state.
@@ -24,14 +24,14 @@ You can use the dashboard app to:
 * Inspect the full run trace, including which configs were found and where; the results of the extract, normalize, and load steps (with timing and row counts); and information about the execution context (dlt version, platform, etc.)
 * See a history of load packages and associated table counts
 
-You can even eject the code for the dashboard app into your current working directory and start editing it either in your code editor or in Marimo edit mode to create your own custom dashboard app!
+You can even eject the code for the dashboard app into your current working directory and start editing it either in your code editor or in marimo edit mode to create your own custom dashboard app!
 
 ![Dashboard overview](https://storage.googleapis.com/dlt-blog-images/dashboard-overview.png)
 
 
 ## Prerequisites
 
-To install Marimo, run the following command:
+To install marimo, run the following command:
 ```sh
 pip install marimo
 ```
@@ -116,7 +116,7 @@ Using `replace` write disposition is slower but simpler. If you are using it to 
     SELECT _dlt_load_id, COUNT(*) FROM items GROUP BY 1
     ```
 
-- Optionally, check for continuity in the data. If you have a time axis or incremental IDs with normal distribution, plot them on a line chart to spot any anomalies. For easy plotting, we suggest using our integrated [Marimo notebook](./dataset-access/marimo.md).
+- Optionally, check for continuity in the data. If you have a time axis or incremental IDs with normal distribution, plot them on a line chart to spot any anomalies. For easy plotting, we suggest using our integrated [marimo notebook](./dataset-access/marimo.md).
 
 ### 3) Is my normalized schema the one I actually want?
 
@@ -203,7 +203,7 @@ SELECT * FROM {your_table} LIMIT 10
 2. Add additional endpoints to your source if you need related entities.
 3. Use [`add_map`](../dlt-ecosystem/transformations/add-map.md) to hash PII or reshape records before loading.
 
-Use the Dataset Browser to explore the data, or the [Marimo notebook](./dataset-access/marimo.md) for more complex analysis.
+Use the Dataset Browser to explore the data, or the [marimo notebook](./dataset-access/marimo.md) for more complex analysis.
 
 ### 5) Are my data types correct?
 
@@ -295,7 +295,7 @@ dlt pipeline {pipeline_name} show --edit
 dlt dashboard --edit
 ```
 
-This will copy the dashboard code to the local folder and start Marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode. Once you have the local version, you can also use the regular Marimo commands to run or edit this notebook. This way, you can maintain multiple versions of your dashboard or other Marimo apps in your project:
+This will copy the dashboard code to the local folder and start marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode. Once you have the local version, you can also use the regular marimo commands to run or edit this notebook. This way, you can maintain multiple versions of your dashboard or other marimo apps in your project:
 
 ```sh
 # this will run a local dashboard
