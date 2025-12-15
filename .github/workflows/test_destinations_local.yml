@@ -188,10 +188,15 @@ jobs:
 
       # always run full suite, also on branches
       - name: Run tests Linux
-        run: |
-          eval "$(ssh-agent -s)"
-          uv run pytest -p xdist -n auto --dist=loadscope \
-            tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
+        run: >
+          eval "$(ssh-agent -s)" &&
+          uv run pytest
+          -p xdist
+          -n auto
+          --dist=loadscope
+          tests/load
+          --ignore tests/load/sources
+          --ignore tests/load/filesystem_sftp
 
       - name: Run additional tests
         run: ${{ matrix.additional_tests }}
