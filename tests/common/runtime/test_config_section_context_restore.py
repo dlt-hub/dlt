@@ -35,25 +35,32 @@ def _worker_resolve_config() -> Tuple[str, Tuple[str, ...]]:
 
 
 @pytest.mark.parametrize("start_method", ["spawn", "fork"])
-def test_config_section_context_restored_in_worker(start_method: str) -> None:
+@pytest.mark.parametrize("use_section_context", [True, False])
+def test_config_section_context_restored_in_worker(
+    start_method: str, use_section_context: bool
+) -> None:
     """Test that ConfigSectionContext is properly restored in worker processes.
 
     This test verifies that ConfigSectionContext is correctly serialized and restored
     in worker processes, allowing config resolution to use the correct sections.
+    When no ConfigSectionContext is set, workers should use the default empty sections.
     """
-    # Set up environment variable with section-specific value
+    # Set up environment variables with section-specific values
     os.environ["MY_SECTION__TEST_SECTION__TEST_VALUE"] = "sectioned_value"
-    os.environ["TEST_SECTION__TEST_VALUE"] = "non_sectioned_value"  # Should not be used
+    os.environ["TEST_SECTION__TEST_VALUE"] = "non_sectioned_value"
 
-    # Set up ConfigSectionContext in main process
-    section_context = ConfigSectionContext(
-        pipeline_name=None,
-        sections=("my_section",),
-    )
-
-    # Store it in container
     container = Container()
-    container[ConfigSectionContext] = section_context
+
+    if use_section_context:
+        # Set up ConfigSectionContext in main process
+        section_context = ConfigSectionContext(
+            pipeline_name=None,
+            sections=("my_section",),
+        )
+        container[ConfigSectionContext] = section_context
+    else:
+        # Ensure no ConfigSectionContext is in container
+        del container[ConfigSectionContext]
 
     # Create process pool with multiple workers
     # Using multiple workers ensures we're actually testing cross-process behavior
@@ -71,16 +78,25 @@ def test_config_section_context_restored_in_worker(start_method: str) -> None:
         # All workers should have the same ConfigSectionContext
         result_value, result_sections = results[0]
 
-    # Verify that ConfigSectionContext was restored correctly
-    assert result_sections == ("my_section",), (
-        f"Expected sections ('my_section',) but got {result_sections}. "
-        "ConfigSectionContext was not properly restored in worker process."
-    )
-
-    # Verify that config resolution used the correct sections
-    assert result_value == "sectioned_value", (
-        f"Expected 'sectioned_value' but got '{result_value}'. "
-        "Config resolution did not use the restored ConfigSectionContext sections."
-    )
-
-
+    if use_section_context:
+        # Verify that ConfigSectionContext was restored correctly
+        assert result_sections == ("my_section",), (
+            f"Expected sections ('my_section',) but got {result_sections}. "
+            "ConfigSectionContext was not properly restored in worker process."
+        )
+        # Verify that config resolution used the correct sections
+        assert result_value == "sectioned_value", (
+            f"Expected 'sectioned_value' but got '{result_value}'. "
+            "Config resolution did not use the restored ConfigSectionContext sections."
+        )
+    else:
+        # Without section context, should use default empty sections
+        assert result_sections == (), (
+            f"Expected empty sections () but got {result_sections}. "
+            "ConfigSectionContext should have default empty sections when not set."
+        )
+        # Verify that config resolution used the non-sectioned value
+        assert result_value == "non_sectioned_value", (
+            f"Expected 'non_sectioned_value' but got '{result_value}'. "
+            "Config resolution should use non-sectioned value when no ConfigSectionContext is set."
+        )

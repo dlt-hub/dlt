@@ -16,6 +16,7 @@ from tests.pipeline.utils import (
     assert_table_column,
 )
 
+
 def run_pipeline(
     items_per_table: int,
     max_parallel_load_jobs: int = None,
@@ -157,4 +158,4 @@ def test_normalize_compression_with_spawn_workers() -> None:
                     f.read()
 
     info = p.load()
-    assert_table_column(p, "data", data, info)
+    assert_table_column(p, "data", data, info=info)
