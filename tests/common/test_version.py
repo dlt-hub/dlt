@@ -1,13 +1,12 @@
 import os
 import pytest
-from importlib.metadata import PackageNotFoundError, distributions
+from importlib.metadata import PackageNotFoundError
 from packaging.requirements import Requirement
 
 from dlt.version import get_installed_requirement_string, get_dependency_requirement
 
-
+@pytest.mark.xdist_group("metadata")
 def test_installed_requirement_string() -> None:
-    list(distributions())
     # we are running tests in editable mode so we should get path to here
     path = get_installed_requirement_string()
     assert os.path.commonpath((__file__, path)) == path
