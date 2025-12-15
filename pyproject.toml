@@ -391,7 +391,7 @@ multi_line_output = 3
 [tool.pytest.ini_options]
 pythonpath = ["dlt"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
-addopts = "--showlocals --durations 10 -m 'not rfam'"
+addopts = "-p no:xdist --showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
 log_cli_level = "INFO"
 console_output_style = "count"
