@@ -17,8 +17,7 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # Transforming and filtering the data [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_5_transform_data_before_and_after_loading.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_5_transform_data_before_and_after_loading.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_5_transform_data_before_and_after_loading.ipynb)
 
     In this lesson, we will take a look at various ways of doing data transformations and filtering of the data during and after the ingestion.
@@ -30,23 +29,20 @@ def _(mo):
     4. With `pipeline.dataset()`.
 
     Let's review and compare these methods.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ##  What you’ll learn:
 
     - How to limit rows at the source with SQL queries.
     - How to apply custom Python logic per record.
     - How to write transformations using functional and declarative APIs.
     - How to access and query your loaded data using `.dataset()`.
-    """
-    )
+    """)
     return
 
 
@@ -58,13 +54,11 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     We will be using the `sql_database` source as an example and will connect to the public [MySQL RFam](https://www.google.com/url?q=https%3A%2F%2Fwww.google.com%2Furl%3Fq%3Dhttps%253A%252F%252Fdocs.rfam.org%252Fen%252Flatest%252Fdatabase.html) database. The RFam database contains publicly accessible scientific data on RNA structures.
 
     Let's perform an initial load:
-    """
-    )
+    """)
     return
 
 
@@ -140,13 +134,11 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     When ingesting data using the `sql_database` source, dlt runs a `SELECT` statement in the back, and using the `query_adapter_callback` parameter makes it possible to pass a `WHERE` clause inside the underlying `SELECT` statement.
 
     In this example, only the table `genome` is filtered on the column `kingdom`
-    """
-    )
+    """)
     return
 
 
@@ -156,7 +148,6 @@ def _():
 
     def query_adapter_callback(query: SelectAny, table: Table) -> SelectAny:
         return query.where(table.c.kingdom == "bacteria") if table.name else query
-
     return SelectAny, SelectClause, Table, query_adapter_callback
 
 
@@ -185,13 +176,11 @@ def _(dlt, query_adapter_callback, sql_database):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     In the snippet above we created an SQL VIEW in your source database and extracted data from it. In that case, dlt will infer all column types and read data in shape you define in a view without any further customization.
 
     If creating a view is not feasible, you can fully rewrite the automatically generated query with an extended version of `query_adapter_callback`:
-    """
-    )
+    """)
     return
 
 
@@ -244,8 +233,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Since dlt is a Python library, it gives you a lot of control over the extracted data.
 
     You can attach any number of transformations that are evaluated on an item-per-item basis to your resource. The available transformation types:
@@ -258,8 +246,7 @@ def _(mo):
     For example, if we wanted to anonymize sensitive data before it is loaded into the destination, then we can write a python function for it and apply it to source or resource using the `.add_map()` method.
 
     [dlt documentation.](https://dlthub.com/docs/general-usage/resource#filter-transform-and-pivot-data)
-    """
-    )
+    """)
     return
 
 
@@ -313,7 +300,6 @@ def _():
         hashed_string = sh.digest().hex()
         row["author"] = hashed_string
         return row
-
     return TDataItem, hashlib, pseudonymize_name
 
 
@@ -410,8 +396,7 @@ def _(pipeline_4):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### `add_map` vs `add_yield_map`
 
     The difference between `add_map` and `add_yield_map` matters when a transformation returns multiple records from a single input.
@@ -423,8 +408,7 @@ def _(mo):
     - Great for adding fields or changing structure.
 
     #### Example
-    """
-    )
+    """)
     return
 
 
@@ -448,16 +432,14 @@ def _(TDataItem, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **`add_yield_map`**
     - Use `add_yield_map` when you want to turn one item into multiple items, or possibly no items.
     - Your function is a generator that uses yield.
     - Great for pivoting nested data, flattening lists, or filtering rows.
 
     #### Example
-    """
-    )
+    """)
     return
 
 
@@ -482,12 +464,10 @@ def _(TDataItem, TDataItems, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Using `add_filter`
     `add_filter` function can be used similarly. The difference is that `add_filter` expects a function that returns a boolean value for each item. For example, to implement the same filtering we did with a query callback, we can use:
-    """
-    )
+    """)
     return
 
 
@@ -524,27 +504,23 @@ def _(pipeline_5):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Question 1:
 
     What is a `total_rows` in the example above?
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Using `add_limit`
 
     If your resource loads thousands of pages of data from a REST API or millions of rows from a database table, you may want to sample just a fragment of it in order to quickly see the dataset with example data and test your transformations, etc.
 
     To do this, you limit how many items will be yielded by a resource (or source) by calling the `add_limit` method. This method will close the generator that produces the data after the limit is reached.
-    """
-    )
+    """)
     return
 
 
@@ -577,13 +553,11 @@ def _(pipeline_6):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **3. Transforming data with `@dlt.transformer`**
 
     The main purpose of transformers is to create children tables with additional data requests, but they can also be used for data transformations especially if you want to keep the original data as well.
-    """
-    )
+    """)
     return
 
 
@@ -626,8 +600,7 @@ def _(pipeline_7):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **4. Transforming data after the load**
 
     Another possibility for data transformation is transforming data after the load. dlt provides several way of doing it:
@@ -635,20 +608,17 @@ def _(mo):
     * using `sql_client`,
     * via `.dataset()` and ibis integration,
     * via [dbt integration](https://dlthub.com/docs/dlt-ecosystem/transformations/dbt/).
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### SQL client
 
     You already saw examples of using dlt's SQL client. dlt gives you an opportunity to connect to your destination and execute any SQL query.
-    """
-    )
+    """)
     return
 
 
@@ -666,13 +636,11 @@ def _(pipeline_7):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Accessing loaded data with `pipeline.dataset()`
 
     Use `pipeline.dataset()` to inspect and work with your data in Python after loading.
-    """
-    )
+    """)
     return
 
 
@@ -686,7 +654,9 @@ def _(pipeline_7):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""Note that `row_counts` didn't return the new table `genome_length`,""")
+    mo.md(
+        r"""Note that `row_counts` didn't return the new table `genome_length`,"""
+    )
     return
 
 
@@ -742,8 +712,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Ibis integration
 
     Ibis is a powerful portable Python dataframe library. Learn more about what it is and how to use it in the [official documentation](https://ibis-project.org/).
@@ -757,8 +726,7 @@ def _(mo):
     * Clickhouse
     * MSSQL (including Synapse)
     * BigQuery
-    """
-    )
+    """)
     return
 
 
@@ -790,7 +758,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

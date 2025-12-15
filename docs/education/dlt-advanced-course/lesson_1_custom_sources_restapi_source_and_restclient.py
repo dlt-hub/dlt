@@ -29,8 +29,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **Recap**
 
     In the **[dlt Fundamentals](https://github.com/dlt-hub/dlthub-education/tree/main/courses/dlt_fundamentals_dec_2024)** course, we learned two primary ways to build sources for REST APIs:
@@ -39,15 +38,13 @@ def _(mo):
     2. **Using the built-in [`rest_api` source](https://dlthub.com/docs/devel/dlt-ecosystem/verified-sources/rest_api/basic)** with declarative configuration.
 
     ---
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **1. Building sources with low-level dlt decorators**
 
     We constructed a custom source for the **GitHub API** using the `RESTClient` class, decorators like `@dlt.resource` and `@dlt.source`, and manual pagination handling.
@@ -56,8 +53,7 @@ def _(mo):
     #### **Example**
 
     > Don't forget to use your [GitHub API token](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api?apiVersion=2022-11-28) below!
-    """
-    )
+    """)
     return
 
 
@@ -119,8 +115,7 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     ### **2. Building sources with `rest_api` source**
@@ -129,8 +124,7 @@ def _(mo):
 
 
     #### **Example**
-    """
-    )
+    """)
     return
 
 
@@ -185,20 +179,17 @@ def _(dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **REST API Client by `dlt`**
 
     `dlt`’s REST API Client is the low level abstraction that powers the REST API Source. You can use it in your imperative code for more automation and brevity, if you do not wish to use the higher level declarative interface.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     If you don't like black boxes and prefer lower-level building blocks, then our `RESTClient` is perfect for you!
 
     The `RESTClient` class offers a Pythonic interface for interacting with RESTful APIs, including features like:
@@ -215,8 +206,7 @@ def _(mo):
     - How to run the pipeline and inspect the data
 
     For more information, read `dlt`'s official documentation for the [REST API Client](https://dlthub.com/devel/general-usage/http/rest-client).
-    """
-    )
+    """)
     return
 
 
@@ -242,8 +232,7 @@ def _(BearerTokenAuth, HeaderLinkPaginator, RESTClient, dlt, os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The `RESTClient` class is initialized with the following parameters:
 
     - `base_url`: The root URL of the API. All requests will be made relative to this URL.
@@ -252,15 +241,13 @@ def _(mo):
     - `paginator`: A paginator instance for handling paginated responses. See the [Paginators](https://dlthub.com/docs/general-usage/http/rest-client#paginators) section below.
     - `data_selector`: A [JSONPath selector](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for extracting data from the responses. This defines a way to extract the data from the response JSON. Only used when paginating.
     - `session`: An optional session for making requests. This should be a [Requests session](https://requests.readthedocs.io/en/latest/api/#requests.Session) instance that can be used to set up custom request behavior for the client.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **2. Add authentication**
 
     The RESTClient supports various authentication strategies, such as bearer tokens, API keys, and HTTP basic auth, configured through the `auth` parameter of both the `RESTClient` and the `paginate()` method.
@@ -274,8 +261,7 @@ def _(mo):
 
     For specific use cases, you can [implement custom authentication](https://dlthub.com/docs/devel/general-usage/http/rest-client#implementing-custom-authentication) by subclassing the `AuthConfigBase` class from the [`dlt.sources.helpers.rest_client.auth`](https://github.com/dlt-hub/dlt/blob/devel/dlt/sources/helpers/rest_client/auth.py) module.
     For specific flavors of OAuth 2.0, you can [implement custom OAuth 2.0](https://dlthub.com/docs/devel/general-usage/http/rest-client#oauth-20-authorization) by subclassing `OAuth2ClientCredentials`.
-    """
-    )
+    """)
     return
 
 
@@ -289,8 +275,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### 📰 **NewsAPI overview**
 
     - **Base URL:** `https://newsapi.org/v2/`
@@ -311,15 +296,13 @@ def _(mo):
     ```http
     GET /v2/everything?q=python&page=1&apiKey=YOUR_API_KEY
     ```
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Prerequisites:**
 
     To securely access the NewsAPI in your dlt project:
@@ -361,8 +344,7 @@ def _(mo):
       ```
       https://newsapi.org/v2/everything?q=python&apiKey=your_key
       ```
-    """
-    )
+    """)
     return
 
 
@@ -390,8 +372,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **3. Add pagination**
 
     The `RESTClient` supports automatic pagination of API responses via the `paginate()` method, which can be customized using a built-in or custom paginator.
@@ -414,15 +395,13 @@ def _(mo):
 
 
     > If a `paginator` is not specified, the `paginate()` method will attempt to **automatically detect** the pagination mechanism used by the API. If the API uses a standard pagination mechanism like having a `next` link in the response's headers or JSON body, the `paginate()` method will handle this automatically. Otherwise, you can specify a paginator object explicitly or implement a custom paginator.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **PageData**
 
     When using `client.paginate(...)` in dlt, you don’t just get a stream of data — each **page** returned is a rich object called `PageData`, and it gives you full access to the internals of the request, response, and pagination state.
@@ -438,8 +417,7 @@ def _(mo):
     - `auth`: The authentication object used for the request.
 
     Let’s walk through an example.
-    """
-    )
+    """)
     return
 
 
@@ -470,8 +448,7 @@ def _(news_api_client):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Log Warning explained**
 
     ```
@@ -483,15 +460,13 @@ def _(mo):
     - dlt tried to guess the pagination method but failed
     - It will make only **one request**
     - You won’t get multiple pages of data unless you configure a paginator explicitly
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Question 1:**
 
 
@@ -499,15 +474,13 @@ def _(mo):
 
 
     >Answer this question and select the correct option in the homework Google Form.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **How we chose the right paginator for NewsAPI**
 
     When using `RESTClient` to extract data from paginated APIs, one of the first decisions you must make is:
@@ -560,8 +533,7 @@ def _(mo):
     **Step 3: Choose `PageNumberPaginator`**
 
     This is exactly what `PageNumberPaginator` is made for:
-    """
-    )
+    """)
     return
 
 
@@ -591,13 +563,11 @@ def _(APIKeyAuth, RESTClient, os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **4. Wrap into a dlt Resource**
 
     Let’s turn this into a dlt pipeline resource:
-    """
-    )
+    """)
     return
 
 
@@ -630,7 +600,6 @@ def _(
             "everything", params={"q": "python", "pageSize": 5, "language": "en"}
         ):
             yield page
-
     return (get_articles,)
 
 
@@ -670,19 +639,16 @@ def _(
             "top-headlines", params={"pageSize": 5, "language": "en"}
         ):
             yield page
-
     return (get_top_articles,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **6. Create a reusable Source**
 
     Now bundle both resources into a single `@dlt.source`:
-    """
-    )
+    """)
     return
 
 
@@ -691,7 +657,6 @@ def _(DltResource, Iterable, dlt, get_articles, get_top_articles):
     @dlt.source
     def newsapi_source(news_api_key: str = dlt.secrets.value) -> Iterable[DltResource]:
         return [get_articles(news_api_key), get_top_articles(news_api_key)]
-
     return (newsapi_source,)
 
 
@@ -731,8 +696,7 @@ def _(pipeline_1):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **Create custom source using `dlt` and [`rest_api` source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic)**
 
     `rest_api` is a generic source that you can use to create a `dlt` source from a REST API using a declarative configuration. The majority of REST APIs behave in a similar way; this `dlt` source attempts to provide a declarative way to define a `dlt` source for those APIs.
@@ -749,15 +713,13 @@ def _(mo):
     dlt will take care of the rest: **unnesting the data, inferring the schema**, etc., and **writing to the destination**
 
     In the previous section, you've already learned about the Rest API Client. `dlt`’s **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client)** is the **low level abstraction** that powers the REST API Source.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **What you’ll learn**
 
     This section will teach you how to create a reusable, authenticated, and paginated pipeline using the `rest_api_source` module in dlt. Our example will use the [NewsAPI](https://newsapi.org), which provides access to thousands of news articles via a REST API.
@@ -768,15 +730,13 @@ def _(mo):
     - Configuring pagination
     - Building a working `dlt` pipeline
     - Inspecting and transforming the response
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Reminder: **About NewsAPI**
 
     - **Base URL:** `https://newsapi.org/v2/`
@@ -792,27 +752,23 @@ def _(mo):
     To access the API, register for a **free account** at [newsapi.org](https://newsapi.org/register) and copy your personal API key.
 
     Add this key to your Colab secrets.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **1. Define the source configuration**
 
     We'll now build the complete configuration step-by-step. This gives you control over authentication, pagination, filters, and even incremental loading.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **RESTAPIConfig**
 
     The central object when working with the `rest_api_source` is the `RESTAPIConfig`. This is a declarative Python dictionary that tells dlt everything it needs to know about the API you are connecting to.
@@ -852,15 +808,13 @@ def _(mo):
     # Run it
     load_info = pipeline.run(news_source)
     ```
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     You can start with just these fields and then add pagination, schema hints, transformations, and more as needed.
 
     To extract data from a REST API using `dlt`, we define a configuration dictionary that follows the `RESTAPIConfig` structure.
@@ -871,30 +825,26 @@ def _(mo):
     - how to paginate, filter, and process responses
 
     At a high level, the configuration has two required keys:
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **`client`**
     This defines the shared connection details for all requests:
     - `base_url`: The root URL for the API
     - `auth`: (Optional) Authentication method to use — such as API key or token
     - `headers`: (Optional) Custom headers for requests
     - `paginator`: (Optional) Default paginator for all resources
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **`resources`**
     A list of resource definitions. Each resource becomes a table in your destination.
     A resource includes:
@@ -907,8 +857,7 @@ def _(mo):
     - `response_actions`: Optional hooks to inspect or alter the HTTP response
 
     Let’s build a real-world configuration step-by-step using NewsAPI.
-    """
-    )
+    """)
     return
 
 
@@ -934,22 +883,19 @@ def _(RESTAPIConfig, dlt, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Question 2:
 
     What error was thrown in the example above?
 
     >Answer this question and select the correct option in the homework Google Form.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **2. Add authentication**
 
     NewsAPI requires an API key to be sent with every request. We use dlt's built-in `api_key` authentication method, which places the key into the query string automatically:
@@ -967,8 +913,7 @@ def _(mo):
 
 
     The available authentication methods you can find in [dlt documentation](https://dlthub.com/docs/general-usage/http/rest-client#authentication).
-    """
-    )
+    """)
     return
 
 
@@ -1003,8 +948,7 @@ def _(dlt, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **3. Add pagination**
 
     The REST API source will try to automatically handle pagination for you. This works by detecting the pagination details from the first API response. Unfortunately, it doesn't work for NewsAPI.
@@ -1023,8 +967,7 @@ def _(mo):
     ```
 
     This will fetch up to 3 pages of results, stopping early if a page is empty.
-    """
-    )
+    """)
     return
 
 
@@ -1072,8 +1015,7 @@ def _(pipeline_3):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **4. Add order, filtering via params**
     We can filter articles using query parameters supported by NewsAPI:
 
@@ -1088,8 +1030,7 @@ def _(mo):
     - `q`: search keyword (e.g. "python")
     - `language`: filter by article language
     - `pageSize`: number of articles per page (max 100)
-    """
-    )
+    """)
     return
 
 
@@ -1134,8 +1075,7 @@ def _(dlt, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **5. Incremental loading**
 
     Although NewsAPI does not support true incremental loading via cursors, you can simulate it using the `from` or `to` date filters and dlt's `incremental` loader:
@@ -1153,8 +1093,7 @@ def _(mo):
     - On the next run, it will only request articles newer than that
 
     This is optional and depends on your usage pattern.
-    """
-    )
+    """)
     return
 
 
@@ -1220,8 +1159,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Set defaults
 
     First, set some defaults for all endpoints:
@@ -1237,8 +1175,7 @@ def _(mo):
         },
     },
     ```
-    """
-    )
+    """)
     return
 
 
@@ -1296,20 +1233,17 @@ def _(dlt, initial_from, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     `resource_defaults` contains the default values to configure the dlt resources returned by this source.
 
     `resources` object contains the configuration for each resource.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Add same level endpoint
 
     To load additional endpoints like `/top-headlines` or `/sources`, you can simply add more entries to the `resources` list:
@@ -1326,8 +1260,7 @@ def _(mo):
       "data_selector": "articles"
     }
     ```
-    """
-    )
+    """)
     return
 
 
@@ -1394,8 +1327,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Response actions
 
     The `response_actions` field in the endpoint configuration allows you to specify how to **handle specific responses** or all responses from the API.
@@ -1403,15 +1335,13 @@ def _(mo):
     For example:
     - Responses with specific status codes or content substrings can be ignored.
     - All responses or only responses with specific status codes or content substrings can be transformed with a custom callable, such as a function. This callable is passed on to the requests library as a response hook. The callable can modify the response object and has to return it for the modifications to take effect.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ```python
     "resources": [
         {
@@ -1437,8 +1367,7 @@ def _(mo):
     "ignore": Ignore the response.
     a callable accepting and returning the response object.
     a list of callables, each accepting and returning the response object.
-    """
-    )
+    """)
     return
 
 
@@ -1449,7 +1378,6 @@ def _(Any):
     def debug_response(response: Response, *args: Any, **kwargs: Any) -> Response:
         print("Intercepted:", response.status_code)
         return response
-
     return (debug_response,)
 
 
@@ -1513,8 +1441,7 @@ def _(debug_response, dlt, initial_from, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Processing steps: filter and transform data
     The `processing_steps` field in the resource configuration allows you to **apply transformations** to the data fetched from the API before it is loaded into your destination.
 
@@ -1524,15 +1451,13 @@ def _(mo):
     - **anonymize** sensitive information.
 
     Each processing step is a dictionary specifying the type of operation (filter or map) and the function to apply. Steps apply in the order they are listed.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ```python
      "resources": [
             {
@@ -1544,8 +1469,7 @@ def _(mo):
             },
         ],
     ```
-    """
-    )
+    """)
     return
 
 
@@ -1554,7 +1478,6 @@ def _(Any):
     def lower_title(record: dict[str, Any]) -> dict[str, Any]:
         record["title"] = str(record["title"]).lower()
         return record
-
     return (lower_title,)
 
 
@@ -1622,8 +1545,7 @@ def _(debug_response, dlt, initial_from, lower_title, os, rest_api_source):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # Links
 
     More Information about how to build efficient data pipelines you can find in our official documentation:
@@ -1634,8 +1556,7 @@ def _(mo):
     - [Incremental loading](https://dlthub.com/docs/general-usage/incremental-loading),
     - Our pre-built [Verified Sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources/),
     - Available [Destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/).
-    """
-    )
+    """)
     return
 
 
@@ -1649,8 +1570,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # Exercise 1
 
     Your task is to create a `rest_api_source` configuration for the public **Jaffle Shop API**. This exercise will help you apply what you’ve learned:
@@ -1673,8 +1593,7 @@ def _(mo):
 
     ### Question:
     How many rows does the resulting table `orders` contain?
-    """
-    )
+    """)
     return
 
 
@@ -1695,7 +1614,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

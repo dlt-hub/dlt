@@ -15,13 +15,11 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **Introduction** [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_7_data_contracts.ipynb)
 
     `dlt` offers powerful tools for schema configuration, giving you control over your data processing. You can export and import schemas for easy adjustments and apply specific settings directly to resources for precise data normalization. Plus, you can set data contracts to ensure your data meets your expectations... 👀
-    """
-    )
+    """)
     return
 
 
@@ -41,20 +39,17 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     When you run a pipeline, `dlt` internally generates a `<>.schema.json` file. You can export this file to a specific location in YAML format by specifying `export_schema_path="schemas/export"` in your pipeline.
 
     See [dlt Fundamentals: Lesson 7](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_7_inspecting_and_adjusting_schema.ipynb)
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     This YAML file will look something like:
 
     ```yaml
@@ -114,8 +109,7 @@ def _(mo):
     - O4M6U4KA32Xz4Vrdcqo4XPBPFVcK1FZbgRu5qcMfjn4=
     - 0DQRnVWANYV21yD0T5nsoUtdTeq0/jIOYMUxpPE6Fcc=
     ```
-    """
-    )
+    """)
     return
 
 
@@ -127,8 +121,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     A `table schema` may have the following properties:
 
     - `name`
@@ -164,15 +157,13 @@ def _(mo):
     - `sort`: : Marks the column as sortable or ordered; on some destinations, this may generate an index, even if the column is not unique.
 
     > Each destination can interpret these performance hints in its own way. For example, the `cluster` hint is used by Redshift to define table distribution, by BigQuery to specify a cluster column, and is ignored by DuckDB and Postgres when creating tables.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **Data contracts**
 
     Data contracts are rules that help control how your data schema changes over time. They are particularly useful for maintaining the integrity and consistency of your data as it evolves.
@@ -180,34 +171,29 @@ def _(mo):
     `dlt` allows you to implement these data contracts at various levels, including the `table level`, `column level`, and `data type level`. This provides granular control over how different parts of your schema evolve.
 
     > **Note**: This Colab (or Molab) is based on `dlt`'s [schema contracts doc page](https://dlthub.com/docs/general-usage/schema-contracts) and includes additional code examples. It's still a good idea to check out the doc page for all the details.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ###**Table level**
 
     On the table level, you can specify `evolve` or `freeze` as part of the schema contract.
 
     - `evolve`: Allows the creation of new tables within the schema.
     - `freeze`: Prevents any changes to the schema, ensuring no new tables can be added.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Before diving into the modes above, let's load some sample data into a DuckDB database.
       > You'll find the database stored in the `Files` section on the left sidebar.
-    """
-    )
+    """)
     return
 
 
@@ -286,28 +272,24 @@ def _(TDataItems, data, dlt, table_pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ###**Column level**
     At the column level, you can specify:
     - `evolve`: Allows for the addition of new columns or changes in the existing ones.
     - `freeze`: Prevents any changes to the existing columns.
     - `discard_row`: Skips rows that have new columns but loads those that follow the existing schema.
     - `discard_value`: Doesn't skip entire rows. Instead, it only skips the values of new columns, loading the rest of the row data.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Just like we did in the previous section, let's first load some sample data into a new database using a new pipeline.
 
     > After you run the following code snippet, a new `data_contracts_column_level.duckdb` file should appear in `Files`.
-    """
-    )
+    """)
     return
 
 
@@ -346,13 +328,11 @@ def _(column_pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Assume that Alice ☝️ is the first user at your imaginary company, and you have now decided to collect users' ages as well.
 
     When you load the information for your second user, Bob, who also provided his age 👇, the schema contract at the column level set to `evolve` will allow `dlt` to automatically adjust the schema in the destination database by adding a new column for "age".
-    """
-    )
+    """)
     return
 
 
@@ -377,13 +357,11 @@ def _(TDataItems, column_pipeline, dlt, duckdb):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Now, imagine your business partner, with whom you started the company, began requiring phone numbers from users. However, you weren't informed of this requriement and want to first load the data of users who provided their info before this change, i.e., users who did NOT provide their phone numbers.
 
     In this case, you would use the `discard_row` mode - which will only load Sam's data 👇 because he didn't provide a phone number, and therefore his data complies with the schema.
-    """
-    )
+    """)
     return
 
 
@@ -414,13 +392,11 @@ def _(TDataItems, column_pipeline, dlt, duckdb):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Due to some unknown reasons, you've suddenly decided that phone numbers are irrelevant altogether. From now on, you want to load all new data but without the "phone" column.
 
     To achieve this, you can use the `discard_value` mode - which will load both Sarah's and Violetta's data 👇, regardless of whether either of them provided a phone number. However, the phone number column itself will be discarded.
-    """
-    )
+    """)
     return
 
 
@@ -452,13 +428,11 @@ def _(TDataItems, column_pipeline, dlt, duckdb):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Eventually you decide that users' id, name and age are the only things you need for your obscure business...
 
     So, you set the mode to `freeze`, forbidding any changes to the table schema. The attempt to violate the schema contract, as shown below 👇, will fail.
-    """
-    )
+    """)
     return
 
 
@@ -481,28 +455,24 @@ def _(TDataItems, column_pipeline, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Data type level**
     At this level, you can choose:
     - `evolve`: Allows any data type. This may result with variant columns upstream.
     - `freeze`: Prevents any changes to the existing data types.
     - `discard_row`: Omits rows with unverifiable data types.
     - `discard_value`: Replaces unverifiable values with None, but retains the rest of the row data.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     (*No imaginary situations in this section for the sake of variety and ease* ... 👀)
 
     Load a sample row entry into a new database using a new pipeline.
-    """
-    )
+    """)
     return
 
 
@@ -525,15 +495,13 @@ def _(dlt, duckdb):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Before trying out the `evolve` mode at the data type level 👇, take a moment to understand how variant columns mentioned earlier are created:
     - **TLDR:** `dlt` creates a new column when the data type of a field in the incoming data can't be validated against the existing data type in the destination table.
     - These variant columns will be named following the pattern `<original name>__v_<type>`, where `original_name` is the existing column name (with the data type clash) and `type` is the name of the new data type stored in the variant column.
 
     In the example below, even though Bob's age is passed as a string, it can be validated as an integer, so it won't cause any problems.
-    """
-    )
+    """)
     return
 
 
@@ -676,8 +644,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Pydantic models can also be used to [define table schemas and validate incoming data](https://dlthub.com/docs/general-usage/resource#define-a-schema-with-pydantic).
     They can be passed directly to the "columns" argument of a `dlt` resource:
     ```python
@@ -701,15 +668,13 @@ def _(mo):
       "data_type": "freeze"
     }
     ```
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     If you happen to pass a `schema_contract` explicitly along with the `columns` argument to a `dlt` resource, the following happens:
 
     - `tables`: The contract will not impact the Pydantic model and will be applied when a new table is created.
@@ -731,8 +696,7 @@ def _(mo):
       2. `freeze` will re-raise a ValidationException.
       3. `discard_row` will remove the non-validating data items.
       4. `discard_value` is not currently supported.
-    """
-    )
+    """)
     return
 
 
@@ -744,8 +708,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     - Unless you specify a schema contract, settings will default to `evolve` on all levels.
 
     - The `schema_contract` argument accepts two forms:
@@ -795,8 +758,7 @@ def _(mo):
       3. Tables containing incomplete columns - columns without a data type bound to them.
 
       > Note that tables with columns defined with Pydantic models are not considered new.
-    """
-    )
+    """)
     return
 
 
@@ -811,7 +773,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

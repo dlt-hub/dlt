@@ -25,13 +25,11 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     In this notebook, we focus more on pipeline metadata, and how to use that to be able to trace and debug our pipelines.
 
     First, we create the pipeline we'll inspect throughout this notebook.
-    """
-    )
+    """)
     return
 
 
@@ -42,7 +40,8 @@ def _(mo):
 
 
 @app.cell
-def _(os):
+def _():
+    import os
     from typing import Iterable, Union
     import dlt
     from dlt.sources.helpers import requests
@@ -83,7 +82,7 @@ def _(os):
     # define new dlt pipeline
     # run the pipeline with the new resource
     print(_load_info)
-    return Union, dlt, github_source, pipeline
+    return Union, dlt, github_source, os, pipeline
 
 
 @app.cell(hide_code=True)
@@ -122,29 +121,25 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     You can enable tracing through Sentry.
 
     ## What is `Sentry` 🤔
 
     `Sentry` is an open-source error tracking and performance monitoring tool that helps developers **identify**, **monitor**, and **fix issues** in real-time in their applications.
-    """
-    )
+    """)
     return
 
 
 @app.cell
 def _():
     import sentry_sdk
-
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Sentry needs to be initialized in normal scripts
 
 
@@ -158,15 +153,13 @@ def _(mo):
         traces_sample_rate=1.0  # Adjust this for performance monitoring if needed
     )
     ```
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### Say, you make an error and it is caught with Sentry:
 
 
@@ -178,8 +171,7 @@ def _(mo):
         sentry_sdk.capture_exception(e)
 
     ```
-    """
-    )
+    """)
     return
 
 
@@ -207,8 +199,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### In dlt, you can enable Sentry quite easily
 
     You can configure the `DSN` in the `config.toml`:
@@ -225,8 +216,7 @@ def _(mo):
     RUNTIME__SENTRY_DSN="https:///<...>"
     ```
     The entry client is configured after the first pipeline is created with `dlt.pipeline()`. Feel free to use `sentry_sdk` init again to cover your specific needs.
-    """
-    )
+    """)
     return
 
 
@@ -237,11 +227,9 @@ def _(mo):
 
 
 @app.cell
-def _(dlt):
-    import os
-
+def _(dlt, os):
     dlt.config["RUNTIME__SENTRY_DSN"] = os.getenv("SENTRY_TOKEN")
-    return (os,)
+    return
 
 
 @app.cell
@@ -269,14 +257,12 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The message sent to Sentry is:
     ```
     Job for issues.a3f927c556.insert_values failed terminally in load 1723645286.6510239 with message Constraint Error: NOT NULL constraint failed: issues.id
     ```
-    """
-    )
+    """)
     return
 
 
@@ -288,13 +274,11 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     There are various environments where we would be completely lost without logs.
 
     Debugging any system would be incredibly hard if we didn't know what was going on, or at what point the program ran into an error.
-    """
-    )
+    """)
     return
 
 
@@ -306,8 +290,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     You can set log levels in your `config.toml` file:
 
 
@@ -326,8 +309,7 @@ def _(mo):
     **`CRITICAL` will disable logging.**
 
     **`DEBUG` should not be used in production.**
-    """
-    )
+    """)
     return
 
 
@@ -345,13 +327,11 @@ def _(dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     dlt logs to a logger named `dlt`.
 
     dlt logger uses a regular python logger so you can configure the handlers as per your requirement.
-    """
-    )
+    """)
     return
 
 
@@ -483,7 +463,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

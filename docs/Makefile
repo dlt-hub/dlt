@@ -49,6 +49,7 @@ build-molabs: ## Format the notebooks files first and build Molabs
 	uv run black education/*/*.ipynb --ipynb
 	uv run python docs_tools/education/preprocess_to_molab.py
 	uv run black education/*/*.py
+	uv run marimo check education/*/*.py --fix --quiet
 
 validate-molabs: build-molabs ## Validate marimo notebooks are up-to-date
 	git diff --quiet --exit-code -- education/

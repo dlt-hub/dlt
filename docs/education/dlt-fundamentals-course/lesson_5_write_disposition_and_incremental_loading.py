@@ -15,8 +15,7 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **Recap of [Lesson 4](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.ipynb) 👩‍💻🚀**
 
     1. Listed all available verified sources.
@@ -25,15 +24,13 @@ def _(mo):
     4. Explored the built-in `sql_database` source.
     5. Explored the built-in `filesystem` source.
     6. Learned how to switch between destinations.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     # **Write Disposition and Incremental Loading** ⚙️🧠 [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_5_write_disposition_and_incremental_loading.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_5_write_disposition_and_incremental_loading.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_5_write_disposition_and_incremental_loading.ipynb)
@@ -46,26 +43,22 @@ def _(mo):
       - Merge
     - What incremental loading is
     - How to update and deduplicate your data
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ## **`dlt` write dispositions**
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     A **write disposition** in the context of the `dlt` library defines how data should be written to the destination. There are three types:
 
     - **Append**: The **default** disposition. It appends new data to the existing data in the destination.
@@ -92,19 +85,16 @@ def _(mo):
     ```
 
     > If both are specified, the write disposition at the pipeline run level overrides the one set at the resource level.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ### **1. Append**
-    """
-    )
+    """)
     return
 
 
@@ -135,7 +125,9 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""We create a `dlt` pipeline as usual and load this data into DuckDB.""")
+    mo.md(
+        r"""We create a `dlt` pipeline as usual and load this data into DuckDB."""
+    )
     return
 
 
@@ -162,13 +154,11 @@ def _(data):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Run this example **twice**, and you'll notice that each time a copy of the data is added to your tables. We call this load mode **append**, and it is very useful.
 
     Example use case: when you have a new folder created daily with JSON log files, and you want to ingest them incrementally.
-    """
-    )
+    """)
     return
 
 
@@ -183,12 +173,10 @@ def _(append_pipeline, append_pokemon):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ### **2. Replace**
-    """
-    )
+    """)
     return
 
 
@@ -242,8 +230,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ### **3. [Merge](https://dlthub.com/docs/general-usage/incremental-loading#merge-incremental-loading)**
 
@@ -252,8 +239,7 @@ def _(mo):
 
 
     Merge write disposition is used to merge new data into the destination, using a `merge_key` and/or **deduplicating**/**upserting** new data using a `primary_key`.
-    """
-    )
+    """)
     return
 
 
@@ -267,8 +253,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The **merge** write disposition can be useful in several situations:
 
     1.  If you have a dataset where records are frequently updated and you want to reflect these changes in your database, the `merge` write disposition can be used. It will **update the existing records** with the new data instead of creating duplicate entries.
@@ -279,8 +264,7 @@ def _(mo):
 
 
     When using the merge disposition, you need to specify a `primary_key` or `merge_key` for the resource.
-    """
-    )
+    """)
     return
 
 
@@ -303,33 +287,28 @@ def _(TDataItems, data, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The merge write disposition can be used with three different strategies:
 
     * delete-insert (default strategy)
     * scd2
     * upsert
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ##  **Incremental Loading**
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Incremental loading is the act of loading only new or changed data and not old records that we already loaded.
 
     Imagine you’re a Pokémon trainer trying to catch ‘em all. You don’t want to keep visiting the same old PokéStops, catching the same old Bulbasaurs—you only want to find new and exciting Pokémon that have appeared since your last trip. That’s what incremental loading is all about: collecting only the new data that’s been added or changed, without wasting your Poké Balls (or database resources) on what you already have.
@@ -337,8 +316,7 @@ def _(mo):
     In this example, we have a dataset of Pokémon, each with a **unique ID**, their **name**, **size** (height and weight), and **when** they were "caught" (`created_at` field).
 
     ### **Step 1: Adding the `created_at` Field**
-    """
-    )
+    """)
     return
 
 
@@ -370,8 +348,7 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **The goal**: Load only Pokémons caught after January 1, 2024, skipping the ones you already have.
 
     ### **Step 2: Defining the incremental logic**
@@ -385,8 +362,7 @@ def _(mo):
     - **Field to track**: `created_at` (our timestamp).
 
     As you run the pipeline repeatedly, `dlt` will keep track of the latest `created_at` value processed. It will skip records older than this date in future runs.
-    """
-    )
+    """)
     return
 
 
@@ -399,7 +375,6 @@ def _(TDataItems, created_data, dlt):
         )
     ) -> TDataItems:
         yield created_data
-
     return (incremental_pokemon,)
 
 
@@ -413,12 +388,10 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Step 3: Running the pipeline**
     Finally, we run our pipeline and load the fresh Pokémon data:
-    """
-    )
+    """)
     return
 
 
@@ -438,13 +411,11 @@ def _(dlt, incremental_pokemon):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     This:
     1. Loads **only Charmander and Bulbasaur** (caught after 2024-01-01).
     2. Skips Pikachu because it’s old news.
-    """
-    )
+    """)
     return
 
 
@@ -464,12 +435,10 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Run the same pipeline again. The pipeline will detect that there are **no new records** based on the `created_at` field and the incremental cursor. As a result, **no new data will be loaded** into the destination:
     >0 load package(s) were loaded
-    """
-    )
+    """)
     return
 
 
@@ -482,26 +451,22 @@ def _(incremental_pipeline, incremental_pokemon):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Why incremental loading matters**
 
     * **Efficiency**. Skip redundant data, saving time and resources.
     * **Scalability**. Handle growing datasets without bottlenecks.
     * **Automation**. Let the tool track changes for you—no manual effort.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **Update and deduplicate your data**
     The script above finds new pokemons and adds them to the database. It will ignore any updates to user information.
-    """
-    )
+    """)
     return
 
 
@@ -555,7 +520,6 @@ def _(TDataItems, dlt):
         ),
     ) -> TDataItems:
         yield data
-
     return (dedup_pokemon,)
 
 
@@ -583,13 +547,11 @@ def _(dedup_pokemon, dlt, updated_data):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     All Pokémons are processed because this is the pipeline’s first run.
 
     Now, let’s say Pikachu goes to gym and sheds some weight (down to 7.5), and the `updated_at` field is set to `2024-12-23`.
-    """
-    )
+    """)
     return
 
 
@@ -638,23 +600,20 @@ def _(dedup_pipeline, dedup_pokemon, reupdated_data):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **What happened?**
 
     * The pipeline detected that `updated_at` for Bulbasaur and Charmander hasn’t changed—they’re skipped.
     * Pikachu’s record was updated to reflect the latest weight.
 
     You can see that the **`_dlt_load_id`** for Bulbasaur and Charmander remained the same, but for Pikachu it was changed since only the updated Pikachu data was loaded into the destination.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The **`dlt.sources.incremental`** instance above has the following attributes:
 
     * **`cursor_date.initial_value`** which is always equal to "2024-01-01" passed in the constructor;
@@ -664,8 +623,7 @@ def _(mo):
 
     ## **Example**
     You can use them in the resource code to make **more efficient requests**. Take look at the GitHub API example:
-    """
-    )
+    """)
     return
 
 
@@ -708,13 +666,11 @@ def _(TDataItems, dlt, os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Pay attention to how we use the **since** GitHub API parameter and `cursor_date.last_value` to tell GitHub which issues we are interested in. `cursor_date.last_value` holds the last `cursor_date` value from the previous run.
 
     Run the pipeline again and make sure that **no data is loaded**.
-    """
-    )
+    """)
     return
 
 
@@ -728,8 +684,7 @@ def _(github_source, pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **Apply Hints**
 
     Alternatively, you can use `apply_hints` on a resource to define an incremental field:
@@ -740,15 +695,13 @@ def _(mo):
     ```
 
     When you apply an incremental hint using `apply_hints`, the source still performs a full extract. The incremental hint is used by `dlt` to filter the data after it has been extracted, before it is loaded into the destination.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **Exercise 1: Make the GitHub API pipeline incremental**
 
     In the previous lessons, you built a pipeline to pull data from the GitHub API. Now, let’s level it up by making it incremental, so it fetches only new or updated data.
@@ -768,8 +721,7 @@ def _(mo):
     ### Question
 
     How many columns does the `comments` table have?
-    """
-    )
+    """)
     return
 
 
@@ -784,7 +736,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

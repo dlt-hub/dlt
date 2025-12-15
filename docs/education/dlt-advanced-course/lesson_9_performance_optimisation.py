@@ -24,8 +24,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Introduction**
 
     Sometimes you have to slow down in order to speed up...
@@ -35,8 +34,7 @@ def _(mo):
     We will walk through the internal steps of `pipeline.run()` again, but this time focusing only on performance optimization techniques.
 
     Read more in the [dlt performance docs](https://dlthub.com/docs/general-usage/performance).
-    """
-    )
+    """)
     return
 
 
@@ -50,8 +48,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Already covered in Fundamentals**
 
     - Basic structure of `pipeline.run()`.
@@ -63,15 +60,13 @@ def _(mo):
     - Overview of file formats (jsonl, parquet, etc.).
 
     - Progress logging and pipeline introspection.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **In the Advanced Performance Optimization lesson**
 
     - Optimize memory with buffer tuning.
@@ -87,15 +82,13 @@ def _(mo):
     - Spawn method on Linux.
 
     - Real GitHub pipeline performance demo.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     ## Understanding `pipeline.run()` for Performance
@@ -109,8 +102,7 @@ def _(mo):
     We'll now look at how to optimize each of these stages individually.
 
     > If you're unfamiliar with how `pipeline.run()` works under the hood, including the **extract/normalize/load** stages and intermediary files, please complete the [Fundamentals module "How dlt works"](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_6_how_dlt_works.ipynb) first.
-    """
-    )
+    """)
     return
 
 
@@ -124,8 +116,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **Before we dive into parallelism in dlt...**
 
     To get the most out of parallelism features in `dlt`, it's helpful to quickly refresh how parallelism works in Python in general.
@@ -135,15 +126,13 @@ def _(mo):
     Each has its own strengths, and `dlt` actually uses all of them depending on the stage: threads for extracting and loading, and processes for normalization.
 
     Let’s take a quick look at how these work under the hood.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **Parallelism in Python**
 
 
@@ -160,8 +149,7 @@ def _(mo):
     ## **Types of parallelism in Python**
 
     There are 3 main types. Each has different use cases.
-    """
-    )
+    """)
     return
 
 
@@ -175,8 +163,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### 1. **Threading**
     - Best for I/O-bound tasks (e.g., reading from APIs or files).
     - Uses the `threading` or [`concurrent.futures.ThreadPoolExecutor`](https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.ThreadPoolExecutor).
@@ -198,8 +185,7 @@ def _(mo):
     **Example 1:**
 
     In this example, `threaded_function` prints the values zero to two that your for loop assigns to the loop variable number. Using a `ThreadPoolExecutor`, four threads are created to execute the threaded function. `ThreadPoolExecutor` is configured to run a maximum of four threads concurrently with `max_workers=4`, and each worker thread is named with a “Worker” prefix, as in `thread_name_prefix="Worker"`.
-    """
-    )
+    """)
     return
 
 
@@ -226,8 +212,7 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### 2. **Multiprocessing**
     - Best for CPU-bound tasks (e.g., compressing, parsing, transforming).
     - Uses `multiprocessing` or [`concurrent.futures.ProcessPoolExecutor`](https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor).
@@ -235,8 +220,7 @@ def _(mo):
     Example 1:
 
     In this example, `compute_heavy_task` squares numbers from 0 to 2 and prints the process name it runs on. We use `ProcessPoolExecutor` to run 4 processes in parallel, each computing the task independently.
-    """
-    )
+    """)
     return
 
 
@@ -304,13 +288,11 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### 3. **AsyncIO**
     - Great for many concurrent tasks that *wait* (e.g., HTTP, sockets).
     - Lightweight and fast. Single-threaded but concurrent.
-    """
-    )
+    """)
     return
 
 
@@ -336,15 +318,13 @@ async def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Example 2:
 
     The order of this output is **the heart of async IO**. Talking to each of the calls to `count()` is a single event loop, or coordinator.
 
     When each task reaches `await asyncio.sleep(1)`, the function yells up to the event loop and gives control back to it, saying, **“I’m going to be sleeping for 1 second. Go ahead and let something else meaningful be done in the meantime.”**
-    """
-    )
+    """)
     return
 
 
@@ -368,8 +348,7 @@ async def _(asyncio, time):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     # **Parallelism in dlt**
@@ -379,36 +358,31 @@ def _(mo):
     - **Extraction**: via threads (`parallelized=True` in `@dlt.resource`) or async generators.
     - **Normalization**: via process pools.
     - **Loading**: via threads.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     ## **Extract**
 
     The extract stage fetches data and writes it to intermediary files. This phase is usually **I/O-bound** — lots of small writes or slow network calls can slow it down.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Default behaviour**
 
     - The in-memory buffer is set to `5000` items.
     - By default, **intermediary files are not rotated**. If you do not explicitly set a size for an intermediary file with `file_max_items=100000`, `dlt` will create a **single file** for a resource, regardless of the number of records it contains, even if it reaches millions.
     - By default, intermediary files at the extract stage use a custom version of the JSONL format.
-    """
-    )
+    """)
     return
 
 
@@ -420,23 +394,20 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     - Control the `in-memory buffer size` for the extract stage
     - Group `dlt` resources into `dlt` sources
     - Specify the number of thread workers or..
     - When using async generators, control the number of async functions/awaitables being evaluated in parallel
     - Yield pages instead of rows
     - Customize the `size of intermediary files` created in the extract stage to control file rotation
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **IMPORTANT: Start simple. dlt has smart defaults**
 
     Before you dive into tuning buffers, tweaking file sizes, and parallelizing every little thing — consider this:
@@ -456,15 +427,13 @@ def _(mo):
     - Understood which part of the pipeline (extract, normalize, load) is the bottleneck.
 
     > **Start with the defaults. Measure. Then tune.**
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **1. [Use a larger In-Memory Buffer](https://dlthub.com/docs/reference/performance#overall-memory-and-disk-management)**
 
     dlt **buffers** data **in memory** to speed up processing and uses the file system to pass data between the **extract** and **normalize** stages.
@@ -474,22 +443,19 @@ def _(mo):
     The size of the buffers is controlled by specifying **the number of data items** held in them. Data is appended to open files when the item buffer is full, after which the buffer is cleared.
 
     By default, dlt **buffers 5000 items** before writing to disk. Increase this value to reduce disk I/O and improve speed.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Example 1:
 
     We set the buffer size to 1. dlt will extract data **row by row** and write each row to an intermediary file one by one.
 
     This also **disables multithreading** — when the buffer size is 1, the number of extract workers is effectively limited to 1.
-    """
-    )
+    """)
     return
 
 
@@ -523,13 +489,11 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Example 2:
 
     Increase the number of buffer items.
-    """
-    )
+    """)
     return
 
 
@@ -558,20 +522,17 @@ def _(Dict, Iterator, TDataItems, dlt, os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Explanation:** The buffer collects many items in memory before writing them to disk. A larger buffer means fewer writes, which saves I/O time and makes the extract stage faster. This is especially helpful when extracting a large number of small records.
 
     **Downside:** High buffer size increases memory usage. If the machine has limited RAM, it could cause memory pressure or crashes.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **IMPORTANT: Performance measurements in Google Colab may be unreliable.**
 
     Even with large buffer sizes, timing results in Colab can vary significantly between runs. This is because Colab runs on shared cloud infrastructure, where CPU, memory, and disk I/O are not guaranteed and may fluctuate at any time.
@@ -583,15 +544,13 @@ def _(mo):
     - Unpredictable delays due to resource throttling or background activity
 
     For **reliable performance** testing, always run your dlt pipelines on a **local machine**, where you control the environment and system resources are stable.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **Excercise 1**
 
     Play with `BUFFER_MAX_ITEMS` parameter. Run your pipeline and measure the time.
@@ -599,8 +558,7 @@ def _(mo):
     Don’t expect linear speed-up — larger buffers may **slow things down** depending on your system.
 
     At some point, increasing the buffer size will **stop making things faster**. After that threshold, you’ll hit diminishing returns, and performance may plateau or even degrade. The optimal value depends on your machine’s I/O and memory characteristics.
-    """
-    )
+    """)
     return
 
 
@@ -644,8 +602,7 @@ def _(Dict, Iterator, TDataItems, dlt, os, time):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **2. Group Resources into Sources**
 
     In `dlt`, each **resource** is treated as a separate unit during extraction. If you pass multiple resources directly to `pipeline.extract()`, `dlt` handles them independently — each with its own extract process and context.
@@ -658,8 +615,7 @@ def _(mo):
 
 
     Example without grouping:
-    """
-    )
+    """)
     return
 
 
@@ -702,14 +658,12 @@ def _(Dict, Iterator, TDataItems, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     This works, but each resource is treated separately. For large datasets or many resources, this adds extract overhead.
 
 
     Example with grouping:
-    """
-    )
+    """)
     return
 
 
@@ -736,8 +690,7 @@ def _(buffered_resource1, buffered_resource2, buffered_resource3, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     This version:
     - Groups all resources into a single source
     - Allows `dlt` to optimize scheduling and state tracking
@@ -755,15 +708,13 @@ def _(mo):
 
     #### **Note**:
     Even if timing results look similar in this example, grouping into a source is what **enables true concurrent resource execution**. Without it, `dlt` treats each resource as an isolated unit and may serialize extraction.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **3. Enable parallel threaded extraction**
 
     When extracting data from **multiple sources**, you usually want them to be processed **at the same time**, not one after another. This is especially useful when:
@@ -773,36 +724,31 @@ def _(mo):
     - Extracting from **databases with many tables**
 
     Use multiple threads to fetch data from different resources with `parallelized=True`.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Set the number of parallel threads with:
 
     ```python
     os.environ["EXTRACT__WORKERS"] = "3"
     ```
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Simulate Slow APIs with `time.sleep`**
 
     We’ll simulate API latency by adding a `time.sleep(0.01)` delay before yielding each row. This mimics a network call taking ~10ms.
 
     We’ll then parallelize the resources using `parallelized=True` and observe the thread behavior using `threading.currentThread()`.
-    """
-    )
+    """)
     return
 
 
@@ -851,27 +797,23 @@ def _(Dict, DltResource, Iterable, Iterator, TDataItems, dlt, time):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **What does it mean?**
 
     dlt is extracting rows in a [**round-robin**](https://dlthub.com/docs/reference/performance#resources-extraction-fifo-vs-round-robin) fashion — one row from each resource in turn — all within the `MainThread`. Since there’s no parallelization, the resources share a single thread and are executed sequentially.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Now let’s enable multithreading.**
 
     In the previous example, all resources ran sequentially in the main thread. This time, we add `parallelized=True` to each resource — allowing `dlt` to extract from all three **at the same time**, using separate threads.
 
     You’ll see the difference immediately in the output: each resource prints from a different thread, confirming that extraction is now concurrent.
-    """
-    )
+    """)
     return
 
 
@@ -927,13 +869,11 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Explanation:** Each worker runs in a separate thread, allowing several resources to extract data at the same time. This is critical for reducing bottlenecks when working with slow APIs or large resource sets.
 
     **Downside:** More threads increase CPU load. Poorly written thread-unsafe code or thread contention may degrade performance instead of improving it.
-    """
-    )
+    """)
     return
 
 
@@ -945,13 +885,11 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The example below does the same but using an async generator as the main resource and async/await and futures pool for the transformer.
 
     **Example 1 — Synchronous execution (sequential, slow)**
-    """
-    )
+    """)
     return
 
 
@@ -1004,8 +942,7 @@ def _(TDataItems, asyncio, dlt, time):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Breakdown of time**
 
     - `async_items()` yields 10 items → takes ~5s total (0.5s × 10)
@@ -1019,15 +956,13 @@ def _(mo):
       - `+` ~0.5s to process the last batch of transformer calls
 
       - ➜ ~5.5–6 seconds total
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **4. Yielding chunks instead of rows**
 
     In real-world data extraction, especially from APIs, **data is typically returned in pages** — for example, 100 users per request. These pages are already **natural chunks**, so there's no reason to extract and yield each row from the page individually.
@@ -1046,15 +981,13 @@ def _(mo):
     ```
 
     This small change makes a big difference in performance. Yielding full pages (chunks) reduces the number of Python function calls and lets `dlt` process your data more efficiently — especially during buffering and writing stages.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **What is `yield` in Python?**
 
     In Python, `yield` turns a function into a **generator**.
@@ -1067,8 +1000,7 @@ def _(mo):
     - You want to stream values as they are produced
 
     #### Example
-    """
-    )
+    """)
     return
 
 
@@ -1077,7 +1009,6 @@ def _(Iterator):
     def count_up_to(n: int) -> Iterator[int]:
         for i in range(n):
             yield i
-
     return (count_up_to,)
 
 
@@ -1096,13 +1027,11 @@ def _(count_up_to):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **Yielding rows in dlt**
 
     This is what you usually see in basic educational `dlt` pipelines:
-    """
-    )
+    """)
     return
 
 
@@ -1117,28 +1046,24 @@ def _(Dict, TDataItems, dlt):
     def get_users() -> TDataItems:
         for user in fetch_users():
             yield user
-
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### Problem
 
     This creates a **high number of `yield` calls** — each row is passed into the extract pipeline one at a time. While dlt buffers rows before writing, each row still incurs the cost of a Python function call and per-item processing inside the pipeline.
 
     This adds overhead, especially with millions of rows.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **What does “Yield Chunks” mean?**
 
     Instead of:
@@ -1157,20 +1082,17 @@ def _(mo):
     We call this **page/chunk-based yielding**.
 
     You still use `yield`, but now each yield returns **a batch of rows**, not just one.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **How to yield chunks**
 
     Here’s how you chunk your data with `islice` from `itertools`:
-    """
-    )
+    """)
     return
 
 
@@ -1224,8 +1146,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **5. Enable file rotation for large datasets**
 
     By default, `dlt` writes all extracted data from a resource into **one large intermediary file**. If your resource yields millions of rows, that means:
@@ -1244,19 +1165,16 @@ def _(mo):
     - Later, these files can be processed **in parallel** during normalization and load
 
     File rotation is essential for scaling up performance when dealing with large datasets.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **6. Avoid unnecessary transformation in the resource**
        Keep your resource logic simple and fast — avoid costly computation or transformation in the generator itself.
-    """
-    )
+    """)
     return
 
 
@@ -1268,8 +1186,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **What happens at the normalization stage?**
 
     After data is extracted, `dlt` transforms it into a **relational format** suitable for loading into databases. This happens in the **normalize stage**:
@@ -1281,30 +1198,26 @@ def _(mo):
 
 
     >If you’re not yet familiar with how the **normalization stage** works in `dlt`, we recommend reviewing the [**Normalization section in the dlt Fundamentals course**](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_6_how_dlt_works.ipynb) before diving into performance tuning.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Default behavior**
 
     - **Buffer size**: 5,000 items
     - **Parallelism**: Off by default (runs in main process)
     - **File rotation**: Off by default — all rows written into one file
     - **Compression**: On by default
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Why normalization may be slow**
 
     If you process a lot of data in one file and use just one CPU, normalization becomes a bottleneck:
@@ -1313,15 +1226,13 @@ def _(mo):
     - Compression slows it further if not needed
 
     > File parsing and transformation are **CPU-heavy**, especially when dealing with **deeply nested structures** (which must be flattened into multiple tables) and **automatic data type inference** (which inspects each value to determine its type).
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### How to optimize normalization
 
     1. **Enable parallelism**: Use multiple processes
@@ -1343,32 +1254,27 @@ def _(mo):
        ```python
        os.environ['NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS'] = '100000'
        ```
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **1. Parallel normalization**
 
     Let’s measure normalization performance with and without parallelism.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **a. Normalize with 1 worker (default)**
 
     First, we run extraction:
-    """
-    )
+    """)
     return
 
 
@@ -1408,13 +1314,11 @@ def _(dlt, islice, time):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     As mentioned earlier, each file created during the extract stage is sent to the process pool of the normalization stage. Since file rotation has not been enabled at the extract stage, each resource is written to a separate intermediary file. This results in **three files**, which can be **normalized in parallel**.
 
     First, let's measure the time taken with a single process worker.
-    """
-    )
+    """)
     return
 
 
@@ -1428,8 +1332,7 @@ def _(os, pipeline_7):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Oh, that took way longer than extraction, right?
 
     Yep, that’s totally normal. The **normalization step does the heavy lifting**:
@@ -1438,15 +1341,13 @@ def _(mo):
     - generating tables.
 
     It’s often **the slowest part** of the pipeline, so don’t be surprised if it takes most of the time.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **b. Normalize with 2 workers**
 
     Now, let's try more process workers.
@@ -1457,8 +1358,7 @@ def _(mo):
 
 
     Note that we are running the extract stage again with a new pipeline, because normalizing already normalized data would not be meaningful.
-    """
-    )
+    """)
     return
 
 
@@ -1486,8 +1386,7 @@ def _(dlt, os, source_4):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### What to expect
 
     With parallel workers:
@@ -1501,15 +1400,13 @@ def _(mo):
     - Large data
     - Multiple extracted files
     - A machine with multiple CPU cores
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **2. Enable file rotation for large datasets**
 
     By default, all normalized data goes into **one big file** — which means **only one process** can handle it. That kills parallelism.
@@ -1524,8 +1421,7 @@ def _(mo):
     - Split data into smaller files (e.g., 10 files for 1M rows)
     - Load them **in parallel** using multiple workers
     - Speed up loading
-    """
-    )
+    """)
     return
 
 
@@ -1537,8 +1433,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **What happens at the loading stage?**
 
 
@@ -1549,29 +1444,25 @@ def _(mo):
     1. Each thread loads one normalized file at a time.
     2. Files from the same source are bundled into a **load package**.
     3. Packages are loaded into the destination concurrently.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Default behavior**
 
     - `dlt` uses **20 threads** by default
     - Each thread processes one file
     - All file contents are already normalized — there’s no parsing or schema detection at this point, so it’s mostly **I/O-bound**
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **How to optimize loading?**
 
 
@@ -1587,8 +1478,7 @@ def _(mo):
        ```python
        os.environ["NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS"] = "100000"
        ```
-    """
-    )
+    """)
     return
 
 
@@ -1632,7 +1522,6 @@ def _(dlt, islice, time):
     @dlt.source
     def source_5():
         return (buffered_resource1_5, buffered_resource2_5, buffered_resource3_4)
-
     return (source_5,)
 
 
@@ -1698,8 +1587,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### What to expect
 
     - More threads = faster load, **if you have enough files**
@@ -1710,23 +1598,20 @@ def _(mo):
     Reading and loading many small files adds overhead too.
     So use file rotation wisely: create **enough files to allow parallelism**, but not so many that it slows things down.
     **Look at how much data you have**, and tune `FILE_MAX_ITEMS` accordingly.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **Can you spot the bottleneck?**
 
     Ask yourself:
     - Is my pipeline slow because of waiting on I/O or doing heavy computations?
     - Am I yielding too many tiny objects one-by-one instead of batches?
     - Is my API async? If not, can I enable `parallelized=True` safely in my resources?
-    """
-    )
+    """)
     return
 
 
@@ -1758,13 +1643,11 @@ def _(os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     We'll first define the resources without parallelization.
 
     > Since we are already yielding pages, the chunking method is implemented. However, with a manageable number of entries, the impact of chunking may be negligible.
-    """
-    )
+    """)
     return
 
 
@@ -1831,7 +1714,6 @@ def _(dlt, os, time):
     def get_labels():
         url = "https://api.github.com/repos/dlt-hub/dlt/labels?per_page=100"
         yield pagination(url)
-
     return (
         get_branches,
         get_commits,
@@ -1889,15 +1771,13 @@ def _(pipeline_11):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Let's redefine our resources with parallelization, wrap them in a single source, and increase the number of normalization, as well as extract workers.
 
     > Since the default number of load workers is by default set to 20, there's probably no need to modify it.
 
     While we could optimize the configuration of intermediary file sizes more effectively if we knew the exact number of items each endpoint returns, let's start by experimenting with an arbitrary value of 200 for the data writers, which should be more or less suitable to enable enough parallelization.
-    """
-    )
+    """)
     return
 
 
@@ -2013,8 +1893,7 @@ def _(dlt, pagination):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # **Homework: Speed up your pipeline**
 
     ### **Goal**
@@ -2071,8 +1950,7 @@ def _(mo):
     - Working pipeline for at least 2 endpoints
     - Before/after timing comparison
     - A short explanation of what changes made the biggest difference if there're any differences
-    """
-    )
+    """)
     return
 
 
@@ -2085,7 +1963,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

@@ -29,15 +29,13 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     - Use the `filesystem` resource to build real custom sources
     - Apply filters to file metadata (name, size, date)
     - Implement and register custom transformers
     - Enrich records with file metadata
     - Use incremental loading both for files and content
-    """
-    )
+    """)
     return
 
 
@@ -69,13 +67,11 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 1: Load Parquet file from Local Filesystem
 
     **What the script below does**: Lists and reads all `.parquet` files in `./local_data` and loads them into a table named `userdata`.
-    """
-    )
+    """)
     return
 
 
@@ -99,13 +95,11 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Question 1**:
 
     In the `my_pipeline` pipeline, and the `userdata` dataset, what is the ratio of men:women in decimal?
-    """
-    )
+    """)
     return
 
 
@@ -119,13 +113,11 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 2: Enrich records with file metadata
 
     Let’s add the file name to every record to track the data origin.
-    """
-    )
+    """)
     return
 
 
@@ -176,12 +168,10 @@ def _(dlt, filesystem, read_parquet):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 4: Load files incrementally
     Avoid reprocessing the same file twice.
-    """
-    )
+    """)
     return
 
 
@@ -198,13 +188,11 @@ def _(dlt, filesystem, read_parquet):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 5: Create a custom transformer
 
     Let’s read structured data from `.json` files.
-    """
-    )
+    """)
     return
 
 
@@ -230,15 +218,13 @@ def _(TDataItems, dlt, filesystem, urllib):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     📁 You will see that this file also exists in your local_data directory.
 
     > A **standalone** resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Additionally, if the standalone flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the decorated function, and the user must call the wrapper to get the actual resource.
 
     Let's inspect the `users` table in your DuckDB dataset:
-    """
-    )
+    """)
     return
 
 
@@ -250,13 +236,11 @@ def _(pipeline_4):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 6: Copy files before loading
 
     Copy files locally as part of the pipeline. This is useful for backups or post-processing.
-    """
-    )
+    """)
     return
 
 
@@ -281,15 +265,13 @@ def _(dlt, filesystem, os):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Next steps
 
     - Try building a transformer for `.xml` using `xmltodict`
     - Combine multiple directories or buckets in a single pipeline
     - Explore [more examples](https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem/advanced)
-    """
-    )
+    """)
     return
 
 
@@ -312,7 +294,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

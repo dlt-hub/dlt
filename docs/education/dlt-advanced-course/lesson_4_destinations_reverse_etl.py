@@ -18,8 +18,7 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # Custom destinations & Reverse ETL [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_4_destinations_reverse_etl.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_4_destinations_reverse_etl.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_4_destinations_reverse_etl.ipynb)
 
     ---
@@ -32,8 +31,7 @@ def _(mo):
     - How to push real data from the Rfam database to Notion
 
     ---
-    """
-    )
+    """)
     return
 
 
@@ -47,8 +45,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **1. Concept: What is a custom destination?**
 
     Normally, dlt sends your data to databases like BigQuery or Postgres.
@@ -68,22 +65,19 @@ def _(mo):
     ```
 
     And dlt will call this for every batch of data extracted and normalized.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     ## **2. Simple example: print data rows**
 
     ### Code example:
-    """
-    )
+    """)
     return
 
 
@@ -111,8 +105,7 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **What’s happening?**
 
     - `simple_data()` yields 12 small records.
@@ -127,20 +120,17 @@ def _(mo):
     - This is the **simplest possible custom destination.**
     - You’re in control: log, debug, or route data per table.
     - It introduces how dlt structures the data and calls your function.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Question 1:
 
     In the following example, how many times will the function be called?
-    """
-    )
+    """)
     return
 
 
@@ -153,22 +143,19 @@ def _(TDataItems, TTableSchema, dlt):
     @dlt.resource
     def new_simple_data() -> TDataItems:
         yield [{"id": i} for i in range(6)]
-
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **3. How batching works**
 
     By default `batch_size` is 10.
 
 
     Let’s tweak just one thing:
-    """
-    )
+    """)
     return
 
 
@@ -187,22 +174,19 @@ def _(TDataItems, TTableSchema, dlt, simple_data):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Now, dlt calls your function **once per row** instead of per 5 rows.
 
     Useful if:
     - Your API doesn’t support bulk inserts.
     - You want fine-grained control or retries.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **4. Real-world project: Rfam database → Notion**
 
     Let’s build a real pipeline that fetches data from database and **sends it to Notion**.
@@ -212,23 +196,20 @@ def _(mo):
     - Notion is a great tool for product/dev teams.
     - But dlt doesn’t support Notion as a *destination*.
     - So, we’ll build that ourselves.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### 4.1. Step 1: Create a database in Notion
 
     1. Create empty an database. [Notion documentation.](https://super.so/blog/6-steps-to-creating-databases-in-notion)
     2. [Create an integration](https://www.notion.so/profile/integrations) in your Notion Workspace.
     3. Connect your database to the integration.
     4. Create 3 columns: Accession (title), ID (text), Description (text)
-    """
-    )
+    """)
     return
 
 
@@ -256,8 +237,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     2. Set your credentials either in:
       - `~/.dlt/secrets.toml`
       - or environment variables
@@ -268,8 +248,7 @@ def _(mo):
       notion_auth = "<your_integration_token>"
       notion_page_id = "<your_database_id>"
       ```
-    """
-    )
+    """)
     return
 
 
@@ -315,13 +294,11 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     You can also check if your integration works via the requests library:
     1. Modify Bearer token
     2. Modify "query" if you database have another name
-    """
-    )
+    """)
     return
 
 
@@ -350,13 +327,11 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### 4.3. Step 3: Get data from Rfam database
 
     Let's use `query_callback` and limit the number of data rows:
-    """
-    )
+    """)
     return
 
 
@@ -412,14 +387,12 @@ def _(TDataItems, TTableSchema, dlt, os):
                     },
                 },
             )
-
     return (push_to_notion,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **What’s happening?**
 
     - dlt will call `push_to_notion()` with one batch of records at a time.
@@ -431,8 +404,7 @@ def _(mo):
     - You just turned your pipeline into a full **reverse ETL** job.
     - No need for Airbyte or writing custom orchestration scripts.
     - It’s reusable and works with dlt’s retry logic, state management, and transformations.
-    """
-    )
+    """)
     return
 
 
@@ -462,8 +434,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 5. Reliability and state
 
     ### What if Notion fails mid-run?
@@ -471,8 +442,7 @@ def _(mo):
     - dlt **retries batches** up to 5 times.
     - You can restart the pipeline and it will continue from the failed batch.
     - But you must make your destination **idempotent** (i.e., safe to re-run the same input).
-    """
-    )
+    """)
     return
 
 
@@ -487,7 +457,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

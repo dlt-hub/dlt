@@ -17,13 +17,11 @@ app = marimo.App()
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     # Building custom sources using SQL Databases [![Open in molab](https://marimo.io/molab-shield.svg)](https://molab.marimo.io/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.py) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb) [![GitHub badge](https://img.shields.io/badge/github-view_source-2b3137?logo=github)](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-advanced-course/lesson_2_custom_sources_sql_databases_.ipynb)
 
     This lesson covers building flexible and powerful custom sources using the `sql_database` verified source.
-    """
-    )
+    """)
     return
 
 
@@ -37,15 +35,13 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## What you will learn
 
     - How to build a custom pipeline using SQL sources
     - How to use `query_adapter_callback`, `table_adapter_callback`, and `type_adapter_callback`
     - How to load only new data with incremental loading
-    """
-    )
+    """)
     return
 
 
@@ -98,13 +94,11 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 2: Customize SQL queries with `query_adapter_callback`
 
     You can fully rewrite or modify the SQL SELECT statement per table.
-    """
-    )
+    """)
     return
 
 
@@ -121,7 +115,6 @@ def _():
 
     def query_adapter_callback(query: SelectClause, table: Table) -> SelectClause:
         return text(f"SELECT * FROM {table.fullname} WHERE rfam_id like '%bacteria%'")
-
     return Table, query_adapter_callback
 
 
@@ -178,27 +171,23 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Question 1**:
 
     How many rows are present in the `bacteria` table?
 
     >Answer this question and select the correct option in the homework Quiz.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 3: Modify table schema with `table_adapter_callback`
 
     Add columns, change types, or transform schema using this hook.
-    """
-    )
+    """)
     return
 
 
@@ -218,7 +207,6 @@ def _(Any, Table):
         )
         subq = sa.select(*table.columns, max_ts).subquery()
         return subq
-
     return add_max_timestamp, sa
 
 
@@ -256,15 +244,13 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 4: Adapt column data types with `type_adapter_callback`
 
     When the default types don’t match what you want in the destination, you can remap them.
 
     Let's look at the schema that has already been loaded:
-    """
-    )
+    """)
     return
 
 
@@ -278,16 +264,14 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Lets change `hmm_lambda` from decimal to float.
 
     💡 Quick fyi: The `float` data type is:
     - Fast and uses less space
     - But it's approximate — you may get 0.30000000000000004 instead of 0.3
     - Bad for money, great for probabilities, large numeric ranges, scientific values
-    """
-    )
+    """)
     return
 
 
@@ -305,7 +289,6 @@ def _(Any, sa):
         if isinstance(sql_type, sa.Numeric):
             return Float
         return sql_type
-
     return (type_adapter_callback,)
 
 
@@ -355,28 +338,24 @@ def _(pipeline):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **Question 2**:
 
     How many columns had their type changed in the `type_changed_family` table?
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## Step 5: Incremental loads with `sql_database`
     Track only new rows using a timestamp or ID column.
 
     We'll also be looking at where these incremental values are stored.
 
     Hint: they are stored in the [dlt state](https://dlthub.com/docs/general-usage/state).
-    """
-    )
+    """)
     return
 
 
@@ -449,7 +428,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 

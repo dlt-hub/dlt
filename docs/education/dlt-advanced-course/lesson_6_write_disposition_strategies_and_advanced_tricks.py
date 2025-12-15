@@ -31,19 +31,16 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ## **`dlt` write dispositions**
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Write disposition in the context of the dlt library defines how the data should be written to the destination. There are three types of write dispositions:
 
     * **Append**: This is the **default** disposition. It will append the data to the existing data in the destination.
@@ -72,15 +69,13 @@ def _(mo):
     ```
 
     > In case you specify both, the write disposition specified at the pipeline run level will override the write disposition specified at the resource level.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     ### **Replace**
@@ -105,15 +100,13 @@ def _(mo):
 
     - [Full loading](https://dlthub.com/docs/general-usage/full-loading)
     - [Write dispositions](https://dlthub.com/docs/general-usage/incremental-loading#the-3-write-dispositions)
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ### **Merge**
 
@@ -128,15 +121,13 @@ def _(mo):
     - Useful for integrating various CRM systems where incremental updates are preferred over full reloads.
 
     Merge write disposition is used to merge new data into the destination, using a `merge_key` and/or **deduplicating**/**upserting** new data using a `primary_key`.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The **merge** write disposition can be useful in several situations:
 
     1.  If you have a dataset where records are frequently updated and you want to reflect these changes in your database, the merge write disposition can be used. It will **update the existing records** with the new data instead of creating duplicate entries.
@@ -147,15 +138,13 @@ def _(mo):
 
 
     When using the merge disposition, you need to specify a `primary_key` or `merge_key` for the resource.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     # **More about write dispositions and incremental loading** ⚙️🧠
@@ -176,15 +165,13 @@ def _(mo):
     * Hard deletes
     * Falling back for incremental cursors
     * Backfills
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
 
     ## **Replace strategies**
@@ -200,15 +187,13 @@ def _(mo):
 
 
     Each of these strategies has its own unique characteristics and use cases, and we will discuss them in detail.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **I. Truncate-and-Insert Strategy**
 
     **Overview**
@@ -238,8 +223,7 @@ def _(mo):
 
 
     Here's an example of how to use the `truncate-and-insert` strategy with the Pokemon data:
-    """
-    )
+    """)
     return
 
 
@@ -287,8 +271,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **II. Insert-from-staging Strategy**
 
     **Overview**
@@ -315,8 +298,7 @@ def _(mo):
     The `insert-from-staging` strategy, while ensuring zero downtime and maintaining a consistent state between nested and root tables, is **the slowest** of all three strategies. It loads all new data into staging tables away from your final destination tables and then truncates and inserts the new data in one transaction. This process can be time-consuming, especially for large datasets.
 
     Here's an example of how you can use this strategy:
-    """
-    )
+    """)
     return
 
 
@@ -349,16 +331,14 @@ def _(pipeline_1):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     We see the introduction of the [staging](https://dlthub.com/docs/dlt-ecosystem/staging) schema called `pokemon_data_2_staging`.
 
 
     In this example, the `insert-from-staging` strategy will load the pokemon data **into a staging table** in the `pokemon_data_2_staging` schema in DuckDB (or any other destination you choose).
 
     Let's check the contents of this table:
-    """
-    )
+    """)
     return
 
 
@@ -381,20 +361,17 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     dlt will then **truncate** the destination table and **insert** the new data in one transaction, ensuring that the destination dataset is always in a consistent state.
 
     For more details about the `insert-from-staging` strategy, you can refer to the [dlt documentation.](https://dlthub.com/docs/general-usage/full-loading#the-insert-from-staging-strategy)
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ### **III. Staging-optimized Strategy**
 
 
@@ -437,23 +414,20 @@ def _(mo):
     **Limitations**
 
     It's important to note that the `staging-optimized` replace strategy is **not implemented for all destinations**. For example, DuckDB doesn't support this strategy, that's why we skip the code example.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ## **Merge strategies**
 
     Append and replace write dispositions are quite simple to use, but with `merge` you need to be more careful.
 
     Let's create an example database
-    """
-    )
+    """)
     return
 
 
@@ -503,8 +477,7 @@ def _(data_2, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The merge write disposition can be used with three different strategies:
 
     * delete-insert (default strategy)
@@ -513,8 +486,7 @@ def _(mo):
 
 
     Let's explore these strategies closer.
-    """
-    )
+    """)
     return
 
 
@@ -526,8 +498,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Overview**
 
     The `merge` write disposition has `delete-insert` as the default strategy. Since we haven't specified a strategy in the previous example, this is what was used by default under the hood.
@@ -541,8 +512,7 @@ def _(mo):
     - Streaming logs are ingested with a `delete-insert` strategy to remove outdated entries and ensure only fresh data remains.
 
     - Used when a `merge_key` is provided, allowing old entries to be purged before new ones are inserted.
-    """
-    )
+    """)
     return
 
 
@@ -575,13 +545,11 @@ def _(data_3, pipeline_2, pokemon):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Data was updated, pikachu data has changed, now he has a different `_dlt_load_id`.
 
     Let's check what happened in the database in the previous run:
-    """
-    )
+    """)
     return
 
 
@@ -629,23 +597,20 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Overview**
 
     The upsert merge strategy does `primary_key` based upserts:
 
     - update record if key exists in target table
     - insert record if key does not exist in target table
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ```
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
@@ -655,15 +620,13 @@ def _(mo):
         ...
     ...
     ```
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Difference between upsert and delete-insert**
 
     1. needs a `primary_key`
@@ -677,8 +640,7 @@ def _(mo):
     - Continuous synchronization of customer profiles across multiple systems.
 
     - Any update to an existing customer is reflected without deleting unrelated data.
-    """
-    )
+    """)
     return
 
 
@@ -698,8 +660,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     **Overview**
 
     `dlt` can create Slowly Changing Dimensions Type 2 (SCD2) destination tables for dimension tables that change in the source.
@@ -713,14 +674,15 @@ def _(mo):
     - Keeping history of account balances over time for auditing purposes.
 
     - Allows analysts to trace how data evolved, which is critical for compliance and troubleshooting.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""Before running the pipeline, let's re-use our small Pokemon dataset:""")
+    mo.md(
+        r"""Before running the pipeline, let's re-use our small Pokemon dataset:"""
+    )
     return
 
 
@@ -775,8 +737,7 @@ def _(pipeline_3):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     New columns were created:
 
     - `_dlt_valid_from` – The timestamp when this record was first inserted into the table.
@@ -784,8 +745,7 @@ def _(mo):
 
     - `_dlt_valid_to` – The timestamp when this record was considered outdated.
       - NaT (Not a Time) means that these records are currently active and have not been superseded by newer versions.
-    """
-    )
+    """)
     return
 
 
@@ -842,19 +802,16 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ## **Hard-deletes**
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
 
     * `bool` type: only `True` leads to a delete, `None` and `False` values are disregarded.
@@ -871,8 +828,7 @@ def _(mo):
     - When a user requests account deletion, their data must be removed from the production dataset to comply with GDPR or CCPA requirements.
 
     - By marking records with a `deleted_flag = True`, the system ensures the user’s data is completely removed from the production tables during the next load operation.
-    """
-    )
+    """)
     return
 
 
@@ -930,13 +886,11 @@ def _(pipeline_4):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Bulbasaur wasn't loaded at all.
 
     Let's see if can remove data from loaded data:
-    """
-    )
+    """)
     return
 
 
@@ -974,8 +928,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     #### **Deduplication**
 
     By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_sort` column hint with a value of `desc` or `asc` to influence which record remains after deduplication.
@@ -994,8 +947,7 @@ def _(mo):
     - The `dedup_sort` hint allows prioritization of the latest record.
 
     The example data below contains three rows of information about Pikachu.
-    """
-    )
+    """)
     return
 
 
@@ -1063,8 +1015,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ---
     ## **Missing incremental cursor path**
 
@@ -1082,15 +1033,13 @@ def _(mo):
     - Due to network failures or device malfunctions, some records may lack timestamps or have None as their cursor value.
 
     - Using `on_cursor_value_missing="include"` ensures that such data is not discarded by default, allowing for later inspection and processing.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     To process a data set where some records **do not include the incremental cursor path** or where the values at the cursor path are **None**, there are the following four options:
 
     * Configure the incremental load to **raise** an exception in case there is a row where the cursor path is missing or has the value `None` using
@@ -1103,8 +1052,7 @@ def _(mo):
       - `incremental(..., on_cursor_value_missing="exclude")`.
 
     Here is an example of including rows where the **incremental cursor value** is **missing** or **None**:
-    """
-    )
+    """)
     return
 
 
@@ -1160,8 +1108,7 @@ def _(TDataItems, data_9, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     You can also define a [fall back column](https://dlthub.com/docs/devel/general-usage/incremental-loading#transform-records-before-incremental-processing) for an incremental cursor, as described below.
 
     ## **Transform records before incremental processing**
@@ -1181,8 +1128,7 @@ def _(mo):
 
 
     See below how you can modify rows before the incremental processing using `add_map()` and filter rows using `add_filter()`.
-    """
-    )
+    """)
     return
 
 
@@ -1229,7 +1175,6 @@ def _(TDataItem, TDataItems, dlt):
         if record.get("updated_at") is None:
             record["updated_at"] = record.get("created_at")
         return record
-
     return set_default_updated_at, some_data
 
 
@@ -1279,15 +1224,13 @@ def _(dlt, without_none):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## **Backfilling**
 
     ### Using `end_value` for backfill
 
     You can specify both initial and end dates when defining incremental loading. Let's go back to our Pokemon example:
-    """
-    )
+    """)
     return
 
 
@@ -1329,7 +1272,6 @@ def _(TDataItems, dlt):
         ),
     ) -> TDataItems:
         yield data
-
     return (some_data_1,)
 
 
@@ -1348,8 +1290,7 @@ def _(data_11, dlt, some_data_1):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     Above, we use the `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve
     and pass this range to the Github API (`since` and `until`). As in the examples above, `dlt` will make sure that only the issues from
     the defined range are returned.
@@ -1357,8 +1298,7 @@ def _(mo):
     Please note that when `end_date` is specified, `dlt` **will not modify the existing incremental state**. The backfill is **stateless** and:
     1. You can run backfill and incremental load in parallel (i.e., in an Airflow DAG) in a single pipeline.
     2. You can partition your backfill into several smaller chunks and run them in parallel as well.
-    """
-    )
+    """)
     return
 
 
@@ -1372,7 +1312,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## **Load a large dataset using incremental loading and add_limits**""")
+    mo.md(
+        r"""## **Load a large dataset using incremental loading and add_limits**"""
+    )
     return
 
 
@@ -1430,7 +1372,6 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-
     return (mo,)
 
 
