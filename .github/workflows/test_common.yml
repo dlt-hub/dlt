@@ -6,7 +6,7 @@ on:
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
-  PYTHONHASHSEED=0
+  PYTHONHASHSEED: 0
 
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
