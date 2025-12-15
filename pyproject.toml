@@ -215,7 +215,7 @@ dev = [
     "types-deprecated>=1.2.9.2,<2",
     "pytest-console-scripts>=1.4.1,<2",
     "pytest>=7.4.4,<8",
-    "pytest-xdist",
+    "pytest-xdist>=3.5,<4",
     "mypy>=1.11.0,<1.13.0",
     "flake8>=7.0.0,<8",
     "bandit>=1.7.0,<2",
