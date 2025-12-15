@@ -565,7 +565,7 @@ class FilesystemClient(
             # not all filesystems implement the above
             try:
                 self.fs_client.rm(file_path)
-            except RuntimeError as e:
+            except Exception as e:
                 # OneLake API quirk: returns HTTP 200 instead of HTTP 202 for delete operations
                 # Azure SDK treats this as an error, but the delete actually succeeded
                 if "Operation returned an invalid status 'OK'" in str(e):
