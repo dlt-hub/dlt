@@ -128,7 +128,7 @@ athena = [
     "botocore>=1.28",
 ]
 weaviate = [
-    "weaviate-client>=3.26.7,<4.0.0"
+    "weaviate-client>=4.0.0,<4.18.3"
 ]
 mssql = [
     "pyodbc>=4.0.39"

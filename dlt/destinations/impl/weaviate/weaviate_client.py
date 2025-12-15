@@ -21,8 +21,20 @@ from dlt.common.destination.exceptions import (
 )
 
 import weaviate
-from weaviate.gql.get import GetBuilder
+from weaviate.classes.config import (
+    Configure,
+    Property,
+    DataType,
+    Tokenization,
+)
+from weaviate.classes.query import Filter, Sort
 from weaviate.util import generate_uuid5
+from weaviate.exceptions import (
+    WeaviateConnectionError,
+    WeaviateClosedClientError,
+    WeaviateInvalidInputError,
+    UnexpectedStatusCodeError,
+)
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -55,15 +67,18 @@ from dlt.common.storages import FileStorage
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
-from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateGrpcError
+from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateBatchError
 from dlt.destinations.utils import get_pipeline_state_query_columns
 
 
-NON_VECTORIZED_CLASS = {
-    "vectorizer": "none",
-    "vectorIndexConfig": {
-        "skip": True,
-    },
+# Type mapping from dlt types to Weaviate DataType
+DLT_TO_WEAVIATE_TYPE: Dict[str, DataType] = {
+    "text": DataType.TEXT,
+    "number": DataType.NUMBER,
+    "boolean": DataType.BOOL,
+    "date": DataType.DATE,
+    "int": DataType.INT,
+    "blob": DataType.BLOB,
 }
 
 
@@ -72,15 +87,10 @@ def wrap_weaviate_error(f: TFun) -> TFun:
     def _wrap(self: JobClientBase, *args: Any, **kwargs: Any) -> Any:
         try:
             return f(self, *args, **kwargs)
-        # those look like terminal exceptions
-        except (
-            weaviate.exceptions.ObjectAlreadyExistsException,
-            weaviate.exceptions.SchemaValidationException,
-            weaviate.exceptions.WeaviateEmbeddedInvalidVersion,
-        ) as term_ex:
+        except WeaviateInvalidInputError as term_ex:
             raise DestinationTerminalException(term_ex) from term_ex
-        except weaviate.exceptions.UnexpectedStatusCodeException as status_ex:
-            # special handling for non existing objects/classes
+        except UnexpectedStatusCodeError as status_ex:
+            # special handling for non existing objects/collections
             if status_ex.status_code == 404:
                 raise DestinationUndefinedEntity(status_ex)
             if status_ex.status_code == 403:
@@ -91,34 +101,33 @@ def wrap_weaviate_error(f: TFun) -> TFun:
                 ):
                     raise PropertyNameConflict(str(status_ex))
                 raise DestinationTerminalException(status_ex)
-            # looks like there are no more terminal exception
+            # looks like there are no more terminal exceptions
             raise DestinationTransientException(status_ex)
-        except weaviate.exceptions.WeaviateBaseError as we_ex:
-            # also includes 401 as transient
-            raise DestinationTransientException(we_ex)
+        except (WeaviateConnectionError, WeaviateClosedClientError) as conn_ex:
+            raise DestinationTransientException(conn_ex)
 
     return _wrap  # type: ignore
 
 
-def wrap_grpc_error(f: TFun) -> TFun:
+def wrap_batch_error(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(*args: Any, **kwargs: Any) -> Any:
         try:
             return f(*args, **kwargs)
-        # those look like terminal exceptions
-        except WeaviateGrpcError as batch_ex:
+        except WeaviateBatchError as batch_ex:
             errors = batch_ex.args[0]
-            message = errors["error"][0]["message"]
+            message = str(errors)
             # TODO: actually put the job in failed/retry state and prepare exception message with full info on failing item
-            if "invalid" in message and "property" in message and "on class" in message:
+            if "invalid" in message and "property" in message:
                 raise DestinationTerminalException(
-                    f"Grpc (batch, query) failed `{errors}` AND WILL **NOT** BE RETRIED"
+                    f"Batch failed `{errors}` AND WILL **NOT** BE RETRIED"
                 )
             if "conflict for property" in message:
                 raise PropertyNameConflict(message)
-            raise DestinationTransientException(
-                f"Grpc (batch, query) failed `{errors}` AND WILL BE RETRIED"
-            )
+            # v4 API gives different error for case-sensitive property conflicts
+            if "no such prop with name" in message.lower() and "in class" in message.lower():
+                raise PropertyNameConflict(message)
+            raise DestinationTransientException(f"Batch failed `{errors}` AND WILL BE RETRIED")
         except Exception:
             raise DestinationTransientException("Batch failed AND WILL BE RETRIED")
 
@@ -129,11 +138,11 @@ class LoadWeaviateJob(RunnableLoadJob):
     def __init__(
         self,
         file_path: str,
-        class_name: str,
+        collection_name: str,
     ) -> None:
         super().__init__(file_path)
         self._job_client: WeaviateClient = None
-        self._class_name = class_name
+        self._collection_name = collection_name
 
     def run(self) -> None:
         self._db_client = self._job_client.db_client
@@ -154,45 +163,55 @@ class LoadWeaviateJob(RunnableLoadJob):
 
     @wrap_weaviate_error
     def load_batch(self, f: IO[str]) -> None:
-        """Load all the lines from stream `f` in automatic Weaviate batches.
+        """Load all the lines from stream `f` using Weaviate batch.
         Weaviate batch supports retries so we do not need to do that.
         """
+        collection = self._db_client.collections.get(self._collection_name)
 
-        @wrap_grpc_error
-        def check_batch_result(results: List[StrAny]) -> None:
-            """This kills batch on first error reported"""
-            if results is not None:
-                for result in results:
-                    if "result" in result and "errors" in result["result"]:
-                        if "error" in result["result"]["errors"]:
-                            raise WeaviateGrpcError(result["result"]["errors"])
+        @wrap_batch_error
+        def check_batch_result(failed_objects: List[Any]) -> None:
+            """Check for failed objects and raise error if any"""
+            if failed_objects:
+                # Collect error messages from failed objects
+                errors = []
+                for obj in failed_objects:
+                    if hasattr(obj, "message"):
+                        errors.append(obj.message)
+                    else:
+                        errors.append(str(obj))
+                if errors:
+                    raise WeaviateBatchError({"error": [{"message": err} for err in errors]})
 
-        with self._db_client.batch(
-            batch_size=self._client_config.batch_size,
-            timeout_retries=self._client_config.batch_retries,
-            connection_error_retries=self._client_config.batch_retries,
-            weaviate_error_retries=weaviate.WeaviateErrorRetryConf(
-                self._client_config.batch_retries
-            ),
-            consistency_level=weaviate.ConsistencyLevel[self._client_config.batch_consistency],
-            num_workers=self._client_config.batch_workers,
-            callback=check_batch_result,
-        ) as batch:
-            for line in f:
-                data = json.loads(line)
-                # serialize json types
-                for key in self.nested_indices:
-                    if key in data:
-                        data[key] = json.dumps(data[key])
-                for key in self.date_indices:
-                    if key in data:
-                        data[key] = ensure_pendulum_datetime_utc(data[key]).isoformat()
-                if self.unique_identifiers:
-                    uuid = self.generate_uuid(data, self.unique_identifiers, self._class_name)
-                else:
-                    uuid = None
+        # Collect all objects to insert
+        objects_to_insert = []
+        for line in f:
+            data = json.loads(line)
+            # serialize json types
+            for key in self.nested_indices:
+                if key in data:
+                    data[key] = json.dumps(data[key])
+            for key in self.date_indices:
+                if key in data:
+                    data[key] = ensure_pendulum_datetime_utc(data[key]).isoformat()
+            if self.unique_identifiers:
+                uuid = self.generate_uuid(data, self.unique_identifiers, self._collection_name)
+            else:
+                uuid = None
 
-                batch.add_data_object(data, self._class_name, uuid=uuid)
+            objects_to_insert.append({"properties": data, "uuid": uuid})
+
+        # Use batch insert with the v4 API
+        with collection.batch.dynamic() as batch:
+            for obj in objects_to_insert:
+                batch.add_object(
+                    properties=obj["properties"],
+                    uuid=obj["uuid"],
+                )
+
+        # Check for failed objects
+        failed_objects = collection.batch.failed_objects
+        if failed_objects:
+            check_batch_result(failed_objects)
 
     def list_unique_identifiers(self, table_schema: PreparedTableSchema) -> Sequence[str]:
         if table_schema.get("write_disposition") == "merge":
@@ -202,14 +221,14 @@ class LoadWeaviateJob(RunnableLoadJob):
         return get_columns_names_with_prop(table_schema, "unique")
 
     def generate_uuid(
-        self, data: Dict[str, Any], unique_identifiers: Sequence[str], class_name: str
+        self, data: Dict[str, Any], unique_identifiers: Sequence[str], collection_name: str
     ) -> str:
         data_id = "_".join([str(data[key]) for key in unique_identifiers])
-        return generate_uuid5(data_id, class_name)  # type: ignore
+        return generate_uuid5(data_id, collection_name)  # type: ignore
 
 
 class WeaviateClient(JobClientBase, WithStateSync):
-    """Weaviate client implementation."""
+    """Weaviate client implementation using v4 API."""
 
     def __init__(
         self,
@@ -229,12 +248,10 @@ class WeaviateClient(JobClientBase, WithStateSync):
         self.pipeline_state_properties = list(state_table_["columns"].keys())
 
         self.config: WeaviateClientConfiguration = config
-        self.db_client: weaviate.Client = None
+        self.db_client: weaviate.WeaviateClient = None
 
-        self._vectorizer_config = {
-            "vectorizer": config.vectorizer,
-            "moduleConfig": config.module_config,
-        }
+        self._vectorizer_config = config.vectorizer
+        self._module_config = config.module_config
         self.type_mapper = self.capabilities.get_type_mapper()
 
     @property
@@ -242,27 +259,40 @@ class WeaviateClient(JobClientBase, WithStateSync):
         return self.config.normalize_dataset_name(self.schema)
 
     @property
-    def sentinel_class(self) -> str:
-        # if no dataset name is provided we still want to create sentinel class
+    def sentinel_collection(self) -> str:
+        # if no dataset name is provided we still want to create sentinel collection
         return self.dataset_name or "DltSentinelClass"
 
     @staticmethod
-    def create_db_client(config: WeaviateClientConfiguration) -> weaviate.Client:
-        auth_client_secret: weaviate.AuthApiKey = (
-            weaviate.AuthApiKey(api_key=config.credentials.api_key)
-            if config.credentials.api_key
-            else None
-        )
-        return weaviate.Client(
-            url=config.credentials.url,
-            timeout_config=(config.conn_timeout, config.read_timeout),
-            startup_period=config.startup_period,
-            auth_client_secret=auth_client_secret,
-            additional_headers=config.credentials.additional_headers,
+    def create_db_client(config: WeaviateClientConfiguration) -> weaviate.WeaviateClient:
+        """Create a Weaviate client using v4 API"""
+        # Build connection parameters
+        additional_headers = config.credentials.additional_headers or {}
+
+        # Parse URL to determine connection type
+        url = config.credentials.url
+        api_key = config.credentials.api_key
+
+        # Create auth config if API key is provided
+        auth_config = None
+        if api_key:
+            auth_config = weaviate.auth.AuthApiKey(api_key)
+
+        # Use connect_to_custom for flexibility
+        return weaviate.connect_to_custom(
+            http_host=url.replace("http://", "").replace("https://", "").split(":")[0],
+            http_port=int(url.split(":")[-1]) if ":" in url.rsplit("/", 1)[-1] else 8080,
+            http_secure=url.startswith("https"),
+            grpc_host=url.replace("http://", "").replace("https://", "").split(":")[0],
+            grpc_port=50051,  # Default gRPC port
+            grpc_secure=url.startswith("https"),
+            auth_credentials=auth_config,
+            headers=additional_headers,
+            skip_init_checks=True,  # Skip init checks for faster connection
         )
 
-    def make_qualified_class_name(self, table_name: str) -> str:
-        """Make a full Weaviate class name from a table name by prepending
+    def make_qualified_collection_name(self, table_name: str) -> str:
+        """Make a full Weaviate collection name from a table name by prepending
         the dataset name if it exists.
         """
         dataset_separator = self.config.dataset_separator
@@ -273,137 +303,328 @@ class WeaviateClient(JobClientBase, WithStateSync):
             else table_name
         )
 
-    def get_class_schema(self, table_name: str) -> Dict[str, Any]:
-        """Get the Weaviate class schema for a table."""
-        return cast(
-            Dict[str, Any], self.db_client.schema.get(self.make_qualified_class_name(table_name))
-        )
+    def get_collection_schema(self, table_name: str) -> Dict[str, Any]:
+        """Get the Weaviate collection schema for a table."""
+        collection_name = self.make_qualified_collection_name(table_name)
+        try:
+            collection = self.db_client.collections.get(collection_name)
+            config = collection.config.get()
+            return self._config_to_dict(config)
+        except UnexpectedStatusCodeError as e:
+            if e.status_code == 404:
+                raise
+            raise
+        except Exception as e:
+            if "404" in str(e) or "not found" in str(e).lower():
+                # Re-raise as UnexpectedStatusCodeError with status_code attribute
+                err = UnexpectedStatusCodeError(f"Collection {collection_name} not found")
+                err.status_code = 404
+                raise err from e
+            raise
 
-    def create_class(
-        self, class_schema: Dict[str, Any], full_class_name: Optional[str] = None
+    def _config_to_dict(self, config: Any) -> Dict[str, Any]:
+        """Convert a collection config to a dictionary format similar to v3"""
+        # Get vectorizer name - in v4 it's directly a Vectorizers enum
+        vectorizer_name = "none"
+        if config.vectorizer:
+            if hasattr(config.vectorizer, "value"):
+                vectorizer_name = config.vectorizer.value
+            else:
+                vectorizer_name = str(config.vectorizer)
+
+        result: Dict[str, Any] = {
+            "class": config.name,
+            "properties": [],
+            "vectorizer": vectorizer_name,
+        }
+
+        # Add vectorIndexConfig if available
+        if config.vector_index_config:
+            result["vectorIndexConfig"] = {
+                "skip": getattr(config.vector_index_config, "skip", False),
+            }
+
+        # Add properties
+        for prop in config.properties:
+            # Get data type - handle both enum and string
+            data_type_value = (
+                prop.data_type.value if hasattr(prop.data_type, "value") else str(prop.data_type)
+            )
+            # Clean up data type value if it looks like "DataType.TEXT" -> "text"
+            if "." in data_type_value:
+                data_type_value = data_type_value.split(".")[-1].lower()
+
+            prop_dict: Dict[str, Any] = {
+                "name": prop.name,
+                "dataType": [data_type_value],
+            }
+            if prop.tokenization:
+                prop_dict["tokenization"] = (
+                    prop.tokenization.value
+                    if hasattr(prop.tokenization, "value")
+                    else str(prop.tokenization)
+                )
+
+            # Add moduleConfig for vectorization skip info
+            # In v4 API, the skip value is in prop.vectorizer_config.skip
+            if vectorizer_name != "none":
+                skip_vectorization = False
+                if hasattr(prop, "vectorizer_config") and prop.vectorizer_config:
+                    skip_vectorization = getattr(prop.vectorizer_config, "skip", False)
+                prop_dict["moduleConfig"] = {
+                    vectorizer_name: {
+                        "skip": skip_vectorization,
+                    }
+                }
+            result["properties"].append(prop_dict)
+
+        return result
+
+    def create_collection(
+        self, collection_config: Dict[str, Any], full_collection_name: Optional[str] = None
     ) -> None:
-        """Create a Weaviate class.
+        """Create a Weaviate collection.
 
         Args:
-            class_schema: The class schema to create.
-            full_class_name: The full name of the class to create. If not
-                provided, the class name will be prepended with the dataset name
+            collection_config: The collection configuration to create.
+            full_collection_name: The full name of the collection to create. If not
+                provided, the collection name will be prepended with the dataset name
                 if it exists.
         """
-
-        updated_schema = class_schema.copy()
-        updated_schema["class"] = (
-            self.make_qualified_class_name(updated_schema["class"])
-            if full_class_name is None
-            else full_class_name
+        name = (
+            self.make_qualified_collection_name(collection_config["class"])
+            if full_collection_name is None
+            else full_collection_name
         )
 
-        self.db_client.schema.create_class(updated_schema)
+        # Build properties
+        properties = []
+        for prop in collection_config.get("properties", []):
+            prop_config = self._make_property_config(prop)
+            properties.append(prop_config)
 
-    def create_class_property(self, class_name: str, prop_schema: Dict[str, Any]) -> None:
-        """Create a Weaviate class property.
+        # Determine vectorizer configuration
+        vectorizer = collection_config.get("vectorizer", "none")
+        vectorizer_config = None
 
-        Args:
-            class_name: The name of the class to create the property on.
-            prop_schema: The property schema to create.
-        """
-        self.db_client.schema.property.create(
-            self.make_qualified_class_name(class_name), prop_schema
+        if vectorizer == "none":
+            # No vectorization
+            vectorizer_config = Configure.Vectorizer.none()
+        else:
+            # Use the specified vectorizer
+            vectorizer_config = self._get_vectorizer_config(vectorizer)
+
+        # Create the collection
+        self.db_client.collections.create(
+            name=name,
+            properties=properties,
+            vectorizer_config=vectorizer_config,
         )
 
-    def delete_class(self, class_name: str) -> None:
-        """Delete a Weaviate class.
+    def _make_property_config(self, prop: Dict[str, Any]) -> Property:
+        """Create a Property config from a property dict"""
+        data_type_str = (
+            prop["dataType"][0] if isinstance(prop["dataType"], list) else prop["dataType"]
+        )
+        data_type = DLT_TO_WEAVIATE_TYPE.get(data_type_str.lower(), DataType.TEXT)
+
+        # Handle tokenization
+        tokenization = None
+        if "tokenization" in prop:
+            token_map = {
+                "word": Tokenization.WORD,
+                "lowercase": Tokenization.LOWERCASE,
+                "whitespace": Tokenization.WHITESPACE,
+                "field": Tokenization.FIELD,
+            }
+            tokenization = token_map.get(prop["tokenization"])
+
+        # Handle skip vectorization - this is per-property in v4
+        skip_vectorization = False
+        if "moduleConfig" in prop:
+            for module_name, module_config in prop["moduleConfig"].items():
+                if module_config.get("skip", False):
+                    skip_vectorization = True
+                    break
+
+        return Property(
+            name=prop["name"],
+            data_type=data_type,
+            tokenization=tokenization,
+            skip_vectorization=skip_vectorization,
+            # Disable property name vectorization to avoid contextionary issues with
+            # property names that contain underscores or are not English words
+            vectorize_property_name=False,
+        )
+
+    def _get_vectorizer_config(self, vectorizer: str) -> Any:
+        """Get the vectorizer configuration based on vectorizer name"""
+        # Map vectorizer names to Configure.Vectorizer methods
+        vectorizer_map = {
+            "text2vec-openai": Configure.Vectorizer.text2vec_openai,
+            "text2vec-cohere": Configure.Vectorizer.text2vec_cohere,
+            "text2vec-contextionary": Configure.Vectorizer.text2vec_contextionary,
+            "text2vec-huggingface": Configure.Vectorizer.text2vec_huggingface,
+            "text2vec-palm": Configure.Vectorizer.text2vec_palm,
+        }
+
+        if vectorizer in vectorizer_map:
+            # Get the module config if available
+            module_conf = self._module_config.get(vectorizer, {}) if self._module_config else {}
+            try:
+                # Filter out incompatible config keys for each vectorizer
+                if vectorizer == "text2vec-contextionary":
+                    # Contextionary accepts vectorize_collection_name
+                    filtered_conf = {
+                        k: v
+                        for k, v in module_conf.items()
+                        if k in ["vectorize_collection_name", "vectorizeClassName"]
+                    }
+                    # Map old v3 config key names to v4
+                    if "vectorizeClassName" in filtered_conf:
+                        filtered_conf["vectorize_collection_name"] = filtered_conf.pop(
+                            "vectorizeClassName"
+                        )
+                    return (
+                        vectorizer_map[vectorizer](**filtered_conf)
+                        if filtered_conf
+                        else vectorizer_map[vectorizer]()
+                    )
+                else:
+                    return vectorizer_map[vectorizer](**module_conf)
+            except TypeError:
+                # If module_conf keys don't match, try without config
+                return vectorizer_map[vectorizer]()
+
+        # Default to none if not found
+        return Configure.Vectorizer.none()
+
+    def add_property_to_collection(self, collection_name: str, prop_schema: Dict[str, Any]) -> None:
+        """Add a property to an existing Weaviate collection.
 
         Args:
-            class_name: The name of the class to delete.
+            collection_name: The name of the collection to add the property to.
+            prop_schema: The property schema to add.
         """
-        self.db_client.schema.delete_class(self.make_qualified_class_name(class_name))
+        full_name = self.make_qualified_collection_name(collection_name)
+        collection = self.db_client.collections.get(full_name)
+        prop_config = self._make_property_config(prop_schema)
+        collection.config.add_property(prop_config)
 
-    def delete_all_classes(self) -> None:
-        """Delete all Weaviate classes from Weaviate instance and all data
+    def delete_collection(self, collection_name: str) -> None:
+        """Delete a Weaviate collection.
+
+        Args:
+            collection_name: The name of the collection to delete.
+        """
+        self.db_client.collections.delete(self.make_qualified_collection_name(collection_name))
+
+    def delete_all_collections(self) -> None:
+        """Delete all Weaviate collections from Weaviate instance and all data
         associated with it.
         """
-        self.db_client.schema.delete_all()
+        self.db_client.collections.delete_all()
 
-    def query_class(self, class_name: str, properties: List[str]) -> GetBuilder:
-        """Query a Weaviate class.
+    def query_collection(
+        self, collection_name: str, properties: List[str], limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """Query a Weaviate collection.
 
         Args:
-            class_name: The name of the class to query.
+            collection_name: The name of the collection to query.
             properties: The properties to return.
+            limit: Maximum number of results to return.
 
         Returns:
-            A Weaviate query builder.
+            A list of objects from the collection.
         """
-        return self.db_client.query.get(self.make_qualified_class_name(class_name), properties)
+        full_name = self.make_qualified_collection_name(collection_name)
+        collection = self.db_client.collections.get(full_name)
+        response = collection.query.fetch_objects(
+            limit=limit,
+            return_properties=properties,
+        )
+        return [{"properties": obj.properties, "uuid": str(obj.uuid)} for obj in response.objects]
 
-    def create_object(self, obj: Dict[str, Any], class_name: str) -> None:
+    def create_object(self, obj: Dict[str, Any], collection_name: str) -> None:
         """Create a Weaviate object.
 
         Args:
             obj: The object to create.
-            class_name: The name of the class to create the object on.
+            collection_name: The name of the collection to create the object in.
         """
-        self.db_client.data_object.create(obj, self.make_qualified_class_name(class_name))
+        full_name = self.make_qualified_collection_name(collection_name)
+        collection = self.db_client.collections.get(full_name)
+        collection.data.insert(properties=obj)
 
     def drop_storage(self) -> None:
         """Drop the dataset from Weaviate instance.
 
-        Deletes all classes in the dataset and all data associated with them.
-        Deletes the sentinel class as well.
+        Deletes all collections in the dataset and all data associated with them.
+        Deletes the sentinel collection as well.
 
         If dataset name was not provided, it deletes all the tables in the current schema
         """
-        schema = self.db_client.schema.get()
-        class_name_list = [class_["class"] for class_ in schema.get("classes", [])]
+        collections = self.db_client.collections.list_all()
+        collection_names = list(collections.keys())
 
         if self.dataset_name:
             prefix = f"{self.dataset_name}{self.config.dataset_separator}"
 
-            for class_name in class_name_list:
-                if class_name.startswith(prefix):
-                    self.db_client.schema.delete_class(class_name)
+            for collection_name in collection_names:
+                if collection_name.startswith(prefix):
+                    self.db_client.collections.delete(collection_name)
         else:
             # in case of no dataset prefix do our best and delete all tables in the schema
-            for class_name in self.schema.tables.keys():
-                if class_name in class_name_list:
-                    self.db_client.schema.delete_class(class_name)
+            for table_name in self.schema.tables.keys():
+                if table_name in collection_names:
+                    self.db_client.collections.delete(table_name)
 
-        self._delete_sentinel_class()
+        self._delete_sentinel_collection()
 
     @wrap_weaviate_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
-            self._create_sentinel_class()
+            self._create_sentinel_collection()
         elif truncate_tables:
             for table_name in truncate_tables:
                 try:
-                    class_schema = self.get_class_schema(table_name)
-                except weaviate.exceptions.UnexpectedStatusCodeException as e:
-                    if e.status_code == 404:
+                    collection_schema = self.get_collection_schema(table_name)
+                except UnexpectedStatusCodeError as e:
+                    if hasattr(e, "status_code") and e.status_code == 404:
+                        continue
+                    raise
+                except Exception as e:
+                    if "404" in str(e) or "not found" in str(e).lower():
                         continue
                     raise
 
-                self.delete_class(table_name)
-                self.create_class(class_schema, full_class_name=class_schema["class"])
+                self.delete_collection(table_name)
+                self.create_collection(
+                    collection_schema, full_collection_name=collection_schema["class"]
+                )
 
     @wrap_weaviate_error
     def is_storage_initialized(self) -> bool:
         try:
-            self.db_client.schema.get(self.sentinel_class)
-        except weaviate.exceptions.UnexpectedStatusCodeException as e:
-            if e.status_code == 404:
-                return False
-            raise
-        return True
+            collections = self.db_client.collections.list_all()
+            return self.sentinel_collection in collections
+        except Exception:
+            return False
 
-    def _create_sentinel_class(self) -> None:
-        """Create an empty class to indicate that the storage is initialized."""
-        self.create_class(NON_VECTORIZED_CLASS, full_class_name=self.sentinel_class)
+    def _create_sentinel_collection(self) -> None:
+        """Create an empty collection to indicate that the storage is initialized."""
+        self.db_client.collections.create(
+            name=self.sentinel_collection,
+            vectorizer_config=Configure.Vectorizer.none(),
+        )
 
-    def _delete_sentinel_class(self) -> None:
-        """Delete the sentinel class."""
-        self.db_client.schema.delete_class(self.sentinel_class)
+    def _delete_sentinel_collection(self) -> None:
+        """Delete the sentinel collection."""
+        try:
+            self.db_client.collections.delete(self.sentinel_collection)
+        except Exception:
+            pass  # Ignore if not found
 
     @wrap_weaviate_error
     def update_stored_schema(
@@ -450,24 +671,28 @@ class WeaviateClient(JobClientBase, WithStateSync):
                         prop = self._make_property_schema(
                             column["name"], column, is_collection_vectorized
                         )
-                        self.create_class_property(table_name, prop)
+                        self.add_property_to_collection(table_name, prop)
                 else:
-                    class_schema = self.make_weaviate_class_schema(table_name)
-                    self.create_class(class_schema)
+                    collection_config = self.make_weaviate_collection_schema(table_name)
+                    self.create_collection(collection_config)
         self._update_schema_in_storage(self.schema)
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}
 
         try:
-            class_schema = self.get_class_schema(table_name)
-        except weaviate.exceptions.UnexpectedStatusCodeException as e:
-            if e.status_code == 404:
+            collection_schema = self.get_collection_schema(table_name)
+        except UnexpectedStatusCodeError as e:
+            if hasattr(e, "status_code") and e.status_code == 404:
+                return False, table_schema
+            raise
+        except Exception as e:
+            if "404" in str(e) or "not found" in str(e).lower():
                 return False, table_schema
             raise
 
-        # Convert Weaviate class schema to dlt table schema
-        for prop in class_schema["properties"]:
+        # Convert Weaviate collection schema to dlt table schema
+        for prop in collection_schema["properties"]:
             schema_c: TColumnSchema = {
                 "name": prop["name"],
                 **self._from_db_type(prop["dataType"][0], None, None),
@@ -491,12 +716,10 @@ class WeaviateClient(JobClientBase, WithStateSync):
             state_records = self.get_records(
                 self.schema.state_table_name,
                 # search by package load id which is guaranteed to increase over time
-                sort={"path": [p_dlt_load_id], "order": "desc"},
-                where={
-                    "path": [p_pipeline_name],
-                    "operator": "Equal",
-                    "valueString": pipeline_name,
-                },
+                sort_by=p_dlt_load_id,
+                sort_order="desc",
+                filter_field=p_pipeline_name,
+                filter_value=pipeline_name,
                 limit=stepsize,
                 offset=offset,
                 properties=self.pipeline_state_properties,
@@ -508,11 +731,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 load_id = state[p_dlt_load_id]
                 load_records = self.get_records(
                     self.schema.loads_table_name,
-                    where={
-                        "path": [p_load_id],
-                        "operator": "Equal",
-                        "valueString": load_id,
-                    },
+                    filter_field=p_load_id,
+                    filter_value=load_id,
                     limit=1,
                     properties=[p_load_id, p_status],
                 )
@@ -525,93 +745,106 @@ class WeaviateClient(JobClientBase, WithStateSync):
         p_schema_name = self.schema.naming.normalize_identifier("schema_name")
         p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
 
-        name_filter = (
-            {
-                "path": [p_schema_name],
-                "operator": "Equal",
-                "valueString": schema_name,
-            }
-            if schema_name
-            else None
-        )
-
         try:
-            record = self.get_records(
+            records = self.get_records(
                 self.schema.version_table_name,
-                sort={"path": [p_inserted_at], "order": "desc"},
-                where=name_filter,
+                sort_by=p_inserted_at,
+                sort_order="desc",
+                filter_field=p_schema_name if schema_name else None,
+                filter_value=schema_name if schema_name else None,
                 limit=1,
-            )[0]
-            return StorageSchemaInfo(**record)
-        except IndexError:
+            )
+            if records:
+                return StorageSchemaInfo(**records[0])
+            return None
+        except Exception:
             return None
 
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         try:
-            record = self.get_records(
+            records = self.get_records(
                 self.schema.version_table_name,
-                where={
-                    "path": [p_version_hash],
-                    "operator": "Equal",
-                    "valueString": schema_hash,
-                },
+                filter_field=p_version_hash,
+                filter_value=schema_hash,
                 limit=1,
-            )[0]
-            return StorageSchemaInfo(**record)
-        except IndexError:
+            )
+            if records:
+                return StorageSchemaInfo(**records[0])
+            return None
+        except Exception:
             return None
 
     @wrap_weaviate_error
     def get_records(
         self,
         table_name: str,
-        where: Dict[str, Any] = None,
-        sort: Dict[str, Any] = None,
+        filter_field: str = None,
+        filter_value: Any = None,
+        sort_by: str = None,
+        sort_order: str = "asc",
         limit: int = 0,
         offset: int = 0,
         properties: List[str] = None,
     ) -> List[Dict[str, Any]]:
-        # fail if schema does not exist?
-        self.get_class_schema(table_name)
+        """Get records from a collection using v4 API"""
+        # fail if collection does not exist
+        self.get_collection_schema(table_name)
+
+        full_name = self.make_qualified_collection_name(table_name)
+        collection = self.db_client.collections.get(full_name)
 
         # build query
         if not properties:
             properties = list(self.schema.get_table_columns(table_name).keys())
-        query = self.query_class(table_name, properties)
-        if where:
-            query = query.with_where(where)
-        if sort:
-            query = query.with_sort(sort)
-        if limit:
-            query = query.with_limit(limit)
-        if offset:
-            query = query.with_offset(offset)
 
-        response = query.do()
-        # if json rpc is used, weaviate does not raise exceptions
-        if "errors" in response:
-            raise WeaviateGrpcError(response["errors"])
-        full_class_name = self.make_qualified_class_name(table_name)
-        records = response["data"]["Get"][full_class_name]
+        # Build filter if provided
+        filters = None
+        if filter_field and filter_value is not None:
+            filters = Filter.by_property(filter_field).equal(filter_value)
+
+        # Build sort if provided
+        sort = None
+        if sort_by:
+            if sort_order == "desc":
+                sort = Sort.by_property(sort_by, ascending=False)
+            else:
+                sort = Sort.by_property(sort_by, ascending=True)
+
+        # Execute query
+        response = collection.query.fetch_objects(
+            filters=filters,
+            sort=sort,
+            limit=limit if limit > 0 else None,
+            offset=offset if offset > 0 else None,
+            return_properties=properties,
+        )
+
+        records = [obj.properties for obj in response.objects]
         if records is None:
-            raise DestinationTransientException(f"Could not obtain records for `{full_class_name}`")
+            raise DestinationTransientException(f"Could not obtain records for `{full_name}`")
         return cast(List[Dict[str, Any]], records)
 
-    def make_weaviate_class_schema(self, table_name: str) -> Dict[str, Any]:
-        """Creates a Weaviate class schema from a table schema."""
-        class_schema: Dict[str, Any] = {
+    def make_weaviate_collection_schema(self, table_name: str) -> Dict[str, Any]:
+        """Creates a Weaviate collection schema from a table schema."""
+        collection_schema: Dict[str, Any] = {
             "class": table_name,
             "properties": self._make_properties(table_name),
         }
 
         # check if any column requires vectorization
         if self._is_collection_vectorized(table_name):
-            class_schema.update(self._vectorizer_config)
+            collection_schema["vectorizer"] = self._vectorizer_config
+            # Only include module config for the active vectorizer
+            if self._module_config and self._vectorizer_config in self._module_config:
+                collection_schema["moduleConfig"] = {
+                    self._vectorizer_config: self._module_config[self._vectorizer_config]
+                }
         else:
-            class_schema.update(NON_VECTORIZED_CLASS)
+            collection_schema["vectorizer"] = "none"
+            collection_schema["vectorIndexConfig"] = {"skip": True}
 
-        return class_schema
+        return collection_schema
 
     def _is_collection_vectorized(self, table_name: str) -> bool:
         """Tells is any of the columns has vectorize hint set"""
@@ -636,7 +869,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     ) -> Dict[str, Any]:
         extra_kv = {}
 
-        vectorizer_name = self._vectorizer_config["vectorizer"]
+        vectorizer_name = self._vectorizer_config
         # x-weaviate-vectorize: (bool) means that this field should be vectorized
         if is_collection_vectorized and not column.get(VECTORIZE_HINT, False):
             # tell weaviate explicitly to not vectorize when column has no vectorize hint
@@ -662,7 +895,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     ) -> LoadJob:
         return LoadWeaviateJob(
             file_path,
-            class_name=self.make_qualified_class_name(table["name"]),
+            collection_name=self.make_qualified_collection_name(table["name"]),
         )
 
     @wrap_weaviate_error
@@ -690,6 +923,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         exc_tb: TracebackType,
     ) -> None:
         if self.db_client:
+            self.db_client.close()
             self.db_client = None
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
@@ -711,3 +945,93 @@ class WeaviateClient(JobClientBase, WithStateSync):
         self, wt_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(wt_t, precision, scale)
+
+    # Backwards compatibility aliases
+    @property
+    def sentinel_class(self) -> str:
+        """Alias for sentinel_collection for backwards compatibility"""
+        return self.sentinel_collection
+
+    def make_qualified_class_name(self, table_name: str) -> str:
+        """Alias for make_qualified_collection_name for backwards compatibility"""
+        return self.make_qualified_collection_name(table_name)
+
+    def get_class_schema(self, table_name: str) -> Dict[str, Any]:
+        """Alias for get_collection_schema for backwards compatibility"""
+        return self.get_collection_schema(table_name)
+
+    def create_class(
+        self, class_schema: Dict[str, Any], full_class_name: Optional[str] = None
+    ) -> None:
+        """Alias for create_collection for backwards compatibility"""
+        return self.create_collection(class_schema, full_class_name)
+
+    def create_class_property(self, class_name: str, prop_schema: Dict[str, Any]) -> None:
+        """Alias for add_property_to_collection for backwards compatibility"""
+        return self.add_property_to_collection(class_name, prop_schema)
+
+    def delete_class(self, class_name: str) -> None:
+        """Alias for delete_collection for backwards compatibility"""
+        return self.delete_collection(class_name)
+
+    def query_class(self, class_name: str, properties: List[str]) -> Any:
+        """Query a collection and return results in v3-compatible format for backwards compatibility"""
+        full_name = self.make_qualified_collection_name(class_name)
+        collection = self.db_client.collections.get(full_name)
+
+        # Return a wrapper that provides .do() method for compatibility
+        class QueryWrapper:
+            def __init__(self, coll, props):
+                self._collection = coll
+                self._properties = props
+                self._filters = None
+                self._sort = None
+                self._limit = None
+                self._offset = None
+
+            def with_where(self, where: Dict[str, Any]) -> "QueryWrapper":
+                # Convert v3 where format to v4 filter
+                path = where.get("path", [])
+                operator = where.get("operator", "Equal")
+                value = (
+                    where.get("valueString")
+                    or where.get("valueNumber")
+                    or where.get("valueBoolean")
+                )
+                if path and value is not None:
+                    prop_name = path[0]
+                    if operator == "Equal":
+                        self._filters = Filter.by_property(prop_name).equal(value)
+                return self
+
+            def with_sort(self, sort: Dict[str, Any]) -> "QueryWrapper":
+                path = sort.get("path", [])
+                order = sort.get("order", "asc")
+                if path:
+                    if order == "desc":
+                        self._sort = Sort.by_property(path[0], ascending=False)
+                    else:
+                        self._sort = Sort.by_property(path[0], ascending=True)
+                return self
+
+            def with_limit(self, limit: int) -> "QueryWrapper":
+                self._limit = limit
+                return self
+
+            def with_offset(self, offset: int) -> "QueryWrapper":
+                self._offset = offset
+                return self
+
+            def do(self) -> Dict[str, Any]:
+                response = self._collection.query.fetch_objects(
+                    filters=self._filters,
+                    sort=self._sort,
+                    limit=self._limit,
+                    offset=self._offset,
+                    return_properties=self._properties,
+                )
+                # Convert to v3 format
+                objects = [obj.properties for obj in response.objects]
+                return {"data": {"Get": {self._collection.name: objects}}}
+
+        return QueryWrapper(collection, properties)

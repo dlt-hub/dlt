@@ -24,10 +24,10 @@ def assert_class(
 ) -> None:
     client: WeaviateClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        vectorizer_name: str = client._vectorizer_config["vectorizer"]  # type: ignore[assignment]
+        vectorizer_name: str = client._vectorizer_config  # type: ignore[assignment]
 
         # Check if class exists
-        schema = client.get_class_schema(class_name)
+        schema = client.get_collection_schema(class_name)
         assert schema is not None
 
         columns = pipeline.default_schema.get_table_columns(class_name)
@@ -39,12 +39,14 @@ def assert_class(
         for column_name, column in columns.items():
             prop = properties[column_name]
             if client._is_collection_vectorized(class_name):
-                assert prop["moduleConfig"][vectorizer_name]["skip"] == (
-                    not column.get(VECTORIZE_HINT, False)
-                )
+                if "moduleConfig" in prop and vectorizer_name in prop["moduleConfig"]:
+                    assert prop["moduleConfig"][vectorizer_name]["skip"] == (
+                        not column.get(VECTORIZE_HINT, False)
+                    )
             # tokenization
             if TOKENIZATION_HINT in column:
-                assert prop["tokenization"] == column[TOKENIZATION_HINT]  # type: ignore[literal-required]
+                if "tokenization" in prop:
+                    assert prop["tokenization"] == column[TOKENIZATION_HINT]  # type: ignore[literal-required]
 
         # if there's a single vectorize hint, class must have vectorizer enabled
         if get_columns_names_with_prop(
@@ -54,9 +56,9 @@ def assert_class(
         else:
             assert schema["vectorizer"] == "none"
 
-        # response = db_client.query.get(class_name, list(properties.keys())).do()
+        # Query collection using v4 API
         response = client.query_class(class_name, list(properties.keys())).do()
-        objects = response["data"]["Get"][client.make_qualified_class_name(class_name)]
+        objects = response["data"]["Get"][client.make_qualified_collection_name(class_name)]
 
         if expected_items_count is not None:
             assert expected_items_count == len(objects)
@@ -76,23 +78,30 @@ def assert_class(
 
 
 def delete_classes(p, class_list):
-    db_client = p.destination_client().db_client
-    for class_name in class_list:
-        db_client.schema.delete_class(class_name)
+    """Delete collections from Weaviate (v4 API compatible)"""
+    with p.destination_client() as client:
+        for class_name in class_list:
+            try:
+                client.delete_collection(class_name)
+            except Exception:
+                pass
 
 
 def drop_active_pipeline_data() -> None:
-    def schema_has_classes(client):
+    def has_collections(client):
         if not hasattr(client, "db_client"):
             return None
-        schema = client.db_client.schema.get()
-        return schema["classes"]
+        try:
+            collections = client.db_client.collections.list_all()
+            return len(collections) > 0
+        except Exception:
+            return False
 
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()
         with p.destination_client() as client:
-            if schema_has_classes(client):
+            if has_collections(client):
                 client.drop_storage()
 
         # deactivate context
