@@ -1,4 +1,4 @@
-"""Test that ConfigSectionContext is properly restored in spawned worker processes."""
+"""Test that ConfigSectionContext is properly restored in worker processes."""
 
 import os
 from typing import Tuple, ClassVar
@@ -34,8 +34,9 @@ def _worker_resolve_config() -> Tuple[str, Tuple[str, ...]]:
     return config.test_value, section_ctx.sections
 
 
-def test_config_section_context_restored_in_spawn_worker() -> None:
-    """Test that ConfigSectionContext is properly restored when using spawn method.
+@pytest.mark.parametrize("start_method", ["spawn", "fork"])
+def test_config_section_context_restored_in_worker(start_method: str) -> None:
+    """Test that ConfigSectionContext is properly restored in worker processes.
 
     This test verifies that ConfigSectionContext is correctly serialized and restored
     in worker processes, allowing config resolution to use the correct sections.
@@ -54,12 +55,12 @@ def test_config_section_context_restored_in_spawn_worker() -> None:
     container = Container()
     container[ConfigSectionContext] = section_context
 
-    # Create process pool with spawn method and multiple workers
+    # Create process pool with multiple workers
     # Using multiple workers ensures we're actually testing cross-process behavior
     config = PoolRunnerConfiguration(
         pool_type="process",
         workers=4,
-        start_method="spawn",
+        start_method=start_method,
     )
 
     with create_pool(config) as pool:
