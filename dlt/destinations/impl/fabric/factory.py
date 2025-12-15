@@ -55,11 +55,8 @@ class FabricTypeMapper(SynapseTypeMapper):
             return "varchar(%s)" % column.get("precision", "max")
 
         if sc_t == "time":
-            # Fabric supports time but only with precision 0-6 (not 7)
-            precision = column.get("precision")
-            if precision is not None:
-                precision = min(6, max(0, precision))
-                return f"time({precision})"
+            # Fabric Warehouse does not support TIME with precision parameter
+            # Unlike SQL Server/Synapse, TIME must be used without precision
             return "time"
 
         # Get base type from parent
@@ -105,8 +102,10 @@ class fabric(synapse):
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = super()._raw_capabilities()
-        caps.preferred_loader_file_format = "parquet"
-        caps.supported_loader_file_formats = ["parquet"]
+        # Fabric uses the same file format strategy as Synapse:
+        # - Direct loading: insert_values only (inherited from synapse)
+        # - Staging: parquet (inherited from synapse)
+        # Don't override preferred_loader_file_format or supported_loader_file_formats
         caps.sqlglot_dialect = "fabric"  # type: ignore[assignment]
         caps.type_mapper = FabricTypeMapper
         # Fabric only supports precision 0-6 for datetime2/time (not 7 like SQL Server)

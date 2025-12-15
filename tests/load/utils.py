@@ -408,6 +408,7 @@ def destinations_configs(
         destination_configs += [
             # DestinationTestConfiguration(destination_type="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination_type="synapse", supports_dbt=False),
+            DestinationTestConfiguration(destination_type="fabric", supports_dbt=False),
         ]
 
         # sanity check that when selecting default destinations, one of each sql destination is actually
@@ -526,6 +527,14 @@ def destinations_configs(
                 disable_compression=True,
             ),
             DestinationTestConfiguration(
+                destination_type="fabric",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
                 destination_type="clickhouse",
                 staging="filesystem",
                 file_format="parquet",
@@ -595,6 +604,14 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="synapse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                staging_use_msi=True,
+                extra_info="az-managed-identity",
+            ),
+            DestinationTestConfiguration(
+                destination_type="fabric",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,

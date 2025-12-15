@@ -80,7 +80,8 @@ def test_create_table_uses_varchar(client: FabricClient) -> None:
 
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
-    assert '"col11_precision" time(3)  NOT NULL' in sql
+    # Fabric Warehouse does not support TIME with precision
+    assert '"col11_precision" time  NOT NULL' in sql
 
 
 def test_alter_table_uses_varchar(client: FabricClient) -> None:
