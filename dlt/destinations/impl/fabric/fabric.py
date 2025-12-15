@@ -245,9 +245,9 @@ class FabricClient(SynapseClient):
             )
             return job
 
-        # For non-reference jobs, only handle insert-values (sql files)
+        # For non-reference jobs, only handle insert-values and sql files
         parsed_file = ParsedLoadJobFileName.parse(file_path)
-        if parsed_file.file_format == "insert_values":
+        if parsed_file.file_format in ("insert_values", "sql"):
             # Use parent's insert job handling
             return super(SynapseClient, self).create_load_job(table, file_path, load_id, restore)
 
