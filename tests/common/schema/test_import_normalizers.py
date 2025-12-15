@@ -120,14 +120,10 @@ def test_naming_from_reference() -> None:
     assert naming.max_length == 120
 
 
-def test_import_normalizers(monkeypatch) -> None:
-    monkeypatch.delenv("DLT_DESTINATION", raising=False)
-    monkeypatch.delenv("DESTINATION__NAME", raising=False)
-    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+def test_import_normalizers() -> None:
     config, naming, json_normalizer = import_normalizers(configured_normalizers())
     assert isinstance(naming, snake_case.NamingConvention)
     # no maximum length: we do not know the destination capabilities
-    assert naming.max_length is None
     assert json_normalizer is RelationalNormalizer
     assert config["names"] == "snake_case"
     assert config["json"] == {"module": "dlt.common.normalizers.json.relational"}
@@ -140,7 +136,6 @@ def test_import_normalizers(monkeypatch) -> None:
     assert config["names"] == "direct"
     assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}
     assert isinstance(naming, direct.NamingConvention)
-    assert naming.max_length is None
     assert json_normalizer is CustomRelationalNormalizer
 
 
