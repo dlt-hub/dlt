@@ -6,8 +6,10 @@ from packaging.requirements import Requirement
 
 DLT_IMPORT_NAME = "dlt"
 PKG_NAME = DLT_PKG_NAME = "dlt"
-__version__ = pkg_version(DLT_PKG_NAME)
-DLT_PKG_REQUIREMENT = f"{DLT_PKG_NAME}=={__version__}"
+
+
+def _get_dlt_version() -> str:
+    return pkg_version(DLT_PKG_NAME)
 
 
 def get_installed_requirement_string(
@@ -28,7 +30,7 @@ def get_installed_requirement_string(
 
     ver_selector = "<=" if allow_earlier else "=="
     if package == DLT_PKG_NAME:
-        package_requirement = f"{DLT_PKG_NAME}{ver_selector}{__version__}"
+        package_requirement = f"{DLT_PKG_NAME}{ver_selector}{_get_dlt_version()}"
     else:
         package_requirement = f"{package}{ver_selector}{pkg_version(package)}"
     return package_requirement

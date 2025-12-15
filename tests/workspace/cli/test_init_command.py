@@ -314,7 +314,7 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
             if item not in [".dlt", ".global_dir"]:
                 item_path = os.path.join(os.getcwd(), item)
                 if os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
+                    shutil.rmtree(item_path, ignore_errors=True)
                 else:
                     os.remove(item_path)
 
@@ -342,7 +342,7 @@ def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
             if item not in [".dlt", ".global_dir"]:
                 item_path = os.path.join(os.getcwd(), item)
                 if os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
+                    shutil.rmtree(item_path, ignore_errors=True)
                 else:
                     os.remove(item_path)
 
