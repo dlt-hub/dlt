@@ -67,3 +67,33 @@ def never_ran_pipline():
 def load_exception_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_load_exception_pipeline(temp_dir)
+
+
+@pytest.fixture
+def temp_pipelines_dir():
+    """Create a temporary directory structure for testing pipelines"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        from pathlib import Path
+        import os
+        from dlt.pipeline.trace import TRACE_FILE_NAME
+        
+        pipelines_dir = Path(temp_dir) / "pipelines"
+        pipelines_dir.mkdir()
+
+        # Create some test pipeline directories
+        (pipelines_dir / "success_pipeline_1").mkdir()
+        (pipelines_dir / "success_pipeline_2").mkdir()
+        (pipelines_dir / "_dlt_internal").mkdir()
+
+        # Create trace files with different timestamps
+        trace_file_1 = pipelines_dir / "success_pipeline_1" / TRACE_FILE_NAME
+        trace_file_1.touch()
+        # Set modification time to 2 days ago
+        os.utime(trace_file_1, (1000000, 1000000))
+
+        trace_file_2 = pipelines_dir / "success_pipeline_2" / TRACE_FILE_NAME
+        trace_file_2.touch()
+        # Set modification time to 1 day ago (more recent)
+        os.utime(trace_file_2, (2000000, 2000000))
+
+        yield str(pipelines_dir)

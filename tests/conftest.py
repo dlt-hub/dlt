@@ -1,6 +1,7 @@
 import os
 import dataclasses
 import logging
+import shutil
 from typing import Dict, List, Any
 
 # patch which providers to enable
@@ -61,6 +62,8 @@ def pytest_configure(config):
         f"_storage_{worker}" if worker else "_storage"
     )
     test_storage_root = os.environ["DLT_TEST_STORAGE_ROOT"]
+    if os.path.exists(test_storage_root):
+        shutil.rmtree(test_storage_root)
     
     os.makedirs(test_storage_root, exist_ok=True)
 
