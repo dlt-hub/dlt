@@ -89,9 +89,10 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
                 "client_secret": "your-client-secret",
             },
             staging_config=filesystem(
-                # Use workspace and lakehouse names (easier than GUIDs)
-                bucket_url="abfss://workspace_name@onelake.dfs.fabric.microsoft.com/lakehouse_name.Lakehouse/Files",
-                # IMPORTANT: OneLake requires these specific values
+                # IMPORTANT: Must use workspace GUID and lakehouse GUID (not names)
+                # Format: abfss://<workspace_guid>@onelake.dfs.fabric.microsoft.com/<lakehouse_guid>/Files
+                bucket_url="abfss://12345678-1234-1234-1234-123456789012@onelake.dfs.fabric.microsoft.com/87654321-4321-4321-4321-210987654321/Files",
+                # IMPORTANT: OneLake requires these specific credential values
                 credentials={
                     "azure_storage_account_name": "onelake",
                     "azure_account_host": "onelake.blob.fabric.microsoft.com",
@@ -102,8 +103,8 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             collation="Latin1_General_100_BIN2_UTF8",
         )
 
-    Alternative: Using workspace/lakehouse GUIDs:
-        bucket_url="abfss://<workspace_id>@onelake.dfs.fabric.microsoft.com/<lakehouse_id>/Files"
+    Note: The bucket_url must use GUIDs for both workspace and lakehouse, not their display names.
+    You can find these GUIDs in the Fabric portal workspace/lakehouse URLs.
 
     Example usage with Azure Blob Storage staging:
         fabric(

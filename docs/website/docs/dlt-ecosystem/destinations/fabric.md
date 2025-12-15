@@ -99,6 +99,70 @@ All write dispositions are supported.
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: Fabric supports DDL transactions.
 
+## Staging support (OneLake)
+
+Fabric Warehouse supports staging data via **OneLake Lakehouse** using the `COPY INTO` command for efficient bulk loading. This is the recommended approach for large datasets.
+
+### OneLake Configuration
+
+**IMPORTANT**: OneLake bucket URLs **must use GUIDs** for both the workspace and lakehouse, not their display names.
+
+**Format**: `abfss://<workspace_guid>@onelake.dfs.fabric.microsoft.com/<lakehouse_guid>/Files`
+
+**Finding your GUIDs**:
+1. Navigate to your Fabric workspace in the browser
+2. The workspace GUID is in the URL: `https://fabric.microsoft.com/groups/<workspace_guid>/...`
+3. Open your Lakehouse
+4. The lakehouse GUID is in the URL: `https://fabric.microsoft.com/.../lakehouses/<lakehouse_guid>`
+
+### Example with OneLake staging
+
+```py
+import dlt
+from dlt.destinations import fabric, filesystem
+
+pipeline = dlt.pipeline(
+    destination=fabric(
+        credentials={
+            "host": "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com",
+            "database": "mydb",
+            "tenant_id": "your-tenant-id",
+            "client_id": "your-client-id",
+            "client_secret": "your-client-secret",
+        },
+        staging_config=filesystem(
+            # Use workspace and lakehouse GUIDs (not names!)
+            bucket_url="abfss://12345678-1234-1234-1234-123456789012@onelake.dfs.fabric.microsoft.com/87654321-4321-4321-4321-210987654321/Files",
+            credentials={
+                "azure_storage_account_name": "onelake",
+                "azure_account_host": "onelake.blob.fabric.microsoft.com",
+                # Service Principal credentials are auto-inherited from warehouse
+            },
+        ),
+    ),
+    dataset_name='my_dataset'
+)
+```
+
+Or using `.dlt/secrets.toml`:
+
+```toml
+[destination.fabric.credentials]
+host = "abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+tenant_id = "your-tenant-id"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+
+[destination.fabric.staging_config.bucket_url]
+# Replace with your actual workspace and lakehouse GUIDs
+bucket_url = "abfss://12345678-1234-1234-1234-123456789012@onelake.dfs.fabric.microsoft.com/87654321-4321-4321-4321-210987654321/Files"
+
+[destination.fabric.staging_config.credentials]
+azure_storage_account_name = "onelake"
+azure_account_host = "onelake.blob.fabric.microsoft.com"
+```
+
 ## Data loading
 Data is loaded via INSERT statements by default. Fabric Warehouse has a limit of 1000 rows per INSERT, and this is what we use.
 
