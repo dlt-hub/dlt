@@ -1,6 +1,7 @@
-from typing import Optional, Sequence, List, Dict
+from typing import Optional, Sequence, List, Dict, Literal
 
 from dlt.common import logger
+from dlt.common.data_writers.escape import escape_snowflake_literal
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     FollowupJobRequest,
@@ -27,6 +28,7 @@ from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
+COLUMN_COMMENT_HINT: Literal["x-snowflake-column-comment"] = "x-snowflake-column-comment"
 
 
 class SnowflakeMergeJob(SqlMergeFollowupJob):
@@ -168,6 +170,15 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         return [
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
+
+    def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        column_def_sql = super()._get_column_def_sql(column, table)
+
+        if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
+            comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
+            escaped_comment = escape_snowflake_literal(comment)
+            column_def_sql = f"{column_def_sql} COMMENT {escaped_comment}"
+        return column_def_sql
 
     def _get_constraints_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
