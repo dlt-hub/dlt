@@ -92,13 +92,14 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
                 # IMPORTANT: Must use workspace GUID and lakehouse GUID (not names)
                 # Format: abfss://<workspace_guid>@onelake.dfs.fabric.microsoft.com/<lakehouse_guid>/Files
                 bucket_url="abfss://12345678-1234-1234-1234-123456789012@onelake.dfs.fabric.microsoft.com/87654321-4321-4321-4321-210987654321/Files",
-                # IMPORTANT: OneLake requires these specific credential values
+                # IMPORTANT: Must specify Service Principal credentials (same as warehouse)
                 credentials={
                     "azure_storage_account_name": "onelake",
                     "azure_account_host": "onelake.blob.fabric.microsoft.com",
+                    "azure_tenant_id": "your-tenant-id",
+                    "azure_client_id": "your-client-id",
+                    "azure_client_secret": "your-client-secret",
                 },
-                # Note: Service Principal credentials are automatically inherited from warehouse credentials
-                # No need to specify AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID again
             ),
             collation="Latin1_General_100_BIN2_UTF8",
         )

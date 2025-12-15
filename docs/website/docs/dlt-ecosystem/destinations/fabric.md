@@ -136,7 +136,10 @@ pipeline = dlt.pipeline(
             credentials={
                 "azure_storage_account_name": "onelake",
                 "azure_account_host": "onelake.blob.fabric.microsoft.com",
-                # Service Principal credentials are auto-inherited from warehouse
+                # Must specify the same Service Principal credentials as the warehouse
+                "azure_tenant_id": "your-tenant-id",
+                "azure_client_id": "your-client-id",
+                "azure_client_secret": "your-client-secret",
             },
         ),
     ),
@@ -154,13 +157,36 @@ tenant_id = "your-tenant-id"
 client_id = "your-client-id"
 client_secret = "your-client-secret"
 
-[destination.fabric.staging_config.bucket_url]
+[destination.fabric.staging_config]
 # Replace with your actual workspace and lakehouse GUIDs
 bucket_url = "abfss://12345678-1234-1234-1234-123456789012@onelake.dfs.fabric.microsoft.com/87654321-4321-4321-4321-210987654321/Files"
 
 [destination.fabric.staging_config.credentials]
 azure_storage_account_name = "onelake"
 azure_account_host = "onelake.blob.fabric.microsoft.com"
+# Must specify the same Service Principal credentials
+azure_tenant_id = "your-tenant-id"
+azure_client_id = "your-client-id"
+azure_client_secret = "your-client-secret"
+```
+
+**Note**: When using environment variables or the simplified `destination='fabric'` with `staging='filesystem'`, configure the staging credentials separately:
+
+```bash
+# Fabric warehouse credentials
+export DESTINATION__FABRIC__CREDENTIALS__HOST="..."
+export DESTINATION__FABRIC__CREDENTIALS__DATABASE="..."
+export DESTINATION__FABRIC__CREDENTIALS__AZURE_TENANT_ID="..."
+export DESTINATION__FABRIC__CREDENTIALS__AZURE_CLIENT_ID="..."
+export DESTINATION__FABRIC__CREDENTIALS__AZURE_CLIENT_SECRET="..."
+
+# Filesystem staging credentials (must specify explicitly)
+export DESTINATION__FILESYSTEM__BUCKET_URL="abfss://..."
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME="onelake"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_ACCOUNT_HOST="onelake.blob.fabric.microsoft.com"
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_TENANT_ID="..."
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_CLIENT_ID="..."
+export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_CLIENT_SECRET="..."
 ```
 
 ## Data loading
