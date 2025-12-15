@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from dlt.version import get_installed_requirement_string, get_dependency_requirement
 
+
 @pytest.mark.skipif(
     "PYTEST_XDIST_WORKER" in os.environ,
     reason="Touches global importlib.metadata state; not safe under xdist",
@@ -21,12 +22,14 @@ def test_installed_requirement_string() -> None:
     with pytest.raises(PackageNotFoundError):
         get_installed_requirement_string("requests-X")
 
+
 def test_installed_requirement_string_missing_package_unit() -> None:
     with patch("dlt.version.pkg_distribution") as dist:
         dist.side_effect = PackageNotFoundError("requests-X")
 
         with pytest.raises(PackageNotFoundError):
             get_installed_requirement_string("requests-X")
+
 
 def test_get_dependency_requirement() -> None:
     # dlt depends on dlthub, so this should return a Requirement
