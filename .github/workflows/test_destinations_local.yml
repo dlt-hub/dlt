@@ -189,7 +189,8 @@ jobs:
       - name: Run tests Linux
         run: |
           eval "$(ssh-agent -s)"
-          pytest tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
+          PYTHONHASHSEED=0 uv run pytest -p xdist -n auto --dist=loadscope \
+            tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
 
       - name: Run additional tests
         run: ${{ matrix.additional_tests }}

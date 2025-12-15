@@ -77,12 +77,17 @@ jobs:
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       # run sources tests in load against configured destinations
-      - run: pytest tests/load/sources
-        name: Run tests Linux
+      - name: Run tests Linux
+        run: |
+          PYTHONHASHSEED=0 uv run pytest -p xdist -n auto --dist=loadscope \
+            tests/load/sources
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
         run: uv run pip install sqlalchemy==2.0.32
 
-      - run: pytest tests/load/sources/sql_database
-        name: Run tests Linux
+      - name: Run tests Linux
+        run: |
+          PYTHONHASHSEED=0 uv run pytest -p xdist -n auto --dist=loadscope \
+            tests/load/sources/sql_database
+        

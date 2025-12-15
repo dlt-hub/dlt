@@ -211,12 +211,14 @@ jobs:
 
       # NOTE: essential tests are always run
       - run: |
-          pytest tests/load --ignore tests/load/sources -m "essential"
+          PYTHONHASHSEED=0 uv run pytest -p xdist -n auto --dist=loadscope \
+            tests/load --ignore tests/load/sources -m "essential"
         name: Run essential tests Linux
 
       # NOTE: non-essential tests are run if the full test suite is requested or if the matrix item has always_run_all_tests set to true
       # we want to run this step even if the essential tests fail
       - run: |
-          pytest tests/load --ignore tests/load/sources -m "not essential"
+          PYTHONHASHSEED=0 uv run pytest -p xdist -n auto --dist=loadscope \
+            tests/load --ignore tests/load/sources -m "not essential"
         name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
