@@ -306,7 +306,7 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
     )
 
     # Clean up the initial repo dir as we don't need it anymore
-    shutil.rmtree(initial_repo_dir)
+    shutil.rmtree(initial_repo_dir, ignore_errors=True)
 
     for candidate in source_candidates:
         # Clean workspace by removing all files except .dlt and .global_dir
@@ -334,7 +334,7 @@ def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
     source_candidates = set(CORE_SOURCES)
 
     # Clean up the initial repo dir as we don't need it anymore
-    shutil.rmtree(initial_repo_dir)
+    shutil.rmtree(initial_repo_dir, ignore_errors=True)
 
     for candidate in source_candidates:
         # Clean workspace by removing all files except .dlt and .global_dir
