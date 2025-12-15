@@ -322,22 +322,39 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     assert dict(gcpc_3) == dict(gcpc_2)
 
 
-# def test_gcp_oauth_credentials_resolved_from_native_representation(environment: Any) -> None:
-#     gcpc = GcpOAuthCredentialsWithoutDefaults()
+@pytest.mark.parametrize(
+    "isatty, interactive, expect_partial_after_resolve",
+    [
+        # Non-interactive: prod / xdist / services
+        (False, False, True),
 
-#     # without refresh token
-#     gcpc.parse_native_representation(OAUTH_USER_INFO % "")
-#     assert gcpc.is_partial()
-#     assert not gcpc.is_resolved()
+        # Interactive: CLI / REPL
+        (True, True, False),
+    ],
+    ids=["non_interactive", "interactive"],
+)
+def test_gcp_oauth_credentials_resolution_modes(
+    environment,
+    isatty,
+    interactive,
+    expect_partial_after_resolve,
+):
+    gcpc = GcpOAuthCredentialsWithoutDefaults()
+    gcpc.parse_native_representation(OAUTH_USER_INFO % "")
 
-#     resolve_configuration(gcpc, accept_partial=True)
-#     assert gcpc.is_partial()
+    assert gcpc.is_partial()
+    assert not gcpc.is_resolved()
 
-#     with pytest.raises(ConfigFieldMissingException):
-#         resolve_configuration(gcpc, accept_partial=False)
+    with patch("sys.stdin.isatty", return_value=isatty), \
+         patch("dlt.common.configuration.specs.gcp_credentials.is_interactive", return_value=interactive):
 
-#     environment["CREDENTIALS__REFRESH_TOKEN"] = "refresh_token"
-#     resolve_configuration(gcpc, accept_partial=False)
+        resolve_configuration(gcpc, accept_partial=True)
+
+        assert gcpc.is_partial() is expect_partial_after_resolve
+
+        if expect_partial_after_resolve:
+            with pytest.raises(ConfigFieldMissingException):
+                resolve_configuration(gcpc, accept_partial=False)
 
 
 def test_needs_scopes_for_refresh_token() -> None:
