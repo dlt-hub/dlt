@@ -1,7 +1,7 @@
 """Fabric Warehouse job client implementation - based on Synapse with COPY INTO support"""
 
 import os
-from typing import Type, Sequence, List, cast
+from typing import Type, Sequence, List, Dict, cast
 from copy import deepcopy
 from textwrap import dedent
 from urllib.parse import urlparse
@@ -33,6 +33,9 @@ from dlt.common.configuration.specs import (
 
 class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
     """Custom COPY INTO job for Fabric that removes AUTO_CREATE_TABLE parameter"""
+    
+    # Class-level cache for initialized Service Principal tokens to avoid rate limiting
+    _token_initialized_cache: Dict[str, bool] = {}
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -60,10 +63,11 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
         )
 
         # For OneLake with Service Principal, initialize Fabric token first
+        # Token initialization is cached to avoid rate limiting on multiple file loads
         if is_onelake and isinstance(
             staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults
         ):
-            self._initialize_fabric_token(staging_credentials)
+            self._ensure_fabric_token_initialized(staging_credentials)
 
         # Build WITH clause options
         with_options = [f"FILE_TYPE = '{file_type}'"]
@@ -104,13 +108,21 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
             """)
             self._sql_client.execute_sql(sql)
 
-    def _initialize_fabric_token(
+    def _ensure_fabric_token_initialized(
         self, credentials: AzureServicePrincipalCredentialsWithoutDefaults
     ) -> None:
         """
-        Initialize Fabric token for Service Principal by calling Fabric REST API.
+        Ensure Fabric token is initialized for Service Principal, using cache to avoid rate limiting.
         This is required before the SP can access OneLake through COPY INTO or OPENROWSET.
+        
+        Token initialization is cached per client_id to prevent excessive API calls during bulk loads.
         """
+        cache_key = credentials.azure_client_id
+        
+        # Check if we've already initialized the token for this client
+        if cache_key in self._token_initialized_cache:
+            return
+            
         try:
             import requests
             from azure.identity import ClientSecretCredential
@@ -138,6 +150,9 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
                 "Failed to initialize Fabric token for Service Principal. "
                 f"Status: {resp.status_code}, Response: {resp.text}"
             )
+        
+        # Cache successful initialization
+        self._token_initialized_cache[cache_key] = True
 
     def _get_https_path(self, bucket_path: str, storage_account_name: str) -> str:
         """
