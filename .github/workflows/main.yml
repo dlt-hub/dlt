@@ -43,10 +43,10 @@ jobs:
     uses: ./.github/workflows/lint.yml
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
-  # test_common:
-  #   name: run common tests on all python versions and OSes
-  #   needs: [lint]
-  #   uses: ./.github/workflows/test_common.yml
+  test_common:
+    name: run common tests on all python versions and OSes
+    needs: [lint]
+    uses: ./.github/workflows/test_common.yml
 
   test_dashboard:
     name: run dashboard tests
@@ -59,12 +59,12 @@ jobs:
   #
   test_destinations_local:
     name: run local destination tests without secrets
-    # needs: test_common
+    needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
 
   test_sources_local:
     name: run local source tests without secrets
-    # needs: test_common
+    needs: test_common
     uses: ./.github/workflows/test_sources_local.yml
 
   test_hub:
@@ -89,8 +89,7 @@ jobs:
 
   test_destinations_remote:
     name: test remote destinations with secrets
-    # needs: [authorize_run_from_fork, test_common]
-    needs: [authorize_run_from_fork]
+    needs: [authorize_run_from_fork, test_common]
     uses: ./.github/workflows/test_destinations_remote.yml
     secrets: inherit
     with:
@@ -101,8 +100,7 @@ jobs:
   #
   test_tools_dbt_runner:
     name: test dbt runner
-    # needs: [test_common, authorize_run_from_fork]
-    needs: [authorize_run_from_fork]
+    needs: [test_common, authorize_run_from_fork]
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
   
