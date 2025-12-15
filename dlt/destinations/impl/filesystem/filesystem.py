@@ -565,6 +565,9 @@ class FilesystemClient(
             # not all filesystems implement the above
             try:
                 self.fs_client.rm(file_path)
+            except FileNotFoundError:
+                # File doesn't exist - deletion goal already achieved
+                return
             except Exception as e:
                 # OneLake API quirk: returns HTTP 200 instead of HTTP 202 for delete operations
                 # Azure SDK treats this as an error, but the delete actually succeeded
@@ -575,6 +578,9 @@ class FilesystemClient(
                 raise
             if self.fs_client.exists(file_path):
                 raise FileExistsError(file_path)
+        except FileNotFoundError:
+            # File doesn't exist - deletion goal already achieved
+            return
 
     def verify_schema(
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
