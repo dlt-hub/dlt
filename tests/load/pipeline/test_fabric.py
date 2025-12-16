@@ -26,7 +26,7 @@ def test_copy_file_load_job_credentials() -> None:
 
 def test_copy_into_onelake_service_principal() -> None:
     """Test COPY INTO with OneLake staging using Service Principal credentials
-    
+
     Note: OneLake has an API quirk where delete operations return HTTP 200 instead of HTTP 202,
     which the Azure SDK treats as an error. The filesystem client now handles this gracefully.
     """

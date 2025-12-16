@@ -16,7 +16,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     """Credentials for Microsoft Fabric Warehouse with Service Principal authentication.
 
     Fabric Warehouse requires Azure AD Service Principal authentication.
-    Inherits from AzureServicePrincipalCredentials for Service Principal fields and 
+    Inherits from AzureServicePrincipalCredentials for Service Principal fields and
     automatic fallback to DefaultAzureCredential.
     """
 

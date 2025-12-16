@@ -33,7 +33,7 @@ from dlt.common.configuration.specs import (
 
 class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
     """Custom COPY INTO job for Fabric that removes AUTO_CREATE_TABLE parameter"""
-    
+
     # Class-level cache for initialized Service Principal tokens to avoid rate limiting
     _token_initialized_cache: Dict[str, bool] = {}
 
@@ -114,15 +114,15 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
         """
         Ensure Fabric token is initialized for Service Principal, using cache to avoid rate limiting.
         This is required before the SP can access OneLake through COPY INTO or OPENROWSET.
-        
+
         Token initialization is cached per client_id to prevent excessive API calls during bulk loads.
         """
         cache_key = credentials.azure_client_id
-        
+
         # Check if we've already initialized the token for this client
         if cache_key in self._token_initialized_cache:
             return
-            
+
         try:
             import requests
             from azure.identity import ClientSecretCredential
@@ -150,7 +150,7 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
                 "Failed to initialize Fabric token for Service Principal. "
                 f"Status: {resp.status_code}, Response: {resp.text}"
             )
-        
+
         # Cache successful initialization
         self._token_initialized_cache[cache_key] = True
 
