@@ -116,6 +116,7 @@ def test_unsupported_write_disposition() -> None:
 
     assert "LoadClientUnsupportedWriteDisposition" in e.value.failed_message
 
+
 @pytest.mark.serial
 def test_big_load_packages() -> None:
     """
