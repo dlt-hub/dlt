@@ -264,7 +264,9 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(lancedb_destin
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(lancedb_destination) -> None:
+def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
+    lancedb_destination,
+) -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",

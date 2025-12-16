@@ -17,7 +17,9 @@ from tests.utils import TestDataItemFormat
 
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
-def test_identical_schemas_all_types(object_format: TestDataItemFormat, lancedb_destination) -> None:
+def test_identical_schemas_all_types(
+    object_format: TestDataItemFormat, lancedb_destination
+) -> None:
     """Test that identical schemas return the original table."""
     pipeline = dlt.pipeline(
         pipeline_name="test_identical_schemas_arrow_table_all_types",
