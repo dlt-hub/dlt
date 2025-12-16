@@ -152,6 +152,23 @@ def escape_snowflake_identifier(v: str) -> str:
     return escape_postgres_identifier(v)
 
 
+def escape_snowflake_literal(v: Any) -> Any:
+    """Escape string literals for Snowflake using standard SQL escaping.
+
+    Snowflake uses '' to escape single quotes (not backslash escaping).
+    """
+    if isinstance(v, str):
+        # Snowflake uses standard SQL escaping: ' -> ''
+        return "'" + v.replace("'", "''") + "'"
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return "'" + json.dumps(v).replace("'", "''") + "'"
+    if isinstance(v, bytes):
+        return f"X'{v.hex()}'"
+    return "NULL" if v is None else str(v)
+
+
 escape_databricks_identifier = escape_hive_identifier
 
 

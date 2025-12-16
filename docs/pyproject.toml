@@ -43,6 +43,7 @@ dependencies = [
     "regex>=2025.10.23",
     "pytest-forked>=1.6.0",
     "databind>=4.5.2",
+    "marimo>=0.17.4",
 ]
 
 
