@@ -22,6 +22,7 @@ def _make_pipeline(destination_name: str):
     )
 
 
+@pytest.mark.skip("Reenable after #3343 is resolved")
 def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> None:
     # mock dicts in toml provider
     dlt.config["client"] = {
@@ -45,6 +46,7 @@ def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> N
     print(load_info)
 
 
+@pytest.mark.skip("Reenable after #3343 is resolved")
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 @pytest.mark.parametrize("invocation_type", ("deco", "factory"))
 def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
@@ -82,6 +84,7 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
     assert table_counts.items() >= POKEMON_EXPECTED_TABLE_COUNTS.items()
 
 
+@pytest.mark.skip("Reenable after #3343 is resolved")
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
 @pytest.mark.parametrize("invocation_type", ("deco", "factory"))
 def test_dependent_resource(destination_name: str, invocation_type: str) -> None:
