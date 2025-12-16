@@ -118,7 +118,12 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 	docker build -f deploy/dlt/Dockerfile.minimal --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 
-start-test-containers:
+start-pokemon-api:
+	time docker compose -f "tests/sources/rest_api/docker-compose.yml" up -d --wait
+	time docker compose -f "tests/sources/rest_api/docker-compose.yml" exec -T app python manage.py migrate --settings=config.docker-compose
+	time docker compose -f "tests/sources/rest_api/docker-compose.yml" exec -T app sh -c 'echo "from data.v2.build import build_all; build_all()" | python manage.py shell --settings=config.docker-compose'
+
+start-test-containers: start-pokemon-api
 	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
 	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d

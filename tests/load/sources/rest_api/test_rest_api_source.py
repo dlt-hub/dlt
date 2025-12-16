@@ -11,6 +11,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
 )
 from tests.sources.rest_api.utils import POKEMON_EXPECTED_TABLE_COUNTS
+from tests.utils import BASE_POKE_URL
 
 
 def _make_pipeline(destination_name: str):
@@ -31,7 +32,7 @@ def _make_pipeline(destination_name: str):
 def test_rest_api_source(destination_config: DestinationTestConfiguration) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": BASE_POKE_URL,
         },
         "resource_defaults": {
             "endpoint": {
@@ -68,7 +69,7 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration) -> No
 def test_dependent_resource(destination_config: DestinationTestConfiguration) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": BASE_POKE_URL,
         },
         "resource_defaults": {
             "endpoint": {
@@ -117,8 +118,6 @@ def test_dependent_resource(destination_config: DestinationTestConfiguration) ->
         "pokemon__types",
         "pokemon__stats",
         "pokemon__moves__version_group_details",
-        "pokemon__past_abilities",
-        "pokemon__past_abilities__abilities",
         "pokemon__moves",
         "pokemon__game_indices",
         "pokemon__forms",

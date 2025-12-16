@@ -1,0 +1,40 @@
+services:
+  cache:
+    image: redis:7.4.2-alpine3.21
+    container_name: dlt_test_pokemon_cache
+    restart: on-failure
+
+  db:
+    image: postgres:17.2-alpine3.21
+    container_name: dlt_test_pokemon_db
+    environment:
+      POSTGRES_PASSWORD: pokemon
+      POSTGRES_USER: ash
+      POSTGRES_DB: pokeapi
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: on-failure
+
+  app:
+    image: pokeapi/pokeapi:2.7.0 
+    container_name: dlt_test_pokemon_api
+    environment:
+      POSTGRES_PASSWORD: pokemon
+      POSTGRES_USER: ash
+      POSTGRES_DB: pokeapi
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    restart: on-failure
+    ports:
+      - "8765:80"
+
+volumes:
+  pg_data:

@@ -51,6 +51,7 @@ ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
 
 LOCAL_POSTGRES_CREDENTIALS = "postgresql://loader:loader@localhost:5432/dlt_data"
 
+BASE_POKE_URL = "http://localhost:8765/api/v2/"
 
 # destination constants
 IMPLEMENTED_DESTINATIONS = {

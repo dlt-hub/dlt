@@ -115,6 +115,9 @@ jobs:
       - name: Install duckdb dependencies
         run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk
 
+      - name: Start Pokemon API
+        run: make start-pokemon-api
+
       - name: Run pipeline smoke tests with minimum deps
         run: |
           pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/sources/rest_api/integration/ ${{ matrix.pytest_args }}
