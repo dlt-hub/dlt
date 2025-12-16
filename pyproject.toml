@@ -249,6 +249,8 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
     "graphviz>=0.21",
+    # limits sqlglot - remove when #3489 is fixed
+    "sqlglot<28.1",
 ]
 
 # NOTE: those dependencies are used to test built in sources
