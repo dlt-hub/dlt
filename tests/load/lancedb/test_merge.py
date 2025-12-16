@@ -29,10 +29,10 @@ from tests.pipeline.utils import (
 pytestmark = pytest.mark.essential
 
 
-def test_lancedb_remove_nested_orphaned_records() -> None:
+def test_lancedb_remove_nested_orphaned_records(lancedb_destination) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_lancedb_remove_orphaned_records_{uniq_id()}",
         dev_mode=True,
     )
@@ -136,10 +136,10 @@ def test_lancedb_remove_nested_orphaned_records() -> None:
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
 
 
-def test_lancedb_remove_orphaned_records_root_table() -> None:
+def test_lancedb_remove_orphaned_records_root_table(lancedb_destination) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_root_table",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
         dev_mode=True,
     )
@@ -200,10 +200,10 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
+def test_lancedb_remove_orphaned_records_root_table_string_doc_id(lancedb_destination) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_root_table",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
         dev_mode=True,
     )
@@ -264,7 +264,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> None:
+def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(lancedb_destination) -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
@@ -294,7 +294,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
 
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_with_embeddings",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_lancedb_remove_orphaned_records_{uniq_id()}",
         dev_mode=True,
     )
@@ -345,10 +345,10 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
             assert vector.size > 0
 
 
-def test_lancedb_compound_merge_key_root_table() -> None:
+def test_lancedb_compound_merge_key_root_table(lancedb_destination) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_compound_merge_key",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
         dev_mode=True,
     )
@@ -403,7 +403,7 @@ def test_lancedb_compound_merge_key_root_table() -> None:
     assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_must_provide_at_least_primary_key_on_merge_disposition() -> None:
+def test_must_provide_at_least_primary_key_on_merge_disposition(lancedb_destination) -> None:
     """We need upsert merge's deterministic _dlt_id to perform orphan removal.
     Hence, we require at least the primary key required (raises exception if missing).
     Specify a merge key for custom orphan identification."""
@@ -415,7 +415,7 @@ def test_must_provide_at_least_primary_key_on_merge_disposition() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_must_provide_both_primary_and_merge_key_on_merge_disposition",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=(
             f"test_must_provide_both_primary_and_merge_key_on_merge_disposition{uniq_id()}"
         ),
