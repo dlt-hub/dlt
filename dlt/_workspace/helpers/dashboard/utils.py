@@ -903,16 +903,16 @@ def _get_steps_data_and_status(
 ) -> Tuple[List[PipelineStepData], TPipelineRunStatus]:
     """Gets trace steps data and the status of the corresponding pipeline execution"""
     steps_data: List[PipelineStepData] = []
+    any_step_failed: bool = False
 
     for step in trace_steps:
-        if step.step not in get_args(TVisualPipelineStep):
-            continue
+        if step.step_exception is not None:
+            any_step_failed = True
 
-        if not step.finished_at:
+        if step.step not in get_args(TVisualPipelineStep) or not step.finished_at:
             continue
 
         duration_ms = (step.finished_at - step.started_at).total_seconds() * 1000
-
         steps_data.append(
             PipelineStepData(
                 step=cast(TVisualPipelineStep, step.step),
@@ -920,8 +920,7 @@ def _get_steps_data_and_status(
                 failed=step.step_exception is not None,
             )
         )
-    is_failed = any(s.failed for s in steps_data)
-    status: TPipelineRunStatus = "failed" if is_failed else "succeeded"
+    status: TPipelineRunStatus = "failed" if any_step_failed else "succeeded"
     return steps_data, status
 
 

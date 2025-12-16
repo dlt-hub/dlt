@@ -26,6 +26,7 @@ NORMALIZE_EXCEPTION_PIPELINE = "normalize_exception_pipeline"
 NEVER_RAN_PIPELINE = "never_ran_pipline"
 LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
 NO_DESTINATION_PIPELINE = "no_destination_pipeline"
+SYNC_EXCEPTION_PIPELINE = "sync_exception_pipeline"
 
 ALL_PIPELINES = [
     SUCCESS_PIPELINE_DUCKDB,
@@ -35,12 +36,14 @@ ALL_PIPELINES = [
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
     SUCCESS_PIPELINE_FILESYSTEM,
+    SYNC_EXCEPTION_PIPELINE,
 ]
 
 PIPELINES_WITH_EXCEPTIONS = [
     EXTRACT_EXCEPTION_PIPELINE,
     NORMALIZE_EXCEPTION_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
+    SYNC_EXCEPTION_PIPELINE,
 ]
 PIPELINES_WITH_LOAD = [SUCCESS_PIPELINE_DUCKDB, SUCCESS_PIPELINE_FILESYSTEM]
 
@@ -251,6 +254,33 @@ def create_no_destination_pipeline(pipelines_dir: str = None):
     return pipeline
 
 
+def create_sync_exception_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline that raises an exception in the sync step"""
+    pipeline = dlt.pipeline(
+        pipeline_name=SYNC_EXCEPTION_PIPELINE,
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+        dev_mode=False,  # CRITICAL: Must be False to enable sync
+    )
+
+    # First run to establish state
+    pipeline.run([1, 2, 3], table_name="initial_data")
+
+    # Now try to sync with bad destination - this should trigger sync
+    with pytest.raises(Exception):
+        pipeline.run(
+            [4, 5, 6],
+            destination=dlt.destinations.postgres(
+                credentials=(
+                    "postgresql://baduser:badpass@nonexistent-host-12345.example.com:5432/db"
+                )
+            ),
+            table_name="test_table",
+        )
+
+    return pipeline
+
+
 # NOTE: this script can be run to create the test pipelines globally for manual testing of the dashboard app and cli
 if __name__ == "__main__":
     create_success_pipeline_duckdb()
@@ -260,3 +290,4 @@ if __name__ == "__main__":
     create_never_ran_pipeline()
     create_load_exception_pipeline()
     create_no_destination_pipeline()
+    create_sync_exception_pipeline()
