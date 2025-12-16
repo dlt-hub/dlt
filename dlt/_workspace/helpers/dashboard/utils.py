@@ -16,6 +16,7 @@ from typing import (
     NamedTuple,
     get_args,
 )
+import datetime  # noqa: 251
 from typing_extensions import TypeAlias
 import os
 import platform
@@ -826,6 +827,7 @@ def _build_pipeline_execution_html(
     status: TPipelineRunStatus,
     steps_data: List[PipelineStepData],
     migrations_count: int = 0,
+    finished_at: Optional[datetime.datetime] = None,
 ) -> mo.Html:
     """
     Build an HTML visualization for a pipeline execution using CSS classes
@@ -834,9 +836,15 @@ def _build_pipeline_execution_html(
     last = len(steps_data) - 1
 
     # Build the general info of the execution
+    relative_time = ""
+    if finished_at:
+        time_ago = pendulum.instance(finished_at).diff_for_humans()
+        relative_time = f"<div>Executed: <strong>{time_ago}</strong></div>"
+
     general_info = f"""
     <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
     <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
+    {relative_time}
     """
 
     # Build the pipeline execution timeline bar and labels
@@ -941,6 +949,7 @@ def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.
         status,
         steps_data,
         migrations_count,
+        trace.finished_at,
     )
 
 
