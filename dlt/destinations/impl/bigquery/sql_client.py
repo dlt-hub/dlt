@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Generator
+from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Generator, Union
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -9,7 +9,10 @@ from google.cloud.bigquery.dbapi import Connection as DbApiConnection, Cursor as
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
 
 from dlt.common import logger
-from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
+from dlt.common.configuration.specs import (
+    GcpServiceAccountCredentialsWithoutDefaults,
+    GcpOAuthCredentials,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import StrAny
 from dlt.destinations.exceptions import (
@@ -63,7 +66,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         self,
         dataset_name: str,
         staging_dataset_name: str,
-        credentials: GcpServiceAccountCredentialsWithoutDefaults,
+        credentials: Union[GcpServiceAccountCredentialsWithoutDefaults, GcpOAuthCredentials],
         capabilities: DestinationCapabilitiesContext,
         location: str = "US",
         project_id: Optional[str] = None,
@@ -71,7 +74,9 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         retry_deadline: float = 60.0,
     ) -> None:
         self._client: bigquery.Client = None
-        self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
+        self.credentials: Union[
+            GcpServiceAccountCredentialsWithoutDefaults, GcpOAuthCredentials
+        ] = credentials
         self.location = location
         self.project_id = project_id or self.credentials.project_id
         self.http_timeout = http_timeout
