@@ -109,28 +109,28 @@ def test_get_bound_table(populated_pipeline: dlt.Pipeline):
     assert table.schema().equals(expected_schema)
 
 
-# @pytest.mark.parametrize(
-#     "populated_pipeline",
-#     duckdb_conf,
-#     indirect=True,
-#     ids=lambda x: x.name,
-# )
-# def test_execute_expression(populated_pipeline: dlt.Pipeline):
-#     backend = _DltBackend.from_dataset(populated_pipeline.dataset())
-#     expected_schema = ibis.Schema(
-#         {
-#             "_dlt_id": ibis.dtype("string", nullable=False),
-#             "id": ibis.dtype("int64", nullable=True),
-#         }
-#     )
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    duckdb_conf,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_execute_expression(populated_pipeline: dlt.Pipeline):
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
+    expected_schema = ibis.Schema(
+        {
+            "_dlt_id": ibis.dtype("string", nullable=False),
+            "id": ibis.dtype("int64", nullable=True),
+        }
+    )
 
-#     table = backend.table("items")
-#     expr = table.select("_dlt_id", "id")
-#     table2 = backend.execute(expr)
+    table = backend.table("items")
+    expr = table.select("_dlt_id", "id")
+    table2 = backend.execute(expr)
 
-#     assert isinstance(table2, pd.DataFrame)
-#     assert expr.schema().equals(expected_schema)
-#     assert set(table2.columns) == set(expected_schema.names)
+    assert isinstance(table2, pd.DataFrame)
+    assert expr.schema().equals(expected_schema)
+    assert set(table2.columns) == set(expected_schema.names)
 
 
 @pytest.mark.parametrize(
