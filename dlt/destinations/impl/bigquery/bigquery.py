@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast, get_args
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -11,48 +11,61 @@ from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.client import (
-    HasFollowupJobs,
     FollowupJobRequest,
+    HasFollowupJobs,
+    LoadJob,
     RunnableLoadJob,
     SupportsStagingDestination,
-    LoadJob,
 )
 from dlt.common.json import json
 from dlt.common.runtime.signals import sleep
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
+from dlt.common.schema import Schema, TColumnSchema, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, get_inherited_table_hint
 from dlt.common.storages.load_package import destination_state
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
 from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
     DestinationSchemaWillNotUpdate,
     DestinationTerminalException,
-    DatabaseTerminalException,
     LoadJobTerminalException,
 )
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
     CLUSTER_COLUMNS_HINT,
-    PARTITION_HINT,
-    PARTITION_EXPIRATION_DAYS_HINT,
     CLUSTER_HINT,
-    TABLE_DESCRIPTION_HINT,
-    ROUND_HALF_EVEN_HINT,
+    PARTITION_EXPIRATION_DAYS_HINT,
+    PARTITION_HINT,
     ROUND_HALF_AWAY_FROM_ZERO_HINT,
+    ROUND_HALF_EVEN_HINT,
+    TABLE_DESCRIPTION_HINT,
     TABLE_EXPIRATION_HINT,
+    BigQueryPartitionRenderer,
     should_autodetect_schema,
 )
+from dlt.destinations.impl.bigquery.bigquery_partition_specs import (
+    BigQueryPartitionSpec,
+    BigQueryRangeBucketPartition,
+    BigQueryDateTruncPartition,
+    BigQueryDateColumnPartition,
+    BigQueryTimestampOrDateTimePartition,
+    PARTITION_SPEC_TYPE_KEY,
+)
+from dlt.destinations.impl.bigquery import bigquery_partition_specs
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.sql_client import BQ_TERMINAL_REASONS, BigQuerySqlClient
 from dlt.destinations.impl.bigquery.warnings import per_column_cluster_hint_deprecated
-from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
-from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.job_impl import (
+    DestinationJsonlLoadJob,
+    DestinationParquetLoadJob,
+    ReferenceFollowupJobRequest,
+)
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -263,22 +276,34 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 )
         return job
 
-    def _bigquery_partition_clause(self, partition_hint: Optional[Dict[str, str]]) -> str:
+    def _bigquery_partition_clause(
+        self,
+        partition_hint: BigQueryPartitionSpec,
+    ) -> str:
         """Generate partition clause for BigQuery SQL.
 
+        This method now only handles BigQueryPartitionSpec dataclasses.
+        All legacy partition hints should be converted to partition specs
+        at the entry points before reaching this method.
+
         Args:
-            partition_hint (Optional[Dict[str, str]]): Partition hint.
+            partition_hint: BigQueryPartitionSpec instance (never None).
 
         Returns:
             str: The partition clause for BigQuery SQL.
-        """
-        if not partition_hint:
-            return ""
 
-        [(column_name, clause)] = partition_hint.items()
-        return (
-            "PARTITION BY"
-            f" {clause.format(column_name=self.sql_client.escape_column_name(column_name))}"
+        Raises:
+            ValueError: If partition_hint is not a BigQueryPartitionSpec.
+        """
+        # Only handle dataclass-based partition specs
+        if isinstance(partition_hint, get_args(BigQueryPartitionSpec)):
+            return BigQueryPartitionRenderer.render_sql([partition_hint])
+
+        # If we get here, we have an unrecognized partition hint format
+        raise ValueError(
+            "_bigquery_partition_clause only accepts BigQueryPartitionSpec instances, got"
+            f" {type(partition_hint).__name__}. Legacy partition hints should be converted to"
+            " partition specs at entry points."
         )
 
     def _get_table_update_sql(
@@ -293,34 +318,34 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
-        # handle partitioning when user passes a string to the `partition` param in bigquery_adapter
-        if partition_list := [
-            c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
-        ]:
-            if len(partition_list) > 1:
-                col_names = [self.sql_client.escape_column_name(c["name"]) for c in partition_list]
-                raise DestinationSchemaWillNotUpdate(
-                    canonical_name, col_names, "Partition requested for more than one column"
-                )
-            elif (c := partition_list[0])["data_type"] == "date":
-                sql[0] += f"\nPARTITION BY {self.sql_client.escape_column_name(c['name'])}"
-            elif (c := partition_list[0])["data_type"] == "timestamp":
-                sql[0] = (
-                    f"{sql[0]}\nPARTITION BY DATE({self.sql_client.escape_column_name(c['name'])})"
-                )
-            # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
-            # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
-            # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
-            # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
-            # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
-            elif (c := partition_list[0])["data_type"] == "bigint":
-                sql[0] += (
-                    f"\nPARTITION BY RANGE_BUCKET({self.sql_client.escape_column_name(c['name'])},"
-                    " GENERATE_ARRAY(-172800000, 691200000, 86400))"
-                )
-        # handle partitioning when user passes a PartitionTransformation to the `partition` param in bigquery_adapter
+        # Handle partitioning via table-level partition hints (dataclass-based) OR per-column partition hints
         partition_hint = table.get(PARTITION_HINT)
-        if isinstance(partition_hint, dict) and len(partition_hint) > 1:
+
+        # Check for per-column partition hints as well (check both raw 'partition' and processed PARTITION_HINT)
+        partition_columns_from_column_hints = [
+            c["name"]
+            for c in new_columns
+            if c.get(PARTITION_HINT, False) or c.get("partition", False)
+        ]
+
+        # Validate that we don't have multiple partition sources
+        has_table_partition = partition_hint is not None
+        has_column_partition = bool(partition_columns_from_column_hints)
+
+        if has_table_partition and has_column_partition:
+            raise DestinationSchemaWillNotUpdate(
+                canonical_name,
+                partition_columns_from_column_hints,
+                "Cannot have both table-level and column-level partition hints",
+            )
+
+        # Check for invalid multi-column partition hints (but exclude serialized dataclass specs)
+        if (
+            isinstance(partition_hint, dict)
+            and len(partition_hint) > 1
+            and PARTITION_SPEC_TYPE_KEY not in partition_hint
+        ):
+            # This is actually a multi-column partition hint, which is invalid
             col_names = [
                 self.sql_client.escape_column_name(col) for col, v in partition_hint.items()
             ]
@@ -328,9 +353,49 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 canonical_name, col_names, "Partition requested for more than one column"
             )
 
-        sql[0] += self._bigquery_partition_clause(
-            partition_hint if isinstance(partition_hint, dict) else None
-        )
+        if len(partition_columns_from_column_hints) > 1:
+            col_names = [
+                self.sql_client.escape_column_name(col)
+                for col in partition_columns_from_column_hints
+            ]
+            raise DestinationSchemaWillNotUpdate(
+                canonical_name, col_names, "Partition requested for more than one column"
+            )
+
+        # Generate partition clause - prioritize table-level hints over column-level hints
+        final_partition_spec = None
+        if has_table_partition:
+            # mypy: only allow None, BigQueryPartitionSpec, or Dict[str, Any] for partition_hint
+            if (
+                isinstance(partition_hint, dict)
+                or any(isinstance(partition_hint, t) for t in get_args(BigQueryPartitionSpec))
+                or partition_hint is None
+            ):
+                final_partition_spec = self._convert_partition_hint_to_spec(partition_hint)  # type: ignore[arg-type]
+            else:
+                # This branch is only to make mypy happy; partition_hint should never be another type
+                raise TypeError(
+                    "partition_hint must be None, BigQueryPartitionSpec, or Dict[str, Any], got"
+                    f" {type(partition_hint)}"
+                )
+        elif has_column_partition:
+            # Convert single column partition hint to partition spec
+            # Also find the column info for data type checking
+            partition_column_name = partition_columns_from_column_hints[0]
+            partition_column_info = next(
+                (c for c in new_columns if c["name"] == partition_column_name), None
+            )
+            boolean_hint = {partition_column_name: True}
+            final_partition_spec = self._convert_partition_hint_to_spec(
+                boolean_hint, partition_column_info
+            )
+
+        # Generate partition clause only if we have a partition spec
+        if final_partition_spec:
+            partition_clause = self._bigquery_partition_clause(final_partition_spec)
+            sql[0] += partition_clause
+
+        has_partition_clause = bool(final_partition_spec)
 
         # Collect cluster columns from table-level and per-column hints
         cluster_columns_from_table_hint = list(
@@ -371,7 +436,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             ),
             "partition_expiration_days": (
                 str(table.get(PARTITION_EXPIRATION_DAYS_HINT))
-                if table.get(PARTITION_EXPIRATION_DAYS_HINT)
+                if table.get(PARTITION_EXPIRATION_DAYS_HINT) and has_partition_clause
                 else None
             ),
         }
@@ -410,6 +475,19 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     )
                     or self.config.autodetect_schema
                 )
+
+        # Reconstruct BigQuery partition specs from dict if needed
+        partition_hint = table.get(PARTITION_HINT)
+        if partition_hint is not None:
+            try:
+                reconstructed = self._reconstruct_partition_spec(
+                    cast(Dict[str, Any], partition_hint)
+                )
+                # This key is not in the TypedDict, but is used for BigQuery partitioning logic
+                cast(Dict[str, Any], table)[PARTITION_HINT] = reconstructed
+            except ValueError:
+                # Not a serialized partition spec, keep the original hint for legacy processing
+                pass
 
         return table
 
@@ -565,6 +643,137 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
+
+    def _reconstruct_partition_spec(self, partition_hint: Dict[str, Any]) -> BigQueryPartitionSpec:
+        """Reconstruct BigQuery partition spec from serialized dict.
+
+        This method strictly handles only serialized partition spec dictionaries.
+        Legacy partition hints (boolean, template strings) should be converted
+        to partition specs at the entry points (e.g., bigquery_adapter) before
+        reaching this method.
+
+        Args:
+            partition_hint: Dictionary containing a serialized BigQueryPartitionSpec
+                with PARTITION_SPEC_TYPE_KEY indicating the spec type.
+
+        Returns:
+            BigQueryPartitionSpec instance reconstructed from the dict.
+
+        Raises:
+            ValueError: If partition_hint is not a valid serialized partition spec dict.
+        """
+        if not isinstance(partition_hint, dict):
+            raise ValueError(
+                f"_reconstruct_partition_spec expects a dict, got {type(partition_hint).__name__}. "
+                "Legacy partition hints should be converted to partition specs at entry points."
+            )
+
+        # Check if this is a serialized partition spec
+        spec_type = partition_hint.get(PARTITION_SPEC_TYPE_KEY)
+        if not spec_type:
+            raise ValueError(
+                f"Missing '{PARTITION_SPEC_TYPE_KEY}' in partition hint dict. "
+                f"Expected a serialized BigQueryPartitionSpec, got: {partition_hint}"
+            )
+
+        # Use dynamic class retrieval to reconstruct the spec
+        try:
+            spec_class = getattr(bigquery_partition_specs, spec_type)
+            return cast(BigQueryPartitionSpec, spec_class.from_dict(partition_hint))
+        except AttributeError:
+            raise ValueError(
+                f"Unknown partition spec type '{spec_type}'. Available types:"
+                f" {[cls for cls in dir(bigquery_partition_specs) if cls.endswith('Partition')]}"
+            )
+        except (TypeError, KeyError) as e:
+            raise ValueError(
+                f"Failed to reconstruct partition spec of type '{spec_type}' from dict:"
+                f" {partition_hint}. Error: {e}"
+            )
+
+    def _convert_partition_hint_to_spec(
+        self,
+        partition_hint: Union[None, BigQueryPartitionSpec, Dict[str, Any]],
+        partition_column_info: Optional[TColumnSchema] = None,
+    ) -> Optional[BigQueryPartitionSpec]:
+        """
+        Convert any supported partition hint (legacy or modern) to a BigQueryPartitionSpec.
+
+        Supports:
+        - Already a BigQueryPartitionSpec: returns as-is
+        - Serialized spec dict: reconstructs spec
+        - Legacy dict hints: {col: True}, {col: template}, etc.
+        - None: returns None
+        Raises ValueError for unrecognized formats.
+        """
+        if not partition_hint:
+            return None
+
+        # Already a partition spec, return as-is
+        if isinstance(partition_hint, get_args(BigQueryPartitionSpec)):
+            return cast(BigQueryPartitionSpec, partition_hint)
+
+        # Dict: try to reconstruct as a serialized spec first
+        if isinstance(partition_hint, dict):
+            try:
+                return cast(BigQueryPartitionSpec, self._reconstruct_partition_spec(partition_hint))
+            except ValueError:
+                pass  # Not a serialized spec, try legacy formats below
+
+            # Legacy: single-key dicts like {col: True} or {col: template}
+            if len(partition_hint) == 1:
+                column_name, clause = next(iter(partition_hint.items()))
+                # Template string
+                if isinstance(clause, str) and "{column_name}" in clause:
+                    if "DATE_TRUNC" in clause:
+                        import re
+
+                        match = re.search(r"DATE_TRUNC\([^,]+,\s*(\w+)\)", clause)
+                        granularity = match.group(1) if match else "DAY"
+                        return BigQueryDateTruncPartition(
+                            column_name=column_name, granularity=granularity
+                        )
+                    elif "RANGE_BUCKET" in clause:
+                        import re
+
+                        match = re.search(r"GENERATE_ARRAY\((\d+),\s*(\d+),\s*(\d+)\)", clause)
+                        if match:
+                            start, end, interval = map(int, match.groups())
+                            return BigQueryRangeBucketPartition(
+                                column_name=column_name, start=start, end=end, interval=interval
+                            )
+                        else:
+                            return BigQueryRangeBucketPartition(
+                                column_name=column_name,
+                                start=-172800000,
+                                end=691200000,
+                                interval=86400,
+                            )
+                    else:
+                        return BigQueryDateTruncPartition(
+                            column_name=column_name, granularity="DAY"
+                        )
+                # Boolean True
+                elif clause is True:
+                    if partition_column_info:
+                        data_type = partition_column_info.get("data_type")
+                        if data_type == "timestamp":
+                            return BigQueryTimestampOrDateTimePartition(column_name=column_name)
+                        elif data_type == "bigint":
+                            return BigQueryRangeBucketPartition(
+                                column_name=column_name,
+                                start=-172800000,
+                                end=691200000,
+                                interval=86400,
+                            )
+                        elif data_type == "date":
+                            return BigQueryDateColumnPartition(column_name=column_name)
+                    return BigQueryDateColumnPartition(column_name=column_name)
+
+        raise ValueError(
+            f"Unrecognized partition hint format: {partition_hint}. "
+            "Expected BigQueryPartitionSpec, serialized spec dict, or supported legacy hint."
+        )
 
 
 def _streaming_load(
