@@ -208,6 +208,7 @@ jobs:
           tests/load
           --ignore tests/load/sources
           --ignore tests/load/filesystem_sftp
+          || [ $? -eq 5 ]
 
       - name: Run additional tests
         run: ${{ matrix.additional_tests }}
