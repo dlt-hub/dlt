@@ -401,5 +401,6 @@ filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",
     "no_load: marks tests that do not load anything",
-    "rfam: marks tests that use rfam db"
+    "rfam: marks tests that use rfam db",
+    "serial: tests that must not run under pytest-xdist / require isolated CPU",
 ]
