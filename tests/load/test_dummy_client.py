@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import patch
 from typing import List, Tuple
 
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.configuration import FilesystemConfiguration
@@ -240,6 +241,8 @@ def test_spool_job_failed_and_package_completed() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     run_all(load)
 
+    # not loading
+    assert load.current_load_id is None
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "loaded"
     # all jobs failed
@@ -259,7 +262,10 @@ def test_spool_job_failed_terminally_exception_init() -> None:
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
         with pytest.raises(LoadClientJobFailed) as py_ex:
             run_all(load)
+        assert isinstance(py_ex.value.client_exception, DestinationTerminalException)
         assert py_ex.value.load_id == load_id
+        # not loading - package aborted
+        assert load.current_load_id is None
         package_info = load.load_storage.get_load_package_info(load_id)
         assert package_info.state == "aborted"
         # both failed - we wait till the current loop is completed and then raise
@@ -281,6 +287,8 @@ def test_spool_job_failed_transiently_exception_init() -> None:
         with pytest.raises(LoadClientJobRetry) as py_ex:
             run_all(load)
         assert py_ex.value.load_id == load_id
+        # loading - can be retried
+        assert load.current_load_id is not None
         package_info = load.load_storage.get_load_package_info(load_id)
         assert package_info.state == "normalized"
         # both failed - we wait till the current loop is completed and then raise
@@ -316,6 +324,7 @@ def test_spool_job_failed_exception_complete() -> None:
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with pytest.raises(LoadClientJobFailed) as py_ex:
         run_all(load)
+    assert load.current_load_id is None
     assert py_ex.value.load_id == load_id
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "aborted"

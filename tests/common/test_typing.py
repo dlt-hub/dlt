@@ -1,6 +1,4 @@
 from types import SimpleNamespace
-
-import pytest
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -35,6 +33,7 @@ from dlt.common.typing import (
     extract_inner_type,
     extract_union_types,
     get_all_types_of_class_in_union,
+    get_type_globals,
     is_dict_generic_type,
     is_list_generic_type,
     is_literal_type,
@@ -333,3 +332,27 @@ def test_get_generic_type_argument_from_instance() -> None:
     assert get_generic_type_argument_from_instance(instance, 1) is int
     instance = SimpleNamespace(__orig_class__=Optional[Foo[Any]])
     assert get_generic_type_argument_from_instance(instance, 1) is int
+
+
+def test_get_type_globals() -> None:
+    import sys
+    from ._annotated_futures_module import ann_func, AnnTypedDict, AnnConfigSpec
+
+    assert "_Sentinel" in get_type_globals(ann_func)
+    assert "_Sentinel" in get_type_globals(AnnTypedDict)
+    assert "_Sentinel" in get_type_globals(AnnConfigSpec)
+    assert "_Sentinel" in get_type_globals(AnnConfigSpec())
+
+    assert get_type_globals(None) == __builtins__
+
+    f = lambda x: x
+    assert get_type_globals(f) == f.__globals__
+
+    Dynamic = type("Dynamic", (), {})
+    assert get_type_globals(Dynamic) == sys.modules[Dynamic.__module__].__dict__
+
+    class NoModule:
+        pass
+
+    NoModule.__module__ = None
+    assert get_type_globals(NoModule()) == {}

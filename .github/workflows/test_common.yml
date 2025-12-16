@@ -104,13 +104,20 @@ jobs:
       - name: Run common tests with minimum dependencies
         run: |
           pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
+
+      - name: Install min dependencies to import core source
+        run: uv sync ${{ matrix.uv_sync_args }} --group sentry-sdk --extra sql_database
+
+      - name: Run min dependencies source tests
+        run: |
+          pytest tests/sources/test_minimal_dependencies.py ${{ matrix.pytest_args }}
   
       - name: Install duckdb dependencies
         run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk
 
       - name: Run pipeline smoke tests with minimum deps
         run: |
-          pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
+          pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/sources/rest_api/integration/ ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
         run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --group sentry-sdk

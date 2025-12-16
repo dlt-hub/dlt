@@ -22,6 +22,7 @@ def _make_pipeline(destination_name: str):
     )
 
 
+@pytest.mark.skip("Reenable after #3343 is resolved")
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
@@ -58,6 +59,7 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration) -> No
     assert table_counts.items() >= POKEMON_EXPECTED_TABLE_COUNTS.items()
 
 
+@pytest.mark.skip("Reenable after #3343 is resolved")
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),

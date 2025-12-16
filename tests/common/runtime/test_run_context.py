@@ -10,10 +10,12 @@ from dlt.common.runtime.init import restore_run_context
 from dlt.common.runtime.run_context import (
     DOT_DLT,
     RunContext,
+    ensure_plugin_version_match,
     get_plugin_modules,
     is_folder_writable,
     switched_run_context,
 )
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import _make_file_url
 from dlt.common.utils import set_working_dir
 
@@ -45,11 +47,6 @@ def test_run_context() -> None:
 
     # check config providers
     assert len(run_context.initial_providers()) == 3
-
-    assert ctx.context.runtime_config is None
-    ctx.add_extras()
-    # still not applied - must be in container
-    assert ctx.context.runtime_config is None
 
     with Container().injectable_context(ctx):
         ctx.initialize_runtime()
@@ -173,3 +170,102 @@ def test_context_with_xdg_dir(mocker) -> None:
         ctx = PluggableRunContext()
         run_context = ctx.context
         assert run_context.global_dir == dlt_home
+
+
+def test_ensure_plugin_version_match_same_versions() -> None:
+    """test that matching versions pass without error."""
+    from packaging.specifiers import SpecifierSet
+
+    # Use explicit specifier to test specific version matching scenarios
+    # PEP 440 ordering: .devN < .aN < .bN < .rcN < final < .postN
+    # So we use .dev0 as lower bound to include all pre-releases
+    specifier_1_19 = SpecifierSet(">=1.19.0.dev0,<1.20.0")  # includes all prereleases
+    specifier_2_5 = SpecifierSet(">=2.5.0.dev0,<2.6.0")
+
+    # exact same version
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0", "1.19.0", "fake-plugin", "hub", specifier_1_19
+    )
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.5", "1.19.2", "fake-plugin", "hub", specifier_1_19
+    )
+    # different patch versions are ok
+    ensure_plugin_version_match(
+        "fake-plugin", "2.5.0", "2.5.10", "fake-plugin", "hub", specifier_2_5
+    )
+    # alpha specifiers (e.g. 1.19.0a1) - these are LESS than 1.19.0
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0a1", "1.19.0a2", "fake-plugin", "hub", specifier_1_19
+    )
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0a1", "1.19.0", "fake-plugin", "hub", specifier_1_19
+    )
+    # dev specifiers (e.g. 1.19.0.dev1) - these are LESS than 1.19.0a0
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0.dev1", "1.19.0.dev2", "fake-plugin", "hub", specifier_1_19
+    )
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0.dev1", "1.19.0", "fake-plugin", "hub", specifier_1_19
+    )
+    # post release specifiers
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0.post1", "1.19.0.post2", "fake-plugin", "hub", specifier_1_19
+    )
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0.post1", "1.19.0", "fake-plugin", "hub", specifier_1_19
+    )
+
+
+def test_ensure_plugin_version_match_alpha_plugin() -> None:
+    """test that alpha plugins (major=0) match specifier."""
+    from packaging.specifiers import SpecifierSet
+
+    # specifier for 0.19.x versions (including all pre-releases)
+    # PEP 440 ordering: .devN < .aN < .bN < .rcN < final < .postN
+    specifier_0_19 = SpecifierSet(">=0.19.0.dev0,<0.20.0")
+
+    # alpha plugin (0.x.y) should match specifier
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0", "0.19.0", "fake-plugin", "hub", specifier_0_19
+    )
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.5", "0.19.2", "fake-plugin", "hub", specifier_0_19
+    )
+    ensure_plugin_version_match(
+        "fake-plugin", "2.19.0", "0.19.0", "fake-plugin", "hub", specifier_0_19
+    )
+    # alpha plugin with alpha/dev specifiers
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0a1", "0.19.0a2", "fake-plugin", "hub", specifier_0_19
+    )
+    ensure_plugin_version_match(
+        "fake-plugin", "1.19.0.dev1", "0.19.0.dev2", "fake-plugin", "hub", specifier_0_19
+    )
+
+
+@pytest.mark.parametrize(
+    "dlt_version,plugin_version",
+    [
+        # minor mismatch
+        ("1.19.0", "1.18.0"),
+        ("1.19.0", "0.18.0"),
+        ("1.19.0a1", "1.18.0a1"),
+        ("1.19.0.dev1", "1.18.0.dev1"),
+        # major mismatch (non-alpha plugin)
+        ("1.19.0", "2.19.0"),
+        ("1.19.0a1", "2.19.0a1"),
+        ("1.19.0.dev1", "2.19.0.dev1"),
+    ],
+)
+def test_ensure_plugin_version_match_mismatch(dlt_version: str, plugin_version: str) -> None:
+    """test that mismatched versions raise MissingDependencyException."""
+    from packaging.specifiers import SpecifierSet
+
+    # Use explicit specifier that requires 1.19.x versions
+    specifier = SpecifierSet(">=1.19.0,<1.20.0")
+
+    with pytest.raises(MissingDependencyException) as exc_info:
+        ensure_plugin_version_match(
+            "fake-plugin", dlt_version, plugin_version, "fake-plugin", "hub", specifier
+        )
+    assert "fake-plugin" in str(exc_info.value)

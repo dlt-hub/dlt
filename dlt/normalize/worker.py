@@ -186,6 +186,7 @@ def w_normalize_files(
 
             norm = item_normalizers[normalizer_key] = cls(
                 item_storage,
+                load_storage,
                 normalize_storage,
                 schema,
                 load_id,

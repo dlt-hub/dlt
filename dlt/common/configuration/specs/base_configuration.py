@@ -38,6 +38,7 @@ from dlt.common.typing import (
     Annotated,
     Self,
     extract_inner_type,
+    get_type_globals,
     is_annotated,
     is_any_type,
     is_final_type,
@@ -46,6 +47,7 @@ from dlt.common.typing import (
     is_union_type,
     get_args,
     get_origin,
+    resolve_single_annotation,
 )
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import (
@@ -190,6 +192,7 @@ def configspec(
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
         cls.__hint_resolvers__ = {}  # type: ignore[attr-defined]
         is_context = issubclass(cls, _F_ContainerInjectableContext)
+
         # if type does not derive from BaseConfiguration then derive it
         with contextlib.suppress(NameError):
             if not issubclass(cls, BaseConfiguration):
@@ -211,6 +214,7 @@ def configspec(
                 )
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
+        globalns = get_type_globals(cls)
         for att_name, att_value in list(cls.__dict__.items()):
             # skip callables, dunder names, class variables and some special names
             if callable(att_value):
@@ -233,9 +237,7 @@ def configspec(
                 # resolve the annotation as per PEP 563
                 # NOTE: we do not use get_type_hints because at this moment cls is an unknown name
                 # (ie. used as decorator and module is being imported)
-                if isinstance(hint, str):
-                    hint = eval(hint)
-
+                hint = resolve_single_annotation(hint, globalns=globalns, raise_on_error=True)
                 # context can have any type
                 if not is_valid_hint(hint) and not is_context:
                     raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
@@ -376,8 +378,9 @@ class BaseConfiguration(MutableMapping[str, Any]):
     @classmethod
     def get_resolvable_fields(cls) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
+        globalns = get_type_globals(cls)
         return {
-            f.name: eval(f.type) if isinstance(f.type, str) else f.type
+            f.name: resolve_single_annotation(f.type, globalns=globalns)
             for f in cls._get_resolvable_dataclass_fields()
         }
 
