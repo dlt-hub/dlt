@@ -3,73 +3,83 @@
 import dataclasses
 from typing import Optional, Final, ClassVar, Dict, Any, List
 from dlt.common.configuration import configspec
-from dlt.common.typing import TSecretStrValue
+from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
-from dlt.destinations.impl.synapse.configuration import SynapseCredentials
+from dlt.common.exceptions import MissingDependencyException
+from dlt import version
+
+_AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 
 
 @configspec(init=False)
-class FabricCredentials(SynapseCredentials):
+class FabricCredentials(AzureServicePrincipalCredentials):
     """Credentials for Microsoft Fabric Warehouse with Service Principal authentication.
 
     Fabric Warehouse requires Azure AD Service Principal authentication.
-    This class automatically configures the connection string with:
-    - ActiveDirectoryServicePrincipal authentication
-    - LongAsMax=yes (required for UTF-8 collation support)
-    - Proper ODBC driver settings
+    Inherits from AzureServicePrincipalCredentials for Service Principal fields and 
+    automatic fallback to DefaultAzureCredential.
     """
 
-    # Override parent username/password to make them optional (will be set from Service Principal)
-    username: Optional[str] = None
-    password: Optional[TSecretStrValue] = None
+    drivername: str = "mssql+pyodbc"
+    """SQLAlchemy driver name for SQL Server/Fabric."""
 
-    # Service Principal credentials
-    azure_tenant_id: Optional[str] = None
-    """Azure AD Tenant ID"""
+    host: str = None
+    """Fabric Warehouse host (e.g., abc12345-6789-def0-1234-56789abcdef0.datawarehouse.fabric.microsoft.com)"""
 
-    azure_client_id: Optional[str] = None
-    """Azure AD Application (Service Principal) Client ID"""
+    port: int = 1433
+    """Database port (default: 1433)"""
 
-    azure_client_secret: Optional[TSecretStrValue] = None
-    """Azure AD Application (Service Principal) Client Secret"""
+    database: str = None
+    """Fabric Warehouse database name"""
 
-    # Mark username/password as auto-generated so dlt doesn't require them
-    __config_gen_annotations__: ClassVar[list[str]] = ["username", "password"]
+    connect_timeout: int = 15
+    """Connection timeout in seconds (default: 15)"""
+
+    # Override to make optional - not needed for Fabric Warehouse credentials (only for staging)
+    azure_storage_account_name: Optional[str] = None
+    """Not used for Fabric Warehouse credentials (only staging credentials need this)"""
 
     def on_partial(self) -> None:
-        """Called during configuration resolution, before validation.
-        Sets username/password from Service Principal credentials."""
-        # Set username as client_id@tenant_id format for Service Principal
-        if self.azure_client_id and self.azure_tenant_id:
-            self.username = f"{self.azure_client_id}@{self.azure_tenant_id}"
+        """Enable fallback to DefaultAzureCredential if explicit credentials not provided."""
+        try:
+            from azure.identity import DefaultAzureCredential
+        except ModuleNotFoundError:
+            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
-        # Set password to client_secret
-        if self.azure_client_secret:
-            self.password = self.azure_client_secret
-
-        # Call parent on_partial
-        super().on_partial()
-
-    def on_resolved(self) -> None:
-        """Called after configuration is fully resolved."""
-        # Ensure username/password are set (should be done in on_partial already)
-        if not self.username and self.azure_client_id and self.azure_tenant_id:
-            self.username = f"{self.azure_client_id}@{self.azure_tenant_id}"
-
-        if not self.password and self.azure_client_secret:
-            self.password = self.azure_client_secret
-
-        # Call parent on_resolved
-        super().on_resolved()
+        # If no explicit Service Principal credentials, use default credentials
+        if not self.azure_client_id or not self.azure_client_secret or not self.azure_tenant_id:
+            self._set_default_credentials(DefaultAzureCredential())
+            # Resolve if we have warehouse connection details (not storage account name)
+            if self.host and self.database:
+                self.resolve()
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         """Build ODBC DSN dictionary with Fabric-specific settings."""
-        params = super().get_odbc_dsn_dict()
+        params = {
+            "DRIVER": "{ODBC Driver 18 for SQL Server}",
+            "SERVER": f"{self.host},{self.port}",
+            "DATABASE": self.database,
+            "AUTHENTICATION": "ActiveDirectoryServicePrincipal",
+            "LongAsMax": "yes",  # Required for UTF-8 collation support
+            "Encrypt": "yes",
+            "TrustServerCertificate": "no",
+        }
 
-        # Add Fabric-required parameters
-        params["AUTHENTICATION"] = "ActiveDirectoryServicePrincipal"
+        # Add Service Principal credentials if provided
+        if self.azure_client_id and self.azure_tenant_id and self.azure_client_secret:
+            params["UID"] = f"{self.azure_client_id}@{self.azure_tenant_id}"
+            params["PWD"] = str(self.azure_client_secret)
 
         return params
+
+    def to_odbc_dsn(self) -> str:
+        """Build ODBC connection string for pyodbc."""
+        params = self.get_odbc_dsn_dict()
+        return ";".join(f"{k}={v}" for k, v in params.items())
+
+    def to_native_credentials(self) -> Optional[Any]:
+        """Return credentials in a format suitable for the native driver/library."""
+        return self.get_odbc_dsn_dict()
 
 
 @configspec
@@ -88,7 +98,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
                 "client_id": "your-client-id",
                 "client_secret": "your-client-secret",
             },
-            staging_config=filesystem(
+            staging=filesystem(
                 # IMPORTANT: Must use workspace GUID and lakehouse GUID (not names)
                 # Format: abfss://<workspace_guid>@onelake.dfs.fabric.microsoft.com/<lakehouse_guid>/Files
                 bucket_url="abfss://12345678-1234-1234-1234-123456789012@onelake.dfs.fabric.microsoft.com/87654321-4321-4321-4321-210987654321/Files",
@@ -116,7 +126,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
                 "client_id": "your-client-id",
                 "client_secret": "your-client-secret",
             },
-            staging_config=filesystem(
+            staging=filesystem(
                 bucket_url="az://your-container",
                 credentials={
                     "azure_storage_account_name": "your-account-name",
