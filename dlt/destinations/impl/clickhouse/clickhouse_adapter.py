@@ -3,6 +3,7 @@ from typing import Any, Dict
 from dlt.destinations.impl.clickhouse.configuration import TTableEngineType
 from dlt.destinations.impl.clickhouse.typing import (
     PARTITION_HINT,
+    SORT_HINT,
     TABLE_ENGINE_TYPES,
     TABLE_ENGINE_TYPE_HINT,
 )
@@ -27,7 +28,7 @@ See https://clickhouse.com/docs/en/engines/table-engines.
 
 
 def clickhouse_adapter(
-    data: Any, table_engine_type: TTableEngineType = None, partition: str = None
+    data: Any, table_engine_type: TTableEngineType = None, sort: str = None, partition: str = None
 ) -> DltResource:
     """Prepares data for the ClickHouse destination by specifying which table engine type
     that should be used.
@@ -38,9 +39,11 @@ def clickhouse_adapter(
             object.
         table_engine_type (TTableEngineType, optional): The table index type used when creating
             the Clickhouse table.
-        partition (str, optional): The partition SQL expression for the table. Will be added to the
-            `PARTITION BY` clause of the table creation statement. Use normalized column names when
-            referring to columns.
+        sort (str, optional): Sorting key SQL expression. Will be added to `ORDER BY` clause of
+            table creation statement. Use normalized column names when referring to columns.
+        partition (str, optional): Partition key SQL expression. Will be added to `PARTITION BY`
+            clause of table creation statement. Use normalized column names when referring to
+            columns.
 
     Returns:
         DltResource: A resource with applied Clickhouse-specific hints.
@@ -63,6 +66,11 @@ def clickhouse_adapter(
             )
 
         additional_table_hints[TABLE_ENGINE_TYPE_HINT] = table_engine_type
+
+    if sort:
+        if not isinstance(sort, str):
+            raise TypeError(f"`sort` must be a string, got '{type(sort).__name__}'")
+        additional_table_hints[SORT_HINT] = sort
 
     if partition:
         if not isinstance(partition, str):

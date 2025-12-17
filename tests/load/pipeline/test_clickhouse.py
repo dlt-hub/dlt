@@ -1,4 +1,4 @@
-from typing import Any, Iterator, cast
+from typing import Any, Iterator, Literal, cast
 
 import pytest
 
@@ -11,7 +11,7 @@ from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.clickhouse.utils import get_partition_key
+from tests.load.clickhouse.utils import get_partition_key, get_sorting_key
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.utils import TEST_STORAGE_ROOT
 from tests.pipeline.utils import assert_load_info, load_table_counts
@@ -180,49 +180,101 @@ def test_clickhouse_no_dataset_name(destination_config: DestinationTestConfigura
     assert table_counts_2["_dlt_loads"] == 1
 
 
+# NOTE: if you update `test_clickhouse_adapter_sort_pipe`, check if the equivalent
+# `test_clickhouse_adapter_partition_pipe` should also be updated
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
     ids=lambda x: x.name,
 )
-def test_clickhouse_adapter_partition(destination_config: DestinationTestConfiguration) -> None:
-    pipe = destination_config.setup_pipeline("test_clickhouse_adapter_partition", dev_mode=True)
+@pytest.mark.parametrize(
+    "sort",
+    ("town", "(town, street)", "(town, number % 4)"),
+    ids=("simple", "composite", "composite-expr-with-pct"),
+)
+def test_clickhouse_adapter_sort_pipe(
+    destination_config: DestinationTestConfiguration, sort: str
+) -> None:
+    @dlt.resource(
+        columns={
+            "town": {"nullable": False},
+            "street": {"nullable": False},
+            "number": {"nullable": False},
+        }
+    )
+    def res():
+        yield [{"town": "Dubai", "street": "Sheikh Zayed Road", "number": 1}]
 
-    # partition key gets set correctly
+    sorted_res = clickhouse_adapter(res, sort=sort)
+    pipe = destination_config.setup_pipeline("test_clickhouse_adapter_sort", dev_mode=True)
+    pipe.run(sorted_res, **destination_config.run_kwargs, refresh="drop_sources")
+    sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+    sorting_key = get_sorting_key(sql_client, table_name=sorted_res.name)
+    sort_is_tuple = sort.startswith("(") and sort.endswith(")")
+    assert sorting_key == sort[1:-1] if sort_is_tuple else sort
+
+
+# NOTE: if you update `test_clickhouse_adapter_partition_pipe`, check if the equivalent
+# `test_clickhouse_adapter_sort_pipe` should also be updated
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "partition",
+    ("toYYYYMM(timestamp)", "(toMonday(timestamp), user_id)", "sipHash64(user_id) % 16"),
+    ids=("simple-expr", "composite-expr", "simple-expr-with-pct"),
+)
+def test_clickhouse_adapter_partition_pipe(
+    destination_config: DestinationTestConfiguration, partition: str
+) -> None:
     @dlt.resource(columns={"timestamp": {"nullable": False}, "user_id": {"nullable": False}})
-    def partitioned():
+    def res():
         yield [{"timestamp": "2025-12-15T13:32:45Z", "user_id": 1}]
 
-    partitions = (
-        "toYYYYMM(timestamp)",
-        "(toMonday(timestamp), user_id)",  # tuple of expressions
-        "sipHash64(user_id) % 16",  # user can pass expression with %, `dlt` will escape it
-    )
-    for partition in partitions:
-        res = clickhouse_adapter(partitioned, partition=partition)
-        pipe.run(res, **destination_config.run_kwargs, refresh="drop_sources")
-        sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
-        partition_key = get_partition_key(sql_client, "partitioned")
-        assert partition_key == partition
+    partitioned_res = clickhouse_adapter(res, partition=partition)
+    pipe = destination_config.setup_pipeline("test_clickhouse_adapter_partition", dev_mode=True)
+    pipe.run(partitioned_res, **destination_config.run_kwargs, refresh="drop_sources")
+    sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+    partition_key = get_partition_key(sql_client, table_name=partitioned_res.name)
+    assert partition_key == partition
 
-    # fails when `partition` uses non-normalized column name
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "param",
+    ("sort", "partition"),  # adapter params that accept SQL expressions
+)
+def test_clickhouse_adapter_expr_fails(
+    destination_config: DestinationTestConfiguration, param: Literal["sort", "partition"]
+) -> None:
+    pipe = destination_config.setup_pipeline(
+        "test_clickhouse_adapter_partition_sort_fails", dev_mode=True
+    )
+
+    # fails when expression uses non-normalized column name
     @dlt.resource(columns={"TIMESTAMP": {"nullable": False}})
-    def partitioned_upper():
+    def res_upper():
         yield [{"TIMESTAMP": "2025-12-15T13:32:45Z"}]
 
-    res_upper = clickhouse_adapter(partitioned_upper, partition="toYYYYMMDD(TIMESTAMP)")
+    clickhouse_adapter(res_upper, **{str(param): "toYYYYMMDD(TIMESTAMP)"})  # type: ignore[arg-type]
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(res_upper, **destination_config.run_kwargs)
     cause = pip_ex.value.__cause__
     assert isinstance(cause, DatabaseTerminalException)
     assert str(cause).startswith("Code: 47.")  # UNKNOWN_IDENTIFIER
 
-    # fails when `partition` uses nullable column
+    # fails when expression uses nullable column
     @dlt.resource(columns={"timestamp": {"nullable": True}})
-    def partitioned_nullable():
+    def res_nullable():
         yield [{"timestamp": "2025-12-15T13:32:45Z"}]
 
-    res_nullable = clickhouse_adapter(partitioned_nullable, partition="toYYYYMMDD(timestamp)")
+    clickhouse_adapter(res_nullable, **{str(param): "toYYYYMMDD(timestamp)"})  # type: ignore[arg-type]
     pipe.drop_pending_packages()  # clear previous failed run
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(res_nullable, **destination_config.run_kwargs)

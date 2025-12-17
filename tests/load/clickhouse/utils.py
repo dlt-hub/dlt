@@ -1,5 +1,7 @@
 import pytest
 
+from typing import Literal
+
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.destinations import clickhouse
@@ -29,12 +31,32 @@ def get_deployment_type(client: ClickHouseSqlClient) -> TDeployment:
     return "ClickHouseCloud" if cloud_mode else "ClickHouseOSS"
 
 
+def get_sorting_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
+    """Returns sorting key of given table.
+
+    - returns empty string if no sorting key is set
+    - returns composite key as tuple without parentheses
+    """
+    return _get_key(sql_client, table_name, "sorting")
+
+
 def get_partition_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
     """Returns partition key of given table.
 
-    Returns empty string if no partition key is set.
+    - returns empty string if no partition key is set
+    - returns composite key as tuple with parentheses
     """
-    qry = "SELECT partition_key FROM system.tables WHERE database = %s AND name = %s;"
+    return _get_key(sql_client, table_name, "partition")
+
+
+def _get_key(
+    sql_client: ClickHouseSqlClient, table_name: str, key_type: Literal["sorting", "partition"]
+) -> str:
+    """Returns sorting or partition key of given table.
+
+    Returns empty string if no such key is set.
+    """
+    qry = f"SELECT {key_type}_key FROM system.tables WHERE database = %s AND name = %s;"
     table_name = sql_client.make_qualified_table_name(table_name, quote=False)
     database, name = table_name.split(".")
     with sql_client:

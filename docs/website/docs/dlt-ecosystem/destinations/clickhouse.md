@@ -191,12 +191,46 @@ Supported values for `table_engine_type` are:
 
 For local development and testing with ClickHouse running locally, the `MergeTree` engine is recommended.
 
-## Partitioning
-Use the `clickhouse_adapter` to specify table [partitions](https://clickhouse.com/docs/partitions):
+## Sorting and partitioning
+You can use the `clickhouse_adapter` to specify a [sorting](https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree#order_by) and/or [partition](https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key) key:
 
 ```py
 from dlt.destinations.adapters import clickhouse_adapter
 
+@dlt.resource
+def my_resource():
+    ...
+
+clickhouse_adapter(
+   my_resource,
+   sort="<sorting key SQL expression>",
+   partition="<partition key SQLexpression>"
+)
+```
+
+### Sorting key
+Example:
+
+```py
+@dlt.resource(columns={"town": {"nullable": False}, "street": {"nullable": False}})
+def my_resource():
+    ...
+
+clickhouse_adapter(my_resource, sort="(town, street)")
+```
+
+The `sort` value will  be added to the `ORDER BY` clause of the table creation SQL statement: 
+
+```sql
+CREATE TABLE ...
+...
+ORDER BY (town, street)
+```
+
+### Partition key
+Example:
+
+```py
 @dlt.resource(columns={"timestamp": {"nullable": False}})
 def my_resource():
     ...
@@ -204,7 +238,7 @@ def my_resource():
 clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")
 ```
 
-The `partition` value will  be added to the partition clause of the table creation SQL statement: 
+The `partition` value will  be added to the `PARTITION BY` clause of the table creation SQL statement: 
 
 ```sql
 CREATE TABLE ...
@@ -212,7 +246,9 @@ CREATE TABLE ...
 PARTITION BY toYYYYMMDD(timestamp)
 ```
 
-Use normalized column names in the SQL expression:
+### Usage notes
+
+Use normalized column names in the sorting/partition key SQL expression:
 
 ```py
 @dlt.resource(columns={"TIMESTAMP": {"nullable": False}})  # non-normalized column name (upper case)
@@ -222,12 +258,12 @@ def my_resource():
 clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")  # normalized column name (lower case)
 ```
 
-We explicitly mark the partition column as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the partition expression. Set `allow_nullable_key` to `true` in your [table settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) if you insist on nullable partition columns.
+We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `true` in your [table settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) if you insist on nullable key columns.
 
 
 :::note
-- Partitions can only be set when the table is first created. The value for `partition` is ignored for existing tables.
-- Any value for `partition` that leads to a valid `PARTITION BY` clause is supported. This means, for example, that you can use multiple partition columns.
+- The sorting/partitioning key can only be set when the table is first created. The value for `sort`/`partition` is ignored for existing tables.
+- Any value for `sort`/`partition` that leads to a valid `ORDER BY`/`PARTITION BY` clause is supported. This means, for example, that you can also specify a tuple of expressions to create a composite sorting/partition key.
 :::
 
 ## Staging support

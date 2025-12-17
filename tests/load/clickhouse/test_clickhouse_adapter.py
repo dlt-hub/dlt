@@ -6,7 +6,7 @@ import dlt
 from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import PARTITION_HINT, TDeployment
+from dlt.destinations.impl.clickhouse.typing import PARTITION_HINT, SORT_HINT, TDeployment
 from tests.load.clickhouse.utils import clickhouse_client, get_deployment_type
 from tests.pipeline.utils import assert_load_info
 
@@ -119,6 +119,36 @@ def test_clickhouse_adapter() -> None:
                 assert "ENGINE = MergeTree" or "ENGINE = SharedMergeTree" in sql[0]
 
 
+# NOTE: if you update `test_clickhouse_adapter_sort`, check if the equivalent
+# `test_clickhouse_adapter_partition` should also be updated
+def test_clickhouse_adapter_sort(clickhouse_client: ClickHouseClient) -> None:
+    table_name = "sorted"
+
+    @dlt.resource(table_name=table_name)
+    def data():
+        yield [{"town": "Dubai", "street": "Sheikh Zayed Road", "number": 1}]
+
+    # sort hint gets set correctly
+    sort = "(town, street)"
+    res = clickhouse_adapter(data, sort=sort)
+    table_schema = res.compute_table_schema()
+    assert table_schema[SORT_HINT] == sort  # type: ignore[typeddict-item]
+
+    # sort clause gets set correctly
+    clickhouse_client.schema.update_table(table_schema)
+    new_columns = list(table_schema["columns"].values())
+    stmts = clickhouse_client._get_table_update_sql(table_name, new_columns, False)
+    assert len(stmts) == 1
+    sql = stmts[0]
+    assert f"ORDER BY {sort}" in sql
+
+    # raises if `sort` is not a string
+    with pytest.raises(TypeError):
+        clickhouse_adapter(data, sort=True)  # type: ignore[arg-type]
+
+
+# NOTE: if you update `test_clickhouse_adapter_partition`, check if the equivalent
+# `test_clickhouse_adapter_sort` should also be updated
 def test_clickhouse_adapter_partition(clickhouse_client: ClickHouseClient) -> None:
     table_name = "partitioned"
 

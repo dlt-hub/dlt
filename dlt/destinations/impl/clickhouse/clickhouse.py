@@ -38,6 +38,7 @@ from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
     HINT_TO_CLICKHOUSE_ATTR,
     PARTITION_HINT,
+    SORT_HINT,
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
 )
 from dlt.destinations.impl.clickhouse.typing import (
@@ -300,6 +301,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
         else:
             sql[0] += "\nPRIMARY KEY tuple()"
+
+        if sorting_key := table.get(SORT_HINT):
+            sql[0] += f"\nORDER BY {sorting_key}"
 
         if partition_key := table.get(PARTITION_HINT):
             sql[0] += f"\nPARTITION BY {partition_key}"
