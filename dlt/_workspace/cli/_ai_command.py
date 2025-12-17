@@ -3,11 +3,13 @@ import shutil
 from pathlib import Path
 from typing import List, Tuple, get_args, Literal, Union, cast
 
+from dlt._workspace.cli.exceptions import ScaffoldApiError, VibeSourceNotFound
 from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
 
 from dlt._workspace.cli import echo as fmt, utils
+from dlt._workspace.cli._vibes_api_client import get_vibe_files_storage
 
 TSupportedIde = Literal[
     "amp",
@@ -113,19 +115,19 @@ def ai_setup_command(
 
 def vibe_source_setup(
     source: str,
-    location: str,
-    branch: Union[str, None] = None,
 ) -> None:
     """Copies files from vibe sources repo into the current working folder"""
 
     fmt.echo("Looking up in dltHub for rules, docs and snippets for %s..." % fmt.bold(source))
-    src_storage = git.get_fresh_repo_files(
-        location, get_dlt_repos_dir(), branch=branch, path=source
-    )
-    if not src_storage.has_folder(source):
+    try:
+        src_storage = get_vibe_files_storage(source)
+    except VibeSourceNotFound as e:
         fmt.warning("We have nothing for %s at dltHub yet." % fmt.bold(source))
         return
-    src_dir = Path(src_storage.make_full_path(source))
+    except ScaffoldApiError as e:
+        fmt.warning("There was an error connecting to the scaffold-api: %s" % fmt.bold(e))
+        return
+    src_dir = Path(src_storage.storage_path)
 
     # where the command is ran, i.e., project root
     dest_dir = Path(run_context.active().run_dir)

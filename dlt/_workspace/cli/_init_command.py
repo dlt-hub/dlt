@@ -131,7 +131,7 @@ def init_command(
         # swap default repo location
         if repo_location == DEFAULT_VERIFIED_SOURCES_REPO:
             repo_location = DEFAULT_VIBE_SOURCES_REPO
-        vibe_source_setup(display_source_name, repo_location, branch=branch)
+        vibe_source_setup(display_source_name)
 
     return copied_files, source_type
 
