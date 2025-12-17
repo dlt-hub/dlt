@@ -16,6 +16,7 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
 )
 
+from tests.load.lancedb.fixtures import lancedb_destination
 from tests.load.lancedb.utils import chunk_document
 from tests.load.utils import (
     sequence_generator,

@@ -10,6 +10,7 @@ import dlt
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.lancedb.fixtures import lancedb_destination
 from tests.load.lancedb.utils import assert_table
 from tests.pipeline.utils import assert_load_info
 from tests.cases import arrow_table_all_data_types, remove_column_from_data
