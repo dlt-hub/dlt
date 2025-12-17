@@ -67,6 +67,10 @@ lint-core:
 format:
 	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
 
+format-check:
+	$(MAKE) format
+	git diff --exit-code
+
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
 	uv run bandit -r dlt/ -n 3 -lll
