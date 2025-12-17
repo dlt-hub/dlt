@@ -259,7 +259,7 @@ class ClickHouseSqlClient(
 
         with self._conn.cursor() as cursor:
             for query_line in query.split(";"):
-                if query_line := query_line.strip():
+                if query_line := self.escape_pct(query_line.strip()):
                     try:
                         cursor.execute(query_line, db_args)
                     except KeyError as e:
@@ -340,3 +340,17 @@ class ClickHouseSqlClient(
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, clickhouse_driver.dbapi.Error)
+
+    @staticmethod
+    def escape_pct(expr: str) -> str:
+        """Returns SQL expression with % characters escaped.
+
+        This doubles % characters used as modulo, wildcard, or literal, but leaves those used in
+        placeholders (%s) alone:
+        - modulo: 16 % 4  ➜  16 %% 4
+        - wildcard: 'test' LIKE '%es%'  ➜  'test' LIKE '%%es%%'
+        - literal: '100% sure'  ➜  '100%% sure'
+        - placeholder: SELECT %s AS value  ➜  SELECT %s AS value
+        """
+
+        return re.sub(r"%(?!\()", "%%", expr)

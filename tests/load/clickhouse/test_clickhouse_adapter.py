@@ -140,19 +140,6 @@ def test_clickhouse_adapter_partition(clickhouse_client: ClickHouseClient) -> No
     sql = stmts[0]
     assert f"PARTITION BY {partition}" in sql
 
-    # % character gets escaped in SQL:
-    unescaped_partition = "sipHash64(user_id) % 16"  # single %
-    escaped_partition = "sipHash64(user_id) %% 16"  # double %%
-    res = clickhouse_adapter(data, partition=unescaped_partition)
-    table_schema = res.compute_table_schema()
-    assert table_schema[PARTITION_HINT] == unescaped_partition  # type: ignore[typeddict-item]
-    clickhouse_client.schema.update_table(table_schema)
-    new_columns = list(table_schema["columns"].values())
-    stmts = clickhouse_client._get_table_update_sql(table_name, new_columns, False)
-    assert len(stmts) == 1
-    sql = stmts[0]
-    assert f"PARTITION BY {escaped_partition}" in sql
-
     # raises if `partition` is not a string
     with pytest.raises(TypeError):
         clickhouse_adapter(data, partition=True)  # type: ignore[arg-type]

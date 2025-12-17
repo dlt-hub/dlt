@@ -233,18 +233,6 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = self.capabilities.get_type_mapper()
 
-    @staticmethod
-    def _prepare_partition_hint(partition_hint: str) -> str:
-        # escape % characters
-        return partition_hint.replace("%", "%%")
-
-    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
-        table = super().prepare_load_table(table_name)
-        if partition_hint := table.get(PARTITION_HINT):
-            assert isinstance(partition_hint, str)
-            table[PARTITION_HINT] = self._prepare_partition_hint(partition_hint)  # type: ignore[typeddict-unknown-key]
-        return table
-
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
