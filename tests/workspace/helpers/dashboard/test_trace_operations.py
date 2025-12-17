@@ -17,6 +17,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     NORMALIZE_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     NO_DESTINATION_PIPELINE,
+    SYNC_EXCEPTION_PIPELINE,
 )
 
 
@@ -74,6 +75,8 @@ def test_trace(pipeline: dlt.Pipeline):
         assert len(result) == 2
         assert result[0]["step"] == "extract"
         assert result[1]["step"] == "normalize"
+    elif pipeline.pipeline_name == SYNC_EXCEPTION_PIPELINE:
+        assert len(result) == 0
     else:
         assert len(result) == 3
         assert result[0]["step"] == "extract"

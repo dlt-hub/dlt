@@ -24,6 +24,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     PIPELINES_WITH_LOAD,
     SUCCESS_PIPELINE_FILESYSTEM,
     SUCCESS_PIPELINE_DUCKDB,
+    SYNC_EXCEPTION_PIPELINE,
 )
 
 
@@ -114,6 +115,7 @@ def test_get_remote_state_details(pipeline: dlt.Pipeline):
         (SUCCESS_PIPELINE_FILESYSTEM, {"extract", "normalize", "load"}, "succeeded"),
         (EXTRACT_EXCEPTION_PIPELINE, {"extract"}, "failed"),
         (LOAD_EXCEPTION_PIPELINE, {"extract", "normalize", "load"}, "failed"),
+        (SYNC_EXCEPTION_PIPELINE, set(), "failed"),
     ],
     indirect=["pipeline"],
 )
@@ -131,8 +133,8 @@ def test_get_steps_data_and_status(
 
     assert all(step.duration_ms > 0 for step in steps_data)
     if expected_status == "succeeded":
-        assert all(step.failed is False for step in steps_data)
+        assert all(step.step_exception is None for step in trace.steps)
     else:
-        assert any(step.failed is True for step in steps_data)
+        assert any(step.step_exception is not None for step in trace.steps)
 
     assert set([step.step for step in steps_data]) == expected_steps
