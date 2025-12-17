@@ -208,10 +208,11 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         if fs_cls.protocol == "abfs":
             url = urlparse(config.bucket_url)
             # if storage account is present in bucket_url and in credentials, az fsspec will fail
-            # account name is detected only for blob.core.windows.net host
+            # account name is detected for blob.core.windows.net, dfs.core.windows.net, and fabric onelake hosts
             if url.username and (
                 url.hostname.endswith("blob.core.windows.net")
                 or url.hostname.endswith("dfs.core.windows.net")
+                or url.hostname.endswith("dfs.fabric.microsoft.com")
             ):
                 fs_kwargs.pop("account_name")
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
