@@ -391,6 +391,7 @@ def get_row_counts(
         DestinationUndefinedEntity,
         SqlClientNotAvailable,
         PipelineConfigMissing,
+        ConnectionError,
     ):
         # TODO: somehow propagate errors to the user here
         pass

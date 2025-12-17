@@ -5,6 +5,7 @@
 #
 
 from typing import Any
+from unittest.mock import patch
 
 import duckdb
 import dlt
@@ -260,23 +261,19 @@ def create_sync_exception_pipeline(pipelines_dir: str = None):
         pipeline_name=SYNC_EXCEPTION_PIPELINE,
         pipelines_dir=pipelines_dir,
         destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
-        dev_mode=False,  # CRITICAL: Must be False to enable sync
     )
 
-    # First run to establish state
-    pipeline.run([1, 2, 3], table_name="initial_data")
+    @dlt.resource
+    def dummy_data():
+        yield [{"id": 1, "value": "test"}]
 
-    # Now try to sync with bad destination - this should trigger sync
-    with pytest.raises(Exception):
-        pipeline.run(
-            [4, 5, 6],
-            destination=dlt.destinations.postgres(
-                credentials=(
-                    "postgresql://baduser:badpass@nonexistent-host-12345.example.com:5432/db"
-                )
-            ),
-            table_name="test_table",
-        )
+    with patch.object(pipeline, "_restore_state_from_destination") as mock_restore:
+        mock_restore.side_effect = ConnectionError("Cannot connect to destination for sync")
+
+        with pytest.raises(Exception) as excinfo:
+            pipeline.run(dummy_data())
+
+    assert "failed at `step=sync`" in str(excinfo)
 
     return pipeline
 
