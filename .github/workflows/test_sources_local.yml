@@ -70,7 +70,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
-          uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --extra mssql --group sentry-sdk --group pipeline --group sources --group adbc
+          uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --extra mssql --group pipeline --group sources --group adbc
 
       - name: Copy secrets for local tests
         run: |
