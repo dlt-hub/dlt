@@ -199,7 +199,7 @@ jobs:
           --ignore tests/load/sources
           --ignore tests/load/filesystem_sftp
 
-      # tests maked. with serial need run without xdist because they need all CPU cores for performance required in some tests 
+      # tests marked with serial need run without xdist because they need all CPU cores for performance required in some tests 
       - name: Run load tests (serial / perf)
         run: >
           eval "$(ssh-agent -s)" &&

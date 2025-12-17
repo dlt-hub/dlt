@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 from dlt._workspace.helpers.dashboard import dlt_dashboard
@@ -5,6 +6,7 @@ from dlt._workspace.helpers.dashboard import dlt_dashboard
 from marimo._ast.cell import Cell
 import marimo as mo
 from marimo._runtime.control_flow import MarimoStopError
+from tests.utils import get_test_storage_root
 
 global_defaults = {
     "dlt_query_params": {},
@@ -14,7 +16,7 @@ global_defaults = {
     "dlt_page_tabs": mo.ui.tabs({"tab": ""}),
     "dlt_data_table_list": [],
     "dlt_pipeline_link_list": [],
-    "dlt_pipelines_dir": "some_dir",
+    "dlt_pipelines_dir": os.path.join(os.path.abspath(get_test_storage_root()),"some_dir"),
     "dlt_pipeline_select": mo.ui.multiselect([]),
     "dlt_pipeline_count": 0,
     "dlt_schem_table_list": [],

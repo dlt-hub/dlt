@@ -89,17 +89,48 @@ lint-docstrings:
 		dlt/pipeline/__init__.py \
 		tests/pipeline/utils.py
 
+PYTEST = PYTHONHASHSEED=0 uv run pytest
+PYTEST_ARGS ?=
+PYTEST_XDIST_ARGS = -p xdist -n auto --dist=loadscope
+
 test:
-	uv run pytest tests
+	$(PYTEST) $(PYTEST_ARGS) tests
 
-test-load-local:
-	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' ALL_FILESYSTEM_DRIVERS='["memory", "file"]'  uv run pytest tests/load
-
-test-load-local-postgres:
-	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data ACTIVE_DESTINATIONS='["postgres"]' ALL_FILESYSTEM_DRIVERS='["memory"]'  uv run pytest tests/load
+test-p:
+	$(MAKE) test PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
 
 test-common:
-	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
+	$(PYTEST) $(PYTEST_ARGS) \
+		tests/common \
+		tests/normalize \
+		tests/extract \
+		tests/pipeline \
+		tests/reflection \
+		tests/sources \
+		tests/workspace \
+		tests/load/test_dummy_client.py \
+		tests/libs \
+		tests/destinations
+
+test-common-p:
+	$(MAKE) test-common PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
+
+test-load-local:
+	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
+	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
+	$(PYTEST) $(PYTEST_ARGS) tests/load
+
+test-load-local-p:
+	$(MAKE) test-load-local PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
+
+test-load-local-postgres:
+	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
+	ACTIVE_DESTINATIONS='["postgres"]' \
+	ALL_FILESYSTEM_DRIVERS='["memory"]' \
+	$(PYTEST) $(PYTEST_ARGS) tests/load
+
+test-load-local-postgres-p:
+	$(MAKE) test-load-local-postgres PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
 
 build-library: dev
 	uv version
