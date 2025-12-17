@@ -16,7 +16,7 @@ global_defaults = {
     "dlt_page_tabs": mo.ui.tabs({"tab": ""}),
     "dlt_data_table_list": [],
     "dlt_pipeline_link_list": [],
-    "dlt_pipelines_dir": os.path.join(os.path.abspath(get_test_storage_root()),"some_dir"),
+    "dlt_pipelines_dir": os.path.join(os.path.abspath(get_test_storage_root()), "some_dir"),
     "dlt_pipeline_select": mo.ui.multiselect([]),
     "dlt_pipeline_count": 0,
     "dlt_schem_table_list": [],
