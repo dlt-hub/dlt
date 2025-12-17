@@ -259,7 +259,19 @@ def test_use_null_executor_on_non_threading_platform(monkeypatch) -> None:
     assert isinstance(pool, runner.NullExecutor)
 
 
-@pytest.mark.parametrize("start_method", ["spawn", "fork"])
+@pytest.mark.parametrize(
+    "start_method",
+    [
+        "spawn",
+        pytest.param(
+            "fork",
+            marks=pytest.mark.skipif(
+                "fork" not in multiprocessing.get_all_start_methods(),
+                reason="fork start method not available on this platform",
+            ),
+        ),
+    ],
+)
 @pytest.mark.parametrize(
     "use_section_context",
     [True, False],
