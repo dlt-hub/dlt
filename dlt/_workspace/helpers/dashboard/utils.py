@@ -16,6 +16,7 @@ from typing import (
     NamedTuple,
     get_args,
 )
+import datetime  # noqa: 251
 from typing_extensions import TypeAlias
 import os
 import platform
@@ -26,53 +27,35 @@ import dlt
 import marimo as mo
 import pyarrow
 import traceback
-import datetime  # noqa: I251
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.destination.client import WithStateSync
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.pipeline import get_dlt_pipelines_dir, LoadInfo
+from dlt.common.pipeline import LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.storages import FileStorage, LoadPackageInfo
+from dlt.common.storages import LoadPackageInfo
 from dlt.common.storages.load_package import PackageStorage, TLoadPackageStatus
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.storages.configuration import WithLocalFiles
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.typing import DictStrAny, TypedDict
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import map_nested_keys_in_place
-from dlt.common.pipeline import get_dlt_pipelines_dir
 
 from dlt._workspace.helpers.dashboard import ui_elements as ui
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.cli import utils as cli_utils
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
-from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
-
-PICKLE_TRACE_FILE = "trace.pickle"
 
 
 #
 # App helpers
 #
-
-
-def _exception_to_string(exception: Exception) -> str:
-    """Convert an exception to a string"""
-    if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
-        return "Could not connect to destination, configuration values are missing."
-    elif isinstance(exception, (SqlClientNotAvailable)):
-        return "The destination of this pipeline does not support querying data with sql."
-    elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
-        return (
-            "Could connect to destination, but the required table or dataset does not exist in the"
-            " destination."
-        )
-    return str(exception)
 
 
 def get_dashboard_config_sections(p: Optional[dlt.Pipeline]) -> Tuple[str, ...]:
@@ -101,55 +84,6 @@ def resolve_dashboard_config(p: Optional[dlt.Pipeline]) -> DashboardConfiguratio
         DashboardConfiguration(),
         sections=get_dashboard_config_sections(p),
     )
-
-
-def get_trace_file_path(pipeline_name: str, pipelines_dir: str) -> Path:
-    """Get the path to the pickle file for a pipeline"""
-    return Path(pipelines_dir) / pipeline_name / PICKLE_TRACE_FILE
-
-
-def get_pipeline_last_run(pipeline_name: str, pipelines_dir: str) -> float:
-    """Get the last run of a pipeline"""
-    trace_file = get_trace_file_path(pipeline_name, pipelines_dir)
-    if trace_file.exists():
-        return os.path.getmtime(trace_file)
-    return 0
-
-
-def get_local_pipelines(
-    pipelines_dir: str = None, sort_by_trace: bool = True, additional_pipelines: List[str] = None
-) -> Tuple[str, List[Dict[str, Any]]]:
-    """Get the local pipelines directory and the list of pipeline names in it.
-
-    Args:
-        pipelines_dir (str, optional): The local pipelines directory. Defaults to get_dlt_pipelines_dir().
-        sort_by_trace (bool, optional): Whether to sort the pipelines by the latet timestamp of trace. Defaults to True.
-    Returns:
-        Tuple[str, List[str]]: The local pipelines directory and the list of pipeline names in it.
-    """
-    pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
-    storage = FileStorage(pipelines_dir)
-
-    try:
-        pipelines = storage.list_folder_dirs(".", to_root=False)
-    except Exception:
-        pipelines = []
-
-    if additional_pipelines:
-        for pipeline in additional_pipelines:
-            if pipeline and pipeline not in pipelines:
-                pipelines.append(pipeline)
-
-    # check last trace timestamp and create dict
-    pipelines_with_timestamps = []
-    for pipeline in pipelines:
-        pipelines_with_timestamps.append(
-            {"name": pipeline, "timestamp": get_pipeline_last_run(pipeline, pipelines_dir)}
-        )
-
-    pipelines_with_timestamps.sort(key=lambda x: cast(float, x["timestamp"]), reverse=True)
-
-    return pipelines_dir, pipelines_with_timestamps
 
 
 def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
@@ -220,7 +154,7 @@ def pipeline_details(
 
     last_executed = "No trace found"
     if trace and hasattr(trace, "started_at"):
-        last_executed = _date_from_timestamp_with_ago(c, trace.started_at)
+        last_executed = cli_utils.date_from_timestamp_with_ago(trace.started_at, c.datetime_format)
 
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,
@@ -362,7 +296,7 @@ def create_column_list(
     return _align_dict_keys(column_list)
 
 
-def get_source_and_resouce_state_for_table(
+def get_source_and_resource_state_for_table(
     table: TTableSchema, pipeline: dlt.Pipeline, schema_name: str
 ) -> Tuple[str, DictStrAny, DictStrAny]:
     if "resource" not in table:
@@ -457,6 +391,7 @@ def get_row_counts(
         DestinationUndefinedEntity,
         SqlClientNotAvailable,
         PipelineConfigMissing,
+        ConnectionError,
     ):
         # TODO: somehow propagate errors to the user here
         pass
@@ -481,10 +416,14 @@ def get_loads(
     Get the loads of a pipeline.
     """
     try:
-        loads = pipeline.dataset()._dlt_loads
+        loads = (
+            pipeline.dataset()
+            ._dlt_loads.filter("schema_name", "in", pipeline.schema_names)
+            .order_by("inserted_at", "desc")
+        )
         if limit:
             loads = loads.limit(limit)
-        loads = loads.order_by("inserted_at", "desc")
+
         loads_list = loads.arrow().to_pylist()
         loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
         return loads_list, None, None
@@ -674,7 +613,11 @@ def build_pipeline_link_list(
     link_list: str = ""
     for _p in pipelines:
         link = f"* [{_p['name']}](?pipeline={_p['name']})"
-        link = link + " - last executed: " + _date_from_timestamp_with_ago(config, _p["timestamp"])
+        link = (
+            link
+            + " - last executed: "
+            + cli_utils.date_from_timestamp_with_ago(_p["timestamp"], config.datetime_format)
+        )
 
         link_list += f"{link}\n"
         count += 1
@@ -750,19 +693,18 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
 #
 
 
-def _date_from_timestamp_with_ago(
-    config: DashboardConfiguration, timestamp: Union[int, float, datetime.datetime]
-) -> str:
-    """Return a date with ago section"""
-    if not timestamp or timestamp == 0:
-        return "never"
-    if isinstance(timestamp, datetime.datetime):
-        p_ts = pendulum.instance(timestamp)
-    else:
-        p_ts = pendulum.from_timestamp(timestamp)
-    time_formatted = p_ts.format(config.datetime_format)
-    ago = p_ts.diff_for_humans()
-    return f"{ago} ({time_formatted})"
+def _exception_to_string(exception: Exception) -> str:
+    """Convert an exception to a string"""
+    if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
+        return "Could not connect to destination, configuration values are missing."
+    elif isinstance(exception, (SqlClientNotAvailable)):
+        return "The destination of this pipeline does not support querying data with sql."
+    elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
+        return (
+            "Could connect to destination, but the required table or dataset does not exist in the"
+            " destination."
+        )
+    return str(exception)
 
 
 def _without_none_or_empty_string(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
@@ -886,6 +828,7 @@ def _build_pipeline_execution_html(
     status: TPipelineRunStatus,
     steps_data: List[PipelineStepData],
     migrations_count: int = 0,
+    finished_at: Optional[datetime.datetime] = None,
 ) -> mo.Html:
     """
     Build an HTML visualization for a pipeline execution using CSS classes
@@ -894,9 +837,15 @@ def _build_pipeline_execution_html(
     last = len(steps_data) - 1
 
     # Build the general info of the execution
+    relative_time = ""
+    if finished_at:
+        time_ago = pendulum.instance(finished_at).diff_for_humans()
+        relative_time = f"<div>Executed: <strong>{time_ago}</strong></div>"
+
     general_info = f"""
     <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
     <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
+    {relative_time}
     """
 
     # Build the pipeline execution timeline bar and labels
@@ -955,16 +904,16 @@ def _get_steps_data_and_status(
 ) -> Tuple[List[PipelineStepData], TPipelineRunStatus]:
     """Gets trace steps data and the status of the corresponding pipeline execution"""
     steps_data: List[PipelineStepData] = []
+    any_step_failed: bool = False
 
     for step in trace_steps:
-        if step.step not in get_args(TVisualPipelineStep):
-            continue
+        if step.step_exception is not None:
+            any_step_failed = True
 
-        if not step.finished_at:
+        if step.step not in get_args(TVisualPipelineStep) or not step.finished_at:
             continue
 
         duration_ms = (step.finished_at - step.started_at).total_seconds() * 1000
-
         steps_data.append(
             PipelineStepData(
                 step=cast(TVisualPipelineStep, step.step),
@@ -972,8 +921,7 @@ def _get_steps_data_and_status(
                 failed=step.step_exception is not None,
             )
         )
-    is_failed = any(s.failed for s in steps_data)
-    status: TPipelineRunStatus = "failed" if is_failed else "succeeded"
+    status: TPipelineRunStatus = "failed" if any_step_failed else "succeeded"
     return steps_data, status
 
 
@@ -1001,6 +949,7 @@ def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.
         status,
         steps_data,
         migrations_count,
+        trace.finished_at,
     )
 
 

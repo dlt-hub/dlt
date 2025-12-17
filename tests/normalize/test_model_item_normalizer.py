@@ -8,8 +8,6 @@ from packaging.version import Version
 
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
-from dlt.normalize import Normalize
-from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.common.storages import (
     NormalizeStorage,
     FileStorage,
@@ -19,10 +17,13 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema import utils
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.libs.sqlglot import TSqlGlotDialect
-from dlt.extract.extract import ExtractStorage
-from dlt.extract.hints import SqlModel
 
-from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER, preserve_environ
+from dlt.normalize import Normalize
+from dlt.normalize.exceptions import NormalizeJobFailed
+from dlt.normalize.items_normalizers import SqlModel
+from dlt.extract.extract import ExtractStorage
+
+from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
 from tests.load.test_model_item_format import (
     destination_configs,
     DESTINATIONS_SUPPORTING_MODEL,

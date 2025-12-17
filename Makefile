@@ -44,25 +44,32 @@ has-uv:
 	uv --version
 
 dev: has-uv
-	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv
-	uv sync --all-extras --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
+	uv sync --all-extras --no-extra hub --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
-lint: lint-core lint-security lint-docstrings
+dev-hub: has-uv
+	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+
+format:
+	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|_storage/.*'
+
+lint: lint-core lint-security lint-docstrings lint-lock
+
+lint-lock:
+	uv lock --check
+	uv run python tools/check_hub_extras.py
 
 lint-core:
-	uv run mypy --config-file mypy.ini dlt tests
+	uv run mypy --config-file mypy.ini dlt tests tools
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
 	uv pip install docstring_parser_fork --reinstall
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
-	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
+	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
-
-format:
-	uv run black dlt tests --extend-exclude='.*syntax_error.py|_storage/.*'
 
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
@@ -94,7 +101,7 @@ test-load-local-postgres:
 test-common:
 	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/workspace tests/load/test_dummy_client.py tests/libs tests/destinations
 
-build-library: dev
+build-library: dev lint-lock
 	uv version
 	uv build
 

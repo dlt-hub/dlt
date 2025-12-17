@@ -250,7 +250,7 @@ def test_schema_update_create_table(
 ) -> None:
     # infer typical rasa event schema
     schema = client.schema
-    item_normalizer = JsonLItemsNormalizer(None, None, schema, "load_id", None)
+    item_normalizer = JsonLItemsNormalizer(None, None, None, schema, "load_id", None)
     table_name = "event_test_table" + uniq_id()
     # this will be sort
     timestamp = item_normalizer._infer_column("timestamp", 182879721.182912)
@@ -296,7 +296,7 @@ def test_schema_update_create_table_bigquery_hidden_dataset(
 
     # infer typical rasa event schema
     schema = client.schema
-    item_normalizer = JsonLItemsNormalizer(None, None, schema, "load_id", None)
+    item_normalizer = JsonLItemsNormalizer(None, None, None, schema, "load_id", None)
     # this will be partition
     timestamp = item_normalizer._infer_column("timestamp", 182879721.182912)
     # this will be cluster
@@ -326,7 +326,7 @@ def test_schema_update_alter_table(
     # force to update schema in chunks by setting the max query size to 10 bytes/chars
     with patch.object(client.capabilities, "max_query_length", new=10):
         schema = client.schema
-        item_normalizer = JsonLItemsNormalizer(None, None, schema, "load_id", None)
+        item_normalizer = JsonLItemsNormalizer(None, None, None, schema, "load_id", None)
         col1 = item_normalizer._infer_column("col1", "string")
         table_name = "event_test_table" + uniq_id()
         schema.update_table(new_table(table_name, columns=[col1]))
@@ -1207,7 +1207,7 @@ def prepare_schema(
     client: SqlJobClientBaseWithDestinationTestConfiguration, case: str
 ) -> Tuple[List[Dict[str, Any]], str]:
     client.update_stored_schema()
-    item_normalizer = JsonLItemsNormalizer(None, None, client.schema, "load_id", None)
+    item_normalizer = JsonLItemsNormalizer(None, None, None, client.schema, "load_id", None)
     rows = load_json_case(case)
     # normalize rows
     normalize_rows(rows, client.schema.naming)

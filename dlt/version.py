@@ -1,6 +1,8 @@
 from importlib.metadata import version as pkg_version, distribution as pkg_distribution
+from typing import Optional
 from urllib.request import url2pathname
 from urllib.parse import urlparse
+from packaging.requirements import Requirement
 
 DLT_IMPORT_NAME = "dlt"
 PKG_NAME = DLT_PKG_NAME = "dlt"
@@ -30,3 +32,19 @@ def get_installed_requirement_string(
     else:
         package_requirement = f"{package}{ver_selector}{pkg_version(package)}"
     return package_requirement
+
+
+def get_dependency_requirement(
+    dependency_name: str, package: str = DLT_PKG_NAME
+) -> Optional[Requirement]:
+    """Find a specific dependency requirement from package metadata"""
+    dist = pkg_distribution(package)
+
+    if dist.requires is None:
+        return None
+
+    for req_str in dist.requires:
+        req = Requirement(req_str)
+        if req.name == dependency_name:
+            return req
+    return None

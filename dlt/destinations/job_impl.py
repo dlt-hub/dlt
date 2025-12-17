@@ -37,10 +37,12 @@ class FinalizedLoadJob(LoadJob):
         started_at: pendulum.DateTime = None,
         finished_at: pendulum.DateTime = None,
         status: TLoadJobState = "completed",
-        exception: str = None,
+        failed_message: str = None,
+        exception: BaseException = None,
     ) -> None:
         super().__init__(file_path)
         self._status = status
+        self._failed_message = failed_message
         self._exception = exception
         self._started_at = started_at or pendulum.now()
         self._finished_at = finished_at or (
@@ -58,19 +60,24 @@ class FinalizedLoadJob(LoadJob):
         finished_at: pendulum.DateTime = None,
         status: TLoadJobState = "completed",
         message: str = None,
+        exception: BaseException = None,
     ) -> "FinalizedLoadJob":
         return cls(
             file_path,
             started_at=started_at,
             finished_at=finished_at,
             status=status,
-            exception=message,
+            failed_message=message,
+            exception=exception,
         )
 
     def state(self) -> TLoadJobState:
         return self._status
 
-    def exception(self) -> str:
+    def failed_message(self) -> str:
+        return self._failed_message
+
+    def exception(self) -> BaseException:
         return self._exception
 
 

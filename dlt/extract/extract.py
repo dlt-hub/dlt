@@ -193,6 +193,7 @@ def data_to_sources(
         for resource in source.resources.extracted:
             apply_hint_args(resource)
 
+    # TODO: order source by schema so packages are extracted in order
     return sources
 
 
