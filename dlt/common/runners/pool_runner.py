@@ -146,6 +146,8 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
         start_method = config.start_method or get_default_start_method(
             multiprocessing.get_start_method()
         )
+        # get the mp_context for the configured start method
+        mp_context = multiprocessing.get_context(method=start_method)
         if start_method != "fork":
             ctx = Container()[PluggableRunContext]
             section_ctx = None
@@ -156,12 +158,10 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
                 max_workers=config.workers,
                 initializer=init.restore_run_context,
                 initargs=(ctx.context, section_ctx),
-                mp_context=multiprocessing.get_context(method=start_method),
+                mp_context=mp_context,
             )
         else:
-            executor = ProcessPoolExecutor(
-                max_workers=config.workers, mp_context=multiprocessing.get_context()
-            )
+            executor = ProcessPoolExecutor(max_workers=config.workers, mp_context=mp_context)
     elif config.pool_type == "thread":
         # wait 2 seconds before bailing out from pool shutdown
         executor = TimeoutThreadPoolExecutor(
