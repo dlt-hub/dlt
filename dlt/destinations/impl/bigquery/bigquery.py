@@ -128,7 +128,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                     )
                 )
 
-    def exception(self) -> str:
+    def failed_message(self) -> str:
         if self._bq_load_job:
             return json.dumps(
                 {
@@ -139,6 +139,11 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                     "job_id": self._bq_load_job.job_id,
                 }
             )
+        return super().failed_message()
+
+    def exception(self) -> BaseException:
+        if self._bq_load_job:
+            return self._bq_load_job.exception()  # type: ignore[no-any-return]
         return super().exception()
 
     @staticmethod

@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Final, ClassVar, Any, List, Dict
+from typing import Final, ClassVar, Any, List, Dict, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -8,6 +8,45 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.exceptions import SystemConfigurationException
 
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+
+
+def escape_mssql_odbc_value(value: Optional[str]) -> str:
+    """Escape a value for MSSQL ADO/ODBC connection string format.
+
+    ODBC format supports `{value}` syntax where:
+      - `}` inside braces must be doubled to `}}`
+      - `;` can safely appear inside braces
+
+    To safely handle values with special characters, we use ODBC-style bracing:
+    - Values containing `;` or `}` are wrapped in `{}`
+    - `}` inside the value is escaped as `}}`
+
+    Args:
+        value: The value to escape
+
+    Returns:
+        Escaped value safe for use in ADO/ODBC connection string
+    """
+    if not value:
+        return ""
+    # if value contains ; or }, use braced syntax with }} escaping
+    if ";" in value or "}" in value:
+        return "{" + value.replace("}", "}}") + "}"
+    return value
+
+
+def build_odbc_dsn(params: Dict[str, Any]) -> str:
+    """Build an ADO/ODBC connection string for MSSQL, escaping values
+
+    Args:
+        params: Dictionary of connection parameters
+
+    Returns:
+        ADO/ODBC connection string
+    """
+    return ";".join(
+        f"{k}={escape_mssql_odbc_value(str(v))}" for k, v in params.items() if v is not None
+    )
 
 
 @configspec(init=False)
@@ -71,7 +110,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
             f" how to install the `{self.SUPPORTED_DRIVERS[0]}` on your platform."
         )
 
-    def _get_odbc_dsn_dict(self) -> Dict[str, Any]:
+    def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         params = {
             "DRIVER": self.driver,
             "SERVER": f"{self.host},{self.port}",
@@ -84,8 +123,8 @@ class MsSqlCredentials(ConnectionStringCredentials):
         return params
 
     def to_odbc_dsn(self) -> str:
-        params = self._get_odbc_dsn_dict()
-        return ";".join([f"{k}={v}" for k, v in params.items()])
+        params = self.get_odbc_dsn_dict()
+        return build_odbc_dsn(params)
 
 
 @configspec

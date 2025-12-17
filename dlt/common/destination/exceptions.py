@@ -195,6 +195,14 @@ class UnsupportedDataType(DestinationTerminalException):
         super().__init__(msg)
 
 
+class WithJobError:
+    """A mixin for exceptions raised on failed jobs"""
+
+    load_id: str
+    job_id: str
+    failed_message: str
+
+
 class DestinationHasFailedJobs(DestinationTerminalException):
     def __init__(self, destination_name: str, load_id: str, failed_jobs: List[Any]) -> None:
         self.destination_name = destination_name

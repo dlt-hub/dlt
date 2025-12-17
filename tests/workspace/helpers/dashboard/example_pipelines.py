@@ -4,16 +4,20 @@
 # TODO: consolidate these test pipelines with the ones in tests/e2e/helpers/dashboard
 #
 
+from typing import Any
+
+import duckdb
 import dlt
 import pytest
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
+from dlt._workspace._templates._single_file_templates.arrow_pipeline import (
+    resource as humans,
+)
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
 )
-
-import tempfile
 
 SUCCESS_PIPELINE_DUCKDB = "success_pipeline_duckdb"
 SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
@@ -95,16 +99,14 @@ def run_success_pipeline(pipeline: dlt.Pipeline):
     )
 
 
-def create_success_pipeline_duckdb(pipelines_dir: str = None, db_location: str = None):
+def create_success_pipeline_duckdb(pipelines_dir: str = None, db_conn: Any = None):
     """Create a test pipeline with in memory duckdb destination, properties see `run_success_pipeline`"""
     import duckdb
 
     pipeline = dlt.pipeline(
         pipeline_name=SUCCESS_PIPELINE_DUCKDB,
         pipelines_dir=pipelines_dir,
-        destination=dlt.destinations.duckdb(
-            credentials=duckdb.connect(db_location) if db_location else None
-        ),
+        destination=dlt.destinations.duckdb(credentials=db_conn if db_conn else None),
     )
 
     run_success_pipeline(pipeline)
@@ -124,6 +126,39 @@ def create_success_pipeline_filesystem(
     )
 
     run_success_pipeline(pipeline)
+
+    return pipeline
+
+
+def create_fruitshop_duckdb_with_shared_dataset(pipelines_dir: str = None):
+    """Create a test pipeline with in memory duckdb destination, properties see `run_success_pipeline`"""
+    import duckdb
+
+    pipeline = dlt.pipeline(
+        pipeline_name="fruits_test_pipeline",
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:/data.db")),
+        dataset_name="test_shared_dataset",
+    )
+
+    run_success_pipeline(pipeline)
+
+    return pipeline
+
+
+def create_humans_arrow_duckdb_with_shared_dataset(
+    pipelines_dir: str = None,
+):
+    """Create a test pipeline with filesystem destination, properties see `run_success_pipeline`"""
+
+    pipeline = dlt.pipeline(
+        pipeline_name="humans_test_pipeline",
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:/data.db")),
+        dataset_name="test_shared_dataset",
+    )
+
+    pipeline.run(humans())
 
     return pipeline
 
@@ -215,12 +250,8 @@ def create_no_destination_pipeline(pipelines_dir: str = None):
     )
     return pipeline
 
-    pipeline.extract(fruitshop_source())
 
-    return pipeline
-
-
-# NOTE: this sript can be run to create the test pipelines globally for manual testing of the dashboard app and cli
+# NOTE: this script can be run to create the test pipelines globally for manual testing of the dashboard app and cli
 if __name__ == "__main__":
     create_success_pipeline_duckdb()
     create_success_pipeline_filesystem()

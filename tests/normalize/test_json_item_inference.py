@@ -40,7 +40,7 @@ def item_normalizer() -> JsonLItemsNormalizer:
     n = Normalize()
     schema = Schema("event")
     add_preferred_types(schema)
-    return JsonLItemsNormalizer(None, None, schema, "load_id", n.config)
+    return JsonLItemsNormalizer(None, None, None, schema, "load_id", n.config)
 
 
 @pytest.fixture
@@ -705,8 +705,11 @@ def test_coerce_null_value_in_nested_table(
 @pytest.mark.parametrize(
     "use_very_long_col_name", [True, False], ids=["very_long_col_name", "short_col_name"]
 )
+@pytest.mark.parametrize(
+    "with_simple_value", [True, False], ids=["with_simple_value_after", "no_simple_value_after"]
+)
 def test_coerce_null_value_as_compound_columns(
-    item_normalizer: JsonLItemsNormalizer, use_very_long_col_name: bool
+    item_normalizer: JsonLItemsNormalizer, use_very_long_col_name: bool, with_simple_value: bool
 ) -> None:
     """Ensure that a column previously created as compound column(s) in the same table
     does not attempt new column updates in a subsequent run when it has no values.
@@ -739,22 +742,39 @@ def test_coerce_null_value_as_compound_columns(
         "_dlt_id",
     ]
 
+    # if a simple value is received schema update will happen
+    items = [{"id": "1", col_name: None}]
+    if with_simple_value:
+        items.append({"id": "1", col_name: "col"})
+
     schema_update = item_normalizer._normalize_chunk(
         root_table_name="nested",
-        items=[{"id": "1", col_name: None}],
+        items=items,
         may_have_pua=False,
         skip_write=True,
     )
 
-    if not use_very_long_col_name:
+    # if with_simple_value:
+    #     schema_update = item_normalizer._normalize_chunk(
+    #         root_table_name="nested",
+    #         items=[{"id": "1", col_name: "col"}],
+    #         may_have_pua=False,
+    #         skip_write=True,
+    #     )
+
+    if not use_very_long_col_name and not with_simple_value:
         assert not schema_update
     else:
-        # edge case with very long column name
+        # edge case with very long column name or when simple value generated schema update
         assert norm_col_name in schema_update["nested"][0]["columns"]
-        assert (
-            schema_update["nested"][0]["columns"][norm_col_name]["x-normalizer"]["seen-null-first"]
-            is True
-        )
+        # no seen-null-first for simple update
+        if not with_simple_value:
+            assert (
+                schema_update["nested"][0]["columns"][norm_col_name]["x-normalizer"][
+                    "seen-null-first"
+                ]
+                is True
+            )
 
 
 def test_infer_with_autodetection(item_normalizer: JsonLItemsNormalizer) -> None:

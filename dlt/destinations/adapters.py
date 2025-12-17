@@ -9,6 +9,7 @@ from dlt.destinations.impl.clickhouse.clickhouse_adapter import clickhouse_adapt
 from dlt.destinations.impl.athena.athena_adapter import athena_adapter, athena_partition
 from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
 from dlt.destinations.impl.databricks.databricks_adapter import databricks_adapter
+from dlt.destinations.impl.filesystem.iceberg_adapter import iceberg_adapter, iceberg_partition
 
 __all__ = [
     "weaviate_adapter",
@@ -22,4 +23,6 @@ __all__ = [
     "athena_partition",
     "postgres_adapter",
     "databricks_adapter",
+    "iceberg_adapter",
+    "iceberg_partition",
 ]

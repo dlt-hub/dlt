@@ -16,7 +16,7 @@ from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.normalizers.json.helpers import get_root_row_id_type
-from dlt.common.runtime import signals
+from dlt.common.schema import utils
 from dlt.common.schema.typing import (
     C_DLT_ID,
     C_DLT_LOAD_ID,
@@ -30,12 +30,14 @@ from dlt.common.schema.utils import (
     dlt_id_column,
     dlt_load_id_column,
     has_table_seen_data,
+    is_complete_column,
     normalize_table_identifiers,
     is_nested_table,
     has_seen_null_first_hint,
 )
 from dlt.common.schema import utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException
+from dlt.common.storages.load_storage import LoadStorage
 from dlt.common.time import normalize_timezone
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import NormalizeStorage
@@ -45,9 +47,8 @@ from dlt.common.typing import VARIANT_FIELD_FORMAT, DictStrAny, REPattern, StrAn
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
-from dlt.extract.hints import SqlModel
-from dlt.normalize.exceptions import NormalizeException
 
+from dlt.normalize.exceptions import NormalizeException
 from dlt.normalize.configuration import NormalizeConfiguration
 
 try:
@@ -61,21 +62,72 @@ except MissingDependencyException:
 DLT_SUBQUERY_NAME = "_dlt_subquery"
 
 
+class SqlModel:
+    """
+    A SqlModel is a named tuple that contains a query and a dialect.
+    It is used to represent a SQL query and the dialect to use for parsing it.
+    """
+
+    __slots__ = ("_query", "_dialect")
+
+    def __init__(self, query: str, dialect: Optional[str] = None) -> None:
+        self._query = query
+        self._dialect = dialect
+
+    def to_sql(self) -> str:
+        return self._query
+
+    @property
+    def query_dialect(self) -> str:
+        return self._dialect
+
+    @classmethod
+    def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
+        """
+        Creates a SqlModel from a raw SQL query string using sqlglot.
+        Ensures that the parsed query is an instance of sqlglot.exp.Select.
+
+        Args:
+            query (str): The raw SQL query string.
+            dialect (Optional[str]): The SQL dialect to use for parsing.
+
+        Returns:
+            SqlModel: An instance of SqlModel with the normalized query and dialect.
+
+        Raises:
+            ValueError: If the parsed query is not an instance of sqlglot.exp.Select.
+        """
+
+        parsed_query = sqlglot.parse_one(query, read=dialect)
+
+        # Ensure the parsed query is a SELECT statement
+        if not isinstance(parsed_query, sqlglot.exp.Select):
+            raise ValueError("Only SELECT statements are allowed to create a `SqlModel`.")
+
+        normalized_query = parsed_query.sql(dialect=dialect)
+        return cls(query=normalized_query, dialect=dialect)
+
+
 class ItemsNormalizer:
     def __init__(
         self,
         item_storage: DataItemStorage,
+        load_storage: LoadStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
         self.item_storage = item_storage
+        self.load_storage = load_storage
         self.normalize_storage = normalize_storage
         self.schema = schema
         self.load_id = load_id
         self.config = config
         self.naming = self.schema.naming
+
+    def _maybe_cancel(self) -> None:
+        self.load_storage.new_packages.raise_if_cancelled(self.load_id)
 
     @abstractmethod
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
@@ -316,6 +368,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
         return outer_select, needs_reordering
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "r"
         ) as f:
@@ -379,12 +432,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     def __init__(
         self,
         item_storage: DataItemStorage,
+        load_storage: LoadStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
-        super().__init__(item_storage, normalize_storage, schema, load_id, config)
+        super().__init__(item_storage, load_storage, normalize_storage, schema, load_id, config)
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
@@ -521,11 +575,8 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         )
             except StopIteration:
                 pass
-            # kill job if signalled
-            signals.raise_if_signalled()
 
         self._clean_seen_null_first_hint(schema_update)
-
         return schema_update
 
     def _clean_seen_null_first_hint(self, schema_update: TSchemaUpdate) -> None:
@@ -555,7 +606,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     )
                     parent_col_schema = parent_col_schemas.get(last_ident_path)
 
-                    if parent_col_schema and has_seen_null_first_hint(parent_col_schema):
+                    # remove only incomplete columns: both None, simple and complex values may be received by a column
+                    # in any order
+                    if (
+                        parent_col_schema
+                        and has_seen_null_first_hint(parent_col_schema)
+                        and not is_complete_column(parent_col_schema)
+                    ):
                         parent_col_schemas.pop(last_ident_path)
                         parent_updates = schema_update.get(parent_name, [])
                         for j, parent_update in enumerate(parent_updates):
@@ -579,7 +636,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         updated_table_partial: TPartialTableSchema = None
         table = self.schema._schema_tables.get(table_name)
         if not table:
-            # print("NEW TABLE", table_name)
             table = utils.new_table(table_name, parent_table)
         table_columns = table["columns"]
 
@@ -868,6 +924,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         extracted_items_file: str,
         root_table_name: str,
     ) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         schema_updates: List[TSchemaUpdate] = []
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
@@ -875,6 +932,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             # enumerate jsonl file line by line
             line: bytes = None
             for line_no, line in enumerate(f):
+                self._maybe_cancel()
                 items: List[TDataItem] = json.loadb(line)
                 partial_update = self._normalize_chunk(
                     root_table_name, items, may_have_pua(line), skip_write=False
@@ -945,12 +1003,14 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         # if we use adapter to convert arrow to dicts, then normalization is not necessary
         is_native_arrow_writer = not issubclass(self.item_storage.writer_cls, ArrowToObjectAdapter)
         should_normalize: bool = None
+        self._maybe_cancel()
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
             for batch in pyarrow.pq_stream_with_new_columns(
                 f, new_columns, row_groups_per_read=self.REWRITE_ROW_GROUPS
             ):
+                self._maybe_cancel()
                 items_count += batch.num_rows
                 # we may need to normalize
                 if is_native_arrow_writer and should_normalize is None:
@@ -987,6 +1047,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         return [schema_update]
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         # read schema and counts from file metadata
         from dlt.common.libs.pyarrow import get_parquet_metadata
 
@@ -1035,6 +1096,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
 
 class FileImportNormalizer(ItemsNormalizer):
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        self._maybe_cancel()
         logger.info(
             f"Table {root_table_name} {self.item_storage.writer_spec.file_format} file"
             f" {extracted_items_file} will be directly imported without normalization"

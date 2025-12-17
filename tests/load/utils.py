@@ -892,7 +892,7 @@ def expect_load_file(
         while job.state() == "running":
             sleep(0.1)
 
-        assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
+        assert job.state() == status, f"Got {job.state()} with ({job.failed_message()})"
 
         return job
 

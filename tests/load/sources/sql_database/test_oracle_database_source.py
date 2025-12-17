@@ -12,7 +12,7 @@ except DependencyVersionException:
 from typing import Iterator
 
 from tests.load.sources.sql_database.utils import assert_incremental_chunks
-from tests.pipeline.utils import assert_load_info, load_table_counts
+from tests.pipeline.utils import assert_load_info
 
 import dlt
 from dlt.common.time import ensure_pendulum_datetime_utc
