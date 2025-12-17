@@ -1,10 +1,13 @@
+import pytest
+
 from typing import Generator, Dict, cast
 
 import dlt
 from dlt.destinations.adapters import clickhouse_adapter
+from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import TDeployment
-from tests.load.clickhouse.utils import get_deployment_type
+from dlt.destinations.impl.clickhouse.typing import PARTITION_HINT, TDeployment
+from tests.load.clickhouse.utils import clickhouse_client, get_deployment_type
 from tests.pipeline.utils import assert_load_info
 
 
@@ -114,3 +117,42 @@ def test_clickhouse_adapter() -> None:
                 assert "ENGINE = ReplicatedMergeTree" in sql[0]
             else:
                 assert "ENGINE = MergeTree" or "ENGINE = SharedMergeTree" in sql[0]
+
+
+def test_clickhouse_adapter_partition(clickhouse_client: ClickHouseClient) -> None:
+    table_name = "partitioned"
+
+    @dlt.resource(table_name=table_name)
+    def data():
+        yield [{"timestamp": "2025-12-15T13:32:45Z", "user_id": 1}]
+
+    # partition hint gets set correctly
+    partition = "toYYYYMMDD(timestamp)"
+    res = clickhouse_adapter(data, partition=partition)
+    table_schema = res.compute_table_schema()
+    assert table_schema[PARTITION_HINT] == partition  # type: ignore[typeddict-item]
+
+    # partition clause gets set correctly
+    clickhouse_client.schema.update_table(table_schema)
+    new_columns = list(table_schema["columns"].values())
+    stmts = clickhouse_client._get_table_update_sql(table_name, new_columns, False)
+    assert len(stmts) == 1
+    sql = stmts[0]
+    assert f"PARTITION BY {partition}" in sql
+
+    # % character gets escaped in SQL:
+    unescaped_partition = "sipHash64(user_id) % 16"  # single %
+    escaped_partition = "sipHash64(user_id) %% 16"  # double %%
+    res = clickhouse_adapter(data, partition=unescaped_partition)
+    table_schema = res.compute_table_schema()
+    assert table_schema[PARTITION_HINT] == unescaped_partition  # type: ignore[typeddict-item]
+    clickhouse_client.schema.update_table(table_schema)
+    new_columns = list(table_schema["columns"].values())
+    stmts = clickhouse_client._get_table_update_sql(table_name, new_columns, False)
+    assert len(stmts) == 1
+    sql = stmts[0]
+    assert f"PARTITION BY {escaped_partition}" in sql
+
+    # raises if `partition` is not a string
+    with pytest.raises(TypeError):
+        clickhouse_adapter(data, partition=True)  # type: ignore[arg-type]

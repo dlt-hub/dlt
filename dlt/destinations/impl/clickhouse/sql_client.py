@@ -1,4 +1,5 @@
 import datetime  # noqa: I251
+import re
 
 from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
 import clickhouse_driver
@@ -307,19 +308,20 @@ class ClickHouseSqlClient(
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, clickhouse_driver.dbapi.errors.OperationalError):
-            if "Code: 57." in str(ex) or "Code: 82." in str(ex) or "Code: 47." in str(ex):
-                return DatabaseTerminalException(ex)
-            elif "Code: 60." in str(ex) or "Code: 81." in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            else:
-                return DatabaseTransientException(ex)
-        elif isinstance(
-            ex,
-            (
-                clickhouse_driver.dbapi.errors.OperationalError,
-                clickhouse_driver.dbapi.errors.InternalError,
-            ),
-        ):
+            # https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/ErrorCodes.cpp
+            TERMINAL_CODES = {44, 47, 57, 82}
+            UNDEFINED_RELATION_CODES = {60, 81}
+
+            match = re.match(r"Code: (\d+)\.", str(ex))
+            if match:
+                code = int(match.group(1))
+                if code in TERMINAL_CODES:
+                    return DatabaseTerminalException(ex)
+                elif code in UNDEFINED_RELATION_CODES:
+                    return DatabaseUndefinedRelation(ex)
+
+            return DatabaseTransientException(ex)
+        elif isinstance(ex, clickhouse_driver.dbapi.errors.InternalError):
             return DatabaseTransientException(ex)
         elif isinstance(
             ex,

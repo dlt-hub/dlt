@@ -1,4 +1,4 @@
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 import pytest
 
@@ -7,7 +7,11 @@ from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.adapters import clickhouse_adapter
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
+from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
+from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.clickhouse.utils import get_partition_key
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.utils import TEST_STORAGE_ROOT
 from tests.pipeline.utils import assert_load_info, load_table_counts
@@ -174,3 +178,54 @@ def test_clickhouse_no_dataset_name(destination_config: DestinationTestConfigura
     assert table_counts_2["events__sub_items"] == 2
     # table got dropped so we have 1 load
     assert table_counts_2["_dlt_loads"] == 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
+    ids=lambda x: x.name,
+)
+def test_clickhouse_adapter_partition(destination_config: DestinationTestConfiguration) -> None:
+    pipe = destination_config.setup_pipeline("test_clickhouse_adapter_partition", dev_mode=True)
+
+    # partition key gets set correctly
+    @dlt.resource(columns={"timestamp": {"nullable": False}, "user_id": {"nullable": False}})
+    def partitioned():
+        yield [{"timestamp": "2025-12-15T13:32:45Z", "user_id": 1}]
+
+    partitions = (
+        "toYYYYMM(timestamp)",
+        "(toMonday(timestamp), user_id)",  # tuple of expressions
+        "sipHash64(user_id) % 16",  # user can pass expression with %, `dlt` will escape it
+    )
+    for partition in partitions:
+        res = clickhouse_adapter(partitioned, partition=partition)
+        pipe.run(res, **destination_config.run_kwargs, refresh="drop_sources")
+        sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+        partition_key = get_partition_key(sql_client, "partitioned")
+        assert partition_key == partition
+
+    # fails when `partition` uses non-normalized column name
+    @dlt.resource(columns={"TIMESTAMP": {"nullable": False}})
+    def partitioned_upper():
+        yield [{"TIMESTAMP": "2025-12-15T13:32:45Z"}]
+
+    res_upper = clickhouse_adapter(partitioned_upper, partition="toYYYYMMDD(TIMESTAMP)")
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipe.run(res_upper, **destination_config.run_kwargs)
+    cause = pip_ex.value.__cause__
+    assert isinstance(cause, DatabaseTerminalException)
+    assert str(cause).startswith("Code: 47.")  # UNKNOWN_IDENTIFIER
+
+    # fails when `partition` uses nullable column
+    @dlt.resource(columns={"timestamp": {"nullable": True}})
+    def partitioned_nullable():
+        yield [{"timestamp": "2025-12-15T13:32:45Z"}]
+
+    res_nullable = clickhouse_adapter(partitioned_nullable, partition="toYYYYMMDD(timestamp)")
+    pipe.drop_pending_packages()  # clear previous failed run
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipe.run(res_nullable, **destination_config.run_kwargs)
+    cause = pip_ex.value.__cause__
+    assert isinstance(cause, DatabaseTerminalException)
+    assert str(cause).startswith("Code: 44.")  # ILLEGAL_COLUMN

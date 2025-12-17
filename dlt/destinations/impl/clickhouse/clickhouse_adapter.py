@@ -2,6 +2,7 @@ from typing import Any, Dict
 
 from dlt.destinations.impl.clickhouse.configuration import TTableEngineType
 from dlt.destinations.impl.clickhouse.typing import (
+    PARTITION_HINT,
     TABLE_ENGINE_TYPES,
     TABLE_ENGINE_TYPE_HINT,
 )
@@ -25,7 +26,9 @@ See https://clickhouse.com/docs/en/engines/table-engines.
 """
 
 
-def clickhouse_adapter(data: Any, table_engine_type: TTableEngineType = None) -> DltResource:
+def clickhouse_adapter(
+    data: Any, table_engine_type: TTableEngineType = None, partition: str = None
+) -> DltResource:
     """Prepares data for the ClickHouse destination by specifying which table engine type
     that should be used.
 
@@ -34,10 +37,13 @@ def clickhouse_adapter(data: Any, table_engine_type: TTableEngineType = None) ->
             of DltResource. If raw data, the function wraps it into a DltResource
             object.
         table_engine_type (TTableEngineType, optional): The table index type used when creating
-            the Synapse table.
+            the Clickhouse table.
+        partition (str, optional): The partition SQL expression for the table. Will be added to the
+            `PARTITION BY` clause of the table creation statement. Use normalized column names when
+            referring to columns.
 
     Returns:
-        DltResource: A resource with applied Synapse-specific hints.
+        DltResource: A resource with applied Clickhouse-specific hints.
 
     Raises:
         ValueError: If input for `table_engine_type` is invalid.
@@ -57,5 +63,11 @@ def clickhouse_adapter(data: Any, table_engine_type: TTableEngineType = None) ->
             )
 
         additional_table_hints[TABLE_ENGINE_TYPE_HINT] = table_engine_type
+
+    if partition:
+        if not isinstance(partition, str):
+            raise TypeError(f"`partition` must be a string, got '{type(partition).__name__}'")
+        additional_table_hints[PARTITION_HINT] = partition
+
     resource.apply_hints(additional_table_hints=additional_table_hints)
     return resource

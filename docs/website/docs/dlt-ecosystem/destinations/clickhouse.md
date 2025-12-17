@@ -191,6 +191,45 @@ Supported values for `table_engine_type` are:
 
 For local development and testing with ClickHouse running locally, the `MergeTree` engine is recommended.
 
+## Partitioning
+Use the `clickhouse_adapter` to specify table [partitions](https://clickhouse.com/docs/partitions):
+
+```py
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource(columns={"timestamp": {"nullable": False}})
+def my_resource():
+    ...
+
+clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")
+```
+
+The `partition` value will  be added to the partition clause of the table creation SQL statement: 
+
+```sql
+CREATE TABLE ...
+...
+PARTITION BY toYYYYMMDD(timestamp)
+```
+
+Use normalized column names in the SQL expression:
+
+```py
+@dlt.resource(columns={"TIMESTAMP": {"nullable": False}})  # non-normalized column name (upper case)
+def my_resource():
+    ...
+
+clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")  # normalized column name (lower case)
+```
+
+We explicitly mark the partition column as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the partition expression. Set `allow_nullable_key` to `true` in your [table settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) if you insist on nullable partition columns.
+
+
+:::note
+- Partitions can only be set when the table is first created. The value for `partition` is ignored for existing tables.
+- Any value for `partition` that leads to a valid `PARTITION BY` clause is supported. This means, for example, that you can use multiple partition columns.
+:::
+
 ## Staging support
 
 ClickHouse supports Amazon S3, Google Cloud Storage, and Azure Blob Storage as file staging destinations.

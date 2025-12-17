@@ -31,3 +31,4 @@ FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING: Dict[SUPPORTED_FILE_FORMATS, str] = {
 }
 TABLE_ENGINE_TYPES: Set[TTableEngineType] = set(get_args(TTableEngineType))
 TABLE_ENGINE_TYPE_HINT: Literal["x-table-engine-type"] = "x-table-engine-type"
+PARTITION_HINT: Literal["x-clickhouse-partition"] = "x-clickhouse-partition"

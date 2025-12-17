@@ -37,6 +37,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
     HINT_TO_CLICKHOUSE_ATTR,
+    PARTITION_HINT,
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
 )
 from dlt.destinations.impl.clickhouse.typing import (
@@ -232,6 +233,18 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = self.capabilities.get_type_mapper()
 
+    @staticmethod
+    def _prepare_partition_hint(partition_hint: str) -> str:
+        # escape % characters
+        return partition_hint.replace("%", "%%")
+
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        table = super().prepare_load_table(table_name)
+        if partition_hint := table.get(PARTITION_HINT):
+            assert isinstance(partition_hint, str)
+            table[PARTITION_HINT] = self._prepare_partition_hint(partition_hint)  # type: ignore[typeddict-unknown-key]
+        return table
+
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
@@ -299,6 +312,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
         else:
             sql[0] += "\nPRIMARY KEY tuple()"
+
+        if partition_key := table.get(PARTITION_HINT):
+            sql[0] += f"\nPARTITION BY {partition_key}"
 
         return sql
 
