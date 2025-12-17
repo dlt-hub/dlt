@@ -123,7 +123,7 @@ start-pokemon-api:
 	time docker compose -f "tests/sources/rest_api/docker-compose.yml" exec -T app python manage.py migrate --settings=config.docker-compose
 	time docker compose -f "tests/sources/rest_api/docker-compose.yml" exec -T app sh -c 'echo "from data.v2.build import build_all; build_all()" | python manage.py shell --settings=config.docker-compose'
 
-start-test-containers: start-pokemon-api
+start-test-containers:
 	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
 	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d

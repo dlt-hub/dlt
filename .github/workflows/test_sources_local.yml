@@ -76,9 +76,6 @@ jobs:
         run: |
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
-      - name: Start Pokemon API
-        run: make start-pokemon-api
-
       # run sources tests in load against configured destinations
       - run: pytest tests/load/sources
         name: Run tests Linux
