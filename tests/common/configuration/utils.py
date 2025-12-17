@@ -78,7 +78,7 @@ class SectionedConfiguration(BaseConfiguration):
     password: str = None
 
 
-@configspec
+@configspec(init=False)
 class ConnectionStringCompatCredentials(ConnectionStringCredentials):
     database: str = None
     username: str = None

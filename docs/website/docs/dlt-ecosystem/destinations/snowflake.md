@@ -74,10 +74,11 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 
 ### Authentication types
 
-Snowflake destination accepts three authentication types:
+Snowflake destination accepts these authentication types:
 - Password authentication
 - [Key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
 - OAuth authentication
+- Snowflake-provided OAuth token authentication (Snowpark Container Services)
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
@@ -131,6 +132,18 @@ token="..."
 or in the connection string as query parameters.
 
 In the case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+**Snowflake-provided OAuth token authentication** is the recommended way to authenticate when running `dlt` in Snowpark Container Services. If `authenticator` is set to `oauth` and `host` or `token` is **not** passed, `dlt` will look for the [Snowflake-provided OAuth token](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs#connecting-with-a-snowflake-provided-oauth-token):
+ ```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+authenticator = "oauth"
+# host and token not specified
+```
+or
+```toml
+destination.snowflake.credentials="snowflake:///dlt_data?authenticator=oauth"  # host and token not specified
+```
 
 ### Additional connection options
 
