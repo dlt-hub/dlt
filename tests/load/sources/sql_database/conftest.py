@@ -70,8 +70,7 @@ def _create_oracle_db(**kwargs: Any) -> Iterator[OracleSourceDB]:
         db.generate_users()
         yield db
     finally:
-        pass
-        # db.drop_tables()
+        db.drop_tables()
 
 
 @pytest.fixture(scope="function")
@@ -80,7 +79,7 @@ def mssql_db(request: pytest.FixtureRequest) -> Iterator[MSSQLSourceDB]:
     yield from _create_mssql_db(**kwargs)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="package")
 def oracle_db(request: pytest.FixtureRequest) -> Iterator[OracleSourceDB]:
     kwargs = getattr(request, "param", {})
     yield from _create_oracle_db(**kwargs)

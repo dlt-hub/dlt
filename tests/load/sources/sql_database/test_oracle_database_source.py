@@ -38,25 +38,6 @@ def make_pipeline(destination_name: str) -> dlt.Pipeline:
     )
 
 
-def _create_oracle_db(nullable: bool = True) -> Iterator[OracleSourceDB]:
-    credentials = dlt.secrets.get(
-        "destination.oracle.credentials", expected_type=ConnectionStringCredentials
-    )
-    db = OracleSourceDB(credentials)
-    db.create_schema()
-    try:
-        db.create_tables(nullable)
-        db.generate_users()
-        yield db
-    finally:
-        pass
-
-
-@pytest.fixture(scope="function")
-def oracle_db() -> Iterator[OracleSourceDB]:
-    yield from _create_oracle_db(nullable=True)
-
-
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas"])
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_all_data_types(
@@ -89,7 +70,6 @@ def test_all_data_types(
     assert table["columns"]["some_timestamp_ntz"].get("timezone", True) is ntz_flag
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas"])
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_sql_table_incremental_datetime_ntz(
