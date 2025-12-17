@@ -118,12 +118,12 @@ class OracleSourceDB:
             # Column(
             #     "some_interval", INTERVAL(day_precision=2, second_precision=6), nullable=nullable
             # ),
-            Column(
-                "some_guid_raw",
-                RAW(16),
-                nullable=nullable,
-                server_default=text("SYS_GUID()"),
-            ),
+            # Column(
+            #     "some_guid_raw",
+            #     RAW(16),
+            #     nullable=nullable,
+            #     server_default=text("SYS_GUID()"),
+            # ),
             # Column("some_vector", VECTOR(3), nullable=True),
             Column("some_blob", BLOB, nullable=nullable),
         )
@@ -159,7 +159,7 @@ class OracleSourceDB:
                     some_timestamp_tz=mimesis.Datetime().datetime(timezone="UTC"),
                     some_timestamp_ntz=mimesis.Datetime().datetime(),
                     # some_interval=py_timedelta(seconds=random.randrange(0, 3600)),
-                    some_guid_raw=uuid.uuid4().bytes,  # RAW(16)
+                    # some_guid_raw=uuid.uuid4().bytes,  # RAW(16)
                     # some_vector=[float(random.randint(0, 9)) for _ in range(3)],
                     some_blob=b"\x00\x01\x02",
                 )

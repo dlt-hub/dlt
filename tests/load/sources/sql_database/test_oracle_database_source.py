@@ -59,8 +59,6 @@ def oracle_db() -> Iterator[OracleSourceDB]:
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas"])
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
-# @pytest.mark.parametrize("backend", ["sqlalchemy"])
-# @pytest.mark.parametrize("reflection_level", ["full"])
 def test_all_data_types(
     oracle_db: OracleSourceDB,
     backend: TableBackend,
