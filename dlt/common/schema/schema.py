@@ -26,6 +26,8 @@ from dlt.common.normalizers import TNormalizersConfig, NamingConvention
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
 from dlt.common.data_types import TDataType
+from dlt.common.schema.utils import is_dlt_table_or_column
+from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import (
     DLT_NAME_PREFIX,
     SCHEMA_ENGINE_VERSION,
@@ -237,7 +239,7 @@ class Schema:
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
-            if column_name.startswith(self._dlt_tables_prefix):
+            if is_dlt_table_or_column(column_name, self._dlt_tables_prefix):
                 continue
             is_variant = column.get("variant", False)
             # new column and contract prohibits that
@@ -299,7 +301,7 @@ class Schema:
         """Resolve the exact applicable schema contract settings for the table `table_name`. `new_table_schema` is added to the tree during the resolution."""
 
         settings: TSchemaContract = {}
-        if not table_name.startswith(self._dlt_tables_prefix):
+        if not is_dlt_table_or_column(table_name, self._dlt_tables_prefix):
             if new_table_schema:
                 tables = copy(self._schema_tables)
                 tables[table_name] = new_table_schema
@@ -508,7 +510,7 @@ class Schema:
         return [
             t
             for t in self._schema_tables.values()
-            if not t["name"].startswith(self._dlt_tables_prefix)
+            if not is_dlt_table_or_column(t["name"], self._dlt_tables_prefix)
             and (
                 (
                     include_incomplete
@@ -532,7 +534,9 @@ class Schema:
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
         return [
-            t for t in self._schema_tables.values() if t["name"].startswith(self._dlt_tables_prefix)
+            t
+            for t in self._schema_tables.values()
+            if is_dlt_table_or_column(t["name"], self._dlt_tables_prefix)
         ]
 
     def dlt_table_names(self) -> List[str]:
@@ -1112,7 +1116,7 @@ class Schema:
         self.state_table_name = to_naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)
         # do a sanity check - dlt tables must start with dlt prefix
         for table_name in [self.version_table_name, self.loads_table_name, self.state_table_name]:
-            if not table_name.startswith(self._dlt_tables_prefix):
+            if not is_dlt_table_or_column(table_name, self._dlt_tables_prefix):
                 raise SchemaCorruptedException(
                     self.name,
                     f"A naming convention `{self.naming.name()}` mangles `_dlt` table prefix to"
