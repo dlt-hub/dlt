@@ -62,6 +62,7 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
+    SYNC_EXCEPTION_PIPELINE,
     create_success_pipeline_duckdb,
     create_fruitshop_duckdb_with_shared_dataset,
     create_humans_arrow_duckdb_with_shared_dataset,
@@ -550,6 +551,8 @@ def test_trace(pipeline: dlt.Pipeline):
         assert len(result) == 2
         assert result[0]["step"] == "extract"
         assert result[1]["step"] == "normalize"
+    elif pipeline.pipeline_name == SYNC_EXCEPTION_PIPELINE:
+        assert len(result) == 0
     else:
         assert len(result) == 3
         assert result[0]["step"] == "extract"
@@ -786,6 +789,7 @@ def test_sanitize_trace_for_display(pipeline: dlt.Pipeline):
         (SUCCESS_PIPELINE_FILESYSTEM, {"extract", "normalize", "load"}, "succeeded"),
         (EXTRACT_EXCEPTION_PIPELINE, {"extract"}, "failed"),
         (LOAD_EXCEPTION_PIPELINE, {"extract", "normalize", "load"}, "failed"),
+        (SYNC_EXCEPTION_PIPELINE, set(), "failed"),
     ],
     indirect=["pipeline"],
 )
@@ -803,9 +807,9 @@ def test_get_steps_data_and_status(
 
     assert all(step.duration_ms > 0 for step in steps_data)
     if expected_status == "succeeded":
-        assert all(step.failed is False for step in steps_data)
+        assert all(step.step_exception is None for step in trace.steps)
     else:
-        assert any(step.failed is True for step in steps_data)
+        assert any(step.step_exception is not None for step in trace.steps)
 
     assert set([step.step for step in steps_data]) == expected_steps
 
