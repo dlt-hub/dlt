@@ -141,7 +141,7 @@ def bigquery_adapter(
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
 
         if isinstance(partition, str):
-            column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
+            column_hints.setdefault(partition, {"name": partition})[PARTITION_HINT] = True  # type: ignore[typeddict-unknown-key]
 
         if isinstance(partition, PartitionTransformation):
             partition_hint: Dict[str, str] = {}
@@ -169,7 +169,7 @@ def bigquery_adapter(
                 " name."
             )
         for column_name in round_half_away_from_zero:
-            column_hints[column_name] = {"name": column_name, ROUND_HALF_AWAY_FROM_ZERO_HINT: True}  # type: ignore[typeddict-unknown-key]
+            column_hints.setdefault(column_name, {"name": column_name})[ROUND_HALF_AWAY_FROM_ZERO_HINT] = True  # type: ignore[typeddict-unknown-key]
 
     if round_half_even:
         if isinstance(round_half_even, str):
@@ -179,7 +179,7 @@ def bigquery_adapter(
                 "`round_half_even` must be a list of column names or a single column name."
             )
         for column_name in round_half_even:
-            column_hints[column_name] = {"name": column_name, ROUND_HALF_EVEN_HINT: True}  # type: ignore[typeddict-unknown-key]
+            column_hints.setdefault(column_name, {"name": column_name})[ROUND_HALF_EVEN_HINT] = True  # type: ignore[typeddict-unknown-key]
 
     if round_half_away_from_zero and round_half_even:
         if intersection_columns := set(round_half_away_from_zero).intersection(
