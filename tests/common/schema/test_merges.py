@@ -232,14 +232,8 @@ def test_none_resets_on_merge_column() -> None:
     assert col_a == {"name": "col1", "x-prop": None}
 
 
-@pytest.mark.parametrize(
-    "for_diff",
-    [True, False],
-)
-def test_merge_columns(for_diff: bool) -> None:
-    columns = utils.merge_columns(
-        {"test": deepcopy(COL_1_HINTS)}, {"test_2": COL_2_HINTS}, for_diff
-    )
+def test_merge_columns() -> None:
+    columns = utils.merge_columns({"test": deepcopy(COL_1_HINTS)}, {"test_2": COL_2_HINTS})
     # new columns added at the end
     assert list(columns.keys()) == ["test", "test_2"]
     assert columns["test"] == COL_1_HINTS
@@ -247,7 +241,7 @@ def test_merge_columns(for_diff: bool) -> None:
 
     # merging a subset does nothing
     columns = utils.merge_columns(
-        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, for_diff
+        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}
     )
     assert list(columns.keys()) == ["test"]
     assert columns["test"] == COL_1_HINTS
@@ -255,12 +249,8 @@ def test_merge_columns(for_diff: bool) -> None:
     columns = utils.merge_columns(
         columns_a={"test_3": deepcopy(COL_3_HINTS)},
         columns_b={"test_4": COL_4_HINTS},
-        keep_compound_props=for_diff,
     )
-    if for_diff:
-        assert columns["test_3"].get("merge_key") is True
-    else:
-        assert not columns["test_3"].get("merge_key")
+    assert not columns["test_3"].get("merge_key")
 
 
 def test_merge_incomplete_columns() -> None:

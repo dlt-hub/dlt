@@ -78,14 +78,18 @@ def test_changing_merge_key_between_runs() -> None:
     p = dlt.pipeline(pipeline_name="test_changing_merge_key_between_runs", destination="dummy")
 
     @dlt.resource(
+        columns={"other_id": {"merge_key": True}},
         write_disposition="merge",
         merge_key=["id"],
     )
     def my_resource():
         yield {"id": 1, "other_id": 2, "name": "Bob"}
 
-    p.run(my_resource())
+    k = my_resource()
+
+    p.run(k)
     assert p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key") is True
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key")
 
     @dlt.resource(  # type: ignore[no-redef]
         write_disposition="merge",
@@ -96,4 +100,29 @@ def test_changing_merge_key_between_runs() -> None:
 
     p.run(my_resource())
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key")
-    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key")
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key") is True
+
+    my_resource.apply_hints(merge_key="id")
+    p.run(my_resource())
+    assert p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key") is True
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key")
+
+    my_resource.apply_hints(merge_key="other_id")
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key")
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key") is True
+
+    my_resource.apply_hints(merge_key="")
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key")
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key")
+
+    my_resource.apply_hints(merge_key=["id", "other_id"])
+    p.run(my_resource())
+    assert p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key") is True
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key") is True
+
+    my_resource.apply_hints(merge_key=[])
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get("merge_key")
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get("merge_key")
