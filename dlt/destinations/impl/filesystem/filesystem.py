@@ -784,7 +784,7 @@ class FilesystemClient(
             filename = os.path.splitext(os.path.basename(filepath))[0]
             fileparts = filename.rsplit(
                 FILENAME_SEPARATOR, maxsplit=2
-            )  # pipeline_name, load_id, version_hash
+            )  # name, load_id, version_hash
             if len(fileparts) != 3:
                 continue
             # Filters only if pipeline_name provided
