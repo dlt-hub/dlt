@@ -24,7 +24,7 @@ def assert_class(
 ) -> None:
     client: WeaviateClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        vectorizer_name: str = client._vectorizer_config  # type: ignore[assignment]
+        vectorizer_name: str = client._vectorizer_config
 
         # Check if class exists
         schema = client.get_collection_schema(class_name)

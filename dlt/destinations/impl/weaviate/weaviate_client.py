@@ -224,7 +224,7 @@ class LoadWeaviateJob(RunnableLoadJob):
         self, data: Dict[str, Any], unique_identifiers: Sequence[str], collection_name: str
     ) -> str:
         data_id = "_".join([str(data[key]) for key in unique_identifiers])
-        return generate_uuid5(data_id, collection_name)  # type: ignore
+        return str(generate_uuid5(data_id, collection_name))
 
 
 class WeaviateClient(JobClientBase, WithStateSync):
@@ -317,8 +317,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
                 # Re-raise as UnexpectedStatusCodeError with status_code attribute
-                err = UnexpectedStatusCodeError(f"Collection {collection_name} not found")
-                err.status_code = 404
+                err = UnexpectedStatusCodeError(f"Collection {collection_name} not found", None)
                 raise err from e
             raise
 
@@ -442,7 +441,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         # Handle skip vectorization - this is per-property in v4
         skip_vectorization = False
         if "moduleConfig" in prop:
-            for module_name, module_config in prop["moduleConfig"].items():
+            for _module_name, module_config in prop["moduleConfig"].items():
                 if module_config.get("skip", False):
                     skip_vectorization = True
                     break
@@ -981,13 +980,13 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         # Return a wrapper that provides .do() method for compatibility
         class QueryWrapper:
-            def __init__(self, coll, props):
+            def __init__(self, coll: Any, props: List[str]) -> None:
                 self._collection = coll
                 self._properties = props
-                self._filters = None
-                self._sort = None
-                self._limit = None
-                self._offset = None
+                self._filters: Optional[Any] = None
+                self._sort: Optional[Any] = None
+                self._limit: Optional[int] = None
+                self._offset: Optional[int] = None
 
             def with_where(self, where: Dict[str, Any]) -> "QueryWrapper":
                 # Convert v3 where format to v4 filter
