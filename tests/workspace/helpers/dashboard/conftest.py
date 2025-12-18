@@ -100,7 +100,7 @@ def temp_pipelines_dir():
         yield str(pipelines_dir)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def sync_exception_pipeline():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield create_sync_exception_pipeline(temp_dir)
