@@ -1,4 +1,5 @@
 import os
+import pytest
 
 import dlt
 
@@ -71,3 +72,60 @@ def test_schema_updates() -> None:
         },
         "max_nesting": 50,
     }
+
+
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+def test_changing_merge_key_between_runs(key_hint: str) -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name=f"test_changing_{key_hint}_between_runs", destination="dummy")
+
+    @dlt.resource( # type: ignore[call-overload]
+        columns={"other_id": {key_hint: True}}, write_disposition="merge", **{key_hint: ["id"]}
+    )
+    def my_resource():
+        yield {"id": 1, "other_id": 2, "name": "Bob"}
+
+    k = my_resource()
+
+    p.run(k)
+    assert p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint) is True
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
+
+    @dlt.resource(  # type: ignore[no-redef, call-overload]
+        write_disposition="merge",
+        **{key_hint: ["other_id"]},
+    )
+    def my_resource():
+        yield {"id": 1, "other_id": 2, "name": "Bob"}
+
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
+
+    my_resource.apply_hints(**{key_hint: "id"})
+    p.run(my_resource())
+    assert p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint) is True
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
+
+    my_resource.apply_hints(**{key_hint: "other_id"})
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
+
+    my_resource.apply_hints(**{key_hint: ""})
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
+
+    my_resource.apply_hints(**{key_hint: ["id", "other_id"]})
+    p.run(my_resource())
+    assert p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint) is True
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
+
+    my_resource.apply_hints(**{key_hint: []})
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
