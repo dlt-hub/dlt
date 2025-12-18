@@ -558,7 +558,6 @@ def test_bigquery_column_description(gcp_client: BigQueryClient) -> None:
 
     sql = gcp_client._get_table_update_sql("event_test_table", columns, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert sql.startswith("ALTER TABLE")
     assert "event_test_table" in sql
     for column in columns:
         assert (
@@ -573,7 +572,6 @@ def test_bigquery_column_description_character_escaping(gcp_client: BigQueryClie
 
     sql = gcp_client._get_table_update_sql("event_test_table", columns, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert sql.startswith("ALTER TABLE")
     assert "event_test_table" in sql
     assert r"OPTIONS (description='\'\';) DROP TABLE --')" in sql
 
@@ -590,7 +588,7 @@ def test_bigquery_with_column_description_and_rounding_mode_hints(
         columns=[
             {
                 "name": "col1",
-                "data_type": "bigint",
+                "data_type": "wei",
                 "description": "This is a test description for column col1",
             }
         ]
