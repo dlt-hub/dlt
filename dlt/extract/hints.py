@@ -494,10 +494,10 @@ class DltResourceHints:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
             if primary_key is not None:
-                if primary_key:
-                    t["primary_key"] = primary_key
+                if not primary_key:
+                    t["primary_key"] = ""
                 else:
-                    t.pop("primary_key", None)
+                    t["primary_key"] = primary_key
             if merge_key is not None:
                 if not merge_key:
                     t["merge_key"] = ""
