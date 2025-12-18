@@ -166,23 +166,14 @@ def is_compound_prop(prop: str) -> bool:
 
 
 def remove_compound_props(
-    columns: TTableSchemaColumns, compound_props: List[str]
+    columns: TTableSchemaColumns, compound_props: set[str]
 ) -> TTableSchemaColumns:
-    """Removes compound properties from all columns in place."""
-    non_compound = [prop for prop in compound_props if not is_compound_prop(prop)]
-    if non_compound:
-        raise ValueError(
-            f"The following properties are not compound properties: {', '.join(non_compound)}"
-        )
-
+    """
+    Removes compound properties from all columns in place,
+    including properties whose value is False.
+    """
     for column in columns.values():
-        is_nullable = is_nullable_column(column)
         for prop in compound_props:
-            if not is_nullable:
-                logger.warning(
-                    f"Removing compound property '{prop}' from column '{column['name']}', but"
-                    " 'unique' constraint remains set to True."
-                )
             column.pop(prop, None)  # type: ignore[misc]
 
     return columns
@@ -470,25 +461,25 @@ def merge_column(
 def merge_columns(
     columns_a: TTableSchemaColumns,
     columns_b: TTableSchemaColumns,
-    keep_compound_props: bool = False,
+    allow_empty_columns: bool = False,
 ) -> TTableSchemaColumns:
     """Merges `columns_b` into `columns_a`. `columns_a` is modified in place and returned.
 
     * New columns from `columns_b` are added to `columns_a`
     * Existing columns that appear in both sets are merged using `merge_column`
-    * If `preserve_compound_props` is False, compound properties (like `primary_key`, `merge_key`) found in `columns_b` are first removed from all columns in `columns_a`
-    * If `preserve_compound_props` is True, compound properties in `columns_a` are kept, allowing incremental merging
+    * Compound properties (like `primary_key`, `merge_key`, `partition`) found in `columns_b` are first removed from all columns in `columns_a`
     * Incomplete columns in `columns_a` that are complete in `columns_b` are removed and re-added to preserve column order
     """
-    if keep_compound_props is False:
-        compound_props: List[str] = []
-        for column_b in columns_b.values():
-            compound_props.extend(prop for prop in column_b if is_compound_prop(prop))
-        if compound_props:
-            remove_compound_props(columns=columns_a, compound_props=compound_props)
+    compound_props: set[str] = set()
+    for column_b in columns_b.values():
+        compound_props.update(prop for prop in column_b if is_compound_prop(prop))
+    if compound_props:
+        remove_compound_props(columns=columns_a, compound_props=compound_props)
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
+        if allow_empty_columns is False and not col_name:
+            continue
         column_a = columns_a.get(col_name)
         if is_complete_column(column_b):
             if column_a and not is_complete_column(column_a):

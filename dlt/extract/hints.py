@@ -41,6 +41,7 @@ from dlt.common.schema.utils import (
     new_column,
     new_table,
     merge_table,
+    remove_compound_props,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -498,10 +499,10 @@ class DltResourceHints:
                 else:
                     t.pop("primary_key", None)
             if merge_key is not None:
-                if merge_key:
-                    t["merge_key"] = merge_key
+                if not merge_key:
+                    t["merge_key"] = ""
                 else:
-                    t.pop("merge_key", None)
+                    t["merge_key"] = merge_key
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
@@ -634,18 +635,15 @@ class DltResourceHints:
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
         if isinstance(keys, str):
             keys = [keys]
+        auth_columns: TTableSchemaColumns = {}
         for key in keys:
-            if key in partial["columns"]:
-                # set nullable to False if not set
-                nullable = partial["columns"][key].get("nullable", False)
-                merge_column(partial["columns"][key], {hint: True, "nullable": nullable})  # type: ignore
-            else:
-                partial["columns"][key] = new_column(key, nullable=False)
-                partial["columns"][key][hint] = True
+            auth_columns[key] = new_column(key, nullable=False)
+            auth_columns[key][hint] = True
+        merge_columns(partial["columns"], auth_columns, allow_empty_columns=True)
 
     @staticmethod
     def _merge_keys(dict_: TResourceHints) -> None:
-        """Merges primary and merge keys into columns in place."""
+        """Applies primary_key and merge_key hints to columns. Table-level hints override column-level settings."""
 
         if "primary_key" in dict_:
             DltResourceHints._merge_key("primary_key", dict_.pop("primary_key"), dict_)  # type: ignore
