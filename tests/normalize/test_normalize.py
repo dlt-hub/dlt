@@ -488,9 +488,7 @@ def test_normalize_retry(raw_normalize: Normalize, pool_workers: int) -> None:
     os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "10"
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "10"
     if pool_workers > 1:
-        executor = create_pool(
-            PoolRunnerConfiguration(pool_type="process", workers=2, start_method="fork")
-        )
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
     else:
         executor = NullExecutor()
     load_id = extract_cases(
@@ -507,9 +505,7 @@ def test_normalize_retry(raw_normalize: Normalize, pool_workers: int) -> None:
         assert raw_normalize.current_load_id == load_id
         # raw_normalize.get_step_info()
 
-    executor = create_pool(
-        PoolRunnerConfiguration(pool_type="process", workers=2, start_method="fork")
-    )
+    executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
 
     # drop the contract requirements
     schema.set_schema_contract("evolve")
@@ -531,9 +527,7 @@ def test_normalize_retry(raw_normalize: Normalize, pool_workers: int) -> None:
 @pytest.mark.parametrize("pool_workers", (1, 2))
 def test_collect_empty_metrics_on_exception(raw_normalize: Normalize, pool_workers: int) -> None:
     if pool_workers > 1:
-        executor = create_pool(
-            PoolRunnerConfiguration(pool_type="process", workers=2, start_method="fork")
-        )
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
     else:
         executor = NullExecutor()
     load_id = extract_cases(raw_normalize, ["github.issues.load_page_5_duck"])
@@ -573,9 +567,7 @@ def test_collect_metrics_on_exception(raw_normalize: Normalize, pool_workers: in
         schema = Schema.from_dict(json.load(f))
 
     if pool_workers > 1:
-        executor = create_pool(
-            PoolRunnerConfiguration(pool_type="process", workers=2, start_method="fork")
-        )
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
     else:
         executor = NullExecutor()
     load_id = extract_cases(
@@ -628,9 +620,7 @@ def test_schema_update_conflict(
     os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "3"
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "3"
     if pool_workers > 1:
-        executor = create_pool(
-            PoolRunnerConfiguration(pool_type="process", workers=2, start_method="fork")
-        )
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
     else:
         executor = NullExecutor()
     load_id = extract_cases(

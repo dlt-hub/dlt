@@ -1,7 +1,10 @@
 """
 Actual parallelism test with the help of custom destination
 """
+import gzip
 import os
+
+import pytest
 import dlt
 import time
 from typing import Dict, Tuple
@@ -9,6 +12,9 @@ from typing import Dict, Tuple
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.destination.capabilities import TLoaderParallelismStrategy
+from tests.pipeline.utils import (
+    assert_table_column,
+)
 
 
 def run_pipeline(
@@ -113,3 +119,43 @@ def test_loading_strategy() -> None:
         "t2": 1,
         "t3": 1,
     }
+
+
+def test_normalize_compression_with_spawn_workers() -> None:
+    """Disabling compression should work with multiple workers and spawn method,
+    because ConfigSectionContext is restored in worker processes.
+    """
+    # Set compression disabled via normalize section
+    workers = 4
+    os.environ["NORMALIZE__DATA_WRITER__DISABLE_COMPRESSION"] = "true"
+    os.environ["NORMALIZE__WORKERS"] = str(workers)
+    os.environ["NORMALIZE__START_METHOD"] = "spawn"
+
+    data = ["a", "b", "c", "d", "e"]
+    dataset_name = "compression_spawn_test_"
+
+    p = dlt.pipeline("compression_spawn_test", dataset_name=dataset_name, destination="duckdb")
+    p.extract(dlt.resource(data, name="data"))
+
+    # Normalize with multiple workers and spawn method
+    p.normalize(workers=workers)
+
+    # Check that normalized files are not compressed
+    normalized_packages = p.list_normalized_load_packages()
+    assert len(normalized_packages) > 0, "Should have at least one normalized package"
+
+    job_storage = p._get_load_storage()
+    for load_id in normalized_packages:
+        # Get all job files from the normalized package
+        job_files = job_storage.normalized_packages.list_new_jobs(load_id)
+        assert len(job_files) > 0, f"Should have at least one job file in package {load_id}"
+
+        for job_file_name in job_files:
+            file_path = job_storage.normalized_packages.storage.make_full_path(job_file_name)
+            # If compression is disabled, file should NOT be gzipped
+            with pytest.raises(gzip.BadGzipFile):
+                with gzip.open(file_path, "rb") as f:
+                    f.read()
+
+    info = p.load()
+    assert_table_column(p, "data", data, info=info)
