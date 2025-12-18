@@ -156,7 +156,7 @@ def bigquery_adapter(
                 "`cluster` must be a list of column names or a single column name as a string."
             )
         for column_name in cluster:
-            column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
+            column_hints.setdefault(column_name, {"name": column_name})[CLUSTER_HINT] = True  # type: ignore[typeddict-unknown-key]
         additional_table_hints[CLUSTER_COLUMNS_HINT] = cluster
 
     # Implementing rounding logic flags
