@@ -10,19 +10,8 @@ dlt supports writing [Iceberg](https://iceberg.apache.org/) tables when using th
 ## How it works
 dlt uses the [PyIceberg](https://py.iceberg.apache.org/) library to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `pyiceberg`.
 
-## Iceberg single-user ephemeral catalog
-dlt uses single-table, ephemeral, in-memory, SQLite-based [Iceberg catalogs](https://iceberg.apache.org/terms/#catalog). These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
-
-:::warning
-While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
-- concurrent writes are not handled and may lead to corrupt table state
-- we cannot guarantee that reads concurrent with writes are clean
-- the latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores
-:::
-
-:::tip dltHub Features
-If you're interested in a multi-user cloud experience and integration with vendor catalogs, such as Polaris or Unity Catalog, check out [dltHub Iceberg destination](https://info.dlthub.com/waiting-list).
-:::
+## Iceberg catalogs support
+dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the same catalogs that `pyiceberg` would support, including `REST` and `SQL` catalogs. This includes using single-table, ephemeral, in-memory, SQLite-based catalogs. For more information on how `pyiceberg` works with catalogs, reference [their documentation](https://py.iceberg.apache.org/). To enable this, dlt either translates the configuration in the `secrets.toml` and `config.toml` into a valid `pyiceberg` config, or it delegates `pyiceberg` the task of resolving the needed configuration. 
 
 ## Iceberg dependencies
 
