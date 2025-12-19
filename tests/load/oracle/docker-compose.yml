@@ -6,7 +6,7 @@ services:
     environment:
       ORACLE_PWD: loader
     volumes:
-      - tests/load/oracle/startup_scripts:/opt/oracle/scripts/startup
+      - ./startup_scripts:/opt/oracle/scripts/startup
     healthcheck:
       test: ["CMD-SHELL", "sqlplus C##LOADER/loader@FREE"]
       interval: 10s
