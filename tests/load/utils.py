@@ -341,7 +341,13 @@ def destinations_configs(
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
-            DestinationTestConfiguration(destination_type="ducklake", supports_dbt=False),
+            DestinationTestConfiguration(
+                destination_type="ducklake",
+                supports_dbt=False, 
+                    credentials={
+                        "ducklake_name": "ducklake_" + uniq_id()
+                    },
+            ),
             DestinationTestConfiguration(
                 destination_type="motherduck", file_format="insert_values"
             ),
