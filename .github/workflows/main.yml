@@ -64,7 +64,7 @@ jobs:
 
   test_sources_local:
     name: run local source tests without secrets
-    needs: test_common
+    # needs: test_common todo rollback
     uses: ./.github/workflows/test_sources_local.yml
 
   test_hub:
