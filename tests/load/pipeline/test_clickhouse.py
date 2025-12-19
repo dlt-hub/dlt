@@ -10,8 +10,15 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse.typing import TSQLExprOrColumnSeq
+from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.clickhouse.utils import get_partition_key, get_sorting_key
+from tests.load.clickhouse.utils import (
+    CLICKHOUSE_ADAPTER_CASES,
+    clickhouse_adapter_resource,
+    get_partition_key,
+    get_sorting_key,
+)
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.utils import TEST_STORAGE_ROOT
 from tests.pipeline.utils import assert_load_info, load_table_counts
@@ -188,30 +195,21 @@ def test_clickhouse_no_dataset_name(destination_config: DestinationTestConfigura
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
-    "sort",
-    ("town", "(town, street)", "(town, number % 4)"),
-    ids=("simple", "composite", "composite-expr-with-pct"),
+    "sort, _expected_order_by_clause, expected_sorting_key", CLICKHOUSE_ADAPTER_CASES
 )
 def test_clickhouse_adapter_sort_pipe(
-    destination_config: DestinationTestConfiguration, sort: str
+    destination_config: DestinationTestConfiguration,
+    clickhouse_adapter_resource: DltResource,
+    sort: TSQLExprOrColumnSeq,
+    _expected_order_by_clause,
+    expected_sorting_key: str,
 ) -> None:
-    @dlt.resource(
-        columns={
-            "town": {"nullable": False},
-            "street": {"nullable": False},
-            "number": {"nullable": False},
-        }
-    )
-    def res():
-        yield [{"town": "Dubai", "street": "Sheikh Zayed Road", "number": 1}]
-
-    sorted_res = clickhouse_adapter(res, sort=sort)
+    sorted_res = clickhouse_adapter(clickhouse_adapter_resource, sort=sort)
     pipe = destination_config.setup_pipeline("test_clickhouse_adapter_sort", dev_mode=True)
     pipe.run(sorted_res, **destination_config.run_kwargs, refresh="drop_sources")
     sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
     sorting_key = get_sorting_key(sql_client, table_name=sorted_res.name)
-    sort_is_tuple = sort.startswith("(") and sort.endswith(")")
-    assert sorting_key == sort[1:-1] if sort_is_tuple else sort
+    assert sorting_key == expected_sorting_key
 
 
 # NOTE: if you update `test_clickhouse_adapter_partition_pipe`, check if the equivalent
@@ -222,23 +220,22 @@ def test_clickhouse_adapter_sort_pipe(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
-    "partition",
-    ("toYYYYMM(timestamp)", "(toMonday(timestamp), user_id)", "sipHash64(user_id) % 16"),
-    ids=("simple-expr", "composite-expr", "simple-expr-with-pct"),
+    "partition, _expected_partition_by_clause, expected_partition_key",
+    CLICKHOUSE_ADAPTER_CASES,
 )
 def test_clickhouse_adapter_partition_pipe(
-    destination_config: DestinationTestConfiguration, partition: str
+    destination_config: DestinationTestConfiguration,
+    clickhouse_adapter_resource: DltResource,
+    partition: TSQLExprOrColumnSeq,
+    _expected_partition_by_clause,
+    expected_partition_key: str,
 ) -> None:
-    @dlt.resource(columns={"timestamp": {"nullable": False}, "user_id": {"nullable": False}})
-    def res():
-        yield [{"timestamp": "2025-12-15T13:32:45Z", "user_id": 1}]
-
-    partitioned_res = clickhouse_adapter(res, partition=partition)
+    partitioned_res = clickhouse_adapter(clickhouse_adapter_resource, partition=partition)
     pipe = destination_config.setup_pipeline("test_clickhouse_adapter_partition", dev_mode=True)
     pipe.run(partitioned_res, **destination_config.run_kwargs, refresh="drop_sources")
     sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
     partition_key = get_partition_key(sql_client, table_name=partitioned_res.name)
-    assert partition_key == partition
+    assert partition_key == expected_partition_key
 
 
 @pytest.mark.parametrize(

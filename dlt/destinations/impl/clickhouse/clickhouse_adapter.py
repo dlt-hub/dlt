@@ -1,11 +1,13 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from dlt.destinations.impl.clickhouse.configuration import TTableEngineType
+from dlt.common.typing import NoneType
 from dlt.destinations.impl.clickhouse.typing import (
     PARTITION_HINT,
     SORT_HINT,
     TABLE_ENGINE_TYPES,
     TABLE_ENGINE_TYPE_HINT,
+    TSQLExprOrColumnSeq,
+    TTableEngineType,
 )
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.common.exceptions import ValueErrorWithKnownValues
@@ -28,7 +30,10 @@ See https://clickhouse.com/docs/en/engines/table-engines.
 
 
 def clickhouse_adapter(
-    data: Any, table_engine_type: TTableEngineType = None, sort: str = None, partition: str = None
+    data: Any,
+    table_engine_type: Optional[TTableEngineType] = None,
+    sort: Optional[TSQLExprOrColumnSeq] = None,
+    partition: Optional[TSQLExprOrColumnSeq] = None,
 ) -> DltResource:
     """Prepares data for the ClickHouse destination by specifying which table engine type
     that should be used.
@@ -56,9 +61,20 @@ def clickhouse_adapter(
         >>> clickhouse_adapter(data, table_engine_type="merge_tree")
         [DltResource with hints applied]
     """
+
+    def raise_if_not_none_str_seq(val: Any, name: str) -> None:
+        accepted_types = (NoneType, str, list, tuple)
+        if not isinstance(val, accepted_types):
+            raise TypeError(
+                f"`{name}` must be a string or a list or tuple of strings, got"
+                f" '{type(val).__name__}'"
+            )
+
     resource = get_resource_for_adapter(data)
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
+
+    # table engine type
     if table_engine_type is not None:
         if table_engine_type not in TABLE_ENGINE_TYPES:
             raise ValueErrorWithKnownValues(
@@ -67,14 +83,14 @@ def clickhouse_adapter(
 
         additional_table_hints[TABLE_ENGINE_TYPE_HINT] = table_engine_type
 
+    # sort
+    raise_if_not_none_str_seq(sort, "sort")
     if sort:
-        if not isinstance(sort, str):
-            raise TypeError(f"`sort` must be a string, got '{type(sort).__name__}'")
         additional_table_hints[SORT_HINT] = sort
 
+    # partition
+    raise_if_not_none_str_seq(partition, "partition")
     if partition:
-        if not isinstance(partition, str):
-            raise TypeError(f"`partition` must be a string, got '{type(partition).__name__}'")
         additional_table_hints[PARTITION_HINT] = partition
 
     resource.apply_hints(additional_table_hints=additional_table_hints)

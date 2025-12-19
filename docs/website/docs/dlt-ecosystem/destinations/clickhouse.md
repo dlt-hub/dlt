@@ -203,67 +203,84 @@ def my_resource():
 
 clickhouse_adapter(
    my_resource,
-   sort="<sorting key SQL expression>",
-   partition="<partition key SQLexpression>"
+   sort = sorting_key,
+   partition = partition_key
 )
 ```
 
-### Sorting key
-Example:
+`sort` and `partition` are used to generate the `ORDER BY` and `PARTITION BY` clauses of the table creation statement, and they accept either a **sequence of column names** or a **SQL expression**:
+1. **sequence of column names:** recommended if column transformations are not required
+2. **SQL expression:** use if column transformations are required
+
+The two examples below show both approaches to adapt `my_resource`:
 
 ```py
-@dlt.resource(columns={"town": {"nullable": False}, "street": {"nullable": False}})
+@dlt.resource(
+   columns={
+      "timestamp": {"nullable": False},
+      "town": {"nullable": False},
+      "street": {"nullable": False}
+   }
+)
 def my_resource():
     ...
-
-clickhouse_adapter(my_resource, sort="(town, street)")
 ```
 
-The `sort` value will  be added to the `ORDER BY` clause of the table creation SQL statement: 
+### Example 1: sequence of column names
+
+```py
+clickhouse_adapter(
+   my_resource,
+   sort=["timestamp", "street"],
+   partition=["town"]
+)
+```
+
+Corresponding SQL:
 
 ```sql
 CREATE TABLE ...
 ...
-ORDER BY (town, street)
+ORDER BY (timestamp, street)
+PARTITION by town
 ```
 
-### Partition key
-Example:
+### Example 2: SQL expression
 
 ```py
-@dlt.resource(columns={"timestamp": {"nullable": False}})
-def my_resource():
-    ...
-
-clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")
+clickhouse_adapter(
+   my_resource,
+   sort="(upper(town), street)",
+   partition="toYYYYMMDD(timestamp)"
+)
 ```
 
-The `partition` value will  be added to the `PARTITION BY` clause of the table creation SQL statement: 
+Corresponding SQL:
 
 ```sql
 CREATE TABLE ...
 ...
+ORDER BY (upper(town), street)
 PARTITION BY toYYYYMMDD(timestamp)
 ```
 
 ### Usage notes
 
-Use normalized column names in the sorting/partition key SQL expression:
+SQL expressions are used **as is** to generate the SQL clauses. Hence, when providing a SQL expression, use normalized column names:
 
 ```py
 @dlt.resource(columns={"TIMESTAMP": {"nullable": False}})  # non-normalized column name (upper case)
 def my_resource():
     ...
 
-clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")  # normalized column name (lower case)
+clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")  # RIGHT: normalized column name (lower case)
+
+clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non-normalized column name (lower case)
 ```
-
-We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `true` in your [table settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) if you insist on nullable key columns.
-
 
 :::note
 - The sorting/partitioning key can only be set when the table is first created. The value for `sort`/`partition` is ignored for existing tables.
-- Any value for `sort`/`partition` that leads to a valid `ORDER BY`/`PARTITION BY` clause is supported. This means, for example, that you can also specify a tuple of expressions to create a composite sorting/partition key.
+- We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `true` in your [table settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) if you insist on nullable key columns.
 :::
 
 ## Staging support

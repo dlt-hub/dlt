@@ -1,13 +1,25 @@
 import pytest
 
-from typing import Generator, Dict, cast
+from typing import Generator, Dict, Literal, cast
 
 import dlt
+from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import PARTITION_HINT, SORT_HINT, TDeployment
-from tests.load.clickhouse.utils import clickhouse_client, get_deployment_type
+from dlt.destinations.impl.clickhouse.typing import (
+    PARTITION_HINT,
+    SORT_HINT,
+    TDeployment,
+    TSQLExprOrColumnSeq,
+)
+from dlt.extract.resource import DltResource
+from tests.load.clickhouse.utils import (
+    CLICKHOUSE_ADAPTER_CASES,
+    clickhouse_adapter_resource,
+    clickhouse_client,
+    get_deployment_type,
+)
 from tests.pipeline.utils import assert_load_info
 
 
@@ -121,55 +133,80 @@ def test_clickhouse_adapter() -> None:
 
 # NOTE: if you update `test_clickhouse_adapter_sort`, check if the equivalent
 # `test_clickhouse_adapter_partition` should also be updated
-def test_clickhouse_adapter_sort(clickhouse_client: ClickHouseClient) -> None:
-    table_name = "sorted"
-
-    @dlt.resource(table_name=table_name)
-    def data():
-        yield [{"town": "Dubai", "street": "Sheikh Zayed Road", "number": 1}]
-
+@pytest.mark.parametrize(
+    "sort, expected_order_by_clause, _expected_sorting_key", CLICKHOUSE_ADAPTER_CASES
+)
+def test_clickhouse_adapter_sort(
+    clickhouse_client: ClickHouseClient,
+    clickhouse_adapter_resource: DltResource,
+    sort: TSQLExprOrColumnSeq,
+    expected_order_by_clause: str,
+    _expected_sorting_key: str,
+) -> None:
     # sort hint gets set correctly
-    sort = "(town, street)"
-    res = clickhouse_adapter(data, sort=sort)
+    res = clickhouse_adapter(clickhouse_adapter_resource, sort=sort)
     table_schema = res.compute_table_schema()
     assert table_schema[SORT_HINT] == sort  # type: ignore[typeddict-item]
 
     # sort clause gets set correctly
     clickhouse_client.schema.update_table(table_schema)
     new_columns = list(table_schema["columns"].values())
-    stmts = clickhouse_client._get_table_update_sql(table_name, new_columns, False)
+    stmts = clickhouse_client._get_table_update_sql("data", new_columns, False)
     assert len(stmts) == 1
     sql = stmts[0]
-    assert f"ORDER BY {sort}" in sql
-
-    # raises if `sort` is not a string
-    with pytest.raises(TypeError):
-        clickhouse_adapter(data, sort=True)  # type: ignore[arg-type]
+    assert f"ORDER BY {expected_order_by_clause}" in sql
 
 
 # NOTE: if you update `test_clickhouse_adapter_partition`, check if the equivalent
 # `test_clickhouse_adapter_sort` should also be updated
-def test_clickhouse_adapter_partition(clickhouse_client: ClickHouseClient) -> None:
-    table_name = "partitioned"
-
-    @dlt.resource(table_name=table_name)
-    def data():
-        yield [{"timestamp": "2025-12-15T13:32:45Z", "user_id": 1}]
-
+@pytest.mark.parametrize(
+    "partition, expected_partition_by_clause, _expected_partition_key",
+    CLICKHOUSE_ADAPTER_CASES,
+)
+def test_clickhouse_adapter_partition(
+    clickhouse_client: ClickHouseClient,
+    clickhouse_adapter_resource: DltResource,
+    partition: TSQLExprOrColumnSeq,
+    expected_partition_by_clause: str,
+    _expected_partition_key: str,
+) -> None:
     # partition hint gets set correctly
-    partition = "toYYYYMMDD(timestamp)"
-    res = clickhouse_adapter(data, partition=partition)
+    res = clickhouse_adapter(clickhouse_adapter_resource, partition=partition)
     table_schema = res.compute_table_schema()
     assert table_schema[PARTITION_HINT] == partition  # type: ignore[typeddict-item]
 
     # partition clause gets set correctly
     clickhouse_client.schema.update_table(table_schema)
     new_columns = list(table_schema["columns"].values())
-    stmts = clickhouse_client._get_table_update_sql(table_name, new_columns, False)
+    stmts = clickhouse_client._get_table_update_sql("data", new_columns, False)
     assert len(stmts) == 1
     sql = stmts[0]
-    assert f"PARTITION BY {partition}" in sql
+    assert f"PARTITION BY {expected_partition_by_clause}" in sql
 
-    # raises if `partition` is not a string
+
+def test_clickhouse_adapter_type_check() -> None:
     with pytest.raises(TypeError):
-        clickhouse_adapter(data, partition=True)  # type: ignore[arg-type]
+        clickhouse_adapter([{"foo": "bar"}], sort=False)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        clickhouse_adapter([{"foo": "bar"}], partition=True)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "param",
+    ("sort", "partition"),  # adapter params for which column names should be checked
+)
+def test_clickhouse_adapter_column_check(
+    clickhouse_client: ClickHouseClient, param: Literal["sort", "partition"]
+) -> None:
+    @dlt.resource(columns={"existing_col": {"data_type": "text"}})
+    def data():
+        yield [{"existing_col": "foo"}]
+
+    kwargs = {str(param): ["non_existing_col1", "non_existing_col2"]}
+    res = clickhouse_adapter(data, **kwargs)  # type: ignore[arg-type]
+    table_schema = res.compute_table_schema()
+    clickhouse_client.schema.update_table(table_schema)
+    new_columns = list(table_schema["columns"].values())
+    with pytest.raises(SchemaCorruptedException):
+        clickhouse_client._get_table_update_sql("data", new_columns, False)

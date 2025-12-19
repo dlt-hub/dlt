@@ -1,4 +1,4 @@
-from typing import Literal, Dict, Set
+from typing import Literal, Dict, Set, Union
 
 from dlt.common.schema import TColumnHint
 from dlt.common.typing import get_args
@@ -10,6 +10,7 @@ TTableEngineType = Literal[
     "shared_merge_tree",
     "replicated_merge_tree",
 ]
+TSQLExprOrColumnSeq = Union[str, list[str], tuple[str]]
 
 HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
     "primary_key": "PRIMARY KEY",

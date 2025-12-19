@@ -1,7 +1,7 @@
 import os
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Optional, List, Sequence, cast
+from typing import Any, Literal, Optional, List, Sequence, Union, cast
 from urllib.parse import urlparse
 
 import clickhouse_connect
@@ -22,6 +22,7 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
+from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import (
     TTableFormat,
     TColumnType,
@@ -40,6 +41,7 @@ from dlt.destinations.impl.clickhouse.typing import (
     PARTITION_HINT,
     SORT_HINT,
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
+    TSQLExprOrColumnSeq,
 )
 from dlt.destinations.impl.clickhouse.typing import (
     TTableEngineType,
@@ -272,6 +274,32 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             ),
         )
 
+    def _get_key(
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        hint_name: Literal["sort", "partition"],
+        hint_val: TSQLExprOrColumnSeq,
+    ) -> str:
+        """Returns sort or partition key based on hint."""
+
+        if isinstance(hint_val, str):
+            # it's a SQL expression; return as is
+            return hint_val
+        elif isinstance(hint_val, Sequence):
+            # it's a sequence of column names; check existence and generate expression
+            normalizer = self.schema.naming.normalize_identifier
+            norm_hint_columns = [normalizer(col) for col in hint_val]
+            norm_new_columns = [normalizer(c["name"]) for c in new_columns]
+            non_existing_columns = set(norm_hint_columns) - set(norm_new_columns)
+            if non_existing_columns:
+                raise SchemaCorruptedException(
+                    self.schema.name,
+                    f"Found non-existing columns in {hint_name} hint for table `{table_name}`:"
+                    f" {str(non_existing_columns)[1:-1]}",
+                )
+            return "(" + ", ".join(norm_hint_columns) + ")"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -293,6 +321,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         )
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
+        # PRIMARY KEY
         if primary_key_list := [
             self.sql_client.escape_column_name(c["name"])
             for c in new_columns
@@ -302,10 +331,16 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         else:
             sql[0] += "\nPRIMARY KEY tuple()"
 
-        if sorting_key := table.get(SORT_HINT):
-            sql[0] += f"\nORDER BY {sorting_key}"
+        # ORDER BY
+        if sort_hint := table.get(SORT_HINT):
+            sort_hint = cast(TSQLExprOrColumnSeq, sort_hint)
+            sort_key = self._get_key(table_name, new_columns, "sort", sort_hint)
+            sql[0] += f"\nORDER BY {sort_key}"
 
-        if partition_key := table.get(PARTITION_HINT):
+        # PARTITION BY
+        if partition_hint := table.get(PARTITION_HINT):
+            partition_hint = cast(TSQLExprOrColumnSeq, partition_hint)
+            partition_key = self._get_key(table_name, new_columns, "partition", partition_hint)
             sql[0] += f"\nPARTITION BY {partition_key}"
 
         return sql

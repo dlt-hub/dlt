@@ -2,6 +2,7 @@ import pytest
 
 from typing import Literal
 
+import dlt
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.destinations import clickhouse
@@ -12,6 +13,35 @@ from dlt.destinations.impl.clickhouse.configuration import (
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import TDeployment
+from dlt.extract import DltResource
+
+
+# this constant relates to `clickhouse_adapter_resource`
+CLICKHOUSE_ADAPTER_CASES = (
+    # `sort`/`partition` input, expected ORDER BY / PARTITION clause, expected sorting/partition key
+    # expressions (we do not mix in uppercase names because expressions are not normalized)
+    pytest.param("town", "town", "town", id="expr-simple"),
+    pytest.param("(town, number % 4)", "(town, number % 4)", "town, number % 4", id="expr-complex"),
+    # sequences of column names (we mix in uppercase names to verify normalization)
+    pytest.param(["TOWN"], "(town)", "town", id="seq-single"),
+    pytest.param(("street", "TOWN"), "(street, town)", "street, town", id="seq-multi"),
+)
+
+
+# this fixture relates to `CLICKHOUSE_ADAPTER_CASES`
+@pytest.fixture
+def clickhouse_adapter_resource() -> DltResource:
+    @dlt.resource(
+        columns={
+            "TOWN": {"nullable": False, "data_type": "text"},
+            "street": {"nullable": False, "data_type": "text"},
+            "number": {"nullable": False, "data_type": "bigint"},
+        }
+    )
+    def data():
+        yield [{"TOWN": "Dubai", "street": "Sheikh Zayed Road", "number": 1}]
+
+    return data()
 
 
 @pytest.fixture
@@ -35,7 +65,7 @@ def get_sorting_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
     """Returns sorting key of given table.
 
     - returns empty string if no sorting key is set
-    - returns composite key as tuple without parentheses
+    - returns composite key as tuple WITHOUT parentheses
     """
     return _get_key(sql_client, table_name, "sorting")
 
@@ -44,7 +74,7 @@ def get_partition_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
     """Returns partition key of given table.
 
     - returns empty string if no partition key is set
-    - returns composite key as tuple with parentheses
+    - returns composite key as tuple WITH parentheses
     """
     return _get_key(sql_client, table_name, "partition")
 
@@ -54,11 +84,19 @@ def _get_key(
 ) -> str:
     """Returns sorting or partition key of given table.
 
-    Returns empty string if no such key is set.
+    - returns empty string if no such key is set
+    - returns composite key as tuple WITHOUT parentheses
     """
     qry = f"SELECT {key_type}_key FROM system.tables WHERE database = %s AND name = %s;"
     table_name = sql_client.make_qualified_table_name(table_name, quote=False)
     database, name = table_name.split(".")
     with sql_client:
         result = sql_client.execute_sql(qry, database, name)
-    return result[0][0]
+
+    key = result[0][0]
+
+    # partition key has parentheses if it's composite; remove them for uniformity
+    if key.startswith("(") and key.endswith(")"):
+        return key[1:-1]
+
+    return key
