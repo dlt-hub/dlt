@@ -10,11 +10,13 @@ The data quality lifecycle has rarely been achievable
 in a single tool due to the runtime constraints of 
 traditional ETL vendors. 
 
-## One library, end-to-end
+## One library, end-to-end ingestion, transformation, with data quality and lineage
+
+dlt is an open source pythonic ingestion library while dlthub is a commercial addition to dlt spanning into tranformation and other areas of the data stack.
 
 Because `dlt` together with `dltHub` span the entire pipeline, starting from ingestion, passing through a portable staging layer, and extending into the transformation, it uniquely bridges these gaps.
 
-Instead of stitching together four or five separate tools, you write Python code that works across the entire pipeline. No glue scripts. No context lost between systems.
+Instead of stitching together four or five separate tools, you write Python code that works across the entire pipeline. No glue scripts. No context lost between systems, end to end lineage and metadata.
 
 
 ![Data Quality Lifecycle](https://storage.googleapis.com/dlt-blog-images/docs-DQ-lifecycle.png)
@@ -132,7 +134,6 @@ Use the [dlt Dashboard](../general-usage/dashboard.md) to interactively inspect 
 dlt pipeline {pipeline_name} show
 ```
 
----
 
 ## Get the full lifecycle with dltHub
 
@@ -149,13 +150,3 @@ Interested in the full data quality lifecycle? [Join dltHub early access](https:
 :::
 
 [Learn more about dltHub Data Quality →](https://dlthub.com/docs/hub/features/quality/data-quality)
-
----
-
-## Related documentation
-
-- [dlt Dashboard](../general-usage/dashboard.md) — Inspect pipelines, schemas, and data during development
-- [Schema Contracts](../general-usage/schema-contracts.md) — Schema contracts and Pydantic validation
-- [Running in Production](running.md) — Metrics, load info, and debugging
-- [Monitoring](monitoring.md) — Run and data monitoring
-- [Alerting](alerting.md) — Setting up alerts for pipeline issues
