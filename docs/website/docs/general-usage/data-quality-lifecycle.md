@@ -1,10 +1,10 @@
 ---
-title: Data Quality Lifecycle
+title: Data quality lifecycle
 description: End-to-end data quality checks across the dlt pipeline lifecycle
 keywords: [data quality, validation, contracts, pydantic, schema, monitoring, governance]
 ---
 
-# Data Quality Lifecycle
+# Data quality lifecycle
 
 The data quality lifecycle has rarely been achievable 
 in a single tool due to the runtime constraints of 
