@@ -67,6 +67,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@master
+        with:
+          clean: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
