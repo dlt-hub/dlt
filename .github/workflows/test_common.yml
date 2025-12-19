@@ -142,7 +142,7 @@ jobs:
           ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --group sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet
         if: matrix.python-version != '3.14'
 
       - name: Run pipeline tests with pyarrow but no pandas installed
@@ -151,7 +151,7 @@ jobs:
         if: matrix.python-version != '3.14'
 
       - name: Install workspace dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra workspace --extra cli --group sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --extra workspace --extra cli
         if: matrix.python-version != '3.14'
 
       - name: Run workspace tests

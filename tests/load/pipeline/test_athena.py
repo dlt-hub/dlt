@@ -4,10 +4,12 @@ from typing import Iterator, Any
 
 import dlt, os
 from dlt.common import pendulum
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination.exceptions import UnsupportedDataType
 from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import table_update_and_row, assert_all_data_types_row
+from tests.load.pipeline.utils import TableBucketTestClient, simple_nested_source
 from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
 from dlt.destinations.exceptions import CantExtractTablePrefix
@@ -89,9 +91,9 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
     )
     assert table_counts["items"] == 1
     assert table_counts["items__sub_items"] == 2
-    assert table_counts["_dlt_loads"] == 1
+    assert table_counts[pipeline.default_schema.loads_table_name] == 1
 
-    # load again with schema evloution
+    # load again with schema evolution
     @dlt.resource(name="items", write_disposition="append")
     def items2():
         yield {
@@ -118,7 +120,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
     )
     assert table_counts["items"] == 2
     assert table_counts["items__sub_items"] == 4
-    assert table_counts["_dlt_loads"] == 2
+    assert table_counts[pipeline.default_schema.loads_table_name] == 2
 
 
 @pytest.mark.parametrize(
@@ -148,7 +150,9 @@ def test_athena_all_datatypes_and_timestamps(
     assert_load_info(info)
 
     with pipeline.sql_client() as sql_client:
-        db_rows = sql_client.execute_sql("SELECT * FROM data_types")
+        table_name = sql_client.make_qualified_table_name("data_types")
+
+        db_rows = sql_client.execute_sql(f"SELECT * FROM {table_name}")
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # content must equal
@@ -164,49 +168,51 @@ def test_athena_all_datatypes_and_timestamps(
 
         # use string representation TIMESTAMP(2)
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col4 = TIMESTAMP '2022-05-23 13:26:45.176'"
+            f"SELECT * FROM {table_name} WHERE col4 = TIMESTAMP '2022-05-23 13:26:45.176'"
         )
         assert len(db_rows) == 10
         # no rows - TIMESTAMP(6) not supported
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col4 = TIMESTAMP '2022-05-23 13:26:45.176145'"
+            f"SELECT * FROM {table_name} WHERE col4 = TIMESTAMP '2022-05-23 13:26:45.176145'"
         )
         assert len(db_rows) == 0
         # use pendulum
         # that will pass
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col4 = %s",
+            f"SELECT * FROM {table_name} WHERE col4 = %s",
             pendulum.datetime(2022, 5, 23, 13, 26, 45, 176000),
         )
         assert len(db_rows) == 10
         # that will return empty list
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col4 = %s",
+            f"SELECT * FROM {table_name} WHERE col4 = %s",
             pendulum.datetime(2022, 5, 23, 13, 26, 45, 176145),
         )
         assert len(db_rows) == 0
 
         # use datetime
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col4 = %s",
+            f"SELECT * FROM {table_name} WHERE col4 = %s",
             datetime.datetime(2022, 5, 23, 13, 26, 45, 176000),
         )
         assert len(db_rows) == 10
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col4 = %s",
+            f"SELECT * FROM {table_name} WHERE col4 = %s",
             datetime.datetime(2022, 5, 23, 13, 26, 45, 176145),
         )
         assert len(db_rows) == 0
 
         # check date
-        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col10 = DATE '2023-02-27'")
-        assert len(db_rows) == 10
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col10 = %s", pendulum.date(2023, 2, 27)
+            f"SELECT * FROM {table_name} WHERE col10 = DATE '2023-02-27'"
         )
         assert len(db_rows) == 10
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col10 = %s", datetime.date(2023, 2, 27)
+            f"SELECT * FROM {table_name} WHERE col10 = %s", pendulum.date(2023, 2, 27)
+        )
+        assert len(db_rows) == 10
+        db_rows = sql_client.execute_sql(
+            f"SELECT * FROM {table_name} WHERE col10 = %s", datetime.date(2023, 2, 27)
         )
         assert len(db_rows) == 10
 
@@ -239,7 +245,12 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["athena"]),
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["athena"],
+        # exclude Athena with S3 Tables Catalog because its code paths do not use file layouts
+        is_athena_s3_tables=False,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
@@ -334,3 +345,29 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
     }
 
     assert partition_keys == expected_partitions
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["athena"],
+        is_athena_s3_tables=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_athena_s3_tables(destination_config: DestinationTestConfiguration) -> None:
+    """This test checks the S3 Tables bucket is actually used when setting an S3 Tables Catalog.
+
+    All other tests use Athena to query the data, but here we directly check the bucket.
+    """
+
+    pipe = destination_config.setup_pipeline("test_table_bucket", dev_mode=True)
+    pipe.run(simple_nested_source())
+
+    credentials = pipe.destination_client().config.credentials
+    assert isinstance(credentials, AwsCredentials)
+    table_bucket_test_client = TableBucketTestClient(credentials)
+    assert table_bucket_test_client.namespace_exists(pipe.dataset_name)
+    assert table_bucket_test_client.table_exists(pipe.dataset_name, "lists")
+    assert table_bucket_test_client.table_exists(pipe.dataset_name, "lists__value")

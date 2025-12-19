@@ -52,16 +52,23 @@ dev-airflow: has-uv
 dev-hub: has-uv
 	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-lint: lint-core lint-security lint-docstrings
+format:
+	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|_storage/.*'
+
+lint: lint-core lint-security lint-docstrings lint-lock
+
+lint-lock:
+	uv lock --check
+	uv run python tools/check_hub_extras.py
 
 lint-core:
-	uv run mypy --config-file mypy.ini dlt tests
+	uv run mypy --config-file mypy.ini dlt tests tools
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
 	uv pip install docstring_parser_fork --reinstall
 	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
-	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
+	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 
 format:
@@ -132,7 +139,7 @@ test-load-local-postgres:
 test-load-local-postgres-p:
 	$(MAKE) test-load-local-postgres PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
 
-build-library: dev
+build-library: dev lint-lock
 	uv version
 	uv build
 
