@@ -1,19 +1,23 @@
 import os
 from copy import deepcopy
 from typing import Any, Callable, cast, List, Optional, Set
+from importlib.metadata import version
 
 import pytest
 from pytest_mock import MockerFixture
+
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 import dlt
 from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.utils import uniq_id
+from dlt.common.utils import assert_min_pkg_version, uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
@@ -81,6 +85,68 @@ def convert_time_to_us(table):
         time_us_column,
     )
     return new_table
+
+
+@pytest.mark.parametrize(
+    "defer_table_reflect",
+    [False, True],
+    ids=lambda x: "defer_table_reflect" + ("_true" if x else "=false"),
+)
+def test_pyarrow_applies_hints_before_extract(
+    postgres_db: PostgresSourceDB,
+    defer_table_reflect: bool,
+) -> None:
+    """Test that user-provided hints (via apply_hints) are merged with reflection hints
+    for all backends (unless hints are dynamic)
+    """
+
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="has_precision",
+        backend="pyarrow",
+        reflection_level="full_with_precision",
+        defer_table_reflect=defer_table_reflect,
+    )
+
+    # Apply hints to override numeric_col to double (even though DB has decimal type)
+    table.apply_hints(
+        write_disposition="replace",
+        file_format="parquet",
+        columns={
+            "numeric_col": {
+                "data_type": "double",
+            },
+        },
+    )
+
+    pipeline = make_pipeline("duckdb")
+    # Use count_rows so empty Arrow Table (0 rows) for defered-reflect doesn't count toward limit
+    load_info = pipeline.run(table.add_limit(1, count_rows=True))
+
+    # verify
+    # 1: pipeline schema
+    numeric_col_schema_in_pipeline = pipeline.default_schema.get_table("has_precision")["columns"][
+        "numeric_col"
+    ]
+    assert numeric_col_schema_in_pipeline["data_type"] == "double"
+
+    # 2: loader file format (file ends with .parquet)
+    load_package = pipeline.get_load_package_info(load_info.loads_ids[0])
+    completed_jobs = load_package.jobs["completed_jobs"]
+    has_precision_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "has_precision" and job.file_path.endswith(".parquet")
+    ]
+    assert len(has_precision_jobs) == 1
+
+    # 3: column schema in parquet file should also be double (float64)
+    parquet_path = has_precision_jobs[0].file_path
+    parquet_schema = pq.read_schema(parquet_path)
+    numeric_col_schema_in_parquet = parquet_schema.field("numeric_col").type
+
+    assert pa.types.is_float64(numeric_col_schema_in_parquet)
 
 
 def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: MockerFixture) -> None:
@@ -1443,6 +1509,7 @@ def assert_precision_columns(
     elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
         del actual[0]["precision"]
+        expected = add_default_decimal_precision(expected, is_connectorx=True)
     assert actual == expected
 
 
@@ -1525,14 +1592,23 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
                 column["precision"] = 16  # only int and bigint in connectorx
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
+        if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
+            try:
+                assert_min_pkg_version(pkg_name="connectorx", version="0.4.4")
+                add_default_decimal_precision([column], is_connectorx=True)
+            except DependencyVersionException:
+                pass
     return columns
 
 
-def add_default_decimal_precision(columns: List[TColumnSchema]) -> List[TColumnSchema]:
+def add_default_decimal_precision(
+    columns: List[TColumnSchema], is_connectorx: bool = False
+) -> List[TColumnSchema]:
+    scale = 9 if not is_connectorx else 10
     for column in columns:
         if column["data_type"] == "decimal" and not column.get("precision"):
             column["precision"] = 38
-            column["scale"] = 9
+            column["scale"] = scale
     return columns
 
 

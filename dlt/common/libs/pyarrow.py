@@ -40,7 +40,8 @@ except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
         [f"{version.DLT_PKG_NAME}[parquet]"],
-        "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
+        "Install pyarrow to be allowed to load arrow tables, panda frames and to use parquet"
+        " files.",
     )
 
 import ctypes
@@ -1389,6 +1390,49 @@ def set_plus0000_timezone_to_utc(tbl: pyarrow.Table) -> pyarrow.Table:
             changed = True
             new_type = pyarrow.timestamp(fld.type.unit, "UTC")
             arrays.append(pyarrow.compute.cast(col, new_type))
+            fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
+        else:
+            arrays.append(col)
+            fields.append(fld)
+
+    if not changed:
+        return tbl
+
+    new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
+    return pyarrow.Table.from_arrays(arrays, schema=new_schema)
+
+
+def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = None) -> pyarrow.Table:
+    """
+    Cast any date64 columns to timestamp with microsecond precision, preserving the
+    semantic time values. Uses pyarrow.compute.cast on the column (works for chunked arrays)
+    and promotes precision from milliseconds (date64) to microseconds (timestamp[us]).
+
+    Args:
+        tbl: Input Arrow table.
+        tz: Optional timezone to annotate the resulting timestamp with (e.g. "UTC").
+            If None (default), produces a naive timestamp.
+
+    Returns:
+        A new table with date64 columns cast to timestamp[us] (optionally tz-aware),
+        or the original table if no date64 columns were found.
+    """
+    arrays, fields = [], []
+    changed = False
+
+    for col, fld in zip(tbl.columns, tbl.schema):
+        if pyarrow.types.is_date64(fld.type):
+            changed = True
+            # promote to microseconds to avoid precision loss in downstream systems
+            unit = "us"
+            new_type = pyarrow.timestamp(unit, tz)
+            # reinterpret underlying 64-bit values without rescaling units
+            if isinstance(col, pyarrow.ChunkedArray):
+                new_chunks = [c.view(new_type) for c in col.chunks]
+                new_col = pyarrow.chunked_array(new_chunks)
+            else:
+                new_col = col.view(new_type)
+            arrays.append(new_col)
             fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
         else:
             arrays.append(col)

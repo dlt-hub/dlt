@@ -432,11 +432,11 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         # metrics must be present
         metrics = self._load_id_metrics[load_id][-1]
         # update finished at
-        assert metrics["finished_at"] is None
+        assert self._current_load_id is not None
         if finished:
             metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
-        self._current_load_id = None
-        self._current_load_started = None
+            self._current_load_id = None
+            self._current_load_started = None
 
     def _step_info_metrics(self, load_id: str) -> List[TStepMetrics]:
         return self._load_id_metrics[load_id]
@@ -529,6 +529,10 @@ class SupportsPipeline(Protocol):
     """Stores last "good" run context, where run ends with successful loading of the data"""
     collector: Collector
     """A collector that tracks the progress of the pipeline"""
+
+    @property
+    def has_pending_data(self) -> bool:
+        """ "Tells if pipeline contains any pending packages"""
 
     @property
     def state(self) -> TPipelineState:

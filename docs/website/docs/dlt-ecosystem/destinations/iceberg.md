@@ -60,17 +60,12 @@ pipeline.run(my_resource, table_format="iceberg")
 dlt always uses Parquet as `loader_file_format` when using the `iceberg` table format. Any setting of `loader_file_format` is disregarded.
 :::
 
-## Table format partitioning
-Iceberg tables can be partitioned by specifying one or more `partition` column hints. This example partitions an Iceberg table by the `foo` column:
+## Partitioning
 
-```py
-@dlt.resource(
-  table_format="iceberg",
-  columns={"foo": {"partition": True}}
-)
-def my_iceberg_resource():
-    ...
-```
+Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance. There are two ways to configure partitioning:
+
+1. Using the [`iceberg_adapter`](#using-the-iceberg_adapter) function - for advanced partitioning with transformations (year, month, day, hour, bucket, truncate)
+2. Using column-level [`partition`](#using-column-level-partition-property) property - for simple identity partitioning
 
 :::note
 Iceberg uses [hidden partioning](https://iceberg.apache.org/docs/latest/partitioning/).
@@ -79,6 +74,126 @@ Iceberg uses [hidden partioning](https://iceberg.apache.org/docs/latest/partitio
 :::warning
 Partition evolution (changing partition columns after a table has been created) is not supported.
 :::
+
+### Using the `iceberg_adapter`
+
+The `iceberg_adapter` function allows you to configure partitioning with various transformation functions.
+
+#### Basic example
+
+```py
+from datetime import date
+
+import dlt
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
+data_items = [
+    {"id": 1, "category": "A", "created_at": date(2025, 1, 1)},
+    {"id": 2, "category": "A", "created_at": date(2025, 1, 15)},
+    {"id": 3, "category": "B", "created_at": date(2025, 2, 1)},
+]
+
+@dlt.resource(table_format="iceberg")
+def events():
+    yield data_items
+
+# Partition by category and month of created_at
+iceberg_adapter(
+    events,
+    partition=[
+        "category",  # identity partition (shorthand)
+        iceberg_partition.month("created_at"),
+    ],
+)
+
+pipeline = dlt.pipeline("iceberg_example", destination="filesystem")
+pipeline.run(events)
+```
+
+To use advanced partitioning, import both the adapter and the `iceberg_partition` helper:
+
+```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+```
+
+#### Partition transformations
+
+Iceberg supports several transformation functions for partitioning. Use the `iceberg_partition` helper to create partition specifications:
+
+* `iceberg_partition.identity(column_name)`: Partition by exact column values (this is the same as passing the column name as a string to the `iceberg_adapter`)
+* `iceberg_partition.year(column_name)`: Partition by year from a date column
+* `iceberg_partition.month(column_name)`: Partition by month from a date column
+* `iceberg_partition.day(column_name)`: Partition by day from a date column
+* `iceberg_partition.hour(column_name)`: Partition by hour from a timestamp column
+* `iceberg_partition.bucket(n, column_name)`: Partition by hashed value into `n` buckets
+* `iceberg_partition.truncate(length, column_name)`: Partition by truncated string value to `length`
+
+#### Bucket partitioning
+
+Distribute data across a fixed number of buckets using a hash function:
+
+```py
+iceberg_adapter(
+    resource,
+    partition=[iceberg_partition.bucket(16, "user_id")],
+)
+```
+
+#### Truncate partitioning
+
+Partition string values by a fixed prefix length:
+
+```py
+iceberg_adapter(
+    resource,
+    partition=[iceberg_partition.truncate(3, "category")],  # "ELECTRONICS" → "ELE"
+)
+```
+
+#### Custom partition field names
+
+Specify custom names for partition fields:
+
+```py
+iceberg_adapter(
+    resource,
+    partition=[
+        iceberg_partition.year("activity_time", "activity_year"),
+        iceberg_partition.bucket(8, "user_id", "user_bucket"),
+    ],
+)
+```
+
+### Using column-level `partition` property
+
+For simple identity partitioning, you can use the `partition` column hint directly in the resource definition:
+
+```py
+@dlt.resource(
+    table_format="iceberg",
+    columns={"region": {"partition": True}}
+)
+def my_iceberg_resource():
+    yield [
+        {"id": 1, "region": "US", "amount": 100},
+        {"id": 2, "region": "EU", "amount": 200},
+    ]
+```
+
+Multiple columns can be partitioned:
+
+```py
+@dlt.resource(
+    table_format="iceberg",
+    columns={
+        "region": {"partition": True},
+        "category": {"partition": True},
+    }
+)
+def multi_partition_data():
+    ...
+```
+
 
 ## Table access helper functions
 You can use the `get_iceberg_tables` helper function to access native table objects. These are `pyiceberg` [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
@@ -109,10 +224,10 @@ The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for G
 The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which dlt used under the hood, currently does not support `az`.
 
 ## Table format `merge` support
-The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `iceberg`. This strategy requires that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys. 
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `iceberg`. This strategy requires that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys.
 
 :::warning
-Until _pyiceberg_ > 0.9.1 is released, upsert is executed in chunks of **1000** rows. 
+Until _pyiceberg_ > 0.9.1 is released, upsert is executed in chunks of **1000** rows.
 :::
 
 :::warning

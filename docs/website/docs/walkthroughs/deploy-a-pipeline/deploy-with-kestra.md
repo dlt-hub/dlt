@@ -73,7 +73,7 @@ Here is the summary of the steps:
 
    ```yaml
    kestra:
-       image: kestra/kestra:develop-full
+       image: kestra/kestra:latest
        env_file:
            - .env
    ```
@@ -108,9 +108,9 @@ For detailed information on these steps, please consult the `README.md` in the
 ### Additional resources
 
 - Ingest Zendesk data into Weaviate using `dlt` with Kestra:
-  [here](https://kestra.io/blueprints/148-ingest-zendesk-data-into-weaviate-using-dlt).
+  [here](https://kestra.io/blueprints/dlt-zendesk-to-weaviate).
 - Ingest Zendesk data into DuckDb using dlt with Kestra:
-  [here.](https://kestra.io/blueprints/147-ingest-zendesk-data-into-duckdb-using-dlt)
+  [here.](https://kestra.io/blueprints/dlt-zendesk-to-duckdb)
 - Ingest Pipedrive CRM data to BigQuery using `dlt` and schedule it to run every hour:
-  [here.](https://kestra.io/blueprints/146-ingest-pipedrive-crm-data-to-bigquery-using-dlt-and-schedule-it-to-run-every-hour)
+  [here.](https://kestra.io/blueprints/dlt-pipedrive-to-bigquery)
 

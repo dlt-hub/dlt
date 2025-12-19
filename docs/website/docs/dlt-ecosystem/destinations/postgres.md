@@ -116,7 +116,13 @@ In the example above, `arrow_table` will be converted to CSV with **pyarrow** an
 
 ### Fast loading with Arrow tables and parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html). Install the right driver to enable it:
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html).
+To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+```sh
+pip install adbc-driver-manager dbc
+dbc install postgresql
+```
+Installation via Python package is supported as well:
 ```sh
 pip install adbc-driver-postgresql
 ```
@@ -128,7 +134,7 @@ Not all `postgres` types are supported, see driver docs for more details:
 * We observed problems with some decimal precision/scale ie. `decimal128(6, 2)` is not properly decoded.
 * large decimals are not supported. `postgres` is the only destination that fully supports `wei` (256 bit) decimal precision, this does not work with ADBC.
 
-We copy parquet files with batches of size of 1 row group. One files is copied in a single transaction.
+We copy parquet files with batches of size of 1 row group. Each file is copied in a single transaction.
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.

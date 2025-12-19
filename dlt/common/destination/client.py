@@ -44,6 +44,7 @@ from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
     TTableFormat,
+    TTableSchema,
 )
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
@@ -336,7 +337,12 @@ class LoadJob(ABC):
         pass
 
     @abstractmethod
-    def exception(self) -> str:
+    def failed_message(self) -> str:
+        """The error message in failed or retry states"""
+        pass
+
+    @abstractmethod
+    def exception(self) -> BaseException:
         """The exception associated with failed or retry states"""
         pass
 
@@ -449,9 +455,11 @@ class RunnableLoadJob(LoadJob, ABC):
         """Returns current state. Should poll external resource if necessary."""
         return self._state
 
-    def exception(self) -> str:
-        """The exception associated with failed or retry states"""
+    def failed_message(self) -> str:
         return str(self._exception)
+
+    def exception(self) -> BaseException:
+        return self._exception
 
 
 class FollowupJobRequest:
@@ -685,6 +693,14 @@ class SupportsStagingDestination(ABC):
         For Athena we truncate those tables only on "replace" write disposition.
         """
         pass
+
+    def should_drop_table_on_staging_destination(self, dropped_table: TTableSchema) -> bool:
+        """Tells if `dropped_table` should be dropped on staging destination (regular dataset) in addition to dropping the table on
+        final destination. This stays False for all the destinations except Athena, non-iceberg where staging destination
+        holds actual data which needs to be deleted.
+        Note that `dropped_table` may not longer be present in schema. It is present only if it got recreated.
+        """
+        return False
 
 
 class SupportsOpenTables(ABC):

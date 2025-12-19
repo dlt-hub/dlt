@@ -8,7 +8,9 @@ print(
 venv = dlt.dbt.get_venv(pipeline)
 
 print("get runner, optionally pass the venv")
-dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=venv)
+dbt = dlt.dbt.package(
+    pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=venv
+)
 
 print("run the package (clone/pull repo, deps, seed, source tests, run)")
 models = dbt.run_all()

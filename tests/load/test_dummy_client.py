@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import patch
 from typing import List, Tuple
 
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.configuration import FilesystemConfiguration
@@ -240,6 +241,8 @@ def test_spool_job_failed_and_package_completed() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     run_all(load)
 
+    # not loading
+    assert load.current_load_id is None
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "loaded"
     # all jobs failed
@@ -259,7 +262,10 @@ def test_spool_job_failed_terminally_exception_init() -> None:
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
         with pytest.raises(LoadClientJobFailed) as py_ex:
             run_all(load)
+        assert isinstance(py_ex.value.client_exception, DestinationTerminalException)
         assert py_ex.value.load_id == load_id
+        # not loading - package aborted
+        assert load.current_load_id is None
         package_info = load.load_storage.get_load_package_info(load_id)
         assert package_info.state == "aborted"
         # both failed - we wait till the current loop is completed and then raise
@@ -281,6 +287,8 @@ def test_spool_job_failed_transiently_exception_init() -> None:
         with pytest.raises(LoadClientJobRetry) as py_ex:
             run_all(load)
         assert py_ex.value.load_id == load_id
+        # loading - can be retried
+        assert load.current_load_id is not None
         package_info = load.load_storage.get_load_package_info(load_id)
         assert package_info.state == "normalized"
         # both failed - we wait till the current loop is completed and then raise
@@ -316,6 +324,7 @@ def test_spool_job_failed_exception_complete() -> None:
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with pytest.raises(LoadClientJobFailed) as py_ex:
         run_all(load)
+    assert load.current_load_id is None
     assert py_ex.value.load_id == load_id
     package_info = load.load_storage.get_load_package_info(load_id)
     assert package_info.state == "aborted"
@@ -853,114 +862,138 @@ def test_init_client_truncate_tables() -> None:
     event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
     event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
 
-    with patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage:
-        with patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema:
-            with load.get_destination_client(schema) as client:
-                init_client(client, schema, [], {}, nothing_, nothing_)
-            # we do not allow for any staging dataset tables
-            assert update_stored_schema.call_count == 1
-            assert update_stored_schema.call_args[1]["only_tables"] == {
-                "_dlt_loads",
-                "_dlt_version",
-            }
-            assert initialize_storage.call_count == 2
-            # initialize storage is called twice, we deselected all tables to truncate
-            assert initialize_storage.call_args_list[0].args == ()
-            assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema,
+        patch.object(dummy_impl.DummyClient, "drop_tables") as drop_tables,
+    ):
+        with load.get_destination_client(schema) as client:
+            init_client(
+                client,
+                schema,
+                [],
+                {},
+                nothing_,
+                nothing_,
+                nothing_,  # do not drop tables
+                drop_tables=[schema.get_table("event_user")],
+            )
+        # we do not allow for any staging dataset tables
+        assert update_stored_schema.call_count == 1
+        assert update_stored_schema.call_args[1]["only_tables"] == {
+            "_dlt_loads",
+            "_dlt_version",
+        }
+        assert initialize_storage.call_count == 2
+        # initialize storage is called twice, we deselected all tables to truncate
+        assert initialize_storage.call_args_list[0].args == ()
+        assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+        # tables not dropped
+        drop_tables.assert_not_called()
 
+        initialize_storage.reset_mock()
+        update_stored_schema.reset_mock()
+        drop_tables.reset_mock()
+
+        # now we want all tables to be truncated but not on staging
+        with load.get_destination_client(schema) as client:
+            init_client(
+                client,
+                schema,
+                [event_user],
+                {},
+                all_,
+                nothing_,
+                all_,  # drop tables
+                drop_tables=[schema.get_table("event_user")],
+            )
+        print(update_stored_schema.call_args_list)
+        # drop tables trigger staging dataset schema change on top of final dataset schema change
+        assert update_stored_schema.call_count == 2
+        assert "event_user" in update_stored_schema.call_args_list[0][1]["only_tables"]
+        assert "_dlt_version" in update_stored_schema.call_args_list[1][1]["only_tables"]
+        assert initialize_storage.call_count == 4
+        assert initialize_storage.call_args_list[0].args == ()
+        assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == {"event_user"}
+        # dropped on staging dataset and final
+        assert drop_tables.call_count == 2
+
+        # now we push all to stage
+        initialize_storage.reset_mock()
+        update_stored_schema.reset_mock()
+        drop_tables.reset_mock()
+
+        with load.get_destination_client(schema) as client:
+            init_client(client, schema, [event_user, event_bot], {}, nothing_, all_, all_)
+        assert update_stored_schema.call_count == 2
+        # first call main dataset
+        assert {"event_user", "event_bot"} <= set(
+            update_stored_schema.call_args_list[0].kwargs["only_tables"]
+        )
+        # second one staging dataset
+        assert {"event_user", "event_bot"} <= set(
+            update_stored_schema.call_args_list[1].kwargs["only_tables"]
+        )
+        assert initialize_storage.call_count == 4
+        assert initialize_storage.call_args_list[0].args == ()
+        assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+        assert initialize_storage.call_args_list[2].args == ()
+        # all tables that will be used on staging must be truncated
+        assert initialize_storage.call_args_list[3].kwargs["truncate_tables"] == {
+            "event_user",
+            "event_bot",
+        }
+
+        replace_ = (
+            lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
+            == "replace"
+        )
+        merge_ = (
+            lambda table_name: client.prepare_load_table(table_name)["write_disposition"] == "merge"
+        )
+
+        # set event_bot chain to merge
+        bot_chain = get_nested_tables(schema.tables, "event_bot")
+        for w_d in ["merge", "replace"]:
             initialize_storage.reset_mock()
             update_stored_schema.reset_mock()
-
-            # now we want all tables to be truncated but not on staging
+            for bot in bot_chain:
+                bot["write_disposition"] = w_d  # type:ignore[typeddict-item]
+            # merge goes to staging, replace goes to truncate
             with load.get_destination_client(schema) as client:
-                init_client(client, schema, [event_user], {}, all_, nothing_)
-            assert update_stored_schema.call_count == 1
-            assert "event_user" in update_stored_schema.call_args[1]["only_tables"]
-            assert initialize_storage.call_count == 2
-            assert initialize_storage.call_args_list[0].args == ()
-            assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == {"event_user"}
+                init_client(client, schema, [event_user, event_bot], {}, replace_, merge_, all_)
 
-            # now we push all to stage
-            initialize_storage.reset_mock()
-            update_stored_schema.reset_mock()
+            if w_d == "merge":
+                # we use staging dataset
+                assert update_stored_schema.call_count == 2
+                # 4 tables to update in main dataset
+                assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
+                assert "event_user" in update_stored_schema.call_args_list[0].kwargs["only_tables"]
+                # full bot table chain + dlt version but no user
+                assert len(update_stored_schema.call_args_list[1].kwargs["only_tables"]) == 1 + len(
+                    bot_chain
+                )
+                assert (
+                    "event_user" not in update_stored_schema.call_args_list[1].kwargs["only_tables"]
+                )
 
-            with load.get_destination_client(schema) as client:
-                init_client(client, schema, [event_user, event_bot], {}, nothing_, all_)
-            assert update_stored_schema.call_count == 2
-            # first call main dataset
-            assert {"event_user", "event_bot"} <= set(
-                update_stored_schema.call_args_list[0].kwargs["only_tables"]
-            )
-            # second one staging dataset
-            assert {"event_user", "event_bot"} <= set(
-                update_stored_schema.call_args_list[1].kwargs["only_tables"]
-            )
-            assert initialize_storage.call_count == 4
-            assert initialize_storage.call_args_list[0].args == ()
-            assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
-            assert initialize_storage.call_args_list[2].args == ()
-            # all tables that will be used on staging must be truncated
-            assert initialize_storage.call_args_list[3].kwargs["truncate_tables"] == {
-                "event_user",
-                "event_bot",
-            }
+                assert initialize_storage.call_count == 4
+                assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+                assert initialize_storage.call_args_list[3].kwargs[
+                    "truncate_tables"
+                ] == update_stored_schema.call_args_list[1].kwargs["only_tables"] - {"_dlt_version"}
 
-            replace_ = (
-                lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
-                == "replace"
-            )
-            merge_ = (
-                lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
-                == "merge"
-            )
-
-            # set event_bot chain to merge
-            bot_chain = get_nested_tables(schema.tables, "event_bot")
-            for w_d in ["merge", "replace"]:
-                initialize_storage.reset_mock()
-                update_stored_schema.reset_mock()
-                for bot in bot_chain:
-                    bot["write_disposition"] = w_d  # type:ignore[typeddict-item]
-                # merge goes to staging, replace goes to truncate
-                with load.get_destination_client(schema) as client:
-                    init_client(client, schema, [event_user, event_bot], {}, replace_, merge_)
-
-                if w_d == "merge":
-                    # we use staging dataset
-                    assert update_stored_schema.call_count == 2
-                    # 4 tables to update in main dataset
-                    assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
-                    assert (
-                        "event_user" in update_stored_schema.call_args_list[0].kwargs["only_tables"]
-                    )
-                    # full bot table chain + dlt version but no user
-                    assert len(
-                        update_stored_schema.call_args_list[1].kwargs["only_tables"]
-                    ) == 1 + len(bot_chain)
-                    assert (
-                        "event_user"
-                        not in update_stored_schema.call_args_list[1].kwargs["only_tables"]
-                    )
-
-                    assert initialize_storage.call_count == 4
-                    assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
-                    assert initialize_storage.call_args_list[3].kwargs[
-                        "truncate_tables"
-                    ] == update_stored_schema.call_args_list[1].kwargs["only_tables"] - {
-                        "_dlt_version"
-                    }
-
-                if w_d == "replace":
-                    assert update_stored_schema.call_count == 1
-                    assert initialize_storage.call_count == 2
-                    # we truncate the whole bot chain but not user (which is append)
-                    assert len(
-                        initialize_storage.call_args_list[1].kwargs["truncate_tables"]
-                    ) == len(bot_chain)
-                    # migrate only tables for which we have jobs
-                    assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
-                    # print(initialize_storage.call_args_list)
-                    # print(update_stored_schema.call_args_list)
+            if w_d == "replace":
+                assert update_stored_schema.call_count == 1
+                assert initialize_storage.call_count == 2
+                # we truncate the whole bot chain but not user (which is append)
+                assert len(initialize_storage.call_args_list[1].kwargs["truncate_tables"]) == len(
+                    bot_chain
+                )
+                # migrate only tables for which we have jobs
+                assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
+                # print(initialize_storage.call_args_list)
+                # print(update_stored_schema.call_args_list)
 
 
 def test_dummy_staging_filesystem() -> None:

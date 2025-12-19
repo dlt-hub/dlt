@@ -21,6 +21,20 @@ $ npm install
 
 That command installs our Node.js package defined in `package.json`.
 
+### Python Dependencies
+
+The website build process requires Python dependencies, including `pydoc-markdown` for generating API documentation. Install them with:
+
+```
+$ uv pip install -r requirements.txt
+```
+
+Or if you're using the project's `uv` environment from the root directory:
+
+```
+$ uv sync --group docs
+```
+
 ### Are you new to Node?
 
 `npm` is a package manager bundled with Node.js. If `npm install` complained that you have an old version, try:
@@ -32,6 +46,8 @@ nvm install --lts
 That command installs and uses the latest stable version of Node.js (and therefore `npm`).  Then retry the Installation steps above.
 
 `nvm` is the Node Version Manager, and yes, you may need to install that first, using your usual way of installing software on your OS.
+
+You will also need the uv python package manager (https://docs.astral.sh/uv/guides/install-python/), as some of the npm commands call python based pre-preprocessing scripts to prepare the markdown files for docusaurus. We are mixing python and javascript tools in this project.
 
 ## Local Development
 
@@ -62,7 +78,7 @@ The site is deployed using `cloudflare workers`. There are several commands spec
 npm run preview:cloudflare
 ```
 
-This will build the project fully and serve via a local wrangler webserver which simulates a cloudflare worker. This way you can also test tracking and redirects. Please be aware that cloudflare preview and build commands expect certain python depdendencies, so you need to be inside the uv shell or run the command with uv run: `uv run npm run preview:cloudflare` for it to work locally.
+This will build the project fully and serve via a local wrangler webserver which simulates a cloudflare worker. This way you can also test tracking and redirects. 
 
 ## Redirects
 
