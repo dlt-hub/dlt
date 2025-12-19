@@ -98,7 +98,7 @@ lint-docstrings:
 
 PYTEST = PYTHONHASHSEED=0 uv run pytest
 PYTEST_ARGS ?=
-PYTEST_XDIST_ARGS = -p xdist -n auto --dist=loadscope
+PYTEST_XDIST_ARGS = -p xdist -n auto
 
 test:
 	$(PYTEST) $(PYTEST_ARGS) tests
