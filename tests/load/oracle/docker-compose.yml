@@ -1,0 +1,13 @@
+services:
+  oracle:
+    image: container-registry.oracle.com/database/free:latest-lite
+    ports:
+      - 1521:1521
+    environment:
+      ORACLE_PWD: loader
+    volumes:
+      - tests/load/oracle/startup_scripts:/opt/oracle/scripts/startup
+    healthcheck:
+      test: ["CMD-SHELL", "sqlplus C##LOADER/loader@FREE"]
+      interval: 10s
+      timeout: 5s
