@@ -44,14 +44,25 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
-      - run: |
-          pytest tests/helpers/dbt_tests -k '(not venv)'
-        name: Run dbt tests
+      - name: Run dbt tests
+        run: >
+          uv run pytest
+          -p xdist
+          --dist=loadscope
+          -n 12
+          tests/helpers/dbt_tests
+          -k "not venv"
 
       - name: Remove dbt-core
         # install dlt with postgres support
         run: uv run pip uninstall dbt-core -y
 
-      - run: |
-          pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
-        name: Run dbt runner with venv - Linux/MAC
+      - name: Run dbt runner with venv - Linux/MAC
+        run: >
+          uv run pytest
+          -p xdist
+          --dist=loadscope
+          -n 12
+          tests/helpers/dbt_tests
+          --ignore tests/helpers/dbt_tests/local
+          -k "not local"

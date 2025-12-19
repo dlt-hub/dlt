@@ -4,6 +4,7 @@ import dlt
 
 from dlt.common.typing import TDataItem
 from dlt.common import json, pendulum
+from tests.utils import get_test_storage_root
 
 
 def convert_dates(item: TDataItem) -> TDataItem:
@@ -42,7 +43,7 @@ if __name__ == "__main__":
         import os
         from dlt.destinations import filesystem
 
-        dest_ = filesystem(os.path.abspath(os.path.join("_storage", "data")))  # type: ignore
+        dest_ = filesystem(os.path.abspath(os.path.join(get_test_storage_root(), "data")))  # type: ignore
 
     p = dlt.pipeline("dlt_github_pipeline", destination=dest_, dataset_name="github_3")
     github_source = github()
