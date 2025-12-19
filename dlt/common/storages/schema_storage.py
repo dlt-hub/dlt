@@ -284,6 +284,8 @@ class SchemaStorage(Mapping[str, Schema]):
             raise ValueError(extension, "Schema parser for `dbml` not yet implemented")
         elif extension == "dot":
             raise ValueError(extension, "Schema parser for `dot` not yet implemented")
+        elif extension == "mermaid":
+            raise ValueError(extension, "Schema parser for `mermaid` not yet implemented")
         else:
             raise ValueError(extension)
         return imported_schema

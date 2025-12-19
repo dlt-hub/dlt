@@ -58,7 +58,7 @@ def perform_load(
             job = load.submit_job(f, load_id, schema)
             # job execution failed
             if isinstance(job, FinalizedLoadJobWithFollowupJobs):
-                raise RuntimeError(job.exception())
+                raise RuntimeError(job.failed_message())
             jobs.append(job)
 
         yield client, jobs, root_path, load_id  # type: ignore

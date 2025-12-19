@@ -31,6 +31,7 @@ from dlt.common.typing import (
     is_subclass,
     TColumnNames,
     TypedDict,
+    resolve_single_annotation,
 )
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
@@ -692,7 +693,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem, IncrementalCustomMetri
     def get_incremental_arg(sig: inspect.Signature) -> Optional[inspect.Parameter]:
         incremental_param: Optional[inspect.Parameter] = None
         for p in sig.parameters.values():
-            annotation = extract_inner_type(p.annotation)
+            annotation = extract_inner_type(
+                resolve_single_annotation(p.annotation, globalns=globals())
+            )
             if is_subclass(annotation, Incremental) or isinstance(p.default, Incremental):
                 incremental_param = p
                 break

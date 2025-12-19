@@ -108,11 +108,8 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
     if from_engine == 6 and to_engine > 6:
         # migrate from sealed properties to schema evolution settings
         schema_dict["settings"].pop("schema_sealed", None)
-        schema_dict["settings"]["schema_contract"] = {}
         for table in schema_dict["tables"].values():
             table.pop("table_sealed", None)
-            if not table.get("parent"):
-                table["schema_contract"] = {}
         from_engine = 7
     if from_engine == 7 and to_engine > 7:
         schema_dict["previous_hashes"] = []

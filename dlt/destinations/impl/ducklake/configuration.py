@@ -130,7 +130,10 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
     create_indexes: bool = False  # does nothing but required
 
     def fingerprint(self) -> str:
-        return digest128(self.__str__())
+        """Use fingerprint of underlying storage. This is precise to bucket level"""
+        if self.credentials.storage is None:
+            return ""
+        return self.credentials.storage.fingerprint()
 
     def on_resolved(self) -> None:
         # redirect local catalog database file to `local_dir`

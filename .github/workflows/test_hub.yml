@@ -19,7 +19,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-        dlthub_dep: ["dlthub", "https://dlt-packages.fra1.digitaloceanspaces.com/dlthub/dlthub-0.0.0+nightly-py3-none-any.whl"]
+        dlthub_dep: ["", "https://dlt-packages.fra1.digitaloceanspaces.com/dlthub/dlthub-0.0.0+nightly-py3-none-any.whl"]
         # Test all python versions on ubuntu only
         exclude:
         - os: "macos-latest"
@@ -56,6 +56,12 @@ jobs:
           activate-environment: true
           enable-cache: true
 
+      - name: Install min dependencies
+        run: uv sync
+
+      - name: run import tests
+        run: uv run pytest tests/hub/test_plugin_import.py
+
       # NOTE: needed for mssql source tests in plus
       - name: Install ODBC driver for SQL Server
         run: |
@@ -78,14 +84,30 @@ jobs:
       #     odbcinst -q -d || true
 
       - name: Install all dependencies
-        run: make dev
+        run: make dev-hub
 
       - name: Install dlthub
-        run: uv run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.dlthub_dep }}
+        if: matrix.dlthub_dep != ''
+        run: uv run pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
 
       - name: Run tests
-        run: pytest tests/hub
+        run: uv run pytest tests/hub
         # if: matrix.os != 'macos-latest'
+
+      - name: Test runtime client
+        run: |
+          mkdir .dlt && touch .dlt/.workspace
+          uv run dlt runtime --help
+
+      - name: Check hub extras version requirements
+        run: uv run python tools/check_hub_extras.py
+        if: ${{ matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest' }}
+
+      # DISABLED: because docs rendering happens in non-deterministic order (of plugin discovery)
+      # must be fixed
+      # - name: Check that dlthub cli docs are up to date
+      #   run: cd docs/tools/dlthub_cli && make check-cli-docs
+      #   if: ${{ matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest' }}
 
   matrix_job_required_check:
     name: hub | dlthub features tests

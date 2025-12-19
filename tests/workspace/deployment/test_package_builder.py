@@ -2,11 +2,10 @@ import os
 import tarfile
 import yaml
 from io import BytesIO
-from pathlib import Path
 import time
 
 from dlt._workspace.deployment.package_builder import (
-    DeploymentPackageBuilder,
+    PackageBuilder,
     DEFAULT_DEPLOYMENT_FILES_FOLDER,
     DEFAULT_MANIFEST_FILE_NAME,
 )
@@ -20,7 +19,7 @@ def test_write_package_to_stream() -> None:
     """Test building deployment package to a stream and verify structure."""
 
     with isolated_workspace("default") as ctx:
-        builder = DeploymentPackageBuilder(ctx)
+        builder = PackageBuilder(ctx)
         selector = WorkspaceFileSelector(ctx, ignore_file=".ignorefile")
 
         stream = BytesIO()
@@ -66,7 +65,7 @@ def test_build_package() -> None:
     """Test that deployment packages are content-addressable with reproducible hashes."""
 
     with isolated_workspace("default") as ctx:
-        builder = DeploymentPackageBuilder(ctx)
+        builder = PackageBuilder(ctx)
         selector = WorkspaceFileSelector(ctx)
 
         package_path, content_hash = builder.build_package(selector)
@@ -86,7 +85,7 @@ def test_build_package() -> None:
 def test_manifest_files_are_sorted() -> None:
     """Test that hash is independent of file iteration order."""
     with isolated_workspace("default") as ctx:
-        builder = DeploymentPackageBuilder(ctx)
+        builder = PackageBuilder(ctx)
         selector = WorkspaceFileSelector(ctx)
 
         hash1 = builder.write_package_to_stream(selector, BytesIO())

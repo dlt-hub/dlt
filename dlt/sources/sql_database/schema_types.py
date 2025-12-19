@@ -243,4 +243,5 @@ def table_to_resource_hints(
     }
     if resolve_foreign_keys:
         result["references"] = get_table_references(table)
+    # print("RES HINTS", result)
     return result

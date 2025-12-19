@@ -3,8 +3,9 @@ from pyiceberg.catalog import load_catalog
 from dlt.common.configuration.inject import with_config
 import os
 import yaml
-from typing import Dict, Any, List, Literal, Optional
+from typing import Dict, Any, List, Literal, Optional, Union
 from pathlib import Path
+import warnings
 
 from fsspec import AbstractFileSystem
 from packaging.version import Version
@@ -33,6 +34,10 @@ try:
     from pyiceberg.table import Table as IcebergTable
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
+    from pyiceberg.partitioning import (
+        UNPARTITIONED_PARTITION_SPEC,
+        PartitionSpec as IcebergPartitionSpec,
+    )
     import pyarrow as pa
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -406,14 +411,17 @@ def create_table(
     catalog: IcebergCatalog,
     table_id: str,
     table_location: str,
-    schema: pa.Schema,
+    schema: Union[pa.Schema, "pyiceberg.schema.Schema"],
     partition_columns: Optional[List[str]] = None,
+    partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
 ) -> None:
-    schema = ensure_iceberg_compatible_arrow_schema(schema)
+    if isinstance(schema, pa.Schema):
+        schema = ensure_iceberg_compatible_arrow_schema(schema)
 
     if partition_columns:
-        # If the table is partitioned, create it in two steps:
-        # (1) start a create-table transaction, and (2) add the partition spec before committing
+        warnings.warn(
+            "partition_columns is deprecated. Use partition_spec instead.", DeprecationWarning
+        )
         with catalog.create_table_transaction(
             table_id,
             schema=schema,
@@ -424,7 +432,12 @@ def create_table(
                 for col in partition_columns:
                     update_spec.add_identity(col)
     else:
-        catalog.create_table(table_id, schema=schema, location=table_location)
+        catalog.create_table(
+            identifier=table_id,
+            schema=schema,
+            location=table_location,
+            partition_spec=partition_spec,
+        )
 
 
 def get_iceberg_tables(

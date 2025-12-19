@@ -35,14 +35,19 @@ jobs:
             - name: athena
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
-              excluded_destination_configurations: "[\"athena-parquet-iceberg-no-staging-iceberg\", \"athena-parquet-iceberg-staging-iceberg\"]"
+              excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
 
-            # Athena iceberg (NOTE: same as athene with different configs disabled)
             - name: athena iceberg
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
-              excluded_destination_configurations: "[\"athena-no-staging\", \"athena-parquet-no-staging\"]"
+              excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
+              extras: "--extra athena"
+
+            - name: athena s3 tables
+              destinations: "[\"athena\"]"
+              filesystem_drivers: "[\"memory\"]"
+              excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
 
             # BigQuery
@@ -112,8 +117,9 @@ jobs:
             - name: mssql
               destinations: "[\"mssql\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet"
+              extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet --group adbc"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              post_install_commands: "uv run dbc install mssql"
               always_run_all_tests: true
 
             # Synapse
@@ -133,6 +139,7 @@ jobs:
               destinations: "[\"postgres\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb"
+              post_install_commands: "uv pip install adbc-driver-postgresql"  # use adbc driver installation
               always_run_all_tests: true
 
             # Qdrant (disabled, because we do not have a test account atm, qdrant is tested with local version)
@@ -150,7 +157,7 @@ jobs:
     env:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
-        EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
+        EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS: ${{ matrix.excluded_destination_test_configuration_ids || '[]' }}
 
     defaults:
       run:
@@ -198,7 +205,7 @@ jobs:
         if: ${{ matrix.pre_install_commands }}
 
       - name: Install dependencies
-        run: uv sync --group sentry-sdk --group pipeline --group ibis --group providers ${{ matrix.extras }}
+        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}

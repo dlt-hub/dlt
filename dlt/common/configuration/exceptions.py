@@ -126,9 +126,22 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         # print locations for config providers
         providers = Container()[PluggableRunContext].providers
         for provider in providers.providers:
-            if provider.locations:
-                locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
+            if provider.present_locations:
+                locations = "\n".join(
+                    [f"\t- {os.path.abspath(loc)}" for loc in provider.present_locations]
+                )
                 msg += f"Provider `{provider.name}` loaded values from locations:\n{locations}\n"
+
+            # inform on locations that were not found
+            not_found_locations = set(provider.locations).difference(provider.present_locations)
+            if not_found_locations:
+                locations = "\n".join(
+                    [f"\t- {os.path.abspath(loc)}" for loc in not_found_locations]
+                )
+                msg += (
+                    f"Provider `{provider.name}` probed but not found the following"
+                    f" locations:\n{locations}\n"
+                )
 
             if provider.is_empty:
                 msg += (
