@@ -49,10 +49,10 @@ These checks ensure incoming data conforms to the expected shape and technical t
 
 | Job to be Done | dlt Solution | Learn More | Availability |
 |----------------|--------------|------------|--------------|
-| Prevent unexpected columns | **Schema Contracts (Frozen Mode):** Set your schema to `frozen` to raise an immediate error if the source API adds an undocumented field. | [Schema Contracts](../general-usage/schema-contracts.md) | dlt |
-| Enforce data types | **Type Coercion:** `dlt` automatically coerces compatible types (e.g., string `"100"` to int `100`) and rejects non-coercible values to ensure column consistency. | [Schema](../general-usage/schema.md) | dlt |
-| Fix naming errors | **Normalization:** `dlt` automatically cleans table and column names (converting to `snake_case`) to prevent SQL syntax errors in the destination. | [Naming Convention](../general-usage/naming-convention.md) | dlt |
-| Enforce required fields | **Nullability Constraints:** Mark fields as `nullable=False` in your resource hints to drop or error on records missing critical keys. | [Resource](../general-usage/resource.md) | dlt |
+| Prevent unexpected columns | **Schema Contracts (Frozen Mode):** Set your schema to `frozen` to raise an immediate error if the source API adds an undocumented field. | [Schema Contracts](schema-contracts.md) | dlt |
+| Enforce data types | **Type Coercion:** `dlt` automatically coerces compatible types (e.g., string `"100"` to int `100`) and rejects non-coercible values to ensure column consistency. | [Schema](schema.md) | dlt |
+| Fix naming errors | **Normalization:** `dlt` automatically cleans table and column names (converting to `snake_case`) to prevent SQL syntax errors in the destination. | [Naming Convention](naming-convention.md) | dlt |
+| Enforce required fields | **Nullability Constraints:** Mark fields as `nullable=False` in your resource hints to drop or error on records missing critical keys. | [Resource](resource.md) | dlt |
 
 ---
 
@@ -64,7 +64,7 @@ These checks verify the content of the data against business logic. While struct
 
 | Job to be Done | dlt Solution | Learn More | Availability |
 |----------------|--------------|------------|--------------|
-| Validate logic & ranges | **Pydantic Models:** Attach Pydantic models to your resources to enforce logic like `age > 0` or email format validation in-stream. | [Schema Contracts](../general-usage/schema-contracts.md#use-pydantic-models-for-data-validation) | dlt |
+| Validate logic & ranges | **Pydantic Models:** Attach Pydantic models to your resources to enforce logic like `age > 0` or email format validation in-stream. | [Schema Contracts](schema-contracts.md#use-pydantic-models-for-data-validation) | dlt |
 | Filter bad rows | **`add_filter`:** Apply a predicate function to exclude records that don't meet criteria (e.g., `lambda x: x["status"] != "deleted"`). | [Transform with add_map](../dlt-ecosystem/transformations/add-map.md) | dlt |
 | Check batch anomalies | **Staging Tests:** Use the portable runtime (e.g., Ibis/DuckDB) to query the staging buffer. Example: "Alert if the average order value in this batch is > $10k." | [Staging](../dlt-ecosystem/staging.md) | dlt |
 | Built-in data checks | **Data Quality Checks:** Use built-in checks like `is_in()`, `is_unique()`, `is_primary_key()` with pre-load or post-load execution, plus actions on failure (drop, quarantine, alert). | [Data Quality](https://dlthub.com/docs/hub/features/quality/data-quality) | dlthub |
@@ -79,9 +79,9 @@ These checks manage duplication and preserve relationships between different tab
 
 | Job to be Done | dlt Solution | Learn More | Availability |
 |----------------|--------------|------------|--------------|
-| Prevent duplicates | **Merge Disposition:** Define `primary_key` and `write_disposition='merge'` to automatically upsert records. `dlt` handles the deduping logic for you. | [Incremental Loading](../general-usage/incremental-loading.md) | dlt |
-| Track historical changes | **SCD2 Strategy:** Use `write_disposition={"disposition": "merge", "strategy": "scd2"}` to automatically maintain validity windows (`_dlt_valid_from`, `_dlt_valid_to`) for dimension tables. | [Merge Loading](../general-usage/merge-loading.md#scd2-strategy) | dlt |
-| Link parent/child data | **Automatic Lineage:** `dlt` automatically generates foreign keys (`_dlt_parent_id`) when unnesting complex JSON, preserving the link between parent and child tables. | [Destination Tables](../general-usage/destination-tables.md#nested-tables) | dlt |
+| Prevent duplicates | **Merge Disposition:** Define `primary_key` and `write_disposition='merge'` to automatically upsert records. `dlt` handles the deduping logic for you. | [Incremental Loading](incremental-loading.md) | dlt |
+| Track historical changes | **SCD2 Strategy:** Use `write_disposition={"disposition": "merge", "strategy": "scd2"}` to automatically maintain validity windows (`_dlt_valid_from`, `_dlt_valid_to`) for dimension tables. | [Merge Loading](merge-loading.md#scd2-strategy) | dlt |
+| Link parent/child data | **Automatic Lineage:** `dlt` automatically generates foreign keys (`_dlt_parent_id`) when unnesting complex JSON, preserving the link between parent and child tables. | [Destination Tables](destination-tables.md#nested-tables) | dlt |
 | Find orphan keys | **Post-Load Assertions:** Run SQL tests on the destination to identify child records missing a valid parent (e.g., Orders without Customers). | [SQL Transformations](../dlt-ecosystem/transformations/sql.md) | dlt |
 
 ---
@@ -94,10 +94,10 @@ Data quality also means compliance. These features ensure sensitive data is hand
 
 | Job to be Done | dlt Solution | Learn More | Availability |
 |----------------|--------------|------------|--------------|
-| Mask/Hash PII | **Transformation Hooks:** Use `add_map` to hash emails or redact names in-stream. Data is sanitized in memory before it ever touches the disk. | [Pseudonymizing Columns](../general-usage/customising-pipelines/pseudonymizing_columns.md) | dlt |
-| Drop sensitive columns | **Column Removal:** Use `add_map` to completely remove columns (e.g., `ssn`, `credit_card`) before they ever reach the destination. | [Removing Columns](../general-usage/customising-pipelines/removing_columns.md) | dlt |
-| Enforce PII Contracts | **Pydantic Models:** Use Pydantic schemas to strictly define and detect sensitive fields (e.g., `EmailStr`), ensuring they are caught and hashed before loading. | [Schema Contracts](../general-usage/schema-contracts.md) | dlt |
-| Join on private data | **Deterministic Hashing:** Use a secret salt via `dlt.secrets` to deterministically hash IDs, allowing you to join tables on "User ID" without exposing the actual user identity. | [Credentials Setup](../general-usage/credentials/setup.md) | dlt |
+| Mask/Hash PII | **Transformation Hooks:** Use `add_map` to hash emails or redact names in-stream. Data is sanitized in memory before it ever touches the disk. | [Pseudonymizing Columns](customising-pipelines/pseudonymizing_columns.md) | dlt |
+| Drop sensitive columns | **Column Removal:** Use `add_map` to completely remove columns (e.g., `ssn`, `credit_card`) before they ever reach the destination. | [Removing Columns](customising-pipelines/removing_columns.md) | dlt |
+| Enforce PII Contracts | **Pydantic Models:** Use Pydantic schemas to strictly define and detect sensitive fields (e.g., `EmailStr`), ensuring they are caught and hashed before loading. | [Schema Contracts](schema-contracts.md) | dlt |
+| Join on private data | **Deterministic Hashing:** Use a secret salt via `dlt.secrets` to deterministically hash IDs, allowing you to join tables on "User ID" without exposing the actual user identity. | [Credentials Setup](credentials/setup.md) | dlt |
 | Track PII through transformations | **Column-Level Hint Forwarding:** PII hints (e.g., `x-annotation-pii`) are automatically propagated through SQL transformations, so downstream tables retain knowledge of sensitive origins. | [Transformations](https://dlthub.com/docs/hub/features/transformations#column-level-hint-forwarding) | dlthub |
 
 ---
@@ -110,19 +110,19 @@ Monitoring the reliability of the delivery mechanism itself. Even perfectly vali
 
 | Job to be Done | dlt Solution | Learn More | Availability |
 |----------------|--------------|------------|--------------|
-| Detect empty loads | **Volume Monitoring:** Inspect `load_info` metrics after a run. Trigger an alert if `row_count` drops to zero unexpectedly. | [Running in Production](running.md#inspect-and-save-the-load-info-and-trace) | dlt |
-| Collect custom metrics | **Custom Metrics:** Track business-specific statistics during extraction (e.g., page counts, API call counts) using `dlt.current.resource_metrics()`. | [Resource](../general-usage/resource.md#collect-custom-metrics) | dlt |
-| Monitor Freshness (SLA) | **Load Metadata:** Query the `_dlt_loads` table in your destination to verify the `inserted_at` timestamp meets your freshness SLA. | [Destination Tables](../general-usage/destination-tables.md#load-packages-and-load-ids) | dlt |
-| Audit Schema Drift | **Schema History:** Even in permissive modes, `dlt` tracks every schema change. Use the audit trail to see exactly when a new column was introduced. | [Schema Evolution](../general-usage/schema-evolution.md) | dlt |
-| Alert on schema changes | **Schema Update Alerts:** Inspect `load_info.load_packages[].schema_update` after each run to detect new tables/columns and trigger alerts (e.g., Slack notification when schema drifts). | [Running in Production](running.md#inspect-save-and-alert-on-schema-changes) | dlt |
-| Trace Lineage | **Load IDs:** Every row in your destination is tagged with `_dlt_load_id`. You can trace any specific record back to the exact pipeline run that produced it. | [Destination Tables](../general-usage/destination-tables.md#data-lineage) | dlt |
-| Alert on failures | **Slack Integration:** Send pipeline success/failure notifications via Slack incoming webhooks configured in `dlt.secrets`. | [Alerting](alerting.md) | dlt |
+| Detect empty loads | **Volume Monitoring:** Inspect `load_info` metrics after a run. Trigger an alert if `row_count` drops to zero unexpectedly. | [Running in Production](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) | dlt |
+| Collect custom metrics | **Custom Metrics:** Track business-specific statistics during extraction (e.g., page counts, API call counts) using `dlt.current.resource_metrics()`. | [Resource](resource.md#collect-custom-metrics) | dlt |
+| Monitor Freshness (SLA) | **Load Metadata:** Query the `_dlt_loads` table in your destination to verify the `inserted_at` timestamp meets your freshness SLA. | [Destination Tables](destination-tables.md#load-packages-and-load-ids) | dlt |
+| Audit Schema Drift | **Schema History:** Even in permissive modes, `dlt` tracks every schema change. Use the audit trail to see exactly when a new column was introduced. | [Schema Evolution](schema-evolution.md) | dlt |
+| Alert on schema changes | **Schema Update Alerts:** Inspect `load_info.load_packages[].schema_update` after each run to detect new tables/columns and trigger alerts (e.g., Slack notification when schema drifts). | [Running in Production](../running-in-production/running.md#inspect-save-and-alert-on-schema-changes) | dlt |
+| Trace Lineage | **Load IDs:** Every row in your destination is tagged with `_dlt_load_id`. You can trace any specific record back to the exact pipeline run that produced it. | [Destination Tables](destination-tables.md#data-lineage) | dlt |
+| Alert on failures | **Slack Integration:** Send pipeline success/failure notifications via Slack incoming webhooks configured in `dlt.secrets`. | [Alerting](../running-in-production/alerting.md) | dlt |
 
 
 
 ## Validate data quality during development
 
-Use the [dlt Dashboard](../general-usage/dashboard.md) to interactively inspect your pipeline during development. The dashboard lets you:
+Use the [dlt Dashboard](dashboard.md) to interactively inspect your pipeline during development. The dashboard lets you:
 
 - Query loaded data and verify row counts match expectations
 - Inspect schemas, columns, and all column hints

@@ -339,7 +339,7 @@ const sidebars = {
             }
           ]
         },
-        'running-in-production/data-quality-lifecycle',
+        'general-usage/data-quality-lifecycle',
       ]
     },
     {
