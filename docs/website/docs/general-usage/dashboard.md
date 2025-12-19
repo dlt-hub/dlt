@@ -135,13 +135,13 @@ To inspect the schema, check the Schema Explorer:
 
 ```py
 import dlt
-from dlt.sources.rest_api import rest_api_source
+from dlt.sources.rest_api import rest_api_source, RESTAPIConfig
 
 def example_complex_unnesting():
     # Default behavior: dlt creates 'orders__items' child table.
     # Desired behavior: 'items' column in 'orders' table with JSON/Struct type.
 
-    config = {
+    config: RESTAPIConfig = {
         "client": {
             "base_url": "https://jaffle-shop.dlthub.com/api/v1/",
             "paginator": {
