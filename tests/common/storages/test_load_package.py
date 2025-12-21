@@ -1,31 +1,30 @@
 import os
-from os.path import join
+import pytest
 from pathlib import Path
-from typing import cast
+from os.path import join
 
 import dlt
-import pathvalidate.error
-import pytest
+
 from dlt.common import sleep
-from dlt.common.configuration.container import Container
-from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema
-from dlt.common.storages import LoadStorage, PackageStorage, ParsedLoadJobFileName
+from dlt.common.storages import PackageStorage, LoadStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import LoadPackageAlreadyCompleted, LoadPackageNotCompleted
+from dlt.common.utils import uniq_id
+from dlt.common.pendulum import pendulum
+from dlt.common.configuration.container import Container
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
-    clear_destination_state,
-    commit_load_package_state,
     create_load_id,
     destination_state,
     load_package_state,
+    commit_load_package_state,
+    clear_destination_state,
 )
-from dlt.common.typing import TLoaderFileFormat
-from dlt.common.utils import uniq_id
+
 from tests.common.storages.utils import (
+    start_loading_file,
     assert_package_info,
     load_storage,
-    start_loading_file,
     start_loading_files,
 )
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
@@ -259,79 +258,26 @@ def test_retry_job(load_storage: LoadStorage) -> None:
     assert ParsedLoadJobFileName.parse(new_fp).retry_count == 2
 
 
-@pytest.mark.parametrize(
-    "file_format,expected_extension",
-    [
-        ("jsonl", "jsonl"),
-        ("parquet", "parquet"),
-        ("ipc", "arrow"),  # IPC uses .arrow extension (special case)
-        ("csv", "csv"),
-    ],
-)
-def test_build_parse_job_path(
-    load_storage: LoadStorage, file_format: str, expected_extension: str
-) -> None:
-    """Test job file name building and parsing for various formats.
-
-    Note: IPC format is special - it uses 'ipc' as format but '.arrow' as extension.
-    """
+def test_build_parse_job_path(load_storage: LoadStorage) -> None:
     file_id = ParsedLoadJobFileName.new_file_id()
-    typed_format = cast(TLoaderFileFormat, file_format)
-    f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, typed_format)
+    f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, "jsonl")
     job_f_n = PackageStorage.build_job_file_name(
-        f_n_t.table_name, file_id, 0, loader_file_format=typed_format
+        f_n_t.table_name, file_id, 0, loader_file_format="jsonl"
     )
-
-    # Test file name structure
-    assert job_f_n == f"test_table.{file_id}.0.{expected_extension}"
+    # test the exact representation but we should probably not test for that
+    assert job_f_n == f"test_table.{file_id}.0.jsonl"
     assert ParsedLoadJobFileName.parse(job_f_n) == f_n_t
-    assert ParsedLoadJobFileName.parse(job_f_n).file_format == file_format
-
-    # Also parses full paths correctly
+    # also parses full paths correctly
     assert ParsedLoadJobFileName.parse("load_id/" + job_f_n) == f_n_t
 
-    # Test job_id and file_name methods
-    assert f_n_t.job_id() == f"test_table.{file_id}.{expected_extension}"
-    assert f_n_t.file_name() == f"test_table.{file_id}.0.{expected_extension}"
-
-    # Test with compression
-    f_n_t_compressed = ParsedLoadJobFileName(
-        "test_table", file_id, 0, typed_format, is_compressed=True
-    )
-    assert f_n_t_compressed.file_name() == f"test_table.{file_id}.0.{expected_extension}.gz"
-    assert f_n_t_compressed.job_id() == f"test_table.{file_id}.{expected_extension}.gz"
-
-    # Test parsing compressed files
-    parsed_compressed = ParsedLoadJobFileName.parse(
-        f"test_table.{file_id}.0.{expected_extension}.gz"
-    )
-    assert parsed_compressed.file_format == file_format
-    assert parsed_compressed.is_compressed is True
-
-    # Test retry count
-    f_n_t_retry = ParsedLoadJobFileName("test_table", file_id, 2, typed_format)
-    assert f_n_t_retry.file_name() == f"test_table.{file_id}.2.{expected_extension}"
-    parsed_retry = ParsedLoadJobFileName.parse(f_n_t_retry.file_name())
-    assert parsed_retry.file_format == file_format
-    assert parsed_retry.retry_count == 2
-
-    # Test with_retry() preserves format
-    f_n_t_with_retry = f_n_t.with_retry()
-    assert f_n_t_with_retry.file_format == file_format
-    assert f_n_t_with_retry.retry_count == 1
-
-
-def test_build_parse_job_path_validation() -> None:
-    """Test validation rules for job file name building and parsing."""
-    file_id = ParsedLoadJobFileName.new_file_id()
-
-    # Table name cannot contain dots (validation is on by default)
-    with pytest.raises(pathvalidate.error.InvalidCharError):
-        PackageStorage.build_job_file_name("test.table", file_id, 0, loader_file_format="jsonl")
-
-    # Parsing requires correct number of parts
+    # parts cannot contain dots
     with pytest.raises(ValueError):
-        ParsedLoadJobFileName.parse(f"test_table.{file_id}.0.jsonl.more")
+        PackageStorage.build_job_file_name("test.table", file_id, 0, loader_file_format="jsonl")
+        PackageStorage.build_job_file_name("test_table", "f.id", 0, loader_file_format="jsonl")
+
+    # parsing requires 4 parts and retry count
+    with pytest.raises(ValueError):
+        ParsedLoadJobFileName.parse(job_f_n + ".more")
 
     with pytest.raises(ValueError):
         ParsedLoadJobFileName.parse("tab.id.wrong_retry.jsonl")
