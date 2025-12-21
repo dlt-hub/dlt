@@ -1,58 +1,57 @@
 import contextlib
-import os
-from copy import deepcopy
-import threading
-
 import datetime  # noqa: 251
-import humanize
+import os
+import threading
+from copy import deepcopy
 from pathlib import PurePath
-from pendulum.datetime import DateTime
 from typing import (
+    Any,
     ClassVar,
     Dict,
     Iterable,
     List,
-    NamedTuple,
     Literal,
+    NamedTuple,
     Optional,
     Sequence,
     Set,
-    cast,
-    Any,
     Tuple,
+    cast,
 )
-from typing_extensions import NotRequired
 
-from dlt.common.typing import TypedDict, get_args, DictStrAny, SupportsHumanize
-from dlt.common.pendulum import pendulum
-from dlt.common.json import json
+import humanize
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
+from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.data_writers import DataWriter, new_file_id
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TTableSchema
+from dlt.common.schema.typing import TStoredSchema, TTableSchema, TTableSchemaColumns
 from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import (
+    CurrentLoadPackageStateNotAvailable,
     LoadPackageAlreadyCompleted,
     LoadPackageCancelled,
     LoadPackageNotCompleted,
     LoadPackageNotFound,
-    CurrentLoadPackageStateNotAvailable,
 )
+from dlt.common.time import precise_time
+from dlt.common.typing import DictStrAny, SupportsHumanize, TypedDict, get_args
 from dlt.common.utils import flatten_list_or_items
 from dlt.common.versioned_state import (
-    generate_state_version_hash,
-    bump_state_version_if_modified,
     TVersionedState,
+    bump_state_version_if_modified,
     default_versioned_state,
+    generate_state_version_hash,
     json_decode_state,
     json_encode_state,
 )
-from dlt.common.time import precise_time
+from pendulum.datetime import DateTime
+from typing_extensions import NotRequired
 
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
@@ -147,6 +146,16 @@ WORKING_FOLDERS: Set[TPackageJobState] = set(get_args(TPackageJobState))
 TLoadPackageStatus = Literal["new", "extracted", "normalized", "loaded", "aborted"]
 
 
+def _format_to_extension(file_format: TJobFileFormat) -> str:
+    """Map file format to file extension. Arrow IPC (Feather v2) uses .arrow extension."""
+    return "arrow" if file_format == "ipc" else file_format
+
+
+def _extension_to_format(extension: str) -> TJobFileFormat:
+    """Map file extension to file format. .arrow extension maps to Arrow IPC (Feather v2)."""
+    return cast(TJobFileFormat, "ipc" if extension == "arrow" else extension)
+
+
 class ParsedLoadJobFileName(NamedTuple):
     """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retried, extension
     and a 5 bytes random string to make job file name unique.
@@ -162,12 +171,14 @@ class ParsedLoadJobFileName(NamedTuple):
     def job_id(self) -> str:
         """Unique identifier of the job"""
         compression_extension = ".gz" if self.is_compressed else ""
-        return f"{self.table_name}.{self.file_id}.{self.file_format}{compression_extension}"
+        file_extension = _format_to_extension(self.file_format)
+        return f"{self.table_name}.{self.file_id}.{file_extension}{compression_extension}"
 
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
         compression_extension = ".gz" if self.is_compressed else ""
-        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}{compression_extension}"
+        file_extension = _format_to_extension(self.file_format)
+        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{file_extension}{compression_extension}"
 
     def with_retry(self) -> "ParsedLoadJobFileName":
         """Returns a job with increased retry count"""
@@ -188,14 +199,12 @@ class ParsedLoadJobFileName(NamedTuple):
 
         if len(parts) == 4:
             # No compression extension: table_name.file_id.retry_count.file_format
-            return ParsedLoadJobFileName(
-                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), False
-            )
+            file_format = _extension_to_format(parts[3])
+            return ParsedLoadJobFileName(parts[0], parts[1], int(parts[2]), file_format, False)
         elif len(parts) == 5 and parts[4] == "gz":
             # With compression extension: table_name.file_id.retry_count.file_format.gz
-            return ParsedLoadJobFileName(
-                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), True
-            )
+            file_format = _extension_to_format(parts[3])
+            return ParsedLoadJobFileName(parts[0], parts[1], int(parts[2]), file_format, True)
         else:
             raise TerminalValueError(parts)
 
@@ -308,7 +317,11 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
             f" {completed_msg}.\n"
         )
         msg += "Jobs details:\n"
-        msg += "\n".join(job.asstr(verbosity) for job in flatten_list_or_items(iter(self.jobs.values())))  # type: ignore
+        jobs_list: List[str] = []
+        for job_infos in self.jobs.values():
+            for job in job_infos:
+                jobs_list.append(job.asstr(verbosity))
+        msg += "\n".join(jobs_list)
         return msg
 
     def __str__(self) -> str:

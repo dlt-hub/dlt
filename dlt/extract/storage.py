@@ -1,16 +1,16 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Literal, Union
 
-from dlt.common.data_writers import TDataItemFormat, DataWriter, FileWriterSpec
+from dlt.common.data_writers import DataWriter, FileWriterSpec, TDataItemFormat
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema import Schema
 from dlt.common.storages import (
-    NormalizeStorageConfiguration,
-    NormalizeStorage,
     DataItemStorage,
     FileStorage,
-    PackageStorage,
     LoadPackageInfo,
+    NormalizeStorage,
+    NormalizeStorageConfiguration,
+    PackageStorage,
     create_load_id,
 )
 from dlt.common.storages.exceptions import LoadPackageNotFound
@@ -43,7 +43,9 @@ class ExtractStorage(NormalizeStorage):
         self.new_packages = PackageStorage(
             FileStorage(os.path.join(self.storage.storage_path, self.new_packages_folder)), "new"
         )
-        self.item_storages: Dict[TDataItemFormat, ExtractorItemStorage] = {
+        self.item_storages: Dict[
+            Union[TDataItemFormat, Literal["arrow_ipc"]], ExtractorItemStorage
+        ] = {
             "object": ExtractorItemStorage(
                 self.new_packages, DataWriter.writer_spec_from_file_format("typed-jsonl", "object")
             ),
@@ -53,6 +55,9 @@ class ExtractStorage(NormalizeStorage):
             "model": ExtractorItemStorage(
                 self.new_packages, DataWriter.writer_spec_from_file_format("model", "model")
             ),
+            "arrow_ipc": ExtractorItemStorage(
+                self.new_packages, DataWriter.writer_spec_from_file_format("ipc", "arrow")
+            ),  # Additional storage type for Arrow IPC (Feather v2) format arrow data
         }
 
     def create_load_package(self, schema: Schema, reuse_exiting_package: bool = True) -> str:

@@ -4,6 +4,7 @@ Tests Arrow IPC Feather v2 format writing capabilities for both Python objects
 (IPCDataWriter) and Arrow data (ArrowToIPCWriter) with various configurations.
 """
 
+import gzip
 import io
 import math
 import time
@@ -26,6 +27,17 @@ from tests.cases import (
 )
 from tests.common.data_writers.utils import get_writer
 from tests.common.utils import load_json_case
+
+
+def open_ipc_file(file_path: str) -> pyarrow.ipc.RecordBatchFileReader:
+    """Open an IPC file, handling gzip compression if present."""
+    if file_path.endswith(".gz"):
+        with gzip.open(file_path, "rb") as gz_file:
+            # Read the decompressed data into a BytesIO buffer
+            decompressed = io.BytesIO(gz_file.read())
+            return pyarrow.ipc.RecordBatchFileReader(decompressed)
+    else:
+        return pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(file_path, "r"))
 
 
 @pytest.fixture
@@ -238,7 +250,8 @@ def test_ipc_writer_schema_evolution_with_big_buffer() -> None:
     c3 = new_column("col3", "text")
     c4 = new_column("col4", "text")
 
-    with get_writer(IPCDataWriter) as writer:
+    writer = get_writer(IPCDataWriter)
+    try:
         writer.write_data_item(
             [{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3}
         )
@@ -246,20 +259,22 @@ def test_ipc_writer_schema_evolution_with_big_buffer() -> None:
             [{"col1": 1, "col2": 2, "col3": "3", "col4": "4", "col5": {"hello": "marcin"}}],
             {"col1": c1, "col2": c2, "col3": c3, "col4": c4},
         )
+    finally:
+        writer.close()
 
     # Schema evolution triggers file rotation: one file per schema
     assert len(writer.closed_files) == 2
 
     # First file has original schema (3 columns)
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
         assert len(table.schema) == 3
 
     # Second file has evolved schema (4 columns)
     # Second file has evolved schema (4 columns)
     with open(writer.closed_files[1].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
         assert len(table.schema) == 4
 
@@ -276,7 +291,8 @@ def test_arrow_to_ipc_writer_schema_evolution_with_multiple_batches() -> None:
     c3 = new_column("col3", "text")
     c4 = new_column("col4", "text")
 
-    with get_writer(ArrowToIPCWriter) as writer:
+    writer = get_writer(ArrowToIPCWriter)
+    try:
         # Write with initial schema
         batch1 = pyarrow.Table.from_pylist([{"col1": 1, "col2": 2, "col3": "3"}])
         writer.write_data_item(batch1, columns={"col1": c1, "col2": c2, "col3": c3})
@@ -284,19 +300,21 @@ def test_arrow_to_ipc_writer_schema_evolution_with_multiple_batches() -> None:
         # Write with evolved schema - triggers file rotation
         batch2 = pyarrow.Table.from_pylist([{"col1": 1, "col2": 2, "col3": "3", "col4": "4"}])
         writer.write_data_item(batch2, columns={"col1": c1, "col2": c2, "col3": c3, "col4": c4})
+    finally:
+        writer.close()
 
     # Schema evolution triggers file rotation: one file per schema
     assert len(writer.closed_files) == 2
 
     # First file has original schema (3 columns)
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
         assert len(table.schema) == 3
 
     # Second file has evolved schema (4 columns)
     with open(writer.closed_files[1].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
         assert len(table.schema) == 4
 
@@ -310,11 +328,14 @@ def test_ipc_writer_all_data_fields() -> None:
     data = dict(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     columns_schema, _ = table_update_and_row()
 
-    with get_writer(IPCDataWriter) as writer:
+    writer = get_writer(IPCDataWriter)
+    try:
         writer.write_data_item([dict(data)], columns_schema)
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
 
     assert table.num_rows == 1
@@ -347,14 +368,17 @@ def test_ipc_writer_timestamp_precision() -> None:
     try:
         os.environ["DATA_WRITER__TIMESTAMP_TIMEZONE"] = "UTC"
 
-        with get_writer(IPCDataWriter) as writer:
+        writer = get_writer(IPCDataWriter)
+        try:
             writer.write_data_item(
                 [{"col1": now, "col2": now, "col3": now, "col4": now_ns}],
                 TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS,
             )
+        finally:
+            writer.close()
 
         with open(writer.closed_files[0].file_path, "rb") as f:
-            reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+            reader = open_ipc_file(f.name)
             table = reader.read_all()
             assert table.num_rows == 1
             # Verify all columns exist with data
@@ -383,11 +407,14 @@ def test_arrow_to_ipc_writer_timestamp_precision() -> None:
 
     table = pyarrow.Table.from_pylist([data])
 
-    with get_writer(ArrowToIPCWriter) as writer:
+    writer = get_writer(ArrowToIPCWriter)
+    try:
         writer.write_data_item(table, columns=TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS)
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         read_table = reader.read_all()
         assert read_table.num_rows == 1
 
@@ -404,13 +431,16 @@ def test_arrow_to_ipc_writer_empty_batches() -> None:
     single_elem_table = pyarrow.Table.from_pylist([{"col1": 1}])
     empty_batch = pyarrow.RecordBatch.from_pylist([], schema=single_elem_table.schema)
 
-    with get_writer(ArrowToIPCWriter) as writer:
+    writer = get_writer(ArrowToIPCWriter)
+    try:
         writer.write_data_item(empty_batch, columns=c1)
         writer.write_data_item(empty_batch, columns=c1)
         writer.write_data_item(single_elem_table, columns=c1)
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
         # Should have written one row from the single_elem_table
         assert table.num_rows >= 1
@@ -424,9 +454,12 @@ def test_ipc_writer_empty_table_handling() -> None:
     """
     c1 = new_column("col1", "bigint")
 
-    with get_writer(IPCDataWriter) as writer:
+    writer = get_writer(IPCDataWriter)
+    try:
         # Write empty data - should not raise
         writer.write_data_item([], {"col1": c1})
+    finally:
+        writer.close()
 
     # No files are created for empty writes
     assert len(writer.closed_files) == 0
@@ -445,11 +478,14 @@ def test_ipc_writer_decimal_handling() -> None:
         {"col1": Decimal("999.99"), "col2": 2},
     ]
 
-    with get_writer(IPCDataWriter) as writer:
+    writer = get_writer(IPCDataWriter)
+    try:
         writer.write_data_item(data, {"col1": c1, "col2": c2})
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
         assert table.num_rows == 2
         assert table.column_names == ["col1", "col2"]
@@ -470,11 +506,14 @@ def test_arrow_to_ipc_writer_decimal_types() -> None:
 
     table = pyarrow.Table.from_pylist(data)
 
-    with get_writer(ArrowToIPCWriter) as writer:
+    writer = get_writer(ArrowToIPCWriter)
+    try:
         writer.write_data_item(table, columns={"col1": c1, "col2": c2})
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         read_table = reader.read_all()
         assert read_table.num_rows == 1
 
@@ -488,11 +527,14 @@ def test_ipc_writer_round_trip_all_types() -> None:
     data = dict(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     columns_schema, _ = table_update_and_row()
 
-    with get_writer(IPCDataWriter) as writer:
+    writer = get_writer(IPCDataWriter)
+    try:
         writer.write_data_item([dict(data)], columns_schema)
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
 
     assert table.num_rows == 1
@@ -557,12 +599,15 @@ def test_arrow_to_ipc_writer_round_trip_complex_types() -> None:
 
     original_table = pyarrow.Table.from_pylist(data, schema=schema)
 
-    with get_writer(ArrowToIPCWriter) as writer:
+    writer = get_writer(ArrowToIPCWriter)
+    try:
         # Write the table
         writer.write_data_item(original_table, columns={})
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         read_table = reader.read_all()
 
     # Verify exact match
@@ -669,13 +714,16 @@ def test_arrow_to_ipc_writer_round_trip_batches() -> None:
     batch2 = pyarrow.RecordBatch.from_pylist(batch2_data, schema=schema)
     batch3 = pyarrow.RecordBatch.from_pylist(batch3_data, schema=schema)
 
-    with get_writer(ArrowToIPCWriter) as writer:
+    writer = get_writer(ArrowToIPCWriter)
+    try:
         writer.write_data_item(batch1, columns={})
         writer.write_data_item(batch2, columns={})
         writer.write_data_item(batch3, columns={})
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         table = reader.read_all()
 
     expected_data = batch1_data + batch2_data + batch3_data
@@ -832,11 +880,14 @@ def test_arrow_to_ipc_writer_null_handling() -> None:
 
     table = pyarrow.Table.from_pylist(data, schema=schema)
 
-    with get_writer(ArrowToIPCWriter) as writer:
+    writer = get_writer(ArrowToIPCWriter)
+    try:
         writer.write_data_item(table, columns={})
+    finally:
+        writer.close()
 
     with open(writer.closed_files[0].file_path, "rb") as f:
-        reader = pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(f.name, "r"))
+        reader = open_ipc_file(f.name)
         read_table = reader.read_all()
 
     read_data = read_table.to_pylist()

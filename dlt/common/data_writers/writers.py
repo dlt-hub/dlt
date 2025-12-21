@@ -498,7 +498,7 @@ class IPCDataWriter(DataWriter):
             is_binary_format=True,
             supports_schema_changes="False",  # IPC is fixed once the schema is written
             requires_destination_capabilities=True,
-            supports_compression=False,  # IPC compression is handled internally
+            supports_compression=True,  # Supports external gzip compression (.arrow.gz)
         )
 
 
@@ -712,7 +712,7 @@ class ArrowToIPCWriter(IPCDataWriter):
             is_binary_format=True,
             supports_schema_changes="False",  # IPC is fixed once the schema is written
             requires_destination_capabilities=True,
-            supports_compression=False,  # IPC compression is handled internally
+            supports_compression=True,  # Supports external gzip compression (.arrow.gz)
         )
 
 
