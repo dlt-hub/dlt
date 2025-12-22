@@ -472,9 +472,9 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         ):
             continue
         # mssql, clickhouse, synapse and fabric have no native data type for the nested type.
-        if client.config.destination_type in ("clickhouse", "synapse", "fabric") and c["data_type"] in (
-            "json"
-        ):
+        if client.config.destination_type in ("clickhouse", "synapse", "fabric") and c[
+            "data_type"
+        ] in ("json"):
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("json", "time"):
             continue

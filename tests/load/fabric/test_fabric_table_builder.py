@@ -27,7 +27,7 @@ def client(empty_schema: Schema) -> FabricClient:
     creds.azure_tenant_id = "test-tenant"
     creds.azure_client_id = "test-client"
     creds.azure_client_secret = "test-secret"
-      # Set driver to skip check
+    # Set driver to skip check
 
     config = FabricClientConfiguration(credentials=creds)._bind_dataset_name(
         dataset_name="test_" + uniq_id()
@@ -165,7 +165,6 @@ def client_with_indexes_enabled(empty_schema: Schema) -> FabricClient:
     creds.azure_tenant_id = "test-tenant"
     creds.azure_client_id = "test-client"
     creds.azure_client_secret = "test-secret"
-
 
     config = FabricClientConfiguration(credentials=creds, create_indexes=True)._bind_dataset_name(
         dataset_name="test_" + uniq_id()

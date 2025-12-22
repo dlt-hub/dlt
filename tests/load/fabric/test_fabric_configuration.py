@@ -35,7 +35,7 @@ def test_fabric_credentials_service_principal() -> None:
     creds.azure_tenant_id = "test-tenant-id"
     creds.azure_client_id = "test-client-id"
     creds.azure_client_secret = "test-client-secret"
-      # Set driver to skip ODBC check
+    # Set driver to skip ODBC check
 
     # Call on_partial manually to trigger credential conversion
     creds.on_partial()
@@ -53,7 +53,6 @@ def test_fabric_credentials_odbc_dsn() -> None:
     creds.azure_tenant_id = "test-tenant-id"
     creds.azure_client_id = "test-client-id"
     creds.azure_client_secret = "test-client-secret"
-
 
     # Resolve to trigger on_partial and on_resolved
     # Get ODBC DSN parameters
@@ -104,9 +103,7 @@ def test_fabric_type_mapper() -> None:
     mapper = FabricTypeMapper(caps)
 
     # Test that text type gets converted to varchar (not nvarchar)
-    text_col = cast(
-        TColumnSchema, {"name": "test", "data_type": "text", "nullable": True}
-    )
+    text_col = cast(TColumnSchema, {"name": "test", "data_type": "text", "nullable": True})
     result = mapper.to_destination_type(text_col, table)
     assert "varchar" in result.lower()
     assert "nvarchar" not in result.lower()
@@ -180,7 +177,6 @@ def test_fabric_credentials_longasmax_always_yes() -> None:
     creds.azure_client_id = "test-client"
     creds.azure_client_secret = "test-secret"
 
-
     # Get ODBC DSN and verify LONGASMAX is set to yes
     dsn_dict = creds.get_odbc_dsn_dict()
     assert dsn_dict["LongAsMax"] == "yes"
@@ -194,7 +190,6 @@ def test_fabric_credentials_authentication_method() -> None:
     creds.azure_tenant_id = "test-tenant"
     creds.azure_client_id = "test-client"
     creds.azure_client_secret = "test-secret"
-
 
     # Verify ActiveDirectoryServicePrincipal is set
     dsn_dict = creds.get_odbc_dsn_dict()
