@@ -24,17 +24,17 @@ jobs:
           - name: postgres etc.
             dbms_extras: "--extra postgres --extra postgis"
             needs_postgres: true
-            pytest_args: "tests/load/sources --exclude tests/load/sources/sql_database/test_mssql_database_source.py --exclude tests/load/sources/sql_database/test_oracle_database_source.py"
+            pytest_mark: "not mssql and not oracle"
             allows_sqlalchemy_1_4: true
           - name: mssql
             dbms_extras: "--extra mssql"
             needs_mssql: true
-            pytest_args: "tests/load/sources/sql_database/test_mssql_database_source.py"
+            pytest_mark: "mssql"
             allows_sqlalchemy_1_4: true
           - name: oracle
             dbms_extras: "--extra oracle"
             needs_oracle: true
-            pytest_args: "tests/load/sources/sql_database/test_oracle_database_source.py"
+            pytest_mark: "oracle"
             allows_sqlalchemy_1_4: false
     defaults:
       run:
@@ -79,7 +79,7 @@ jobs:
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       # run sources tests in load against configured destinations
-      - run: pytest ${{ matrix.pytest_args }}
+      - run: pytest tests/load/sources -m "${{ matrix.pytest_mark }}""
         name: Run tests Linux
         if: ${{ matrix.allows_sqlalchemy_1_4 }}
 
