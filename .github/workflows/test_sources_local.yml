@@ -87,7 +87,7 @@ jobs:
       - name: Upgrade sql alchemy
         run: uv run pip install sqlalchemy==2.0.32
 
-      - run: pytest tests/load/sources/sql_database
+      - run: pytest tests/load/sources/sql_database -m "${{ matrix.pytest_mark }}"
         name: Run tests Linux
 
       - name: Stop databases
