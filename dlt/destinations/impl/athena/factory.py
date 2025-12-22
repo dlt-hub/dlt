@@ -22,7 +22,10 @@ from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import without_none
 
 from dlt.destinations.type_mapping import TypeMapperImpl
-from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
+from dlt.destinations.impl.athena.configuration import (
+    DEFAULT_AWS_DATA_CATALOG,
+    AthenaClientConfiguration,
+)
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.athena.athena import AthenaClient
@@ -185,6 +188,9 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         if config.force_iceberg:
             caps.preferred_table_format = "iceberg"
 
+        if config._is_s3_tables_catalog():
+            caps.naming_convention = "s3_tables"
+
         return super().adjust_capabilities(caps, config, naming)
 
     def __init__(
@@ -192,7 +198,8 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         query_result_bucket: str = None,
         credentials: Union[AwsCredentials, Dict[str, Any], Any] = None,
         athena_work_group: str = None,
-        aws_data_catalog: str = "awsdatacatalog",
+        aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG,
+        staging_aws_data_catalog: str = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -206,7 +213,10 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
             credentials (Union[AwsCredentials, Dict[str, Any], Any], optional): AWS credentials to connect to the Athena database. Can be an instance of `AwsCredentials` or
                 a dict with AWS credentials
             athena_work_group (str, optional): Athena work group to use
-            aws_data_catalog (str, optional): Athena data catalog to use
+            aws_data_catalog (str, optional): Catalog used to register production (non-staging) tables in
+            staging_aws_data_catalog (str, optional): Catalog used to register staging tables in.
+                Should not be an S3 Tables Catalog. If not set, defaults to configured value for
+                `aws_data_catalog` if it's not an S3 Tables Catalog, and to `awsdatacatalog` if it is
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
@@ -216,6 +226,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
             credentials=credentials,
             athena_work_group=athena_work_group,
             aws_data_catalog=aws_data_catalog,
+            staging_aws_data_catalog=staging_aws_data_catalog,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

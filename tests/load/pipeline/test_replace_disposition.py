@@ -39,15 +39,6 @@ def test_replace_disposition(
     #     "sqlite:///test_replace_disposition.db"
     # )
 
-    increase_state_loads = lambda info: len(
-        [
-            job
-            for job in info.load_packages[0].jobs["completed_jobs"]
-            if job.job_file_info.table_name == "_dlt_pipeline_state"
-            and job.job_file_info.file_format not in ["sql", "reference"]
-        ]
-    )
-
     # filesystem does not have child tables, prepend defaults
     # def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
     #     return {**{t: 0 for t in child_tables}, **counts}
@@ -103,6 +94,22 @@ def test_replace_disposition(
     # first run with offset 0
     info = pipeline.run([load_items, append_items], **destination_config.run_kwargs)
     assert_load_info(info)
+
+    # get dlt table names
+    state_table_name = pipeline.default_schema.state_table_name
+    loads_table_name = pipeline.default_schema.loads_table_name
+    version_table_name = pipeline.default_schema.version_table_name
+
+    # function to count state load jobs
+    increase_state_loads = lambda info: len(
+        [
+            job
+            for job in info.load_packages[0].jobs["completed_jobs"]
+            if job.job_file_info.table_name == state_table_name
+            and job.job_file_info.file_format not in ["sql", "reference"]
+        ]
+    )
+
     # count state records that got extracted
     state_records = increase_state_loads(info)
     dlt_loads: int = 1
@@ -122,9 +129,9 @@ def test_replace_disposition(
         "items": 120,
         "items__sub_items": 240,
         "items__sub_items__sub_sub_items": 120,
-        "_dlt_pipeline_state": state_records,
-        "_dlt_loads": dlt_loads,
-        "_dlt_version": dlt_versions,
+        state_table_name: state_records,
+        loads_table_name: dlt_loads,
+        version_table_name: dlt_versions,
     }
 
     # check trace
@@ -186,7 +193,7 @@ def test_replace_disposition(
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
-        "_dlt_pipeline_state": 1,
+        state_table_name: 1,
     }
 
     info = pipeline_2.run(append_items, **destination_config.run_kwargs)
@@ -202,9 +209,9 @@ def test_replace_disposition(
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
-        "_dlt_pipeline_state": state_records + 1,
-        "_dlt_loads": dlt_loads,
-        "_dlt_version": dlt_versions + 1,
+        state_table_name: state_records + 1,
+        loads_table_name: dlt_loads,
+        version_table_name: dlt_versions + 1,
     }
     # check trace
     assert pipeline_2.last_trace.last_normalize_info.row_counts == {
@@ -313,7 +320,7 @@ def test_replace_table_clearing(
         "other_items__sub_items": 2,
         "static_items": 1,
         "static_items__sub_items": 2,
-        "_dlt_pipeline_state": 1,
+        pipeline.default_schema.state_table_name: 1,
     }
 
     # see if child table gets cleared
@@ -427,7 +434,9 @@ def test_replace_sql_queries(
             assert destination_spy.call_count == 1
         else:
             assert clone_sql_generator_spy.call_count == 0
-            assert insert_sql_generator_spy.call_count == 1
+            assert insert_sql_generator_spy.call_count == (
+                2 if destination_config.uses_table_format_for_state_table else 1
+            )
 
     elif replace_strategy == "staging-optimized":
         if dest_type in ["postgres", "mssql"]:
