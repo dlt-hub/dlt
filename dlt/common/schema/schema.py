@@ -57,6 +57,7 @@ from dlt.common.schema.exceptions import (
     TableIdentifiersFrozen,
     TableNotFound,
 )
+from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.normalizers import import_normalizers, configured_normalizers
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.validation import validate_dict
@@ -233,15 +234,30 @@ class Schema:
         if is_new_table or existing_table.get("x-normalizer", {}).get("evolve-columns-once", False):
             column_mode = "evolve"
 
-        # check if we should filter any columns, partial table below contains only new columns
+        # check if we should filter any columns,
+        # partial table below contains new columns and existing columns with property changes
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
             if column_name.startswith(self._dlt_tables_prefix):
                 continue
             is_variant = column.get("variant", False)
-            # new column and contract prohibits that
+            # check if column already exists to distinguish between new column vs property change
+            existing_col = existing_table["columns"].get(column_name) if existing_table else None
+            # when column is new or has property changes, and contract prohibits column evolution
             if column_mode != "evolve" and not is_variant:
+                if existing_col and is_complete_column(existing_col):
+                    error_msg = (
+                        f"Column `{column_name}` in table `{table_name}` already exists with"
+                        " different properties, but `columns` are frozen. Existing column:"
+                        f" {existing_col}. New column with different properties: {column}.\n"
+                    )
+                else:
+                    error_msg = (
+                        f"Can't add table column `{column_name}` to table `{table_name}` because"
+                        " `columns` are frozen."
+                    )
+
                 if raise_on_freeze and column_mode == "freeze":
                     raise DataValidationError(
                         self.name,
@@ -252,8 +268,7 @@ class Schema:
                         existing_table,
                         schema_contract,
                         data_item,
-                        f"Can't add table column `{column_name}` to table `{table_name}` because"
-                        " `columns` are frozen.",
+                        error_msg,
                     )
                 # filter column with name below
                 filters.append(("columns", column_name, column_mode))
