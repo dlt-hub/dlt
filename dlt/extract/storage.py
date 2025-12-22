@@ -55,9 +55,10 @@ class ExtractStorage(NormalizeStorage):
             "model": ExtractorItemStorage(
                 self.new_packages, DataWriter.writer_spec_from_file_format("model", "model")
             ),
+            # Additional storage type for Arrow IPC (Feather v2) format arrow data
             "arrow_ipc": ExtractorItemStorage(
-                self.new_packages, DataWriter.writer_spec_from_file_format("ipc", "arrow")
-            ),  # Additional storage type for Arrow IPC (Feather v2) format arrow data
+                self.new_packages, DataWriter.writer_spec_from_file_format("arrow", "arrow")
+            ),
         }
 
     def create_load_package(self, schema: Schema, reuse_exiting_package: bool = True) -> str:

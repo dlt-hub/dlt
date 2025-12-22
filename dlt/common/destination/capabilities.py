@@ -17,7 +17,10 @@ from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SC
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.utils import serialize_value
-from dlt.common.destination.configuration import IPCFormatConfiguration, ParquetFormatConfiguration
+from dlt.common.destination.configuration import (
+    ArrowIPCFormatConfiguration,
+    ParquetFormatConfiguration,
+)
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationLoadingViaStagingNotSupported,
@@ -218,8 +221,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     parquet_format: Optional[ParquetFormatConfiguration] = None
     """Parquet format preferred by this destination"""
 
-    ipc_format: Optional[IPCFormatConfiguration] = None
-    """IPC format preferred by this destination"""
+    arrow_ipc_format: Optional[ArrowIPCFormatConfiguration] = None
+    """Arrow IPC format preferred by this destination"""
 
     supports_tz_aware_datetime: bool = True
     """The destination can store datetime with timezone"""
@@ -251,7 +254,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
             "parquet",
             "csv",
             "model",
-            "ipc",
+            "arrow",
         ]
         caps.loader_file_format_selector = loader_file_format_selector
         caps.preferred_staging_file_format = None

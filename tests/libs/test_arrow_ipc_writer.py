@@ -1,10 +1,9 @@
-"""Tests for IPCDataWriter and ArrowToIPCWriter for Apache Arrow IPC format.
+"""Tests for ArrowIPCDataWriter and ArrowToArrowIPCWriter for Apache Arrow IPC format.
 
-Tests Arrow IPC Feather v2 format writing capabilities for both Python objects
-(IPCDataWriter) and Arrow data (ArrowToIPCWriter) with various configurations.
+Tests Arrow IPC (Feather v2) file format writing capabilities for both Python objects
+(ArrowIPCDataWriter) and Arrow data (ArrowToArrowIPCWriter) with various configurations.
 """
 
-import gzip
 import io
 import math
 import time
@@ -14,8 +13,8 @@ import pyarrow
 import pytest
 from dlt.common import Decimal, json, pendulum
 from dlt.common.data_writers.writers import (
-    ArrowToIPCWriter,
-    IPCDataWriter,
+    ArrowIPCDataWriter,
+    ArrowToArrowIPCWriter,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnSchema
@@ -30,21 +29,15 @@ from tests.common.utils import load_json_case
 
 
 def open_ipc_file(file_path: str) -> pyarrow.ipc.RecordBatchFileReader:
-    """Open an IPC file, handling gzip compression if present."""
-    if file_path.endswith(".gz"):
-        with gzip.open(file_path, "rb") as gz_file:
-            # Read the decompressed data into a BytesIO buffer
-            decompressed = io.BytesIO(gz_file.read())
-            return pyarrow.ipc.RecordBatchFileReader(decompressed)
-    else:
-        return pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(file_path, "r"))
+    """Open an IPC file."""
+    return pyarrow.ipc.RecordBatchFileReader(pyarrow.memory_map(file_path, "r"))
 
 
 @pytest.fixture
-def ipc_file_writer() -> Iterator[IPCDataWriter]:
-    """Create an IPCDataWriter with file format mode."""
+def ipc_file_writer() -> Iterator[ArrowIPCDataWriter]:
+    """Create an ArrowIPCDataWriter with file format mode."""
     f = io.BytesIO()
-    yield IPCDataWriter(f)
+    yield ArrowIPCDataWriter(f)
 
 
 @pytest.fixture
@@ -63,13 +56,13 @@ def columns_schema() -> dict[str, TColumnSchema]:
     )
 
 
-class TestIPCDataWriter:
-    """Tests for IPCDataWriter - IPC format writer for Python object data."""
+class TestArrowIPCDataWriter:
+    """Tests for ArrowIPCDataWriter - IPC format writer for Python object data."""
 
     def test_ipc_file_writer(
-        self, ipc_file_writer: IPCDataWriter, columns_schema: dict[str, TColumnSchema]
+        self, ipc_file_writer: ArrowIPCDataWriter, columns_schema: dict[str, TColumnSchema]
     ) -> None:
-        """Test IPCDataWriter in file format mode.
+        """Test ArrowIPCDataWriter in file format mode.
 
         Verifies that Python objects are correctly converted to Arrow IPC file format
         with proper schema and row count.
@@ -124,7 +117,7 @@ class TestIPCDataWriter:
         ]
 
         f = io.BytesIO()
-        writer = IPCDataWriter(f)
+        writer = ArrowIPCDataWriter(f)
         writer.write_all(json_schema, rows)
         writer.close()
 
@@ -138,11 +131,11 @@ class TestIPCDataWriter:
         assert json_col[1] == "[1,2,3]"
 
 
-class TestArrowToIPCWriter:
-    """Tests for ArrowToIPCWriter - IPC format writer for Arrow data."""
+class TestArrowToArrowIPCWriter:
+    """Tests for ArrowToArrowIPCWriter - IPC format writer for Arrow data."""
 
     def test_arrow_to_ipc_file_writer(self, columns_schema: dict[str, TColumnSchema]) -> None:
-        """Test ArrowToIPCWriter in file format mode.
+        """Test ArrowToArrowIPCWriter in file format mode.
 
         Verifies that Arrow tables are correctly written to IPC file format
         without conversion, preserving table structure and data.
@@ -151,7 +144,7 @@ class TestArrowToIPCWriter:
         table = pyarrow.Table.from_pylist(rows)
 
         f = io.BytesIO()
-        writer = ArrowToIPCWriter(f)
+        writer = ArrowToArrowIPCWriter(f)
         writer.write_all(columns_schema, [table])
         writer.close()
 
@@ -163,7 +156,7 @@ class TestArrowToIPCWriter:
     def test_arrow_to_ipc_writer_multiple_batches(
         self, columns_schema: dict[str, TColumnSchema]
     ) -> None:
-        """Test ArrowToIPCWriter with multiple record batches.
+        """Test ArrowToArrowIPCWriter with multiple record batches.
 
         Verifies that multiple Arrow batches are correctly concatenated and written
         to a single IPC file with correct row count.
@@ -175,7 +168,7 @@ class TestArrowToIPCWriter:
         batch2 = pyarrow.RecordBatch.from_pylist(rows2)
 
         f = io.BytesIO()
-        writer = ArrowToIPCWriter(f)
+        writer = ArrowToArrowIPCWriter(f)
         writer.write_all(columns_schema, [batch1, batch2])
         writer.close()
 
@@ -187,13 +180,13 @@ class TestArrowToIPCWriter:
     def test_arrow_to_ipc_writer_empty_raises(
         self, columns_schema: dict[str, TColumnSchema]
     ) -> None:
-        """Test that ArrowToIPCWriter raises error for empty files.
+        """Test that ArrowToArrowIPCWriter raises error for empty files.
 
         Verifies that attempting to finalise an IPC file without writing any data
         raises NotImplementedError.
         """
         f = io.BytesIO()
-        writer = ArrowToIPCWriter(f)
+        writer = ArrowToArrowIPCWriter(f)
         writer.write_header(columns_schema)
 
         with pytest.raises(NotImplementedError, match="does not support writing empty files"):
@@ -202,7 +195,7 @@ class TestArrowToIPCWriter:
     def test_arrow_to_ipc_writer_compression_options(
         self, columns_schema: dict[str, TColumnSchema]
     ) -> None:
-        """Test ArrowToIPCWriter with compression options.
+        """Test ArrowToArrowIPCWriter with compression options.
 
         Verifies that compression options are correctly applied when writing IPC format
         and that data round-trips correctly with compression.
@@ -212,7 +205,7 @@ class TestArrowToIPCWriter:
 
         # Test with LZ4 compression
         f = io.BytesIO()
-        writer = ArrowToIPCWriter(f, compression="lz4")
+        writer = ArrowToArrowIPCWriter(f, compression="lz4")
         writer.write_all(columns_schema, [table])
         writer.close()
 
@@ -225,7 +218,7 @@ class TestArrowToIPCWriter:
 
         # Test with ZSTD compression
         f = io.BytesIO()
-        writer = ArrowToIPCWriter(f, compression="zstd")
+        writer = ArrowToArrowIPCWriter(f, compression="zstd")
         writer.write_all(columns_schema, [table])
         writer.close()
 
@@ -242,7 +235,7 @@ def test_ipc_writer_schema_evolution_with_big_buffer() -> None:
 
     IPC format does not support schema evolution within a single file, but dlt's
     BufferedDataWriter provides schema evolution by rotating files when schema changes.
-    Since IPCDataWriter sets supports_schema_changes="False", BufferedDataWriter will
+    Since ArrowIPCDataWriter sets supports_schema_changes="False", BufferedDataWriter will
     create a new file when column additions are detected.
     """
     c1 = new_column("col1", "bigint")
@@ -250,7 +243,7 @@ def test_ipc_writer_schema_evolution_with_big_buffer() -> None:
     c3 = new_column("col3", "text")
     c4 = new_column("col4", "text")
 
-    writer = get_writer(IPCDataWriter)
+    writer = get_writer(ArrowIPCDataWriter)
     try:
         writer.write_data_item(
             [{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3}
@@ -280,18 +273,18 @@ def test_ipc_writer_schema_evolution_with_big_buffer() -> None:
 
 
 def test_arrow_to_ipc_writer_schema_evolution_with_multiple_batches() -> None:
-    """Test schema evolution via BufferedDataWriter for ArrowToIPCWriter.
+    """Test schema evolution via BufferedDataWriter for ArrowToArrowIPCWriter.
 
     IPC format does not support schema evolution within a single file. BufferedDataWriter
     provides schema evolution by rotating files when schema changes are detected.
-    This test verifies file rotation with ArrowToIPCWriter.
+    This test verifies file rotation with ArrowToArrowIPCWriter.
     """
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
     c3 = new_column("col3", "text")
     c4 = new_column("col4", "text")
 
-    writer = get_writer(ArrowToIPCWriter)
+    writer = get_writer(ArrowToArrowIPCWriter)
     try:
         # Write with initial schema
         batch1 = pyarrow.Table.from_pylist([{"col1": 1, "col2": 2, "col3": "3"}])
@@ -320,15 +313,15 @@ def test_arrow_to_ipc_writer_schema_evolution_with_multiple_batches() -> None:
 
 
 def test_ipc_writer_all_data_fields() -> None:
-    """Test IPCDataWriter with all data types.
+    """Test ArrowIPCDataWriter with all data types.
 
-    Verifies that IPCDataWriter correctly handles all dlt data types
+    Verifies that ArrowIPCDataWriter correctly handles all dlt data types
     with proper precision and type mappings.
     """
     data = dict(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     columns_schema, _ = table_update_and_row()
 
-    writer = get_writer(IPCDataWriter)
+    writer = get_writer(ArrowIPCDataWriter)
     try:
         writer.write_data_item([dict(data)], columns_schema)
     finally:
@@ -352,7 +345,7 @@ def test_ipc_writer_all_data_fields() -> None:
 
 
 def test_ipc_writer_timestamp_precision() -> None:
-    """Test IPCDataWriter with various timestamp precisions.
+    """Test ArrowIPCDataWriter with various timestamp precisions.
 
     Verifies that timestamps with different precisions (s, ms, us, ns)
     are correctly stored in IPC format.
@@ -368,7 +361,7 @@ def test_ipc_writer_timestamp_precision() -> None:
     try:
         os.environ["DATA_WRITER__TIMESTAMP_TIMEZONE"] = "UTC"
 
-        writer = get_writer(IPCDataWriter)
+        writer = get_writer(ArrowIPCDataWriter)
         try:
             writer.write_data_item(
                 [{"col1": now, "col2": now, "col3": now, "col4": now_ns}],
@@ -392,7 +385,7 @@ def test_ipc_writer_timestamp_precision() -> None:
 
 
 def test_arrow_to_ipc_writer_timestamp_precision() -> None:
-    """Test ArrowToIPCWriter preserves timestamp precision.
+    """Test ArrowToArrowIPCWriter preserves timestamp precision.
 
     Verifies that Arrow tables with various timestamp precisions are
     correctly written and read back from IPC format.
@@ -407,7 +400,7 @@ def test_arrow_to_ipc_writer_timestamp_precision() -> None:
 
     table = pyarrow.Table.from_pylist([data])
 
-    writer = get_writer(ArrowToIPCWriter)
+    writer = get_writer(ArrowToArrowIPCWriter)
     try:
         writer.write_data_item(table, columns=TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS)
     finally:
@@ -420,7 +413,7 @@ def test_arrow_to_ipc_writer_timestamp_precision() -> None:
 
 
 def test_arrow_to_ipc_writer_empty_batches() -> None:
-    """Test ArrowToIPCWriter handles empty batches correctly.
+    """Test ArrowToArrowIPCWriter handles empty batches correctly.
 
     Verifies that empty Arrow batches can be mixed with data batches
     and are correctly written to the IPC file.
@@ -431,7 +424,7 @@ def test_arrow_to_ipc_writer_empty_batches() -> None:
     single_elem_table = pyarrow.Table.from_pylist([{"col1": 1}])
     empty_batch = pyarrow.RecordBatch.from_pylist([], schema=single_elem_table.schema)
 
-    writer = get_writer(ArrowToIPCWriter)
+    writer = get_writer(ArrowToArrowIPCWriter)
     try:
         writer.write_data_item(empty_batch, columns=c1)
         writer.write_data_item(empty_batch, columns=c1)
@@ -447,14 +440,14 @@ def test_arrow_to_ipc_writer_empty_batches() -> None:
 
 
 def test_ipc_writer_empty_table_handling() -> None:
-    """Test IPCDataWriter handles empty writes gracefully.
+    """Test ArrowIPCDataWriter handles empty writes gracefully.
 
     Verifies that empty data writes don't cause errors in IPC writer. When no data
     is written, no files are created by BufferedDataWriter.
     """
     c1 = new_column("col1", "bigint")
 
-    writer = get_writer(IPCDataWriter)
+    writer = get_writer(ArrowIPCDataWriter)
     try:
         # Write empty data - should not raise
         writer.write_data_item([], {"col1": c1})
@@ -466,7 +459,7 @@ def test_ipc_writer_empty_table_handling() -> None:
 
 
 def test_ipc_writer_decimal_handling() -> None:
-    """Test IPCDataWriter correctly handles decimal types.
+    """Test ArrowIPCDataWriter correctly handles decimal types.
 
     Verifies that Decimal values are properly serialised in IPC format.
     """
@@ -478,7 +471,7 @@ def test_ipc_writer_decimal_handling() -> None:
         {"col1": Decimal("999.99"), "col2": 2},
     ]
 
-    writer = get_writer(IPCDataWriter)
+    writer = get_writer(ArrowIPCDataWriter)
     try:
         writer.write_data_item(data, {"col1": c1, "col2": c2})
     finally:
@@ -492,7 +485,7 @@ def test_ipc_writer_decimal_handling() -> None:
 
 
 def test_arrow_to_ipc_writer_decimal_types() -> None:
-    """Test ArrowToIPCWriter preserves decimal precision.
+    """Test ArrowToArrowIPCWriter preserves decimal precision.
 
     Verifies that Arrow Decimal128/256 types are correctly preserved
     in the IPC output.
@@ -506,7 +499,7 @@ def test_arrow_to_ipc_writer_decimal_types() -> None:
 
     table = pyarrow.Table.from_pylist(data)
 
-    writer = get_writer(ArrowToIPCWriter)
+    writer = get_writer(ArrowToArrowIPCWriter)
     try:
         writer.write_data_item(table, columns={"col1": c1, "col2": c2})
     finally:
@@ -519,7 +512,7 @@ def test_arrow_to_ipc_writer_decimal_types() -> None:
 
 
 def test_ipc_writer_round_trip_all_types() -> None:
-    """Test complete round-trip for IPCDataWriter with all data types.
+    """Test complete round-trip for ArrowIPCDataWriter with all data types.
 
     Verifies that all dlt data types can be written and read back with
     exact value preservation (within precision constraints).
@@ -527,7 +520,7 @@ def test_ipc_writer_round_trip_all_types() -> None:
     data = dict(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     columns_schema, _ = table_update_and_row()
 
-    writer = get_writer(IPCDataWriter)
+    writer = get_writer(ArrowIPCDataWriter)
     try:
         writer.write_data_item([dict(data)], columns_schema)
     finally:
@@ -559,7 +552,7 @@ def test_ipc_writer_round_trip_all_types() -> None:
 
 
 def test_arrow_to_ipc_writer_round_trip_complex_types() -> None:
-    """Test round-trip for ArrowToIPCWriter with complex Arrow types.
+    """Test round-trip for ArrowToArrowIPCWriter with complex Arrow types.
 
     Verifies that complex Arrow data structures (lists, structs, decimals)
     preserve exact values through write and read operations.
@@ -599,7 +592,7 @@ def test_arrow_to_ipc_writer_round_trip_complex_types() -> None:
 
     original_table = pyarrow.Table.from_pylist(data, schema=schema)
 
-    writer = get_writer(ArrowToIPCWriter)
+    writer = get_writer(ArrowToArrowIPCWriter)
     try:
         # Write the table
         writer.write_data_item(original_table, columns={})
@@ -617,7 +610,7 @@ def test_arrow_to_ipc_writer_round_trip_complex_types() -> None:
 
 
 def test_ipc_writer_round_trip_compression() -> None:
-    """Test round-trip with IPCDataWriter using compression.
+    """Test round-trip with ArrowIPCDataWriter using compression.
 
     Verifies that compression doesn't affect data integrity and that
     all values match after decompression.
@@ -649,7 +642,7 @@ def test_ipc_writer_round_trip_compression() -> None:
 
     # Test with LZ4 compression
     f_lz4 = io.BytesIO()
-    writer_lz4 = IPCDataWriter(f_lz4, compression="lz4")
+    writer_lz4 = ArrowIPCDataWriter(f_lz4, compression="lz4")
     writer_lz4.write_all(columns_schema, original_data)
     writer_lz4.close()
 
@@ -667,7 +660,7 @@ def test_ipc_writer_round_trip_compression() -> None:
 
     # Test with ZSTD compression
     f_zstd = io.BytesIO()
-    writer_zstd = IPCDataWriter(f_zstd, compression="zstd")
+    writer_zstd = ArrowIPCDataWriter(f_zstd, compression="zstd")
     writer_zstd.write_all(columns_schema, original_data)
     writer_zstd.close()
 
@@ -685,7 +678,7 @@ def test_ipc_writer_round_trip_compression() -> None:
 
 
 def test_arrow_to_ipc_writer_round_trip_batches() -> None:
-    """Test round-trip for ArrowToIPCWriter with multiple batches.
+    """Test round-trip for ArrowToArrowIPCWriter with multiple batches.
 
     Verifies that multiple Arrow batches can be written and read back
     with all data preserved in correct order.
@@ -714,7 +707,7 @@ def test_arrow_to_ipc_writer_round_trip_batches() -> None:
     batch2 = pyarrow.RecordBatch.from_pylist(batch2_data, schema=schema)
     batch3 = pyarrow.RecordBatch.from_pylist(batch3_data, schema=schema)
 
-    writer = get_writer(ArrowToIPCWriter)
+    writer = get_writer(ArrowToArrowIPCWriter)
     try:
         writer.write_data_item(batch1, columns={})
         writer.write_data_item(batch2, columns={})
@@ -734,7 +727,7 @@ def test_arrow_to_ipc_writer_round_trip_batches() -> None:
 
 
 def test_ipc_writer_null_value_handling() -> None:
-    """Test IPCDataWriter correctly handles NULL values in nullable columns.
+    """Test ArrowIPCDataWriter correctly handles NULL values in nullable columns.
 
     Verifies that NULL values are preserved for nullable columns and that
     mixed NULL/non-NULL data is handled correctly.
@@ -757,7 +750,7 @@ def test_ipc_writer_null_value_handling() -> None:
     ]
 
     f = io.BytesIO()
-    writer = IPCDataWriter(f)
+    writer = ArrowIPCDataWriter(f)
     writer.write_all(columns_schema, data)
     writer.close()
 
@@ -778,7 +771,7 @@ def test_ipc_writer_null_value_handling() -> None:
 
 
 def test_ipc_writer_numeric_edge_cases() -> None:
-    """Test IPCDataWriter with numeric edge cases.
+    """Test ArrowIPCDataWriter with numeric edge cases.
 
     Verifies handling of special float values (NaN, infinity), zero,
     negative numbers, and boundary values.
@@ -800,7 +793,7 @@ def test_ipc_writer_numeric_edge_cases() -> None:
     ]
 
     f = io.BytesIO()
-    writer = IPCDataWriter(f)
+    writer = ArrowIPCDataWriter(f)
     writer.write_all(columns_schema, data)
     writer.close()
 
@@ -821,7 +814,7 @@ def test_ipc_writer_numeric_edge_cases() -> None:
 
 
 def test_ipc_writer_unicode_handling() -> None:
-    """Test IPCDataWriter with Unicode and special characters.
+    """Test ArrowIPCDataWriter with Unicode and special characters.
 
     Verifies that emojis, special characters, and multi-byte UTF-8
     strings are correctly preserved.
@@ -843,7 +836,7 @@ def test_ipc_writer_unicode_handling() -> None:
     ]
 
     f = io.BytesIO()
-    writer = IPCDataWriter(f)
+    writer = ArrowIPCDataWriter(f)
     writer.write_all(columns_schema, data)
     writer.close()
 
@@ -858,7 +851,7 @@ def test_ipc_writer_unicode_handling() -> None:
 
 
 def test_arrow_to_ipc_writer_null_handling() -> None:
-    """Test ArrowToIPCWriter preserves NULL values correctly.
+    """Test ArrowToArrowIPCWriter preserves NULL values correctly.
 
     Verifies that Arrow tables with NULL values maintain those NULLs
     through the write/read cycle.
@@ -880,7 +873,7 @@ def test_arrow_to_ipc_writer_null_handling() -> None:
 
     table = pyarrow.Table.from_pylist(data, schema=schema)
 
-    writer = get_writer(ArrowToIPCWriter)
+    writer = get_writer(ArrowToArrowIPCWriter)
     try:
         writer.write_data_item(table, columns={})
     finally:
