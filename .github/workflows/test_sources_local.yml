@@ -79,7 +79,7 @@ jobs:
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       # run sources tests in load against configured destinations
-      - run: pytest tests/load/sources -m "${{ matrix.pytest_mark }}""
+      - run: pytest tests/load/sources -m "${{ matrix.pytest_mark }}"
         name: Run tests Linux
         if: ${{ matrix.allows_sqlalchemy_1_4 }}
 
