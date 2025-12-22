@@ -81,6 +81,7 @@ AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
 ABFS_BUCKET = dlt.config.get("tests.bucket_url_abfss", str)
+ONELAKE_BUCKET = dlt.config.get("tests.bucket_url_onelake", str)
 GDRIVE_BUCKET = dlt.config.get("tests.bucket_url_gdrive", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
@@ -532,6 +533,14 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination_type="fabric",
+                staging=filesystem(destination_name="onelake"),
+                file_format="parquet",
+                bucket_url=ONELAKE_BUCKET,
+                extra_info="onelake-service-principal",
                 disable_compression=True,
             ),
             DestinationTestConfiguration(
