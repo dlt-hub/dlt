@@ -16,7 +16,6 @@ from dlt.common.data_writers.writers import (
     ArrowIPCDataWriter,
     ArrowToArrowIPCWriter,
 )
-from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import new_column
 from tests.cases import (

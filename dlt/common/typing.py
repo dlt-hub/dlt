@@ -71,8 +71,6 @@ from dlt.common.pendulum import pendulum, timedelta
 if TYPE_CHECKING:
     from typing import _TypedDict
 
-    from _typeshed import StrOrBytesPath
-
     REPattern = _REPattern[str]
     PathLike = os.PathLike[str]
 else:
