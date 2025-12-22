@@ -6,7 +6,6 @@ on:
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
-  PYTHONHASHSEED: 0
 
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
@@ -102,13 +101,10 @@ jobs:
 
       # Run workspace dashboard unit tests
       - name: Run workspace dashboard unit tests
-        run: >
-          uv run pytest
-          -p xdist
-          -n auto
-          --dist=loadscope
-          --rootdir=.
-          tests/workspace/helpers/dashboard
+        run: make test-workspace-dashboard
+        env:
+          PARALLEL: 1
+          PYTEST_ARGS: ${{ matrix.pytest_args }}
 
       # Run workspace dashboard e2e tests (does not pass with python 3.9
       - name: Run dashboard e2e

@@ -10,7 +10,6 @@ env:
 
   # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
-  PYTHONHASHSEED: 0
 
   ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"file\"]"
@@ -78,23 +77,17 @@ jobs:
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       # run sources tests in load against configured destinations
-      - name: Run tests Linux
-        run: >
-          uv run pytest
-          -p xdist
-          -n auto
-          --dist=loadscope
-          tests/load/sources
+      - name: Run tests linux
+        run: make test-sources-load
+        env:
+          PARALLEL: 1
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
         run: uv run pip install sqlalchemy==2.0.32
 
       - name: Run tests Linux
-        run: >
-          uv run pytest
-          -p xdist
-          -n auto
-          --dist=loadscope
-          tests/load/sources/sql_database
+        run: make test-sources-sql-database
+        env:
+          PARALLEL: 1
         

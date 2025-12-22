@@ -14,7 +14,6 @@ on:
 env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
   RUNTIME__LOG_LEVEL: ERROR
-  PYTHONHASHSEED: 0
 
   # For s3 compatibility tests, used by "postgres and redshift", could be moved to google secrets
   TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
@@ -217,25 +216,16 @@ jobs:
 
       # NOTE: essential tests are always run
       - name: Run essential tests Linux
-        run: >
-          uv run pytest
-          -p xdist
-          -n 24
-          --dist=loadscope
-          tests/load
-          --ignore tests/load/sources
-          -m "essential"
-        
+        run: make test-dest-remote-essential
+        env:
+          PARALLEL: 1
+          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
+          PYTEST_ARGS: "-n 12"
 
-      # NOTE: non-essential tests are run if the full test suite is requested or if the matrix item has always_run_all_tests set to true
-      # we want to run this step even if the essential tests fail
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
-        run: >
-          uv run pytest
-          -p xdist
-          -n 24
-          --dist=loadscope
-          tests/load
-          --ignore tests/load/sources
-          -m "not essential"
+        run: make test-dest-remote-nonessential
+        env:
+          PARALLEL: 1
+          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
+          PYTEST_ARGS: "-n 12"

@@ -1,4 +1,9 @@
-.PHONY: install-uv build-library-prerelease has-uv dev lint test test-common reset-test-storage recreate-compiled-deps build-library-prerelease publish-library
+.PHONY: \
+  test-load-local test-load-local-p \
+  test-load-local-postgres test-load-local-postgres-p \
+  test-dest-load test-dest-load-serial \
+  test-dest-remote-essential test-dest-remote-nonessential \
+  test-dbt-no-venv test-dbt-runner-venv
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 .SILENT:has-uv
@@ -52,9 +57,6 @@ dev-airflow: has-uv
 dev-hub: has-uv
 	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-format:
-	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|_storage/.*'
-
 lint: lint-core lint-security lint-docstrings lint-lock
 
 lint-lock:
@@ -72,7 +74,7 @@ lint-core:
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 
 format:
-	uv run black dlt tests --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
+	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
 
 format-check:
 	$(MAKE) format
@@ -96,15 +98,21 @@ lint-docstrings:
 		dlt/pipeline/__init__.py \
 		tests/pipeline/utils.py
 
-PYTEST = PYTHONHASHSEED=0 uv run pytest
+PYTEST = PYTHONHASHSEED=0 uv run pytest --rootdir=.
 PYTEST_ARGS ?=
-PYTEST_XDIST_ARGS = -p xdist -n auto
 
+PARALLEL ?=
+PYTEST_XDIST_ARGS = -p xdist -n auto --dist=loadscope
+
+ifeq ($(PARALLEL),1)
+  ifeq ($(filter -n%,$(PYTEST_ARGS)),)
+    PYTEST_ARGS += $(PYTEST_XDIST_ARGS)
+  endif
+endif
+
+# convenience test commands to run tests locally
 test:
 	$(PYTEST) $(PYTEST_ARGS) tests
-
-test-p:
-	$(MAKE) test PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
 
 test-common:
 	$(PYTEST) $(PYTEST_ARGS) \
@@ -120,24 +128,134 @@ test-common:
 		tests/destinations
 
 test-common-p:
-	$(MAKE) test-common PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
+	$(MAKE) test-common PARALLEL=1
 
 test-load-local:
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
-	$(PYTEST) $(PYTEST_ARGS) tests/load
+	$(MAKE) test-dest-load
+
+	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
+	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
+	$(MAKE) test-dest-load-serial
 
 test-load-local-p:
-	$(MAKE) test-load-local PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
+	$(MAKE) test-load-local PARALLEL=1
 
 test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
 	ACTIVE_DESTINATIONS='["postgres"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory"]' \
-	$(PYTEST) $(PYTEST_ARGS) tests/load
+	$(MAKE) test-dest-load
+
+	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
+	ACTIVE_DESTINATIONS='["postgres"]' \
+	ALL_FILESYSTEM_DRIVERS='["memory"]' \
+	$(MAKE) test-dest-load-serial
 
 test-load-local-postgres-p:
-	$(MAKE) test-load-local-postgres PYTEST_ARGS="$(PYTEST_ARGS) $(PYTEST_XDIST_ARGS)"
+	$(MAKE) test-load-local-postgres PARALLEL=1
+
+# these are convenience make commands for snowflake but not re-used by CI
+install-snowflake-extras:
+	uv sync --group pipeline --group ibis --group providers \
+		--extra snowflake --extra s3 --extra gs --extra az --extra parquet
+		
+test-remote-snowflake:
+	ACTIVE_DESTINATIONS='["snowflake"]' \
+	ALL_FILESYSTEM_DRIVERS='["memory"]' \
+	$(MAKE) test-dest-remote-essential
+
+test-remote-snowflake-p:
+	$(MAKE) test-remote-snowflake PARALLEL=1
+
+# CI: these make commands are used by github actions
+# common
+test-common-core:
+	$(PYTEST) $(PYTEST_ARGS) \
+		tests/common \
+		tests/normalize \
+		tests/reflection \
+		tests/plugins \
+		tests/load/test_dummy_client.py \
+		tests/extract/test_extract.py \
+		tests/extract/test_sources.py \
+		tests/pipeline/test_pipeline_state.py
+
+test-common-smoke:
+	$(PYTEST) $(PYTEST_ARGS) \
+		tests/pipeline/test_pipeline.py \
+		tests/pipeline/test_import_export_schema.py \
+		tests/sources/rest_api/integration/
+
+test-workspace:
+	$(PYTEST) $(PYTEST_ARGS) \
+		tests/workspace
+
+test-full:
+	$(PYTEST) $(PYTEST_ARGS) \
+		tests/extract \
+		tests/pipeline \
+		tests/libs \
+		tests/destinations \
+		tests/dataset \
+		tests/sources
+
+test-sql-database:
+	$(PYTEST) $(PYTEST_ARGS) \
+		tests/sources/sql_database
+
+#local dest
+test-dest-load:
+	$(PYTEST) $(PYTEST_ARGS) \
+		-m "not serial" \
+		tests/load \
+		--ignore tests/load/sources \
+		--ignore tests/load/filesystem_sftp
+
+test-dest-load-serial:
+	$(PYTEST) \
+		-m serial \
+		tests/load \
+		--ignore tests/load/sources \
+		--ignore tests/load/filesystem_sftp \
+		|| [ $$? -eq 5 ]
+
+#remote dest
+test-dest-remote-essential:
+	$(PYTEST) $(PYTEST_ARGS) \
+		--ignore tests/load/sources \
+		-m essential \
+		tests/load
+
+test-dest-remote-nonessential:
+	$(PYTEST) $(PYTEST_ARGS) \
+		--ignore tests/load/sources \
+		-m "not essential" \
+		tests/load
+
+#dbt
+test-dbt-no-venv:
+	$(PYTEST) $(PYTEST_ARGS) \
+		-k "not venv" \
+		tests/helpers/dbt_tests
+
+test-dbt-runner-venv:
+	$(PYTEST) $(PYTEST_ARGS) \
+		--ignore tests/helpers/dbt_tests/local \
+		-k "not local" \
+		tests/helpers/dbt_tests
+
+#dashboard
+test-workspace-dashboard:
+	$(PYTEST) $(PYTEST_ARGS) tests/workspace/helpers/dashboard
+
+#sources
+test-sources-load:
+	$(PYTEST) $(PYTEST_ARGS) tests/load/sources
+
+test-sources-sql-database:
+	$(PYTEST) $(PYTEST_ARGS) tests/load/sources/sql_database
 
 build-library: dev lint-lock
 	uv version

@@ -45,24 +45,18 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Run dbt tests
-        run: >
-          uv run pytest
-          -p xdist
-          --dist=loadscope
-          -n 12
-          tests/helpers/dbt_tests
-          -k "not venv"
+        run: make test-dbt-no-venv
+        env:
+          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
+          PYTEST_ARGS: "-n 12"
+          PARALLEL: 1
 
       - name: Remove dbt-core
-        # install dlt with postgres support
         run: uv run pip uninstall dbt-core -y
 
       - name: Run dbt runner with venv - Linux/MAC
-        run: >
-          uv run pytest
-          -p xdist
-          --dist=loadscope
-          -n 12
-          tests/helpers/dbt_tests
-          --ignore tests/helpers/dbt_tests/local
-          -k "not local"
+        run: make test-dbt-runner-venv
+        env:
+          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
+          PYTEST_ARGS: "-n 12"
+          PARALLEL: 1
