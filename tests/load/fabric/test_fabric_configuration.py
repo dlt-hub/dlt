@@ -21,7 +21,7 @@ def test_fabric_factory() -> None:
 
     # Test destination properties without requiring credentials
     assert dest.destination_name == "fabric"
-    assert dest.capabilities().has_case_sensitive_identifiers is False
+    assert dest.capabilities().has_case_sensitive_identifiers is True
     # Without staging configured, Fabric uses insert_values (inherited from Synapse)
     assert dest.capabilities().preferred_loader_file_format == "insert_values"
     assert dest.capabilities().sqlglot_dialect == "fabric"

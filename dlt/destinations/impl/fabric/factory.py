@@ -106,6 +106,7 @@ class fabric(synapse):
         # - Direct loading: insert_values only (inherited from synapse)
         # - Staging: parquet (inherited from synapse)
         # Don't override preferred_loader_file_format or supported_loader_file_formats
+        caps.has_case_sensitive_identifiers = True
         caps.sqlglot_dialect = "fabric"
         caps.type_mapper = FabricTypeMapper
         # Fabric only supports precision 0-6 for datetime2/time (not 7 like SQL Server)

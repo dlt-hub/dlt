@@ -192,7 +192,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     staging_use_msi: bool = False
     """Whether the managed identity of the Fabric workspace is used to authorize access to the staging Storage Account."""
 
-    has_case_sensitive_identifiers: bool = False
+    has_case_sensitive_identifiers: bool = True
     """Whether identifiers (table/column names) are case-sensitive. Depends on database collation."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
