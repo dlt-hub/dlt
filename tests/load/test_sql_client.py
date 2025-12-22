@@ -66,7 +66,7 @@ def naming(request) -> str:
     destinations_configs(
         # Only databases that support search path or equivalent
         default_sql_configs=True,
-        exclude=["mssql", "synapse", "dremio", "clickhouse", "sqlalchemy"],
+        exclude=["mssql", "synapse", "fabric", "dremio", "clickhouse", "sqlalchemy"],
     ),
     indirect=True,
     ids=lambda x: x.name,

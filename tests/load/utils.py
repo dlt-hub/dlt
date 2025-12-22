@@ -338,7 +338,7 @@ def destinations_configs(
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
             if destination
-            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake")
+            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake", "fabric")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
@@ -1214,10 +1214,10 @@ def table_update_and_row_for_destination(destination_config: DestinationTestConf
         exclude_types.append("time")
 
     if (
-        destination_config.destination_type == "synapse"
+        destination_config.destination_type in ("synapse", "fabric")
         and destination_config.file_format == "parquet"
     ):
-        # TIME columns are not supported for staged parquet loads into Synapse
+        # TIME columns are not supported for staged parquet loads into Synapse/Fabric
         exclude_types.append("time")
 
     if destination_config.destination_type in (

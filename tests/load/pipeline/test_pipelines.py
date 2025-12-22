@@ -638,6 +638,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         "synapse",
         "databricks",
         "clickhouse",
+        "fabric",
     ]:
         datetime_data.pop("col11")
         datetime_data.pop("col11_null")
