@@ -105,9 +105,17 @@ PARALLEL ?=
 PYTEST_XDIST_ARGS = -p xdist -n auto --dist=loadscope
 
 ifeq ($(PARALLEL),1)
-  ifeq ($(filter -n%,$(PYTEST_ARGS)),)
+
+  ifneq ($(filter -n%,$(PYTEST_ARGS)),)
+    # -n is present → ensure xdist is loaded
+    ifeq ($(filter -p xdist,$(PYTEST_ARGS)),)
+      PYTEST_ARGS += -p xdist
+    endif
+  else
+    # no -n → use defaults
     PYTEST_ARGS += $(PYTEST_XDIST_ARGS)
   endif
+
 endif
 
 # convenience test commands to run tests locally
