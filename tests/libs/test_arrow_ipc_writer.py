@@ -265,7 +265,6 @@ def test_ipc_writer_schema_evolution_with_big_buffer() -> None:
         assert len(table.schema) == 3
 
     # Second file has evolved schema (4 columns)
-    # Second file has evolved schema (4 columns)
     with open(writer.closed_files[1].file_path, "rb") as f:
         reader = open_ipc_file(f.name)
         table = reader.read_all()

@@ -486,7 +486,7 @@ class ArrowIPCDataWriter(DataWriter):
         for key in self.nested_indices:
             for row in items:
                 if (value := row.get(key)) is not None:
-                    if value is not None and not isinstance(value, str):
+                    if not isinstance(value, str):
                         row[key] = json.dumps(value)
 
         table: pyarrow.Table = pyarrow.Table.from_pylist(items, schema=self.schema)
@@ -691,9 +691,9 @@ class ArrowToArrowIPCWriter(ArrowIPCDataWriter):
         if not items:
             return
         # concat batches and tables into a single one, preserving order
-        # pyarrow writer starts a row group for each item it writes (even with 0 rows)
+        # pyarrow writer starts a record batch for each item it writes (even with 0 rows)
         # it also converts batches into tables internally. by creating a single table
-        # we allow the user rudimentary control over row group size via max buffered items
+        # we allow the user rudimentary control over record batch size via max buffered items
         table = concat_batches_and_tables_in_order(items)
         self.items_count += table.num_rows
 

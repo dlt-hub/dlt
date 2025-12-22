@@ -1,9 +1,7 @@
-import os
-import pytest
-import pyarrow as pa
 import dlt
+import pyarrow as pa
+import pytest
 from dlt.common.utils import uniq_id
-from tests.utils import clean_test_storage
 
 
 @pytest.fixture
