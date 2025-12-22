@@ -190,6 +190,11 @@ workspace = [
 dbml = [
     "pydbml"
 ]
+otel = [
+    "opentelemetry-distro>=0.60b1",
+    "opentelemetry-api>=1.39.1",
+    "opentelemetry-sdk>=1.39.1"
+]
 
 [project.urls]
 Homepage = "https://github.com/dlt-hub"
