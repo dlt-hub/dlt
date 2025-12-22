@@ -19,44 +19,43 @@ jobs:
     name: src | rest_api, sql_database, filesystem
     strategy:
       fail-fast: false
+      matrix:
+        include:
+          - name: postgres etc.
+            dbms_extras: "--extra postgres --extra postgis"
+            needs_postgres: true
+            pytest_args: "tests/load/sources --exclude tests/load/sources/sql_database/test_mssql_database_source.py --exclude tests/load/sources/sql_database/test_oracle_database_source.py"
+            allows_sqlalchemy_1_4: true
+          - name: mssql
+            dbms_extras: "--extra mssql"
+            needs_mssql: true
+            pytest_args: "tests/load/sources/sql_database/test_mssql_database_source.py"
+            allows_sqlalchemy_1_4: true
+          - name: oracle
+            dbms_extras: "--extra oracle"
+            needs_oracle: true
+            pytest_args: "tests/load/sources/sql_database/test_oracle_database_source.py"
+            allows_sqlalchemy_1_4: false
     defaults:
       run:
         shell: bash
     runs-on: "ubuntu-latest"
 
-    # Service containers to run with `container-job`
-    services:
-      # Label used to access the service container
-      postgres:
-        # Docker Hub image
-        image: postgis/postgis
-        # Provide the password for postgres
-        env:
-          POSTGRES_DB: dlt_data
-          POSTGRES_USER: loader
-          POSTGRES_PASSWORD: loader
-        ports:
-          - 5432:5432
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2019-latest
-        env:
-          SA_PASSWORD: Strong!Passw0rd
-          ACCEPT_EULA: 'Y'
-        ports:
-          - 1433:1433
-
     steps:
       - name: Check out
         uses: actions/checkout@master
 
+      - name: Start postgres
+        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" run postgres -d
+        if: ${{ matrix.needs_postgres }}
+
+      - name: Start mssql
+        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" run mssql -d
+        if: ${{ matrix.needs_mssql }}
+
       - name: Start oracle
-        run: docker compose -f "tests/load/oracle/docker-compose.yml" up -d
+        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" run oracle -d
+        if: ${{ matrix.needs_oracle }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -73,15 +72,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
-          uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --extra mssql --extra oracle --group pipeline --group sources --group adbc
+          uv sync --group pipeline --group sources --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --group adbc ${{ matrix.dbms_extras }}
 
       - name: Copy secrets for local tests
         run: |
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       # run sources tests in load against configured destinations
-      - run: pytest tests/load/sources
+      - run: pytest ${{ matrix.pytest_args }}
         name: Run tests Linux
+        if: ${{ matrix.allows_sqlalchemy_1_4 }}
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
@@ -90,5 +90,6 @@ jobs:
       - run: pytest tests/load/sources/sql_database
         name: Run tests Linux
 
-      - name: Stop oracle
-        run: docker compose -f "tests/load/oracle/docker-compose.yml" down -v
+      - name: Stop databases
+        run: |
+          docker compose -f "tests/load/sources/sql_database/docker-compose.yml" down -v

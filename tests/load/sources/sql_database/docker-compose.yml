@@ -1,16 +1,38 @@
 services:
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    platform: linux/amd64
-    container_name: dlt_test_mssql
-    restart: on-failure
+  postgres:
+    # Docker Hub image
+    image: postgis/postgis
+    # Provide the password for postgres
     environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=Strong!Passw0rd
+      POSTGRES_DB: dlt_data
+      POSTGRES_USER: loader
+      POSTGRES_PASSWORD: loader
     ports:
-      - "1433:1433"
-    volumes:
-      - mssql_data:/var/opt/mssql
+      - 5432:5432
+    # Set health checks to wait until postgres has started
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loader -d dlt_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-volumes:
-  mssql_data:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      SA_PASSWORD: Strong!Passw0rd
+      ACCEPT_EULA: 'Y'
+    ports:
+      - 1433:1433
+
+  oracle:
+    image: container-registry.oracle.com/database/free:latest-lite
+    ports:
+      - 1521:1521
+    environment:
+      ORACLE_PWD: loader
+    volumes:
+      - ./oracle_startup_scripts:/opt/oracle/scripts/startup
+    healthcheck:
+      test: ["CMD-SHELL", "sqlplus C##LOADER/loader@FREE"]
+      interval: 10s
+      timeout: 5s
