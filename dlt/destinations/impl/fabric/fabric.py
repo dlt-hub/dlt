@@ -74,25 +74,14 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
 
         if not is_onelake:
             # For Azure Storage (non-OneLake), add credential
-            if self.staging_use_msi:
-                credential = "IDENTITY = 'Managed Identity'"
+            if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+                sas_token = staging_credentials.azure_storage_sas_token
+                credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
             else:
-                if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
-                    sas_token = staging_credentials.azure_storage_sas_token
-                    credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
-                elif isinstance(
-                    staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults
-                ):
-                    tenant_id = staging_credentials.azure_tenant_id
-                    endpoint = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
-                    identity = f"{staging_credentials.azure_client_id}@{endpoint}"
-                    secret = staging_credentials.azure_client_secret
-                    credential = f"IDENTITY = '{identity}', SECRET = '{secret}'"
-                else:
-                    raise ConfigurationException(
-                        f"Credentials of type `{type(staging_credentials)}` not supported"
-                        " when loading data from staging into Fabric using `COPY INTO`."
-                    )
+                raise ConfigurationException(
+                    f"Credentials of type `{type(staging_credentials)}` not supported"
+                    " when loading data from staging into Fabric using `COPY INTO`."
+                )
             with_options.append(f"CREDENTIAL = ({credential})")
 
         # Copy data from staging file into Fabric table
@@ -256,7 +245,6 @@ class FabricClient(SynapseClient):
             job = FabricCopyFileLoadJob(
                 file_path,
                 self.config.staging_config.credentials,  # type: ignore[arg-type]
-                self.config.staging_use_msi,
             )
             return job
 

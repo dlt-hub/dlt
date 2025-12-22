@@ -189,16 +189,12 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     create_indexes: bool = False
     """Whether `primary_key` and `unique` column hints are applied."""
 
-    staging_use_msi: bool = False
-    """Whether the managed identity of the Fabric workspace is used to authorize access to the staging Storage Account."""
-
     has_case_sensitive_identifiers: bool = True
     """Whether identifiers (table/column names) are case-sensitive. Depends on database collation."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "default_table_index_type",
         "create_indexes",
-        "staging_use_msi",
     ]
 
     """Database collation for varchar columns. Fabric supports:

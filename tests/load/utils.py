@@ -610,14 +610,6 @@ def destinations_configs(
                 staging_use_msi=True,
                 extra_info="az-managed-identity",
             ),
-            DestinationTestConfiguration(
-                destination_type="fabric",
-                staging="filesystem",
-                file_format="parquet",
-                bucket_url=AZ_BUCKET,
-                staging_use_msi=True,
-                extra_info="az-managed-identity",
-            ),
         ]
 
     # add local filesystem destinations if requested
