@@ -91,13 +91,17 @@ jobs:
         run: uv run pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
 
       - name: Run tests
-        run: pytest tests/hub
+        run: uv run pytest tests/hub
         # if: matrix.os != 'macos-latest'
 
       - name: Test runtime client
         run: |
           mkdir .dlt && touch .dlt/.workspace
-          dlt runtime --help
+          uv run dlt runtime --help
+
+      - name: Check hub extras version requirements
+        run: uv run python tools/check_hub_extras.py
+        if: ${{ matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest' }}
 
       # DISABLED: because docs rendering happens in non-deterministic order (of plugin discovery)
       # must be fixed
