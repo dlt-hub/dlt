@@ -13,7 +13,7 @@ from dlt.common.utils import set_working_dir
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, BASE_POKE_URL
 
 WORKSPACE_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cases", "workspaces"))
 TEST_STORAGE_ROOT = os.path.abspath(TEST_STORAGE_ROOT)
@@ -84,7 +84,7 @@ def pokemon_pipeline_context() -> Generator[RunContextBase, None, None]:
     from dlt._workspace._templates._core_source_templates.rest_api_pipeline import load_pokemon
 
     with isolated_workspace(name="pipelines") as ctx:
-        load_pokemon()
+        load_pokemon(base_api_url=BASE_POKE_URL)
         yield ctx
 
 

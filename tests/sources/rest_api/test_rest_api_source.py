@@ -9,7 +9,7 @@ from dlt.sources.rest_api import rest_api_source, rest_api
 
 from tests.common.configuration.utils import environment, toml_providers
 from tests.sources.rest_api.utils import POKEMON_EXPECTED_TABLE_COUNTS
-from tests.utils import ALL_DESTINATIONS
+from tests.utils import ALL_DESTINATIONS, BASE_POKE_URL
 from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
 
 
@@ -26,7 +26,7 @@ def _make_pipeline(destination_name: str):
 def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> None:
     # mock dicts in toml provider
     dlt.config["client"] = {
-        "base_url": "https://pokeapi.co/api/v2/",
+        "base_url": BASE_POKE_URL,
     }
     dlt.config["resources"] = [
         {
@@ -52,7 +52,7 @@ def test_rest_api_config_provider(toml_providers: ConfigProvidersContainer) -> N
 def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": BASE_POKE_URL,
         },
         "resource_defaults": {
             "endpoint": {
@@ -90,7 +90,7 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
 def test_dependent_resource(destination_name: str, invocation_type: str) -> None:
     config: RESTAPIConfig = {
         "client": {
-            "base_url": "https://pokeapi.co/api/v2/",
+            "base_url": BASE_POKE_URL,
         },
         "resource_defaults": {
             "endpoint": {
@@ -142,8 +142,6 @@ def test_dependent_resource(destination_name: str, invocation_type: str) -> None
         "pokemon__types",
         "pokemon__stats",
         "pokemon__moves__version_group_details",
-        "pokemon__past_abilities",
-        "pokemon__past_abilities__abilities",
         "pokemon__moves",
         "pokemon__game_indices",
         "pokemon__forms",
