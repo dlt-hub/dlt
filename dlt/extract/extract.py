@@ -326,7 +326,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         }
 
     def _write_empty_files(
-        self, source: DltSource, extractors: Dict[TDataItemFormat, Extractor]
+        self,
+        source: DltSource,
+        extractors: Dict[Union[TDataItemFormat, Literal["arrow_ipc"]], Extractor],
     ) -> None:
         schema = source.schema
         json_extractor = extractors["object"]
@@ -388,7 +390,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 load_id, self.extract_storage.item_storages["model"], schema, collector=collector
             ),
             "arrow_ipc": ArrowExtractor(
-                load_id, self.extract_storage.item_storages["arrow"], schema, collector=collector
+                load_id,
+                self.extract_storage.item_storages["arrow_ipc"],
+                schema,
+                collector=collector,
             ),  # Additional extractor for Arrow IPC (Feather v2) format arrow data
         }
         # make sure we close storage on exception
@@ -413,7 +418,18 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         signals.raise_if_signalled()
 
                         resource = source.resources.with_pipe(pipe_item.pipe)
-                        item_format = get_data_item_format(pipe_item.item)
+                        item_format: Union[TDataItemFormat, Literal["arrow_ipc"]] = (
+                            get_data_item_format(pipe_item.item)
+                        )
+
+                        # Check if resource has file_format="arrow" hint - route to arrow_ipc storage
+                        if (
+                            item_format == "arrow"
+                            and resource._hints
+                            and resource._hints.get("file_format") == "arrow"
+                        ):
+                            item_format = "arrow_ipc"
+
                         extractors[item_format].write_items(
                             resource, pipe_item.item, pipe_item.meta
                         )
