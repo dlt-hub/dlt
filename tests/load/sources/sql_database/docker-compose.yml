@@ -27,8 +27,8 @@ services:
       test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null"]
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 60s
+      retries: 10
+      start_period: 20s
 
   oracle:
     image: container-registry.oracle.com/database/free:latest-lite
@@ -39,6 +39,8 @@ services:
     volumes:
       - ./oracle_startup_scripts:/opt/oracle/scripts/startup
     healthcheck:
-      test: ["CMD-SHELL", "sqlplus C##LOADER/loader@FREE"]
+      test: ["CMD-SHELL", "sqlplus -L C##LOADER/loader@FREE"]
       interval: 10s
       timeout: 5s
+      retries: 10
+      start_period: 20s

@@ -91,5 +91,5 @@ jobs:
         name: Run tests Linux
 
       - name: Stop databases
-        run: |
-          docker compose -f "tests/load/sources/sql_database/docker-compose.yml" down -v
+        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" down -v
+        if: ${{ always() }}
