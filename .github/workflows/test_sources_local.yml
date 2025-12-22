@@ -46,15 +46,15 @@ jobs:
         uses: actions/checkout@master
 
       - name: Start postgres
-        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" run -d postgres
+        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" up -d --wait postgres
         if: ${{ matrix.needs_postgres }}
 
       - name: Start mssql
-        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" run -d mssql
+        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" up -d --wait mssql
         if: ${{ matrix.needs_mssql }}
 
       - name: Start oracle
-        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" run -d oracle
+        run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" up -d --wait oracle
         if: ${{ matrix.needs_oracle }}
 
       - name: Setup Python
