@@ -172,7 +172,7 @@ azure_client_secret = "your-client-secret"
 
 **Note**: When using environment variables or the simplified `destination='fabric'` with `staging='filesystem'`, configure the staging credentials separately:
 
-```bash
+```sh
 # Fabric warehouse credentials
 export DESTINATION__FABRIC__CREDENTIALS__HOST="..."
 export DESTINATION__FABRIC__CREDENTIALS__DATABASE="..."
@@ -237,7 +237,7 @@ Or in code:
 ```py
 pipeline = dlt.pipeline(
     destination=fabric(
-        credentials={...},
+        credentials=my_credentials,
         collation="Latin1_General_100_CI_AS_KS_WS_SC_UTF8"
     )
 )
@@ -272,7 +272,7 @@ While Fabric Warehouse is based on SQL Server, there are key differences:
 
 If you see "No supported ODBC driver found", install the Microsoft ODBC Driver 18 for SQL Server:
 
-```bash
+```sh
 # Ubuntu/Debian
 curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
 curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
