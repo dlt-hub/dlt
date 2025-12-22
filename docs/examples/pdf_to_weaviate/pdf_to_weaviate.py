@@ -77,8 +77,15 @@ if __name__ == "__main__":
 
     import weaviate
 
-    client = weaviate.Client("http://localhost:8080")
-    # get text of all the invoices in InvoiceText class we just created above
-    print(
-        client.query.get("InvoiceText", ["text", "file_name", "mtime", "page_id"]).do()
-    )
+    # Connect using v4 client API
+    client = weaviate.connect_to_local()
+    try:
+        # get text of all the invoices in InvoiceText collection we just created above
+        invoice_collection = client.collections.get("InvoiceText")
+        result = invoice_collection.query.fetch_objects(
+            return_properties=["text", "file_name", "mtime", "page_id"]
+        )
+        for obj in result.objects:
+            print(obj.properties)
+    finally:
+        client.close()
