@@ -754,6 +754,7 @@ class Pipeline(SupportsPipeline):
         destination: TDestinationReferenceArg = None,
         staging: TDestinationReferenceArg = None,
         dataset_name: str = None,
+        always_download_schemas: bool = False,
     ) -> None:
         """Synchronizes pipeline state with the `destination`'s state kept in `dataset_name`
 
@@ -763,11 +764,16 @@ class Pipeline(SupportsPipeline):
 
         A special case where the pipeline state exists locally but the dataset does not exist at the destination will wipe out the local state.
 
+        If `always_download_schemas` is True, schema will be downloaded from the destination even if it is already present locally and the state is the same locally and remote.
+
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
         return self._sync_destination(
-            destination=destination, staging=staging, dataset_name=dataset_name
+            destination=destination,
+            staging=staging,
+            dataset_name=dataset_name,
+            always_download_schemas=always_download_schemas,
         )
 
     @with_schemas_sync
@@ -776,6 +782,7 @@ class Pipeline(SupportsPipeline):
         destination: TDestinationReferenceArg = None,
         staging: TDestinationReferenceArg = None,
         dataset_name: str = None,
+        always_download_schemas: bool = False,
     ) -> None:
         self._set_destinations(destination=destination, staging=staging)
         self._set_dataset_name(dataset_name)
@@ -817,7 +824,7 @@ class Pipeline(SupportsPipeline):
                 # if we didn't full refresh schemas, get only missing schemas
                 if restored_schemas is None:
                     restored_schemas = self._get_schemas_from_destination(
-                        state["schema_names"], always_download=False
+                        state["schema_names"], always_download=always_download_schemas
                     )
                 # commit all the changes locally
                 if state_changed:
@@ -1682,7 +1689,7 @@ class Pipeline(SupportsPipeline):
             with self._container.injectable_context(StateInjectableContext(state=state)):
                 yield state
         except Exception:
-            backup_state = self._get_state()
+            yackup_state = self._get_state()
             # restore original pipeline props
             self._state_to_props(backup_state)
             # raise original exception

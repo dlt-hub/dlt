@@ -1228,3 +1228,14 @@ class Schema:
         del state["naming"]
         del state["data_item_normalizer"]
         return state
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Schema):
+            raise NotImplementedError(
+                f"Equality between `dlt.Schema` object and {type(other).__name__} is not supported."
+            )
+
+        return self.version_hash == other.version_hash
+
+    def __hash__(self) -> int:
+        return hash(self.version_hash)
