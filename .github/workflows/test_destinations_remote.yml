@@ -83,6 +83,13 @@ jobs:
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
               extras: "--extra az --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
+              pre_install_commands: | # install httpfs before its done through any implicit mechanism in dlt for xdist race problems
+                uv run python - <<'EOF'
+                import duckdb
+                con = duckdb.connect()
+                con.execute("INSTALL httpfs")
+                con.execute("LOAD httpfs")
+                EOF
               post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
             - name: filesystem_gs_gdrive

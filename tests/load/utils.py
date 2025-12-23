@@ -333,6 +333,7 @@ def destinations_configs(
     **attr_subset: Any,  # generic attribute filter; useful if above params are not specific enough
 ) -> List[DestinationTestConfiguration]:
     input_args = locals()
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
 
     # import filesystem destination to use named version for minio
     from dlt.destinations import filesystem
@@ -385,7 +386,7 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="ducklake",
                 supports_dbt=False,
-                credentials={"ducklake_name": "ducklake_" + uniq_id()},
+                credentials={"ducklake_name": f"ducklake_{worker}"},
             ),
             DestinationTestConfiguration(
                 destination_type="motherduck", file_format="insert_values"
@@ -462,7 +463,12 @@ def destinations_configs(
     if default_vector_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="weaviate"),
-            DestinationTestConfiguration(destination_type="lancedb"),
+            DestinationTestConfiguration(
+                destination_type="lancedb",
+                env_vars={
+                    "DESTINATION__LANCEDB__LANCE_URI": f"lancedb_{worker}.lancedb"
+                },
+            ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
