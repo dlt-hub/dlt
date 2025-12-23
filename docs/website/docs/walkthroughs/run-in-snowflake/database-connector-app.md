@@ -13,9 +13,7 @@ You can:
 - create one or more pipelines (each pipeline defines what to load and where)
 - run pipelines on demand
 - schedule pipelines to run automatically
-- monitor runs and inspect logs
-
-without leaving Snowflake. 
+- monitor runs and inspect logs without leaving Snowflake. 
 
 Under the hood, the app uses Snowflake-managed compute and dlt to extract, normalize, and load data into your destination database, while keeping credentials stored securely in your account. 
 
