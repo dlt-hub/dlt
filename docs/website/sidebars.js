@@ -388,11 +388,15 @@ const sidebars = {
           type: "category",
           label: "Run in Snowflake",
           link: {
-            type: "doc",
-            id: "walkthroughs/run-in-snowflake/index",
+            type: 'generated-index',
+            title: 'Run in Snowflake',
+            description: 'How to run dlt in Snowflake.',
+            slug: 'run-in-snowflake',
+            keywords: ['Snowflake'],
           },
           items: [
-            "walkthroughs/run-in-snowflake/application-architecture"
+            "walkthroughs/run-in-snowflake/run-in-snowflake",
+            "walkthroughs/run-in-snowflake/database-connector-app"
           ]
         }
       ]
