@@ -1,6 +1,4 @@
 import random
-import uuid
-from datetime import timedelta as py_timedelta
 from typing import Any, Dict, List, TypedDict, cast
 
 
@@ -19,12 +17,9 @@ from sqlalchemy import (
     Identity,
 )
 from sqlalchemy import text
-from sqlalchemy.dialects.oracle import INTERVAL, TIMESTAMP  # , VECTOR
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.types import TypeDecorator, UserDefinedType
+from sqlalchemy.dialects.oracle import TIMESTAMP
 
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.utils import assert_min_pkg_version, uniq_id
 from dlt.sources.credentials import ConnectionStringCredentials
 
 
@@ -48,7 +43,6 @@ class OracleSourceDB:
     def query(self, query: str) -> List[Dict[str, Any]]:
         with self.engine.begin() as conn:
             result = conn.execute(text(query))
-            # Row mapping availability depends on SA version; use _mapping if present
             rows = []
             for row in result.fetchall():
                 if hasattr(row, "_mapping"):
@@ -79,13 +73,6 @@ class OracleSourceDB:
             conn.execute(text(query), updates)
 
     def create_tables(self, nullable: bool) -> None:
-        # Oracle-specific types
-        # - BOOLEAN: Oracle 23c/23ai supports BOOLEAN; fallback handled by dialect if not present
-        # - RAW(16): store GUID with SYS_GUID()
-        # - BLOB: binary data
-        # - TIMESTAMP WITH TIME ZONE / TIMESTAMP WITHOUT TIME ZONE
-        # - INTERVAL DAY TO SECOND
-        # - VECTOR(n): 23ai vector type (DDL only via custom type)
         from sqlalchemy import Boolean
         from sqlalchemy.dialects.oracle import BLOB, RAW
 
@@ -115,16 +102,6 @@ class OracleSourceDB:
             Column("some_date", Date(), nullable=nullable),
             Column("some_timestamp_tz", TIMESTAMP(timezone=True), nullable=nullable),
             Column("some_timestamp_ntz", TIMESTAMP(timezone=False), nullable=nullable),
-            # Column(
-            #     "some_interval", INTERVAL(day_precision=2, second_precision=6), nullable=nullable
-            # ),
-            # Column(
-            #     "some_guid_raw",
-            #     RAW(16),
-            #     nullable=nullable,
-            #     server_default=text("SYS_GUID()"),
-            # ),
-            # Column("some_vector", VECTOR(3), nullable=True),
             Column("some_blob", BLOB, nullable=nullable),
         )
         self.metadata.create_all(bind=self.engine)
@@ -158,9 +135,6 @@ class OracleSourceDB:
                     some_date=mimesis.Datetime().date(),
                     some_timestamp_tz=mimesis.Datetime().datetime(timezone="UTC"),
                     some_timestamp_ntz=mimesis.Datetime().datetime(),
-                    # some_interval=py_timedelta(seconds=random.randrange(0, 3600)),
-                    # some_guid_raw=uuid.uuid4().bytes,  # RAW(16)
-                    # some_vector=[float(random.randint(0, 9)) for _ in range(3)],
                     some_blob=b"\x00\x01\x02",
                 )
             )
