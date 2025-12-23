@@ -264,6 +264,7 @@ test-sources-load:
 
 test-sources-sql-database:
 	$(PYTEST) $(PYTEST_ARGS) tests/load/sources/sql_database
+#--end CI
 
 build-library: dev lint-lock
 	uv version
