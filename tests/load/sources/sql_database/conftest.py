@@ -4,6 +4,7 @@ import pytest
 
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
+from tests.load.sources.sql_database.oracle_source import OracleSourceDB
 
 try:
     from tests.load.sources.sql_database.postgres_source import PostgresSourceDB
@@ -57,10 +58,31 @@ def _create_mssql_db(**kwargs: Any) -> Iterator[MSSQLSourceDB]:
         pass
 
 
+def _create_oracle_db(**kwargs: Any) -> Iterator[OracleSourceDB]:
+    credentials = dlt.secrets.get(
+        "destination.oracle.credentials", expected_type=ConnectionStringCredentials
+    )
+    db = OracleSourceDB(credentials)
+    db.create_schema()
+    try:
+        nullable = kwargs.get("nullable", True)
+        db.create_tables(nullable)
+        db.generate_users()
+        yield db
+    finally:
+        db.drop_tables()
+
+
 @pytest.fixture(scope="function")
 def mssql_db(request: pytest.FixtureRequest) -> Iterator[MSSQLSourceDB]:
     kwargs = getattr(request, "param", {})
     yield from _create_mssql_db(**kwargs)
+
+
+@pytest.fixture(scope="package")
+def oracle_db(request: pytest.FixtureRequest) -> Iterator[OracleSourceDB]:
+    kwargs = getattr(request, "param", {})
+    yield from _create_oracle_db(**kwargs)
 
 
 @pytest.fixture(scope="package")
