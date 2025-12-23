@@ -199,7 +199,7 @@ Fields may vary depending on what the app exposes in your environment.
 1. Open pipeline tab 
 2. Click **edit** button
 3. Fill in the configurations
-4. Safe
+4. Save
 
 
 ## Monitor runs and logs
