@@ -1750,3 +1750,253 @@ def test_merge_arrow(
             {"id": 2, "name": "updated bar"},
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_insert_only_strategy(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only merge strategy: inserts new records but does not update existing ones"""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_test", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ]
+
+    # First load
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+        ],
+    )
+
+    # Second load with updates to existing records and new record
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def items_updated():
+        yield [
+            {"id": 1, "name": "Alice Updated", "value": 999},  # Existing - should NOT update
+            {"id": 2, "name": "Bob Updated", "value": 888},  # Existing - should NOT update
+            {"id": 3, "name": "Charlie", "value": 300},  # New - should insert
+        ]
+
+    info = p.run(items_updated(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    # Verify existing records were NOT updated (original values remain)
+    # and new record was inserted
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "value": 100},  # Original values
+            {"id": 2, "name": "Bob", "value": 200},  # Original values
+            {"id": 3, "name": "Charlie", "value": 300},  # New record
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_insert_only_with_hard_delete(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only strategy properly filters out hard deleted records"""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_hard_delete", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        columns={"deleted": {"hard_delete": True}},
+        table_format=destination_config.table_format,
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "deleted": False},
+            {"id": 2, "name": "Bob", "deleted": False},
+        ]
+
+    # First load: insert two active records
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    assert len(tables["items"]) == 2
+
+    # Second load: try to insert deleted record and new active record
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        columns={"deleted": {"hard_delete": True}},
+        table_format=destination_config.table_format,
+    )
+    def items_with_deleted():
+        yield [
+            {"id": 3, "name": "Charlie", "deleted": True},  # Deleted - should NOT insert
+            {"id": 4, "name": "Dave", "deleted": False},  # Active - should insert
+        ]
+
+    info = p.run(items_with_deleted(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    # Should have 3 records: original 2 + only Dave (Charlie filtered out)
+    assert_records_as_set(
+        tables["items"],
+        [
+            {"id": 1, "name": "Alice", "deleted": False},
+            {"id": 2, "name": "Bob", "deleted": False},
+            {"id": 4, "name": "Dave", "deleted": False},  # Charlie (id=3) not inserted
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_insert_only_with_compound_key(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only strategy with compound primary keys"""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_compound", dev_mode=True)
+
+    @dlt.resource(
+        primary_key=("id", "version"),
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def versioned_items():
+        yield [
+            {"id": 1, "version": 1, "data": "v1"},
+            {"id": 1, "version": 2, "data": "v2"},
+        ]
+
+    # First load
+    info = p.run(versioned_items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "versioned_items")
+    assert len(tables["versioned_items"]) == 2
+
+    # Second load: try to update existing and insert new version
+    @dlt.resource(
+        primary_key=("id", "version"),
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def versioned_items_update():
+        yield [
+            {"id": 1, "version": 1, "data": "v1_updated"},  # Exists - should NOT update
+            {"id": 1, "version": 3, "data": "v3"},  # New - should insert
+        ]
+
+    info = p.run(versioned_items_update(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "versioned_items")
+    # Should have 3 records with v1 unchanged
+    assert_records_as_set(
+        tables["versioned_items"],
+        [
+            {"id": 1, "version": 1, "data": "v1"},  # Original, not updated
+            {"id": 1, "version": 2, "data": "v2"},  # Original
+            {"id": 1, "version": 3, "data": "v3"},  # New
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_insert_only_with_nested_tables(destination_config: DestinationTestConfiguration) -> None:
+    """Test insert-only strategy with nested tables"""
+    skip_if_unsupported_merge_strategy(destination_config, "insert-only")
+
+    p = destination_config.setup_pipeline("insert_only_nested", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def parent_items():
+        yield [
+            {"id": 1, "name": "Parent1", "children": [{"child_id": 1, "child_name": "Child1"}]},
+            {"id": 2, "name": "Parent2", "children": [{"child_id": 2, "child_name": "Child2"}]},
+        ]
+
+    # First load
+    info = p.run(parent_items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # Check parent table
+    parent_tables = load_tables_to_dicts(p, "parent_items")
+    assert len(parent_tables["parent_items"]) == 2
+
+    # Check nested table
+    assert len(parent_tables["parent_items__children"]) == 2
+
+    # Second load: try to update parent and add new nested children
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        table_format=destination_config.table_format,
+    )
+    def parent_items_update():
+        yield [
+            {
+                "id": 1,
+                "name": "Parent1_Updated",  # Try to update parent
+                "children": [
+                    {"child_id": 1, "child_name": "Child1"},  # Existing child
+                    {"child_id": 3, "child_name": "Child3"},  # New child
+                ],
+            },
+            {
+                "id": 3,
+                "name": "Parent3",  # New parent
+                "children": [{"child_id": 4, "child_name": "Child4"}],
+            },
+        ]
+
+    info = p.run(parent_items_update(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    parent_tables = load_tables_to_dicts(p, "parent_items")
+
+    # Parent table: should have 3 records (2 original + 1 new), Parent1 not updated
+    assert len(parent_tables["parent_items"]) == 3
+    parent1_records = [r for r in parent_tables["parent_items"] if r["id"] == 1]
+    assert parent1_records[0]["name"] == "Parent1"  # Original name, not updated
+
+    # Nested table: should have new children inserted (based on row_key uniqueness)
+    # Original: Child1, Child2
+    # New: Child3, Child4 should be added
+    assert len(parent_tables["parent_items__children"]) >= 3
