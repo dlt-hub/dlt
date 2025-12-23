@@ -164,7 +164,7 @@ test-load-local-postgres:
 test-load-local-postgres-p:
 	$(MAKE) test-load-local-postgres PARALLEL=1
 
-# these are convenience make commands for snowflake but not re-used by CI
+# these are convenience make commands for testing remote snowflake from local dev env but not re-used by CI
 install-snowflake-extras:
 	uv sync --group pipeline --group ibis --group providers \
 		--extra snowflake --extra s3 --extra gs --extra az --extra parquet
