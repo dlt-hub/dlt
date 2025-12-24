@@ -212,7 +212,7 @@ def test_execution_context_with_plugin() -> None:
         sys.path.remove(plus_path)
         sys.modules.pop("dlthub", None)
         sys.modules.pop("dlthub.version", None)
-    
+
     after = get_execution_context()
     assert "dlthub" not in after
 

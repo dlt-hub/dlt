@@ -120,9 +120,7 @@ def spec_from_signature(
     # `inspect.getmodule(f)` may return None for decorated or dynamically loaded
     # functions (e.g. under pytest-xdist). Fall back to the function's own
     # `__module__` attribute to ensure a stable module name.
-    new_fields["__module__"] = (
-        module.__name__ if module is not None else f.__module__
-    )
+    new_fields["__module__"] = module.__name__ if module is not None else f.__module__
     # set annotations so they are present in __dict__
     new_fields["__annotations__"] = annotations
     # synthesize type

@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Set, Sequence, Generator, cast
+import pytest
 import random
+from os import environ
 import io
 import os
 from collections import Counter
@@ -15,6 +17,20 @@ from dlt.common.schema.typing import TTableSchema
 
 
 PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
+
+
+@pytest.fixture(autouse=True)
+def drop_dataset_from_env() -> None:
+    """Remove the ``DATASET_NAME`` environment variable before each test.
+
+    This autouse fixture guarantees that tests start with a clean environment. Some
+    pipelines derive the default destination dataset name from the environment
+    variable ``DATASET_NAME`` – if it is left over from a previous test run the
+    execution could pick up unexpected state. Clearing it here prevents such
+    flakiness.
+    """
+    if "DATASET_NAME" in environ:
+        del environ["DATASET_NAME"]
 
 
 def json_case_path(name: str) -> str:

@@ -1,1 +1,1 @@
-from tests.pipeline import drop_dataset_from_env
+from tests.pipeline.utils import drop_dataset_from_env
