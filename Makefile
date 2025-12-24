@@ -102,7 +102,7 @@ PYTEST = PYTHONHASHSEED=0 uv run pytest --rootdir=.
 PYTEST_ARGS ?=
 
 PARALLEL ?=
-PYTEST_XDIST_ARGS = -p xdist -n auto --dist=loadscope
+PYTEST_XDIST_ARGS = -p xdist -n auto
 
 ifeq ($(PARALLEL),1)
 
