@@ -1,5 +1,6 @@
 import re
 import inspect
+import sys
 from typing import Dict, Tuple, Type, Any, Optional
 from inspect import Signature, Parameter
 
@@ -116,12 +117,20 @@ def spec_from_signature(
     signature_fields = {**sig_base_fields, **new_fields}
 
     # new type goes to the module where sig was declared
-    new_fields["__module__"] = module.__name__
+    # `inspect.getmodule(f)` may return None for decorated or dynamically loaded
+    # functions (e.g. under pytest-xdist). Fall back to the function's own
+    # `__module__` attribute to ensure a stable module name.
+    new_fields["__module__"] = (
+        module.__name__ if module is not None else f.__module__
+    )
     # set annotations so they are present in __dict__
     new_fields["__annotations__"] = annotations
     # synthesize type
     T: Type[BaseConfiguration] = type(name, (base,), new_fields)
     SPEC = configspec()(T)
     # add to the module
-    setattr(module, name, SPEC)
+    target_module = module or sys.modules.get(f.__module__)
+    if target_module is not None:
+        setattr(target_module, name, SPEC)
+
     return SPEC, signature_fields

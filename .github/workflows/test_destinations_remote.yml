@@ -83,14 +83,7 @@ jobs:
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
               extras: "--extra az --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
-              post_install_commands: | # uv run pip install due to minimum version required by `pyiceberg`, duckdb needs httpfs preinstall because of race conditions with xdist
-                uv run python - <<'EOF'
-                import duckdb
-                con = duckdb.connect()
-                con.execute("INSTALL httpfs")
-                con.execute("LOAD httpfs")
-                EOF
-
+              post_install_commands: | # uv run pip install due to minimum version required by `pyiceberg`
                 uv run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
             - name: filesystem_gs_gdrive
@@ -113,13 +106,7 @@ jobs:
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
-              post_install_commands: | # duckdb needs motherduck preinstall because of race conditions with xdist
-                uv run python - <<'EOF'
-                import duckdb
-                con = duckdb.connect()
-                con.execute("INSTALL motherduck")
-                con.execute("LOAD motherduck")
-                EOF
+              disable_parallel: true
 
             # Ducklake
             - name: ducklake
@@ -233,10 +220,10 @@ jobs:
       - name: Run essential tests Linux
         run: make test-dest-remote-essential
         env:
-          PARALLEL: 1
+          PARALLEL: ${{ matrix.disable_parallel && null || '1' }}
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
-          PARALLEL: 1
+          PARALLEL: ${{ matrix.disable_parallel && null || '1' }}
