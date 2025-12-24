@@ -189,7 +189,7 @@ jobs:
       - name: Run tests in parallel unless sqlalchemy (its fast enough and does not play well with concurrency)
         run: make test-dest-load
         env:
-          PARALLEL: ${{ matrix.name == 'sqlalchemy' && 0 || 1 }}
+          PYTEST_XDIST_N: ${{ matrix.name == 'sqlalchemy' && '' || 'auto' }}
 
       # tests marked with serial need run without xdist because they need all CPU cores for performance required in some tests 
       - name: Run load serial tests

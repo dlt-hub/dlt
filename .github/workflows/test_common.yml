@@ -106,7 +106,7 @@ jobs:
       - name: Run common tests with minimum dependencies
         run: make test-common-core
         env:
-          PARALLEL: 1
+          PYTEST_XDIST_N: auto
           PYTEST_ARGS: ${{ matrix.pytest_args }}
 
       - name: Install min dependencies to import core source
@@ -121,7 +121,7 @@ jobs:
       - name: Run pipeline smoke tests with minimum deps
         run: make test-common-smoke
         env:
-          PARALLEL: 1
+          PYTEST_XDIST_N: auto
           PYTEST_ARGS: ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
@@ -139,7 +139,7 @@ jobs:
       - name: Run workspace tests
         run: make test-workspace
         env:
-          PARALLEL: 1
+          PYTEST_XDIST_N: auto
           PYTEST_ARGS: ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14'
 
@@ -150,7 +150,7 @@ jobs:
       - name: Run extract and pipeline tests
         run: make test-full
         env:
-          PARALLEL: 1
+          PYTEST_XDIST_N: auto
           PYTEST_ARGS: ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14'
 
@@ -162,7 +162,7 @@ jobs:
       - name: Run extract and pipeline tests 
         run: make test-sql-database
         env:
-          PARALLEL: 1
+          PYTEST_XDIST_N: auto
           PYTEST_ARGS: ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14'
 

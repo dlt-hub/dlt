@@ -101,21 +101,9 @@ lint-docstrings:
 PYTEST = PYTHONHASHSEED=0 uv run pytest --rootdir=.
 PYTEST_ARGS ?=
 
-PARALLEL ?=
-PYTEST_XDIST_ARGS = -p xdist -n auto --dist=loadscope
-
-ifeq ($(PARALLEL),1)
-
-  ifneq ($(filter -n%,$(PYTEST_ARGS)),)
-    # -n is present → ensure xdist is loaded
-    ifeq ($(filter -p xdist,$(PYTEST_ARGS)),)
-      PYTEST_ARGS += -p xdist
-    endif
-  else
-    # no -n → use defaults
-    PYTEST_ARGS += $(PYTEST_XDIST_ARGS)
-  endif
-
+# Enable xdist iff PYTEST_XDIST_N is set
+ifneq ($(strip $(PYTEST_XDIST_N)),)
+  PYTEST_ARGS += -p xdist -n $(PYTEST_XDIST_N) --dist=loadscope
 endif
 
 # convenience test commands to run tests locally
@@ -136,7 +124,7 @@ test-common:
 		tests/destinations
 
 test-common-p:
-	$(MAKE) test-common PARALLEL=1
+	$(MAKE) test-common PYTEST_XDIST_N=auto
 
 test-load-local:
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
@@ -148,7 +136,7 @@ test-load-local:
 	$(MAKE) test-dest-load-serial
 
 test-load-local-p:
-	$(MAKE) test-load-local PARALLEL=1
+	$(MAKE) test-load-local PYTEST_XDIST_N=auto
 
 test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
@@ -162,7 +150,7 @@ test-load-local-postgres:
 	$(MAKE) test-dest-load-serial
 
 test-load-local-postgres-p:
-	$(MAKE) test-load-local-postgres PARALLEL=1
+	$(MAKE) test-load-local-postgres PYTEST_XDIST_N=auto
 
 # these are convenience make commands for testing remote snowflake from local dev env but not re-used by CI
 install-snowflake-extras:
@@ -175,7 +163,7 @@ test-remote-snowflake:
 	$(MAKE) test-dest-remote-essential
 
 test-remote-snowflake-p:
-	$(MAKE) test-remote-snowflake PARALLEL=1
+	$(MAKE) test-remote-snowflake PYTEST_XDIST_N=auto
 
 # CI: these make commands are used by github actions
 # common

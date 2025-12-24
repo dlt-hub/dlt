@@ -220,12 +220,10 @@ jobs:
       - name: Run essential tests Linux
         run: make test-dest-remote-essential
         env:
-          PARALLEL: ${{ matrix.disable_parallel && '0' || '1' }}
-          PYTEST_ARGS: ${{ matrix.disable_parallel && '' || '-n 12' }}
+          PYTEST_XDIST_N: ${{ matrix.disable_parallel && '' || '12' }}
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
-          PARALLEL: ${{ matrix.disable_parallel && '0' || '1' }}
-          PYTEST_ARGS: ${{ matrix.disable_parallel && '' || '-n 12' }}
+          PYTEST_XDIST_N: ${{ matrix.disable_parallel && '' || '12' }}

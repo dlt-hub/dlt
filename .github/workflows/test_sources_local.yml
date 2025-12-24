@@ -80,7 +80,7 @@ jobs:
       - name: Run tests linux
         run: make test-sources-load
         env:
-          PARALLEL: 1
+          PYTEST_XDIST_N: auto
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
@@ -89,5 +89,5 @@ jobs:
       - name: Run tests Linux
         run: make test-sources-sql-database
         env:
-          PARALLEL: 1
+          PYTEST_XDIST_N: auto
         
