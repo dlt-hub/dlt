@@ -70,6 +70,7 @@ from tests.utils import (
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
     EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
+    get_test_storage_root
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -395,6 +396,7 @@ def destinations_configs(
 
         # add Athena staging configs
         destination_configs += default_sql_configs_with_staging
+        sqlite_path = Path(get_test_storage_root()) / "dl_data.sqlite"
 
         destination_configs += [
             DestinationTestConfiguration(
@@ -411,7 +413,7 @@ def destinations_configs(
                 supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
-                credentials="sqlite:///_storage/dl_data.sqlite",
+                credentials=f"sqlite:///{sqlite_path}",
             ),
             # TODO: enable in sql alchemy destination test, 99% of tests work
             # DestinationTestConfiguration(
@@ -469,7 +471,9 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
-                credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
+                credentials=dict(
+                    path=str(Path(FILE_BUCKET) / f"qdrant_data_{worker}")
+                ),
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(

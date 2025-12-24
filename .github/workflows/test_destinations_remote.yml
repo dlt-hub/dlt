@@ -113,6 +113,13 @@ jobs:
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
+              post_install_commands: | # duckdb needs motherduck preinstall because of race conditions with xdist
+                uv run python - <<'EOF'
+                import duckdb
+                con = duckdb.connect()
+                con.execute("INSTALL motherduck")
+                con.execute("LOAD motherduck")
+                EOF
 
             # Ducklake
             - name: ducklake

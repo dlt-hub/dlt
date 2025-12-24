@@ -186,10 +186,10 @@ jobs:
         if: ${{ matrix.post_install_commands }}
 
       # always run full suite, also on branches
-      - name: Run tests Linux
+      - name: Run tests in parallel unless sqlalchemy (its fast enough and does not play well with concurrency)
         run: make test-dest-load
         env:
-          PARALLEL: 1
+          PARALLEL: ${{ matrix.name == 'sqlalchemy' && 0 || 1 }}
 
       # tests marked with serial need run without xdist because they need all CPU cores for performance required in some tests 
       - name: Run load tests (serial / perf)
