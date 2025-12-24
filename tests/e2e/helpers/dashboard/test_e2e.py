@@ -81,7 +81,7 @@ def test_page_overview(page: Page):
 
 
 def test_exception_pipeline(
-    page: Page, 
+    page: Page,
     failed_pipeline: Any,
     pipelines_dir: Path,
 ):
@@ -91,9 +91,7 @@ def test_exception_pipeline(
 
     # overview page
     _open_section(page, "overview")
-    expect(
-        page.get_by_text(pipeline_path_text(pipelines_dir, "failed_pipeline"))
-    ).to_be_visible()
+    expect(page.get_by_text(pipeline_path_text(pipelines_dir, "failed_pipeline"))).to_be_visible()
 
     _open_section(page, "schema")
     expect(page.get_by_text(app_strings.schema_no_default_available_text[0:20])).to_be_visible()
@@ -192,9 +190,7 @@ def test_simple_incremental_pipeline(
 
     # overview page
     _open_section(page, "overview")
-    expect(
-        page.get_by_text(pipeline_path_text(pipelines_dir, "one_two_three"))
-    ).to_be_visible()
+    expect(page.get_by_text(pipeline_path_text(pipelines_dir, "one_two_three"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
@@ -258,9 +254,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any, pipelines_dir: Path):
 
     # overview page
     _open_section(page, "overview")
-    expect(
-        page.get_by_text(pipeline_path_text(pipelines_dir, "fruit_pipeline"))
-    ).to_be_visible()
+    expect(page.get_by_text(pipeline_path_text(pipelines_dir, "fruit_pipeline"))).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
