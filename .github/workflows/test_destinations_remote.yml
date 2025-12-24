@@ -234,13 +234,9 @@ jobs:
         run: make test-dest-remote-essential
         env:
           PARALLEL: 1
-          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
-          PYTEST_ARGS: "-n 12"
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
           PARALLEL: 1
-          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
-          PYTEST_ARGS: "-n 12"

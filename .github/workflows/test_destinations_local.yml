@@ -192,7 +192,7 @@ jobs:
           PARALLEL: ${{ matrix.name == 'sqlalchemy' && 0 || 1 }}
 
       # tests marked with serial need run without xdist because they need all CPU cores for performance required in some tests 
-      - name: Run load tests (serial / perf)
+      - name: Run load serial tests
         run: make test-dest-load-serial
 
       - name: Run additional tests
