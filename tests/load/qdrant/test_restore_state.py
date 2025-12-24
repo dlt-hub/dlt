@@ -6,6 +6,7 @@ from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
 from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 
+
 @pytest.mark.serial
 @pytest.mark.parametrize(
     "destination_config",

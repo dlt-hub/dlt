@@ -70,7 +70,7 @@ from tests.utils import (
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
     EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
-    get_test_storage_root
+    get_test_storage_root,
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -471,9 +471,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
-                credentials=dict(
-                    path=str(Path(FILE_BUCKET) / f"qdrant_data_{worker}")
-                ),
+                credentials=dict(path=str(Path(FILE_BUCKET) / f"qdrant_data_{worker}")),
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(
