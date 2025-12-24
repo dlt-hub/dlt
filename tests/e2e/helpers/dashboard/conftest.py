@@ -1,6 +1,7 @@
 import pathlib
 import sys
 from typing import Any
+from pathlib import Path
 import pickle
 import os
 
@@ -13,11 +14,15 @@ from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import 
 )
 from dlt._workspace.helpers.dashboard import utils as dashboard_utils
 from dlt.pipeline.trace import get_trace_file_path
+from tests.utils import get_test_storage_root
 
 
 def _normpath(path: str) -> str:
     """normalize path to unix style and lowercase for windows tests"""
     return str(pathlib.Path(path)) if sys.platform.startswith("win") else path
+
+def pipeline_path_text(pipelines_dir: Path, pipeline_name: str) -> str:
+    return _normpath(str(pipelines_dir / pipeline_name))
 
 
 @pytest.fixture()
@@ -103,8 +108,15 @@ def broken_trace_pipeline() -> Any:
 
     return bp
 
+@pytest.fixture(scope="session")
+def pipelines_dir() -> Path:
+    return (
+        Path(get_test_storage_root())
+        / ".dlt"
+        / "pipelines"
+    )
 
 @pytest.fixture(scope="module", autouse=True)
-def start_dashboard_server():
-    with start_dashboard(pipelines_dir=_normpath("_storage/.dlt/pipelines")) as proc:
+def start_dashboard_server(pipelines_dir: Path):
+    with start_dashboard(pipelines_dir=str(pipelines_dir)) as proc:
         yield proc

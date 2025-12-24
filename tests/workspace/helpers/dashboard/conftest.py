@@ -41,8 +41,7 @@ def success_pipeline_duckdb():
 @pytest.fixture
 def success_pipeline_filesystem():
     with tempfile.TemporaryDirectory() as temp_dir:
-        with tempfile.TemporaryDirectory() as storage:
-            yield create_success_pipeline_filesystem(temp_dir, storage)
+        yield create_success_pipeline_filesystem(temp_dir)
 
 
 @pytest.fixture

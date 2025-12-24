@@ -465,9 +465,7 @@ def destinations_configs(
             DestinationTestConfiguration(destination_type="weaviate"),
             DestinationTestConfiguration(
                 destination_type="lancedb",
-                env_vars={
-                    "DESTINATION__LANCEDB__LANCE_URI": f"lancedb_{worker}.lancedb"
-                },
+                env_vars={"DESTINATION__LANCEDB__LANCE_URI": f"lancedb_{worker}.lancedb"},
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
