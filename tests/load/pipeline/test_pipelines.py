@@ -395,7 +395,11 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     # print(info)
 
     # restore the pipeline
-    p = dlt.attach()
+    p = dlt.attach(
+        destination=destination_config.destination_factory(),
+        staging=destination_config.staging,
+        dataset_name=info.dataset_name,
+    )
     # restored pipeline should be never put in full refresh
     assert p.dev_mode is False
     # assert parent table (easy), None First (db order)

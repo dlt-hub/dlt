@@ -279,12 +279,27 @@ def test_pipeline_configuration_named_section(environment) -> None:
     )
 
 
+def test_dataset_name_consistency_with_dev_mode() -> None:
+    dataset_name = "dlt_run_pytest_dataset"
+    p = dlt.pipeline(dev_mode=True, destination="filesystem")
+    assert p.dataset_name.endswith(p._pipeline_instance_id)
+    # restore this pipeline
+    r_p = dlt.attach(destination="filesystem")
+    assert not r_p.dataset_name == dataset_name
+
+    # state was cleared (fresh local state)
+    assert r_p.state["_local"]["first_run"] is True
+    assert "_last_extracted_hash" not in r_p.state["_local"]
+    assert r_p.default_schema_name is None
+    assert r_p.schema_names == []
+
+
 def test_run_dev_mode_default_dataset() -> None:
     p = dlt.pipeline(dev_mode=True, destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(dev_mode=False)
-    assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+    r_p = dlt.attach(destination="filesystem")
+    assert not r_p.dataset_name.endswith(p._pipeline_instance_id)
 
     # dummy does not need dataset
     p = dlt.pipeline(dev_mode=True, destination="dummy")
@@ -308,10 +323,10 @@ def test_run_dev_mode_default_dataset_layout(environment) -> None:
         dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
     ]
     # restore this pipeline
-    r_p = dlt.attach(dev_mode=False)
+    r_p = dlt.attach(destination="filesystem")
     assert r_p.dataset_name in [
-        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
-        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
+        dataset_name_layout % "dlt_pytest_dataset",
+        dataset_name_layout % "dlt_pipeline_dataset",
     ]
 
     # dummy does not need dataset
@@ -334,8 +349,8 @@ def test_run_dev_mode_underscored_dataset() -> None:
     p = dlt.pipeline(dev_mode=True, dataset_name="_main_")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(dev_mode=False)
-    assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+    r_p = dlt.attach(destination="filesystem")
+    assert not r_p.dataset_name.endswith(p._pipeline_instance_id)
 
 
 def test_dataset_pipeline_never_ran() -> None:
