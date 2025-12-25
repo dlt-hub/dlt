@@ -280,8 +280,36 @@ clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non
 
 :::note
 - The sorting/partitioning key can only be set when the table is first created. The value for `sort`/`partition` is ignored for existing tables.
-- We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `true` in your [table settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) if you insist on nullable key columns.
+- We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `True` in your [table settings](#mergetree-table-settings) if you insist on nullable key columns.
 :::
+
+## MergeTree table settings
+Use the `settings` parameter of the `clickhouse_adapter` to specify [MergeTree settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) for the table:
+
+```py
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource
+def my_resource():
+    ...
+
+clickhouse_adapter(
+   my_resource,
+   settings = {
+      "allow_nullable_key": True,
+      "max_suspicious_broken_parts": 500,
+      "deduplicate_merge_projection_mode": "ignore"
+   }
+)
+```
+
+The `settings` parameter is used to generate the `SETTINGS` clause of the table creation statement:
+
+```sql
+CREATE TABLE ...
+...
+SETTINGS allow_nullable_key = true, max_suspicious_broken_parts = 500, deduplicate_merge_projection_mode = 'ignore'
+```
 
 ## Staging support
 

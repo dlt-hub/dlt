@@ -11,6 +11,8 @@ TTableEngineType = Literal[
     "replicated_merge_tree",
 ]
 TSQLExprOrColumnSeq = Union[str, list[str], tuple[str]]
+TMergeTreeSettingsValue = Union[str, int, float, bool]
+TMergeTreeSettings = Dict[str, TMergeTreeSettingsValue]
 
 HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
     "primary_key": "PRIMARY KEY",
@@ -34,3 +36,4 @@ TABLE_ENGINE_TYPES: Set[TTableEngineType] = set(get_args(TTableEngineType))
 TABLE_ENGINE_TYPE_HINT: Literal["x-table-engine-type"] = "x-table-engine-type"
 SORT_HINT: Literal["x-clickhouse-sort"] = "x-clickhouse-sort"
 PARTITION_HINT: Literal["x-clickhouse-partition"] = "x-clickhouse-partition"
+SETTINGS_HINT: Literal["x-clickhouse-settings"] = "x-clickhouse-settings"

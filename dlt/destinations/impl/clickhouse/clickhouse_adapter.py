@@ -3,9 +3,11 @@ from typing import Any, Dict, Optional
 from dlt.common.typing import NoneType
 from dlt.destinations.impl.clickhouse.typing import (
     PARTITION_HINT,
+    SETTINGS_HINT,
     SORT_HINT,
     TABLE_ENGINE_TYPES,
     TABLE_ENGINE_TYPE_HINT,
+    TMergeTreeSettings,
     TSQLExprOrColumnSeq,
     TTableEngineType,
 )
@@ -34,6 +36,7 @@ def clickhouse_adapter(
     table_engine_type: Optional[TTableEngineType] = None,
     sort: Optional[TSQLExprOrColumnSeq] = None,
     partition: Optional[TSQLExprOrColumnSeq] = None,
+    settings: Optional[TMergeTreeSettings] = None,
 ) -> DltResource:
     """Prepares data for the ClickHouse destination by specifying which table engine type
     that should be used.
@@ -49,6 +52,8 @@ def clickhouse_adapter(
         partition (str, optional): Partition key SQL expression. Will be added to `PARTITION BY`
             clause of table creation statement. Use normalized column names when referring to
             columns.
+        settings (TMergeTreeSettings, optional): Dictionary of MergeTree settings to apply to the
+            table. Will be added to `SETTINGS` clause of table creation statement.
 
     Returns:
         DltResource: A resource with applied Clickhouse-specific hints.
@@ -92,6 +97,15 @@ def clickhouse_adapter(
     raise_if_not_none_str_seq(partition, "partition")
     if partition:
         additional_table_hints[PARTITION_HINT] = partition
+
+    # settings
+    if not isinstance(settings, (NoneType, dict)):
+        raise TypeError(
+            "`settings` must be a dictionary of MergeTree settings, got"
+            f" '{type(settings).__name__}'"
+        )
+    if settings:
+        additional_table_hints[SETTINGS_HINT] = settings
 
     resource.apply_hints(additional_table_hints=additional_table_hints)
     return resource

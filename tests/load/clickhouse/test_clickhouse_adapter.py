@@ -9,6 +9,7 @@ from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
     PARTITION_HINT,
+    SETTINGS_HINT,
     SORT_HINT,
     TDeployment,
     TSQLExprOrColumnSeq,
@@ -16,6 +17,7 @@ from dlt.destinations.impl.clickhouse.typing import (
 from dlt.extract.resource import DltResource
 from tests.load.clickhouse.utils import (
     CLICKHOUSE_ADAPTER_CASES,
+    CLICKHOUSE_ADAPTER_SETTINGS_CASE,
     clickhouse_adapter_resource,
     clickhouse_client,
     get_deployment_type,
@@ -184,12 +186,34 @@ def test_clickhouse_adapter_partition(
     assert f"PARTITION BY {expected_partition_by_clause}" in sql
 
 
+def test_clickhouse_adapter_settings(
+    clickhouse_client: ClickHouseClient, clickhouse_adapter_resource: DltResource
+) -> None:
+    settings, expected_settings_clause = CLICKHOUSE_ADAPTER_SETTINGS_CASE
+
+    # settings hint gets set correctly
+    res = clickhouse_adapter(clickhouse_adapter_resource, settings=settings)
+    table_schema = res.compute_table_schema()
+    assert table_schema[SETTINGS_HINT] == settings  # type: ignore[typeddict-item]
+
+    # settings clause gets set correctly
+    clickhouse_client.schema.update_table(table_schema)
+    new_columns = list(table_schema["columns"].values())
+    stmts = clickhouse_client._get_table_update_sql("data", new_columns, False)
+    assert len(stmts) == 1
+    sql = stmts[0]
+    assert f"SETTINGS {expected_settings_clause}" in sql
+
+
 def test_clickhouse_adapter_type_check() -> None:
     with pytest.raises(TypeError):
         clickhouse_adapter([{"foo": "bar"}], sort=False)  # type: ignore[arg-type]
 
     with pytest.raises(TypeError):
         clickhouse_adapter([{"foo": "bar"}], partition=True)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        clickhouse_adapter([{"foo": "bar"}], settings="not_a_dict")  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(

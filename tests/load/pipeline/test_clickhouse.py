@@ -15,7 +15,9 @@ from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.clickhouse.utils import (
     CLICKHOUSE_ADAPTER_CASES,
+    CLICKHOUSE_ADAPTER_SETTINGS_CASE,
     clickhouse_adapter_resource,
+    get_create_table_query,
     get_partition_key,
     get_sorting_key,
 )
@@ -236,6 +238,24 @@ def test_clickhouse_adapter_partition_pipe(
     sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
     partition_key = get_partition_key(sql_client, table_name=partitioned_res.name)
     assert partition_key == expected_partition_key
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
+    ids=lambda x: x.name,
+)
+def test_clickhouse_adapter_settings_pipe(
+    destination_config: DestinationTestConfiguration,
+    clickhouse_adapter_resource: DltResource,
+) -> None:
+    settings, expected_settings_clause = CLICKHOUSE_ADAPTER_SETTINGS_CASE
+    adapted_res = clickhouse_adapter(clickhouse_adapter_resource, settings=settings)
+    pipe = destination_config.setup_pipeline("test_clickhouse_adapter_settings", dev_mode=True)
+    pipe.run(adapted_res, **destination_config.run_kwargs, refresh="drop_sources")
+    sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+    create_table_query = get_create_table_query(sql_client, table_name=adapted_res.name)
+    assert f"SETTINGS {expected_settings_clause}" in create_table_query
 
 
 @pytest.mark.parametrize(

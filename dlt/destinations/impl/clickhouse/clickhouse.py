@@ -39,8 +39,11 @@ from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
     HINT_TO_CLICKHOUSE_ATTR,
     PARTITION_HINT,
+    SETTINGS_HINT,
     SORT_HINT,
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
+    TMergeTreeSettings,
+    TMergeTreeSettingsValue,
     TSQLExprOrColumnSeq,
 )
 from dlt.destinations.impl.clickhouse.typing import (
@@ -300,6 +303,19 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 )
             return "(" + ", ".join(norm_hint_columns) + ")"
 
+    def _get_settings_clause(self, settings_hint: TMergeTreeSettings) -> str:
+        def to_clickhouse_literal(val: TMergeTreeSettingsValue) -> str:
+            if isinstance(val, str):
+                escaped_str = self.capabilities.escape_literal(val)
+                return cast(str, escaped_str)
+            elif isinstance(val, bool):
+                return "true" if val else "false"
+            return str(val)
+
+        clauses = [f"{key} = {to_clickhouse_literal(val)}" for key, val in settings_hint.items()]
+
+        return ", ".join(clauses)
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -342,6 +358,12 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             partition_hint = cast(TSQLExprOrColumnSeq, partition_hint)
             partition_key = self._get_key(table_name, new_columns, "partition", partition_hint)
             sql[0] += f"\nPARTITION BY {partition_key}"
+
+        # SETTNGS
+        if settings_hint := table.get(SETTINGS_HINT):
+            settings_hint = cast(TMergeTreeSettings, settings_hint)
+            settings_clause = self._get_settings_clause(settings_hint)
+            sql[0] += f"\nSETTINGS {settings_clause}"
 
         return sql
 

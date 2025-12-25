@@ -12,7 +12,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import TDeployment
+from dlt.destinations.impl.clickhouse.typing import TDeployment, TMergeTreeSettings
 from dlt.extract import DltResource
 
 
@@ -25,6 +25,22 @@ CLICKHOUSE_ADAPTER_CASES = (
     # sequences of column names (we mix in uppercase names to verify normalization)
     pytest.param(["TOWN"], "(town)", "town", id="seq-single"),
     pytest.param(("street", "TOWN"), "(street, town)", "street, town", id="seq-multi"),
+)
+
+CLICKHOUSE_ADAPTER_SETTINGS_CASE: tuple[TMergeTreeSettings, str] = (
+    # settings dict, expected SETTINGS clause
+    {
+        "allow_nullable_key": True,
+        "max_suspicious_broken_parts": 500,
+        "deduplicate_merge_projection_mode": "ignore",
+        "merge_selecting_sleep_slowdown_factor": 1.2,
+    },
+    (
+        "allow_nullable_key = true,"
+        " max_suspicious_broken_parts = 500,"
+        " deduplicate_merge_projection_mode = 'ignore',"
+        " merge_selecting_sleep_slowdown_factor = 1.2"
+    ),
 )
 
 
@@ -100,3 +116,13 @@ def _get_key(
         return key[1:-1]
 
     return key
+
+
+def get_create_table_query(sql_client: ClickHouseSqlClient, table_name: str) -> str:
+    qry = "SELECT create_table_query FROM system.tables WHERE database = %s AND name = %s;"
+    table_name = sql_client.make_qualified_table_name(table_name, quote=False)
+    database, name = table_name.split(".")
+    with sql_client:
+        result = sql_client.execute_sql(qry, database, name)
+
+    return result[0][0]
