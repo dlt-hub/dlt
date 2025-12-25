@@ -106,7 +106,6 @@ jobs:
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
-              disable_parallel: true
 
             # Ducklake
             - name: ducklake

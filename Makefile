@@ -100,13 +100,10 @@ lint-docstrings:
 
 PYTEST = PYTHONHASHSEED=0 uv run pytest -vv --rootdir=.
 PYTEST_ARGS ?=
-DISABLE_PARALLEL ?= false
 
 # Enable xdist iff PYTEST_XDIST_N is set and DISABLE_PARALLEL IS NOT
-ifneq ($(DISABLE_PARALLEL),true)
 ifneq ($(strip $(PYTEST_XDIST_N)),)
   PYTEST_ARGS += -p xdist -n $(PYTEST_XDIST_N) --dist=loadscope
-endif
 endif
 
 # convenience test commands to run tests locally
