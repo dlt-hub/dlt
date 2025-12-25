@@ -1,3 +1,5 @@
+from typing import Iterable
+
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import Schema
 
@@ -38,3 +40,7 @@ class MotherDuckClient(DuckDbClient):
         self.sql_client: MotherDuckSqlClient = sql_client
         self.active_hints = {}  # DuckDB behavior (create_indexes=False)
         self.type_mapper = capabilities.get_type_mapper()
+
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        self.sql_client.warn_if_catalog_equals_dataset_name()
+        super().initialize_storage(truncate_tables)
