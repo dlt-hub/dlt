@@ -98,7 +98,7 @@ lint-docstrings:
 		dlt/pipeline/__init__.py \
 		tests/pipeline/utils.py
 
-PYTEST = PYTHONHASHSEED=0 uv run pytest --rootdir=.
+PYTEST = PYTHONHASHSEED=0 uv run pytest  -vv --rootdir=.
 PYTEST_ARGS ?=
 DISABLE_PARALLEL ?= false
 
