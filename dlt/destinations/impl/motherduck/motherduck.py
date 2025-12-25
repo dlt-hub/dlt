@@ -34,7 +34,7 @@ class MotherDuckClient(DuckDbClient):
 
         InsertValuesJobClient.__init__(self, schema, config, sql_client)
 
-        self.config: MotherDuckClientConfiguration = config # type: ignore
+        self.config: MotherDuckClientConfiguration = config  # type: ignore
         self.sql_client: MotherDuckSqlClient = sql_client
         self.active_hints = {}  # DuckDB behavior (create_indexes=False)
         self.type_mapper = capabilities.get_type_mapper()
