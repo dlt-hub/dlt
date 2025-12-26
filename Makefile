@@ -98,59 +98,93 @@ lint-docstrings:
 		dlt/pipeline/__init__.py \
 		tests/pipeline/utils.py
 
-# Generate random PYTHONHASHSEED between 0 and 50
+# Generate random PYTHONHASHSEED that stays constant between xdist workers to detect order-dependent bugs
 PYTHONHASHSEED := $(shell shuf -i 0-50 -n 1 2>/dev/null || echo $$((RANDOM % 51)))
-PYTEST = PYTHONHASHSEED=$(PYTHONHASHSEED) uv run pytest --rootdir=.
-PYTEST_ARGS ?=
 
-# Enable xdist if PYTEST_XDIST_N is set
-ifneq ($(strip $(PYTEST_XDIST_N)),)
-  PYTEST_ARGS += -p xdist -n $(PYTEST_XDIST_N)
-endif
+# Extra pytest args passed from CLI
+# Example: make test-common PYTEST_EXTRA="-k trace -vv"
+PYTEST_EXTRA ?=
 
-# convenience test commands to run tests locally
+# Additional marker expression passed from CLI
+# Example: make test-common PYTEST_MARKERS="integration and not slow"
+PYTEST_MARKERS ?=
+
+# Number of xdist workers
+PYTEST_XDIST_N ?=
+
+# Marker expressions (NO -m here)
+PARALLEL_MARKER_EXPR = not serial and not forked
+SERIAL_MARKER_EXPR   = serial or forked
+
+# Combine user markers with internal markers
+define COMBINE_MARKERS
+$(strip \
+$(if $(PYTEST_MARKERS),($(PYTEST_MARKERS)) and ,)$(1))
+endef
+
+# Base pytest command (never includes xdist or markers)
+PYTEST_BASE = PYTHONHASHSEED=$(PYTHONHASHSEED) uv run pytest --rootdir=. $(PYTEST_EXTRA)
+
+# Parallel vs serial execution
+PYTEST_PARALLEL = \
+	$(PYTEST_BASE) \
+	$(if $(PYTEST_XDIST_N),-p xdist -n $(PYTEST_XDIST_N)) \
+	-m "$(call COMBINE_MARKERS,$(PARALLEL_MARKER_EXPR))"
+
+PYTEST_SERIAL = \
+	$(PYTEST_BASE) \
+	-m "$(call COMBINE_MARKERS,$(SERIAL_MARKER_EXPR))"
+
+# Run parallel-safe tests first, then serial/forked tests
+define RUN_XDIST_SAFE_SPLIT
+	$(PYTEST_PARALLEL) $(1)
+	$(PYTEST_SERIAL)   $(1) || [ $$? -eq 5 ]
+endef
+
+## Run the full test suite (single process)
 test:
-	$(PYTEST) $(PYTEST_ARGS) tests
+	$(PYTEST_BASE) tests
 
+TEST_COMMON_PATHS = \
+	tests/common \
+	tests/normalize \
+	tests/extract \
+	tests/pipeline \
+	tests/reflection \
+	tests/sources \
+	tests/workspace \
+	tests/load/test_dummy_client.py \
+	tests/libs \
+	tests/destinations
+
+## Run common tests (parallel-safe first, then serial/forked)
 test-common:
-	$(PYTEST) $(PYTEST_ARGS) \
-		tests/common \
-		tests/normalize \
-		tests/extract \
-		tests/pipeline \
-		tests/reflection \
-		tests/sources \
-		tests/workspace \
-		tests/load/test_dummy_client.py \
-		tests/libs \
-		tests/destinations
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_PATHS))
 
+## Run common tests with xdist enabled
 test-common-p:
 	$(MAKE) test-common PYTEST_XDIST_N=auto
 
+## Run load tests locally (duckdb + filesystem)
 test-load-local:
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
-	$(MAKE) test-dest-load
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
 
-	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
-	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
-	$(MAKE) test-dest-load-serial
+TEST_LOAD_PATHS = tests/load
 
+## Run load tests locally with xdist enabled
 test-load-local-p:
 	$(MAKE) test-load-local PYTEST_XDIST_N=auto
 
+## Run load tests locally against Postgres
 test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
 	ACTIVE_DESTINATIONS='["postgres"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory"]' \
-	$(MAKE) test-dest-load
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
 
-	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
-	ACTIVE_DESTINATIONS='["postgres"]' \
-	ALL_FILESYSTEM_DRIVERS='["memory"]' \
-	$(MAKE) test-dest-load-serial
-
+## Run Postgres load tests with xdist enabled
 test-load-local-postgres-p:
 	$(MAKE) test-load-local-postgres PYTEST_XDIST_N=auto
 
@@ -169,55 +203,85 @@ test-remote-snowflake-p:
 
 # CI: these make commands are used by github actions
 # common
-test-common-core:
-	$(PYTEST) $(PYTEST_ARGS) \
-		tests/common \
-		tests/normalize \
-		tests/reflection \
-		tests/plugins \
-		tests/load/test_dummy_client.py \
-		tests/extract/test_extract.py \
-		tests/extract/test_sources.py \
-		tests/pipeline/test_pipeline_state.py
+UV_SYNC_ARGS ?=
 
-test-common-smoke:
-	$(PYTEST) $(PYTEST_ARGS) \
-		tests/pipeline/test_pipeline.py \
-		tests/pipeline/test_import_export_schema.py \
-		tests/sources/rest_api/integration/
+install-core: ## Install minimal dependencies for core tests
+	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
+
+TEST_COMMON_CORE_PATHS = \
+	tests/common \
+	tests/normalize \
+	tests/reflection \
+	tests/plugins \
+	tests/load/test_dummy_client.py \
+	tests/extract/test_extract.py \
+	tests/extract/test_sources.py \
+	tests/pipeline/test_pipeline_state.py
+
+test-common-core:
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
+
+## Install pipeline smoke deps (duckdb, no pandas)
+install-pipeline-min:
+	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra duckdb
+
+TEST_PIPELINE_MIN_PATHS = \
+	tests/pipeline/test_pipeline.py \
+	tests/pipeline/test_import_export_schema.py \
+	tests/sources/rest_api/integration/
+
+test-pipeline-min:
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_PIPELINE_MIN_PATHS))
+
+## Install workspace deps
+install-workspace:
+	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli
+
+TEST_WORKSPACE_PATHS = tests/workspace
 
 test-workspace:
-	$(PYTEST) $(PYTEST_ARGS) \
-		tests/workspace
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_WORKSPACE_PATHS))
+
+## Install full pipeline + sources deps
+install-pipeline-full:
+	uv sync \
+		$(UV_SYNC_ARGS) \
+		--group sentry-sdk \
+		--group pipeline \
+		--group sources \
+		--group ibis \
+		--extra http \
+		--extra duckdb \
+		--extra parquet \
+		--extra deltalake \
+		--extra sql_database
+
+TEST_FULL_PATHS = \
+	tests/extract \
+	tests/pipeline \
+	tests/libs \
+	tests/destinations \
+	tests/dataset \
+	tests/sources
 
 test-full:
-	$(PYTEST) $(PYTEST_ARGS) \
-		tests/extract \
-		tests/pipeline \
-		tests/libs \
-		tests/destinations \
-		tests/dataset \
-		tests/sources
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
+
+install-sqlalchemy2:
+	uv run pip install sqlalchemy==2.0.32
+
+TEST_SQL_DATABASE_PATHS = tests/sources/sql_database
 
 test-sql-database:
-	$(PYTEST) $(PYTEST_ARGS) \
-		tests/sources/sql_database
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_SQL_DATABASE_PATHS))
 
 #local dest
 test-dest-load:
-	$(PYTEST) $(PYTEST_ARGS) \
-		-m "not serial" \
-		tests/load \
-		--ignore tests/load/sources \
-		--ignore tests/load/filesystem_sftp
-
-test-dest-load-serial:
-	$(PYTEST) \
-		-m serial \
+	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \
 		--ignore tests/load/sources \
 		--ignore tests/load/filesystem_sftp \
-		|| [ $$? -eq 5 ]
+	)
 
 #remote dest
 test-dest-remote-essential:

@@ -1,7 +1,9 @@
 import os
 import dataclasses
 import logging
+import pytest
 import shutil
+import sys
 from typing import Dict, List, Any
 
 # patch which providers to enable
@@ -182,3 +184,17 @@ def pytest_configure(config):
 # faulthandler.enable()  # makes sure the module is initialised
 
 # atexit.register(lambda: faulthandler.dump_traceback(file=sys.stderr, all_threads=True))
+
+
+def pytest_collection_modifyitems(config, items):
+    is_windows = sys.platform.startswith("win")
+
+    if not is_windows:
+        return
+
+    for item in items:
+        if item.get_closest_marker("forked"):
+            item.add_marker(pytest.mark.skip(reason="forked tests are not supported on Windows"))
+
+        if item.get_closest_marker("rfam"):
+            item.add_marker(pytest.mark.skip(reason="rfam tests are not supported on Windows"))

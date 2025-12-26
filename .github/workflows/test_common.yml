@@ -62,11 +62,9 @@ jobs:
           - os: windows-latest
             python-version: "3.11"
             shell: cmd
-            pytest_args: '-m "not forked and not rfam"'
           - os: windows-latest
             python-version: "3.13"
             shell: cmd
-            pytest_args: '-m "not forked and not rfam"'
 
     defaults:
       run:
@@ -101,69 +99,74 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --group sentry-sdk
+        run: make install-core
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
     
       - name: Run common tests with minimum dependencies
         run: make test-common-core
         env:
           PYTEST_XDIST_N: auto
-          PYTEST_ARGS: ${{ matrix.pytest_args }}
 
       - name: Install min dependencies to import core source
-        run: uv sync ${{ matrix.uv_sync_args }} --group sentry-sdk --extra sql_database
+        run: make install-core
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }} --extra sql_database
 
       - name: Run min dependencies source tests
-        run: uv run pytest tests/sources/test_minimal_dependencies.py ${{ matrix.pytest_args }}
+        run: uv run pytest tests/sources/test_minimal_dependencies.py
   
       - name: Install duckdb dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk
+        run: make install-pipeline-min
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 
       - name: Run pipeline smoke tests with minimum deps
         run: make test-common-smoke
         env:
           PYTEST_XDIST_N: auto
-          PYTEST_ARGS: ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
         run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet
         if: matrix.python-version != '3.14'
 
       - name: Run pipeline tests with pyarrow but no pandas installed
-        run: uv run pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
+        run: uv run pytest tests/pipeline/test_pipeline_extra.py -k arrow
         if: matrix.python-version != '3.14'
 
       - name: Install workspace dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra workspace --extra cli
+        run: make install-workspace
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
         if: matrix.python-version != '3.14'
 
       - name: Run workspace tests
         run: make test-workspace
         env:
           PYTEST_XDIST_N: auto
-          PYTEST_ARGS: ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14'
 
       - name: Install pipeline and sources dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra http --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
+        run: make install-pipeline-full
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
         if: matrix.python-version != '3.14'
 
       - name: Run extract and pipeline tests
         run: make test-full
         env:
           PYTEST_XDIST_N: auto
-          PYTEST_ARGS: ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14'
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
-        run: uv run pip install sqlalchemy==2.0.32
+        run: make install-sqlalchemy2
         if: matrix.python-version != '3.14'
 
       - name: Run extract and pipeline tests 
         run: make test-sql-database
         env:
           PYTEST_XDIST_N: auto
-          PYTEST_ARGS: ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14'
 
   matrix_job_required_check:
