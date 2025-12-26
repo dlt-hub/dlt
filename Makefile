@@ -129,7 +129,7 @@ $(if $(PYTEST_MARKERS),($(PYTEST_MARKERS)) and ,)$(1))
 endef
 
 # Base pytest command (never includes xdist or markers)
-PYTEST_BASE = PYTHONHASHSEED=$(PYTHONHASHSEED) uv run pytest --rootdir=. $(PYTEST_EXTRA)
+PYTEST_BASE = PYTHONHASHSEED=$(PYTHONHASHSEED) uv run pytest $(PYTEST_EXTRA)
 
 # Parallel vs serial execution
 PYTEST_PARALLEL = \
