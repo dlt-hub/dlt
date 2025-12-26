@@ -111,7 +111,7 @@ jobs:
       - name: Install min dependencies to import core source
         run: make install-core
         env:
-          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }} --extra sql_database
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 
       - name: Run min dependencies source tests
         run: uv run pytest tests/sources/test_minimal_dependencies.py
@@ -121,8 +121,8 @@ jobs:
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 
-      - name: Run pipeline smoke tests with minimum deps
-        run: make test-common-smoke
+      - name: Run pipeline tests with minimum deps
+        run: make test-pipeline-min
         env:
           PYTEST_XDIST_N: auto
 

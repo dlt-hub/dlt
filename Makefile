@@ -285,28 +285,31 @@ test-dest-load:
 
 #remote dest
 test-dest-remote-essential:
-	$(PYTEST) $(PYTEST_ARGS) \
+	PYTEST_MARKERS=essential \
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		tests/load \
 		--ignore tests/load/sources \
-		-m essential \
-		tests/load
+	)
 
 test-dest-remote-nonessential:
-	$(PYTEST) $(PYTEST_ARGS) \
+	PYTEST_MARKERS="not essential" \
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		tests/load \
 		--ignore tests/load/sources \
-		-m "not essential" \
-		tests/load
+	)
 
 #dbt
 test-dbt-no-venv:
-	$(PYTEST) $(PYTEST_ARGS) \
-		-k "not venv" \
-		tests/helpers/dbt_tests
+	PYTEST_EXTRA='-k "not venv"' \
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		tests/helpers/dbt_tests \
+	)
 
 test-dbt-runner-venv:
-	$(PYTEST) $(PYTEST_ARGS) \
-		--ignore tests/helpers/dbt_tests/local \
-		-k "not local" \
-		tests/helpers/dbt_tests
+	PYTEST_EXTRA='--ignore tests/helpers/dbt_tests/local -k "not local"' \
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		tests/helpers/dbt_tests \
+	)
 
 #dashboard
 test-workspace-dashboard:
