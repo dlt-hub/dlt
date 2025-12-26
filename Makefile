@@ -119,6 +119,7 @@ SERIAL_MARKER_EXPR   = serial or forked
 ifeq ($(OS),Windows_NT)
   PYTEST_EXTRA += -m "not forked and not rfam"
   PYTEST_EXTRA += -p no:forked
+  SERIAL_MARKER_EXPR = serial
 endif
 
 # Combine user markers with internal markers
