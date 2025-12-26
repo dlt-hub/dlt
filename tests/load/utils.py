@@ -398,7 +398,6 @@ def destinations_configs(
 
         # add Athena staging configs
         destination_configs += default_sql_configs_with_staging
-        sqlite_path = Path(get_test_storage_root()) / "dl_data.sqlite"
 
         destination_configs += [
             DestinationTestConfiguration(
@@ -415,7 +414,7 @@ def destinations_configs(
                 supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
-                credentials=f"sqlite:///{sqlite_path}",
+                credentials=f"sqlite:///{worker}.sqlite",
             ),
             # TODO: enable in sql alchemy destination test, 99% of tests work
             # DestinationTestConfiguration(

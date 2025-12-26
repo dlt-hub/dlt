@@ -103,7 +103,7 @@ PYTHONHASHSEED := $(shell shuf -i 0-50 -n 1 2>/dev/null || echo $$((RANDOM % 51)
 
 # Extra pytest args passed from CLI
 # Example: make test-common PYTEST_EXTRA="-k trace -vv"
-PYTEST_EXTRA ?=
+PYTEST_ARGS ?=
 
 # Additional marker expression passed from CLI
 # Example: make test-common PYTEST_MARKERS="integration and not slow"
@@ -112,13 +112,16 @@ PYTEST_MARKERS ?=
 # Number of xdist workers
 PYTEST_XDIST_N ?=
 
+# Target-specific pytest args encoding test intent.
+PYTEST_TARGET_ARGS :=
+
 # Marker expressions (NO -m here)
 PARALLEL_MARKER_EXPR = not serial and not forked
 SERIAL_MARKER_EXPR   = serial or forked
 
 ifeq ($(OS),Windows_NT)
-  PYTEST_EXTRA += -m "not forked and not rfam"
-  PYTEST_EXTRA += -p no:forked
+  PYTEST_ARGS += -m "not forked and not rfam"
+  PYTEST_ARGS += -p no:forked
   SERIAL_MARKER_EXPR = serial
 endif
 
@@ -129,7 +132,11 @@ $(if $(PYTEST_MARKERS),($(PYTEST_MARKERS)) and ,)$(1))
 endef
 
 # Base pytest command (never includes xdist or markers)
-PYTEST_BASE = PYTHONHASHSEED=$(PYTHONHASHSEED) uv run pytest $(PYTEST_EXTRA)
+PYTEST_BASE = \
+	PYTHONHASHSEED=$(PYTHONHASHSEED) \
+	uv run pytest \
+	$(PYTEST_TARGET_ARGS) \
+	$(PYTEST_ARGS)
 
 # Parallel vs serial execution
 PYTEST_PARALLEL = \
@@ -143,7 +150,11 @@ PYTEST_SERIAL = \
 
 # Run parallel-safe tests first, then serial/forked tests
 define RUN_XDIST_SAFE_SPLIT
+	PYTEST_MARKERS="$(PYTEST_MARKERS)" \
+	PYTEST_ARGS="$(PYTEST_ARGS)" \
 	$(PYTEST_PARALLEL) $(1)
+	PYTEST_MARKERS="$(PYTEST_MARKERS)" \
+	PYTEST_ARGS="$(PYTEST_ARGS)" \
 	$(PYTEST_SERIAL)   $(1) || [ $$? -eq 5 ]
 endef
 
@@ -293,32 +304,28 @@ test-dest-load:
 	)
 
 #remote dest
+test-dest-remote-essential: PYTEST_MARKERS = essential
 test-dest-remote-essential:
-	PYTEST_MARKERS=essential \
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \
 		--ignore tests/load/sources \
 	)
 
+test-dest-remote-nonessential: PYTEST_MARKERS = not essential
 test-dest-remote-nonessential:
-	PYTEST_MARKERS="not essential" \
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \
 		--ignore tests/load/sources \
 	)
 
 #dbt
+test-dbt-no-venv: PYTEST_TARGET_ARGS = -k not venv
 test-dbt-no-venv:
-	PYTEST_EXTRA='-k "not venv"' \
-	$(call RUN_XDIST_SAFE_SPLIT, \
-		tests/helpers/dbt_tests \
-	)
+	$(call RUN_XDIST_SAFE_SPLIT, tests/helpers/dbt_tests)
 
+test-dbt-runner-venv: PYTEST_TARGET_ARGS = --ignore tests/helpers/dbt_tests/local -k not local
 test-dbt-runner-venv:
-	PYTEST_EXTRA='--ignore tests/helpers/dbt_tests/local -k "not local"' \
-	$(call RUN_XDIST_SAFE_SPLIT, \
-		tests/helpers/dbt_tests \
-	)
+	$(call RUN_XDIST_SAFE_SPLIT, tests/helpers/dbt_tests)
 
 #dashboard
 test-workspace-dashboard:

@@ -215,16 +215,18 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+      - name: Set pytest xdist dist for postgres
+        if: ${{ matrix.name == 'postgres' }}
+        run: echo "PYTEST_XDIST_DIST=loadscope" >> $GITHUB_ENV
+
       # NOTE: essential tests are always run
       - name: Run essential tests Linux
         run: make test-dest-remote-essential
         env:
-          PYTEST_XDIST_N: 12
-          PYTEST_XDIST_DIST: loadscope
+          PYTEST_XDIST_N: 6
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
-          PYTEST_XDIST_N: 12
-          PYTEST_XDIST_DIST: loadscope
+          PYTEST_XDIST_N: 6
