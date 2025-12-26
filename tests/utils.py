@@ -44,8 +44,12 @@ from dlt.common.typing import StrAny, TDataItem, PathLike
 from dlt.common.utils import set_working_dir
 
 
+DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
+PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
+
+
 def get_test_storage_root() -> str:
-    return os.environ.get("DLT_TEST_STORAGE_ROOT", "_storage")
+    return os.environ.get(DLT_TEST_STORAGE_ROOT, "_storage")
 
 
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [

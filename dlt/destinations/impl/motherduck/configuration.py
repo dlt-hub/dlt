@@ -2,7 +2,7 @@ import os
 import dataclasses
 import sys
 from urllib.parse import urlencode
-from typing import Any, ClassVar, Dict, Final, List, Optional, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, Final, List, TYPE_CHECKING
 
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.version import __version__
@@ -110,7 +110,6 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         default="motherduck", init=False, repr=False, compare=False
     )
     credentials: MotherDuckCredentials = None
-    catalog_name: Optional[str] = None
 
     create_indexes: bool = (
         False  # should unique indexes be created, this slows loading down massively
@@ -121,15 +120,6 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.password:
             return digest128(self.credentials.password)
         return ""
-
-    def on_resolved(self) -> None:
-        if self.catalog_name:
-            if not self.credentials:
-                raise DestinationTerminalException(
-                    "catalog_name provided but MotherDuck credentials are missing"
-                )
-
-            self.credentials.database = self.catalog_name
 
 
 class MotherduckLocalVersionNotSupported(DestinationTerminalException):

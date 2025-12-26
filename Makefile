@@ -98,10 +98,12 @@ lint-docstrings:
 		dlt/pipeline/__init__.py \
 		tests/pipeline/utils.py
 
-PYTEST = PYTHONHASHSEED=0 uv run pytest -vv --rootdir=.
+# Generate random PYTHONHASHSEED between 0 and 50
+PYTHONHASHSEED := $(shell shuf -i 0-50 -n 1 2>/dev/null || echo $$((RANDOM % 51)))
+PYTEST = PYTHONHASHSEED=$(PYTHONHASHSEED) uv run pytest --rootdir=.
 PYTEST_ARGS ?=
 
-# Enable xdist iff PYTEST_XDIST_N is set and DISABLE_PARALLEL IS NOT
+# Enable xdist if PYTEST_XDIST_N is set
 ifneq ($(strip $(PYTEST_XDIST_N)),)
   PYTEST_ARGS += -p xdist -n $(PYTEST_XDIST_N)
 endif

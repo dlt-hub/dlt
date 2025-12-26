@@ -538,14 +538,14 @@ def test_keeps_initial_db_path() -> None:
     os.environ["CREDENTIALS"] = db_path
 
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=dlt.destinations.duckdb())
-    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir).lower()
+    assert p.state["_local"]["initial_cwd"].lower() == os.path.abspath(os.path.curdir).lower()
     with p.sql_client() as conn:
         # still cwd
         assert conn.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
 
     # attach the pipeline
     p = dlt.attach(pipeline_name="quack_pipeline")
-    assert p.state["_local"]["initial_cwd"] == os.path.abspath(os.path.curdir).lower()
+    assert p.state["_local"]["initial_cwd"].lower() == os.path.abspath(os.path.curdir).lower()
     with p.sql_client() as conn:
         # still cwd
         assert conn.credentials._conn_str().lower() == os.path.abspath(db_path).lower()

@@ -21,6 +21,12 @@ from pytest_console_scripts import ScriptRunner
 
 @pytest.fixture(scope="module", autouse=True)
 def plugin_install():
+    # CLEAN NON-IDEMPOTENT BUILD ARTIFACTS
+    shutil.rmtree("tests/plugins/dlt_example_plugin/build", ignore_errors=True)
+    shutil.rmtree(
+        "tests/plugins/dlt_example_plugin/dlt_example_plugin.egg-info", ignore_errors=True
+    )
+
     # install plugin into temp dir
     temp_dir = tempfile.mkdtemp()
     venv = Venv.restore_current()

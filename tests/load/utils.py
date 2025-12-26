@@ -187,7 +187,6 @@ class DestinationTestConfiguration:
     env_vars: Optional[Dict[str, str]] = None
     destination_name: Optional[str] = None
     naming_convention: Optional[TNamingConventionReferenceArg] = None
-    catalog_name: Optional[str] = None
 
     def destination_factory(self, **kwargs) -> Destination[Any, Any]:
         dest_type = kwargs.pop("destination", self.destination_type)
@@ -393,7 +392,7 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="motherduck",
                 file_format="insert_values",
-                catalog_name=f"dlt_test_{worker}",
+                credentials={"database": f"dlt_test_{worker}"},
             ),
         ]
 
