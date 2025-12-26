@@ -208,7 +208,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         if fs_cls.protocol == "abfs":
             url = urlparse(config.bucket_url)
             # if storage account is present in bucket_url and in credentials, az fsspec will fail
-            # account name is detected only for blob.core.windows.net host
+            # account name is detected for blob.core.windows.net and dfs.core.windows.net hosts
             if url.username and (
                 url.hostname.endswith("blob.core.windows.net")
                 or url.hostname.endswith("dfs.core.windows.net")

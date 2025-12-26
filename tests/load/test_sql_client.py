@@ -50,7 +50,7 @@ def file_storage() -> FileStorage:
     destinations_configs(
         # Only databases that support search path or equivalent
         default_sql_configs=True,
-        exclude=["mssql", "synapse", "dremio", "clickhouse", "sqlalchemy"],
+        exclude=["mssql", "synapse", "fabric", "dremio", "clickhouse", "sqlalchemy"],
         aws_data_catalog=None,  # exclude non-default catalogs, because they require qualification
     ),
     indirect=True,

@@ -6,6 +6,7 @@ from dlt.common import json
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
+from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.path_utils import get_file_format_and_compression
 
 from tests.load.pipeline.test_merge_disposition import github
@@ -123,7 +124,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     # check item of first row in db
     with pipeline.sql_client() as sql_client:
         qual_name = sql_client.make_qualified_table_name
-        if destination_config.destination_type in ["mssql", "synapse"]:
+        use_top_n_syntax = isinstance(sql_client, PyOdbcMsSqlClient)
+        if use_top_n_syntax:
             rows = sql_client.execute_sql(
                 f"SELECT TOP 1 url FROM {qual_name('issues')} WHERE id = 388089021"
             )
@@ -143,7 +145,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
         # check changes where merged in
         with pipeline.sql_client() as sql_client:
-            if destination_config.destination_type in ["mssql", "synapse"]:
+            if use_top_n_syntax:
                 qual_name = sql_client.make_qualified_table_name
                 rows_1 = sql_client.execute_sql(
                     f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id = 1232152492"

@@ -84,6 +84,7 @@ AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
 ABFS_BUCKET = dlt.config.get("tests.bucket_url_abfss", str)
+ONELAKE_BUCKET = dlt.config.get("tests.bucket_url_onelake", str)
 GDRIVE_BUCKET = dlt.config.get("tests.bucket_url_gdrive", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
@@ -378,7 +379,7 @@ def destinations_configs(
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
             if destination
-            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake")
+            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake", "fabric")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
@@ -449,6 +450,7 @@ def destinations_configs(
         destination_configs += [
             # DestinationTestConfiguration(destination_type="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination_type="synapse", supports_dbt=False),
+            DestinationTestConfiguration(destination_type="fabric", supports_dbt=False),
         ]
 
         # sanity check that when selecting default destinations, one of each sql destination is actually
@@ -564,6 +566,22 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination_type="fabric",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination_type="fabric",
+                staging=filesystem(destination_name="onelake"),
+                file_format="parquet",
+                bucket_url=ONELAKE_BUCKET,
+                extra_info="onelake-service-principal",
                 disable_compression=True,
             ),
             DestinationTestConfiguration(
@@ -1291,10 +1309,10 @@ def table_update_and_row_for_destination(destination_config: DestinationTestConf
         exclude_types.append("time")
 
     if (
-        destination_config.destination_type == "synapse"
+        destination_config.destination_type in ("synapse", "fabric")
         and destination_config.file_format == "parquet"
     ):
-        # TIME columns are not supported for staged parquet loads into Synapse
+        # TIME columns are not supported for staged parquet loads into Synapse/Fabric
         exclude_types.append("time")
 
     if destination_config.destination_type in (

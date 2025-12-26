@@ -137,6 +137,11 @@ weaviate = [
 mssql = [
     "pyodbc>=4.0.39"
 ]
+fabric = [
+    "pyodbc>=4.0.39",
+    "adlfs>=2024.7.0",
+    "pyarrow>=16.0.0",
+]
 synapse = [
     "pyodbc>=4.0.39",
     "adlfs>=2024.7.0",

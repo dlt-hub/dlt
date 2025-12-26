@@ -208,6 +208,12 @@ Remember to include `storage_account_name` with your base host ie. `dlt_ci.blob.
 
 :::tip OneLake (Fabric)
 Use the Blob endpoint (`azure_account_host = "onelake.blob.fabric.microsoft.com"`).
+
+**IMPORTANT**: OneLake bucket URLs must use **GUIDs** for workspace and lakehouse, not display names:
+```toml
+bucket_url = "abfss://<workspace_guid>@onelake.dfs.fabric.microsoft.com/<lakehouse_guid>/Files"
+```
+Find GUIDs in your browser URL when viewing workspace/lakehouse in Fabric portal.
 :::
 
 Two forms of Azure credentials are supported:

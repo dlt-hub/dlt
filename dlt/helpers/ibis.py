@@ -245,6 +245,8 @@ def _get_ibis_to_sqlglot_compiler(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
         compiler = sc.DruidCompiler()
     elif dialect == "duckdb":
         compiler = sc.DuckDBCompiler()
+    elif dialect == "fabric":
+        compiler = sc.MSSQLCompiler()
     elif dialect == "mysql":
         compiler = sc.MySQLCompiler()
     elif dialect == "oracle":

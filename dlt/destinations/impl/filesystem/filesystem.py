@@ -561,11 +561,35 @@ class FilesystemClient(
         try:
             # NOTE: must use rm_file to get errors on delete
             self.fs_client.rm_file(file_path)
-        except NotImplementedError:
-            # not all filesystems implement the above
-            self.fs_client.rm(file_path)
-            if self.fs_client.exists(file_path):
-                raise FileExistsError(file_path)
+        except FileNotFoundError:
+            # File doesn't exist - deletion goal already achieved
+            return
+        except Exception as e:
+            # OneLake API quirk: returns HTTP 200 instead of HTTP 202 for delete operations
+            # Azure SDK treats this as an error, but the delete actually succeeded
+            if "Operation returned an invalid status 'OK'" in str(e):
+                # Verify deletion succeeded by checking if file still exists
+                if not self.fs_client.exists(file_path):
+                    return  # Delete succeeded despite the error
+            # If it's NotImplementedError, try the fallback rm() method
+            if isinstance(e, NotImplementedError):
+                try:
+                    self.fs_client.rm(file_path)
+                except FileNotFoundError:
+                    # File doesn't exist - deletion goal already achieved
+                    return
+                except Exception as rm_e:
+                    # OneLake API quirk: returns HTTP 200 instead of HTTP 202 for delete operations
+                    # Azure SDK treats this as an error, but the delete actually succeeded
+                    if "Operation returned an invalid status 'OK'" in str(rm_e):
+                        # Verify deletion succeeded by checking if file still exists
+                        if not self.fs_client.exists(file_path):
+                            return  # Delete succeeded despite the error
+                    raise
+                if self.fs_client.exists(file_path):
+                    raise FileExistsError(file_path)
+            else:
+                raise
 
     def verify_schema(
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None

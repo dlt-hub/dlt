@@ -19,6 +19,7 @@ TSqlGlotDialect = Literal[
     "druid",
     "duckdb",
     "dune",
+    "fabric",
     "hive",
     "materialize",
     "mysql",
