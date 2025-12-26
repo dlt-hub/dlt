@@ -2,6 +2,7 @@ import os
 import sys
 import pytest
 import yaml
+from pathlib import Path
 from typing import Any, Dict, Type
 import datetime  # noqa: I251
 from unittest.mock import Mock
@@ -263,8 +264,15 @@ def test_toml_global_config() -> None:
     config = providers[CONFIG_TOML]
 
     # when developing locally some ~/.dlt/*.toml could have already been discovered with parallel testing
-    assert any(p.endswith(".dlt/secrets.toml") for p in secrets._toml_paths)  # type: ignore[attr-defined]
-    assert any(p.endswith(".dlt/config.toml") for p in config._toml_paths)  # type: ignore[attr-defined]
+    assert any(
+        Path(p).as_posix().endswith("/.dlt/secrets.toml")
+        for p in secrets._toml_paths  # type: ignore[attr-defined]
+    )
+
+    assert any(
+        Path(p).as_posix().endswith("/.dlt/config.toml")
+        for p in config._toml_paths  # type: ignore[attr-defined]
+    )
 
     # set dlt data and settings dir
     global_dir = "./tests/common/cases/configuration/dlt_home"

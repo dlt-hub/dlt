@@ -18,6 +18,8 @@ from dlt.sources import SourceReference
 from tests.utils import get_test_storage_root
 from pytest_console_scripts import ScriptRunner
 
+pytestmark = pytest.mark.serial
+
 
 @pytest.fixture(scope="module", autouse=True)
 def plugin_install():
