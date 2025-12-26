@@ -116,6 +116,11 @@ PYTEST_XDIST_N ?=
 PARALLEL_MARKER_EXPR = not serial and not forked
 SERIAL_MARKER_EXPR   = serial or forked
 
+ifeq ($(OS),Windows_NT)
+  PYTEST_EXTRA += -m "not forked and not rfam"
+  PYTEST_EXTRA += -p no:forked
+endif
+
 # Combine user markers with internal markers
 define COMBINE_MARKERS
 $(strip \
@@ -327,7 +332,7 @@ test-sources-sql-database:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load/sources/sql_database \
 	)
-	
+
 #--end CI
 
 build-library: dev lint-lock
