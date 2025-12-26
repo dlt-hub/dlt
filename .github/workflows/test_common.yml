@@ -61,10 +61,10 @@ jobs:
           # windows tests
           - os: windows-latest
             python-version: "3.11"
-            shell: cmd
+            shell: bash
           - os: windows-latest
             python-version: "3.13"
-            shell: cmd
+            shell: bash
 
     defaults:
       run:
