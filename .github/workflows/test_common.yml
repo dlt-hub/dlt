@@ -99,7 +99,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: make install-core
+        run: make install-common-core
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
     
@@ -109,7 +109,7 @@ jobs:
           PYTEST_XDIST_N: auto
 
       - name: Install min dependencies to import core source
-        run: make install-core
+        run: make install-common-core-source
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 

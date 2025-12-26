@@ -84,7 +84,7 @@ jobs:
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
-        run: uv run pip install sqlalchemy==2.0.32
+        run: make install-sqlalchemy2
 
       - name: Run tests Linux
         run: make test-sources-sql-database

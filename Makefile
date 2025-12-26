@@ -211,8 +211,8 @@ test-remote-snowflake-p:
 # common
 UV_SYNC_ARGS ?=
 
-install-core: ## Install minimal dependencies for core tests
-	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
+install-common-core: ## Install minimal dependencies for core tests
+	uv sync $(UV_SYNC_ARGS) --group sentry-sdk
 
 TEST_COMMON_CORE_PATHS = \
 	tests/common \
@@ -226,6 +226,9 @@ TEST_COMMON_CORE_PATHS = \
 
 test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
+
+install-common-core-source:
+	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
 
 ## Install pipeline smoke deps (duckdb, no pandas)
 install-pipeline-min:
