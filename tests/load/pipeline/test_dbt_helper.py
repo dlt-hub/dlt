@@ -44,8 +44,7 @@ def test_run_jaffle_package(
         pytest.skip(
             "dbt-athena requires database to be created and we don't do it in case of Jaffle"
         )
-    unique_id = uniq_id()
-    pipeline = destination_config.setup_pipeline(f"jaffle_jaffle_{unique_id}", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("jaffle_jaffle", dev_mode=True)
     # get runner, pass the env from fixture
     dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=dbt_venv)
     # no default schema

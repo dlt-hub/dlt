@@ -319,7 +319,7 @@ test-dest-remote-nonessential:
 	)
 
 #dbt
-test-dbt-no-venv: PYTEST_TARGET_ARGS = -k not venv
+test-dbt-no-venv: PYTEST_TARGET_ARGS = -k "not venv"
 test-dbt-no-venv:
 	$(call RUN_XDIST_SAFE_SPLIT, tests/helpers/dbt_tests)
 
