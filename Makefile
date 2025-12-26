@@ -120,7 +120,7 @@ PARALLEL_MARKER_EXPR = not serial and not forked
 SERIAL_MARKER_EXPR   = serial or forked
 
 ifeq ($(OS),Windows_NT)
-  PYTEST_ARGS += -m "not forked and not rfam"
+  PYTEST_MARKERS += not forked and not rfam
   PYTEST_ARGS += -p no:forked
   SERIAL_MARKER_EXPR = serial
 endif
