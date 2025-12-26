@@ -219,10 +219,13 @@ jobs:
       - name: Run essential tests Linux
         run: make test-dest-remote-essential
         env:
-          PYTEST_XDIST_N: 12
+          PYTEST_XDIST_N: 4
+          PYTEST_XDIST_DIST: loadscope
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
-          PYTEST_XDIST_N: 12
+          PYTEST_XDIST_N: 4
+          PYTEST_XDIST_DIST: loadscope
+          

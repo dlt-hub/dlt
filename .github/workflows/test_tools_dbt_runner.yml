@@ -47,8 +47,7 @@ jobs:
       - name: Run dbt tests
         run: make test-dbt-no-venv
         env:
-          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
-          PYTEST_XDIST_N: 12
+          PYTEST_XDIST_N: 3
 
       - name: Remove dbt-core
         run: uv run pip uninstall dbt-core -y
@@ -56,5 +55,4 @@ jobs:
       - name: Run dbt runner with venv - Linux/MAC
         run: make test-dbt-runner-venv
         env:
-          # github runners only have 4 cores and many operations are I/O blocking so more cores than physical helps
-          PYTEST_XDIST_N: 12
+          PYTEST_XDIST_N: 3

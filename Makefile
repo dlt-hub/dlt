@@ -134,7 +134,7 @@ PYTEST_BASE = PYTHONHASHSEED=$(PYTHONHASHSEED) uv run pytest --rootdir=. $(PYTES
 # Parallel vs serial execution
 PYTEST_PARALLEL = \
 	$(PYTEST_BASE) \
-	$(if $(PYTEST_XDIST_N),-p xdist -n $(PYTEST_XDIST_N)) \
+	$(if $(PYTEST_XDIST_N),-p xdist -n $(PYTEST_XDIST_N) $(if $(PYTEST_XDIST_DIST),--dist=$(PYTEST_XDIST_DIST))) \
 	-m "$(call COMBINE_MARKERS,$(PARALLEL_MARKER_EXPR))"
 
 PYTEST_SERIAL = \

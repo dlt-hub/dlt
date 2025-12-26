@@ -401,6 +401,7 @@ python_functions = ["*_test", "test_*"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",
+    "forked: marks tests that must run in a separate process (forked), e.g. due to global state, crashes, or side effects",
     "no_load: marks tests that do not load anything",
     "rfam: marks tests that use rfam db",
     "serial: tests that must not run under pytest-xdist / require isolated CPU",
