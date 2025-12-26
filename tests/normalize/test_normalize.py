@@ -45,6 +45,7 @@ from tests.normalize.utils import (
 
 from pytest_mock import MockerFixture
 
+pytestmark = pytest.mark.serial
 
 @pytest.fixture(scope="module", autouse=True)
 def default_caps() -> Iterator[DestinationCapabilitiesContext]:
