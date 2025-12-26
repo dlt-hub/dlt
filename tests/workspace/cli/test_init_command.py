@@ -63,6 +63,8 @@ from tests.common.utils import modify_and_commit_file
 from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root
 from tests.workspace.utils import restore_clean_workspace
 
+pytestmark = pytest.mark.serial
+
 # we hardcode the core sources here so we can check that the init script picks
 # up the right source
 CORE_SOURCES_CONFIG = {

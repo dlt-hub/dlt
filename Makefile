@@ -313,14 +313,21 @@ test-dbt-runner-venv:
 
 #dashboard
 test-workspace-dashboard:
-	$(PYTEST) $(PYTEST_ARGS) tests/workspace/helpers/dashboard
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		tests/workspace/helpers/dashboard \
+	)
 
 #sources
 test-sources-load:
-	$(PYTEST) $(PYTEST_ARGS) tests/load/sources
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		tests/load/sources \
+	)
 
 test-sources-sql-database:
-	$(PYTEST) $(PYTEST_ARGS) tests/load/sources/sql_database
+	$(call RUN_XDIST_SAFE_SPLIT, \
+		tests/load/sources/sql_database \
+	)
+	
 #--end CI
 
 build-library: dev lint-lock
