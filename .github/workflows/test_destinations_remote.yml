@@ -25,6 +25,8 @@ jobs:
 
   run_destinations_remote:
     name: dest | remote
+    env:
+      PYTEST_XDIST_N: 6
 
     strategy:
         fail-fast: false
@@ -37,24 +39,28 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
+              xdist_workers: 24
 
             - name: athena iceberg
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
               extras: "--extra athena"
+              xdist_workers: 24
 
             - name: athena s3 tables
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
+              xdist_workers: 24
 
             # BigQuery
             - name: bigquery
               destinations: "[\"bigquery\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra bigquery --extra parquet"
+              xdist_workers: 24
 
             
             # Clickhouse
@@ -69,6 +75,7 @@ jobs:
               destinations: "[\"databricks\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra databricks --extra s3 --extra gs --extra az --extra parquet"
+              xdist_workers: 24
 
             # Filesystem
             - name: filesystem_s3_local
@@ -129,6 +136,7 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra synapse --extra parquet"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              xdist_workers: 24
 
             # Postgres and Redshift (used to be test_destinations.yml)
             - name: redshift
@@ -159,7 +167,6 @@ jobs:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
         EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS: ${{ matrix.excluded_destination_test_configuration_ids || '[]' }}
-
     defaults:
       run:
         shell: bash
@@ -223,10 +230,10 @@ jobs:
       - name: Run essential tests Linux
         run: make test-dest-remote-essential
         env:
-          PYTEST_XDIST_N: 6
+          PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
-          PYTEST_XDIST_N: 6
+          PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}

@@ -116,8 +116,8 @@ PYTEST_XDIST_N ?=
 PYTEST_TARGET_ARGS :=
 
 # Marker expressions (NO -m here)
-PARALLEL_MARKER_EXPR = not serial and not forked
-SERIAL_MARKER_EXPR   = serial or forked
+PARALLEL_MARKER_EXPR = (not serial and not forked)
+SERIAL_MARKER_EXPR   = (serial or forked)
 
 ifeq ($(OS),Windows_NT)
   PYTEST_MARKERS += not forked and not rfam
@@ -323,7 +323,9 @@ test-dbt-no-venv: PYTEST_TARGET_ARGS = -k "not venv"
 test-dbt-no-venv:
 	$(call RUN_XDIST_SAFE_SPLIT, tests/helpers/dbt_tests)
 
-test-dbt-runner-venv: PYTEST_TARGET_ARGS = --ignore tests/helpers/dbt_tests/local
+test-dbt-runner-venv: PYTEST_TARGET_ARGS = \
+	--ignore tests/helpers/dbt_tests/local \
+	-k "not local"
 test-dbt-runner-venv:
 	$(call RUN_XDIST_SAFE_SPLIT, tests/helpers/dbt_tests)
 
