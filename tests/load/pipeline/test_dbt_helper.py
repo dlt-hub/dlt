@@ -88,11 +88,8 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
 
-    unique_id = uniq_id()
     pipeline = destination_config.setup_pipeline(
-        pipeline_name=f"chess_games_{unique_id}",
-        dataset_name=f"chess_dbt_test_{unique_id}",
-        dev_mode=True,
+        "chess_games", dataset_name="chess_dbt_test", dev_mode=True
     )
     assert pipeline.default_schema_name is None
     # get the runner for the "dbt_transform" package
@@ -153,11 +150,8 @@ def test_run_chess_dbt_to_other_dataset(
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
 
-    unique_id = uniq_id()
     pipeline = destination_config.setup_pipeline(
-        pipeline_name=f"chess_games_{unique_id}",
-        dataset_name=f"chess_dbt_test_{unique_id}",
-        dev_mode=True,
+        "chess_games", dataset_name="chess_dbt_test", dev_mode=True
     )
     # load each schema in separate dataset
     pipeline.config.use_single_dataset = False
