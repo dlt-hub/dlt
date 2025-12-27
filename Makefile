@@ -304,7 +304,7 @@ test-pipeline-full:
 install-sqlalchemy2:
 	uv run pip install sqlalchemy==2.0.32
 
-install-sql-database: install-sqlalchemy2
+install-sql-database: install-pipeline-full install-sqlalchemy2
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database
 
