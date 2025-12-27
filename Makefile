@@ -298,11 +298,13 @@ TEST_FULL_PATHS = \
 	tests/dataset \
 	tests/sources
 
-test-full:
+test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
 install-sqlalchemy2:
 	uv run pip install sqlalchemy==2.0.32
+
+install-sql-database: install-sqlalchemy2
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database
 

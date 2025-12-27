@@ -38,11 +38,11 @@ jobs:
           ]'
 
           python_suite_map='{
-            "3.9":  ["common-core","pipeline-min","pipeline-arrow","workspace","full","sql-database"],
-            "3.10": ["common-core","pipeline-min","pipeline-arrow","workspace","full","sql-database"],
-            "3.11": ["common-core","pipeline-min","pipeline-arrow","workspace","full","sql-database"],
-            "3.12": ["common-core","pipeline-min","pipeline-arrow","workspace","full","sql-database"],
-            "3.13": ["common-core","pipeline-min","pipeline-arrow","workspace","full","sql-database"],
+            "3.9":  ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
+            "3.10": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
+            "3.11": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
+            "3.12": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
+            "3.13": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
             "3.14": ["common-core","pipeline-min"]
           }'
 
@@ -67,7 +67,7 @@ jobs:
   # Run tests
   # ---------------------------------------------------------------------------
   run_common:
-    name: test (${{ matrix.os }} / py${{ matrix.python-version }} / ${{ matrix.suite }} / ${{ matrix.uv_sync_args || 'default' }})
+    name: test (${{ matrix.os }} / py${{ matrix.python-version }} / ${{ matrix.suite }} / ${{ matrix.uv_sync_args != '' && matrix.uv_sync_args || 'default' }})
     needs: build-matrix
     strategy:
       fail-fast: false
