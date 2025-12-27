@@ -33,6 +33,11 @@ def test_replace_disposition(
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "40"
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    # share the same database across many pipelines in this test
+    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = "duckdb:///test_replace_disposition.duckdb"
+    # os.environ["DESTINATION__DUCKLAKE__CREDENTIALS__CATALOG"] = (
+    #     "sqlite:///test_replace_disposition.db"
+    # )
 
     # filesystem does not have child tables, prepend defaults
     # def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
