@@ -61,10 +61,7 @@ def restore_clean_workspace(name: str) -> str:
     if name == "empty":
         new_run_dir = os.path.join(get_test_storage_root(), name)
     else:
-        new_run_dir = os.path.join(
-            get_test_storage_root(),
-            f"{name}_{uniq_id()}"
-        )
+        new_run_dir = os.path.join(get_test_storage_root(), f"{name}_{uniq_id()}")
 
     # ensure parent exists before copying
     os.makedirs(get_test_storage_root(), exist_ok=True)

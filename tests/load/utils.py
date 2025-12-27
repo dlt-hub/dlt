@@ -70,7 +70,7 @@ from tests.utils import (
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
     EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
-    get_test_worker_id
+    get_test_worker_id,
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,

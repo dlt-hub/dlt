@@ -8,6 +8,8 @@ from dlt.version import get_installed_requirement_string, get_dependency_require
 
 
 pytestmark = pytest.mark.serial
+
+
 def test_installed_requirement_string() -> None:
     # we are running tests in editable mode so we should get path to here
     path = get_installed_requirement_string()

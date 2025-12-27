@@ -60,6 +60,7 @@ def pytest_configure(config):
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching). this is needed by common storage tests
     from tests.utils import get_test_worker_id
+
     worker = get_test_worker_id()
     os.environ["DLT_TEST_STORAGE_ROOT"] = f"_storage_{worker}"
     test_storage_root = os.environ["DLT_TEST_STORAGE_ROOT"]

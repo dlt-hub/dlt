@@ -51,6 +51,7 @@ PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
 def get_test_storage_root() -> str:
     return os.environ.get(DLT_TEST_STORAGE_ROOT, "_storage")
 
+
 def get_test_worker_id() -> str:
     return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
 

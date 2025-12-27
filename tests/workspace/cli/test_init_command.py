@@ -157,7 +157,9 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, workspace_files: Fil
     assert "already exists, exiting" in _out
 
 
-def test_init_command_chess_verified_source(repo_dir: str, workspace_files: FileStorage, monkeypatch: MonkeyPatch) -> None:
+def test_init_command_chess_verified_source(
+    repo_dir: str, workspace_files: FileStorage, monkeypatch: MonkeyPatch
+) -> None:
     _init_command.init_command("chess", "duckdb", repo_dir)
     assert_source_files(workspace_files, "chess", "duckdb", has_source_section=True)
     assert_requirements_txt(workspace_files, "duckdb")
@@ -177,7 +179,9 @@ def test_init_command_chess_verified_source(repo_dir: str, workspace_files: File
         print(e)
 
     # now run the pipeline
-    monkeypatch.delenv("DESTINATION__DUCKDB__CREDENTIALS", raising=False) # settings from local project (secrets.toml etc.)
+    monkeypatch.delenv(
+        "DESTINATION__DUCKDB__CREDENTIALS", raising=False
+    )  # settings from local project (secrets.toml etc.)
     venv = Venv.restore_current()
     try:
         print(venv.run_script("chess_pipeline.py"))
