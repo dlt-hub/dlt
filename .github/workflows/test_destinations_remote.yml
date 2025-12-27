@@ -25,9 +25,6 @@ jobs:
 
   run_destinations_remote:
     name: dest | remote
-    env:
-      PYTEST_XDIST_N: 6
-
     strategy:
         fail-fast: false
         matrix:
@@ -167,6 +164,7 @@ jobs:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
         EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS: ${{ matrix.excluded_destination_test_configuration_ids || '[]' }}
+        PYTEST_XDIST_N: 6
     defaults:
       run:
         shell: bash
