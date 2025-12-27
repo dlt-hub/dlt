@@ -67,7 +67,8 @@ jobs:
   # Run tests
   # ---------------------------------------------------------------------------
   run_common:
-    name: test (${{ matrix.os }} / py${{ matrix.python-version }} / ${{ matrix.suite }} / ${{ matrix.uv_sync_args != '' && matrix.uv_sync_args || 'default' }})
+    # name: test (${{ matrix.os }} / py${{ matrix.python-version }} / ${{ matrix.suite }} / ${{ matrix.uv_sync_args != '' && matrix.uv_sync_args || 'default' }})
+    name: test
     needs: build-matrix
     strategy:
       fail-fast: false
