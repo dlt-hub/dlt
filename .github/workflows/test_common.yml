@@ -37,7 +37,6 @@ jobs:
             {"os":"windows-latest","python-version":"3.13","shell":"cmd"}
           ]'
 
-          # Define which python versions are allowed to run which suites
           python_suite_map='{
             "3.9":  ["common-core","pipeline-min","pipeline-arrow","workspace","full","sql-database"],
             "3.10": ["common-core","pipeline-min","pipeline-arrow","workspace","full","sql-database"],
@@ -58,7 +57,11 @@ jobs:
               ]
             }' > matrix.json
 
-          echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo "matrix<<EOF"
+            cat matrix.json
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # Run tests
