@@ -40,7 +40,7 @@ except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
         [f"{version.DLT_PKG_NAME}[parquet]"],
-        "Install pyarrow to be allowed to load arrow tables, panda frames and to use parquet"
+        "Install pyarrow to be allowed to load arrow tables, pandas DataFrames and to use parquet"
         " files.",
     )
 

@@ -78,7 +78,7 @@ DATA_WRITER__TIMESTAMP_TIMEZONE
 You can apply data writer settings to parquet created in normalize stage only:
 `NORMALIZE__DATA_WRITER__FLAVOR=spark`
 
-or when your source/resource yields arrow tables / panda frames, you can control settings per source
+or when your source/resource yields arrow tables / pandas DataFrames, you can control settings per source
 `SOURCES__<SOURCE_MODULE>__<SOURCE_NAME>__DATA_WRITER__FLAVOR=spark`
 
 Find more similar examples [here](../../reference/performance.md#extract)
