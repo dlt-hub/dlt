@@ -134,7 +134,7 @@ jobs:
       - name: Run tests
         run: make test-${{ matrix.suite }}
         env:
-          PYTEST_XDIST_N: auto
+          PYTEST_XDIST_N: ${{ runner.os == 'Windows' && '4' || 'auto' }}
         
       - name: Install common-core-source deps
         if: matrix.suite == 'common-core'
