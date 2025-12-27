@@ -12,7 +12,7 @@ from dlt.extract.source import DltSource
 from dlt.extract.state import resource_state
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
-from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
+from tests.utils import clean_test_storage, get_test_storage_root
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,

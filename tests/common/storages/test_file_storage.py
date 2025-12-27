@@ -8,14 +8,14 @@ from typing import cast, TextIO
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import encoding_for_mode, set_working_dir, uniq_id
 
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, test_storage, skipifnotwindows
+from tests.utils import get_test_storage_root, autouse_test_storage, test_storage, skipifnotwindows
 
 
 def test_storage_init(test_storage: FileStorage) -> None:
     # must be absolute path
     assert os.path.isabs(test_storage.storage_path)
     # may not contain file name (ends with / or \)
-    assert os.path.basename(test_storage.storage_path) == TEST_STORAGE_ROOT
+    assert os.path.basename(test_storage.storage_path) == get_test_storage_root()
 
     # TODO: write more cases
 
@@ -40,13 +40,13 @@ def test_make_full_path(test_storage: FileStorage) -> None:
     # fully within storage
     relative_path = os.path.join("dir", "to", "file")
     path = test_storage.make_full_path_safe(relative_path)
-    assert path.endswith(os.path.join(TEST_STORAGE_ROOT, relative_path))
+    assert path.endswith(os.path.join(get_test_storage_root(), relative_path))
     # overlapped with storage
-    root_path = os.path.join(TEST_STORAGE_ROOT, relative_path)
+    root_path = os.path.join(get_test_storage_root(), relative_path)
     path = test_storage.make_full_path_safe(root_path)
     assert path.endswith(root_path)
-    assert path.count(TEST_STORAGE_ROOT) == 2
-    # absolute path with different root than TEST_STORAGE_ROOT does not lead into storage so calculating full path impossible
+    assert path.count(get_test_storage_root()) == 2
+    # absolute path with different root than get_test_storage_root() does not lead into storage so calculating full path impossible
     with pytest.raises(ValueError):
         test_storage.make_full_path_safe(os.path.join("/", root_path))
     # relative path out of the root
@@ -62,7 +62,7 @@ def test_make_full_path(test_storage: FileStorage) -> None:
 def test_in_storage(test_storage: FileStorage) -> None:
     # always relative to storage root
     assert test_storage.is_path_in_storage("a/b/c") is True
-    assert test_storage.is_path_in_storage(f"../{TEST_STORAGE_ROOT}/b/c") is True
+    assert test_storage.is_path_in_storage(f"../{get_test_storage_root()}/b/c") is True
     assert test_storage.is_path_in_storage("../a/b/c") is False
     assert test_storage.is_path_in_storage("../../../a/b/c") is False
     assert test_storage.is_path_in_storage("/a") is False
@@ -71,7 +71,7 @@ def test_in_storage(test_storage: FileStorage) -> None:
     assert test_storage.is_path_in_storage(os.path.realpath(os.curdir)) is False
     assert (
         test_storage.is_path_in_storage(
-            os.path.join(os.path.realpath(os.curdir), TEST_STORAGE_ROOT)
+            os.path.join(os.path.realpath(os.curdir), get_test_storage_root())
         )
         is True
     )
@@ -85,13 +85,13 @@ def test_from_wd_to_relative_path(test_storage: FileStorage) -> None:
     with pytest.raises(ValueError):
         test_storage.from_wd_to_relative_path("chess.py")
 
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         assert test_storage.from_wd_to_relative_path(".") == "."
         assert test_storage.from_wd_to_relative_path("") == "."
         assert test_storage.from_wd_to_relative_path("a/b/c") == str(Path("a/b/c"))
 
     test_storage.create_folder("a")
-    with set_working_dir(os.path.join(TEST_STORAGE_ROOT, "a")):
+    with set_working_dir(os.path.join(get_test_storage_root(), "a")):
         assert test_storage.from_wd_to_relative_path(".") == "a"
         assert test_storage.from_wd_to_relative_path("") == "a"
         assert test_storage.from_wd_to_relative_path("a/b/c") == str(Path("a/a/b/c"))
@@ -183,15 +183,15 @@ def test_encoding_for_mode() -> None:
 
 def test_save_atomic_encode() -> None:
     tstr = "data'ऄअआइ''ईउऊऋऌऍऎए');"
-    FileStorage.save_atomic(TEST_STORAGE_ROOT, "file.txt", tstr)
-    storage = FileStorage(TEST_STORAGE_ROOT)
+    FileStorage.save_atomic(get_test_storage_root(), "file.txt", tstr)
+    storage = FileStorage(get_test_storage_root())
     with storage.open_file("file.txt") as f:
         assert cast(TextIO, f).encoding == "utf-8"
         assert f.read() == tstr
 
     bstr = b"axa\0x0\0x0"
-    FileStorage.save_atomic(TEST_STORAGE_ROOT, "file.bin", bstr, file_type="b")
-    storage = FileStorage(TEST_STORAGE_ROOT, file_type="b")
+    FileStorage.save_atomic(get_test_storage_root(), "file.bin", bstr, file_type="b")
+    storage = FileStorage(get_test_storage_root(), file_type="b")
     with storage.open_file("file.bin", mode="r") as f:
         assert hasattr(f, "encoding") is False
         assert f.read() == bstr
@@ -199,7 +199,7 @@ def test_save_atomic_encode() -> None:
 
 def test_open_compressed() -> None:
     tstr = "dataisfunindeed"
-    storage = FileStorage(TEST_STORAGE_ROOT)
+    storage = FileStorage(get_test_storage_root())
     fname = storage.make_full_path("file.txt.gz")
     with gzip.open(fname, "wb") as f:
         f.write(tstr.encode("utf-8"))
@@ -244,7 +244,7 @@ def test_open_compressed() -> None:
 
 
 def test_hard_link() -> None:
-    storage = FileStorage(TEST_STORAGE_ROOT, file_type="b")
+    storage = FileStorage(get_test_storage_root(), file_type="b")
     storage.save("file.b", b"data")
     FileStorage.link_hard_with_fallback(
         storage.make_full_path("file.b"), storage.make_full_path("file.b.2")
@@ -260,7 +260,7 @@ def test_hard_link_fallback() -> None:
         pytest.skip("/run/lock not found - skipping link fallback")
     with open("/run/lock/dlt.r", "wb") as f:
         f.write(b"data")
-    storage = FileStorage(TEST_STORAGE_ROOT, file_type="b")
+    storage = FileStorage(get_test_storage_root(), file_type="b")
     with pytest.raises(OSError):
         os.link("/run/lock/dlt.r", storage.make_full_path("file.b.2"))
     FileStorage.link_hard_with_fallback("/run/lock/dlt.r", storage.make_full_path("file.b.2"))

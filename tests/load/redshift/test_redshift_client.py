@@ -21,7 +21,7 @@ from dlt.destinations.impl.redshift.configuration import (
 from dlt.destinations.impl.redshift.redshift import RedshiftClient, psycopg2
 
 from tests.common.utils import COMMON_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT, skipifpypy
+from tests.utils import get_test_storage_root, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 # mark all tests as essential, do not remove
@@ -30,7 +30,7 @@ pytestmark = pytest.mark.essential
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(scope="function")

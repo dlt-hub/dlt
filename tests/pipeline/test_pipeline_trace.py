@@ -38,7 +38,7 @@ from dlt.extract.pipe import Pipe
 from dlt.extract.items_transform import ItemTransform
 
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT, temporary_telemetry
+from tests.utils import get_test_storage_root, temporary_telemetry
 
 
 def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
@@ -234,7 +234,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
 
     # copy trace to well known location so it can be used as fixture
     # NOTE: uncomment block below to generate fixture for test_trace_backward_compat
-    # trace_dir = os.path.join(TEST_STORAGE_ROOT, f"dlt.{dlt.__version__}")
+    # trace_dir = os.path.join(get_test_storage_root(), f"dlt.{dlt.__version__}")
     # os.makedirs(trace_dir)
     # save_trace(trace_dir, pipeline._last_trace)
 
@@ -258,6 +258,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert isinstance(pipeline.last_trace.last_extract_info, ExtractInfo)
 
 
+@pytest.mark.forked
 def test_trace_schema() -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
@@ -337,7 +338,9 @@ def test_trace_schema() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema",
         destination=dummy_dest,
-        staging=filesystem(os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "_remote_filesystem"))),
+        staging=filesystem(
+            os.path.abspath(os.path.join(get_test_storage_root(), "_remote_filesystem"))
+        ),
         dataset_name="various",
     )
 

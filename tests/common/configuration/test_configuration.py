@@ -81,7 +81,7 @@ from dlt.common.pipeline import TRefreshMode, PipelineContext
 from dlt._workspace.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
-from tests.utils import preserve_environ, TEST_STORAGE_ROOT
+from tests.utils import preserve_environ, get_test_storage_root
 from tests.common.configuration.utils import (
     InstrumentedConfiguration,
     MockProvider,
@@ -1821,7 +1821,7 @@ def test_get_run_context_warning_cli() -> None:
 
     # Case 3: CLI command with active pipeline - different location than pipeline last ran
     # Expected: Shows both CLI warning AND pipeline location mismatch warning (2 WARNINGS total)
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         assert initial_settings_dir == p.last_run_context.get("settings_dir")
         assert initial_settings_dir != os.path.abspath(run_context.active().settings_dir)
         result = get_run_context_warning("/dlt")
@@ -1873,7 +1873,7 @@ def test_get_run_context_warning_script() -> None:
 
     # Case 4: Python script with active pipeline - different location than pipeline last ran
     # Expected: Shows pipeline-specific location mismatch warning (1 WARNING)
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         assert initial_settings_dir == p.last_run_context.get("settings_dir")
         assert initial_settings_dir != os.path.abspath(run_context.active().settings_dir)
         result = get_run_context_warning(os.path.join(initial_run_dir, "pipeline_script.py"))

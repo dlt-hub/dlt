@@ -17,7 +17,7 @@ from dlt.destinations.impl.ducklake.configuration import (
 )
 
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 
 def test_native_duckdb_workflow(tmp_path):
@@ -82,7 +82,7 @@ def test_ducklake_urls() -> None:
 
 
 def test_ducklake_configuration_default() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # without pipeline context and destination name
     configuration = resolve_configuration(
         DuckLakeClientConfiguration()._bind_dataset_name(dataset_name="foo")
@@ -107,7 +107,7 @@ def test_ducklake_configuration_default() -> None:
 
 
 def test_ducklake_configuration_duckdb_catalog() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # plug default duckdb catalog
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -125,7 +125,7 @@ def test_ducklake_configuration_duckdb_catalog() -> None:
 
 
 def test_ducklake_configuration_ducklake_name() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # catalog name sets default locations
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -143,7 +143,7 @@ def test_ducklake_configuration_ducklake_name() -> None:
 
 
 def test_ducklake_configuration_destination_name() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
     # destination name is set
     configuration = resolve_configuration(
         DuckLakeClientConfiguration(
@@ -161,7 +161,7 @@ def test_ducklake_configuration_destination_name() -> None:
 
 
 def test_ducklake_configuration_pipeline_name() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
 
     # pipeline name is set
     configuration = resolve_configuration(
@@ -207,7 +207,7 @@ def test_ducklake_configuration_storage_credentials() -> None:
 
 
 def test_ducklake_configuration_catalog_credentials() -> None:
-    local_dir = pathlib.Path.cwd() / TEST_STORAGE_ROOT
+    local_dir = pathlib.Path.cwd() / get_test_storage_root()
 
     # explicit catalog
     configuration = resolve_configuration(

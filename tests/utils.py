@@ -43,7 +43,14 @@ from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny, TDataItem, PathLike
 from dlt.common.utils import set_working_dir
 
-TEST_STORAGE_ROOT = "_storage"
+
+DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
+PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
+
+
+def get_test_storage_root() -> str:
+    return os.environ.get(DLT_TEST_STORAGE_ROOT, "_storage")
+
 
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
     "duckdb",
@@ -180,7 +187,7 @@ def write_version(storage: FileStorage, version: str) -> None:
 
 
 def delete_test_storage() -> None:
-    storage = FileStorage(TEST_STORAGE_ROOT)
+    storage = FileStorage(get_test_storage_root())
     if storage.has_folder(""):
         storage.delete_folder("", recursively=True, delete_ro=True)
 
@@ -205,7 +212,7 @@ def preserve_environ() -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def auto_test_run_context() -> Iterator[None]:
-    """Creates a run context that points to TEST_STORAGE_ROOT (_storage)"""
+    """Creates a run context that points to get_test_storage_root()"""
     yield from create_test_run_context()
 
 
@@ -252,7 +259,7 @@ def create_test_run_context() -> Iterator[None]:
     # this plugs active context
     ctx = PluggableRunContext()
     mock = MockableRunContext.from_context(ctx.context)
-    mock._local_dir = os.path.abspath(TEST_STORAGE_ROOT)
+    mock._local_dir = os.path.abspath(get_test_storage_root())
     mock._global_dir = mock._data_dir = os.path.join(mock._local_dir, DOT_DLT)
     ctx_plug = Container()[PluggableRunContext]
     cookie = ctx_plug.push_context()
@@ -522,7 +529,7 @@ def disable_temporary_telemetry() -> Iterator[None]:
 def clean_test_storage(
     init_normalize: bool = False, init_loader: bool = False, mode: str = "t"
 ) -> FileStorage:
-    storage = FileStorage(TEST_STORAGE_ROOT, mode, makedirs=True)
+    storage = FileStorage(get_test_storage_root(), mode, makedirs=True)
     storage.delete_folder("", recursively=True, delete_ro=True)
     storage.create_folder(".")
     if init_normalize:

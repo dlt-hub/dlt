@@ -5,15 +5,15 @@ import pytest
 from dlt.common.utils import uniq_id
 
 from tests.pipeline.utils import assert_load_info
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from dlt.common.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
 
 from dlt.destinations import dummy
 
 
-IMPORT_SCHEMA_PATH = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
-EXPORT_SCHEMA_PATH = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
+IMPORT_SCHEMA_PATH = os.path.join(get_test_storage_root(), "schemas", "import")
+EXPORT_SCHEMA_PATH = os.path.join(get_test_storage_root(), "schemas", "export")
 
 
 EXAMPLE_DATA = [{"id": 1, "name": "dave"}]

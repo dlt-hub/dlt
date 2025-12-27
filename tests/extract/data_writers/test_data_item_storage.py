@@ -9,13 +9,13 @@ from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.data_item_storage import DataItemStorage
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.common.data_writers.utils import ALL_OBJECT_WRITERS
 
 
 class ItemTestStorage(DataItemStorage):
     def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
-        return os.path.join(TEST_STORAGE_ROOT, f"{load_id}.{schema_name}.{table_name}.%s")
+        return os.path.join(get_test_storage_root(), f"{load_id}.{schema_name}.{table_name}.%s")
 
 
 @pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)

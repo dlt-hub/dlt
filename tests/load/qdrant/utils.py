@@ -57,6 +57,10 @@ def drop_active_pipeline_data() -> None:
         p = dlt.pipeline()
         client: QdrantClient
 
+        if not p.dataset_name:
+            Container()[PipelineContext].deactivate()
+            return
+
         with p.destination_client() as client:  # type: ignore[assignment]
             if has_collections(client):
                 client.drop_storage()

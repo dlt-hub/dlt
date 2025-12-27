@@ -12,16 +12,11 @@ from dlt.sources import SourceReference
 
 from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO, DEFAULT_VIBE_SOURCES_REPO
 
-from tests.utils import TEST_STORAGE_ROOT
-from tests.workspace.utils import EMPTY_WORKSPACE_DIR
-
-
 INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
 INIT_VIBE_REPO_LOCATION = DEFAULT_VIBE_SOURCES_REPO
 INIT_VIBE_REPO_BRANCH = "main"
 WORKSPACE_CLI_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cli", "cases"))
-REPO_ROOT = os.path.abspath(TEST_STORAGE_ROOT)
 
 
 @pytest.fixture(autouse=True)
@@ -63,7 +58,8 @@ def workspace_files() -> Iterator[FileStorage]:
 
 
 def get_repo_dir(cloned_repo: FileStorage, repo_name: str) -> str:
-    repo_dir = os.path.join(REPO_ROOT, repo_name)
+    # Create repo dir relative to current working directory
+    repo_dir = os.path.join(os.getcwd(), repo_name)
     shutil.copytree(cloned_repo.storage_path, repo_dir)
     return repo_dir
 
@@ -79,5 +75,5 @@ def get_workspace_files(clear_all_sources: bool = True) -> FileStorage:
     if clear_all_sources:
         SourceReference.SOURCES.clear()
 
-    # project dir
-    return FileStorage(EMPTY_WORKSPACE_DIR, makedirs=False)
+    # project dir - use current working directory
+    return FileStorage(os.getcwd(), makedirs=False)

@@ -10,7 +10,7 @@ from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import FileItemDict, glob_files
 
 from tests.common.storages.utils import assert_sample_files, TEST_SAMPLE_FILES
-from tests.utils import skipifnotwindows, skipifwindows
+from tests.utils import skipifnotwindows, skipifwindows, get_test_storage_root
 
 UNC_LOCAL_PATH = r"\\localhost\c$\tests\common\test.csv"
 UNC_LOCAL_EXT_PATH = r"\\?\UNC\localhost\c$\tests\common\test.csv"
@@ -93,11 +93,15 @@ def test_file_win_configuration() -> None:
 @pytest.mark.parametrize(
     "bucket_url,file_url",
     (
-        (r"/src/local/app", "file:///src/local/app"),
-        (r"_storage", "file://" + pathlib.Path("_storage").resolve().as_posix()),
+        ("/src/local/app", "file:///src/local/app"),
+        ("TEST_STORAGE", None),
     ),
 )
 def test_file_posix_configuration(bucket_url: str, file_url: str) -> None:
+    if bucket_url == "TEST_STORAGE":
+        bucket_url = get_test_storage_root()
+        file_url = "file://" + pathlib.Path(bucket_url).resolve().as_posix()
+
     assert FilesystemConfiguration.is_local_path(bucket_url) is True
     assert FilesystemConfiguration.make_file_url(bucket_url) == file_url
 
@@ -130,12 +134,19 @@ def test_local_user_posix_path_configuration(bucket_url: str) -> None:
 @pytest.mark.parametrize(
     "bucket_url,local_path",
     (
-        ("file://_storage", "_storage"),
-        ("file://_storage/a/b/c.txt", "_storage/a/b/c.txt"),
+        ("FILE_TEST_STORAGE", None),
+        ("FILE_TEST_STORAGE_SUBPATH", None),
     ),
 )
 def test_file_host_configuration(bucket_url: str, local_path: str) -> None:
-    # recognized as UNC path on windows. on POSIX the path does not make sense and start with "//"
+    if bucket_url == "FILE_TEST_STORAGE":
+        local_path = get_test_storage_root()
+        bucket_url = f"file://{local_path}"
+    elif bucket_url == "FILE_TEST_STORAGE_SUBPATH":
+        local_path = os.path.join(get_test_storage_root(), "a/b/c.txt")
+        bucket_url = f"file://{local_path}"
+
+    # recognized as UNC path on windows; on POSIX this starts with //
     assert FilesystemConfiguration.is_local_path(bucket_url) is False
     assert FilesystemConfiguration.make_local_path(bucket_url) == str(
         pathlib.Path("//" + local_path)

@@ -21,14 +21,14 @@ from tests.load.utils import (
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.cases import arrow_table_all_data_types
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
 @pytest.fixture(scope="function", autouse=True)
 def secret_directory():
-    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    secrets_dir = f"{get_test_storage_root()}/duck_secrets_{uniq_id()}"
     yield secrets_dir
     shutil.rmtree(secrets_dir, ignore_errors=True)
 
@@ -135,7 +135,7 @@ def _run_dataset_checks(
     # tests with external duckdb instance
     #
 
-    duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
+    duck_db_location = get_test_storage_root() + "/" + uniq_id()
     # duckdb will store secrets lower case, that's why we could not delete it
     TEST_SECRET_NAME = "second_" + uniq_id()
 

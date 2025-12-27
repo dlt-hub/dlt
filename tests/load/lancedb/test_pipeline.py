@@ -22,10 +22,11 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
 )
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from dlt.extract import DltResource
+from tests.load.lancedb.fixtures import lancedb_destination
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
@@ -70,7 +71,7 @@ def test_adapter_and_hints() -> None:
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
 
 
-def test_basic_state_and_schema() -> None:
+def test_basic_state_and_schema(lancedb_destination) -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource
@@ -84,7 +85,7 @@ def test_basic_state_and_schema() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_pipeline_append_dataset{uniq_id()}",
     )
     info = pipeline.run(
@@ -102,7 +103,7 @@ def test_basic_state_and_schema() -> None:
         assert state
 
 
-def test_pipeline_append() -> None:
+def test_pipeline_append(lancedb_destination) -> None:
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
 
@@ -117,7 +118,7 @@ def test_pipeline_append() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
     )
     info = pipeline.run(
@@ -137,7 +138,7 @@ def test_pipeline_append() -> None:
     assert_table(pipeline, "some_data", items=data)
 
 
-def test_explicit_append() -> None:
+def test_explicit_append(lancedb_destination) -> None:
     data = [
         {"doc_id": 1, "content": "1"},
         {"doc_id": 2, "content": "2"},
@@ -155,7 +156,7 @@ def test_explicit_append() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
     )
     info = pipeline.run(
@@ -175,7 +176,7 @@ def test_explicit_append() -> None:
     assert_table(pipeline, "some_data", items=data)
 
 
-def test_pipeline_replace() -> None:
+def test_pipeline_replace(lancedb_destination) -> None:
     os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "2"
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"
 
@@ -189,7 +190,7 @@ def test_pipeline_replace() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_replace",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name="test_pipeline_replace_dataset"
         + uid,  # Lancedb doesn't mandate any name normalization.
     )
@@ -214,7 +215,7 @@ def test_pipeline_replace() -> None:
     assert_table(pipeline, "some_data", items=data)
 
 
-def test_pipeline_merge() -> None:
+def test_pipeline_merge(lancedb_destination) -> None:
     data = [
         {
             "doc_id": 1,
@@ -288,7 +289,7 @@ def test_pipeline_merge() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="movies",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
     )
     info = pipeline.run(
@@ -310,7 +311,7 @@ def test_pipeline_merge() -> None:
     assert_table(pipeline, "movies_data", items=data)
 
 
-def test_pipeline_with_schema_evolution() -> None:
+def test_pipeline_with_schema_evolution(lancedb_destination) -> None:
     data = [
         {
             "doc_id": 1,
@@ -330,7 +331,7 @@ def test_pipeline_with_schema_evolution() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"TestSchemaEvolutionDataset{uniq_id()}",
     )
     pipeline.run(
@@ -373,7 +374,7 @@ def test_merge_github_nested(lance_location: str) -> None:
     elif lance_location == ":external:":
         import lancedb
 
-        path = os.path.join(TEST_STORAGE_ROOT, "test.lancedb")
+        path = os.path.join(get_test_storage_root(), "test.lancedb")
         destination_ = dlt.destinations.lancedb(credentials=lancedb.connect(path))
     else:
         destination_ = "lancedb"  # type: ignore[assignment]
@@ -424,7 +425,7 @@ def test_merge_github_nested(lance_location: str) -> None:
     assert_table(pipe, "issues", expected_items_count=17)
 
 
-def test_bring_your_own_vector() -> None:
+def test_bring_your_own_vector(lancedb_destination) -> None:
     """Test pipeline with explicitly provided vector data in an arrow table."""
 
     # TODO: support Python objects - requires serializing arrow types (get_nested_column_type_from_py_arrow)
@@ -456,7 +457,7 @@ def test_bring_your_own_vector() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_bring_your_own_vector",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_bring_your_own_vector_{uniq_id()}",
         dev_mode=True,
     )
@@ -503,9 +504,9 @@ def test_bring_your_own_vector() -> None:
         assert len(tbl.to_pandas()) == num_rows
 
 
-def test_empty_dataset_allowed() -> None:
+def test_empty_dataset_allowed(lancedb_destination) -> None:
     # dataset_name is optional so dataset name won't be autogenerated when not explicitly passed.
-    pipe = dlt.pipeline(destination="lancedb", dev_mode=True)
+    pipe = dlt.pipeline(destination=lancedb_destination, dev_mode=True)
 
     assert pipe.dataset_name is None
     info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
@@ -517,7 +518,7 @@ def test_empty_dataset_allowed() -> None:
     assert_table(pipe, "content", expected_items_count=3)
 
 
-def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
+def test_lancedb_remove_nested_orphaned_records_with_chunks(lancedb_destination) -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
@@ -546,7 +547,7 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="chunked_docs",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name="chunked_documents",
         dev_mode=True,
     )
@@ -622,14 +623,14 @@ search_data = [
 ]
 
 
-def test_fts_query() -> None:
+def test_fts_query(lancedb_destination) -> None:
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
         yield from search_data
 
     pipeline = dlt.pipeline(
         pipeline_name="test_fts_query",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_pipeline_append{uniq_id()}",
     )
     info = pipeline.run(
@@ -650,7 +651,7 @@ def test_fts_query() -> None:
         assert results[0]["text"] == "There are several kittens playing"
 
 
-def test_semantic_query() -> None:
+def test_semantic_query(lancedb_destination) -> None:
     @dlt.resource
     def search_data_resource() -> Generator[Mapping[str, object], Any, None]:
         yield from search_data
@@ -662,7 +663,7 @@ def test_semantic_query() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_fts_query",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_pipeline_append{uniq_id()}",
     )
     info = pipeline.run(
@@ -686,7 +687,7 @@ def test_semantic_query() -> None:
         assert results[0]["text"] == "Frodo was a happy puppy"
 
 
-def test_semantic_query_custom_embedding_functions_registered() -> None:
+def test_semantic_query_custom_embedding_functions_registered(lancedb_destination) -> None:
     """Test the LanceDB registry registered custom embedding functions defined in models, if any.
     See: https://github.com/dlt-hub/dlt/issues/1765"""
 
@@ -701,7 +702,7 @@ def test_semantic_query_custom_embedding_functions_registered() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_fts_query",
-        destination="lancedb",
+        destination=lancedb_destination,
         dataset_name=f"test_pipeline_append{uniq_id()}",
     )
     info = pipeline.run(

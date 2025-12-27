@@ -70,6 +70,7 @@ from tests.utils import (
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
     EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
+    get_test_storage_root,
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -333,6 +334,7 @@ def destinations_configs(
     **attr_subset: Any,  # generic attribute filter; useful if above params are not specific enough
 ) -> List[DestinationTestConfiguration]:
     input_args = locals()
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
 
     # import filesystem destination to use named version for minio
     from dlt.destinations import filesystem
@@ -382,9 +384,15 @@ def destinations_configs(
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
-            DestinationTestConfiguration(destination_type="ducklake", supports_dbt=False),
             DestinationTestConfiguration(
-                destination_type="motherduck", file_format="insert_values"
+                destination_type="ducklake",
+                supports_dbt=False,
+                credentials={"ducklake_name": f"ducklake_{worker}"},
+            ),
+            DestinationTestConfiguration(
+                destination_type="motherduck",
+                file_format="insert_values",
+                credentials={"database": f"dlt_test_{worker}"},
             ),
         ]
 
@@ -406,7 +414,7 @@ def destinations_configs(
                 supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
-                credentials="sqlite:///_storage/dl_data.sqlite",
+                credentials=f"sqlite:///{worker}.sqlite",
             ),
             # TODO: enable in sql alchemy destination test, 99% of tests work
             # DestinationTestConfiguration(
@@ -458,10 +466,13 @@ def destinations_configs(
     if default_vector_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="weaviate"),
-            DestinationTestConfiguration(destination_type="lancedb"),
+            DestinationTestConfiguration(
+                destination_type="lancedb",
+                env_vars={"DESTINATION__LANCEDB__LANCE_URI": f"lancedb_{worker}.lancedb"},
+            ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
-                credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
+                credentials=dict(path=str(Path(FILE_BUCKET) / f"qdrant_data_{worker}")),
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(

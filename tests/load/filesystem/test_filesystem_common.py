@@ -34,6 +34,7 @@ from tests.common.configuration.utils import environment
 from tests.common.storages.utils import TEST_SAMPLE_FILES, assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET, WITH_GDRIVE_BUCKETS
 from tests.load.filesystem.utils import self_signed_cert
+from tests.utils import get_test_storage_root
 
 
 # mark all tests as essential, do not remove
@@ -377,7 +378,7 @@ def glob_test_setup(
             filesystem.mkdirs(mem_path)
             filesystem.upload(TEST_SAMPLE_FILES, mem_path, recursive=True)
     if config.protocol == "file":
-        file_path = os.path.join("_storage", "data", "standard_source")
+        file_path = os.path.join(get_test_storage_root(), "data", "standard_source")
         if not filesystem.isdir(file_path):
             filesystem.mkdirs(file_path)
             filesystem.upload(TEST_SAMPLE_FILES, file_path, recursive=True)
