@@ -301,6 +301,36 @@ TEST_FULL_PATHS = \
 test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
+install-pipeline-extract: install-pipeline-full
+
+test-pipeline-extract:
+	$(call RUN_XDIST_SAFE_SPLIT,tests/extract)
+
+install-pipeline-pipeline: install-pipeline-full
+
+test-pipeline-pipeline:
+	$(call RUN_XDIST_SAFE_SPLIT,tests/pipeline)
+
+install-pipeline-libs: install-pipeline-full
+
+test-pipeline-libs:
+	$(call RUN_XDIST_SAFE_SPLIT,tests/libs)
+
+install-pipeline-extract: install-pipeline-full
+
+test-pipeline-destinations:
+	$(call RUN_XDIST_SAFE_SPLIT,tests/destinations)
+
+install-pipeline-dataset: install-pipeline-full
+
+test-pipeline-dataset:
+	$(call RUN_XDIST_SAFE_SPLIT,tests/dataset)
+
+install-pipeline-sources: install-pipeline-full
+
+test-pipeline-sources:
+	$(call RUN_XDIST_SAFE_SPLIT,tests/sources)
+
 install-sqlalchemy2:
 	uv run pip install sqlalchemy==2.0.32
 

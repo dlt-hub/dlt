@@ -37,14 +37,34 @@ jobs:
             {"os":"windows-latest","python-version":"3.13","shell":"cmd"}
           ]'
 
-          python_suite_map='{
-            "3.9":  ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
-            "3.10": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
-            "3.11": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
-            "3.12": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
-            "3.13": ["common-core","pipeline-min","pipeline-arrow","workspace","pipeline-full","sql-database"],
-            "3.14": ["common-core","pipeline-min"]
-          }'
+          common_suites='[
+            "common-core",
+            "pipeline-min",
+            "pipeline-arrow",
+            "workspace",
+            "pipeline-extract",
+            "pipeline-pipeline",
+            "pipeline-libs",
+            "pipeline-destinations",
+            "pipeline-dataset",
+            "pipeline-sources"
+          ]'
+
+          python_suite_map="$(cat <<EOF
+          {
+            "3.9":  $common_suites,
+            "3.10": $common_suites,
+            "3.11": $common_suites,
+            "3.12": $common_suites,
+            "3.13": $common_suites,
+            "3.14": [
+              "common-core",
+              "pipeline-min"
+            ]
+          }
+          EOF
+          )"
+
 
           jq -n \
             --argjson profiles "$profiles" \
@@ -67,7 +87,6 @@ jobs:
   # Run tests
   # ---------------------------------------------------------------------------
   run_common:
-    # name: test (${{ matrix.os }} / py${{ matrix.python-version }} / ${{ matrix.suite }} / ${{ matrix.uv_sync_args != '' && matrix.uv_sync_args || 'default' }})
     name: test
     needs: build-matrix
     strategy:
