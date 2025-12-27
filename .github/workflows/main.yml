@@ -46,7 +46,7 @@ jobs:
 
   test_common:
     name: run common tests on all python versions and OSes
-    needs: [lint]
+    # needs: [lint]
     uses: ./.github/workflows/test_common.yml
 
   test_dashboard:
