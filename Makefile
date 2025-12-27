@@ -316,7 +316,7 @@ install-pipeline-libs: install-pipeline-full
 test-pipeline-libs:
 	$(call RUN_XDIST_SAFE_SPLIT,tests/libs)
 
-install-pipeline-extract: install-pipeline-full
+install-pipeline-destinations: install-pipeline-full
 
 test-pipeline-destinations:
 	$(call RUN_XDIST_SAFE_SPLIT,tests/destinations)
