@@ -253,6 +253,20 @@ TEST_PIPELINE_MIN_PATHS = \
 test-pipeline-min:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_PIPELINE_MIN_PATHS))
 
+install-pipeline-arrow:
+	uv sync \
+		$(UV_SYNC_ARGS) \
+		--extra duckdb \
+		--extra cli \
+		--extra parquet
+
+TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py
+
+test-pipeline-arrow: PYTEST_TARGET_ARGS = -k arrow
+test-pipeline-arrow:
+	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_PIPELINE_ARROW_PATHS))
+
+
 ## Install workspace deps
 install-workspace:
 	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli
