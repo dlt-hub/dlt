@@ -1,3 +1,23 @@
+# MUST be before importing dlt
+import os
+from pathlib import Path
+import tempfile
+from tests.utils import get_test_worker_id
+
+worker_id = get_test_worker_id()
+
+env_root = Path(tempfile.gettempdir()).resolve() / "dlt-env" / worker_id
+home_dir = env_root / "home"
+xdg_dir = env_root / "xdg"
+
+home_dir.mkdir(parents=True, exist_ok=True)
+(xdg_dir / "dlt" / "repos").mkdir(parents=True, exist_ok=True)
+
+os.environ["HOME"] = str(home_dir)
+os.environ["XDG_DATA_HOME"] = str(xdg_dir)
+
+###############
+
 import sys
 from typing import Iterator
 import pytest

@@ -8,6 +8,7 @@ from subprocess import CalledProcessError
 from typing import List, Tuple, Optional
 import pytest
 from unittest import mock
+from pytest import MonkeyPatch
 import re
 from packaging.requirements import Requirement
 from typing import Dict
@@ -63,7 +64,6 @@ from tests.common.utils import modify_and_commit_file
 from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root
 from tests.workspace.utils import restore_clean_workspace
 
-pytestmark = pytest.mark.serial
 
 # we hardcode the core sources here so we can check that the init script picks
 # up the right source
@@ -157,7 +157,7 @@ def test_init_command_new_pipeline_same_name(repo_dir: str, workspace_files: Fil
     assert "already exists, exiting" in _out
 
 
-def test_init_command_chess_verified_source(repo_dir: str, workspace_files: FileStorage) -> None:
+def test_init_command_chess_verified_source(repo_dir: str, workspace_files: FileStorage, monkeypatch: MonkeyPatch) -> None:
     _init_command.init_command("chess", "duckdb", repo_dir)
     assert_source_files(workspace_files, "chess", "duckdb", has_source_section=True)
     assert_requirements_txt(workspace_files, "duckdb")
@@ -177,9 +177,7 @@ def test_init_command_chess_verified_source(repo_dir: str, workspace_files: File
         print(e)
 
     # now run the pipeline
-    os.environ.pop(
-        "DESTINATION__DUCKDB__CREDENTIALS", None
-    )  # settings from local project (secrets.toml etc.)
+    monkeypatch.delenv("DESTINATION__DUCKDB__CREDENTIALS", raising=False) # settings from local project (secrets.toml etc.)
     venv = Venv.restore_current()
     try:
         print(venv.run_script("chess_pipeline.py"))

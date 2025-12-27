@@ -70,7 +70,7 @@ from tests.utils import (
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
     EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
-    get_test_storage_root,
+    get_test_worker_id
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -334,7 +334,7 @@ def destinations_configs(
     **attr_subset: Any,  # generic attribute filter; useful if above params are not specific enough
 ) -> List[DestinationTestConfiguration]:
     input_args = locals()
-    worker = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
+    worker = get_test_worker_id()
 
     # import filesystem destination to use named version for minio
     from dlt.destinations import filesystem

@@ -9,7 +9,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase, PluggableRunContext
 from dlt.common.runtime.run_context import switch_context
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import set_working_dir
+from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
@@ -33,7 +33,13 @@ def isolated_workspace(
         ctx = switch_context(".", profile=profile, required=required)
         # also mock global dir so it does not point to default user ~
         if isinstance(ctx, WorkspaceRunContext):
-            ctx._global_dir = os.path.abspath(".global_dir")
+            ctx._global_dir = os.path.join(
+                get_test_storage_root(),
+                "global_dirs",
+                uniq_id(),
+                ".global_dir",
+            )
+            os.makedirs(ctx._global_dir, exist_ok=True)
             # reload toml provides after patching
             Container()[PluggableRunContext].reload_providers()
         yield ctx  # type: ignore
@@ -52,7 +58,13 @@ def restore_clean_workspace(name: str) -> str:
         Absolute path to the restored workspace directory.
     """
     source_workspace_dir = os.path.join(WORKSPACE_CASES_DIR, name)
-    new_run_dir = os.path.join(get_test_storage_root(), name)
+    if name == "empty":
+        new_run_dir = os.path.join(get_test_storage_root(), name)
+    else:
+        new_run_dir = os.path.join(
+            get_test_storage_root(),
+            f"{name}_{uniq_id()}"
+        )
 
     # ensure parent exists before copying
     os.makedirs(get_test_storage_root(), exist_ok=True)
