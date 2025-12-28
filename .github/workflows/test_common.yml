@@ -38,16 +38,10 @@ jobs:
           ]'
 
           common_suites='[
-            "common-core",
-            "pipeline-min",
-            "pipeline-arrow",
+            "common-core-ci",
+            "test-pipeline-min-ci",
             "workspace",
-            "pipeline-extract",
-            "pipeline-pipeline",
-            "pipeline-libs",
-            "pipeline-destinations",
-            "pipeline-dataset",
-            "pipeline-sources"
+            "pipeline-full"
           ]'
 
           python_suite_map="$(cat <<EOF
@@ -134,15 +128,7 @@ jobs:
       - name: Run tests
         run: make test-${{ matrix.suite }}
         env:
-          PYTEST_XDIST_N: ${{ runner.os == 'Windows' && '4' || 'auto' }}
-        
-      - name: Install common-core-source deps
-        if: matrix.suite == 'common-core'
-        run: make install-common-core-source
-
-      - name: Run minimal-deps source import test
-        if: matrix.suite == 'common-core'
-        run: uv run pytest tests/sources/test_minimal_dependencies.py
+          PYTEST_XDIST_N: ${{ runner.os != 'Linux' && '4' || 'auto' }}
 
   # ---------------------------------------------------------------------------
   # Required gate

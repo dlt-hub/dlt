@@ -241,6 +241,13 @@ test-common-core:
 install-common-core-source:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
 
+install-common-core-ci: install-common-core
+
+test-common-core-ci:
+	$(MAKE) test-common-core
+	$(MAKE) install-common-core-source
+	uv run pytest tests/sources/test_minimal_dependencies.py
+
 ## Install pipeline smoke deps (duckdb, no pandas)
 install-pipeline-min:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra duckdb
@@ -266,6 +273,13 @@ test-pipeline-arrow: PYTEST_TARGET_ARGS = -k arrow
 test-pipeline-arrow:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_PIPELINE_ARROW_PATHS))
 
+install-pipeline-min-ci:
+	$(MAKE) install-pipeline-min
+
+test-pipeline-min-ci:
+	$(MAKE) test-pipeline-min
+	$(MAKE) install-pipeline-arrow
+	$(MAKE) test-pipeline-arrow
 
 ## Install workspace deps
 install-workspace:
