@@ -774,7 +774,7 @@ def _(pipeline_3):
     from IPython.display import display
 
     conn = duckdb.connect(f"{pipeline_3.pipeline_name}.duckdb")
-    # a database 'chess_pipeline.duckdb' was created in working directory so just connect to it
+    # a database 'github_pipeline.duckdb' was created in working directory so just connect to it
     conn.sql(f"SET search_path = '{pipeline_3.dataset_name}'")
     stats_table = conn.sql("SELECT * FROM _dlt_pipeline_state").df()
     display(stats_table)
