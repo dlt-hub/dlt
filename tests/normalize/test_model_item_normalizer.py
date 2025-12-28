@@ -323,6 +323,7 @@ LIMIT 5
     assert parsed_norm_select_query.expressions[1].alias == caps.casefold_identifier("_dlt_load_id")
     assert parsed_norm_select_query.expressions[2].alias == caps.casefold_identifier("_dlt_id")
 
+
 @pytest.mark.serial
 @pytest.mark.parametrize(
     "columns",
