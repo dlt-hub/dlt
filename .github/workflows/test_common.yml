@@ -39,7 +39,7 @@ jobs:
 
           common_suites='[
             "common-core-ci",
-            "test-pipeline-min-ci",
+            "pipeline-min-ci",
             "workspace",
             "pipeline-full"
           ]'
