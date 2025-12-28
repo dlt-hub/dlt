@@ -41,7 +41,10 @@ jobs:
             "common-core-ci",
             "pipeline-min-ci",
             "workspace",
-            "pipeline-full"
+            "pipeline-extract",
+            "pipeline-pipeline",
+            "pipeline-libs-dataset-destinations",
+            "pipeline-sources"
           ]'
 
           python_suite_map="$(cat <<EOF

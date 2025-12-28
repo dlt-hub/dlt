@@ -340,6 +340,15 @@ install-pipeline-dataset: install-pipeline-full
 test-pipeline-dataset:
 	$(call RUN_XDIST_SAFE_SPLIT,tests/dataset)
 
+install-pipeline-libs-dataset-destinations: install-pipeline-libs
+
+test-pipeline-libs-dataset-destinations:
+	$(MAKE) test-pipeline-libs
+	$(MAKE) install-pipeline-dataset
+	$(MAKE) test-pipeline-dataset
+	$(MAKE) install-pipeline-destinations
+	$(MAKE) test-pipeline-destinations
+
 install-pipeline-sources: install-pipeline-full
 
 test-pipeline-sources:
