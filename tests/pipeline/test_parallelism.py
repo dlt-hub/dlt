@@ -3,12 +3,16 @@ Actual parallelism test with the help of custom destination
 """
 import os
 import dlt
+import pytest
 import time
 from typing import Dict, Tuple
 
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.destination.capabilities import TLoaderParallelismStrategy
+
+
+pytestmark = pytest.mark.serial
 
 
 def run_pipeline(
