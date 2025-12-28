@@ -287,7 +287,6 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
 class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
     credentials: DuckDbCredentials = None
-    database_name: Optional[str] = None
     create_indexes: bool = (
         False  # should unique indexes be created, this slows loading down massively
     )
@@ -309,10 +308,3 @@ class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingC
 
     def on_resolved(self) -> None:
         self.credentials.database = self.make_location(self.credentials.database, DUCK_DB_NAME_PAT)
-        if self.database_name:
-            if not self.credentials:
-                raise ConfigurationValueError(
-                    "database_name provided but DuckDB credentials are missing"
-                )
-
-            self.credentials.database = self.make_location(self.database_name, DUCK_DB_NAME_PAT)

@@ -12,9 +12,6 @@ from dlt.common.schema import TTableSchema
 from dlt.common.destination.capabilities import TLoaderParallelismStrategy
 
 
-pytestmark = pytest.mark.serial
-
-
 def run_pipeline(
     items_per_table: int,
     max_parallel_load_jobs: int = None,

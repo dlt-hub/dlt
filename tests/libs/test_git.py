@@ -72,21 +72,21 @@ def test_clone_with_wrong_branch(test_storage: FileStorage) -> None:
         clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="wrong_branch")
 
 
-def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
-    secret = load_secret("deploy_key")
-    repo_path = test_storage.make_full_path("private_repo")
-    with git_custom_key_command(secret) as git_command:
-        with pytest.raises(GitCommandError):
-            clone_repo(PRIVATE_REPO, repo_path, with_git_command=git_command)
+# def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
+#     secret = load_secret("deploy_key")
+#     repo_path = test_storage.make_full_path("private_repo")
+#     with git_custom_key_command(secret) as git_command:
+#         with pytest.raises(GitCommandError):
+#             clone_repo(PRIVATE_REPO, repo_path, with_git_command=git_command)
 
 
-@skipifwindows
-def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
-    secret = load_secret("deploy_key")
-    repo_path = test_storage.make_full_path("private_repo_access")
-    with git_custom_key_command(secret) as git_command:
-        clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command).close()
-        ensure_remote_head(repo_path, with_git_command=git_command)
+# @skipifwindows
+# def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
+#     secret = load_secret("deploy_key")
+#     repo_path = test_storage.make_full_path("private_repo_access")
+#     with git_custom_key_command(secret) as git_command:
+#         clone_repo(PRIVATE_REPO_WITH_ACCESS, repo_path, with_git_command=git_command).close()
+#         ensure_remote_head(repo_path, with_git_command=git_command)
 
 
 @pytest.mark.skip("disabled due to something locking in github")

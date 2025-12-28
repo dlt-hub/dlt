@@ -439,7 +439,6 @@ def test_base_spec() -> None:
         f_no_base(opt=False)
 
 
-@pytest.mark.serial
 @pytest.mark.parametrize("lock", [False, True])
 @pytest.mark.parametrize("same_pool", [False, True])
 def test_lock_context(lock, same_pool) -> None:
