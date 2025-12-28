@@ -123,7 +123,6 @@ def test_naming_from_reference() -> None:
 def test_import_normalizers() -> None:
     config, naming, json_normalizer = import_normalizers(configured_normalizers())
     assert isinstance(naming, snake_case.NamingConvention)
-    # no maximum length: we do not know the destination capabilities
     assert json_normalizer is RelationalNormalizer
     assert config["names"] == "snake_case"
     assert config["json"] == {"module": "dlt.common.normalizers.json.relational"}

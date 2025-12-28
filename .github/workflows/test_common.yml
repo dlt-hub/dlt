@@ -38,13 +38,10 @@ jobs:
           ]'
 
           common_suites='[
-            "common-core-ci",
-            "pipeline-min-ci",
+            "common-core-source",
+            "pipeline-min-arrow",
             "workspace",
-            "pipeline-extract",
-            "pipeline-pipeline",
-            "pipeline-libs-dataset-destinations",
-            "pipeline-sources"
+            "pipeline-full-sql"
           ]'
 
           python_suite_map="$(cat <<EOF

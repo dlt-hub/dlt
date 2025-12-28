@@ -1,9 +1,4 @@
-.PHONY: \
-  test-load-local test-load-local-p \
-  test-load-local-postgres test-load-local-postgres-p \
-  test-dest-load test-dest-load-serial \
-  test-dest-remote-essential test-dest-remote-nonessential \
-  test-dbt-no-venv test-dbt-runner-venv
+.PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-sql-database test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
 .SILENT:has-uv
@@ -32,6 +27,8 @@ help:
 	@echo "			tests all components using local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
+	@echo "		test-common-p"
+	@echo "			tests common components using multiple processes in parallel"
 	@echo "		lint-and-test-snippets"
 	@echo "			tests and lints snippets and examples in docs"
 	@echo "		build-library"
@@ -98,24 +95,20 @@ lint-docstrings:
 		dlt/pipeline/__init__.py \
 		tests/pipeline/utils.py
 
-# Generate random PYTHONHASHSEED that stays constant between xdist workers to detect order-dependent bugs
+# ======================================================================
+# TEST EXECUTION MODEL (shared by local + CI)
+# ======================================================================
+
+# Random but stable per run; shared across xdist workers to surface order bugs
 PYTHONHASHSEED := $(shell shuf -i 0-50 -n 1 2>/dev/null || echo $$((RANDOM % 51)))
 
-# Extra pytest args passed from CLI
-# Example: make test-common PYTEST_EXTRA="-k trace -vv"
-PYTEST_ARGS ?=
-
-# Additional marker expression passed from CLI
-# Example: make test-common PYTEST_MARKERS="integration and not slow"
-PYTEST_MARKERS ?=
-
-# Number of xdist workers
-PYTEST_XDIST_N ?=
-
-# Target-specific pytest args encoding test intent.
+# User-provided overrides
+PYTEST_ARGS        ?=
+PYTEST_MARKERS     ?=
+PYTEST_XDIST_N     ?=
 PYTEST_TARGET_ARGS :=
 
-# Marker expressions (NO -m here)
+# Internal marker model
 PARALLEL_MARKER_EXPR = (not serial and not forked)
 SERIAL_MARKER_EXPR   = (serial or forked)
 
@@ -125,40 +118,40 @@ ifeq ($(OS),Windows_NT)
   SERIAL_MARKER_EXPR = serial
 endif
 
-# Combine user markers with internal markers
 define COMBINE_MARKERS
-$(strip \
-$(if $(PYTEST_MARKERS),($(PYTEST_MARKERS)) and ,)$(1))
+$(strip $(if $(PYTEST_MARKERS),($(PYTEST_MARKERS)) and ,)$(1))
 endef
 
-# Base pytest command (never includes xdist or markers)
+# Base pytest invocation (no xdist, no markers)
 PYTEST_BASE = \
 	PYTHONHASHSEED=$(PYTHONHASHSEED) \
 	uv run pytest \
 	$(PYTEST_TARGET_ARGS) \
 	$(PYTEST_ARGS)
 
-# Parallel vs serial execution
+# Parallel execution with PYTEST_XDIST_N provided
 PYTEST_PARALLEL = \
 	$(PYTEST_BASE) \
 	$(if $(PYTEST_XDIST_N),-p xdist -n $(PYTEST_XDIST_N) $(if $(PYTEST_XDIST_DIST),--dist=$(PYTEST_XDIST_DIST))) \
 	-m "$(call COMBINE_MARKERS,$(PARALLEL_MARKER_EXPR))"
 
+# Normal serial execution
 PYTEST_SERIAL = \
 	$(PYTEST_BASE) \
 	-m "$(call COMBINE_MARKERS,$(SERIAL_MARKER_EXPR))"
 
-# Run parallel-safe tests first, then serial/forked tests
+# Run xdist-safe tests first, then serial/forked ones
 define RUN_XDIST_SAFE_SPLIT
-	PYTEST_MARKERS="$(PYTEST_MARKERS)" \
-	PYTEST_ARGS="$(PYTEST_ARGS)" \
+	PYTEST_MARKERS="$(PYTEST_MARKERS)" PYTEST_ARGS="$(PYTEST_ARGS)" \
 	$(PYTEST_PARALLEL) $(1)
-	PYTEST_MARKERS="$(PYTEST_MARKERS)" \
-	PYTEST_ARGS="$(PYTEST_ARGS)" \
+	PYTEST_MARKERS="$(PYTEST_MARKERS)" PYTEST_ARGS="$(PYTEST_ARGS)" \
 	$(PYTEST_SERIAL)   $(1) || [ $$? -eq 5 ]
 endef
 
-## Run the full test suite (single process)
+# ======================================================================
+# LOCAL / DEV TESTING
+# ======================================================================
+
 test:
 	$(PYTEST_BASE) tests
 
@@ -174,42 +167,43 @@ TEST_COMMON_PATHS = \
 	tests/libs \
 	tests/destinations
 
-## Run common tests (parallel-safe first, then serial/forked)
 test-common:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_PATHS))
 
-## Run common tests with xdist enabled
 test-common-p:
 	$(MAKE) test-common PYTEST_XDIST_N=auto
 
-## Run load tests locally (duckdb + filesystem)
+# ----------------------------------------------------------------------
+# Local load tests
+# ----------------------------------------------------------------------
+
+TEST_LOAD_PATHS = tests/load
+
 test-load-local:
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
 
-TEST_LOAD_PATHS = tests/load
-
-## Run load tests locally with xdist enabled
 test-load-local-p:
 	$(MAKE) test-load-local PYTEST_XDIST_N=auto
 
-## Run load tests locally against Postgres
 test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
 	ACTIVE_DESTINATIONS='["postgres"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory"]' \
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
 
-## Run Postgres load tests with xdist enabled
 test-load-local-postgres-p:
 	$(MAKE) test-load-local-postgres PYTEST_XDIST_N=auto
 
-# these are convenience make commands for testing remote snowflake from local dev env but not re-used by CI
+# ----------------------------------------------------------------------
+# Local remote-destination smoke (not used by CI)
+# ----------------------------------------------------------------------
+
 install-snowflake-extras:
 	uv sync --group pipeline --group ibis --group providers \
 		--extra snowflake --extra s3 --extra gs --extra az --extra parquet
-		
+
 test-remote-snowflake:
 	ACTIVE_DESTINATIONS='["snowflake"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory"]' \
@@ -218,11 +212,17 @@ test-remote-snowflake:
 test-remote-snowflake-p:
 	$(MAKE) test-remote-snowflake PYTEST_XDIST_N=auto
 
-# CI: these make commands are used by github actions
-# common
+# ======================================================================
+# CI TARGETS (used by GitHub Actions)
+# ======================================================================
+
 UV_SYNC_ARGS ?=
 
-install-common-core: ## Install minimal dependencies for core tests
+# ----------------------------------------------------------------------
+# CI: minimal core dependency surface
+# ----------------------------------------------------------------------
+
+install-common-core:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk
 
 TEST_COMMON_CORE_PATHS = \
@@ -238,17 +238,20 @@ TEST_COMMON_CORE_PATHS = \
 test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
 
-install-common-core-source:
+install-common-source:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
 
-install-common-core-ci: install-common-core
+install-common-core-source: install-common-core
 
-test-common-core-ci:
+test-common-core-source:
 	$(MAKE) test-common-core
-	$(MAKE) install-common-core-source
+	$(MAKE) install-common-source
 	uv run pytest tests/sources/test_minimal_dependencies.py
 
-## Install pipeline smoke deps (duckdb, no pandas)
+# ----------------------------------------------------------------------
+# CI: pipeline smoke tests
+# ----------------------------------------------------------------------
+
 install-pipeline-min:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra duckdb
 
@@ -261,11 +264,7 @@ test-pipeline-min:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_PIPELINE_MIN_PATHS))
 
 install-pipeline-arrow:
-	uv sync \
-		$(UV_SYNC_ARGS) \
-		--extra duckdb \
-		--extra cli \
-		--extra parquet
+	uv sync $(UV_SYNC_ARGS) --extra duckdb --extra cli --extra parquet
 
 TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py
 
@@ -273,15 +272,17 @@ test-pipeline-arrow: PYTEST_TARGET_ARGS = -k arrow
 test-pipeline-arrow:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_PIPELINE_ARROW_PATHS))
 
-install-pipeline-min-ci:
-	$(MAKE) install-pipeline-min
+install-pipeline-min-arrow: install-pipeline-min
 
-test-pipeline-min-ci:
+test-pipeline-min-arrow: 
 	$(MAKE) test-pipeline-min
 	$(MAKE) install-pipeline-arrow
 	$(MAKE) test-pipeline-arrow
 
-## Install workspace deps
+# ----------------------------------------------------------------------
+# CI: workspace
+# ----------------------------------------------------------------------
+
 install-workspace:
 	uv sync $(UV_SYNC_ARGS) --extra workspace --extra cli
 
@@ -290,7 +291,10 @@ TEST_WORKSPACE_PATHS = tests/workspace
 test-workspace:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_WORKSPACE_PATHS))
 
-## Install full pipeline + sources deps
+# ----------------------------------------------------------------------
+# CI: full pipeline + sources + destinations
+# ----------------------------------------------------------------------
+
 install-pipeline-full:
 	uv sync \
 		$(UV_SYNC_ARGS) \
@@ -315,56 +319,25 @@ TEST_FULL_PATHS = \
 test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
-install-pipeline-extract: install-pipeline-full
-
-test-pipeline-extract:
-	$(call RUN_XDIST_SAFE_SPLIT,tests/extract)
-
-install-pipeline-pipeline: install-pipeline-full
-
-test-pipeline-pipeline:
-	$(call RUN_XDIST_SAFE_SPLIT,tests/pipeline)
-
-install-pipeline-libs: install-pipeline-full
-
-test-pipeline-libs:
-	$(call RUN_XDIST_SAFE_SPLIT,tests/libs)
-
-install-pipeline-destinations: install-pipeline-full
-
-test-pipeline-destinations:
-	$(call RUN_XDIST_SAFE_SPLIT,tests/destinations)
-
-install-pipeline-dataset: install-pipeline-full
-
-test-pipeline-dataset:
-	$(call RUN_XDIST_SAFE_SPLIT,tests/dataset)
-
-install-pipeline-libs-dataset-destinations: install-pipeline-libs
-
-test-pipeline-libs-dataset-destinations:
-	$(MAKE) test-pipeline-libs
-	$(MAKE) install-pipeline-dataset
-	$(MAKE) test-pipeline-dataset
-	$(MAKE) install-pipeline-destinations
-	$(MAKE) test-pipeline-destinations
-
-install-pipeline-sources: install-pipeline-full
-
-test-pipeline-sources:
-	$(call RUN_XDIST_SAFE_SPLIT,tests/sources)
-
 install-sqlalchemy2:
 	uv run pip install sqlalchemy==2.0.32
-
-install-sql-database: install-pipeline-full install-sqlalchemy2
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database
 
 test-sql-database:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_SQL_DATABASE_PATHS))
 
-#local dest
+install-pipeline-full-sql: install-pipeline-full
+
+test-pipeline-full-sql:
+	$(MAKE) test-pipeline-full
+	$(MAKE) install-sqlalchemy2
+	$(MAKE) test-sql-database
+
+# ----------------------------------------------------------------------
+# CI: destination- and feature-specific
+# ----------------------------------------------------------------------
+
 test-dest-load:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load \
@@ -372,7 +345,6 @@ test-dest-load:
 		--ignore tests/load/filesystem_sftp \
 	)
 
-#remote dest
 test-dest-remote-essential: PYTEST_MARKERS = essential
 test-dest-remote-essential:
 	$(call RUN_XDIST_SAFE_SPLIT, \
@@ -387,7 +359,10 @@ test-dest-remote-nonessential:
 		--ignore tests/load/sources \
 	)
 
-#dbt
+# ----------------------------------------------------------------------
+# CI: dbt
+# ----------------------------------------------------------------------
+
 test-dbt-no-venv: PYTEST_TARGET_ARGS = -k "not venv"
 test-dbt-no-venv:
 	$(call RUN_XDIST_SAFE_SPLIT, tests/helpers/dbt_tests)
@@ -398,13 +373,19 @@ test-dbt-runner-venv: PYTEST_TARGET_ARGS = \
 test-dbt-runner-venv:
 	$(call RUN_XDIST_SAFE_SPLIT, tests/helpers/dbt_tests)
 
-#dashboard
+# ----------------------------------------------------------------------
+# CI: workspace dashboard & sources
+# ----------------------------------------------------------------------
+
 test-workspace-dashboard:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/workspace/helpers/dashboard \
 	)
 
-#sources
+# ----------------------------------------------------------------------
+# CI: sources
+# ----------------------------------------------------------------------
+
 test-sources-load:
 	$(call RUN_XDIST_SAFE_SPLIT, \
 		tests/load/sources \
@@ -415,7 +396,7 @@ test-sources-sql-database:
 		tests/load/sources/sql_database \
 	)
 
-#--end CI
+###################### END CI
 
 build-library: dev lint-lock
 	uv version
