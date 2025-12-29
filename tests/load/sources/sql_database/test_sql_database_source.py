@@ -1503,13 +1503,13 @@ def assert_precision_columns(
         expected = remove_timestamp_precision(expected)
         actual = remove_dlt_columns(actual)
     elif backend == "pyarrow":
-        expected = add_default_decimal_precision(expected)
+        expected = add_default_arrow_decimal_precision(expected)
     elif backend == "pandas":
         expected = remove_timestamp_precision(expected, with_timestamps=False)
     elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
         del actual[0]["precision"]
-        expected = add_default_decimal_precision(expected, is_connectorx=True)
+        expected = add_default_arrow_decimal_precision(expected, is_connectorx=True)
     assert actual == expected
 
 
@@ -1527,7 +1527,7 @@ def assert_no_precision_columns(
         # always has nullability set and always has hints
         # default precision is not set
         expected = remove_default_precision(expected)
-        expected = add_default_decimal_precision(expected)
+        expected = add_default_arrow_decimal_precision(expected)
     elif backend == "sqlalchemy":
         # no precision, no nullability, all hints inferred
         expected = remove_default_precision(expected)
@@ -1595,13 +1595,13 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
             try:
                 assert_min_pkg_version(pkg_name="connectorx", version="0.4.4")
-                add_default_decimal_precision([column], is_connectorx=True)
+                add_default_arrow_decimal_precision([column], is_connectorx=True)
             except DependencyVersionException:
                 pass
     return columns
 
 
-def add_default_decimal_precision(
+def add_default_arrow_decimal_precision(
     columns: List[TColumnSchema], is_connectorx: bool = False
 ) -> List[TColumnSchema]:
     scale = 9 if not is_connectorx else 10

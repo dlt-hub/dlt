@@ -132,13 +132,12 @@ def test_get_table_references() -> None:
 @pytest.mark.parametrize(
     "oracle_type,expected_type,expected_precision,expected_scale,test_value",
     [
-        (NUMBER(), "decimal", None, 0, 123456789),
-        (NUMBER(precision=17), "decimal", 17, 0, 9309935020231023),
+        (NUMBER(), "decimal", None, None, 123456789),
+        (NUMBER(precision=17), "decimal", 17, None, 9309935020231023),
         (NUMBER(precision=17, scale=0), "decimal", 17, 0, 9309935020231023),
         (NUMBER(precision=10, scale=2), "decimal", 10, 2, 12345.67),
-        (NUMBER(precision=17, scale=2, asdecimal=False), "double", None, None, 12345.67),
     ],
-    ids=["NUMBER", "NUMBER(17)", "NUMBER(17,0)", "NUMBER(10,2)", "NUMBER(17,2,asdecimal='False')"],
+    ids=["NUMBER", "NUMBER(17)", "NUMBER(17,0)", "NUMBER(10,2)"],
 )
 def test_oracle_number_type_inference(
     oracle_type: TypeEngine,
