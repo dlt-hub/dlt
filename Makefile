@@ -241,11 +241,7 @@ test-common-core:
 install-common-source:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
 
-install-common-core-source: install-common-core
-
-test-common-core-source:
-	$(MAKE) test-common-core
-	$(MAKE) install-common-source
+test-common-source:
 	uv run pytest tests/sources/test_minimal_dependencies.py
 
 # ----------------------------------------------------------------------
@@ -271,13 +267,6 @@ TEST_PIPELINE_ARROW_PATHS = tests/pipeline/test_pipeline_extra.py
 test-pipeline-arrow: PYTEST_TARGET_ARGS = -k arrow
 test-pipeline-arrow:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_PIPELINE_ARROW_PATHS))
-
-install-pipeline-min-arrow: install-pipeline-min
-
-test-pipeline-min-arrow: 
-	$(MAKE) test-pipeline-min
-	$(MAKE) install-pipeline-arrow
-	$(MAKE) test-pipeline-arrow
 
 # ----------------------------------------------------------------------
 # CI: workspace
@@ -326,13 +315,6 @@ TEST_SQL_DATABASE_PATHS = tests/sources/sql_database
 
 test-sql-database:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_SQL_DATABASE_PATHS))
-
-install-pipeline-full-sql: install-pipeline-full
-
-test-pipeline-full-sql:
-	$(MAKE) test-pipeline-full
-	$(MAKE) install-sqlalchemy2
-	$(MAKE) test-sql-database
 
 # ----------------------------------------------------------------------
 # CI: destination- and feature-specific

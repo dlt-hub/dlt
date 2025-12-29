@@ -13,85 +13,63 @@ env:
   SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Build matrix: (profiles) × (suites)
-  # ---------------------------------------------------------------------------
-  build-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.generate.outputs.matrix }}
-    steps:
-      - id: generate
-        run: |
-          profiles='[
-            {"os":"macos-latest","python-version":"3.11","shell":"bash"},
-            {"os":"ubuntu-latest","python-version":"3.9","shell":"bash"},
-            {"os":"ubuntu-latest","python-version":"3.10","shell":"bash"},
-            {"os":"ubuntu-latest","python-version":"3.11","shell":"bash"},
-            {"os":"ubuntu-latest","python-version":"3.12","shell":"bash"},
-            {"os":"ubuntu-latest","python-version":"3.13","shell":"bash"},
-            {"os":"macos-14","python-version":"3.14","shell":"bash"},
-            {"os":"ubuntu-latest","python-version":"3.11","shell":"bash","uv_sync_args":"--resolution lowest-direct"},
-            {"os":"ubuntu-latest","python-version":"3.11","shell":"bash","uv_sync_args":"--upgrade"},
-            {"os":"windows-latest","python-version":"3.11","shell":"cmd"},
-            {"os":"windows-latest","python-version":"3.13","shell":"cmd"}
-          ]'
-
-          common_suites='[
-            "common-core-source",
-            "pipeline-min-arrow",
-            "workspace",
-            "pipeline-full-sql"
-          ]'
-
-          python_suite_map="$(cat <<EOF
-          {
-            "3.9":  $common_suites,
-            "3.10": $common_suites,
-            "3.11": $common_suites,
-            "3.12": $common_suites,
-            "3.13": $common_suites,
-            "3.14": [
-              "common-core",
-              "pipeline-min"
-            ]
-          }
-          EOF
-          )"
-
-
-          jq -n \
-            --argjson profiles "$profiles" \
-            --argjson python_suite_map "$python_suite_map" \
-            '{
-              include: [
-                $profiles[] as $p
-                | ($python_suite_map[$p["python-version"]] // [])[] as $s
-                | $p + { suite: $s }
-              ]
-            }' > matrix.json
-
-          {
-            echo "matrix<<EOF"
-            cat matrix.json
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-  # ---------------------------------------------------------------------------
-  # Run tests
-  # ---------------------------------------------------------------------------
   run_common:
     name: test
-    needs: build-matrix
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.build-matrix.outputs.matrix) }}
+      matrix:
+        include:
 
-    runs-on: ${{ matrix.os }}
+          # macos tests
+          - os: macos-latest
+            python-version: "3.11"
+            shell: bash
+
+          # linux tests
+          - os: ubuntu-latest
+            python-version: "3.9"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.10"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.12"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.13"
+            shell: bash
+
+          - os: "macos-14"
+            python-version: "3.14"
+            shell: bash
+
+          # linux test with minimal dependencies
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+
+          # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--upgrade' # could also be 'direct'
+          
+          # windows tests
+          - os: windows-latest
+            python-version: "3.11"
+            shell: cmd
+          - os: windows-latest
+            python-version: "3.13"
+            shell: cmd
 
     defaults:
       run:
         shell: ${{ matrix.shell }}
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out
@@ -121,18 +99,76 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: make install-${{ matrix.suite }}
+        run: make install-common-core
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+    
+      - name: Run common tests with minimum dependencies
+        run: make test-common-core
+        env:
+          PYTEST_XDIST_N: auto
+
+      - name: Install min dependencies to import core source
+        run: make install-common-source
         env:
           UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 
-      - name: Run tests
-        run: make test-${{ matrix.suite }}
+      - name: Run min dependencies source tests
+        run: make test-common-source
+  
+      - name: Install duckdb dependencies
+        run: make install-pipeline-min
         env:
-          PYTEST_XDIST_N: ${{ runner.os != 'Linux' && '4' || 'auto' }}
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 
-  # ---------------------------------------------------------------------------
-  # Required gate
-  # ---------------------------------------------------------------------------
+      - name: Run pipeline tests with minimum deps
+        run: make test-pipeline-min
+        env:
+          PYTEST_XDIST_N: auto
+
+      - name: Install pyarrow
+        run: make install-pipeline-arrow
+        if: matrix.python-version != '3.14'
+
+      - name: Run pipeline tests with pyarrow but no pandas installed
+        run: make test-pipeline-arrow
+        if: matrix.python-version != '3.14'
+
+      - name: Install workspace dependencies
+        run: make install-workspace
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+        if: matrix.python-version != '3.14'
+
+      - name: Run workspace tests
+        run: make test-workspace
+        env:
+          PYTEST_XDIST_N: auto
+        if: matrix.python-version != '3.14'
+
+      - name: Install pipeline and sources dependencies
+        run: make install-pipeline-full
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+        if: matrix.python-version != '3.14'
+
+      - name: Run extract and pipeline tests
+        run: make test-pipeline-full
+        env:
+          PYTEST_XDIST_N: auto
+        if: matrix.python-version != '3.14'
+
+      # here we upgrade sql alchemy to 2 an run the sql_database tests again
+      - name: Upgrade sql alchemy
+        run: make install-sqlalchemy2
+        if: matrix.python-version != '3.14'
+
+      - name: Run extract and pipeline tests 
+        run: make test-sql-database
+        env:
+          PYTEST_XDIST_N: auto
+        if: matrix.python-version != '3.14'
+
   matrix_job_required_check:
     name: common | common tests
     needs: run_common
@@ -142,4 +178,4 @@ jobs:
       - name: Check matrix job results
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: |
-          echo "One or more matrix job tests failed or were cancelled." && exit 1
+          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1
