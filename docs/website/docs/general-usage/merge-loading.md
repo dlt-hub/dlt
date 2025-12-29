@@ -611,7 +611,7 @@ def dim_customer():
 ...
 ```
 
-### 🧪 Use scd2 with Arrow tables and Panda frames
+### 🧪 Use scd2 with Arrow tables and pandas DataFrames
 `dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
 You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
 ```py
