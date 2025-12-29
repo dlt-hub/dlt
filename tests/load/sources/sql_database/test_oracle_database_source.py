@@ -16,7 +16,7 @@ from tests.load.sources.sql_database.test_sql_database_source import (
     add_default_arrow_decimal_precision,
 )
 from tests.load.sources.sql_database.utils import assert_incremental_chunks
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, assert_schema_on_data, load_tables_to_dicts
 
 import dlt
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -127,6 +127,12 @@ def test_numeric_types(
 
     schema = pipeline.default_schema
     table = schema.tables["app_user"]
+    assert_schema_on_data(
+        table,
+        load_tables_to_dicts(pipeline, "app_user")["app_user"],
+        False,
+        True,
+    )
 
     for expected_column in expected_columns:
         assert expected_column["name"] in table["columns"]
