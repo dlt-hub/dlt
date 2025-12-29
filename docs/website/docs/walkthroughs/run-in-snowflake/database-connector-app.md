@@ -238,5 +238,15 @@ Open a pipeline tab and click the **scheduling** button.
 ![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_scheduling_button.png)
 
 
-This creates or updates a Snowflake task that triggers the pipeline on the given schedule. If you want to stop it, change the status to `suspended`.
+This operation creates or updates a Snowflake task that runs the pipeline according to the specified schedule. To stop the task, set its status to `SUSPENDED`. You can do this either via SQL:
+
+```sql
+ALTER TASK [ IF EXISTS ] <name> RESUME | SUSPEND
+```
+
+or directly in the Snowflake UI by changing the task’s status:
+
+![change task status](https://storage.googleapis.com/dlt-blog-images/sna_suspend.png)
+
+
 
