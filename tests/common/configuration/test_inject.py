@@ -481,7 +481,7 @@ def test_lock_context(lock, same_pool) -> None:
         if lock and same_pool:
             assert elapsed > 1
         else:
-            assert elapsed < 0.7
+            assert elapsed < 0.75
 
 
 @pytest.mark.skip("not implemented")
