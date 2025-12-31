@@ -37,6 +37,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
+    CODEC_HINT,
     HINT_TO_CLICKHOUSE_ATTR,
     PARTITION_HINT,
     SETTINGS_HINT,
@@ -252,6 +253,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             for hint in self.active_hints.keys()
             if c.get(cast(str, hint), False) is True and hint not in ("primary_key", "sort")
         )
+
+        if codec := c.get(CODEC_HINT):
+            hints_ += f"CODEC({codec}) "
 
         # Alter table statements only accept `Nullable` modifiers.
         # JSON type isn't nullable in ClickHouse.

@@ -8,6 +8,7 @@ from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
+    CODEC_HINT,
     PARTITION_HINT,
     SETTINGS_HINT,
     SORT_HINT,
@@ -25,7 +26,7 @@ from tests.load.clickhouse.utils import (
 from tests.pipeline.utils import assert_load_info
 
 
-def test_clickhouse_adapter() -> None:
+def test_clickhouse_adapter_table_engine_type() -> None:
     @dlt.resource
     def merge_tree_resource() -> Generator[Dict[str, int], None, None]:
         yield {"field1": 1, "field2": 2}
@@ -205,7 +206,32 @@ def test_clickhouse_adapter_settings(
     assert f"SETTINGS {expected_settings_clause}" in sql
 
 
+def test_clickhouse_adapter_codecs(
+    clickhouse_client: ClickHouseClient, clickhouse_adapter_resource: DltResource
+) -> None:
+    # codec hints get set correctly
+    codecs = {"TOWN": "ZSTD(3)", "number": "Delta, ZSTD(2)"}
+    res = clickhouse_adapter(clickhouse_adapter_resource, codecs=codecs)
+    table_schema = res.compute_table_schema()
+    columns = table_schema["columns"]
+    assert columns["TOWN"][CODEC_HINT] == "ZSTD(3)"  # type: ignore[typeddict-item]
+    assert columns["number"][CODEC_HINT] == "Delta, ZSTD(2)"  # type: ignore[typeddict-item]
+
+    # column clauses get set correctly
+    clickhouse_client.schema.update_table(table_schema)
+    new_columns = list(table_schema["columns"].values())
+    stmts = clickhouse_client._get_table_update_sql("data", new_columns, False)
+    assert len(stmts) == 1
+    sql = stmts[0]
+    assert "`TOWN` String CODEC(ZSTD(3))," in sql
+    assert "`street` String," in sql  # no codec
+    assert "`number` Int64 CODEC(Delta, ZSTD(2))" in sql
+
+
 def test_clickhouse_adapter_type_check() -> None:
+    with pytest.raises(TypeError):
+        clickhouse_adapter([{"foo": "bar"}], codecs="not_a_dict")  # type: ignore[arg-type]
+
     with pytest.raises(TypeError):
         clickhouse_adapter([{"foo": "bar"}], sort=False)  # type: ignore[arg-type]
 

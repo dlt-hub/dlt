@@ -2,11 +2,13 @@ from typing import Any, Dict, Optional
 
 from dlt.common.typing import NoneType
 from dlt.destinations.impl.clickhouse.typing import (
+    CODEC_HINT,
     PARTITION_HINT,
     SETTINGS_HINT,
     SORT_HINT,
     TABLE_ENGINE_TYPES,
     TABLE_ENGINE_TYPE_HINT,
+    TColumnCodecs,
     TMergeTreeSettings,
     TSQLExprOrColumnSeq,
     TTableEngineType,
@@ -37,6 +39,7 @@ def clickhouse_adapter(
     sort: Optional[TSQLExprOrColumnSeq] = None,
     partition: Optional[TSQLExprOrColumnSeq] = None,
     settings: Optional[TMergeTreeSettings] = None,
+    codecs: Optional[TColumnCodecs] = None,
 ) -> DltResource:
     """Prepares data for the ClickHouse destination by specifying which table engine type
     that should be used.
@@ -54,6 +57,8 @@ def clickhouse_adapter(
             columns.
         settings (TMergeTreeSettings, optional): Dictionary of MergeTree settings to apply to the
             table. Will be added to `SETTINGS` clause of table creation statement.
+        codecs (TColumnCodecs, optional): Dictionary of codecs to apply to the table's columns.
+            Will be added as `CODEC` clauses in column definitions of table creation statement.
 
     Returns:
         DltResource: A resource with applied Clickhouse-specific hints.
@@ -75,8 +80,14 @@ def clickhouse_adapter(
                 f" '{type(val).__name__}'"
             )
 
+    def raise_if_not_none_dict(val: Any, name: str) -> None:
+        accepted_types = (NoneType, dict)
+        if not isinstance(val, accepted_types):
+            raise TypeError(f"`{name}` must be a dictionary, got '{type(val).__name__}'")
+
     resource = get_resource_for_adapter(data)
 
+    columns = None
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
 
     # table engine type
@@ -99,13 +110,14 @@ def clickhouse_adapter(
         additional_table_hints[PARTITION_HINT] = partition
 
     # settings
-    if not isinstance(settings, (NoneType, dict)):
-        raise TypeError(
-            "`settings` must be a dictionary of MergeTree settings, got"
-            f" '{type(settings).__name__}'"
-        )
+    raise_if_not_none_dict(settings, "settings")
     if settings:
         additional_table_hints[SETTINGS_HINT] = settings
 
-    resource.apply_hints(additional_table_hints=additional_table_hints)
+    # codecs
+    raise_if_not_none_dict(codecs, "codecs")
+    if codecs:
+        columns = [{"name": name, CODEC_HINT: codec} for name, codec in codecs.items()]
+
+    resource.apply_hints(columns=columns, additional_table_hints=additional_table_hints)  # type: ignore[arg-type]
     return resource

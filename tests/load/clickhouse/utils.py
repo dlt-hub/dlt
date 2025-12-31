@@ -12,7 +12,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import TDeployment, TMergeTreeSettings
+from dlt.destinations.impl.clickhouse.typing import TColumnCodecs, TDeployment, TMergeTreeSettings
 from dlt.extract import DltResource
 
 
@@ -75,6 +75,20 @@ def get_deployment_type(client: ClickHouseSqlClient) -> TDeployment:
         SELECT value FROM system.settings WHERE name = 'cloud_mode'
     """)[0][0])
     return "ClickHouseCloud" if cloud_mode else "ClickHouseOSS"
+
+
+def get_codecs(sql_client: ClickHouseSqlClient, table_name: str) -> TColumnCodecs:
+    """Returns mapping of column names to their codecs for given table.
+
+    If no codec is set for a column, its value is an empty string.
+    """
+    qry = "SELECT name, compression_codec FROM system.columns WHERE database = %s AND table = %s;"
+    table_name = sql_client.make_qualified_table_name(table_name, quote=False)
+    database, name = table_name.split(".")
+    with sql_client:
+        columns = sql_client.execute_sql(qry, database, name)
+
+    return {col[0]: col[1] for col in columns}
 
 
 def get_sorting_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:

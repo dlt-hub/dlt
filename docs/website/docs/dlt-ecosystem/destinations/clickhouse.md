@@ -311,6 +311,37 @@ CREATE TABLE ...
 SETTINGS allow_nullable_key = true, max_suspicious_broken_parts = 500, deduplicate_merge_projection_mode = 'ignore'
 ```
 
+## Column codecs
+Use the `codecs` parameter of the `clickhouse_adapter` to specify [codecs](https://clickhouse.com/docs/sql-reference/statements/create/table#column_compression_codec) for the table's columns:
+
+```py
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource
+def my_resource():
+    ...
+
+clickhouse_adapter(
+   my_resource,
+   codecs = {
+      "town": "ZSTD(3)",
+      "number": "Delta, ZSTD(2)"
+   }
+)
+```
+
+The codecs are used in the table creation statement as follows:
+
+```sql
+CREATE TABLE my_resource
+(
+   `town` String CODEC(ZSTD(3)),
+   `street` String, -- no codec specified
+   `number` Int64 CODEC(Delta, ZSTD(2))
+)
+...
+```
+
 ## Staging support
 
 ClickHouse supports Amazon S3, Google Cloud Storage, and Azure Blob Storage as file staging destinations.

@@ -10,13 +10,14 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import TSQLExprOrColumnSeq
+from dlt.destinations.impl.clickhouse.typing import TColumnCodecs, TSQLExprOrColumnSeq
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.clickhouse.utils import (
     CLICKHOUSE_ADAPTER_CASES,
     CLICKHOUSE_ADAPTER_SETTINGS_CASE,
     clickhouse_adapter_resource,
+    get_codecs,
     get_create_table_query,
     get_partition_key,
     get_sorting_key,
@@ -256,6 +257,33 @@ def test_clickhouse_adapter_settings_pipe(
     sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
     create_table_query = get_create_table_query(sql_client, table_name=adapted_res.name)
     assert f"SETTINGS {expected_settings_clause}" in create_table_query
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "codecs",
+    (
+        pytest.param({"TOWN": "ZSTD(3)", "number": "Delta, ZSTD(2)"}, id="not-normalized"),
+        pytest.param({"town": "ZSTD(3)", "number": "Delta, ZSTD(2)"}, id="normalized"),
+    ),
+)
+def test_clickhouse_adapter_codecs_pipe(
+    destination_config: DestinationTestConfiguration,
+    clickhouse_adapter_resource: DltResource,
+    codecs: TColumnCodecs,
+) -> None:
+    adapted_res = clickhouse_adapter(clickhouse_adapter_resource, codecs=codecs)
+    pipe = destination_config.setup_pipeline("test_clickhouse_adapter_codecs", dev_mode=True)
+    pipe.run(adapted_res, **destination_config.run_kwargs, refresh="drop_sources")
+    sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+    applied_codecs = get_codecs(sql_client, table_name=adapted_res.name)
+    assert applied_codecs["town"] == "CODEC(ZSTD(3))"
+    assert applied_codecs["street"] == ""
+    assert applied_codecs["number"] == "CODEC(Delta(8), ZSTD(2))"
 
 
 @pytest.mark.parametrize(
