@@ -293,7 +293,7 @@ The Runtime imports this object to start the server.
 
 Minimal example:
 
-```python
+```py
 from fastmcp import FastMCP
 
 mcp = FastMCP("simple-mcp")
