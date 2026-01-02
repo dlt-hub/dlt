@@ -365,7 +365,9 @@ class Schema:
                 partial_table = utils.merge_diff(table, partial_table)
             else:
                 # merge tables performing additional checks
-                partial_table = utils.merge_table(self.name, table, partial_table)
+                partial_table = utils.merge_table(
+                    self.name, table, partial_table, not normalize_identifiers
+                )
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table

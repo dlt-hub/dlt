@@ -462,6 +462,7 @@ def merge_columns(
     columns_a: TTableSchemaColumns,
     columns_b: TTableSchemaColumns,
     allow_empty_columns: bool = False,
+    from_normalizer: bool = False,
 ) -> TTableSchemaColumns:
     """Merges `columns_b` into `columns_a`. `columns_a` is modified in place and returned.
 
@@ -473,7 +474,7 @@ def merge_columns(
     compound_props: set[str] = set()
     for column_b in columns_b.values():
         compound_props.update(prop for prop in column_b if is_compound_prop(prop))
-    if compound_props:
+    if compound_props and not from_normalizer:
         remove_compound_props(columns=columns_a, compound_props=compound_props)
 
     # remove incomplete columns in table that are complete in diff table
@@ -604,15 +605,20 @@ def ensure_compatible_tables(
 
 
 def merge_table(
-    schema_name: str, table: TTableSchema, partial_table: TPartialTableSchema
+    schema_name: str,
+    table: TTableSchema,
+    partial_table: TPartialTableSchema,
+    from_normalizer: bool = False,
 ) -> TPartialTableSchema:
     """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
     `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`
     """
-    return merge_diff(table, diff_table(schema_name, table, partial_table))
+    return merge_diff(table, diff_table(schema_name, table, partial_table), from_normalizer)
 
 
-def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartialTableSchema:
+def merge_diff(
+    table: TTableSchema, table_diff: TPartialTableSchema, from_normalizer: bool = False
+) -> TPartialTableSchema:
     """Merges a table diff `table_diff` into `table`. `table` is merged in place. Returns the diff.
     * new columns are added, updated columns are replaced from diff
     * incomplete columns in `table` that got completed in `partial_table` are removed to preserve order
@@ -633,7 +639,9 @@ def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartial
             table["columns"][incremental_a_col].pop("incremental")
 
     # add new columns when all checks passed
-    updated_columns = merge_columns(columns_a=table["columns"], columns_b=table_diff["columns"])
+    updated_columns = merge_columns(
+        columns_a=table["columns"], columns_b=table_diff["columns"], from_normalizer=from_normalizer
+    )
     table.update(table_diff)
     table["columns"] = updated_columns
 
