@@ -248,9 +248,9 @@ class Schema:
             if column_mode != "evolve" and not is_variant:
                 if existing_col and is_complete_column(existing_col):
                     error_msg = (
-                        f"Column `{column_name}` in table `{table_name}` already exists with"
-                        " different properties, but `columns` are frozen. Existing column:"
-                        f" {existing_col}. New column with different properties: {column}.\n"
+                        f"Can't evolve table column `{column_name}` in table `{table_name}` because"
+                        " `columns` are frozen. Existing column: {existing_col}. Incoming"
+                        " column: {column}."
                     )
                 else:
                     error_msg = (

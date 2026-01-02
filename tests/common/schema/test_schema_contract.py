@@ -274,9 +274,7 @@ def test_check_adding_new_columns(base_settings) -> None:
         "name": "tables",
         "columns": {"column_3": {"name": "column_3", "data_type": "timestamp", "timezone": True}},
     }
-    assert_new_column(
-        table_update, "column_3", "exists with different properties, but `columns` are frozen"
-    )
+    assert_new_column(table_update, "column_3", "Can't evolve table column")
 
     #
     # check x-normalize evolve_once behaving as evolve override
