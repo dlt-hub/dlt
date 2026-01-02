@@ -134,13 +134,14 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
     assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
 
-    # empty value as key hint does nothing
+    # empty value as key hint removes previous keys
     my_resource.apply_hints(**{key_hint: ""})
     p.run(my_resource())
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
-    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
 
     @dlt.resource(  # type: ignore[no-redef, call-overload]
+        columns={"other_id": {key_hint: True}},
         write_disposition="merge",
         **{key_hint: []},
     )
@@ -149,4 +150,4 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
 
     p.run(my_resource())
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
-    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)

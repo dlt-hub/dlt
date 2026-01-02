@@ -495,15 +495,9 @@ class DltResourceHints:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
             if primary_key is not None:
-                if not primary_key:
-                    t["primary_key"] = ""
-                else:
-                    t["primary_key"] = primary_key
+                t["primary_key"] = primary_key
             if merge_key is not None:
-                if not merge_key:
-                    t["merge_key"] = ""
-                else:
-                    t["merge_key"] = merge_key
+                t["merge_key"] = merge_key
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
@@ -636,12 +630,14 @@ class DltResourceHints:
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
         if isinstance(keys, str):
             keys = [keys]
+        elif len(keys) == 0:
+            keys = [""]
         auth_columns: TTableSchemaColumns = {}
         for key in keys:
             nullable = partial["columns"].get(key, {}).get("nullable", False)
             auth_columns[key] = new_column(key, nullable=nullable)
             auth_columns[key][hint] = True
-        merge_columns(partial["columns"], auth_columns)
+        merge_columns(partial["columns"], auth_columns, allow_empty_columns=True)
 
     @staticmethod
     def _merge_keys(dict_: TResourceHints) -> None:

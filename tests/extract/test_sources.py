@@ -1768,13 +1768,14 @@ def test_apply_hints() -> None:
         "write_disposition": "append",
         "original_columns": {},
         "merge_key": "",
-        "primary_key": "",
+        "primary_key": [],
+    }
+    empty_keys_table_schema = empty_table_schema
+    empty_keys_table_schema["columns"] = {
+        "": {"merge_key": True, "name": "", "nullable": False, "primary_key": True}
     }
     table = empty_r.compute_table_schema()
-    assert table["name"] == "empty_gen"
-    assert "parent" not in table
-    assert table["columns"] == {}
-    assert empty_r.compute_table_schema() == empty_table_schema
+    assert table == empty_keys_table_schema
 
     # combine columns with primary key
     empty_r = empty()
@@ -1975,7 +1976,7 @@ def test_apply_hints_table_variants() -> None:
     table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
     assert table_b["name"] == "table_b"
     assert table_b["write_disposition"] == "merge"
-    assert len(table_b["columns"]) == 0
+    assert table_b["columns"] == {"": {"name": "", "nullable": False, "primary_key": True}}
 
     # dyn hints not allowed
     with pytest.raises(InconsistentTableTemplate):
