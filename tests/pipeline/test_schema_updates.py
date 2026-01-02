@@ -82,7 +82,9 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name=f"test_changing_{key_hint}_between_runs", destination="dummy")
 
-    @dlt.resource( # type: ignore[call-overload]
+    # table level key argument in the resource decorator should be authoritative
+    # over what's in the columns argument
+    @dlt.resource(  # type: ignore[call-overload]
         columns={"other_id": {key_hint: True}}, write_disposition="merge", **{key_hint: ["id"]}
     )
     def my_resource():
@@ -94,6 +96,8 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
     assert p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint) is True
     assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
 
+    # changing table level key argument should be authoritative
+    # over what exists in the schema (no key merging)
     @dlt.resource(  # type: ignore[no-redef, call-overload]
         write_disposition="merge",
         **{key_hint: ["other_id"]},
@@ -105,6 +109,8 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
     assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
 
+    # changing table level key with apply_hints should be authoritative
+    # over what exists in the schema (no key merging)
     my_resource.apply_hints(**{key_hint: "id"})
     p.run(my_resource())
     assert p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint) is True
@@ -115,17 +121,32 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
     assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
 
+    # changing table level key with apply_hints should be authoritative
+    # over what exists in the schema (no key merging)
+    # as well as what's passed to the columns argument in apply_hints
+    my_resource.apply_hints(**{key_hint: "id"}, columns={"other_id": {key_hint: True}})
+    p.run(my_resource())
+    assert p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint) is True
+    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
+
+    my_resource.apply_hints(**{key_hint: "other_id"}, columns={"id": {key_hint: True}})
+    p.run(my_resource())
+    assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
+
+    # empty value as key hint does nothing
     my_resource.apply_hints(**{key_hint: ""})
     p.run(my_resource())
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
-    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
-
-    my_resource.apply_hints(**{key_hint: ["id", "other_id"]})
-    p.run(my_resource())
-    assert p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint) is True
     assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True
 
-    my_resource.apply_hints(**{key_hint: []})
+    @dlt.resource(  # type: ignore[no-redef, call-overload]
+        write_disposition="merge",
+        **{key_hint: []},
+    )
+    def my_resource():
+        yield {"id": 1, "other_id": 2, "name": "Bob"}
+
     p.run(my_resource())
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
-    assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
+    assert p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint) is True

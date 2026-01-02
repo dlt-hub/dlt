@@ -42,6 +42,7 @@ from dlt.common.schema.utils import (
     new_table,
     merge_table,
     remove_compound_props,
+    is_nullable_column,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -637,9 +638,10 @@ class DltResourceHints:
             keys = [keys]
         auth_columns: TTableSchemaColumns = {}
         for key in keys:
-            auth_columns[key] = new_column(key, nullable=False)
+            nullable = partial["columns"].get(key, {}).get("nullable", False)
+            auth_columns[key] = new_column(key, nullable=nullable)
             auth_columns[key][hint] = True
-        merge_columns(partial["columns"], auth_columns, allow_empty_columns=True)
+        merge_columns(partial["columns"], auth_columns)
 
     @staticmethod
     def _merge_keys(dict_: TResourceHints) -> None:

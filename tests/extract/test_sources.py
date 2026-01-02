@@ -1767,6 +1767,8 @@ def test_apply_hints() -> None:
         "validator": None,
         "write_disposition": "append",
         "original_columns": {},
+        "merge_key": "",
+        "primary_key": "",
     }
     table = empty_r.compute_table_schema()
     assert table["name"] == "empty_gen"
@@ -2032,15 +2034,17 @@ def test_apply_hints_keys(key_prop: TColumnProp) -> None:
     assert set(actual_keys) == {"id_1"}
 
     # apply key via schema
-    key_columns_3 = ["id_2", "id_1", "id_3"]
     id_2_col[key_prop] = True
 
     empty = DltResource.from_data(empty_gen)
     empty.apply_hints(**{key_prop: key_columns_2}, columns=[id_2_col])  # type: ignore
     table = empty.compute_table_schema()
-    # all 3 columns have the compound key. we do not prevent setting keys via schema
+    # only 2 columns explicitly specified as key have the compound key,
+    # we do not prevent setting keys via schema,
+    # but only use the ones that are explicitly passed as key_prop to replace those
+    # specified in schema
     actual_keys = utils.get_columns_names_with_prop(table, key_prop, include_incomplete=True)
-    assert actual_keys == key_columns_3
+    assert actual_keys == key_columns_2
     actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
     assert actual_keys == key_columns_2
 
