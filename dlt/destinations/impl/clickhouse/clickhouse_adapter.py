@@ -19,20 +19,6 @@ from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
 
-"""
-The table engine (type of table) determines:
-
-- How and where data is stored, where to write it to, and where to read it from.
-- Which queries are supported, and how.
-- Concurrent data access.
-- Use of indexes, if present.
-- Whether multithread request execution is possible.
-- Data replication parameters.
-
-See https://clickhouse.com/docs/en/engines/table-engines.
-"""
-
-
 def clickhouse_adapter(
     data: Any,
     table_engine_type: Optional[TTableEngineType] = None,
@@ -41,8 +27,7 @@ def clickhouse_adapter(
     settings: Optional[TMergeTreeSettings] = None,
     codecs: Optional[TColumnCodecs] = None,
 ) -> DltResource:
-    """Prepares data for the ClickHouse destination by specifying which table engine type
-    that should be used.
+    """Adapts the given data by applying Clickhouse-specific hints.
 
     Args:
         data (Any): The data to be transformed. It can be raw data or an instance
@@ -50,11 +35,12 @@ def clickhouse_adapter(
             object.
         table_engine_type (TTableEngineType, optional): The table index type used when creating
             the Clickhouse table.
-        sort (str, optional): Sorting key SQL expression. Will be added to `ORDER BY` clause of
-            table creation statement. Use normalized column names when referring to columns.
-        partition (str, optional): Partition key SQL expression. Will be added to `PARTITION BY`
-            clause of table creation statement. Use normalized column names when referring to
-            columns.
+        sort (TSQLExprOrColumnSeq, optional): Sorting key SQL expression or sequence of column
+            names. Used to generated `ORDER BY` clause of table creation statement. If passing a SQL
+            expression, use normalized column names when referring to columns.
+        partition (TSQLExprOrColumnSeq, optional): Partition key SQL expression or sequence of
+            column names. Used to generated `PARTITION BY` clause of table creation statement. If
+            passing a SQL expression, use normalized column names when referring to columns.
         settings (TMergeTreeSettings, optional): Dictionary of MergeTree settings to apply to the
             table. Will be added to `SETTINGS` clause of table creation statement.
         codecs (TColumnCodecs, optional): Dictionary of codecs to apply to the table's columns.
@@ -65,11 +51,36 @@ def clickhouse_adapter(
 
     Raises:
         ValueError: If input for `table_engine_type` is invalid.
+        TypeError: If input types for `sort`, `partition`, `settings`, or `codecs` are invalid.
 
     Examples:
+        Set table engine type:
+
         >>> data = [{"name": "Alice", "description": "Software Developer"}]
         >>> clickhouse_adapter(data, table_engine_type="merge_tree")
-        [DltResource with hints applied]
+
+        Set sort and partition keys:
+
+        >>> data = [{"date": "2024-01-01", "town": "Springfield", "street": "Evergreen Terrace"}]
+        >>> clickhouse_adapter(
+        >>>     data,
+        >>>     sort=["town", "street"],  # can also be SQL expression
+        >>>     partition="toYYYYMM(date)"  # can also be sequence of column names
+        >>> )
+
+        Set MergeTree settings:
+
+        >>> clickhouse_adapter(
+        >>>     data,
+        >>>     settings={"allow_nullable_key": True, "max_suspicious_broken_parts": 500}
+        >>> )
+
+        Set column codecs:
+
+        >>> clickhouse_adapter(
+        >>>     data,
+        >>>     codecs={"town": "LZ4HC", "street": "Delta, ZSTD(2)"}
+        >>> )
     """
 
     def raise_if_not_none_str_seq(val: Any, name: str) -> None:
