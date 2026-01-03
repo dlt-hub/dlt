@@ -2,7 +2,6 @@ import pytest
 
 from typing import Literal
 
-import dlt
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.destinations import clickhouse
@@ -12,52 +11,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import TColumnCodecs, TDeployment, TMergeTreeSettings
-from dlt.extract import DltResource
-
-
-# this constant relates to `clickhouse_adapter_resource`
-CLICKHOUSE_ADAPTER_CASES = (
-    # `sort`/`partition` input, expected ORDER BY / PARTITION clause, expected sorting/partition key
-    # expressions (we do not mix in uppercase names because expressions are not normalized)
-    pytest.param("town", "town", "town", id="expr-simple"),
-    pytest.param("(town, number % 4)", "(town, number % 4)", "town, number % 4", id="expr-complex"),
-    # sequences of column names (we mix in uppercase names to verify normalization)
-    pytest.param(["TOWN"], "(town)", "town", id="seq-single"),
-    pytest.param(("street", "TOWN"), "(street, town)", "street, town", id="seq-multi"),
-)
-
-CLICKHOUSE_ADAPTER_SETTINGS_CASE: tuple[TMergeTreeSettings, str] = (
-    # settings dict, expected SETTINGS clause
-    {
-        "allow_nullable_key": True,
-        "max_suspicious_broken_parts": 500,
-        "deduplicate_merge_projection_mode": "ignore",
-        "merge_selecting_sleep_slowdown_factor": 1.2,
-    },
-    (
-        "allow_nullable_key = true,"
-        " max_suspicious_broken_parts = 500,"
-        " deduplicate_merge_projection_mode = 'ignore',"
-        " merge_selecting_sleep_slowdown_factor = 1.2"
-    ),
-)
-
-
-# this fixture relates to `CLICKHOUSE_ADAPTER_CASES`
-@pytest.fixture
-def clickhouse_adapter_resource() -> DltResource:
-    @dlt.resource(
-        columns={
-            "TOWN": {"nullable": False, "data_type": "text"},
-            "street": {"nullable": False, "data_type": "text"},
-            "number": {"nullable": False, "data_type": "bigint"},
-        }
-    )
-    def data():
-        yield [{"TOWN": "Dubai", "street": "Sheikh Zayed Road", "number": 1}]
-
-    return data()
+from dlt.destinations.impl.clickhouse.typing import TColumnCodecs, TDeployment
 
 
 @pytest.fixture
