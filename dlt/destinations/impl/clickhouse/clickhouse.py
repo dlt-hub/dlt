@@ -1,11 +1,9 @@
-import os
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Literal, Optional, List, Sequence, Union, cast
+from typing import Any, Literal, Optional, List, Sequence, cast
 from urllib.parse import urlparse
 
 import clickhouse_connect
-from clickhouse_connect.driver.tools import insert_file
 
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
@@ -23,10 +21,7 @@ from dlt.common.destination.client import (
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.exceptions import SchemaCorruptedException
-from dlt.common.schema.typing import (
-    TTableFormat,
-    TColumnType,
-)
+from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
@@ -45,7 +40,6 @@ from dlt.destinations.impl.clickhouse.typing import (
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
     TMergeTreeSettings,
     TMergeTreeSettingsValue,
-    TSQLExprOrColumnSeq,
 )
 from dlt.destinations.impl.clickhouse.typing import (
     TTableEngineType,
@@ -283,27 +277,29 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
     def _get_key(
         self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        hint_name: Literal["sort", "partition"],
-        hint_val: TSQLExprOrColumnSeq,
-    ) -> str:
+        table_schema: PreparedTableSchema,
+        key_type: Literal["sort", "partition"],
+    ) -> Optional[str]:
         """Returns sort or partition key based on hint."""
 
-        if isinstance(hint_val, str):
+        hint = table_schema.get(SORT_HINT if key_type == "sort" else PARTITION_HINT)
+        if not hint:
+            return None
+
+        assert isinstance(hint, (str, list, tuple))
+
+        if isinstance(hint, str):
             # it's a SQL expression; return as is
-            return hint_val
-        elif isinstance(hint_val, Sequence):
+            return hint
+        elif isinstance(hint, (list, tuple)):
             # it's a sequence of column names; check existence and generate expression
-            normalizer = self.schema.naming.normalize_identifier
-            norm_hint_columns = [normalizer(col) for col in hint_val]
-            norm_new_columns = [normalizer(c["name"]) for c in new_columns]
-            non_existing_columns = set(norm_hint_columns) - set(norm_new_columns)
+            norm_hint_columns = [self.schema.naming.normalize_identifier(col) for col in hint]
+            non_existing_columns = set(norm_hint_columns) - set(table_schema["columns"].keys())
             if non_existing_columns:
                 raise SchemaCorruptedException(
                     self.schema.name,
-                    f"Found non-existing columns in {hint_name} hint for table `{table_name}`:"
-                    f" {str(non_existing_columns)[1:-1]}",
+                    f"Found non-existing columns in {key_type} hint for table"
+                    f" `{table_schema['name']}`: {str(non_existing_columns)[1:-1]}",
                 )
             return "(" + ", ".join(norm_hint_columns) + ")"
 
@@ -352,16 +348,12 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql[0] += "\nPRIMARY KEY tuple()"
 
         # ORDER BY
-        if sort_hint := table.get(SORT_HINT):
-            sort_hint = cast(TSQLExprOrColumnSeq, sort_hint)
-            sort_key = self._get_key(table_name, new_columns, "sort", sort_hint)
+        if sort_key := self._get_key(table, "sort"):
             sql[0] += f"\nORDER BY {sort_key}"
 
         # PARTITION BY
-        if partition_hint := table.get(PARTITION_HINT):
-            partition_hint = cast(TSQLExprOrColumnSeq, partition_hint)
-            partition_key = self._get_key(table_name, new_columns, "partition", partition_hint)
-            sql[0] += f"\nPARTITION BY {partition_key}"
+        if part_key := self._get_key(table, "partition"):
+            sql[0] += f"\nPARTITION BY {part_key}"
 
         # SETTNGS
         if settings_hint := table.get(SETTINGS_HINT):
