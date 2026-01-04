@@ -93,9 +93,10 @@ pipeline = dlt.pipeline(
 )
 ```
 
-### Passing SQLAlchemy Engine Options: `engine_args`
+### Passing SQLAlchemy Engine Options: `engine_kwargs`
 
-The SQLAlchemy destination accepts an optional `engine_args` parameter, which is forwarded directly to `sqlalchemy.create_engine`.
+The SQLAlchemy destination accepts an optional `engine_kwargs` parameter, which is forwarded directly to `sqlalchemy.create_engine`.
+The equivalent `engine_args` parameter is maintained for backward compatibility, but will be removed in a future release.
 
 Example enabling SQLAlchemy verbose logging:
 #### In `.dlt/secrets.toml`
@@ -106,7 +107,7 @@ credentials = "sqlite:///logger.db"
 
 #### In `.dlt/config.toml`
 ```toml
-[destination.sqlalchemy.engine_args]
+[destination.sqlalchemy.engine_kwargs]
 echo = true
 ```
 
@@ -121,7 +122,7 @@ logging.basicConfig(level=logging.INFO)
 
 dest = sqlalchemy(
     credentials="sqlite:///logger.db",
-    engine_args={"echo": True},
+    engine_kwargs={"echo": True},
 )
 
 pipeline = dlt.pipeline(
@@ -140,7 +141,7 @@ pipeline.run(
 )
 ```
 
-`engine_args` configures only the engine used by the **destination**. It does not affect sources (use `engine_kwargs` for sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
+Here, `engine_kwargs` configures only the engine used by SQLAlchemy as a **destination**. It does not affect resource extraction (use `engine_kwargs` for sql sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
 
 ## Notes on SQLite
 

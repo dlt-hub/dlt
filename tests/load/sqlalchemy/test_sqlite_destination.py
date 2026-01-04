@@ -61,7 +61,7 @@ def test_inmemory_database_passing_engine() -> None:
     engine.dispose()
 
 
-def test_file_based_database_with_engine_args() -> None:
+def test_file_based_database_with_engine_kwargs() -> None:
     output = [
         {"content": 1},
         {"content": 2},
@@ -76,14 +76,14 @@ def test_file_based_database_with_engine_args() -> None:
     db_path = os.path.join(local_dir, "test.db")
     credentials = f"sqlite:///{db_path}"
 
-    engine_args = {
+    engine_kwargs = {
         "connect_args": {"check_same_thread": False},
         "poolclass": sa.pool.StaticPool
     }
 
     pipeline = dlt.pipeline(
-        pipeline_name="test_pipeline_sqlite_file_engine_args" + uniq_id(),
-        destination=dlt_sqlalchemy(credentials, engine_args=engine_args),
+        pipeline_name="test_pipeline_sqlite_file_engine_kwargs" + uniq_id(),
+        destination=dlt_sqlalchemy(credentials, engine_kwargs=engine_kwargs),
         dataset_name="main"
     )
 
@@ -91,7 +91,5 @@ def test_file_based_database_with_engine_args() -> None:
         some_data(),
         table_name="file_table"
     )
-
-    print(pipeline.dataset())
 
     assert_load_info(info)
