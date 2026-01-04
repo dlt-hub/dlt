@@ -31,8 +31,7 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
     def _resolve_engine_kwargs(self) -> Dict[str, Any]:
         if self.engine_kwargs and self.engine_args:
             raise ValueError(
-                "Both engine_kwargs and engine_args were provided. "
-                "Use engine_kwargs only."
+                "Both engine_kwargs and engine_args were provided. Use engine_kwargs only."
             )
 
         if self.engine_args and not self.engine_kwargs:
@@ -110,8 +109,7 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         )
         if self._engine is None:
             self._engine = sa.create_engine(
-                self.to_url().render_as_string(hide_password=False),
-                **engine_kwargs
+                self.to_url().render_as_string(hide_password=False), **engine_kwargs
             )
         # set as owner if not yet set
         self._conn_owner = getattr(self, "_conn_owner", True)
@@ -172,8 +170,7 @@ class SqlalchemyClientConfiguration(DestinationClientDwhConfiguration):
     def on_resolved(self) -> None:
         if self.engine_kwargs and self.engine_args:
             raise ValueError(
-                "Both engine_kwargs and engine_args were provided. "
-                "Use engine_kwargs only."
+                "Both engine_kwargs and engine_args were provided. Use engine_kwargs only."
             )
 
         if self.engine_args and not self.engine_kwargs:

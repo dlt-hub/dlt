@@ -33,9 +33,9 @@ def test_sqlalchemy_external_engine_ref_counting_does_not_dispose(mocker) -> Non
     engine = sa.create_engine("sqlite:///:memory:")
 
     c = resolve_configuration(
-        SqlalchemyClientConfiguration(
-            credentials=SqlalchemyCredentials(engine)
-        )._bind_dataset_name(dataset_name="test_dataset")
+        SqlalchemyClientConfiguration(credentials=SqlalchemyCredentials(engine))._bind_dataset_name(
+            dataset_name="test_dataset"
+        )
     )
 
     dispose_spy = mocker.spy(engine, "dispose")

@@ -78,8 +78,10 @@ def test_engine_kwargs_timeout_is_honored_sqlite():
     finally:
         os.remove(db_path)
 
+
 def test_engine_kwargs_and_backend_kwargs_with_pyarrow_backend(caplog):
     import pyarrow as pa
+
     fd, db_path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     try:
