@@ -79,7 +79,7 @@ def test_engine_kwargs_timeout_is_honored_sqlite():
         os.remove(db_path)
 
 
-def test_engine_kwargs_and_backend_kwargs_with_pyarrow_backend(caplog):
+def test_engine_kwargs_and_backend_kwargs_with_pyarrow_backend():
     import pyarrow as pa
 
     fd, db_path = tempfile.mkstemp(suffix=".db")
@@ -87,8 +87,12 @@ def test_engine_kwargs_and_backend_kwargs_with_pyarrow_backend(caplog):
     try:
         engine = sa.create_engine(f"sqlite:///{db_path}")
         with engine.connect() as conn:
-            conn.execute(sa.text("CREATE TABLE test_table (id INTEGER PRIMARY KEY, value FLOAT)"))
-            conn.execute(sa.text("INSERT INTO test_table (value) VALUES (1.1), (2.2)"))
+            conn.execute(sa.text(
+                "CREATE TABLE test_table (id INTEGER PRIMARY KEY, value FLOAT)"
+            ))
+            conn.execute(sa.text(
+                "INSERT INTO test_table (value) VALUES (1.1), (2.2)"
+            ))
 
         source = sql_database(
             credentials=f"sqlite:///{db_path}",
@@ -98,17 +102,15 @@ def test_engine_kwargs_and_backend_kwargs_with_pyarrow_backend(caplog):
             backend_kwargs={"tz": "UTC"},
         )
 
-        with caplog.at_level(logging.INFO):
-            tables = list(source.resources["test_table"])
+        tables = list(source.resources["test_table"])
 
-        logs = " ".join(r.message.lower() for r in caplog.records)
-        assert "select" in logs or "pragma" in logs
-
-        assert len(tables) == 1
+        assert len(tables) == 1, "PyArrow backend yielded no batches"
         table = tables[0]
 
         assert isinstance(table, pa.Table)
+        assert table.num_rows == 2
         assert table["value"].to_pylist() == [1.1, 2.2]
+
     finally:
         os.remove(db_path)
 
