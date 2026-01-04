@@ -259,16 +259,11 @@ def test_validation_with_contracts(yield_list: bool) -> None:
 @pytest.mark.parametrize("yield_models", [True, False])
 @pytest.mark.parametrize("yield_list", [True, False])
 def test_pydantic_validator_return_models(return_models, yield_models, yield_list):
-
     class TempModel(BaseModel):
-        _id: int
+        record_id: int
         dlt_config: t.ClassVar[DltConfig] = {"return_validated_models": return_models}
 
-    validator = PydanticValidator(
-        TempModel,
-        column_mode="freeze",
-        data_mode="freeze"
-    )
+    validator = PydanticValidator(TempModel, column_mode="freeze", data_mode="freeze")
 
     validator.table_name = "temp_table"
     VM = validator.model
@@ -276,14 +271,14 @@ def test_pydantic_validator_return_models(return_models, yield_models, yield_lis
     item: t.Any
     if yield_list:
         if yield_models:
-            item = [VM(_id=i) for i in range(3)]
+            item = [VM(record_id=i) for i in range(3)]
         else:
-            item = [{"_id": i} for i in range(3)]
+            item = [{"record_id": i} for i in range(3)]
     else:
         if yield_models:
-            item = VM(_id=1)
+            item = VM(record_id=1)
         else:
-            item = {"_id": 1}
+            item = {"record_id": 1}
 
     validated = validator(item)
 

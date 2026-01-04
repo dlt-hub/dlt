@@ -861,7 +861,6 @@ def test_null_in_non_null_arrow() -> None:
 @pytest.mark.parametrize("yield_models", [True, False])
 @pytest.mark.parametrize("yield_list", [True, False])
 def test_pydantic_return_validated_models(return_models, yield_models, yield_list):
-
     class TempModel(BaseModel):
         _id: int
         dlt_config: ClassVar[DltConfig] = {"return_validated_models": return_models}
