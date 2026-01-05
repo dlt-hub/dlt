@@ -1,4 +1,4 @@
-from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional
+from typing import Any, Dict, Tuple, Type, Union, TYPE_CHECKING, Optional
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -30,6 +30,7 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
         "binary": "BINARY",
         "time": "TIME",
+        "decimal": "DECFLOAT",
     }
 
     sct_to_dbt = {
@@ -49,6 +50,7 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "BINARY": "binary",
         "VARIANT": "json",
         "TIME": "time",
+        "DECFLOAT": "decimal",
     }
 
     def from_destination_type(
@@ -91,6 +93,13 @@ class SnowflakeTypeMapper(TypeMapperImpl):
                 )
 
         return timestamp
+
+    def decimal_precision(
+        self, precision: Optional[int] = None, scale: Optional[int] = None
+    ) -> Optional[Tuple[int, int]]:
+        if precision is None and scale is None:
+            return None
+        return super().decimal_precision(precision, scale)
 
 
 class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
