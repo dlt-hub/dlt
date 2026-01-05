@@ -151,3 +151,4 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
     p.run(my_resource())
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
     assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
+

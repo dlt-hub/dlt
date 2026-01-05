@@ -335,6 +335,7 @@ class Schema:
         partial_table: TPartialTableSchema,
         normalize_identifiers: bool = True,
         from_diff: bool = False,
+        merge_compound_props: bool = False,
     ) -> TPartialTableSchema:
         """Adds or merges `partial_table` into the schema. Identifiers are normalized by default.
         if `from_diff` is True, then `partial_table` is assumed to be a diff (contains only differences)
@@ -366,7 +367,7 @@ class Schema:
             else:
                 # merge tables performing additional checks
                 partial_table = utils.merge_table(
-                    self.name, table, partial_table, not normalize_identifiers
+                    self.name, table, partial_table, merge_compound_props
                 )
 
         self.data_item_normalizer.extend_table(table_name)

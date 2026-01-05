@@ -628,16 +628,19 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
+        remove_compound_props(partial["columns"], {hint})
         if isinstance(keys, str):
             keys = [keys]
         elif len(keys) == 0:
             keys = [""]
-        auth_columns: TTableSchemaColumns = {}
         for key in keys:
-            nullable = partial["columns"].get(key, {}).get("nullable", False)
-            auth_columns[key] = new_column(key, nullable=nullable)
-            auth_columns[key][hint] = True
-        merge_columns(partial["columns"], auth_columns, allow_empty_columns=True)
+            if key in partial["columns"]:
+                # set nullable to False if not set
+                nullable = partial["columns"][key].get("nullable", False)
+                merge_column(partial["columns"][key], {hint: True, "nullable": nullable})  # type: ignore
+            else:
+                partial["columns"][key] = new_column(key, nullable=False)
+                partial["columns"][key][hint] = True
 
     @staticmethod
     def _merge_keys(dict_: TResourceHints) -> None:

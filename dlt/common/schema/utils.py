@@ -471,25 +471,25 @@ def merge_column(
 def merge_columns(
     columns_a: TTableSchemaColumns,
     columns_b: TTableSchemaColumns,
-    allow_empty_columns: bool = False,
-    from_normalizer: bool = False,
+    merge_compound_props: bool = False,
 ) -> TTableSchemaColumns:
     """Merges `columns_b` into `columns_a`. `columns_a` is modified in place and returned.
 
-    * New columns from `columns_b` are added to `columns_a`
-    * Existing columns that appear in both sets are merged using `merge_column`
-    * Compound properties (like `primary_key`, `merge_key`, `partition`) found in `columns_b` are first removed from all columns in `columns_a`
+    Args:
+        merge_compound_props: If set to True, compound properties from columns_b are merged to columns_a,
+            instead of replacing them.
+
     * Incomplete columns in `columns_a` that are complete in `columns_b` are removed and re-added to preserve column order
     """
     compound_props: set[str] = set()
     for column_b in columns_b.values():
         compound_props.update(prop for prop in column_b if is_compound_prop(prop))
-    if compound_props and not from_normalizer:
+    if compound_props and not merge_compound_props:
         remove_compound_props(columns=columns_a, compound_props=compound_props)
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
-        if allow_empty_columns is False and not col_name:
+        if not col_name:
             continue
         column_a = columns_a.get(col_name)
         if is_complete_column(column_b):
@@ -499,8 +499,7 @@ def merge_columns(
             column_b = merge_column(column_a, column_b)
         # set new or updated column
         columns_a[col_name] = column_b
-    if from_normalizer:
-        remove_empty_columns(columns=columns_a)
+    remove_empty_columns(columns=columns_a)
     return columns_a
 
 
@@ -620,16 +619,18 @@ def merge_table(
     schema_name: str,
     table: TTableSchema,
     partial_table: TPartialTableSchema,
-    from_normalizer: bool = False,
+    merge_compound_props: bool = False,
 ) -> TPartialTableSchema:
     """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
     `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`
     """
-    return merge_diff(table, diff_table(schema_name, table, partial_table), from_normalizer)
+    return merge_diff(table, diff_table(schema_name, table, partial_table), merge_compound_props)
 
 
 def merge_diff(
-    table: TTableSchema, table_diff: TPartialTableSchema, from_normalizer: bool = False
+    table: TTableSchema,
+    table_diff: TPartialTableSchema,
+    merge_compound_props: bool = False,
 ) -> TPartialTableSchema:
     """Merges a table diff `table_diff` into `table`. `table` is merged in place. Returns the diff.
     * new columns are added, updated columns are replaced from diff
@@ -652,7 +653,9 @@ def merge_diff(
 
     # add new columns when all checks passed
     updated_columns = merge_columns(
-        columns_a=table["columns"], columns_b=table_diff["columns"], from_normalizer=from_normalizer
+        columns_a=table["columns"],
+        columns_b=table_diff["columns"],
+        merge_compound_props=merge_compound_props,
     )
     table.update(table_diff)
     table["columns"] = updated_columns

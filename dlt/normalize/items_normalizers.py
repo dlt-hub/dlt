@@ -545,7 +545,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             continue
                         # theres a new table or new columns in existing table
                         # update schema and save the change
-                        schema.update_table(partial_table, normalize_identifiers=False)
+                        schema.update_table(
+                            partial_table, normalize_identifiers=False, merge_compound_props=True
+                        )
                         table_updates = schema_update.setdefault(table_name, [])
                         table_updates.append(partial_table)
 
