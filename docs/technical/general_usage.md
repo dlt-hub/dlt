@@ -125,7 +125,7 @@ The other way to trigger full refresh is to drop destination dataset. `dlt` dete
 The `run` and `extract` method understand the following
 1. `dlt.source`, `dlt.resource` and lists of them
 2. lists, iterators, generators of json-serializable objects (+datetime, decimal, uuid types)
-3. ⛔ panda frames, pyarrow tables are processed natively ☮️ are processed as iterators
+3. ⛔ pandas DataFrames, pyarrow tables are processed natively ☮️ are processed as iterators
 4. ☮️ `uri` strings representing built is sources (`file.json`, `file.parquet`, `s3://bucket/file.json`)
 
 ## running pipelines and `dlt.run` + `@source().run` functions

@@ -17,6 +17,7 @@ from typing import (
     cast,
 )
 import shutil
+from copy import deepcopy
 from pathlib import Path
 from urllib.parse import urlparse
 from dataclasses import dataclass
@@ -46,6 +47,7 @@ from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationR
 from dlt.common.destination.exceptions import DestinationUndefinedEntity, SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.schema.typing import TTableFormat, TTableSchema
@@ -67,6 +69,7 @@ from tests.utils import (
     IMPLEMENTED_DESTINATIONS,
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
+    EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS,
 )
 from tests.cases import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -87,6 +90,10 @@ R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 SFTP_BUCKET = dlt.config.get("tests.bucket_url_sftp", str)
 HTTP_BUCKET = dlt.config.get("tests.bucket_url_http", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
+
+# S3 tables
+S3_TABLE_BUCKET_ARN = dlt.config.get("tests.s3_table_bucket_arn", str)
+S3_TABLES_CATALOG = dlt.config.get("tests.s3_tables_catalog", str)
 
 ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "s3",
@@ -160,6 +167,7 @@ class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
     destination_type: str
+    cid: Optional[str] = None  # configuration id
     staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
     table_format: Optional[TTableFormat] = None
@@ -170,12 +178,14 @@ class DestinationTestConfiguration:
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
     force_iceberg: bool = None  # used only to test deprecation
+    aws_data_catalog: Optional[str] = None
     supports_dbt: bool = True
     disable_compression: bool = None  # use default value
     dev_mode: bool = False
     credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any], str]] = None
     env_vars: Optional[Dict[str, str]] = None
     destination_name: Optional[str] = None
+    naming_convention: Optional[TNamingConventionReferenceArg] = None
 
     def destination_factory(self, **kwargs) -> Destination[Any, Any]:
         dest_type = kwargs.pop("destination", self.destination_type)
@@ -200,6 +210,8 @@ class DestinationTestConfiguration:
             name += "-no-staging"
         else:
             name += "-staging"
+        if self.naming_convention:
+            name += f"-{str(self.naming_convention)}"
         if self.extra_info:
             name += f"-{self.extra_info}"
         return name
@@ -214,6 +226,8 @@ class DestinationTestConfiguration:
                 "staging_iam_role",
                 "staging_use_msi",
                 "force_iceberg",
+                "aws_data_catalog",
+                "naming_convention",
             ]
             if getattr(self, k, None) is not None
         }
@@ -224,7 +238,10 @@ class DestinationTestConfiguration:
             "DESTINATION"
         )
         for k, v in self.factory_kwargs.items():
-            os.environ[f"{env_key_prefix}__{k.upper()}"] = str(v)
+            if k == "naming_convention":
+                os.environ["SCHEMA__NAMING"] = str(v)
+            else:
+                os.environ[f"{env_key_prefix}__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
         os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(
@@ -284,6 +301,17 @@ class DestinationTestConfiguration:
         """Returns a dict of kwargs to be passed to pipeline.run method: currently file and table format"""
         return dict(loader_file_format=self.file_format, table_format=self.table_format)
 
+    @property
+    def is_athena_s3_tables(self) -> bool:
+        return self.destination_type == "athena" and self.aws_data_catalog == S3_TABLES_CATALOG
+
+    @property
+    def uses_table_format_for_state_table(self) -> bool:
+        """Whether destination uses table format (Iceberg, Delta, ...) for pipeline state table."""
+        if self.is_athena_s3_tables:
+            return True
+        return False
+
 
 def destinations_configs(
     default_sql_configs: bool = False,
@@ -302,6 +330,7 @@ def destinations_configs(
     with_table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
+    **attr_subset: Any,  # generic attribute filter; useful if above params are not specific enough
 ) -> List[DestinationTestConfiguration]:
     input_args = locals()
 
@@ -316,18 +345,30 @@ def destinations_configs(
         # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         DestinationTestConfiguration(
             destination_type="athena",
+            cid="athena",
             file_format="parquet",
             supports_merge=False,
             bucket_url=AWS_BUCKET,
         ),
         DestinationTestConfiguration(
             destination_type="athena",
+            cid="athena-iceberg",
             file_format="parquet",
             bucket_url=AWS_BUCKET,
             supports_merge=True,
             supports_dbt=False,
             table_format="iceberg",
-            extra_info="iceberg",
+        ),
+        DestinationTestConfiguration(
+            destination_type="athena",
+            cid="athena-s3-tables",
+            file_format="parquet",
+            bucket_url=AWS_BUCKET,
+            supports_merge=True,
+            supports_dbt=False,
+            aws_data_catalog=S3_TABLES_CATALOG,
+            table_format="iceberg",
+            naming_convention="s3_tables",
         ),
     ]
 
@@ -756,12 +797,51 @@ def destinations_configs(
             conf for conf in destination_configs if conf.supports_dbt == supports_dbt
         ]
 
+    # filter by other attributes
+    for attr_name, allowed_values in attr_subset.items():
+        if isinstance(allowed_values, str) or not isinstance(allowed_values, Sequence):
+            allowed_values = [allowed_values]
+        destination_configs = [
+            conf for conf in destination_configs if getattr(conf, attr_name) in allowed_values
+        ]
+
     # filter out excluded configs
     destination_configs = [
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
 
+    # filter out excluded ids
+    destination_configs = [
+        conf
+        for conf in destination_configs
+        if conf.cid not in EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS
+    ]
+
     return destination_configs
+
+
+def with_naming_convention(
+    destination_config: DestinationTestConfiguration,
+    naming_convention: TNamingConventionReferenceArg,
+) -> DestinationTestConfiguration:
+    destination_config_ = deepcopy(destination_config)
+    destination_config_.naming_convention = naming_convention
+    return destination_config_
+
+
+def destinations_configs_with_naming_convention(
+    naming_conventions: Sequence[TNamingConventionReferenceArg], **destinations_configs_kwargs: Any
+) -> List[DestinationTestConfiguration]:
+    confs = destinations_configs(**destinations_configs_kwargs)
+
+    confs_without_naming = [c for c in confs if c.naming_convention is None]
+    confs_with_naming = [c for c in confs if c.naming_convention is not None]
+
+    confs_with_naming_injected = [
+        with_naming_convention(c, n) for c in confs_without_naming for n in naming_conventions
+    ]
+
+    return confs_with_naming_injected + confs_with_naming
 
 
 @pytest.fixture(autouse=True)
@@ -1058,6 +1138,21 @@ def cm_yield_client_with_storage(
     schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
     return yield_client_with_storage(destination, default_config_values, schema_name)
+
+
+class SqlJobClientBaseWithDestinationTestConfiguration(SqlJobClientBase):
+    destination_config: DestinationTestConfiguration
+
+
+@pytest.fixture(scope="function")
+def sql_job_client_from_destination_config(
+    request,
+) -> Iterator[SqlJobClientBaseWithDestinationTestConfiguration]:
+    param: DestinationTestConfiguration = request.param
+    for client in yield_client_with_storage(param.destination_factory()):
+        client = cast(SqlJobClientBaseWithDestinationTestConfiguration, client)
+        client.destination_config = param
+        yield client
 
 
 def write_dataset(

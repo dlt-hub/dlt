@@ -175,7 +175,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --group sentry-sdk --group pipeline --group ibis --group providers ${{ matrix.extras }}
+        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Copy secrets for local tests
         run: |
