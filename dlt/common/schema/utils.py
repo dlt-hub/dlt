@@ -179,6 +179,16 @@ def remove_compound_props(
     return columns
 
 
+def remove_empty_columns(columns: TTableSchemaColumns) -> TTableSchemaColumns:
+    """
+    Removes empty name columns.
+    """
+    for col_name in list(columns.keys()):
+        if not col_name:
+            columns.pop(col_name)
+    return columns
+
+
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
     """Removes default values from `column_schema` in place, returns the input for chaining"""
     # remove hints with default values
@@ -489,6 +499,8 @@ def merge_columns(
             column_b = merge_column(column_a, column_b)
         # set new or updated column
         columns_a[col_name] = column_b
+    if from_normalizer:
+        remove_empty_columns(columns=columns_a)
     return columns_a
 
 
