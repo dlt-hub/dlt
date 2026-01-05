@@ -51,7 +51,6 @@ const config = {
   url: 'https://dlthub.com',
   baseUrl: '/docs',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'throw',
   onBrokenAnchors: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
@@ -78,6 +77,14 @@ const config = {
       ssgWorkerThreads: true,
     },
   },
+
+  markdown: {
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
+  themes: ['@docusaurus/theme-mermaid'],
 
   presets: [
     [
@@ -172,6 +179,16 @@ const config = {
               {
                 label: 'Twitter',
                 href: 'https://twitter.com/dlthub',
+                className: 'footer-link'
+              }
+            ],
+          },
+          {
+            title: 'Workspace',
+            items: [
+              {
+                label: 'Scaffoldings',
+                href: 'https://dlthub.com/workspace',
                 className: 'footer-link'
               }
             ],

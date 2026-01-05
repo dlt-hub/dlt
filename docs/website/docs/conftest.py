@@ -1,5 +1,3 @@
-import os
-
 from tests.utils import (
     auto_test_run_context,
     autouse_test_storage,

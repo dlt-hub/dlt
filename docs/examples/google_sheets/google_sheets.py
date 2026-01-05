@@ -34,7 +34,7 @@ from dlt.common.typing import DictStrAny, StrAny
 
 
 def _initialize_sheets(
-    credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials]
+    credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials],
 ) -> Any:
     # Build the service object.
     service = build("sheets", "v4", credentials=credentials.to_native_credentials())

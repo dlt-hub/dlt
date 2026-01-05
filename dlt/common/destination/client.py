@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import dataclasses
-
+import contextlib
+from threading import BoundedSemaphore
 from types import TracebackType
 from typing import (
     ClassVar,
@@ -43,6 +44,7 @@ from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
     TTableFormat,
+    TTableSchema,
 )
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
@@ -335,7 +337,12 @@ class LoadJob(ABC):
         pass
 
     @abstractmethod
-    def exception(self) -> str:
+    def failed_message(self) -> str:
+        """The error message in failed or retry states"""
+        pass
+
+    @abstractmethod
+    def exception(self) -> BaseException:
         """The exception associated with failed or retry states"""
         pass
 
@@ -349,6 +356,7 @@ class LoadJob(ABC):
             self._finished_at,
             self.state(),
             None,
+            self._parsed_file_name.retry_count,
         )
 
 
@@ -371,13 +379,16 @@ class RunnableLoadJob(LoadJob, ABC):
         # ensure file name
         super().__init__(file_path)
         self._state: TLoadJobState = "ready"
+        self._started_at = pendulum.now()
         self._exception: BaseException = None
 
         # variables needed by most jobs, set by the loader in set_run_vars
         self._schema: Schema = None
         self._load_table: PreparedTableSchema = None
         self._load_id: str = None
+        # set by run_managed method
         self._job_client: "JobClientBase" = None
+        self._done_event: BoundedSemaphore = None
 
     def set_run_vars(self, load_id: str, schema: Schema, load_table: PreparedTableSchema) -> None:
         """
@@ -394,21 +405,21 @@ class RunnableLoadJob(LoadJob, ABC):
     def run_managed(
         self,
         job_client: "JobClientBase",
+        done_event: BoundedSemaphore,
+        /,
     ) -> None:
         """
         wrapper around the user implemented run method
         """
-        from dlt.common.runtime import signals
-
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
         self._job_client = job_client
+        self._done_event = done_event
 
         # filepath is now moved to running
         try:
             self._state = "running"
-            self._started_at = pendulum.now()
             self._job_client.prepare_load_job_execution(self)
             self.run()
             self._state = "completed"
@@ -423,12 +434,14 @@ class RunnableLoadJob(LoadJob, ABC):
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
             if self._state != "retry":
+                self._finished_at = pendulum.now()
                 # wake up waiting threads
-                signals.wake_all()
+                if self._done_event:
+                    with contextlib.suppress(ValueError):
+                        self._done_event.release()
 
     @abstractmethod
     def run(self) -> None:
@@ -442,9 +455,11 @@ class RunnableLoadJob(LoadJob, ABC):
         """Returns current state. Should poll external resource if necessary."""
         return self._state
 
-    def exception(self) -> str:
-        """The exception associated with failed or retry states"""
+    def failed_message(self) -> str:
         return str(self._exception)
+
+    def exception(self) -> BaseException:
+        return self._exception
 
 
 class FollowupJobRequest:
@@ -678,6 +693,14 @@ class SupportsStagingDestination(ABC):
         For Athena we truncate those tables only on "replace" write disposition.
         """
         pass
+
+    def should_drop_table_on_staging_destination(self, dropped_table: TTableSchema) -> bool:
+        """Tells if `dropped_table` should be dropped on staging destination (regular dataset) in addition to dropping the table on
+        final destination. This stays False for all the destinations except Athena, non-iceberg where staging destination
+        holds actual data which needs to be deleted.
+        Note that `dropped_table` may not longer be present in schema. It is present only if it got recreated.
+        """
+        return False
 
 
 class SupportsOpenTables(ABC):

@@ -57,14 +57,15 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 
 1. Install Dagster and the embedded ELT package using pip:
     ```sh
-    pip install dagster dagster-embedded-elt
+    pip install dagster dagster-webserver dagster-dg-cli
+    pip install dagster-dlt
     ```
 
 1. Set up a Dagster project:
       ```sh
       mkdir dagster_github_issues
       cd dagster_github_issues
-      dagster project scaffold --name github-issues
+      create-dagster project github-issues
       ```
       ![image](https://github.com/user-attachments/assets/f9002de1-bcdf-49f4-941b-abd59ea7968d)
 
@@ -102,7 +103,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
       ```py
       import dlt
       from dagster import AssetExecutionContext
-      from dagster_embedded_elt.dlt import DagsterDltResource, dlt_assets
+      from dagster_dlt import DagsterDltResource, dlt_assets
       from .github_pipeline import github_source
 
       @dlt_assets(
@@ -130,7 +131,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
      ```py
      import assets
      from dagster import Definitions, load_assets_from_modules
-     from dagster_embedded_elt.dlt import DagsterDltResource
+     from dagster_dlt import DagsterDltResource
 
      dlt_resource = DagsterDltResource()
      all_assets = load_assets_from_modules([assets])
@@ -144,21 +145,13 @@ You can find the full example code in [this repository](https://github.com/dlt-h
      ```
 
 1. Run the web server locally:
-    1. Install the necessary dependencies using the following command:
+    1. Run the project:
 
        ```sh
-       pip install -e ".[dev]"
+       dg dev
        ```
 
-       We use -e to install dependencies in [editable mode](https://pip.pypa.io/en/latest/topics/local-project-installs/#editable-installs). This allows changes to be automatically applied when we modify the code.
-
-    2. Run the project:
-
-       ```sh
-       dagster dev
-       ```
-
-    3. Navigate to localhost:3000 in your web browser to access the Dagster UI.
+    2. Navigate to localhost:3000 in your web browser to access the Dagster UI.
 
        ![image](https://github.com/user-attachments/assets/97b74b86-df94-47e5-8ae2-de7cc47f56d8)
 
@@ -178,7 +171,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 
 
 :::info
-For a complete picture of Dagster's integration with dlt, please refer to their [documentation](https://docs.dagster.io/integrations/embedded-elt/dlt). This documentation offers a detailed overview and steps for ingesting GitHub data and storing it in Snowflake. You can use a similar approach to build your pipelines.
+For a complete picture of Dagster's integration with dlt, please refer to their [documentation](https://docs.dagster.io/integrations/libraries/dlt). This documentation offers a detailed overview and steps for ingesting GitHub data and storing it in Snowflake. You can use a similar approach to build your pipelines.
 :::
 
 ### Frequently Asked Questions
@@ -192,7 +185,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
 
   ```py
   import dlt
-  from dagster_embedded_elt.dlt import dlt_assets
+  from dagster_dlt import dlt_assets
   from dlt_sources.google_analytics import google_analytics
 
   # Define assets for the first Google Analytics source
@@ -232,7 +225,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
   import dlt
   from google.analytics import BetaAnalyticsDataClient
   from dlt.destinations.adapters import bigquery_adapter
-  from dagster import dlt_asset
+  from dagster_dlt import dlt_assets
 
   @dlt_asset
   def google_analytics_asset(context):

@@ -63,7 +63,7 @@ def sql_database(
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
 
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
-            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
+            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields pandas DataFrames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
 
@@ -75,8 +75,9 @@ def sql_database(
             "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
-        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
-            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires `table_names` to be explicitly passed.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs. When True, schema is decided during execution,
+            which may override `query_adapter_callback` modifications or `apply_hints`.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
@@ -195,7 +196,7 @@ def sql_table(
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
 
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
-            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
+            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields pandas DataFrames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
 
@@ -207,8 +208,9 @@ def sql_table(
             "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
-        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data.
-            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires `table_names` to be explicitly passed.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs. When True, schema is decided during execution,
+            which may override `query_adapter_callback` modifications or `apply_hints`.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 

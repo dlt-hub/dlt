@@ -1,0 +1,61 @@
+FROM python:3.11.11-alpine
+
+# Metadata
+LABEL org.label-schema.vendor="dltHub" \
+    org.label-schema.url="https://dlthub.com" \
+    org.label-schema.name="dlt" \
+    org.label-schema.description="**data load tool (dlt)** is a simple, open source Python library that makes data loading easy."
+
+# prepare dirs to install dlt
+RUN mkdir -p /tmp/pydlt
+
+WORKDIR /tmp/pydlt
+
+# install alpine deps
+RUN apk update &&\
+    apk add --no-cache ca-certificates curl &&\
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py &&\
+    rm get-pip.py &&\
+    pip install --upgrade setuptools wheel pip uv
+
+
+# add build labels and envs
+ARG COMMIT_SHA=""
+ARG IMAGE_VERSION=""
+LABEL commit_sha=${COMMIT_SHA}
+LABEL version=${IMAGE_VERSION}
+ENV COMMIT_SHA=${COMMIT_SHA}
+ENV IMAGE_VERSION=${IMAGE_VERSION}
+
+# install exactly the same version of the library we used to build
+COPY dist/dlt-${IMAGE_VERSION}.tar.gz .
+
+# create app dir to run simple test
+RUN mkdir -p /app
+WORKDIR /app
+RUN uv venv && uv pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz --resolution lowest-direct && uv pip install typing-extensions==4.8.0
+# RUN rm -r /tmp/pydlt
+
+# make sure dlt can be actually imported
+RUN uv run python -c 'import dlt;import pendulum;'
+
+# check excluded imports
+COPY deploy/dlt/restrict_imports.py .
+RUN uv run python restrict_imports.py
+
+# run simple pipeline
+COPY deploy/dlt/minimal_pipeline.py .
+RUN uv run python minimal_pipeline.py
+RUN uv run dlt pipeline fruit_pipeline info
+
+# enable workspace
+RUN mkdir -p .dlt && touch .dlt/.workspace
+RUN uv run dlt workspace -v info
+RUN uv run python minimal_pipeline.py
+RUN uv run dlt pipeline fruit_pipeline info
+
+# install hub
+RUN uv pip install /tmp/pydlt/dlt-${IMAGE_VERSION}.tar.gz[hub] --resolution lowest-direct && uv pip install typing-extensions==4.8.0
+RUN uv run python minimal_pipeline.py
+RUN uv run dlt --non-interactive license issue dlthub.transformation
+RUN uv run dlt runtime --help

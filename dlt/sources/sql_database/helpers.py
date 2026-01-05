@@ -24,6 +24,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.exceptions import DltException, MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
+from dlt.common.schema.utils import merge_columns
 from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
 from dlt.common.jsonpath import extract_simple_field_name
 from dlt.common.utils import is_typeerror_due_to_wrong_call
@@ -227,12 +228,23 @@ class TableLoader:
         except ImportError:
             raise MissingDependencyException("Connector X table backend", ["connectorx"])
 
+        import pyarrow as pa
+        from dlt.common.libs.pyarrow import cast_date64_columns_to_timestamp
+
         # default settings
         backend_kwargs = {
-            "return_type": "arrow",
             "protocol": "binary",
             **backend_kwargs,
         }
+
+        is_streaming = False
+        if "return_type" in backend_kwargs:
+            if backend_kwargs["return_type"] == "arrow_stream":
+                is_streaming = True
+                backend_kwargs["batch_size"] = backend_kwargs.get("batch_size", self.chunk_size)
+        else:
+            backend_kwargs["return_type"] = "arrow"
+
         conn = backend_kwargs.pop(
             "conn",
             self.engine.url._replace(
@@ -248,8 +260,21 @@ class TableLoader:
                 f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
         logger.info(f"Executing query on ConnectorX: {query_str}")
-        df = cx.read_sql(conn, query_str, **backend_kwargs)
-        yield self._maybe_fix_0000_timezone(df)
+
+        if is_streaming:
+            record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
+            for record_batch in record_reader:
+                table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
+                yield cast_date64_columns_to_timestamp(self._maybe_fix_0000_timezone(table))
+        else:
+            df = cx.read_sql(conn, query_str, **backend_kwargs)
+            if len(df) > self.chunk_size:
+                logger.info(
+                    f"The size of the dataset being loaded is more than {self.chunk_size}, consider"
+                    " using streaming mode (see"
+                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database/configuration#connectorx)"
+                )
+            yield self._maybe_fix_0000_timezone(df)
 
     def _maybe_fix_0000_timezone(self, df: Any) -> Any:
         """Optionally convert +00:00 timezone to UTC"""
@@ -280,6 +305,21 @@ def table_rows(
     query_adapter_callback: Optional[TQueryAdapter],
     resolve_foreign_keys: bool,
 ) -> Iterator[TDataItem]:
+    resource = None
+    limit = None
+    try:
+        resource = dlt.current.resource()
+        limit = resource.limit
+        resource_columns_hints_require_data = callable(resource.columns)
+        if resource_columns_hints_require_data and backend == "pyarrow":
+            table_name = table.name if isinstance(table, Table) else table
+            logger.warning(
+                f"Dynamic column hints for '{table_name}' cannot be applied with pyarrow "
+                "backend. Use static hints (dict/list) to override reflected types."
+            )
+    except DltException:
+        # in old versions of dlt, resource is not available, so we need to reflect the table again
+        pass
     if isinstance(table, str):  # Reflection is deferred
         table = Table(
             table,
@@ -300,39 +340,49 @@ def table_rows(
         )
 
         # set the primary_key in the incremental
+        # TODO: check for primary key in resource._hints
         if incremental and incremental.primary_key is None:
             primary_key = hints["primary_key"]
             if primary_key is not None:
                 incremental.primary_key = primary_key
 
-        # yield empty record to set hints
+        # Merge resource hints with reflection hints before yielding
+        if resource and hints.get("columns") and not callable(resource.columns):
+            hints["columns"] = merge_columns(hints["columns"], resource.columns)
+
+        # yield empty record to set hints and create schema
+        # Note: Empty list [] will be written as typed-jsonl (object format), but actual
+        # data rows will be written in their native format (e.g., parquet for arrow backend).
         yield dlt.mark.with_hints(
             [],
             dlt.mark.make_hints(
                 **hints,
             ),
         )
+        # Set columns_hints for TableLoader
+        columns_hints = hints["columns"]
     else:
-        # table was already reflected
-        hints = table_to_resource_hints(
-            table,
-            reflection_level,
-            type_adapter_callback,
-            backend == "sqlalchemy",  # skip nested types
-            resolve_foreign_keys=resolve_foreign_keys,
-        )
+        # table was already reflected -> try to use resource hints
+        if not resource or callable(resource.columns):
+            hints = table_to_resource_hints(
+                table,
+                reflection_level,
+                type_adapter_callback,
+                backend == "sqlalchemy",  # skip nested types
+                resolve_foreign_keys=resolve_foreign_keys,
+            )
+            columns_hints = hints["columns"]
 
-    limit = None
-    try:
-        limit = dlt.current.resource().limit
-    except DltException:
-        pass
+        else:
+            # take column hints from resource (which includes user applied hints)
+            # Handle callable columns hint (can't resolve without data item)
+            columns_hints = resource.columns
 
     loader = TableLoader(
         engine,
         backend,
         table,
-        hints["columns"],
+        columns_hints,
         incremental=incremental,
         chunk_size=chunk_size,
         limit=limit,

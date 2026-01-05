@@ -1,9 +1,16 @@
+import copy
 from typing import Any, Callable, Dict, List
 
 import pytest
 
 import dlt
 from dlt.sources.rest_api import RESTAPIConfig, rest_api_source
+from ..conftest import (
+    DEFAULT_COMMENTS_COUNT,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_TOTAL_PAGES,
+    DEFAULT_REACTIONS_COUNT,
+)
 
 
 def _make_pipeline(destination_name: str):
@@ -259,3 +266,146 @@ def test_rest_api_source_filtered_and_map_child(mock_api_server, comments_endpoi
 
     data = list(mock_source.with_resources("comments"))
     assert data[0]["body"] == "Post 2 - Comment 0 for post 2"
+
+
+def flatten_reactions(post):
+    post_without_reactions = copy.deepcopy(post)
+    post_without_reactions.pop("reactions")
+    for reaction in post["reactions"]:
+        yield {"reaction": reaction, **post_without_reactions}
+
+
+def test_rest_api_source_yield_map(mock_api_server) -> None:
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.example.com",
+        },
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": "posts_with_reactions",
+                "processing_steps": [
+                    {"yield_map": flatten_reactions},
+                ],
+            },
+        ],
+    }
+    mock_source = rest_api_source(config)
+
+    data = list(mock_source.with_resources("posts"))
+
+    assert len(data) == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * DEFAULT_REACTIONS_COUNT
+    assert all("reaction" in record and "reactions" not in record for record in data)
+    assert all(
+        record["reaction"]["title"]
+        == f"Reaction {record['reaction']['id']} for post {record['id']}"
+        for record in data
+    )
+
+
+def test_rest_api_source_filter_then_yield_map(mock_api_server) -> None:
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.example.com",
+        },
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": "posts_with_reactions",
+                "processing_steps": [
+                    {"filter": lambda x: x["id"] != 1},
+                    {"yield_map": flatten_reactions},
+                ],
+            },
+        ],
+    }
+    mock_source = rest_api_source(config)
+
+    data = list(mock_source.with_resources("posts"))
+
+    assert len(data) == (DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES - 1) * DEFAULT_REACTIONS_COUNT
+    assert all(record["id"] != 1 for record in data)
+
+
+def test_rest_api_source_yield_map_then_filter_reactions(mock_api_server) -> None:
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.example.com",
+        },
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": "posts_with_reactions",
+                "processing_steps": [
+                    {"yield_map": flatten_reactions},
+                    {"filter": lambda x: x["reaction"]["id"] != 0},
+                ],
+            },
+        ],
+    }
+    mock_source = rest_api_source(config)
+
+    data = list(mock_source.with_resources("posts"))
+
+    assert len(data) == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * (DEFAULT_REACTIONS_COUNT - 1)
+    assert all(record["reaction"]["id"] != 0 for record in data)
+
+
+@pytest.mark.parametrize(
+    "comments_endpoint",
+    [
+        {
+            "path": "/posts/{post_id}/comments",
+            "params": {
+                "post_id": {
+                    "type": "resolve",
+                    "resource": "posts",
+                    "field": "id",
+                }
+            },
+        },
+        "posts/{resources.posts.id}/comments",
+    ],
+)
+def test_rest_api_source_yield_map_child(mock_api_server, comments_endpoint) -> None:
+    def extend_body(row):
+        row["body"] = f"{row['_posts_title']} - {row['body']}"
+        return row
+
+    def flatten_comment_reactions(comment_enriched):
+        comment_without_reactions = copy.deepcopy(comment_enriched)
+        comment_without_reactions.pop("_posts_reactions")
+        for reaction in comment_enriched["_posts_reactions"]:
+            yield {"_posts_reaction": reaction, **comment_without_reactions}
+
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.example.com",
+        },
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": "posts_with_reactions",
+                "processing_steps": [
+                    {"filter": lambda x: x["id"] in (1, 2)},
+                ],
+            },
+            {
+                "name": "comments",
+                "endpoint": comments_endpoint,
+                "include_from_parent": ["title", "reactions"],
+                "processing_steps": [
+                    {"map": extend_body},
+                    {"filter": lambda x: x["body"].startswith("Post 2")},
+                    {"yield_map": flatten_comment_reactions},
+                ],
+            },
+        ],
+    }
+    mock_source = rest_api_source(config)
+
+    data = list(mock_source.with_resources("comments"))
+
+    assert len(data) == DEFAULT_COMMENTS_COUNT * DEFAULT_REACTIONS_COUNT
+    assert data[0]["body"] == "Post 2 - Comment 0 for post 2"
+    assert data[0]["_posts_reaction"]["title"] == "Reaction 0 for post 2"

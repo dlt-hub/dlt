@@ -75,6 +75,9 @@ class DuckLakeCopyJob(DuckDbCopyJob):
     def metrics(self) -> Optional[LoadJobMetrics]:
         """Generate remote url metrics which point to the table in storage"""
         m = super().metrics()
+        # job client not available before run_managed called
+        if not self._job_client:
+            return m
         # TODO: read location from catalog. ducklake supports customized table layouts
         return m._replace(
             remote_url=str(
@@ -131,11 +134,7 @@ class DuckLakeClient(DuckDbClient):
         return job
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        separate_alters: bool = False,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 

@@ -457,36 +457,37 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         ),
     }
     # get all dlt tables
+    schema = populated_pipeline.default_schema
     assert set(
         dataset.row_counts(dlt_tables=True, data_tables=False)
         .df()
         .itertuples(index=False, name=None)
     ) == {
         (
-            "_dlt_version",
+            schema.version_table_name,
             2,
         ),
         (
-            "_dlt_loads",
+            schema.loads_table_name,
             3,
         ),
         (
-            "_dlt_pipeline_state",
+            schema.state_table_name,
             2,
         ),
     }
     # get them all
     assert set(dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)) == {
         (
-            "_dlt_version",
+            schema.version_table_name,
             2,
         ),
         (
-            "_dlt_loads",
+            schema.loads_table_name,
             3,
         ),
         (
-            "_dlt_pipeline_state",
+            schema.state_table_name,
             2,
         ),
         (
@@ -1038,8 +1039,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     dataset = populated_pipeline.dataset()
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
-    items_table = dataset.table("items", table_type="ibis")
-    double_items_table = dataset.table("double_items", table_type="ibis")
+    items_table = dataset.table("items").to_ibis()
+    double_items_table = dataset.table("double_items").to_ibis()
 
     # check full table access
     df = dataset(items_table).df()
@@ -1066,6 +1067,34 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+
+    # take the same data using dlt backend
+    joined_table = joined_table.order_by("id")
+    joined_table.head(10).to_pandas()
+    arr_1 = joined_table.head(10).to_pyarrow()
+
+    # create relation from query and convert it to ibis
+    # NOTE: mssql / synapse dialect can't deal with double order by (.order_by("id", "asc"))
+    # but ibis expressions can (see above order_by("id"))
+    joined_table_from_relation = relation.to_ibis()
+    # print(joined_table_from_relation)
+    joined_table_from_relation.head(10).to_pandas()
+    arr_2 = joined_table_from_relation.head(10).to_pyarrow()
+    assert arr_1 == arr_2
+    # NOTE: identical column names both from snowflake, clickhouse and other destinations
+    assert arr_1.to_pylist() == [
+        {"id": 0, "double_id": 0},
+        {"id": 1, "double_id": 2},
+        {"id": 2, "double_id": 4},
+        {"id": 3, "double_id": 6},
+        {"id": 4, "double_id": 8},
+        {"id": 5, "double_id": 10},
+        {"id": 6, "double_id": 12},
+        {"id": 7, "double_id": 14},
+        {"id": 8, "double_id": 16},
+        {"id": 9, "double_id": 18},
+    ]
+
     # verify computed columns
     assert relation.columns == relation._ipython_key_completions_() == ["id", "double_id"]
 
@@ -1100,7 +1129,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     )
 
     # selecting all columns (star schema expanded, columns aliased)
-    # TODO: fixe tests
+    # TODO: fix tests
     assert sql_from_expr(items_table) == (
         (
             'SELECT "items"."id" AS "id", "items"."decimal" AS "decimal", "items"."other_decimal"'
@@ -1317,15 +1346,16 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         # databricks can't list tables (looks like internal ibis bug)
         if populated_pipeline.destination.destination_type != "dlt.destinations.databricks":
             # just do a basic check to see wether ibis can connect
+            schema = populated_pipeline.default_schema
             assert set(
                 ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
             ) == {
                 add_table_prefix(map_i(x))
                 for x in (
                     [
-                        "_dlt_loads",
-                        "_dlt_pipeline_state",
-                        "_dlt_version",
+                        schema.loads_table_name,
+                        schema.state_table_name,
+                        schema.version_table_name,
                         "double_items",
                         "items",
                         "items__children",

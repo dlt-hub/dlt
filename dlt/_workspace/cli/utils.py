@@ -1,10 +1,12 @@
 import ast
 import os
 import shutil
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List, Tuple, cast
 
 import dlt
-from dlt.common.typing import TFun
+from dlt.common.pipeline import get_dlt_pipelines_dir
+from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.typing import TAnyDateTime, TFun
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.pluggable_run_context import (
     RunContextBase,
@@ -16,10 +18,10 @@ from dlt.common.runtime import run_context
 from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt._workspace.profile import LOCAL_PROFILES
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
 
+from dlt.pipeline.trace import get_trace_file_path
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 REQUIREMENTS_TXT = "requirements.txt"
@@ -27,8 +29,65 @@ PYPROJECT_TOML = "pyproject.toml"
 GITHUB_WORKFLOWS_DIR = os.path.join(".github", "workflows")
 AIRFLOW_DAGS_FOLDER = os.path.join("dags")
 AIRFLOW_BUILD_FOLDER = os.path.join("build")
-LOCAL_COMMAND_REPO_FOLDER = "repos"
 MODULE_INIT = "__init__.py"
+DATETIME_FORMAT = "YYYY-MM-DD HH:mm:ss"
+
+
+def get_pipeline_trace_mtime(pipelines_dir: str, pipeline_name: str) -> float:
+    """Get mtime of the trace saved by pipeline, which approximates run time"""
+    trace_file = get_trace_file_path(pipelines_dir, pipeline_name)
+    if os.path.isfile(trace_file):
+        return os.path.getmtime(trace_file)
+    return 0
+
+
+def list_local_pipelines(
+    pipelines_dir: str = None, sort_by_trace: bool = True, additional_pipelines: List[str] = None
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """Get the local pipelines directory and the list of pipeline names in it.
+
+    Args:
+        pipelines_dir (str, optional): The local pipelines directory. Defaults to get_dlt_pipelines_dir().
+        sort_by_trace (bool, optional): Whether to sort the pipelines by the latest timestamp of trace. Defaults to True.
+    Returns:
+        Tuple[str, List[str]]: The local pipelines directory and the list of pipeline names in it.
+    """
+    pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
+    storage = FileStorage(pipelines_dir)
+
+    try:
+        pipelines = storage.list_folder_dirs(".", to_root=False)
+    except Exception:
+        pipelines = []
+
+    if additional_pipelines:
+        for pipeline in additional_pipelines:
+            if pipeline and pipeline not in pipelines:
+                pipelines.append(pipeline)
+
+    # check last trace timestamp and create dict
+    pipelines_with_timestamps = []
+    for pipeline in pipelines:
+        pipelines_with_timestamps.append(
+            {"name": pipeline, "timestamp": get_pipeline_trace_mtime(pipelines_dir, pipeline)}
+        )
+
+    if sort_by_trace:
+        pipelines_with_timestamps.sort(key=lambda x: cast(float, x["timestamp"]), reverse=True)
+
+    return pipelines_dir, pipelines_with_timestamps
+
+
+def date_from_timestamp_with_ago(
+    timestamp: TAnyDateTime, datetime_format: str = DATETIME_FORMAT
+) -> str:
+    """Return a date with ago section"""
+    if not timestamp or timestamp == 0:
+        return "never"
+    timestamp = ensure_pendulum_datetime_non_utc(timestamp)
+    time_formatted = timestamp.format(datetime_format)
+    ago = timestamp.diff_for_humans()
+    return f"{ago} ({time_formatted})"
 
 
 def display_run_context_info() -> None:
@@ -37,11 +96,8 @@ def display_run_context_info() -> None:
         if run_context.default_profile != run_context.profile:
             # print warning
             fmt.echo(
-                "Profile %s activated on %s"
-                % (
-                    fmt.style(run_context.profile, fg="yellow", reset=True),
-                    fmt.bold(run_context.name),
-                ),
+                "Profile `%s` is active."
+                % (fmt.style(run_context.profile, fg="yellow", reset=True),),
                 err=True,
             )
 

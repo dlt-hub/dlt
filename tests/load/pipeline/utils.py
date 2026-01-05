@@ -1,7 +1,9 @@
 from typing import Callable, List, Tuple
 import pytest
+from botocore.exceptions import ClientError
 
 import dlt
+from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
@@ -14,7 +16,42 @@ from dlt.common.schema.utils import new_table, new_column
 from dlt.common.storages.load_package import LoadJobInfo, LoadPackageInfo, TPackageJobState
 
 from dlt.extract.source import DltSource
-from tests.load.utils import DestinationTestConfiguration
+from tests.load.utils import S3_TABLE_BUCKET_ARN, DestinationTestConfiguration
+
+
+class TableBucketTestClient:
+    def __init__(
+        self,
+        credentials: AwsCredentials,
+        table_bucket_arn: str = S3_TABLE_BUCKET_ARN,
+    ):
+        self.credentials = credentials
+        self.table_bucket_arn = table_bucket_arn
+        self.s3_tables_client = credentials._to_botocore_session().create_client("s3tables")
+
+    def namespace_exists(self, namespace: str) -> bool:
+        try:
+            self.s3_tables_client.get_namespace(
+                tableBucketARN=self.table_bucket_arn, namespace=namespace
+            )
+            return True
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NotFoundException":
+                return False
+            else:
+                raise
+
+    def table_exists(self, namespace: str, name: str) -> bool:
+        try:
+            self.s3_tables_client.get_table(
+                tableBucketARN=self.table_bucket_arn, namespace=namespace, name=name
+            )
+            return True
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NotFoundException":
+                return False
+            else:
+                raise
 
 
 def get_load_package_jobs(
@@ -75,9 +112,7 @@ def skip_if_unsupported_merge_strategy(
         )
 
 
-def simple_nested_pipeline(
-    destination_config: DestinationTestConfiguration, dataset_name: str, dev_mode: bool
-) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
+def simple_nested_source() -> DltSource:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
     def d():
@@ -87,6 +122,12 @@ def simple_nested_pipeline(
     def _data():
         return dlt.resource(d(), name="lists", write_disposition="append")
 
+    return _data()
+
+
+def simple_nested_pipeline(
+    destination_config: DestinationTestConfiguration, dataset_name: str, dev_mode: bool
+) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     p = dlt.pipeline(
         pipeline_name=f"pipeline_{dataset_name}",
         dev_mode=dev_mode,
@@ -94,4 +135,4 @@ def simple_nested_pipeline(
         staging=destination_config.staging,
         dataset_name=dataset_name,
     )
-    return p, _data
+    return p, simple_nested_source

@@ -11,7 +11,6 @@ from dlt.common.exceptions import DltException
 from dlt.common.typing import DictStrAny
 from dlt.common.reflection.ref import import_module_with_missing
 
-from dlt.pipeline import Pipeline
 from dlt.extract import DltSource
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 
@@ -56,7 +55,6 @@ def import_pipeline_script(
 ) -> ModuleType:
     # patch entry points to pipeline, sources and resources to prevent pipeline from running
     with (
-        patch.object(Pipeline, "__init__", patch__init__),
         patch.object(DltSource, "__init__", patch__init__),
         patch.object(ManagedPipeIterator, "__init__", patch__init__),
     ):
@@ -67,9 +65,16 @@ def import_pipeline_script(
 
 class PipelineIsRunning(DltException):
     def __init__(self, obj: object, args: Tuple[str, ...], kwargs: DictStrAny) -> None:
+        if isinstance(obj, ManagedPipeIterator):
+            msg = "The pipeline script runs the pipeline on import."
+        else:
+            msg = f"The pipeline script instantiates {obj.__class__.__name__} on import."
+        msg += (
+            " Initialize sources, and run the pipeline in script entry point:\n"
+            "if __name__ == 'main':\n  ..."
+        )
         super().__init__(
-            "The pipeline script instantiates the pipeline on import. Did you forget to use if"
-            f" __name__ == 'main':? in {obj.__class__.__name__}",
+            msg,
             obj,
             args,
             kwargs,

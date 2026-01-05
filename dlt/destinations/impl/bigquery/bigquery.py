@@ -128,7 +128,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                     )
                 )
 
-    def exception(self) -> str:
+    def failed_message(self) -> str:
         if self._bq_load_job:
             return json.dumps(
                 {
@@ -139,6 +139,11 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                     "job_id": self._bq_load_job.job_id,
                 }
             )
+        return super().failed_message()
+
+    def exception(self) -> BaseException:
+        if self._bq_load_job:
+            return self._bq_load_job.exception()  # type: ignore[no-any-return]
         return super().exception()
 
     @staticmethod
@@ -346,7 +351,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             else cluster_columns_from_column_hints
         )
 
-        if cluster_columns_final:
+        if cluster_columns_final and not generate_alter:
             cluster_list = [
                 self.sql_client.escape_column_name(col) for col in cluster_columns_final
             ]

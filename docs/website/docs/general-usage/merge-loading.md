@@ -567,6 +567,35 @@ def dim_customer():
     ...
 ```
 
+#### Reset boundary timestamp to the current load time
+To stop using a previously set `boundary_timestamp` and revert to the default (the current load package creation time), set `boundary_timestamp` to `None`. You can do this either at definition time or dynamically with `apply_hints` before a run.
+
+Definition-time (always use current load time):
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "boundary_timestamp": None,  # reset to current load time
+    }
+)
+def dim_customer():
+    ...
+```
+
+Per-run reset (override just for this run):
+```py
+r.apply_hints(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "boundary_timestamp": None,  # reset to current load time for this run
+    }
+)
+pipeline.run(r(...))
+```
+When `boundary_timestamp` is `None` (or omitted), `dlt` uses the load package's creation timestamp as the boundary for both retiring existing versions and creating new versions.
+
 ### Example: Use your own row hash
 By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_version_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as a row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
 ```py
@@ -582,7 +611,7 @@ def dim_customer():
 ...
 ```
 
-### 🧪 Use scd2 with Arrow tables and Panda frames
+### 🧪 Use scd2 with Arrow tables and pandas DataFrames
 `dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
 You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
 ```py

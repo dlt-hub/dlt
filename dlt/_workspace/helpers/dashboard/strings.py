@@ -1,7 +1,6 @@
 #
 # App general
 #
-import marimo as _mo
 
 # Reusable string parts
 
@@ -19,8 +18,9 @@ _credentials_info = (
 #
 # App general
 #
+app_section_name = "workspace_home"
 app_title = """
-# Welcome to the dltHub pipeline dashboard...
+# Welcome to the dltHub workspace dashboard...
 """
 app_intro = """
 <p align="center">...the hackable data platform for `dlt` developers.</p>
@@ -47,6 +47,7 @@ This page will automatically refresh with your pipeline data once you have run a
 #
 # Home section
 #
+home_section_name = "home_section"
 home_quick_start_title = """
 ### Quick start: select one of your recently used pipelines:
 
@@ -56,30 +57,30 @@ home_quick_start_title = """
 """
 
 home_basics_text = f"""
-## dltHub pipeline dashboard basics
+## dltHub workspace dashboard basics
 
 We found `{{}}` pipelines in the local directory `{{}}`. When you select a pipeline to inspect, you can:
 
 * See an overview of your pipeline
 * See the current pipeline schema and incremental state
-* Browse the data in the pipeline's dataset (requires credentials to be available to the dltHub pipeline dashboard)
+* Browse the data in the pipeline's dataset (requires credentials to be available to the dltHub workspace dashboard)
 * View the pipeline state locally and on the destination
 * Browse information about past loads and traces
 
-To inspect data in the destination dataset, ensure your destination credentials are available to the dltHub pipeline dashboard. Either provide them as environment variables, or start the dltHub pipeline dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
+To inspect data in the destination dataset, ensure your destination credentials are available to the dltHub workspace dashboard. Either provide them as environment variables, or start the dltHub workspace dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
 
-If the dltHub pipeline dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
+If the dltHub workspace dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
 
-## dltHub pipeline dashboard CLI commands
+## dltHub workspace dashboard CLI commands
 
-* `dlt pipeline <pipeline_name> show` - Start the pipeline dashboard for the selected pipeline
-* `dlt pipeline <pipeline_name> show --edit` - Start a local copy of the pipeline dashboard for the selected pipeline in edit mode
+* `dlt pipeline <pipeline_name> show` - Start the workspace dashboard for the selected pipeline
+* `dlt pipeline <pipeline_name> show --edit` - Start a local copy of the workspace dashboard for the selected pipeline in edit mode
 
 ## Learn more
 
 * [dlt dashboard docs]({_help_url}) - Dashboard docs
 * [dlt pipeline sync]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
-* [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub pipeline dashboard
+* [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub workspace dashboard
 
 <small>
 2025 [dltHub](https://dlthub.com)
@@ -90,11 +91,15 @@ app_title_pipeline = """
 ## Pipeline `{}`
 """
 
+view_load_packages_text = "Status of load packages from last execution"
+
+
 #
 # Overview section
 #
-overview_title = "Pipeline Overview"
-overview_subtitle = "An overview of the selected pipeline"
+overview_section_name = "overview_section"
+overview_title = "Pipeline Info"
+overview_subtitle = "Basic properties of the selected pipeline"
 overview_remote_state_title = "Remote state"
 overview_remote_state_subtitle = (
     "The remote state and schemas of the pipeline as discovered on the destination"
@@ -104,6 +109,7 @@ overview_remote_state_button = "Load and show remote state"
 #
 # Schema page
 #
+schema_section_name = "schema_section"
 schema_title = "Dataset Browser: Schema"
 schema_subtitle = "Browse the default schema of the selected pipeline"
 schema_subtitle_long = (
@@ -119,7 +125,7 @@ schema_raw_yaml_title = "Raw Schema as YAML"
 schema_show_raw_yaml_text = "Show raw schema as YAML"
 
 # Schema UI controls
-ui_show_dlt_tables = "Show `_dlt` tables"
+ui_show_dlt_tables = "Show internal tables"
 ui_show_child_tables = "Show child tables"
 ui_load_row_counts = "Load row counts"
 ui_show_dlt_columns = "Show `_dlt` columns"
@@ -132,6 +138,7 @@ ui_limit_to_1000_rows = "Limit to 1000 rows"
 #
 # Browse data page
 #
+browse_data_section_name = "browse_data_section"
 browse_data_title = "Dataset Browser: Data and Source/Resource State"
 browse_data_subtitle = "Browse data from the current pipeline."
 browse_data_subtitle_long = (
@@ -169,13 +176,21 @@ browse_data_loading_spinner_text = "Loading data from destination..."
 #
 # State page
 #
+state_section_name = "state_section"
 state_title = "Pipeline State"
 state_subtitle = "A raw view of the currently stored pipeline state."
 
+#
+# Data quality page
+#
+data_quality_section_name = "data_quality_section"
+data_quality_title = "Data Quality"
+data_quality_subtitle = "View the results of your data quality checks"
 
 #
 # Last trace page
 #
+trace_section_name = "trace_section"
 trace_title = "Last Pipeline Run Trace"
 trace_subtitle = (
     "An overview of the last load trace from the most recent successful run of the selected"
@@ -209,6 +224,7 @@ trace_raw_trace_title = "Raw Trace"
 #
 # Loads page
 #
+loads_section_name = "loads_section"
 loads_title = "Pipeline Loads"
 loads_subtitle = (
     "View a list of all loads that have been executed on the destination dataset of the "
@@ -246,6 +262,7 @@ loads_details_error_text = "Error loading load details. "
 #
 # Ibis backend page
 #
+ibis_backend_section_name = "ibis_backend_section"
 ibis_backend_title = "Ibis Backend"
 ibis_backend_subtitle = (
     "Connect to the Ibis backend for the selected pipeline. This will make "

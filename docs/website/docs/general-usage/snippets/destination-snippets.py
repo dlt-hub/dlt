@@ -3,7 +3,7 @@ import os
 from dlt.common.exceptions import MissingDependencyException
 
 from tests.utils import TEST_STORAGE_ROOT
-from utils import parse_toml_file
+from website.docs.utils import parse_toml_file
 
 
 def destination_instantiation_snippet() -> None:
@@ -42,22 +42,12 @@ def destination_instantiation_snippet() -> None:
     assert pipeline.destination.destination_type == "dlt.destinations.filesystem"
     assert pipeline.destination.destination_name == "my_destination"
 
-    # @@@DLT_SNIPPET_START avoid_example
-    import os
-    import dlt
-
-    os.environ["DESTINATION__FILESYSTEM__DESTINATION_TYPE"] = "bigquery"
-
-    pipeline = dlt.pipeline("pipeline", destination="filesystem")
-    # @@@DLT_SNIPPET_END avoid_example
-
-    assert pipeline.destination.destination_type == "dlt.destinations.bigquery"
-    assert pipeline.destination.destination_name == "filesystem"
-
     # @@@DLT_SNIPPET_START instance
     import dlt
 
-    azure_bucket = filesystem("az://dlt-azure-bucket", destination_name="production_az_bucket")
+    azure_bucket = filesystem(
+        "az://dlt-azure-bucket", destination_name="production_az_bucket"
+    )
     pipeline = dlt.pipeline("pipeline", destination=azure_bucket)
     # @@@DLT_SNIPPET_END instance
     assert pipeline.destination.destination_name == "production_az_bucket"
@@ -69,7 +59,9 @@ def destination_instantiation_snippet() -> None:
     # pass full credentials - together with the password (not recommended)
     pipeline = dlt.pipeline(
         "pipeline",
-        destination=postgres(credentials="postgresql://loader:loader@localhost:5432/dlt_data"),
+        destination=postgres(
+            credentials="postgresql://loader:loader@localhost:5432/dlt_data"
+        ),
     )
     # @@@DLT_SNIPPET_END config_explicit
 
@@ -99,9 +91,46 @@ def destination_instantiation_snippet() -> None:
     # fill only the account name, leave key to be taken from secrets
     credentials.azure_storage_account_name = "production_storage"
     pipeline = dlt.pipeline(
-        "pipeline", destination=filesystem("az://dlt-azure-bucket", credentials=credentials)
+        "pipeline",
+        destination=filesystem("az://dlt-azure-bucket", credentials=credentials),
     )
     # @@@DLT_SNIPPET_END config_partial_spec
+
+    # @@@DLT_SNIPPET_START named_destination_dlt_destination
+    import os
+    import dlt
+
+    os.environ["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = "filesystem"
+
+    pipeline = dlt.pipeline("pipeline", destination=dlt.destination("my_destination"))
+    # @@@DLT_SNIPPET_END named_destination_dlt_destination
+
+    # @@@DLT_SNIPPET_START named_destination_dlt_destination_explicit_type
+    import dlt
+
+    pipeline = dlt.pipeline(
+        "pipeline",
+        destination=dlt.destination("my_destination", destination_type="filesystem"),
+    )
+    # @@@DLT_SNIPPET_END named_destination_dlt_destination_explicit_type
+
+    # @@@DLT_SNIPPET_START named_destination_string_reference
+    import dlt
+
+    pipeline = dlt.pipeline("pipeline", destination="my_destination")
+    # @@@DLT_SNIPPET_END named_destination_string_reference
+
+    # @@@DLT_SNIPPET_START avoid_example
+    import os
+    import dlt
+
+    os.environ["DESTINATION__BIGQUERY__DESTINATION_TYPE"] = "duckdb"
+
+    pipeline = dlt.pipeline("pipeline", destination="bigquery")
+    # @@@DLT_SNIPPET_END avoid_example
+
+    assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
+    assert pipeline.destination.destination_name == "bigquery"
 
     bucket_url = posixpath.join("file://", os.path.abspath(TEST_STORAGE_ROOT))
 

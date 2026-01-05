@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 import dataclasses
 import datetime  # noqa: 251
@@ -413,16 +414,29 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         self._current_load_started = precise_time()
         self._load_id_metrics.setdefault(load_id, [])
 
-    def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
+    def _step_info_update_metrics(
+        self, load_id: str, metrics: TStepMetrics, immutable: bool = False
+    ) -> None:
+        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        step_metrics = self._load_id_metrics[load_id]
+        if immutable or len(step_metrics) == 0:
+            step_metrics.append(metrics)
+        else:
+            step_metrics[0] = metrics
+
+    def _step_info_complete_load_id(self, load_id: str, finished: bool = True) -> None:
         assert self._current_load_id == load_id, (
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
-        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
-        metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
-        self._load_id_metrics[load_id].append(metrics)
-        self._current_load_id = None
-        self._current_load_started = None
+        # metrics must be present
+        metrics = self._load_id_metrics[load_id][-1]
+        # update finished at
+        assert self._current_load_id is not None
+        if finished:
+            metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
+            self._current_load_id = None
+            self._current_load_started = None
 
     def _step_info_metrics(self, load_id: str) -> List[TStepMetrics]:
         return self._load_id_metrics[load_id]
@@ -515,6 +529,10 @@ class SupportsPipeline(Protocol):
     """Stores last "good" run context, where run ends with successful loading of the data"""
     collector: Collector
     """A collector that tracks the progress of the pipeline"""
+
+    @property
+    def has_pending_data(self) -> bool:
+        """ "Tells if pipeline contains any pending packages"""
 
     @property
     def state(self) -> TPipelineState:
@@ -727,7 +745,7 @@ def pipeline_state(
 
 def get_dlt_pipelines_dir() -> str:
     """Gets default directory where pipelines' data will be stored
-    1. in user home directory ~/.dlt/pipelines/
+    1. in user or workspace home directory ie. ~/.dlt/pipelines/
     2. if current user is root in /var/dlt/pipelines
     3. if current user does not have a home directory in /tmp/dlt/pipelines
     """
@@ -737,7 +755,9 @@ def get_dlt_pipelines_dir() -> str:
 
 
 def get_dlt_repos_dir() -> str:
-    """Gets default directory where command repositories will be stored"""
+    """Gets default directory where command repositories will be stored
+    which is $global_dir/repos
+    """
     from dlt.common.runtime import run_context
 
-    return run_context.active().get_data_entity("repos")
+    return os.path.join(run_context.active().global_dir, "repos")

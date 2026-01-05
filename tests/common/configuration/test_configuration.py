@@ -753,6 +753,7 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         "request_max_retry_delay": 300,
         "config_files_storage_path": "storage",
         "dlthub_dsn": None,
+        "run_id": None,
         "http_show_error_body": False,
         "http_max_error_body_length": 8192,
         "secret_value": None,
@@ -1192,6 +1193,7 @@ def test_coercion_rules() -> None:
 
 
 def test_is_valid_hint() -> None:
+    assert is_valid_hint(bool) is True
     assert is_valid_hint(Any) is True  # type: ignore[arg-type]
     assert is_valid_hint(Optional[Any]) is True  # type: ignore[arg-type]
     assert is_valid_hint(RuntimeConfiguration) is True

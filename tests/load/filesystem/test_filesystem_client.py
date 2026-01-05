@@ -69,6 +69,7 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
     (
         (None, ""),
         ("/path/path2", digest128("")),
+        ("file:///home/ducklake.d", digest128("file://")),
         ("s3://cool", digest128("s3://cool")),
         ("s3://cool.domain/path/path2", digest128("s3://cool.domain")),
     ),
@@ -420,3 +421,28 @@ def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, 
     else:
         with pytest.raises(UnsupportedStorageVersionException):
             client.get_storage_versions()
+
+
+@pytest.mark.parametrize("pipeline_name",
+    [
+        "my__pipeline",
+        "my_pipeline__long_name__with__underscores",
+        "__",
+        "____",
+        "__long_name__with__underscores__",
+    ],
+)
+def test_list_dlt_table_files_with_separator_in_pipeline_name(pipeline_name: str) -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    client.initialize_storage()
+
+    state_table_dir = client.get_table_dir(client.schema.state_table_name)
+    client.fs_client.mkdirs(state_table_dir)
+    test_file = client.pathlib.join(state_table_dir, f"{pipeline_name}__load123__hash123.jsonl")
+    client.fs_client.touch(test_file)
+
+    results = list(client._list_dlt_table_files(client.schema.state_table_name))
+    assert len(results) == 1
+    assert results[0][0] == test_file
+    assert results[0][1] == [pipeline_name, "load123", "hash123"]

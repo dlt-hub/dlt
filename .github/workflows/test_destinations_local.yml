@@ -37,6 +37,7 @@ jobs:
             destinations: "[\"postgres\", \"duckdb\", \"ducklake\", \"dummy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb --extra cli --extra filesystem"
+            post_install_commands: "uv run dbc install postgresql"
             needs_postgres: true
 
           # Clickhouse OSS (TODO: test with minio s3)
@@ -60,17 +61,17 @@ jobs:
           - name: sqlalchemy
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "--extra sqlalchemy --extra filesystem --extra parquet"
+            extras: "--extra sqlalchemy --extra filesystem --extra parquet --group adbc"
             needs_mysql: true
-            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==1.4"
+            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==1.4 && uv run dbc install mysql && uv run dbc install sqlite"
 
           # SQLAlchemy 2.0 (same as above but with sqlalchemy 2.0)
           - name: sqlalchemy
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "--extra sqlalchemy --extra filesystem --extra parquet"
+            extras: "--extra sqlalchemy --extra filesystem --extra parquet --group adbc"
             needs_mysql: true
-            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==2.0"
+            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==2.0 && uv run dbc install mysql && uv run dbc install sqlite"
 
     env:
       ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
@@ -174,7 +175,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --group sentry-sdk --group pipeline --group ibis --group providers ${{ matrix.extras }}
+        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Copy secrets for local tests
         run: |

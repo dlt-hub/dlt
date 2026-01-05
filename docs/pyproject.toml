@@ -1,0 +1,91 @@
+[project]
+name = "dlt-docs-tools"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10, <3.13" #  databind not available over 3.10, we need to update the build
+
+# NOTE: working here is always dev enviroment, so we don't need a dev group
+dependencies = [
+    "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,workspace,weaviate,hub]",
+    "docstring-parser>=0.11",
+    "flake8>=7.0.0,<8",
+    "modal>=1.2.1",
+    "mypy>=1.11.0,<1.13.0",
+    "nbqa>=1.9.1",
+    "openai>=2.6.1",
+    "pydoc-markdown>=4.8.2,<5",
+    "pytest>=8.4.2",
+    "python-dotenv>=1.2.1",
+    "requests>=2.30.5",
+    "ruff>=0.3.2,<0.4",
+    "types-pyyaml>=6.0.12.20250915",
+    "types-regex>=2025.10.23.20251023",
+    "types-requests>=2.32.4.20250913",
+    "watchdog>=6.0.0",
+    "SQLAlchemy>=1.4.0",
+    "pymysql>=1.1.0,<2",
+    "pypdf2>=3.0.1,<4",
+    "dbt-core>=1.5.0",
+    "dbt-duckdb>=1.5.0",
+    "pymongo>=4.3.3",
+    "pandas>=2.1.4",
+    "alive-progress==3.2.0",
+    "pyarrow>=16.0.0",
+    "psycopg2-binary>=2.9",
+    "lancedb>=0.8.2 ; python_version < '3.13'",
+    "connectorx>=0.4.2 ; python_version >= '3.10'",
+    "modal>=0.64.170",
+    "google-api-python-client>=1.7.11",
+    "google-auth-oauthlib>=1.0.0,<2",
+    "types-psycopg2>=2.9.21.20251012",
+    "weaviate-client>=3.26.7,<4.0.0",
+    "regex>=2025.10.23",
+    "pytest-forked>=1.6.0",
+    "databind>=4.5.2",
+    "marimo>=0.17.4",
+]
+
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "docs_tools/**/*.py",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["docs_tools"]
+include = [
+    "docs_tools/**/*.py",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+lint-embedded-snippets = "docs_tools.snippets.lint_embedded_snippets:main"
+fix-grammar = "docs_tools.grammar.fix_grammar_gpt:main"
+preprocess-docs = "docs_tools.markdown.preprocess_docs:main"
+clean-pydoc-sidebar = "docs_tools.api_docs.clean_pydoc_sidebar:main"
+prepare-examples-tests = "docs_tools.examples.prepare_examples_tests:main"
+
+[tool.uv.sources]
+dlt = { path = "..", editable = true }
+
+[tool.mypy]
+mypy_path = ["../tests"]
+
+[tool.pytest.ini_options]
+pythonpath = [".."]
+norecursedirs = [".direnv", ".eggs", "build", "dist"]
+addopts = "--showlocals --durations 10 -m 'not rfam'"
+xfail_strict = true
+log_cli_level = "INFO"
+console_output_style = "count"
+python_files = ["test_*.py", "*_test.py", "*snippets.py", "*snippet.pytest"]
+python_functions = ["*_test", "test_*", "*_snippet"]
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "no_load: marks tests that do not load anything",
+    "rfam: marks tests that use rfam db"
+]

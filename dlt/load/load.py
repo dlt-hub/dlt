@@ -1,10 +1,10 @@
 import contextlib
 from functools import reduce
+from threading import BoundedSemaphore
 from typing import Dict, List, Optional, Tuple, Iterator, Sequence
 from concurrent.futures import Executor
-import os
 
-from dlt.common import logger
+from dlt.common import logger, pendulum
 from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.runtime.signals import sleep
@@ -15,7 +15,6 @@ from dlt.common.schema.utils import get_root_table
 from dlt.common.storages.load_storage import (
     LoadPackageInfo,
     ParsedLoadJobFileName,
-    TPackageJobState,
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
@@ -90,6 +89,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._loaded_packages: List[LoadPackageInfo] = []
         self._job_metrics: Dict[str, LoadJobMetrics] = {}
+        # job completed signalling event (start blocking)
+        self._done_event = BoundedSemaphore()
+        self._done_event.acquire()
         self._run_loop_sleep_duration: float = (
             1.0  # amount of time to sleep between querying completed jobs
         )
@@ -157,6 +159,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             else job_client
         )
 
+        started_at = pendulum.now()
         try:
             # check file format
             job_info = ParsedLoadJobFileName.parse(file_path)
@@ -198,13 +201,21 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     " extension could not be associated with job type and that indicates an error"
                     " in the code."
                 )
-        except (TerminalException, AssertionError):
+        except (TerminalException, AssertionError) as term_ex:
             job = FinalizedLoadJobWithFollowupJobs.from_file_path(
-                file_path, "failed", pretty_format_exception()
+                file_path,
+                started_at=started_at,
+                status="failed",
+                message=pretty_format_exception(),
+                exception=term_ex,
             )
-        except Exception:
+        except Exception as retry_ex:
             job = FinalizedLoadJobWithFollowupJobs.from_file_path(
-                file_path, "retry", pretty_format_exception()
+                file_path,
+                started_at=started_at,
+                status="retry",
+                message=pretty_format_exception(),
+                exception=retry_ex,
             )
 
         # move to started jobs in case this is not a restored job
@@ -219,9 +230,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             job.set_run_vars(load_id=load_id, schema=schema, load_table=load_table)
             # submit to pool
             self.pool.submit(Load.w_run_job, *(id(self), job, is_staging_destination_job, use_staging_dataset, schema))  # type: ignore
-
-        # sanity check: otherwise a job in an actionable state is expected
         else:
+            # sanity check: otherwise a job in an actionable state is expected
             assert job.state() in ("completed", "failed", "retry")
 
         return job
@@ -245,7 +255,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         )
         with active_job_client as client:
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job.run_managed(active_job_client)
+                job.run_managed(active_job_client, self._done_event)
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
@@ -377,9 +387,33 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     ) -> Tuple[List[LoadJob], List[LoadJob], Optional[LoadClientJobException]]:
         """Run periodically in the main thread to collect job execution statuses.
 
-        After detecting change of status, it commits the job state by moving it to the right folder
-        May create one or more followup jobs that get scheduled as new jobs. New jobs are created
-        only in terminal states (completed / failed)
+        After detecting change of status, it commits the job state by moving it to the right folder.
+        May create one or more follow-up jobs that get scheduled as new jobs. New jobs are created
+        only from jobs in terminal states (completed / failed).
+
+        Args:
+            load_id (str): Identifier of the load package to which the jobs belong.
+            jobs (Sequence[LoadJob]): Jobs to check and possibly finalize (eg. still running or just finished).
+            schema (Schema): Active schema used to resolve clients and create follow-up jobs.
+
+        Returns:
+            Tuple[List[LoadJob], List[LoadJob], Optional[LoadClientJobException]]:
+                A 3-tuple containing:
+                - remaining_jobs: List of jobs still in a non-terminal state ("ready" or "running")
+                  that should be checked again in the next loop iteration.
+                - finalized_jobs: List of jobs that reached a terminal state during this call
+                  ("completed" or "failed") and were moved to the appropriate storage folder.
+                - pending_exception: If configured, an exception to be raised by the caller after
+                  draining the pool. Set when:
+                    * a job failed and `raise_on_failed_jobs` is True -> LoadClientJobFailed
+                    * a job hit the retry threshold and `raise_on_max_retries` is set -> LoadClientJobRetry
+                  Otherwise None.
+
+        Side Effects:
+            - Moves job files between normalized package folders (eg. start -> completed/retry/failed).
+            - Caches per-job LoadJobMetrics in `self._job_metrics` for this process.
+            - Updates Collector counters (and "Failed" label when a job fails).
+            - May import follow-up jobs into the "new_jobs" folder via `create_followup_jobs`.
         """
         # list of jobs still running
         remaining_jobs: List[LoadJob] = []
@@ -400,14 +434,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             elif state == "failed":
                 # create followup jobs
                 self.create_followup_jobs(load_id, state, job, schema)
-
-                # preserve metrics
-                metrics = job.metrics()
-                if metrics:
-                    self._job_metrics[job.job_id()] = metrics
-
                 # try to get exception message from job
-                failed_message = job.exception()
+                failed_message = job.failed_message()
                 self.load_storage.normalized_packages.fail_job(
                     load_id, job.file_name(), failed_message
                 )
@@ -421,11 +449,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         load_id,
                         job.job_file_info().job_id(),
                         failed_message,
+                        job.exception(),
                     )
                 finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
-                retry_message = job.exception()
+                retry_message = job.failed_message()
                 # move back to new folder to try again
                 self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
                 logger.warning(
@@ -440,20 +469,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             job.job_id(),
                             r_c,
                             self.config.raise_on_max_retries,
-                            retry_message=retry_message,
+                            failed_message=retry_message,
+                            exception=job.exception(),
                         )
             elif state == "completed":
                 # create followup jobs
                 self.create_followup_jobs(load_id, state, job, schema)
-
-                # preserve metrics
-                # TODO: metrics should be persisted. this is different vs. all other steps because load step
-                # may be restarted in the middle of execution
-                # NOTE: we could use package state but cases with 100k jobs must be tested
-                metrics = job.metrics()
-                if metrics:
-                    self._job_metrics[job.job_id()] = metrics
-
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
                 self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
@@ -461,6 +482,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 finalized_jobs.append(job)
             else:
                 raise Exception("Incorrect job state")
+
+            # TODO: metrics should be persisted. this is different vs. all other steps because load step
+            # may be restarted in the middle of execution
+            # NOTE: we could use package state but cases with 100k jobs must be tested
+            metrics = job.metrics()
+            if metrics:
+                self._job_metrics[job.job_id()] = metrics
 
             if state in ["failed", "completed"]:
                 self.collector.update("Jobs")
@@ -485,41 +513,26 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self._maybe_truncate_staging_dataset(schema, job_client)
 
         self.load_storage.complete_load_package(load_id, aborted)
-        # collect package info
-        self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
-        # TODO: job metrics must be persisted
-        self._step_info_complete_load_id(
-            load_id,
-            metrics={"started_at": None, "finished_at": None, "job_metrics": self._job_metrics},
-        )
-        # delete jobs only now
+        self.gather_metrics(load_id, finished=True)
+        # delete jobs only after metrics collected
         self.load_storage.maybe_remove_completed_jobs(load_id)
         logger.info(
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    def init_jobs_counter(self, load_id: str) -> None:
-        # update counter we only care about the jobs that are scheduled to be loaded
-        package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(load_id)
-        total_jobs = reduce(lambda p, c: p + len(c), package_jobs.values(), 0)
-        no_failed_jobs = len(package_jobs["failed_jobs"])
-        no_completed_jobs = len(package_jobs["completed_jobs"]) + no_failed_jobs
-        self.collector.update("Jobs", no_completed_jobs, total_jobs)
-        if no_failed_jobs > 0:
-            self.collector.update(
-                "Jobs", no_failed_jobs, message="WARNING: Some of the jobs failed!", label="Failed"
-            )
+    def gather_metrics(self, load_id: str, finished: bool) -> None:
+        # collect package info
+        self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
+        self._step_info_complete_load_id(load_id, finished=finished)
 
-    def load_single_package(self, load_id: str, schema: Schema) -> None:
-        new_jobs = self.get_new_jobs_info(load_id)
-
+    def initialize_package(
+        self, load_id: str, schema: Schema, new_jobs: List[ParsedLoadJobFileName]
+    ) -> List[LoadJob]:
         # get dropped and truncated tables that were added in the extract step if refresh was requested
         # NOTE: if naming convention was updated those names correspond to the old naming convention
         # and they must be like that in order to drop existing tables
         dropped_tables = current_load_package()["state"].get("dropped_tables", [])
         truncated_tables = current_load_package()["state"].get("truncated_tables", [])
-
-        self.init_jobs_counter(load_id)
 
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
@@ -536,6 +549,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         if isinstance(job_client, WithStagingDataset)
                         else None
                     ),
+                    lambda table_name: True,  # drop all passed tables
                     drop_tables=dropped_tables,
                     truncate_tables=truncated_tables,
                 )
@@ -553,59 +567,102 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             schema,
                             new_jobs,
                             expected_update,
-                            job_client.should_truncate_table_before_load_on_staging_destination,
                             # should_truncate_staging,
+                            job_client.should_truncate_table_before_load_on_staging_destination,
                             job_client.should_load_data_to_staging_dataset_on_staging_destination,
+                            # should we drop tables also on staging destination
+                            job_client.should_drop_table_on_staging_destination,
                             drop_tables=dropped_tables,
                             truncate_tables=truncated_tables,
                         )
                 self.load_storage.commit_schema_update(load_id, applied_update)
 
             # collect all unfinished jobs
-            running_jobs: List[LoadJob] = self.resume_started_jobs(load_id, schema)
+            return self.resume_started_jobs(load_id, schema)
 
+    def init_jobs_counter(self, load_id: str) -> None:
+        # update counter we only care about the jobs that are scheduled to be loaded
+        package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(load_id)
+        total_jobs = reduce(lambda p, c: p + len(c), package_jobs.values(), 0)
+        no_failed_jobs = len(package_jobs["failed_jobs"])
+        no_completed_jobs = len(package_jobs["completed_jobs"]) + no_failed_jobs
+        self.collector.update("Jobs", no_completed_jobs, total_jobs)
+        if no_failed_jobs > 0:
+            self.collector.update(
+                "Jobs", no_failed_jobs, message="WARNING: Some of the jobs failed!", label="Failed"
+            )
+
+    def load_single_package(self, load_id: str, schema: Schema) -> None:
+        new_jobs = self.get_new_jobs_info(load_id)
+        self.init_jobs_counter(load_id)
+        running_jobs = self.initialize_package(load_id, schema, new_jobs)
         # loop until all jobs are processed
         pending_exception: Optional[LoadClientJobException] = None
         while True:
-            try:
-                # we continuously spool new jobs and complete finished ones
-                running_jobs, finalized_jobs, new_pending_exception = self.complete_jobs(
-                    load_id, running_jobs, schema
-                )
-                pending_exception = pending_exception or new_pending_exception
+            # we continuously spool new jobs and complete finished ones
+            running_jobs, finalized_jobs, new_pending_exception = self.complete_jobs(
+                load_id, running_jobs, schema
+            )
+            pending_exception = pending_exception or new_pending_exception
 
-                # do not spool new jobs if there was a signal or an exception was encountered
-                # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
-                # has changed (as determined by finalized jobs)
-                if signals.signal_received():
-                    if finalized_jobs:
-                        logger.info(
-                            f"Signal received, draining running jobs. {len(running_jobs)} to go."
-                        )
-                elif pending_exception:
-                    if finalized_jobs:
-                        logger.info(
-                            f"Exception for job {pending_exception.job_id} received, draining"
-                            f" running jobs.{len(running_jobs)} to go."
-                        )
-                else:
-                    running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
+            # do not spool new jobs if there was a signal or an exception was encountered
+            # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
+            # has changed (as determined by finalized jobs)
+            if signals.was_signal_received() and not self.config.start_new_jobs_on_signal:
+                if finalized_jobs:
+                    logger.info(
+                        f"Signal received, draining running jobs. {len(running_jobs)} to go."
+                    )
+            elif pending_exception:
+                if finalized_jobs:
+                    logger.info(
+                        f"Exception for job {pending_exception.job_id} received, draining"
+                        f" running jobs. {len(running_jobs)} to go."
+                    )
+            else:
+                running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
 
-                if len(running_jobs) == 0:
-                    # if a pending exception was discovered during completion of jobs
-                    # we can raise it now
-                    if pending_exception:
-                        raise pending_exception
-                    break
-                # this will raise on signal
-                sleep(self._run_loop_sleep_duration)
-            except LoadClientJobFailed:
+            # update metrics on each run so they are available even in exception
+            metrics: LoadMetrics = {
+                "started_at": None,
+                "finished_at": None,
+                "job_metrics": self._job_metrics,
+            }
+            self._step_info_update_metrics(load_id, metrics)
+
+            if len(running_jobs) > 0:
+                # wakes when managed job enters terminal state (in the pool)
+                acquired = self._done_event.acquire(timeout=self._run_loop_sleep_duration)
+                logger.debug(f"Sleep on package: {load_id} acquired: {acquired}")
+            else:
+                break
+
+        remaining_jobs = self.load_storage.list_new_jobs(load_id)
+        # if a pending exception was discovered during completion of jobs
+        # we can raise it now
+        if pending_exception:
+            if isinstance(pending_exception, LoadClientJobFailed):
                 # the package is completed and skipped
-                self.complete_package(load_id, schema, True)
-                raise
+                self.complete_package(load_id, schema, aborted=True)
+            else:
+                self.gather_metrics(load_id, finished=False)
+                logger.warning(
+                    f"Package {load_id} was not fully loaded. Load job pool is successfully drained"
+                    f" but {len(remaining_jobs)} new jobs are left in the package."
+                )
+            # raise exception with continuous backtrace into client exception
+            raise pending_exception from pending_exception.client_exception
 
-        # no new jobs, load package done
-        self.complete_package(load_id, schema, False)
+        # pool is drained
+        if not remaining_jobs:
+            # no new jobs, load package done
+            self.complete_package(load_id, schema, aborted=False)
+        else:
+            self.gather_metrics(load_id, finished=False)
+            logger.warning(
+                f"Package {load_id} was not fully loaded. Load job pool is successfully drained but"
+                f" {len(remaining_jobs)} new jobs are left in the package."
+            )
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool
@@ -680,13 +737,19 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         metrics: Dict[str, List[LoadMetrics]] = {}
         # get load packages and dataset_name from the last package
         _dataset_name: str = None
-        for load_package in self._loaded_packages:
+        for load_id in load_ids:
+            # find package in load packages
+            package_info = next((p for p in self._loaded_packages if p.load_id == load_id), None)
+            # in rare cases (ie CTRL-C unhandled) package may be not present upfront
+            if package_info is None:
+                package_info = self.load_storage.get_load_package_info(load_id)
+                self._loaded_packages.append(package_info)
             # TODO: each load id may have a separate dataset so construct a list of datasets here
             if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
                 _dataset_name = self.initial_client_config.normalize_dataset_name(
-                    load_package.schema
+                    package_info.schema
                 )
-            metrics[load_package.load_id] = self._step_info_metrics(load_package.load_id)
+            metrics[load_id] = self._step_info_metrics(load_id)
 
         return LoadInfo(
             pipeline,

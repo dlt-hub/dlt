@@ -1,3 +1,4 @@
+import sys
 import functools
 import inspect
 from typing import Callable, Any, List, Type
@@ -61,7 +62,10 @@ def validate_dict(
     # TODO: get_type_hints is very slow and we possibly should cache the result
     # even better option is to rewrite "verify_prop" so we can cache annotations mapper to validators
     # so we do not check the types of typeddict keys all the time
-    allowed_props = get_type_hints(spec)
+    allowed_props = get_type_hints(
+        spec,
+        globalns=sys.modules[spec.__module__].__dict__ if spec.__module__ in sys.modules else None,
+    )
     required_props = {k: v for k, v in allowed_props.items() if not is_optional_type(v)}
     # remove optional props
     props = {k: v for k, v in doc.items() if filter_f(k)}

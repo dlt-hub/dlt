@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Any, BinaryIO, Literal
+from typing import TYPE_CHECKING, Any, BinaryIO, IO
 import os
 from pathlib import Path
 import sys
@@ -131,33 +131,50 @@ def digest256_file_stream(stream: BinaryIO, chunk_size: int = 4096) -> str:
     return base64.b64encode(digest).decode("ascii")
 
 
-def digest256_tar_stream(stream: BinaryIO, chunk_size: int = 8192) -> str:
-    """Returns a base64 encoded sha3_256 hash of tar archive contents (ignoring metadata)
+def digest256_tar_stream(
+    stream: IO[bytes],
+    filter_file_names: Callable[[str], bool] = lambda x: True,
+    chunk_size: int = 8192,
+) -> Tuple[str, List[str]]:
+    """Calculates hash and collects file names from tar archive in a single pass.
 
-    Hashes only filenames and file contents, ignoring timestamps and other metadata.
-    This ensures identical file contents produce identical hashes regardless of when
-    the tar was created.
+    Hashes only file names and file contents of filtered members, ignoring timestamps
+    and other tar metadata. Members are sorted by name before hashing for consistency.
+    Operates entirely in-memory to prevent leakage of sensitive data.
 
-    Note: This function operates entirely in-memory using tar.extractfile() which reads
-    from the archive stream. No files are written to disk, preventing leakage of sensitive
-    data that may be contained in the archive.
+    Args:
+        stream: Binary stream containing the tar archive
+        filter_file_names: Callable that returns True for members to include in hash
+            and file names list. Default includes all members. Use this to exclude
+            metadata files (e.g., manifest.yaml) from the hash calculation.
+        chunk_size: Size of chunks to read when hashing file contents. Default 8192.
+
+    Returns:
+        tuple: (content_hash, file_names)
     """
     stream.seek(0)
     hash_obj = hashlib.sha3_256()
+    file_names = []
 
     with tarfile.open(fileobj=stream, mode="r:*") as tar:
         members = sorted(tar.getmembers(), key=lambda m: m.name)
 
         for member in members:
+            if not filter_file_names(member.name):
+                continue
+
             hash_obj.update(member.name.encode())
             if member.isfile():
+                file_names.append(member.name)
                 f = tar.extractfile(member)
                 if f:
                     while chunk := f.read(chunk_size):
                         hash_obj.update(chunk)
 
     digest = hash_obj.digest()
-    return base64.b64encode(digest).decode("ascii")
+    content_hash = base64.b64encode(digest).decode("ascii")
+
+    return content_hash, file_names
 
 
 def str2bool(v: str) -> bool:

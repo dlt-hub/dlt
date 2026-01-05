@@ -2,7 +2,7 @@ import os
 import io
 
 from typing import Any, List
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import pytest
 import dlt
 
@@ -464,7 +464,7 @@ def test_write_dispositions(
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
     # Note that we also explicitly select "_dlt_id" because its addition is disabled by default
-    example_table_2 = dataset.table("example_table_2", table_type="ibis")
+    example_table_2 = dataset.table("example_table_2").to_ibis()
     expression = (
         example_table_2.filter(example_table_2.a >= 3).order_by("a").limit(7)[["a", "_dlt_id"]]
     )
@@ -925,3 +925,79 @@ def test_data_contract_on_data_type(
             )
         assert py_exc.value.step == "load"
         assert isinstance(py_exc.value.__context__, LoadClientJobException)
+
+
+def test_relation_lifecycle() -> None:
+    """Test showing the lifecycle of a model: how it looks like after each pipeline step."""
+    pipeline = dlt.pipeline(pipeline_name=f"rel_lifecycle_{uniq_id()}", destination="duckdb")
+    pipeline.run(
+        [{"a": string, "b": i} for i, string in enumerate(["I", "love", "dlt"])],
+        table_name="example_table",
+    )
+
+    dataset = pipeline.dataset()
+    rel = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]]
+
+    @dlt.resource
+    def my_resource() -> Any:
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(
+                columns={
+                    k: v
+                    for k, v in pipeline.default_schema.tables["example_table"]["columns"].items()
+                }
+            ),
+        )
+
+    load_info = pipeline.extract(my_resource())
+
+    # Get the extracted model file
+    load_id = load_info.loads_ids[0]
+    normalize_storage = pipeline._get_normalize_storage()
+    model_job_file = normalize_storage.extracted_packages.list_new_jobs(load_id)[0]
+    assert model_job_file.endswith(".model")
+
+    # Ensure it contains the dialect and the query string
+    with normalize_storage.extracted_packages.storage.open_file(model_job_file, "r") as f:
+        content = f.read()
+    extracted_query = rel.to_sql()
+    assert f"dialect: duckdb\n{extracted_query}\n" == content
+
+    pipeline.normalize()
+
+    # Get the normalized model file
+    load_storage = pipeline._get_load_storage()
+    model_job_file = load_storage.normalized_packages.list_new_jobs(load_id)[0]
+    assert model_job_file.endswith(".model")
+
+    # Ensure it contains the normalized query that, for example:
+    # - has the _dlt_load_id column
+    # - has NULL set as column b since we selected only a
+    # - is wrapped in a subquery
+    with load_storage.normalized_packages.storage.open_file(model_job_file, "r") as f:
+        content = f.read()
+
+    normalized_query = f"""SELECT _dlt_subquery."a" AS "a", NULL AS "b", \'{load_id}\' AS "_dlt_load_id", _dlt_subquery."_dlt_id" AS "_dlt_id" FROM ({extracted_query}) AS _dlt_subquery"""
+    assert f"dialect: duckdb\n{normalized_query}\n" == content
+
+    from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+
+    # Get the insert query that is executed during load
+    captured_sqls = []
+    _original_execute = DuckDbSqlClient.execute_sql
+
+    def spy_execute_sql(self, sql, *args, **kwargs):
+        captured_sqls.append(sql)
+        return _original_execute(self, sql, *args, **kwargs)
+
+    with patch.object(DuckDbSqlClient, "execute_sql", spy_execute_sql):
+        pipeline.load()
+
+    # Assert exact match with the actual INSERT statement
+    loaded_query = f"""INSERT INTO "{pipeline.dataset_name}"."my_resource" ("a", "b", "_dlt_load_id", "_dlt_id") {normalized_query}"""
+    all_insert_stmts = [
+        sql for sql in captured_sqls if isinstance(sql, str) and sql.startswith("INSERT INTO")
+    ]
+    my_resource_insert = [stmt for stmt in all_insert_stmts if '"my_resource"' in stmt][0]
+    assert loaded_query == my_resource_insert

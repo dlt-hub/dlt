@@ -16,7 +16,6 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
     SupportsStagingDestination,
-    TLoadJobState,
     HasFollowupJobs,
     RunnableLoadJob,
     FollowupJobRequest,
@@ -53,7 +52,7 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStagingDataset,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.utils import get_deterministic_temp_table_name
@@ -272,10 +271,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         )
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
         sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)

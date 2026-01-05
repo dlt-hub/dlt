@@ -2,6 +2,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
     Literal,
     Optional,
@@ -75,7 +76,9 @@ class OffsetPaginatorConfig(PaginatorTypeConfig, total=False):
     limit: int
     offset: Optional[int]
     offset_param: Optional[str]
+    offset_body_path: Optional[str]
     limit_param: Optional[str]
+    limit_body_path: Optional[str]
     total_path: Optional[jsonpath.TJsonPath]
     maximum_offset: Optional[int]
     stop_after_empty_page: Optional[bool]
@@ -262,6 +265,7 @@ class Endpoint(TypedDict, total=False):
 class ProcessingSteps(TypedDict, total=False):
     filter: Optional[Callable[[Any], bool]]  # noqa: A003
     map: Optional[Callable[[Any], Any]]  # noqa: A003
+    yield_map: Optional[Callable[[Any], Iterator[Any]]]  # noqa: A003
 
 
 class ResourceBase(TResourceHintsBase, total=False):

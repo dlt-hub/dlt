@@ -11,7 +11,6 @@ from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.ducklake.configuration import DuckLakeClientConfiguration
-from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 from dlt.destinations.impl.motherduck.configuration import MotherDuckClientConfiguration
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
@@ -74,6 +73,8 @@ def create_ibis_backend(
             # move main connection ownership to ibis
             con = ibis.duckdb.from_connection(client.config.credentials.conn_pool.move_conn())
     elif issubclass(destination.spec, DuckLakeClientConfiguration):
+        from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
+
         assert isinstance(client, DuckLakeClient)
         # open connection but do not close it, ducklake always creates a separate connection
         # and will not close it in destructor
@@ -83,7 +84,7 @@ def create_ibis_backend(
             # also prevents empty duckdb files from being created
             client.sql_client.use_dataset()
         except Exception:
-            # close explicitly, wont be done by the conn pool
+            # close explicitly, won't be done by the conn pool
             client.sql_client.close_connection()
             raise
         con = ibis.duckdb.from_connection(conn)

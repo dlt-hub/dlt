@@ -452,7 +452,7 @@ These are the available paginators:
 | `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonlinkpaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
 | `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul> |
 | `header_cursor` | [HeaderCursorPaginator](../../../general-usage/http/rest-client.md#headercursorpaginator) | The cursor for the next page is in the response headers.<br/>*Parameters:*<ul><li>`cursor_key` (str) - the name of the header containing the cursor. Defaults to "next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor"</li></ul> |
-| `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
+| `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`offset_body_path` (str) - a dot-separated path specifying where to place the offset in the request JSON body. Defaults to `None`</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`limit_body_path` (str) - a dot-separated path specifying where to place the limit in the request JSON body. Defaults to `None`</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
 | `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
 | `cursor` | [JSONResponseCursorPaginator](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter, with the value of the cursor in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor" if neither `cursor_param` nor `cursor_body_path` is provided.</li><li>`cursor_body_path` (str, optional) - the JSONPath to place the cursor in the request body.</li></ul>Note: You must provide either `cursor_param` or `cursor_body_path`, but not both. If neither is provided, `cursor_param` will default to "cursor". |
 | `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
@@ -972,7 +972,7 @@ def repositories() -> Generator[Dict[str, Any], Any, Any]:
 
 The `processing_steps` field in the resource configuration allows you to apply transformations to the data fetched from the API before it is loaded into your destination. This is useful when you need to filter out certain records, modify the data structure, or anonymize sensitive information.
 
-Each processing step is a dictionary specifying the type of operation (`filter` or `map`) and the function to apply. Steps apply in the order they are listed.
+Each processing step is a dictionary specifying the type of operation (`filter`, `map` or `yield_map`) and the function to apply. Steps apply in the order they are listed.
 
 #### Quick example
 
@@ -980,6 +980,12 @@ Each processing step is a dictionary specifying the type of operation (`filter` 
 def lower_title(record):
     record["title"] = record["title"].lower()
     return record
+
+def flatten_reactions(post):
+    post_without_reactions = copy.deepcopy(post)
+    post_without_reactions.pop("reactions")
+    for reaction in post["reactions"]:
+        yield {"reaction": reaction, **post_without_reactions}
 
 config: RESTAPIConfig = {
     "client": {
@@ -991,6 +997,7 @@ config: RESTAPIConfig = {
             "processing_steps": [
                 {"filter": lambda x: x["id"] < 10},
                 {"map": lower_title},
+                {"yield_map": flatten_reactions},
             ],
         },
     ],
@@ -1000,7 +1007,9 @@ config: RESTAPIConfig = {
 In the example above:
 
 - First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
-- Thereafter, the `map` step applies the `lower_title` function to each remaining record.
+- Then, the `map` step applies the `lower_title` function to each remaining record.
+- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record, 
+yielding a set of records, one for each reaction for the given post.
 
 #### Using `filter`
 
@@ -1042,6 +1051,31 @@ config: RESTAPIConfig = {
 }
 ```
 
+#### Using `yield_map`
+
+The `yield_map` step allows you to transform a record into multiple records. The provided function should take a record as an argument and return an iterator of records. For example, to flatten the `reactions` field:
+
+```py
+def flatten_reactions(post):
+    post_without_reactions = copy.deepcopy(post)
+    post_without_reactions.pop("reactions")
+    for reaction in post["reactions"]:
+        yield {"reaction": reaction, **post_without_reactions}
+
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com",
+    },
+    "resources": [
+        {
+            "name": "posts",
+            "processing_steps": [
+                {"yield_map": flatten_reactions},
+            ],
+        },
+    ],
+}
+```
 #### Combining `filter` and `map`
 
 You can combine multiple processing steps to achieve complex transformations:

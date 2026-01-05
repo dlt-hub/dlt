@@ -69,6 +69,7 @@ def init_client(
     expected_update: TSchemaTables,
     truncate_filter: Callable[[str], bool],
     load_staging_filter: Callable[[str], bool],
+    drop_staging_filter: Callable[[TTableSchema], bool],
     drop_tables: Optional[List[TTableSchema]] = None,
     truncate_tables: Optional[List[TTableSchema]] = None,
 ) -> TSchemaTables:
@@ -81,8 +82,9 @@ def init_client(
         schema (Schema): The schema as in load package
         new_jobs (Iterable[LoadJobInfo]): List of new jobs
         expected_update (TSchemaTables): Schema update as in load package. Always present even if empty
-        truncate_filter (Callable[[str], bool]): A filter that tells which table in destination dataset should be truncated
-        load_staging_filter (Callable[[str], bool]): A filter which tell which table in the staging dataset may be loaded into
+        truncate_filter (Callable[[str], bool]): A filter that tells if table should be truncated
+        load_staging_filter (Callable[[str], bool]): A filter which tell if table may be loaded into
+        drop_staging_filter (Callable[[str], bool]): A filter which tell if table may be dropped
         drop_tables (Optional[List[TTableSchema]]): List of tables to drop before initializing storage
         truncate_tables (Optional[List[TTableSchema]]): List of tables to truncate before initializing storage
 
@@ -111,8 +113,13 @@ def init_client(
         )
     )
 
-    # get tables to drop
-    drop_table_names = {table["name"] for table in drop_tables} if drop_tables else set()
+    # get tables to drop, note that drop_tables are not in schema and come from the package
+    # state
+    drop_table_names = (
+        {table["name"] for table in drop_tables if drop_staging_filter(table)}
+        if drop_tables
+        else set()
+    )
     job_client.verify_schema(only_tables=tables_with_jobs | dlt_tables, new_jobs=new_jobs)
     applied_update = _init_dataset_and_update_schema(
         job_client,

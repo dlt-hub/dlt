@@ -13,6 +13,10 @@ def test_secrets_toml() -> None:
         str(Path(TESTS_CASES_DIR).joinpath(".dlt/access.secrets.toml")),
         str(Path(TESTS_CASES_DIR).joinpath(".dlt/secrets.toml")),
     ]
+    assert provider.present_locations == [
+        str(Path(TESTS_CASES_DIR).joinpath(".dlt/access.secrets.toml")),
+        str(Path(TESTS_CASES_DIR).joinpath(".dlt/secrets.toml")),
+    ]
     # overrides secrets.toml with profile
     assert provider.get_value("api_key", str, None) == ("PASS", "api_key")
     # still has secrets.toml keys
@@ -21,3 +25,13 @@ def test_secrets_toml() -> None:
     # dev profile will load just secrets.toml
     provider = ProfileSecretsTomlProvider(os.path.join(TESTS_CASES_DIR, ".dlt"), "dev")
     assert provider.get_value("api_key", str, None) == ("X", "api_key")
+
+
+def test_secrets_not_present() -> None:
+    provider = ProfileSecretsTomlProvider(os.path.join(TESTS_CASES_DIR, ".dlt"), "unknown")
+    # first access profile, global comes second
+    assert provider.locations == [
+        str(Path(TESTS_CASES_DIR).joinpath(".dlt/unknown.secrets.toml")),
+        str(Path(TESTS_CASES_DIR).joinpath(".dlt/secrets.toml")),
+    ]
+    assert provider.present_locations == [str(Path(TESTS_CASES_DIR).joinpath(".dlt/secrets.toml"))]

@@ -1,6 +1,6 @@
 import contextlib
 import os
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
 from typing import (
@@ -25,7 +25,6 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
-from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
@@ -35,6 +34,7 @@ from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
+    WithJobError,
 )
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import (
@@ -127,6 +127,7 @@ from dlt.pipeline.trace import (
     PipelineStepTrace,
     load_trace,
     merge_traces,
+    save_trace,
     start_trace,
     start_trace_step,
     end_trace_step,
@@ -237,9 +238,7 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
                             f"Messed up trace reference {self._trace.transaction_id} vs"
                             f" {trace.transaction_id}"
                         )
-                        trace = end_trace(
-                            trace, self, self._pipeline_storage.storage_path, send_state
-                        )
+                        trace = end_trace(trace, self, send_state)
                 finally:
                     # always end trace
                     if is_new_trace:
@@ -250,6 +249,7 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
                         # this way we combine several separate calls to extract, normalize, load as single trace
                         # the trace of "run" has many steps and will not be merged
                         self._last_trace = merge_traces(self._last_trace, trace)
+                        save_trace(self.working_dir, self._last_trace)
                         self._trace = None
 
         return _wrap  # type: ignore
@@ -486,7 +486,7 @@ class Pipeline(SupportsPipeline):
                 # commit load packages with state
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
-        except Exception as exc:
+        except (Exception, KeyboardInterrupt) as exc:
             # emit step info
             step_info = self._get_step_info(extract_step)
             current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
@@ -531,15 +531,23 @@ class Pipeline(SupportsPipeline):
                 schema_storage=self._schema_storage,
             )
             try:
-                with signals.delayed_signals():
+                with (
+                    signals.intercepted_signals()
+                    if self.runtime_config.intercept_signals
+                    else nullcontext()
+                ):
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
-            except Exception as n_ex:
+            except (Exception, KeyboardInterrupt) as n_ex:
+                if isinstance(n_ex, WithJobError):
+                    err_load_id = n_ex.load_id
+                else:
+                    err_load_id = normalize_step.current_load_id
                 step_info = self._get_step_info(normalize_step)
                 raise PipelineStepFailed(
                     self,
                     "normalize",
-                    normalize_step.current_load_id,
+                    err_load_id,
                     n_ex,
                     step_info,
                 ) from n_ex
@@ -586,16 +594,22 @@ class Pipeline(SupportsPipeline):
             initial_staging_client_config=staging_client.config if staging_client else None,
         )
         try:
-            with signals.delayed_signals():
+            with (
+                signals.intercepted_signals()
+                if self.runtime_config.intercept_signals
+                else nullcontext()
+            ):
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
             self._update_last_run_context()
             return info
-        except Exception as l_ex:
+        except (Exception, KeyboardInterrupt) as l_ex:
+            if isinstance(l_ex, WithJobError):
+                err_load_id = l_ex.load_id
+            else:
+                err_load_id = load_step.current_load_id
             step_info = self._get_step_info(load_step)
-            raise PipelineStepFailed(
-                self, "load", load_step.current_load_id, l_ex, step_info
-            ) from l_ex
+            raise PipelineStepFailed(self, "load", err_load_id, l_ex, step_info) from l_ex
 
     @with_runtime_trace()
     @with_config_section(("run",))
@@ -684,8 +698,6 @@ class Pipeline(SupportsPipeline):
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
-
-        signals.raise_if_signalled()
         self.activate()
         self._set_destinations(
             destination=destination, destination_credentials=credentials, staging=staging
@@ -702,18 +714,20 @@ class Pipeline(SupportsPipeline):
             self._sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
-        # normalize and load pending data
-        if self.list_extracted_load_packages():
-            self.normalize()
-        if self.list_normalized_load_packages():
-            # if there were any pending loads, load them and **exit**
+
+        if self.has_pending_data:
             if data is not None:
                 logger.warn(
                     "The pipeline `run` method will now load the pending load packages. The data"
-                    " you passed to the run function will not be loaded. In order to do that you"
+                    " you passed to the run function will not be extracted. In order to do that you"
                     " must run the pipeline again"
                 )
-            return self.load(destination, dataset_name, credentials=credentials)
+            # normalize and load pending data
+            if self.list_extracted_load_packages():
+                self.normalize()
+            if self.list_normalized_load_packages():
+                # if there were any pending loads, load them and **exit**
+                return self.load(destination, dataset_name, credentials=credentials)
 
         # extract from the source
         if data is not None:
@@ -866,7 +880,7 @@ class Pipeline(SupportsPipeline):
                     state["default_schema_name"] = new_default_schema_name
             bump_pipeline_state_version_if_modified(state)
             self._save_state(state)
-        except Exception as ex:
+        except (Exception, KeyboardInterrupt) as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
 
     def activate(self) -> None:
@@ -946,23 +960,31 @@ class Pipeline(SupportsPipeline):
         return self.config.runtime
 
     def __repr__(self) -> str:
-        kwargs = {
-            "pipeline_name": self.pipeline_name,
-            "destination": (
-                self._destination.destination_name if getattr(self, "_destination", None) else None
-            ),
-            "staging": self._staging.destination_name if getattr(self, "_staging", None) else None,
-            "dataset_name": self.dataset_name,
-            "default_schema_name": self.default_schema_name,
-            "schema_names": getattr(self, "schema_names", None),
-            "first_run": getattr(self, "first_run", None),
-            "dev_mode": getattr(self, "dev_mode", None),
-            # `is_active is True` is the common case
-            "is_active": getattr(self, "is_active", None),
-            "pipelines_dir": getattr(self, "pipelines_dir", None),
-            "working_dir": getattr(self, "working_dir", None),
-        }
-        return simple_repr("dlt.pipeline", **without_none(kwargs))
+        try:
+            kwargs = {
+                "pipeline_name": self.pipeline_name,
+                "destination": (
+                    self._destination.destination_name
+                    if getattr(self, "_destination", None)
+                    else None
+                ),
+                "staging": (
+                    self._staging.destination_name if getattr(self, "_staging", None) else None
+                ),
+                "dataset_name": self.dataset_name,
+                "default_schema_name": self.default_schema_name,
+                "schema_names": getattr(self, "schema_names", None),
+                "first_run": getattr(self, "first_run", None),
+                "dev_mode": getattr(self, "dev_mode", None),
+                # `is_active is True` is the common case
+                "is_active": getattr(self, "is_active", None),
+                "pipelines_dir": getattr(self, "pipelines_dir", None),
+                "working_dir": getattr(self, "working_dir", None),
+            }
+            return simple_repr("dlt.pipeline", **without_none(kwargs))
+        except Exception:
+            # fallback to object repr
+            return super().__repr__()
 
     @deprecated(
         "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
@@ -1148,15 +1170,17 @@ class Pipeline(SupportsPipeline):
                 set(caps.supported_loader_file_formats),
             )
 
-    def _on_set_destination(self, new_value: AnyDestination) -> None:
+    def _on_set_destination(self, new_destination: AnyDestination) -> None:
         """Called when destination changes"""
-        if issubclass(new_value.spec, WithLocalFiles):
+        if issubclass(new_destination.spec, WithLocalFiles):
             config = WithLocalFiles()
             config = self._bind_local_files(config)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
-                if config[field] is not None:
-                    new_value.config_params[field] = config[field]
+                # if factory was already bound, do not overwrite
+                # TODO: support local files in destination factory explicitly
+                if config[field] is not None and new_destination.config_params.get(field) is None:
+                    new_destination.config_params[field] = config[field]
 
     def _bind_local_files(self, local_files: TWithLocalFiles) -> TWithLocalFiles:
         # get context for local files from pipeline
@@ -1181,10 +1205,9 @@ class Pipeline(SupportsPipeline):
         return NormalizeStorage(True, self._normalize_storage_config())
 
     def _get_load_storage(self) -> LoadStorage:
-        caps = self._get_destination_capabilities()
         return LoadStorage(
             True,
-            caps.supported_loader_file_formats,
+            [],
             self._load_storage_config(),
         )
 

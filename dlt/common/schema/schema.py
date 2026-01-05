@@ -37,8 +37,10 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
     TSchemaSettings,
     TSimpleRegex,
+    TTableReferenceStandalone,
     TStoredSchema,
     TSchemaTables,
+    TTableReference,
     TTableSchema,
     TTableSchemaColumns,
     TColumnSchema,
@@ -55,6 +57,7 @@ from dlt.common.schema.exceptions import (
     TableIdentifiersFrozen,
     TableNotFound,
 )
+from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.normalizers import import_normalizers, configured_normalizers
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.validation import validate_dict
@@ -231,15 +234,30 @@ class Schema:
         if is_new_table or existing_table.get("x-normalizer", {}).get("evolve-columns-once", False):
             column_mode = "evolve"
 
-        # check if we should filter any columns, partial table below contains only new columns
+        # check if we should filter any columns,
+        # partial table below contains new columns and existing columns with property changes
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
             if column_name.startswith(self._dlt_tables_prefix):
                 continue
             is_variant = column.get("variant", False)
-            # new column and contract prohibits that
+            # check if column already exists to distinguish between new column vs property change
+            existing_col = existing_table["columns"].get(column_name) if existing_table else None
+            # when column is new or has property changes, and contract prohibits column evolution
             if column_mode != "evolve" and not is_variant:
+                if existing_col and is_complete_column(existing_col):
+                    error_msg = (
+                        f"Can't evolve table column `{column_name}` in table `{table_name}` because"
+                        " `columns` are frozen. Existing column: {existing_col}. Incoming"
+                        " column: {column}."
+                    )
+                else:
+                    error_msg = (
+                        f"Can't add table column `{column_name}` to table `{table_name}` because"
+                        " `columns` are frozen."
+                    )
+
                 if raise_on_freeze and column_mode == "freeze":
                     raise DataValidationError(
                         self.name,
@@ -250,8 +268,7 @@ class Schema:
                         existing_table,
                         schema_contract,
                         data_item,
-                        f"Can't add table column `{column_name}` to table `{table_name}` because"
-                        " `columns` are frozen.",
+                        error_msg,
                     )
                 # filter column with name below
                 filters.append(("columns", column_name, column_mode))
@@ -607,6 +624,45 @@ class Schema:
         return self._schema_tables
 
     @property
+    def references(self) -> list[TTableReferenceStandalone]:
+        """References between tables"""
+        all_references: list[TTableReferenceStandalone] = []
+        for table_name, table in self.tables.items():
+            # TODO more specific error handling than ValueError
+            try:
+                parent_ref = utils.create_parent_child_reference(self.tables, table_name)
+                all_references.append(cast(TTableReferenceStandalone, parent_ref))
+            except ValueError:
+                pass
+
+            try:
+                root_ref = utils.create_root_child_reference(self.tables, table_name)
+                all_references.append(cast(TTableReferenceStandalone, root_ref))
+            except ValueError:
+                pass
+
+            try:
+                load_table_ref = utils.create_load_table_reference(
+                    self.tables[table_name], naming=self.naming
+                )
+                all_references.append(cast(TTableReferenceStandalone, load_table_ref))
+            except ValueError:
+                pass
+
+            refs = table.get("references")
+            if not refs:
+                continue
+
+            for ref in refs:
+                top_level_ref: TTableReference = ref.copy()
+                if top_level_ref.get("table") is None:
+                    top_level_ref["table"] = table_name
+
+                all_references.append(cast(TTableReferenceStandalone, top_level_ref))
+
+        return all_references
+
+    @property
     def settings(self) -> TSchemaSettings:
         return self._settings
 
@@ -753,6 +809,42 @@ class Schema:
             group_by_resource=group_by_resource,
         )
         return dot
+
+    def to_mermaid(
+        self,
+        remove_processing_hints: bool = False,
+        hide_columns: bool = False,
+        hide_descriptions: bool = False,
+        include_dlt_tables: bool = True,
+    ) -> str:
+        """Convert schema to a Mermaid diagram string.
+        Args:
+            remove_processing_hints: If True, remove hints used for data processing and redundant information.
+                This reduces the size of the schema and improves readability.
+            hide_columns: If True, the diagram hides columns details. This helps readability of large diagrams.
+            hide_descriptions: If True, hide the column descriptions
+            include_dlt_tables: If `True` (the default), internal dlt tables (`_dlt_version`,
+                `_dlt_loads`, `_dlt_pipeline_state`)
+
+        Returns:
+            A string containing a Mermaid ERdiagram of the schema.
+        """
+        from dlt.helpers.mermaid import schema_to_mermaid
+
+        stored_schema = self.to_dict(
+            # setting this to `True` removes `name` fields that are used in `schema_to_dbml()`
+            # if required, we can refactor `dlt.helpers.dbml` to support this
+            remove_defaults=False,
+            remove_processing_hints=remove_processing_hints,
+        )
+
+        return schema_to_mermaid(
+            stored_schema,
+            references=self.references,
+            hide_columns=hide_columns,
+            hide_descriptions=hide_descriptions,
+            include_dlt_tables=include_dlt_tables,
+        )
 
     def clone(
         self,

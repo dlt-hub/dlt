@@ -21,6 +21,7 @@ AWESOME_REPO = "https://github.com/sindresorhus/awesome.git"
 JAFFLE_SHOP_REPO = "https://github.com/dbt-labs/jaffle_shop.git"
 PRIVATE_REPO = "git@github.com:scale-vector/rasa_bot_experiments.git"
 PRIVATE_REPO_WITH_ACCESS = "git@github.com:scale-vector/test_private_repo.git"
+CONTEXT_REPO = "https://github.com/dlt-hub/vibe-hub.git"
 
 
 def test_ssh_key_context() -> None:
@@ -71,6 +72,7 @@ def test_clone_with_wrong_branch(test_storage: FileStorage) -> None:
         clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="wrong_branch")
 
 
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
     repo_path = test_storage.make_full_path("private_repo")
@@ -79,6 +81,7 @@ def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
             clone_repo(PRIVATE_REPO, repo_path, with_git_command=git_command)
 
 
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 @skipifwindows
 def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
@@ -88,7 +91,7 @@ def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
         ensure_remote_head(repo_path, with_git_command=git_command)
 
 
-@pytest.mark.skip("disabled due to something locking in github")
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 @skipifwindows
 def test_repo_status_update(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
@@ -114,6 +117,32 @@ def test_fresh_repo_files_branch_change(test_storage: FileStorage) -> None:
         assert repo.active_branch.name == "main"
         assert not is_dirty(repo)
         assert is_clean_and_synced(repo)
+
+
+def test_sparse_checkout(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="abbyy")
+    assert repo_storage.has_folder("abbyy")
+    # only abbyy present
+    assert len(repo_storage.list_folder_dirs(".")) == 2  # .git abbyy
+    # two files inside
+    assert len(repo_storage.list_folder_files("abbyy")) == 2
+
+    # checkout the other one
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="stripe")
+    assert repo_storage.has_folder("stripe")
+    assert len(repo_storage.list_folder_dirs(".")) == 2  # .git stripe
+
+    # unknown path in case repo is already cloned and checkout was done
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")
+    assert not repo_storage.has_folder("__unknown")
+    assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
+
+
+def test_sparse_checkout_path_not_exist_on_clone(test_storage: FileStorage) -> None:
+    # unknown path before first checkout
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")
+    assert not repo_storage.has_folder("__unknown")
+    assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
 
 
 def test_fresh_repo_files_branch_change_to_default(test_storage: FileStorage) -> None:

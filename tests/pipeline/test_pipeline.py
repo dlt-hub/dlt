@@ -1,4 +1,5 @@
 import asyncio
+from multiprocessing.dummy import DummyProcess
 import pathlib
 import pickle
 from concurrent.futures import ThreadPoolExecutor
@@ -12,16 +13,15 @@ from time import sleep
 from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
-
 import pytest
+
+import dlt
+from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration import resolve
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-
-import dlt
-from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
@@ -35,19 +35,18 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     UnknownDestinationModule,
 )
-from dlt.common.exceptions import PipelineStateNotAvailable
-from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
-from dlt.common.runtime.collector import LogCollector
+from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
+from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
+from dlt.common.runtime import signals
+from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
-from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
-import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeBasic,
@@ -73,9 +72,7 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT
-from tests.pipeline.utils import assert_load_info, load_table_counts
-
+from tests.utils import TEST_STORAGE_ROOT, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -596,6 +593,10 @@ def test_destination_explicit_invalid_credentials_filesystem(environment: Any) -
     )
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run([1, 2, 3], table_name="data", credentials="PR8BLEM")
+    assert pip_ex.value.step == "sync"
+    assert pip_ex.value.load_id is None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
     assert isinstance(pip_ex.value.__cause__, InvalidNativeValue)
 
 
@@ -1071,8 +1072,10 @@ def test_pipeline_state_on_extract_exception() -> None:
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run([data_piece_1, data_piece_2], write_disposition="replace")
-    # male sure that exception has right step info
+    # make sure that exception has right step info
     assert pip_ex.value.load_id in pip_ex.value.step_info.loads_ids
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
     # print(pip_ex.value.load_id)
     # print(pip_ex.value.step_info.asdict())
     # print(p._last_trace.last_pipeline_step_trace("extract").exception_traces)
@@ -1141,6 +1144,12 @@ def test_raise_on_failed_job() -> None:
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.run([1, 2, 3], table_name="numbers")
     assert py_ex.value.step == "load"
+    assert py_ex.value.load_id is not None
+    assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
+    # loaded
+    assert py_ex.value.has_pending_data is False
+    # all packages failed
+    assert py_ex.value.is_package_partially_loaded is False
     # get package info
     package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
     assert package_info.state == "aborted"
@@ -1851,12 +1860,9 @@ def test_invalid_data_edge_cases() -> None:
     def my_source():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    # this function will be evaluated like any other. it returns resource which in the pipe
-    # is just an iterator and it will be iterated
-    # TODO: we should probably block that behavior
     pipeline.run(my_source)
 
-    assert pipeline.last_trace.last_normalize_info.row_counts["my_source"] == 5
+    assert pipeline.last_trace.last_normalize_info.row_counts["infinity"] == 5
 
     def res_return():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
@@ -1879,7 +1885,7 @@ def test_invalid_data_edge_cases() -> None:
         yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
     pipeline.run(my_source_yield)
-    assert pipeline.last_trace.last_normalize_info.row_counts["my_source_yield"] == 5
+    assert pipeline.last_trace.last_normalize_info.row_counts["infinity"] == 5
 
     # pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
     # with pytest.raises(PipelineStepFailed) as pip_ex:
@@ -3975,3 +3981,498 @@ def test_pipeline_with_null_executors(monkeypatch) -> None:
     p = dlt.pipeline(pipeline_name="null_executor", destination="duckdb")
     p.run([{"id": 1}], table_name="test_table")
     assert p.dataset().row_counts().fetchall() == [("test_table", 1)]
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT, signals.signal.SIGTERM))
+@pytest.mark.forked
+def test_signal_graceful_load_step_shutdown(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    # do not create additional job for status. this creates race condition during pool drain
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    @dlt.destination
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        signals.sleep(1)
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), sig)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should end gracefully
+    load_info = pipeline.run([1, 2, 3], table_name="digits")
+    assert_load_info(load_info)
+
+
+@skipifwindows
+@pytest.mark.parametrize("start_new_jobs_on_signal", (True, False))
+@pytest.mark.forked
+def test_signal_graceful_complete_load_step(start_new_jobs_on_signal: bool) -> None:
+    # test setup makes sure that only one job at a time is started
+    # so we can send the signal after first job is in the pool and expect second one to get completed
+    os.environ["LOAD__START_NEW_JOBS_ON_SIGNAL"] = str(start_new_jobs_on_signal)
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    @dlt.destination(loader_parallelism_strategy="sequential")
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        signals.sleep(0.5)
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), signals.signal.SIGTERM)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    if start_new_jobs_on_signal:
+        # should end gracefully
+        load_info = pipeline.run(
+            [dlt.resource([1, 2, 3], name="digits"), dlt.resource(["a", "b", "c"], name="letters")]
+        )
+        assert_load_info(load_info)
+        # sanity check on load info
+        load_package = load_info.load_packages[0]
+        assert load_info.finished_at is not None
+        assert load_info.started_at is not None
+        assert load_package.completed_at is not None
+        assert load_package.state == "loaded"
+
+        metrics = load_info.metrics[load_package.load_id][0]["job_metrics"]
+        assert len(metrics) == 2
+        for metric in metrics.values():
+            assert metric.started_at is not None
+            assert metric.finished_at is not None
+            assert metric.state == "completed"
+            assert metric.retry_count == 0
+
+        # two tables completed
+        completed_job_count = 2
+        new_job_count = 0
+    else:
+        with pytest.raises(PipelineStepFailed) as pip_ex:
+            pipeline.run(
+                [
+                    dlt.resource([1, 2, 3], name="digits"),
+                    dlt.resource(["a", "b", "c"], name="letters"),
+                ]
+            )
+        assert isinstance(pip_ex.value.__cause__, SignalReceivedException)
+        assert pip_ex.value.__cause__.signal_code == 15  # SIGTERM
+        # load info in exception
+        load_info = pip_ex.value.step_info  # type: ignore
+
+        # sanity check on load info
+        load_package = load_info.load_packages[0]
+        assert load_info.finished_at is None
+        assert load_info.started_at is not None
+        assert load_package.completed_at is None
+        assert load_package.state == "normalized"
+
+        # just one job should go into job pool (read from package into ready state)
+        metrics = load_info.metrics[load_package.load_id][0]["job_metrics"]
+        # no more jobs because we drained the pool after the first
+        assert len(metrics) == 1
+        for metric in metrics.values():
+            assert metric.started_at is not None
+            assert metric.finished_at is not None
+            # completed because we drained
+            assert metric.state == "completed"
+            assert metric.retry_count == 0
+
+        # one table completed
+        completed_job_count = 1
+        new_job_count = 1
+
+    assert len(load_info.load_packages[0].jobs["completed_jobs"]) == completed_job_count
+    assert len(load_info.load_packages[0].jobs["new_jobs"]) == new_job_count
+
+
+@skipifwindows
+@pytest.mark.forked
+def test_ignore_signals_in_load() -> None:
+    os.environ["PIPELINES__SIGNAL_WAITER__RUNTIME__INTERCEPT_SIGNALS"] = "False"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    job_started = False
+
+    @dlt.destination(loader_parallelism_strategy="sequential")
+    def wait_until_signal(item, schema):
+        nonlocal job_started
+
+        signals.sleep(0.2)
+        job_started = True
+
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        # wait for job to run
+        while not job_started:
+            signals.sleep(0.1)
+
+        # sleep before signal to let pool to collect jobs and set metrics
+        signals.sleep(2)
+
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), signals.signal.SIGINT)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise on KeyboardInterrupt - delayed signals disabled
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(dlt.resource([1, 2, 3], name="digits"))
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # must have metrics and package
+    assert pip_ex.value.step == "load"
+    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
+    assert len(load_info.load_packages) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.started_at is not None
+    assert load_info.finished_at is None
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 1
+    for metric in metrics.values():
+        assert metric.started_at is not None
+        assert metric.finished_at is None
+        # killed in the middle
+        assert metric.state == "running"
+        assert metric.retry_count == 0
+    # stop destination
+    signals.set_received_signal(signals.signal.SIGINT)
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT, signals.signal.SIGTERM))
+@pytest.mark.forked
+def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    @dlt.destination
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # should end gracefully
+        load_info = pipeline.run([1, 2, 3], table_name="digits")
+        assert_load_info(load_info)
+
+    # we can nest those freely
+    with signals.intercepted_signals():
+        with signals.intercepted_signals():
+            p = threading.Thread(target=_thread)
+            p.start()
+
+            # wait until pipeline gets into load step
+            while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+                signals.sleep(0.1)
+
+            signals.sleep(1)
+            # send signal to drain pool and stop load
+            os.kill(os.getpid(), sig)
+
+        # must join in context manager
+        p.join()
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
+@pytest.mark.forked
+def test_signal_force_load_step_shutdown(sig: int) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    _done = False
+
+    @dlt.destination
+    def wait_forever(item, schema):
+        # never exit
+        from time import sleep
+
+        # this one does not wake up on signal
+        while not _done:
+            sleep(1)
+
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter", destination=wait_forever(), dataset_name="_data", progress=DictCollector()
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        # wait for load pool to complete at least once
+        signals.sleep(1.5)
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), sig)
+        signals.sleep(0.5)
+        # send to kill
+        os.kill(os.getpid(), sig)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise regular pipeline exception
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([1, 2, 3], table_name="digits")
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # check load info
+    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
+    assert len(load_info.load_packages) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.started_at is not None
+    assert load_info.finished_at is None
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 1
+    for metric in metrics.values():
+        assert metric.started_at is not None
+        assert metric.finished_at is None
+        # killed in the middle
+        assert metric.state == "running"
+        assert metric.retry_count == 0
+
+    # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
+    _done = True
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
+@pytest.mark.forked
+def test_signal_extract_step_shutdown(sig: int) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    _done = False
+
+    @dlt.resource
+    def wait_forever():
+        # never exit
+        from time import sleep
+
+        # this one does not wake up on signal
+        while not _done:
+            sleep(1)
+
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter", destination="dummy", dataset_name="_data", progress=DictCollector()
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into extract step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Extract"):
+            signals.sleep(0.1)
+
+        # extract step does not set signals
+        os.kill(os.getpid(), sig)
+        signals.sleep(0.5)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise regular pipeline exception
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(wait_forever())
+    assert pip_ex.value.step == "extract"
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # check extract info
+    extract_info: ExtractInfo = pip_ex.value.step_info  # type: ignore
+    assert len(extract_info.load_packages) == 1
+    load_id = extract_info.loads_ids[0]
+    assert extract_info.load_packages[0].load_id == load_id
+    # package is always completed
+    assert extract_info.started_at is not None
+    assert extract_info.finished_at is not None
+    # no jobs got collected. running jobs are not included
+    metrics = extract_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 0
+
+    # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
+    _done = True
+
+
+def test_uninitialized_source_factory() -> None:
+    """Test that passing an uncalled source factory preserves resource-level hints such as write_disposition"""
+    data = [
+        {"id": 1, "name": "bulbasaur", "size": {"weight": 6.9, "height": 0.7}},
+        {"id": 4, "name": "charmander", "size": {"weight": 8.5, "height": 0.6}},
+        {"id": 25, "name": "pikachu", "size": {"weight": 6, "height": 0.4}},
+    ]
+
+    @dlt.resource(
+        name="pokemon_resource",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def pokemon() -> TDataItems:
+        yield data
+
+    @dlt.source(name="pokemon_source")
+    def pokemon_source():
+        yield pokemon
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination="duckdb",
+        dataset_name="pokemon_data",
+    )
+
+    pipeline.run(pokemon_source)
+    pipeline.run(pokemon_source)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT * FROM pokemon_resource")
+
+    assert len(rows) == 3
+
+
+def test_pending_package_exception_warning() -> None:
+    partially = False
+    terminally = False
+
+    @dlt.destination
+    def fail_load(item, schema):
+        signals.sleep(0.1)
+
+        # fail one of the resources
+        if partially and terminally and schema["name"] == "letters":
+            raise DestinationTerminalException("load job failed")
+        if partially and schema["name"] == "emojis":
+            return
+
+        raise RuntimeError("load job retry")
+
+    @dlt.resource
+    def fail_extract():
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "fail_at_every_step",
+        destination=fail_load(),
+        dataset_name="_data",
+    )
+    pipeline.config.restore_from_destination = False
+
+    # fail in extract should not generate any warnings: nothing is pending in the pipeline
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(fail_extract())
+
+    assert pip_ex.value.step == "extract"
+    assert "Pending packages" not in str(pip_ex.value)
+    assert "partially loaded" not in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [
+                dlt.resource([1, 2, 3], name="digits"),
+                dlt.resource(["a", "b", "c"], name="letters"),
+                dlt.resource(["🤷", "⭐", "🐬"], name="emojis"),
+            ]
+        )
+
+    # none of the jobs passed so we have pending package but not partial
+    assert pip_ex.value.step == "load"
+    assert "Pending packages" in str(pip_ex.value)
+    assert "partially loaded" not in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is True
+
+    partially = True
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run()
+
+    # some job passed some not, still not aborted
+    assert pip_ex.value.step == "load"
+    assert "Pending packages" in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is True
+    assert pip_ex.value.has_pending_data is True
+
+    terminally = True
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run()
+
+    # one of the job failed and package is aborted. sometimes the other
+    # job completed, sometimes is still pending so we disable pending test
+    assert pip_ex.value.step == "load"
+    # assert "Pending packages" not in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is True
+    # assert pip_ex.value.has_pending_data is False
+
+
+def test_cleanup() -> None:
+    # this must happen after all forked tests (problems with tests teardowns in other tests)
+    pass

@@ -52,7 +52,7 @@ from dlt.extract.items_transform import ItemTransform
 from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
-from dlt.extract.reference import SourceReference
+from dlt.extract.reference import SourceReference, SourceFactory
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
@@ -125,6 +125,11 @@ def data_to_sources(
             # many resources with the same name may be present
             r_ = resources.setdefault(data_item.name, [])
             r_.append(data_item)
+        elif isinstance(data_item, SourceFactory):
+            source = data_item()
+            if schema:
+                source.schema = schema
+            sources.append(source)
         else:
             # iterator/iterable/generator
             # create resource first without table template
@@ -188,6 +193,7 @@ def data_to_sources(
         for resource in source.resources.extracted:
             apply_hint_args(resource)
 
+    # TODO: order source by schema so packages are extracted in order
     return sources
 
 
@@ -400,7 +406,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             delta = left_gens - curr_gens
                             left_gens -= delta
                             collector.update("Resources", delta)
+
+                        # kill extraction if signalled
                         signals.raise_if_signalled()
+
                         resource = source.resources.with_pipe(pipe_item.pipe)
                         item_format = get_data_item_format(pipe_item.item)
                         extractors[item_format].write_items(
@@ -429,10 +438,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             self.gather_metrics(load_id, source)
 
     def gather_metrics(self, load_id: str, source: DltSource) -> None:
-        # gather metrics
-        self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
-        # remove the metrics of files processed in this extract run
         # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+        # so metrics are immutable here and will be appended
+        self._step_info_update_metrics(
+            load_id, self._compute_metrics(load_id, source), immutable=True
+        )
+        self._step_info_complete_load_id(load_id)
+        # remove the metrics of files processed in this extract run
         self.extract_storage.remove_closed_files(load_id)
 
     def extract(
