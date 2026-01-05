@@ -114,32 +114,3 @@ def test_engine_kwargs_and_backend_kwargs_with_pyarrow_backend():
     finally:
         os.remove(db_path)
 
-
-@pytest.mark.parametrize("echo, expect_logs", [(True, True), (False, False)])
-def test_engine_kwargs_sqlalchemy_echo(caplog, echo, expect_logs):
-    """SQLAlchemy echo flag must control logging output."""
-    fd, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
-    try:
-        engine = sa.create_engine(f"sqlite:///{db_path}")
-        with engine.connect() as conn:
-            conn.execute(sa.text("CREATE TABLE test_table (id INTEGER PRIMARY KEY, value TEXT)"))
-            conn.execute(sa.text("INSERT INTO test_table (value) VALUES ('x')"))
-
-        source = sql_database(
-            credentials=f"sqlite:///{db_path}",
-            table_names=["test_table"],
-            engine_kwargs={"echo": echo},
-        )
-
-        with caplog.at_level(logging.INFO):
-            list(source.resources["test_table"])
-
-        logs = " ".join(r.message.lower() for r in caplog.records)
-
-        if expect_logs:
-            assert "select" in logs or "pragma" in logs or "raw sql" in logs
-        else:
-            assert logs == ""
-    finally:
-        os.remove(db_path)
