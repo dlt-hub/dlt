@@ -392,7 +392,12 @@ const sidebars = {
             id: "walkthroughs/run-in-snowflake/index",
           },
           items: [
+<<<<<<< HEAD
             "walkthroughs/run-in-snowflake/application-architecture"
+=======
+            "walkthroughs/run-in-snowflake/run-in-snowflake",
+            "walkthroughs/run-in-snowflake/database-connector-app"
+>>>>>>> c77030a32 (add to sidebar)
           ]
         }
       ]
