@@ -71,7 +71,6 @@ def test_engine_kwargs_timeout_is_honored_sqlite():
             defer_table_reflect=True,
         )
         resource = source.resources["test_table"]
-        start = time.time()
         with pytest.raises(ResourceExtractionError):
             list(resource)
     finally:
