@@ -63,6 +63,14 @@ class bigquery_partition:
 
         return PartitionTransformation(template, column_name)
 
+def _set_column_hint(
+    column_hints: TTableSchemaColumns,
+    column_name: str,
+    hint_key: str,
+    value: Any = True
+) -> None:
+    """Add a hint to a column, initializing the column dict if needed."""
+    column_hints.setdefault(column_name, {"name": column_name})[hint_key] = value  # type: ignore[literal-required]
 
 def bigquery_adapter(
     data: Any,
@@ -141,7 +149,7 @@ def bigquery_adapter(
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
 
         if isinstance(partition, str):
-            column_hints.setdefault(partition, {"name": partition})[PARTITION_HINT] = True  # type: ignore[typeddict-unknown-key]
+            _set_column_hint(column_hints, partition, PARTITION_HINT)
 
         if isinstance(partition, PartitionTransformation):
             partition_hint: Dict[str, str] = {}
@@ -156,7 +164,7 @@ def bigquery_adapter(
                 "`cluster` must be a list of column names or a single column name as a string."
             )
         for column_name in cluster:
-            column_hints.setdefault(column_name, {"name": column_name})[CLUSTER_HINT] = True  # type: ignore[typeddict-unknown-key]
+            _set_column_hint(column_hints, column_name, CLUSTER_HINT)
         additional_table_hints[CLUSTER_COLUMNS_HINT] = cluster
 
     # Implementing rounding logic flags
@@ -169,7 +177,7 @@ def bigquery_adapter(
                 " name."
             )
         for column_name in round_half_away_from_zero:
-            column_hints.setdefault(column_name, {"name": column_name})[ROUND_HALF_AWAY_FROM_ZERO_HINT] = True  # type: ignore[typeddict-unknown-key]
+            _set_column_hint(column_hints, column_name, ROUND_HALF_AWAY_FROM_ZERO_HINT)
 
     if round_half_even:
         if isinstance(round_half_even, str):
@@ -179,7 +187,7 @@ def bigquery_adapter(
                 "`round_half_even` must be a list of column names or a single column name."
             )
         for column_name in round_half_even:
-            column_hints.setdefault(column_name, {"name": column_name})[ROUND_HALF_EVEN_HINT] = True  # type: ignore[typeddict-unknown-key]
+            _set_column_hint(column_hints, column_name, ROUND_HALF_EVEN_HINT)
 
     if round_half_away_from_zero and round_half_even:
         if intersection_columns := set(round_half_away_from_zero).intersection(
