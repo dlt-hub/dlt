@@ -303,7 +303,6 @@ def test_adapter_hints_comprehensive_single_column() -> None:
             "score": 100.0,
         }
 
-    # hints should merge even across multiple adapter calls
     bigquery_adapter(partitioned_table, partition="user_id", cluster="user_id")
     assert partitioned_table.columns == {
         "user_id": {"name": "user_id", PARTITION_HINT: True, CLUSTER_HINT: True},
