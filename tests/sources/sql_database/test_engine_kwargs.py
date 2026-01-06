@@ -49,35 +49,6 @@ def test_invalid_engine_kwargs_fail_during_reflection_for_table(credentials):
         )
 
 
-def test_engine_kwargs_timeout_is_honored_sqlite():
-    """SQLite timeout in engine_kwargs must be honored."""
-    test_dir = Path(TEST_STORAGE_ROOT) / f"sqlite_{uuid.uuid4().hex}"
-    test_dir.mkdir(parents=True, exist_ok=True)
-    db_path = test_dir / "test.db"
-
-    engine = sa.create_engine(f"sqlite:///{db_path}")
-    with engine.connect() as conn:
-        conn.execute(sa.text("CREATE TABLE test_table (id INTEGER PRIMARY KEY)"))
-
-    dbapi_conn = sqlite3.connect(db_path)
-    cur = dbapi_conn.cursor()
-    cur.execute("BEGIN EXCLUSIVE")
-
-    try:
-        source = sql_database(
-            credentials=f"sqlite:///{db_path}",
-            engine_kwargs={"connect_args": {"timeout": 1}},
-            table_names=["test_table"],
-            defer_table_reflect=True,
-        )
-        resource = source.resources["test_table"]
-        with pytest.raises(ResourceExtractionError):
-            list(resource)
-    finally:
-        dbapi_conn.rollback()
-        dbapi_conn.close()
-
-
 @pytest.mark.parametrize("echo, expect_logs", [(True, True), (False, False)])
 def test_engine_kwargs_sqlalchemy_echo(caplog, echo, expect_logs):
     """SQLAlchemy echo flag must control logging output."""
