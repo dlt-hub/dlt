@@ -114,12 +114,8 @@ def _to_mermaid_reference(ref: TTableReferenceStandalone) -> str:
     left_table = ref.get("table")
     right_table = ref.get("referenced_table")
     cardinality = ref.get("cardinality", "one_to_many")
-    label = ref.get("label", '""')
+    label = ref.get("label", "")
     arrow: str = _CARDINALITY_ARROW.get(cardinality).value
 
-    mermaid_reference = f"{left_table} {arrow} {right_table}"
-    if label:
-        mermaid_reference += f" : {label}"
-
-    mermaid_reference += "\n"
+    mermaid_reference = f'{left_table} {arrow} {right_table} : "{label}"\n'
     return mermaid_reference
