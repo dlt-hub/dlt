@@ -179,16 +179,6 @@ def remove_compound_props(
     return columns
 
 
-def remove_empty_columns(columns: TTableSchemaColumns) -> TTableSchemaColumns:
-    """
-    Removes empty name columns.
-    """
-    for col_name in list(columns.keys()):
-        if not col_name:
-            columns.pop(col_name)
-    return columns
-
-
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
     """Removes default values from `column_schema` in place, returns the input for chaining"""
     # remove hints with default values

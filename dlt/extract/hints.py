@@ -629,10 +629,10 @@ class DltResourceHints:
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
         remove_compound_props(partial["columns"], {hint})
+        if not keys:
+            return
         if isinstance(keys, str):
             keys = [keys]
-        elif len(keys) == 0:
-            keys = [""]
         for key in keys:
             if key in partial["columns"]:
                 # set nullable to False if not set

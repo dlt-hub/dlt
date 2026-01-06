@@ -1771,9 +1771,7 @@ def test_apply_hints() -> None:
         "primary_key": [],
     }
     empty_keys_table_schema = empty_table_schema
-    empty_keys_table_schema["columns"] = {
-        "": {"merge_key": True, "name": "", "nullable": False, "primary_key": True}
-    }
+    empty_keys_table_schema["columns"] = {}
     table = empty_r.compute_table_schema()
     assert table == empty_keys_table_schema
 
@@ -1976,7 +1974,7 @@ def test_apply_hints_table_variants() -> None:
     table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
     assert table_b["name"] == "table_b"
     assert table_b["write_disposition"] == "merge"
-    assert table_b["columns"] == {"": {"name": "", "nullable": False, "primary_key": True}}
+    assert table_b["columns"] == {}
 
     # dyn hints not allowed
     with pytest.raises(InconsistentTableTemplate):
