@@ -460,6 +460,8 @@ erDiagram
     _dlt_pipeline_state }|--|| _dlt_loads : "_dlt_load"
     purchases__items }|--|| purchases : "_dlt_parent"
     purchases__items }|--|| purchases : "_dlt_root"
+    _dlt_version ||--|{ _dlt_loads : "_dlt_schema_version"
+    _dlt_version }|--|{ _dlt_loads : "_dlt_schema_name"
 """
     schema_dict = example_schema.to_dict(remove_processing_hints=remove_process_hints)
     mermaid_str = schema_to_mermaid(
@@ -532,6 +534,8 @@ erDiagram
     _dlt_pipeline_state }|--|| _dlt_loads : "_dlt_load"
     purchases__items }|--|| purchases : "_dlt_parent"
     purchases__items }|--|| purchases : "_dlt_root"
+    _dlt_version ||--|{ _dlt_loads : "_dlt_schema_version"
+    _dlt_version }|--|{ _dlt_loads : "_dlt_schema_name"
 """
 
     schema_dict = example_schema.to_dict()
