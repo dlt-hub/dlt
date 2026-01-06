@@ -277,6 +277,8 @@ class Extractor:
                 diff_table = utils.diff_table(self.schema.name, existing_table, computed_table)
             else:
                 diff_table = computed_table
+                # In case of a new table is passed with empty value compound hints
+                utils.remove_empty_columns(diff_table["columns"])
 
             # apply contracts
             diff_table, filters = self.schema.apply_schema_contract(

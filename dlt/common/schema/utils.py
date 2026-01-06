@@ -499,7 +499,6 @@ def merge_columns(
             column_b = merge_column(column_a, column_b)
         # set new or updated column
         columns_a[col_name] = column_b
-    remove_empty_columns(columns=columns_a)
     return columns_a
 
 

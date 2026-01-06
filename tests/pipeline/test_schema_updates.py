@@ -1,3 +1,4 @@
+from typing import Union
 import os
 import pytest
 
@@ -152,3 +153,218 @@ def test_changing_merge_key_between_runs(key_hint: str) -> None:
     assert not p.default_schema.tables["my_resource"]["columns"]["id"].get(key_hint)
     assert not p.default_schema.tables["my_resource"]["columns"]["other_id"].get(key_hint)
 
+
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_redef"])
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+def test_key_replaces_column_hints(key_hint: str, with_apply_hints: bool) -> None:
+    """Ensure that key hints on table level take precedence over hints on column level."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name="test_changing_merge_key_between_runs", destination="dummy")
+
+    if with_apply_hints:
+
+        @dlt.resource
+        def get_resource():
+            yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+        my_resource = get_resource().apply_hints(
+            columns={"other_id": {key_hint: True}}, **{key_hint: ["id"]}  # type: ignore
+        )
+    else:
+
+        @dlt.resource(columns={"other_id": {key_hint: True}}, **{key_hint: ["id"]})  # type: ignore
+        def get_resource():
+            yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+        my_resource = get_resource()
+
+    # Initially hints are set as is: "other_id" receives key hint
+    assert my_resource.columns == {"other_id": {key_hint: True, "name": "other_id"}}
+    assert my_resource._hints["columns"] == my_resource.columns
+    assert my_resource._hints[key_hint] == ["id"]  # type: ignore
+
+    # Table level key hint takes precedence in _merge_keys: "other_id" no longer key
+    table_schema = my_resource.compute_table_schema()
+    assert table_schema["columns"] == {
+        "other_id": {"name": "other_id"},
+        "id": {"name": "id", "nullable": False, key_hint: True},
+    }
+
+    p.extract(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"] == table_schema["columns"]
+
+
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_redef"])
+@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+def test_empty_value_as_key(
+    key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
+) -> None:
+    """Ensure that empty value key hints aren't propagated through the pipeline."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name="test_empty_key_replaces_column_hints", destination="dummy")
+
+    if with_apply_hints:
+
+        @dlt.resource
+        def get_resource():
+            yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+        my_resource = get_resource().apply_hints(**{key_hint: empty_value})  # type: ignore
+    else:
+
+        @dlt.resource(**{key_hint: empty_value})  # type: ignore[call-overload]
+        def get_resource():
+            yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+        my_resource = get_resource()
+
+    # Initially hints are set as is: empty_value as key hint
+    assert my_resource.columns == {}
+    assert my_resource._hints["columns"] == my_resource.columns
+    assert my_resource._hints[key_hint] == empty_value  # type: ignore
+
+    # Empty value key hint is propagated to extract
+    # in case table exists and empty value key is used to replace previous hints
+    table_schema = my_resource.compute_table_schema()
+    assert table_schema["columns"] == {"": {"name": "", "nullable": False, key_hint: True}}
+
+    # Empty value key hint should not survive extract
+    p.extract(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"] == {}
+
+
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_redef"])
+@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+def test_empty_value_as_key_replace_column_hints(
+    key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
+) -> None:
+    """Ensure that empty value key hints on table level take precedence over hints on column level."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(
+        pipeline_name="test_empty_value_as_key_replace_column_hints", destination="dummy"
+    )
+
+    if with_apply_hints:
+
+        @dlt.resource
+        def get_resource():
+            yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+        my_resource = get_resource().apply_hints(
+            columns={"other_id": {key_hint: True}}, **{key_hint: empty_value}  # type: ignore
+        )
+    else:
+
+        @dlt.resource(columns={"other_id": {key_hint: True}}, **{key_hint: empty_value})  # type: ignore[call-overload]
+        def get_resource():
+            yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+        my_resource = get_resource()
+
+    # Initially hints are set as is: "other_id" receives key hint
+    assert my_resource.columns == {"other_id": {key_hint: True, "name": "other_id"}}
+    assert my_resource._hints["columns"] == my_resource.columns
+    assert my_resource._hints[key_hint] == empty_value  # type: ignore
+
+    # Table level key hint takes precedence in _merge_keys: "other_id" no longer key
+    # Empty value key hint is propagated to extract
+    # in case table exists and empty value key is used to replace previous hints
+    table_schema = my_resource.compute_table_schema()
+    assert table_schema["columns"] == {
+        "other_id": {"name": "other_id"},
+        "": {"name": "", "nullable": False, key_hint: True},
+    }
+
+    p.extract(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"] == {
+        "other_id": {"name": "other_id"},
+    }
+
+
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_redef"])
+@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+def test_empty_value_as_key_replaces_previous_key(
+    key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
+) -> None:
+    """Ensure that empty value key hint on an existing resource removes key hints."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(
+        pipeline_name="test_empty_value_as_key_replaces_previous_key", destination="dummy"
+    )
+
+    # Initially "id" is set as key
+    @dlt.resource(**{key_hint: "id"})  # type: ignore[call-overload]
+    def get_resource():
+        yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+    my_resource = get_resource()
+    assert my_resource.columns == {}
+    assert my_resource._hints["columns"] == my_resource.columns
+    assert my_resource._hints[key_hint] == "id"
+
+    p.run(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"] == {
+        "id": {"name": "id", "nullable": False, key_hint: True, "data_type": "bigint"},
+        "other_id": {"name": "other_id", "data_type": "bigint", "nullable": True},
+        "name": {"name": "name", "data_type": "text", "nullable": True},
+        "age": {"name": "age", "data_type": "bigint", "nullable": True},
+        "_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
+        "_dlt_id": {
+            "name": "_dlt_id",
+            "data_type": "text",
+            "nullable": False,
+            "unique": True,
+            "row_key": True,
+        },
+    }
+
+    # We remove the key with empty_value
+    if with_apply_hints:
+        my_resource.apply_hints(**{key_hint: empty_value})
+
+    else:
+
+        @dlt.resource(**{key_hint: empty_value})  # type: ignore[call-overload]
+        def get_resource():
+            yield {"id": 1, "other_id": 2, "name": "Bob", "age": 32}
+
+        my_resource = get_resource()
+
+    assert my_resource.columns == {}
+    assert my_resource._hints["columns"] == my_resource.columns
+    assert my_resource._hints[key_hint] == empty_value
+
+    # Empty value key hint is propagated to extract so that it can be used to replace previous hints
+    table_schema = my_resource.compute_table_schema()
+    assert table_schema["columns"] == {"": {"name": "", "nullable": False, key_hint: True}}
+
+    p.extract(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"] == {
+        "id": {"name": "id", "nullable": False, "data_type": "bigint"},  # key hint removed
+        "other_id": {"name": "other_id", "data_type": "bigint", "nullable": True},
+        "name": {"name": "name", "data_type": "text", "nullable": True},
+        "age": {"name": "age", "data_type": "bigint", "nullable": True},
+        "_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
+        "_dlt_id": {
+            "name": "_dlt_id",
+            "data_type": "text",
+            "nullable": False,
+            "unique": True,
+            "row_key": True,
+        },
+    }
