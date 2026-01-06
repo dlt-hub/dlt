@@ -336,6 +336,13 @@ SELECT 1
     def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
         return "", f"LIMIT {limit}"
 
+    def _make_create_table(
+        self, qualified_name: str, or_replace: bool = False, if_not_exists: bool = False
+    ) -> str:
+        or_replace_sql = "OR REPLACE " if or_replace else ""
+        if_not_exists_sql = "IF NOT EXISTS " if if_not_exists else ""
+        return f"CREATE {or_replace_sql}TABLE {if_not_exists_sql}{qualified_name}"
+
 
 class WithSqlClient(ABC):
     @property

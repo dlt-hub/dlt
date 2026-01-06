@@ -687,13 +687,11 @@ WHERE """
 
     def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
         """Begins CREATE TABLE statement"""
-        not_exists_clause = " "
-        if (
+        if_not_exists = (
             table["name"] in self.schema.dlt_table_names()
             and self.capabilities.supports_create_table_if_not_exists
-        ):
-            not_exists_clause = " IF NOT EXISTS "
-        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
+        )
+        return self.sql_client._make_create_table(qualified_name, if_not_exists=if_not_exists)
 
     @staticmethod
     def _make_alter_table(qualified_name: str) -> str:

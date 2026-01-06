@@ -77,7 +77,13 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
         # regular table because Athena does not support temporary tables
         return f"CREATE TABLE {temp_table_name} AS {select_sql}"
 

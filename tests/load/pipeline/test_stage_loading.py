@@ -300,11 +300,12 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         )
         allow_base64_binary = (
             destination_config.file_format == "jsonl"
-            and destination_config.destination_type in ["redshift", "clickhouse"]
+            and destination_config.destination_type
+            in ["redshift", "clickhouse", "clickhouse_cluster"]
         )
         allow_string_binary = (
             destination_config.file_format == "parquet"
-            and destination_config.destination_type in ["clickhouse"]
+            and destination_config.destination_type in ["clickhouse", "clickhouse_cluster"]
         )
         # content must equal
         assert_all_data_types_row(

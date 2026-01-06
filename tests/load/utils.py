@@ -378,7 +378,15 @@ def destinations_configs(
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
             if destination
-            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake")
+            not in (
+                "athena",
+                "synapse",
+                "dremio",
+                "clickhouse",
+                "clickhouse_cluster",
+                "sqlalchemy",
+                "ducklake",
+            )
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
@@ -433,7 +441,10 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination_type="clickhouse", file_format="jsonl", supports_dbt=False
-            )
+            ),
+            DestinationTestConfiguration(
+                destination_type="clickhouse_cluster", file_format="jsonl", supports_dbt=False
+            ),
         ]
 
         destination_configs += [
@@ -593,6 +604,20 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination_type="clickhouse_cluster",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination_type="clickhouse_cluster",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
             ),
         ]
 
@@ -1286,6 +1311,7 @@ def table_update_and_row_for_destination(destination_config: DestinationTestConf
         "athena",
         "databricks",
         "clickhouse",
+        "clickhouse_cluster",
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")

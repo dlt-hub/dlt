@@ -1329,7 +1329,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         additional_tables = []
 
         # clickhouse has no datasets, but table prefixes and a sentinel table
-        if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
+        if populated_pipeline.destination.destination_type in (
+            "dlt.destinations.clickhouse",
+            "dlt.destinations.clickhouse_cluster",
+        ):
             table_like_statement = dataset_name + "."
             table_name_prefix = dataset_name + "___"
             dataset_name = None

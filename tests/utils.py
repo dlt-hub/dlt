@@ -71,6 +71,7 @@ IMPLEMENTED_DESTINATIONS = {
     "synapse",
     "databricks",
     "clickhouse",
+    "clickhouse_cluster",
     "dremio",
     "sqlalchemy",
     "ducklake",

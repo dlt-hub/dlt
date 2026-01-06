@@ -638,6 +638,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         "synapse",
         "databricks",
         "clickhouse",
+        "clickhouse_cluster",
     ]:
         datetime_data.pop("col11")
         datetime_data.pop("col11_null")
@@ -717,7 +718,8 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             schema=columns_schema,
             parse_json_strings=destination_config.destination_type
             in ["snowflake", "bigquery", "redshift"],
-            allow_string_binary=destination_config.destination_type == "clickhouse",
+            allow_string_binary=destination_config.destination_type
+            in ("clickhouse", "clickhouse_cluster"),
         )
 
 

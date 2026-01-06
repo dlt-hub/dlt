@@ -181,11 +181,15 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
-        return (
-            f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
-            f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
-        )
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
+        create_table_sql = sql_client._make_create_table(temp_table_name, or_replace=True)
+        return f"{create_table_sql} ENGINE = MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
 
     @classmethod
     def gen_key_table_clauses(
@@ -216,10 +220,26 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         config: ClickHouseClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        sql_client = self._create_sql_client(schema, config, capabilities)
+        super().__init__(schema, config, sql_client)
+        self.config: ClickHouseClientConfiguration = config
+        self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
+        self.type_mapper = self.capabilities.get_type_mapper()
+
+    @property
+    def sql_client_class(self) -> type[ClickHouseSqlClient]:
+        return ClickHouseSqlClient
+
+    def _create_sql_client(
+        self,
+        schema: Schema,
+        config: ClickHouseClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> ClickHouseSqlClient:
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
-        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
+        return self.sql_client_class(
             dataset_name,
             staging_dataset_name,
             list(schema.tables.keys()),
@@ -227,10 +247,6 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             capabilities,
             config,
         )
-        super().__init__(schema, config, self.sql_client)
-        self.config: ClickHouseClientConfiguration = config
-        self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
-        self.type_mapper = self.capabilities.get_type_mapper()
 
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
