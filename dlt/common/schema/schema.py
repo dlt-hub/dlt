@@ -660,6 +660,19 @@ class Schema:
 
                 all_references.append(cast(TTableReferenceStandalone, top_level_ref))
 
+        # internal references with `_dlt_version` need to be extracted once
+        try:
+            version_table_hash_ref = utils.create_version_and_loads_hash_reference(
+                self.tables, naming=self.naming
+            )
+            version_table_schema_name_ref = utils.create_version_and_loads_schema_name_reference(
+                self.tables, naming=self.naming
+            )
+            all_references.append(cast(TTableReferenceStandalone, version_table_hash_ref))
+            all_references.append(cast(TTableReferenceStandalone, version_table_schema_name_ref))
+        except ValueError:
+            pass
+
         return all_references
 
     @property

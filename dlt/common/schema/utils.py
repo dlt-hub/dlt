@@ -25,6 +25,8 @@ from dlt.common.schema.typing import (
     C_CHILD_PARENT_REF_LABEL,
     C_DESCENDANT_ROOT_REF_LABEL,
     C_ROOT_LOAD_REF_LABEL,
+    C_VERSION_SCHEMA_NAME_LABEL,
+    C_VERSION_SCHEMA_VERSION_LABEL,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
@@ -1116,7 +1118,7 @@ def create_version_and_loads_hash_reference(
         raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
 
     return TTableReference(
-        label="_dlt_schema_version",
+        label=C_VERSION_SCHEMA_VERSION_LABEL,
         cardinality="one_to_many",
         table=version_table_name,
         columns=[naming.normalize_identifier("version_hash")],
@@ -1142,7 +1144,7 @@ def create_version_and_loads_schema_name_reference(
         raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
 
     return TTableReference(
-        label="_dlt_schema_name",
+        label=C_VERSION_SCHEMA_NAME_LABEL,
         cardinality="many_to_many",
         table=version_table_name,
         columns=[naming.normalize_identifier("schema_name")],
