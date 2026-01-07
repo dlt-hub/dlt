@@ -17,6 +17,7 @@ from typing import (
     ContextManager,
     Union,
     TYPE_CHECKING,
+    Dict,
 )
 
 import dlt
@@ -452,9 +453,8 @@ class Pipeline(SupportsPipeline):
         )
         try:
             with self._maybe_destination_capabilities():
-                # track schemas as we extract all sources to attach state to each unique schema's package
-                prev_schema: Union[Schema, None] = None
-
+                # unique schemas as we extract all sources
+                extracted_schemas: Dict[str, Schema] = {}
                 for source in data_to_sources(
                     data,
                     self,
@@ -471,14 +471,6 @@ class Pipeline(SupportsPipeline):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
 
-                    if prev_schema and source.schema.name != prev_schema.name:
-                        self._bump_version_and_extract_state(
-                            self._container[StateInjectableContext].state,
-                            self.config.restore_from_destination,
-                            extract_step,
-                            schema=prev_schema,
-                        )
-
                     self._extract_source(
                         extract_step,
                         source,
@@ -487,14 +479,18 @@ class Pipeline(SupportsPipeline):
                         refresh=refresh or self.refresh,
                     )
 
-                    prev_schema = source.schema
+                    extracted_schemas[source.schema.name] = source.schema
 
-                if prev_schema:
+                for i, s in enumerate(extracted_schemas.values()):
+                    if not self.config.use_single_dataset and s.name != self.default_schema_name:
+                        continue
+                    last_extraction = i + 1 == len(extracted_schemas)
                     self._bump_version_and_extract_state(
                         self._container[StateInjectableContext].state,
                         self.config.restore_from_destination,
                         extract_step,
-                        schema=prev_schema,
+                        schema=s,
+                        mark_extracted=last_extraction,
                     )
                 # commit load packages with state
                 extract_step.commit_packages()
@@ -1788,6 +1784,7 @@ class Pipeline(SupportsPipeline):
         extract: Extract = None,
         load_package_state_update: Optional[TLoadPackageState] = None,
         schema: Optional[Schema] = None,
+        mark_extracted: bool = True,
     ) -> None:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
 
@@ -1819,7 +1816,8 @@ class Pipeline(SupportsPipeline):
                 load_package_state_update=load_package_state_update,
             )
             # set state to be extracted
-            mark_state_extracted(state, hash_)
+            if mark_extracted:
+                mark_state_extracted(state, hash_)
             # commit only if we created storage
             if not extract:
                 extract_.commit_packages()

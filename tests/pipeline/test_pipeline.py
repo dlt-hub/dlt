@@ -736,6 +736,7 @@ def test_state_extracted_once_for_same_schema_multiple_sources() -> None:
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = True
+    p.config.use_single_dataset = False
     p.extract([s1, s2])
     storage = ExtractStorage(p._normalize_storage_config())
 
@@ -3318,7 +3319,6 @@ def test_resource_transformer_standalone() -> None:
         [DltSource(schema, "", [gen_pages]), DltSource(schema, "", [gen_pages | get_subpages])],
         dataset_name="new_dataset",
     )
-    # both sources share the same schema, so they extract into a single load package
     assert_load_info(info, 1)
     # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
     assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
