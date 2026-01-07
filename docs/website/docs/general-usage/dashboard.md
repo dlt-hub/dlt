@@ -9,7 +9,7 @@ keywords: [pipeline, schema, data, inspect]
 Once you have run a pipeline locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the Marimo Python notebook framework. For this to work, you will need to have the `dlt[workspace]` package installed.
 
 :::tip
-The pipeline dashboard app works with all destinations that are supported by our dataset. Vector databases are generally unsupported at this point; however, you can still inspect metadata such as run traces, schemas, and pipeline state.
+The dashboard works with all destinations that are supported by [dataset interface](dataset-access/dataset.md). Vector databases are not supported at this moment. However, you can still inspect metadata such as run traces, schemas, and pipeline state.
 :::
 
 ## Features
