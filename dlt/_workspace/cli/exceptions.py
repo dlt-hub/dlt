@@ -33,7 +33,7 @@ class PipelineWasNotRun(CliCommandInnerException):
         super().__init__("deploy", msg, None)
 
 
-class VibeSourceNotFound(DltException):
+class ScaffoldSourceNotFound(DltException):
     def __init__(self, msg: str, source_name: str) -> None:
         self.source_name = source_name
         super().__init__(msg)

@@ -657,7 +657,7 @@ def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: Fil
 
     assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
     assert f"adding {ide_choice} rules, code snippets and docs" in _out
-    assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
+    assert "file(s) supporting github were copied:\ngithub.md\ngithub-docs.yaml\n" in _out
 
 
 def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
