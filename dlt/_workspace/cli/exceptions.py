@@ -38,6 +38,7 @@ class VibeSourceNotFound(DltException):
         self.source_name = source_name
         super().__init__(msg)
 
+
 class ScaffoldApiError(DltException):
     def __init__(self, msg: str, source_name: str = None) -> None:
         self.source_name = source_name

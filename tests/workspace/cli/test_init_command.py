@@ -51,10 +51,8 @@ from dlt._workspace.cli._pipeline_files import TSourceType
 from tests.workspace.cli.utils import (
     auto_echo_default_choice,
     repo_dir,
-    vibe_repo_dir,
     workspace_files,
     cloned_init_repo,
-    cloned_init_vibe_repo,
     get_repo_dir,
     get_workspace_files,
 )
@@ -650,13 +648,11 @@ def test_incompatible_dlt_version_warning(repo_dir: str, workspace_files: FileSt
     "ide_choice",
     SUPPORTED_IDES,
 )
-def test_init_vibe_source_editor_choice_ux(
-    ide_choice: str, vibe_repo_dir: str, workspace_files: FileStorage
-) -> None:
+def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: FileStorage) -> None:
     # Second yes/no prompt also receives the ide_choice, but it doesn't matter
     with echo.always_choose(False, ide_choice):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _init_command.init_command("dlthub:github", "duckdb", vibe_repo_dir)
+            _init_command.init_command("dlthub:github", "duckdb", DEFAULT_VERIFIED_SOURCES_REPO)
             _out = buf.getvalue()
 
     assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
@@ -664,9 +660,8 @@ def test_init_vibe_source_editor_choice_ux(
     assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
 
 
-def test_init_all_vibe_sources_together(vibe_repo_dir: str, workspace_files: FileStorage) -> None:
-    # we test 20 hardcoded sources, use this to get all sources instead
-    # vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
+def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
+    # we test 20 hardcoded sources
     random_vibez = [
         "news_api",
         "alpaca",
@@ -691,7 +686,9 @@ def test_init_all_vibe_sources_together(vibe_repo_dir: str, workspace_files: Fil
     ]
 
     for source_name in random_vibez:
-        _init_command.init_command(f"dlthub:{source_name}", "bigquery", vibe_repo_dir)
+        _init_command.init_command(
+            f"dlthub:{source_name}", "bigquery", DEFAULT_VERIFIED_SOURCES_REPO
+        )
         # all must install correctly
         _, secrets = assert_source_files(
             workspace_files, source_name, "bigquery", has_source_section=True, is_vibe_source=True

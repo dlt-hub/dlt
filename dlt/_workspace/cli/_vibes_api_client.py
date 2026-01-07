@@ -38,18 +38,20 @@ def _get_vibe_files(source_name: str) -> dict[str, str]:
             return data.get("files", {})
         else:
             raise ScaffoldApiError(
-                f"API returned status {response.status_code}: {response.text}",
-                source_name
+                f"API returned status {response.status_code}: {response.text}", source_name
             )
     except requests.RequestException as e:
-        raise ScaffoldApiError(f"There was an error connecting to the scaffold-api: {str(e)}", source_name)
+        raise ScaffoldApiError(
+            f"There was an error connecting to the scaffold-api: {str(e)}", source_name
+        )
     except ValueError as e:
         raise ScaffoldApiError(f"Invalid JSON response from scaffold-api: {str(e)}", source_name)
 
 
 def get_vibe_files_storage(source_name: str) -> Optional[FileStorage]:
     """
-    Fetch vibe content for a given source and return it as a FileStorage object.
+    Fetch vibe content for a given source and return it as a FileStorage object in a temporary
+    directory.
 
     Args:
         source_name: Name of the source to fetch content for
@@ -76,4 +78,3 @@ def get_vibe_files_storage(source_name: str) -> Optional[FileStorage]:
         storage.save(filename, content)
 
     return storage
-
