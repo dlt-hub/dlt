@@ -629,10 +629,10 @@ def test_disable_enable_state_sync(environment: Any) -> None:
         expect_extracted_file(storage, "default", s.schema.state_table_name, "")
 
     p.config.restore_from_destination = True
-    # extract to different schema, state must go to default schema
+    # extract to different schema, state must go to the corresponding schema
     s = DltSource(dlt.Schema("default_2"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
-    expect_extracted_file(storage, "default", s.schema.state_table_name, "***")
+    expect_extracted_file(storage, "default_2", s.schema.state_table_name, "***")
 
 
 def test_extract_multiple_sources() -> None:
@@ -725,6 +725,83 @@ def test_extract_sources_ordered_by_schema_name(
     )
 
     assert [source.schema.name for source in actual_order] == expected_order
+
+
+def test_state_extracted_once_for_same_schema_multiple_sources() -> None:
+    """When multiple sources share the same schema, state should be extracted only once"""
+
+    schema = dlt.Schema("shared_schema")
+    s1 = DltSource(schema, "module", [dlt.resource([1, 2, 3], name="resource_1")])
+    s2 = DltSource(schema, "module", [dlt.resource([4, 5, 6], name="resource_2")])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.extract([s1, s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    # both resources in same package
+    expect_extracted_file(storage, "shared_schema", "resource_1", json.dumps([1, 2, 3]))
+    expect_extracted_file(storage, "shared_schema", "resource_2", json.dumps([4, 5, 6]))
+
+    # state extracted exactly once
+    state_table = schema.state_table_name
+    expect_extracted_file(storage, "shared_schema", state_table, "***")
+
+    # only 1 state file exists
+    state_files = [f for f in storage.list_files_to_normalize_sorted() if state_table in f]
+    assert len(state_files) == 1
+
+
+def test_state_extracted_per_schema_for_multiple_schemas() -> None:
+    """When sources have different schemas, state should be extracted once per schema"""
+
+    schema_a = dlt.Schema("schema_a")
+    schema_b = dlt.Schema("schema_b")
+    schema_c = dlt.Schema("schema_c")
+
+    s1 = DltSource(schema_a, "module", [dlt.resource([1, 2, 3], name="resource_1")])
+    s2 = DltSource(schema_b, "module", [dlt.resource([4, 5, 6], name="resource_2")])
+    s3 = DltSource(schema_c, "module", [dlt.resource([7, 8, 9], name="resource_3")])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    # each schema has state
+    expect_extracted_file(storage, "schema_a", schema_a.state_table_name, "***")
+    expect_extracted_file(storage, "schema_b", schema_b.state_table_name, "***")
+    expect_extracted_file(storage, "schema_c", schema_c.state_table_name, "***")
+
+    # exactly 3 state files exist
+    all_files = storage.list_files_to_normalize_sorted()
+    state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
+    assert len(state_files) == 3
+
+
+def test_state_extraction_mixed_schemas() -> None:
+    """Test state extraction when some sources share schema and others don't"""
+
+    shared = dlt.Schema("shared")
+    unique = dlt.Schema("unique")
+
+    s1 = DltSource(shared, "module", [dlt.resource([1, 2, 3], name="resource_1")])
+    s2 = DltSource(shared, "module", [dlt.resource([4, 5, 6], name="resource_2")])
+    s3 = DltSource(unique, "module", [dlt.resource([7, 8, 9], name="resource_3")])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    # two schemas should have state
+    expect_extracted_file(storage, "shared", shared.state_table_name, "***")
+    expect_extracted_file(storage, "unique", unique.state_table_name, "***")
+
+    # exactly 2 state files exist
+    all_files = storage.list_files_to_normalize_sorted()
+    state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
+    assert len(state_files) == 2
 
 
 @pytest.mark.parametrize(
@@ -3241,7 +3318,8 @@ def test_resource_transformer_standalone() -> None:
         [DltSource(schema, "", [gen_pages]), DltSource(schema, "", [gen_pages | get_subpages])],
         dataset_name="new_dataset",
     )
-    assert_load_info(info, 2)
+    # both sources share the same schema, so they extract into a single load package
+    assert_load_info(info, 1)
     # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
     assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
 

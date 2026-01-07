@@ -452,7 +452,9 @@ class Pipeline(SupportsPipeline):
         )
         try:
             with self._maybe_destination_capabilities():
-                # extract all sources
+                # track schemas as we extract all sources to attach state to each unique schema's package
+                prev_schema: Union[Schema, None] = None
+
                 for source in data_to_sources(
                     data,
                     self,
@@ -469,6 +471,14 @@ class Pipeline(SupportsPipeline):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
 
+                    if prev_schema and source.schema.name != prev_schema.name:
+                        self._bump_version_and_extract_state(
+                            self._container[StateInjectableContext].state,
+                            self.config.restore_from_destination,
+                            extract_step,
+                            schema=prev_schema,
+                        )
+
                     self._extract_source(
                         extract_step,
                         source,
@@ -477,12 +487,15 @@ class Pipeline(SupportsPipeline):
                         refresh=refresh or self.refresh,
                     )
 
-                # this will update state version hash so it will not be extracted again by with_state_sync
-                self._bump_version_and_extract_state(
-                    self._container[StateInjectableContext].state,
-                    self.config.restore_from_destination,
-                    extract_step,
-                )
+                    prev_schema = source.schema
+
+                if prev_schema:
+                    self._bump_version_and_extract_state(
+                        self._container[StateInjectableContext].state,
+                        self.config.restore_from_destination,
+                        extract_step,
+                        schema=prev_schema,
+                    )
                 # commit load packages with state
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
