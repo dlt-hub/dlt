@@ -1,7 +1,7 @@
 import io
 import pytest
 import time
-from typing import Iterator
+from typing import Iterator, Any
 
 from dlt.common import pendulum, json
 from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
@@ -40,7 +40,12 @@ from dlt.common.data_writers.writers import (
 
 from tests.common.utils import load_json_case, row_to_column_schemas
 
-ALL_LITERAL_ESCAPE = [escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal, escape_bigquery_literal]
+ALL_LITERAL_ESCAPE = [
+    escape_redshift_literal,
+    escape_postgres_literal,
+    escape_duckdb_literal,
+    escape_bigquery_literal,
+]
 
 
 class _StringIOWriter(DataWriter):
@@ -177,23 +182,53 @@ def test_string_literal_escape_unicode() -> None:
     )
 
 
-def test_string_literal_escape_bigquery() -> None:
-    # BigQuery uses backslash-escaped single quotes
-    assert escape_bigquery_literal(", NULL'); DROP TABLE --") == "', NULL\\'); DROP TABLE --'"
-    assert escape_bigquery_literal(", NULL');\n DROP TABLE --") == "', NULL\\');\\n DROP TABLE --'"
-    # test control characters
-    assert escape_bigquery_literal("hello\tworld") == "'hello\\tworld'"
-    assert escape_bigquery_literal("bell\a") == "'bell\\a'"
-    assert escape_bigquery_literal("vertical\vtab") == "'vertical\\vtab'"
-    assert escape_bigquery_literal("form\ffeed") == "'form\\ffeed'"
-    assert escape_bigquery_literal("back\bspace") == "'back\\bspace'"
-    # test backslash escaping
-    assert escape_bigquery_literal("path\\to\\file") == "'path\\\\to\\\\file'"
-    # test unicode passthrough
-    assert (
-        escape_bigquery_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム")
-        == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"
-    )
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (", NULL'); DROP TABLE --", "', NULL\\'); DROP TABLE --'"),
+        ("", "''"),
+        ("hello\tworld", "'hello\\tworld'"),
+        ("bell\a", "'bell\\a'"),
+        ("path\\to\\file", "'path\\\\to\\\\file'"),
+        (b"hello", "FROM_BASE64('aGVsbG8=')"),
+        (b"\x00\x01\x02", "FROM_BASE64('AAEC')"),
+        (pendulum.datetime(2023, 1, 15, 12, 30, 45), "'2023-01-15T12:30:45+00:00'"),
+        (pendulum.date(2023, 1, 15), "'2023-01-15'"),
+        (
+            {"key": "value", "nested": {"inner": "data"}},
+            '\'{"key":"value","nested":{"inner":"data"}}\'',
+        ),
+        ([1, 2, 3, "four"], "'[1,2,3,\"four\"]'"),
+        (True, "TRUE"),
+        (False, "FALSE"),
+        (None, "NULL"),
+        (
+            "イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム",
+            "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'",
+        ),
+    ],
+    ids=[
+        "sql_injection_attempt",
+        "empty_string",
+        "tab_char",
+        "bell_char",
+        "backslash_path",
+        "bytes_simple",
+        "bytes_binary",
+        "datetime",
+        "date",
+        "dict_json",
+        "list_json",
+        "bool_true",
+        "bool_false",
+        "null",
+        "unicode_japanese",
+    ],
+)
+def test_bigquery_literal_escape(value: Any, expected: str) -> None:
+    """Test escape_bigquery_literal with various datatypes."""
+    result = escape_bigquery_literal(value)
+    assert result == expected
 
 
 def test_escape_bigquery_identifier() -> None:
