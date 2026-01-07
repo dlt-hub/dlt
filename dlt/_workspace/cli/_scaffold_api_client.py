@@ -69,18 +69,13 @@ def get_scaffold_files_storage(source_name: str) -> Optional[FileStorage]:
         ScaffoldSourceNotFound: If the source doesn't exist (404)
         ScaffoldApiError: If there's an error connecting to the API
     """
-    files_dict = _get_scaffold_files(source_name)
-    if not files_dict:
-        return None
+    scaffold_files_dict = _get_scaffold_files(source_name)
 
-    # Create a temporary directory for the FileStorage
     temp_dir = tempfile.mkdtemp(prefix=f"scaffold_{source_name}_")
 
-    # Create FileStorage pointing to the temp directory
     storage = FileStorage(temp_dir, makedirs=True)
 
-    # Save each file from the dict to the storage
-    for filename, content in files_dict.items():
+    for filename, content in scaffold_files_dict.items():
         storage.save(filename, content)
 
     return storage
