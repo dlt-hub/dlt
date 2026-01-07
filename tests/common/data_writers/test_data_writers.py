@@ -40,7 +40,7 @@ from dlt.common.data_writers.writers import (
 
 from tests.common.utils import load_json_case, row_to_column_schemas
 
-ALL_LITERAL_ESCAPE = [escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal]
+ALL_LITERAL_ESCAPE = [escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal, escape_bigquery_literal]
 
 
 class _StringIOWriter(DataWriter):
