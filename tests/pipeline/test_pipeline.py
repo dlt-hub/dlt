@@ -53,7 +53,7 @@ from dlt.extract.exceptions import (
     ResourceExtractionError,
     SourceExhausted,
 )
-from dlt.extract.extract import ExtractStorage
+from dlt.extract.extract import ExtractStorage, data_to_sources
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
@@ -682,6 +682,49 @@ def test_extract_multiple_sources() -> None:
     # pipeline state is successfully rollbacked after the last extract and default_3 and 4 schemas are not present
     assert set(p.schema_names) == {"default", "default_2"}
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
+
+
+@pytest.mark.parametrize(
+    ("initial_order", "expected_order"),
+    [
+        (
+            ["A", "A", "B", "B", "C"],
+            ["A", "A", "B", "B", "C"],
+        ),
+        (
+            ["C", "C", "B", "B", "A"],
+            ["A", "B", "B", "C", "C"],
+        ),
+        (
+            ["B", "A", "B", "C", "A"],
+            ["A", "A", "B", "B", "C"],
+        ),
+        (
+            ["B", "A", "B", "A", "B"],
+            ["A", "A", "B", "B", "B"],
+        ),
+    ],
+)
+def test_extract_sources_ordered_by_schema_name(
+    initial_order: list[str],
+    expected_order: list[str],
+) -> None:
+    """Ensure data_to_sources returns sources ordered by schema name so that if there are
+    many instances of the same source, they will be extracted one after another, and we can attach
+    state to each schema's package without having to wait for everything to finish."""
+    sources = [
+        DltSource(
+            dlt.Schema(f"{schema_name}"), "module", [dlt.resource([1, 2, 3], name=f"resource_{i}")]
+        )
+        for i, schema_name in enumerate(initial_order)
+    ]
+
+    actual_order = data_to_sources(
+        data=sources,
+        pipeline=dlt.pipeline(destination="dummy"),
+    )
+
+    assert [source.schema.name for source in actual_order] == expected_order
 
 
 @pytest.mark.parametrize(
