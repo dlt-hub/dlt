@@ -1587,7 +1587,7 @@ def _(mo):
     2. This API uses **pagination**. Figure out what type it is.
     3. Add incremental loading to `orders`, starting from `2017-08-01` and using `ordered_at` as the cursor.
     4. Add `processing_steps` to `orders`:
-      - Remove records from orders for which it is true that `order_total` > 500.
+      - Keep records from orders for which it is true that `order_total` > 500.
 
 
 
