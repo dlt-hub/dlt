@@ -156,7 +156,7 @@ def test_identifier_escape() -> None:
     )
 
 
-def test_identifier_escape_bigquery() -> None:
+def test_escape_hive_identifier() -> None:
     assert (
         escape_hive_identifier(", NULL'); DROP TABLE\"` -\\-")
         == "`, NULL'); DROP TABLE\"\\` -\\\\-`"
@@ -196,7 +196,7 @@ def test_string_literal_escape_bigquery() -> None:
     )
 
 
-def test_identifier_escape_bigquery_literal() -> None:
+def test_escape_bigquery_identifier() -> None:
     # BigQuery identifier escaping uses backticks (same as Hive)
     assert escape_bigquery_identifier("table_name") == "`table_name`"
     assert escape_bigquery_identifier("table`name") == "`table\\`name`"
