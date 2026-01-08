@@ -1,5 +1,6 @@
 """SQL database source helpers"""
 
+from functools import partial
 import warnings
 from typing import (
     Callable,
@@ -13,6 +14,9 @@ from typing import (
     Union,
 )
 import operator
+
+from sqlalchemy.dialects.oracle import NUMBER
+from sqlalchemy.dialects.oracle.base import OracleDialect
 
 import dlt
 from dlt.common import logger
@@ -504,3 +508,53 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     write_disposition: Optional[TWriteDispositionDict] = None
     primary_key: Optional[TColumnNames] = None
     merge_key: Optional[TColumnNames] = None
+
+
+def oracle_get_multi_columns(  # type: ignore
+    original_fn,
+    connection,
+    *,
+    schema,
+    filter_names,
+    scope,
+    kind,
+    dblink=None,
+    **kw,
+):
+    """
+    A patch/"sublcass" method for OracleDialect.get_multi_columns that enforces NUMBER type
+    to translate to python decimal.Decimal
+    """
+    superclass_result = original_fn(
+        connection,
+        schema=schema,
+        filter_names=filter_names,
+        scope=scope,
+        kind=kind,
+        dblink=dblink,
+        **kw,
+    )
+    result = {}
+    for key, columns in superclass_result:
+        for column in columns:
+            # Oracle NUMBER may express floating- or fixed-point numbers, but floats
+            # don't conform to IEEE754 standard, so we're always using "decimal" type
+            # to preserve values as accurately as possible. SQLAlchemy2 uses different
+            # logic for determining asdecimal, we're overriding it here
+            if isinstance(column["type"], NUMBER):
+                column["type"] = NUMBER(
+                    precision=column["type"].precision,
+                    scale=column["type"].scale,
+                    asdecimal=True,
+                )
+        result[key] = columns
+    return result.items()
+
+
+def default_engine_adapter_callback(engine: Engine) -> Engine:
+    if isinstance(engine.dialect, OracleDialect):
+        engine.dialect.get_multi_columns = partial(  # type: ignore
+            oracle_get_multi_columns,
+            engine.dialect.get_multi_columns,  # type: ignore
+        )
+    return engine

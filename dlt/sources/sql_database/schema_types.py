@@ -113,17 +113,11 @@ def sqla_col_to_column_schema(
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
     elif isinstance(sql_t, sqltypes.Numeric):
-        if isinstance(sql_t, NUMBER):
-            # Oracle NUMBER may express floating- or fixed-point numbers, but floats
-            # don't conform to IEEE754 standard, so we're always using "decimal" type
-            # to preserve values as accurately as possible. SQLAlchemy2 uses different
-            # logic for determining asdecimal, we're overriding it here
-            should_use_double = False
-        else:
-            # "double" for float-returning types, "decimal" for decimal-returning types
-            should_use_double = sql_t.asdecimal is False
-
-        if should_use_double:
+        # check for Numeric type first and integer later, some numeric types (ie. Oracle)
+        # derive from both
+        # all Numeric types that are returned as floats will assume "double" type
+        # and returned as decimals will assume "decimal" type
+        if sql_t.asdecimal is False:
             col["data_type"] = "double"
         else:
             col["data_type"] = "decimal"
