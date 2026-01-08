@@ -33,7 +33,7 @@ You can even eject the code for the dashboard app into your current working dire
 
 You need to install dlt workspace using the following command:
 ```sh
-pip install "dlt[workspace]"
+pip install "dlt[hub]"
 ```
 
 ## 
