@@ -25,7 +25,7 @@ except Exception:
         "Oracle tests require sqlalchemy oracle dialect and driver", allow_module_level=True
     )
 
-pytestmark = pytest.mark.oracle
+pytestmark = [pytest.mark.oracle, pytest.mark.serial]
 
 
 def make_pipeline(destination_name: str) -> dlt.Pipeline:
