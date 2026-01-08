@@ -4,32 +4,32 @@ description: Open a comprehensive dashboard with information about your pipeline
 keywords: [pipeline, schema, data, inspect]
 ---
 
-# Inspect your pipeline with the pipeline dashboard
+# Dashboard: inspect the pipeline
 
-Once you have run a pipeline locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the Marimo Python notebook framework. For this to work, you will need to have the `dlt[workspace]` package installed.
+Once you have run a [pipeline](pipeline.md) locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the [Marimo](https://marimo.io/) Python notebook framework. For this to work, you will need to have the `dlt[hub]` package installed. Check installation instructions ![here](https://dlthub.com/docs/hub/getting-started/installation).
 
 :::tip
-The dashboard works with all destinations that are supported by [dataset interface](dataset-access/dataset.md). Vector databases are not supported at this moment. However, you can still inspect metadata such as run traces, schemas, and pipeline state.
+The dashboard works with all [destinations](destination.md) that are supported by [dataset interface](dataset-access/dataset.md). Vector databases are not supported at this moment. However, you can still inspect metadata such as run traces, schemas, and pipeline state.
 :::
 
-## Features
+## Overview
 
-You can use the dashboard app to:
+The Dashboard is a locally hosted application built on [Marimo](https://marimo.io/). It comes preconfigured with the key pipeline metadata and operational context you need to review pipeline health and validate data quality. 
 
-* Get an overview of the pipeline state, including whether the local state differs from the remote state on the destination
-* Inspect all schemas of your pipeline, including tables, child tables, and columns, along with all column hints
-* Inspect the incremental state of each resource
-* Query the data from the attached destination
-* Get information about exceptions encountered during the last run of the selected pipeline
-* Inspect the full run trace, including which configs were found and where; the results of the extract, normalize, and load steps (with timing and row counts); and information about the execution context (dlt version, platform, etc.)
-* See a history of load packages and associated table counts
+With the Dashboard, you can:
 
-You can even eject the code for the dashboard app into your current working directory and start editing it either in your code editor or in Marimo edit mode to create your own custom dashboard app!
+1. Inspect pipeline metadata
+2. Query data in the destination
+3. Review traces and exceptions
+4. Check the history of pipeline runs
+5. Verify incremental loading behavior
+
+You can also customize the Dashboard and create a personalized version tailored to your workflow.
 
 ![Dashboard overview](https://storage.googleapis.com/dlt-blog-images/dashboard-overview.png)
 
 
-## Prerequisites
+## Quick start
 
 You need to install dlt workspace using the following command:
 ```sh
@@ -55,7 +55,7 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 ## Credentials
 
-`dlt` will resolve your destination credentials from:
+`dlt` will resolve your destination [credentials](https://dlthub.com/docs/general-usage/credentials) from:
 * `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
 * `secrets.toml` and `config.toml` in the the global `dlt` folder at `~/.dlt`. 
 * Environment variables
@@ -66,18 +66,21 @@ It is best to run the dashboard from the same folder where you ran your pipeline
 
 ## Using the dashboard
 
-The dashboard app should mostly be self-explanatory. Go to the section that corresponds to your task and click the toggle to open and use it. The dashboard app also refreshes all data when a new local pipeline run is detected for your selected pipeline. You can switch between pipelines on your machine using the pipeline dropdown in the top-right.
+The dashboard provides a visual interface to your [pipeline](pipeline.md)'s local working directory and its [destination](destination.md). It is designed to help you validate data quality and troubleshoot execution without writing custom SQL or inspection scripts.
 
-The following sections are available:
-
+The app automatically refreshes whenever a new local pipeline run is detected. You can switch between different pipelines on your machine using the dropdown menu in the top-right corner.
 
 ### Pipeline overview
 
-The overview section gives you a general sense of the state of your pipeline and will also display exception information if the last run of your pipeline failed. Review last executed to ensure the pipeline is running on the expected schedule or has recently completed a load.
+The Overview section serves as a health check for your pipeline. If a run fails, this is where dlt surfaces the exception details and stack traces. Review last executed to ensure the pipeline is running on the expected schedule or has recently completed a load.
 
 ![Pipeline overview](https://storage.googleapis.com/dlt-blog-images/dashboard-pipeline-overview.png)
 
-The field **last executed** tells you the timestamp of the last successful pipeline run which is beneficial for debugging, **credentials** contains the full path or connection string used to connect to the destination and **schemas** lists the schemas associated with the pipeline.
+* **Last executed:** The timestamp of the last successful run. This is the primary indicator that your pipeline is running on schedule.
+
+* **Credentials:** Displays the connection string or file path currently being used to reach the destination.
+
+* **Schemas:** Lists all schemas associated with the pipeline name.
 
 #### Remote state
 
@@ -88,9 +91,9 @@ This section queries and displays the state information that has been successful
 
 ### Schema explorer
 
-The schema browser allows you to dive deep into your pipeline's schemas and see all tables, columns, and type hints. This view is based on the dlt schema, the internal blueprint used to create and update tables in your destination.
+The schema browser allows you to dive deep into your pipeline's (schemas)[https://dlthub.com/docs/general-usage/schema] and see all tables, columns, and type hints. This view is based on the dlt schema, the internal blueprint used to create and update tables in your destination.
 
-When you're loading your data for the first time, we suggest checking the following:
+When loading data for the first time, use this section to:
 
 1. Click `Show child tables` to ensure that nested data is unnested successfully and at the required level.
 2. Inspect the **type hints** specifically, making sure that timestamps and large numbers are captured in the right way.
@@ -100,13 +103,13 @@ When you're loading your data for the first time, we suggest checking the follow
 
 ### Dataset Browser
 
-The dataset browser allows you to query data from your destination and inspect the state of each of your resources, which contain information about their incremental status and other custom state values. Click the `Load row counts` button to refresh the record counts for all tables based on the current destination data.
+The dataset browser allows you to query data directly from your destination. You can inspect the state of each of your resources. Click the `Load row counts` button to refresh the record counts for all tables based on the current destination data.
 
 ![Dataset Browser](https://storage.googleapis.com/dlt-blog-images/dashboard-dataset-browser.png)
 
 ### Querying your Dataset
 
-Here you can query your data to analyze it. This is what a query on the fruitshop dataset looks like:
+You can use SQL to query your dataset here. Querying the dataset works with all remote and local destinations including Iceberg tables, Delta tables and Filesystem destination. This is what a query on the fruitshop dataset looks like:
 
 ![Querying Data](https://storage.googleapis.com/dlt-blog-images/dashboard-query.png)
 
@@ -114,41 +117,45 @@ All query results are cached. The **Query History** shows previous runs that ben
 
 ### Pipeline state
 
-This section displays a raw, JSON view of the currently stored pipeline state. This state is critical for tracking progress, especially for incremental loading logic.
+This section displays a raw, JSON view of the currently stored pipeline state. This state is critical for tracking progress, especially for (incremental loading)[https://dlthub.com/docs/general-usage/incremental-loading] logic.
 
 ![Pipeline state](https://storage.googleapis.com/dlt-blog-images/dashboard-state.png)
 
 ### Last run trace
 
-This section provides a detailed overview of the most recent run for the selected pipeline. It is crucial for performance tuning and debugging execution issues.
+This section provides a detailed overview of the most recent run for the selected pipeline. You can use this for performance tuning and debugging execution issues. It contains the following:
 
-#### Trace Overview
-This is a summary of the entire run. It shows the full duration and start and end times you can verify. 
+1. **Trace Overview**
+    This is a summary of the entire run. It shows the full duration and start and end times you can verify. 
 
-#### Execution Context
-This section details the environment in which the pipeline was executed, including Python and dlt versions and details like operating system (os), CPU count (cpu), and whether it was a CI run (ci_run).
+2. **Execution Context**
+    This section details the environment in which the pipeline was executed, including Python and dlt versions and details like operating system (os), CPU count (cpu), and whether it was a CI run (ci_run).
 
-#### Steps Overview
+3. **Steps Overview**
 
-This table breaks down the total duration into the three phases of a dlt pipeline run: extract, normalize, and load.
-- **Bottleneck Check:** Use the duration column to identify performance bottlenecks.
-    - A long extract time suggests a slow source.
-    - Long normalize or load times often point to destination performance or data complexity issues.
+    This table breaks down the total duration into the three phases of a dlt pipeline run: extract, normalize, and load.
+    - **Bottleneck Check:** Use the duration column to identify performance bottlenecks.
+        - A long extract time suggests a slow source.
+        - Long normalize or load times often point to destination performance or data complexity issues.
 
-**Deep Dive:** You can click on each step to see more specific details like table names, item counts, file sizes, and timestamps for that specific phase.
+    **Deep Dive:** You can click on each step to see more specific details like table names, item counts, file sizes, and timestamps for that specific phase.
 
-#### Resolved Config Values
-This section lists the configuration values that were resolved and used during this pipeline run. Use this to ensure your intended config values were correctly picked up, or to find errors where configuration you set up was not used. The values of the resolved configs are not displayed for security reasons.
+4. **Resolved Config Values**
+    This section lists the configuration values that were resolved and used during this pipeline run. Use this to ensure your intended config values were correctly picked up, or to find errors where configuration you set up was not used. The values of the resolved configs are not displayed for security reasons.
 
-#### Raw Trace
-Clicking Show displays the complete trace information (including all sections above) as a raw JSON payload, which can be viewed and downloaded for advanced analysis or error reporting.
+5. **Raw Trace**
+    Clicking Show displays the complete trace information (including all sections above) as a raw JSON payload, which can be viewed and downloaded for advanced analysis or error reporting.
 
-![Last run trace](https://storage.googleapis.com/dlt-blog-images/dashboard-trace.png)
+    ![Last run trace](https://storage.googleapis.com/dlt-blog-images/dashboard-trace.png)
 
 ### Pipeline loads
-This section displays a history of all load packages found in the _dlt_loads table, that have been successfully executed and committed to the destination dataset of the selected pipeline. 
+This section displays a history of all load packages found in the _dlt_loads table. It tracks every load package committed to the destination.
 
-Select a load from the list to view its specific details. Additional data is fetched from the destination. Selecting a load package allows you to inspect the number of rows associated with that load package for each affected table and the full schema that resulted from this load. You can also view and download the raw schema of this specific load as a YAML file here.
+By selecting a specific load, you can:
+
+* See exactly how many rows were added to each specific table in that run.
+* View the full schema that resulted from this load.
+* Download the raw schema as a YAML file for historical debugging.
 
 
 ![Pipeline loads](https://storage.googleapis.com/dlt-blog-images/dashboard-loads.png)
@@ -167,8 +174,55 @@ This will copy the dashboard code to the local folder and start Marimo in edit m
 
 Below is an example of a custom cell created to verify unique number of rows vs total rows to ensure there are no duplicates in each table after a new run. You can also use the Generate with AI feature to easily add custom cells for your own use cases.  
 
-
 ![Adding custom cell in dashboard](https://storage.googleapis.com/dlt-blog-images/dashboards-custom-cell.png)
+
+Here is the [Marimo](https://docs.marimo.io/api/) code used to generate the cell above:
+```sh
+@app.cell
+def _(dlt_pipeline: dlt.Pipeline, dlt_selected_schema_name):
+    # Create a list to hold the data for the table
+    data = []
+
+    if dlt_pipeline:
+        _table_names = dlt_pipeline.schemas[dlt_selected_schema_name].tables.keys()
+        for table_name in _table_names:
+            _schema_table = dlt_pipeline.schemas[dlt_selected_schema_name].tables[table_name]
+        
+            # Fetch column names assuming _schema_table is a dictionary
+            column_names = _schema_table.get('columns', [])
+        
+            if not column_names:
+                data.append({"Table Name": table_name, "Total Rows": 0, "Unique Rows": "N/A"})
+                continue
+        
+            # Construct the SQL query to count total rows and unique rows across all columns
+            columns_quoted = ', '.join(f'"{col}"' for col in column_names)  # Quote column names
+            count_query = f'SELECT COUNT(*) as total_rows, COUNT(DISTINCT ({columns_quoted})) as unique_rows FROM "{table_name}"'
+
+            # Execute the query and handle any errors
+            _query_result, _error_message, _traceback_string = utils.get_query_result(dlt_pipeline, count_query)
+
+            if _error_message:
+                data.append({"Table Name": table_name, "Total Rows": "Error", "Unique Rows": "Error"})
+            else:
+                row_count_info = _query_result.iloc[0]
+                data.append({
+                    "Table Name": table_name,
+                    "Total Rows": row_count_info['total_rows'],
+                    "Unique Rows": row_count_info['unique_rows']  # Count of distinct rows
+                })
+
+    # Prepare the result in a tabular format to display
+    if data:
+        basic_data_checks_table = mo.ui.table(data, selection=None, style_cell=utils.style_cell)
+
+    # Display the table with a title
+    mo.vstack([
+        mo.md("### Basic Data Checks"),
+        basic_data_checks_table
+    ]) if data else None
+    return
+```
 
 Once you have the local version, you can also use the regular Marimo commands to run or edit this notebook. This way, you can maintain multiple versions of your dashboard or other Marimo apps in your project:
 

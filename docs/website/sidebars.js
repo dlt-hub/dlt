@@ -238,6 +238,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
+        'general-usage/dashboard',
         {
           type: "category",
           label: "Build with LLMs",
@@ -281,7 +282,7 @@ const sidebars = {
           ]
         },
         'walkthroughs/adjust-a-schema',
-        'general-usage/dashboard',
+
         {
           type: 'category',
           label: 'Access loaded data',
