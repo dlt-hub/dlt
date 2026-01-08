@@ -477,7 +477,6 @@ class Pipeline(SupportsPipeline):
                                 self.config.restore_from_destination,
                                 extract_step,
                                 schema=last_schema,
-                                mark_extracted=False,
                             )
 
                     self._extract_source(
@@ -1788,7 +1787,6 @@ class Pipeline(SupportsPipeline):
         extract: Extract = None,
         load_package_state_update: Optional[TLoadPackageState] = None,
         schema: Optional[Schema] = None,
-        mark_extracted: bool = True,
     ) -> None:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
 
@@ -1820,8 +1818,7 @@ class Pipeline(SupportsPipeline):
                 load_package_state_update=load_package_state_update,
             )
             # set state to be extracted
-            if mark_extracted:
-                mark_state_extracted(state, hash_)
+            mark_state_extracted(state, hash_)
             # commit only if we created storage
             if not extract:
                 extract_.commit_packages()

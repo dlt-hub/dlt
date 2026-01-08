@@ -10,7 +10,7 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, List, Tuple, cast
+from typing import Any, List, Tuple, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -626,13 +626,12 @@ def test_disable_enable_state_sync(environment: Any, use_single_dataset: bool) -
     def some_data():
         yield [1, 2, 3]
 
-    s = DltSource(dlt.Schema("default"), "module", [dlt.resource(some_data())])
+    s = _create_simple_source(dlt.Schema("default"), "some_data", some_data())
     dlt.pipeline().extract(s)
     storage = ExtractStorage(p._normalize_storage_config())
     assert len(storage.list_files_to_normalize_sorted()) == 1
     expect_extracted_file(storage, "default", "some_data", json.dumps([1, 2, 3]))
-    with pytest.raises(FileNotFoundError):
-        expect_extracted_file(storage, "default", s.schema.state_table_name, "")
+    _assert_extracted_file_exists(storage, "default", s.schema.state_table_name, should_exist=False)
 
     p.config.restore_from_destination = True
     # extract to different schema, state must go to the corresponding schema
@@ -693,6 +692,41 @@ def test_extract_multiple_sources() -> None:
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
 
 
+# Helper functions for state extraction tests
+def _get_state_files_count(storage: ExtractStorage, schema_name: Optional[str] = None) -> int:
+    """Get count of state files from extract storage, optionally filtered by schema."""
+    all_files = storage.list_files_to_normalize_sorted()
+    state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
+
+    if schema_name:
+        state_files = [f for f in state_files if schema_name in f]
+
+    return len(state_files)
+
+
+def _assert_extracted_file_exists(
+    storage: ExtractStorage, schema_name: str, file_name: str, should_exist: bool = True
+) -> None:
+    """Assert whether a file exists in extract storage for a given schema."""
+    if should_exist:
+        expect_extracted_file(storage, schema_name, file_name, "***")
+    else:
+        with pytest.raises(FileNotFoundError):
+            expect_extracted_file(storage, schema_name, file_name, "***")
+
+
+def _create_simple_source(
+    schema: Schema, resource_name: str, data: TDataItems, use_incremental: bool = False
+) -> DltSource:
+    """Create a simple DltSource with one resource with optional incremental loading."""
+    if use_incremental:
+        resource = dlt.resource(data, name=resource_name, incremental=dlt.sources.incremental("id"))
+    else:
+        resource = dlt.resource(data, name=resource_name)
+
+    return DltSource(schema, "module", [resource])
+
+
 @pytest.mark.parametrize(
     ("initial_order", "expected_order"),
     [
@@ -742,30 +776,59 @@ def test_extract_sources_ordered_by_schema_name(
     ids=["single_dataset", "multi_dataset"],
 )
 def test_state_extracted_once_for_same_schema_multiple_sources(use_single_dataset: bool) -> None:
-    """When multiple sources share the same schema, state should be extracted only once
-    regardless of the configuration"""
-
+    """Test that when multiple sources share the same schema:
+    - First extraction: state is extracted
+    - Second extraction with same data: state is not extracted (unchanged hash)
+    - Third extraction with new incremental data: State is extracted (cursor updated, hash changed)
+    """
     schema = dlt.Schema("shared_schema")
-    s1 = DltSource(schema, "module", [dlt.resource([1, 2, 3], name="resource_1")])
-    s2 = DltSource(schema, "module", [dlt.resource([4, 5, 6], name="resource_2")])
+
+    s1 = _create_simple_source(schema, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}])
+    s2 = _create_simple_source(
+        schema, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = True
     p.config.use_single_dataset = use_single_dataset
+
+    # First extraction: state extracted once
     p.extract([s1, s2])
     storage = ExtractStorage(p._normalize_storage_config())
 
     # both resources in same package
-    expect_extracted_file(storage, "shared_schema", "resource_1", json.dumps([1, 2, 3]))
-    expect_extracted_file(storage, "shared_schema", "resource_2", json.dumps([4, 5, 6]))
+    expect_extracted_file(
+        storage, "shared_schema", "resource_1", json.dumps([{"id": 1}, {"id": 2}, {"id": 3}])
+    )
+    expect_extracted_file(
+        storage, "shared_schema", "resource_2", json.dumps([{"id": 4}, {"id": 5}, {"id": 6}])
+    )
 
-    # state extracted exactly once
-    state_table = schema.state_table_name
-    expect_extracted_file(storage, "shared_schema", state_table, "***")
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=True
+    )
+    assert _get_state_files_count(storage) == 1
 
-    # only 1 state file exists
-    state_files = [f for f in storage.list_files_to_normalize_sorted() if state_table in f]
-    assert len(state_files) == 1
+    p.normalize()
+
+    # Second extraction: state not extracted (unchanged hash)
+    p.extract([s1, s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=False
+    )
+
+    p.normalize()
+
+    # Third extraction: state extracted (incremental data changed)
+    new_s2 = _create_simple_source(
+        schema, "resource_2", [{"id": 7}, {"id": 8}, {"id": 9}], use_incremental=True
+    )
+    p.extract([s1, new_s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=True
+    )
 
 
 @pytest.mark.parametrize(
@@ -774,38 +837,91 @@ def test_state_extracted_once_for_same_schema_multiple_sources(use_single_datase
     ids=["single_dataset", "multi_dataset"],
 )
 def test_state_extracted_per_schema_for_multiple_schemas(use_single_dataset: bool) -> None:
-    """When sources have different schemas, state should be extracted once per schema
-    if the configuration allows."""
-
+    """Test that when multiple sources have different schemas:
+    - First extraction:
+        - use_single_dataset=True: only the first schema (default) gets state
+        - use_single_dataset=False: each schema gets its own state in separate packages
+    - Second extraction with same data:
+        - state is not extracted (unchanged hash)
+    - Third extraction with incremental change in "schema_b":
+        - use_single_dataset=True: state is extracted to default schema ("schema_a")
+        - use_single_dataset=False: state is extracted to the schema that changed ("schema_b")
+    """
     schema_a = dlt.Schema("schema_a")
     schema_b = dlt.Schema("schema_b")
     schema_c = dlt.Schema("schema_c")
 
-    s1 = DltSource(schema_a, "module", [dlt.resource([1, 2, 3], name="resource_1")])
-    s2 = DltSource(schema_b, "module", [dlt.resource([4, 5, 6], name="resource_2")])
-    s3 = DltSource(schema_c, "module", [dlt.resource([7, 8, 9], name="resource_3")])
+    s1 = _create_simple_source(schema_a, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}])
+    s2 = _create_simple_source(
+        schema_b, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+    s3 = _create_simple_source(schema_c, "resource_3", [{"id": 7}, {"id": 8}, {"id": 9}])
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = True
     p.config.use_single_dataset = use_single_dataset
+
+    # First extraction
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
 
-    all_files = storage.list_files_to_normalize_sorted()
-    state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
-
-    expect_extracted_file(storage, "schema_a", schema_a.state_table_name, "***")
+    _assert_extracted_file_exists(
+        storage, schema_a.name, schema_a.state_table_name, should_exist=True
+    )
 
     if use_single_dataset:
-        with pytest.raises(FileNotFoundError):
-            expect_extracted_file(storage, "schema_b", schema_b.state_table_name, "***")
-        with pytest.raises(FileNotFoundError):
-            expect_extracted_file(storage, "schema_c", schema_c.state_table_name, "***")
-        assert len(state_files) == 1
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=False
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+        assert _get_state_files_count(storage) == 1
     else:
-        expect_extracted_file(storage, "schema_b", schema_b.state_table_name, "***")
-        expect_extracted_file(storage, "schema_c", schema_c.state_table_name, "***")
-        assert len(state_files) == 3
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=True
+        )
+        assert _get_state_files_count(storage) == 3
+
+    p.normalize()
+
+    # Second extraction: no state change, no extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    for s in [schema_a, schema_b, schema_c]:
+        _assert_extracted_file_exists(storage, s.name, s.state_table_name, should_exist=False)
+
+    p.normalize()
+
+    # Third extraction: incremental data changed in schema_b
+    new_s2 = _create_simple_source(
+        schema_b, "resource_2", [{"id": 10}, {"id": 11}, {"id": 12}], use_incremental=True
+    )
+    p.extract([s1, new_s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    assert _get_state_files_count(storage) == 1
+    _assert_extracted_file_exists(
+        storage, schema_c.name, schema_c.state_table_name, should_exist=False
+    )
+
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+    else:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=False
+        )
 
 
 @pytest.mark.parametrize(
@@ -814,33 +930,66 @@ def test_state_extracted_per_schema_for_multiple_schemas(use_single_dataset: boo
     ids=["single_dataset", "multi_dataset"],
 )
 def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
-    """Test state extraction when some sources share schema and others don't."""
-
+    """Test that when two sources share "shared" schema, one source has "unique" schema.
+    - First extraction:
+        - use_single_dataset=True: only the first schema (default) gets state
+        - use_single_dataset=False: each schema gets its own state in separate packages
+    - Second extraction with same data:
+        - state is not extracted (unchanged hash)
+    - Third extraction with incremental change in "shared":
+        - use_single_dataset=True: state is extracted to default schema ("shared")
+        - use_single_dataset=False: state is extracted to the schema that changed ("shared")
+    """
     shared = dlt.Schema("shared")
     unique = dlt.Schema("unique")
 
-    s1 = DltSource(shared, "module", [dlt.resource([1, 2, 3], name="resource_1")])
-    s2 = DltSource(shared, "module", [dlt.resource([4, 5, 6], name="resource_2")])
-    s3 = DltSource(unique, "module", [dlt.resource([7, 8, 9], name="resource_3")])
+    s1 = _create_simple_source(
+        shared, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}], use_incremental=True
+    )
+    s2 = _create_simple_source(shared, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}])
+    s3 = _create_simple_source(unique, "resource_3", [{"id": 7}, {"id": 8}, {"id": 9}])
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = True
     p.config.use_single_dataset = use_single_dataset
+
+    # First extraction
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
 
-    all_files = storage.list_files_to_normalize_sorted()
-    state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
-
-    expect_extracted_file(storage, "shared", shared.state_table_name, "***")
+    _assert_extracted_file_exists(storage, shared.name, shared.state_table_name, should_exist=True)
 
     if use_single_dataset:
-        with pytest.raises(FileNotFoundError):
-            expect_extracted_file(storage, "unique", unique.state_table_name, "***")
-        assert len(state_files) == 1
+        _assert_extracted_file_exists(
+            storage, unique.name, unique.state_table_name, should_exist=False
+        )
+        assert _get_state_files_count(storage) == 1
     else:
-        expect_extracted_file(storage, "unique", unique.state_table_name, "***")
-        assert len(state_files) == 2
+        _assert_extracted_file_exists(
+            storage, unique.name, unique.state_table_name, should_exist=True
+        )
+        assert _get_state_files_count(storage) == 2
+
+    p.normalize()
+
+    # Second extraction: no state change, no extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    for s in [shared, unique]:
+        _assert_extracted_file_exists(storage, s.name, s.state_table_name, should_exist=False)
+
+    p.normalize()
+
+    # Third extraction: incremental data changed in shared schema
+    new_s1 = _create_simple_source(
+        shared, "resource_1", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+    p.extract([new_s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    _assert_extracted_file_exists(storage, shared.name, shared.state_table_name, should_exist=True)
+    _assert_extracted_file_exists(storage, unique.name, unique.state_table_name, should_exist=False)
+    assert _get_state_files_count(storage) == 1
 
 
 @pytest.mark.parametrize(
