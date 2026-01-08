@@ -19,7 +19,7 @@
         <path>/clickhouse/task_queue/ddl</path>
     </distributed_ddl>
     <remote_servers>
-        <test_cluster>
+        <cluster_1S_2R>
             <shard>
                 <internal_replication>true</internal_replication>
                 <replica>
@@ -31,7 +31,25 @@
                     <port>9001</port>
                 </replica>
             </shard>
-        </test_cluster>
+        </cluster_1S_2R>
+        <cluster_2S_1R>
+            <shard>
+                <replica>
+                    <host>clickhouse-01</host>
+                    <port>9001</port>
+                    <user>loader</user>
+                    <password>loader</password>
+                </replica>
+            </shard>
+            <shard>
+                <replica>
+                    <host>clickhouse-02</host>
+                    <port>9001</port>
+                    <user>loader</user>
+                    <password>loader</password>
+                </replica>
+            </shard>
+        </cluster_2S_1R>
     </remote_servers>
     <zookeeper>
         <node>
@@ -50,6 +68,6 @@
     <macros>
         <shard>01</shard>
         <replica>02</replica>
-        <cluster>test_cluster</cluster>
+        <cluster>cluster_1S_2R</cluster>
     </macros>
 </clickhouse>

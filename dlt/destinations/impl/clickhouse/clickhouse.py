@@ -230,6 +230,10 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def sql_client_class(self) -> type[ClickHouseSqlClient]:
         return ClickHouseSqlClient
 
+    @property
+    def load_job_class(self) -> type[ClickHouseLoadJob]:
+        return ClickHouseLoadJob
+
     def _create_sql_client(
         self,
         schema: Schema,
@@ -278,7 +282,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return super().create_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
+        return super().create_load_job(table, file_path, load_id, restore) or self.load_job_class(
             file_path,
             config=self.config,
             staging_credentials=(
