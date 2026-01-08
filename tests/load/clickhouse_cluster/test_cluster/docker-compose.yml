@@ -35,7 +35,43 @@ services:
     environment:
       - CLICKHOUSE_DB=dlt_data
       - CLICKHOUSE_USER=loader
-      - CLICKHOUSE_PASSWORD=loader      
+      - CLICKHOUSE_PASSWORD=loader
+  clickhouse-03:
+    image: "clickhouse/clickhouse-server:latest"
+    user: "101:101"
+    container_name: clickhouse-03
+    hostname: clickhouse-03
+    volumes:
+      - ${PWD}/fs/volumes/clickhouse-03/etc/clickhouse-server/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
+    ports:
+      - "127.0.0.1:8126:8124"
+      - "127.0.0.1:9003:9001"
+    depends_on:
+      - clickhouse-keeper-01
+      - clickhouse-keeper-02
+      - clickhouse-keeper-03
+    environment:
+      - CLICKHOUSE_DB=dlt_data
+      - CLICKHOUSE_USER=loader
+      - CLICKHOUSE_PASSWORD=loader
+  clickhouse-04:
+    image: "clickhouse/clickhouse-server:latest"
+    user: "101:101"
+    container_name: clickhouse-04
+    hostname: clickhouse-04
+    volumes:
+      - ${PWD}/fs/volumes/clickhouse-04/etc/clickhouse-server/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
+    ports:
+      - "127.0.0.1:8127:8124"
+      - "127.0.0.1:9004:9001"
+    depends_on:
+      - clickhouse-keeper-01
+      - clickhouse-keeper-02
+      - clickhouse-keeper-03
+    environment:
+      - CLICKHOUSE_DB=dlt_data
+      - CLICKHOUSE_USER=loader
+      - CLICKHOUSE_PASSWORD=loader            
   clickhouse-keeper-01:
     image: "clickhouse/clickhouse-keeper:latest-alpine"
     user: "101:101"
