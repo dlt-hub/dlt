@@ -423,7 +423,8 @@ def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, 
             client.get_storage_versions()
 
 
-@pytest.mark.parametrize("pipeline_name",
+@pytest.mark.parametrize(
+    "pipeline_name",
     [
         "my__pipeline",
         "my_pipeline__long_name__with__underscores",
