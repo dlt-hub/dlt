@@ -247,7 +247,6 @@ class ResponseActionDict(TypedDict, total=False):
 
 ResponseAction = Union[ResponseActionDict, Callable[..., Any]]
 
-
 class Endpoint(TypedDict, total=False):
     path: Optional[str]
     method: Optional[HTTPMethodBasic]
@@ -260,6 +259,7 @@ class Endpoint(TypedDict, total=False):
     incremental: Optional[IncrementalConfig]
     auth: Optional[AuthConfig]
     headers: Optional[Dict[str, Any]]
+    response_format: Optional[str]
 
 
 class ProcessingSteps(TypedDict, total=False):

@@ -269,6 +269,7 @@ def create_resources(
             auth=create_auth(endpoint_config.get("auth", client_config.get("auth"))),
             paginator=create_paginator(client_config.get("paginator")),
             session=client_config.get("session"),
+            response_format=endpoint_config.get("response_format",None),
         )
 
         hooks = create_response_hooks(endpoint_config.get("response_actions"))

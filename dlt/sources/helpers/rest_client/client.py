@@ -1,3 +1,5 @@
+import csv
+import io
 import logging
 from typing import (
     Iterator,
@@ -21,7 +23,7 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
-from .paginators import BasePaginator
+from .paginators import BasePaginator, SinglePagePaginator
 from .detector import PaginatorFactory, find_response_page_data
 from .exceptions import IgnoreResponseException, PaginatorNotFound
 from .redaction import sanitize_url
@@ -80,6 +82,7 @@ class RESTClient:
         session: BaseSession = None,
         paginator_factory: Optional[PaginatorFactory] = None,
         config: Optional[RuntimeConfiguration] = None,
+        response_format: Optional[str] = None,
     ) -> None:
         self.base_url = base_url
         self.headers = headers
@@ -102,7 +105,7 @@ class RESTClient:
         self.pagination_factory = paginator_factory or PaginatorFactory()
 
         self.data_selector = data_selector
-
+        self.response_format = response_format
     def _create_request(
         self,
         path_or_url: str,
@@ -274,7 +277,10 @@ class RESTClient:
             except IgnoreResponseException:
                 break
 
-            if not data_selector:
+            if response.headers.get('Content-Type','').endswith('/csv'):
+                self.response_format = 'csv'
+            
+            if not data_selector or self.response_format == 'csv':
                 data_selector = self.detect_data_selector(response)
             data = self.extract_response(response, data_selector)
 
@@ -289,8 +295,18 @@ class RESTClient:
             if not paginator.has_next_page:
                 logger.info(f"Paginator {str(paginator)} does not have more pages")
                 break
-
+   
+    def _extract_response_csv(self,response: Response) -> List[Any]:
+        csv_content = response.text
+        reader = csv.DictReader(io.StringIO(csv_content))
+        data = list[Dict[str, Any]](reader)
+        return cast(List[Any], data)
+        
     def extract_response(self, response: Response, data_selector: jsonpath.TJsonPath) -> List[Any]:
+        
+        if self.response_format == 'csv':
+            return self._extract_response_csv(response)
+
         # we should compile data_selector
         data: Any = jsonpath.find_values(data_selector, response.json())
 
@@ -353,6 +369,10 @@ class RESTClient:
         Returns:
             BasePaginator: The paginator instance that was detected.
         """
+
+        if self.response_format == 'csv':
+            return SinglePagePaginator()
+            
         paginator, score = self.pagination_factory.create_paginator(response)
         if paginator is None:
             raise PaginatorNotFound(
