@@ -280,7 +280,7 @@ class RESTClient:
             if response.headers.get('Content-Type','').endswith('/csv'):
                 self.response_format = 'csv'
             
-            if not data_selector or self.response_format == 'csv':
+            if not data_selector and self.response_format != 'csv':
                 data_selector = self.detect_data_selector(response)
             data = self.extract_response(response, data_selector)
 
