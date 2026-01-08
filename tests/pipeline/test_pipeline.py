@@ -613,9 +613,15 @@ def test_extract_source_twice() -> None:
     assert py_ex.value.exception.source_name == "source"
 
 
-def test_disable_enable_state_sync(environment: Any) -> None:
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_disable_enable_state_sync(environment: Any, use_single_dataset: bool) -> None:
     environment["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(destination="redshift")
+    p.config.use_single_dataset = use_single_dataset
 
     def some_data():
         yield [1, 2, 3]
@@ -632,7 +638,10 @@ def test_disable_enable_state_sync(environment: Any) -> None:
     # extract to different schema, state must go to the corresponding schema
     s = DltSource(dlt.Schema("default_2"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
-    expect_extracted_file(storage, "default_2", s.schema.state_table_name, "***")
+    if use_single_dataset:
+        expect_extracted_file(storage, "default", s.schema.state_table_name, "***")
+    else:
+        expect_extracted_file(storage, "default_2", s.schema.state_table_name, "***")
 
 
 def test_extract_multiple_sources() -> None:
@@ -727,8 +736,14 @@ def test_extract_sources_ordered_by_schema_name(
     assert [source.schema.name for source in actual_order] == expected_order
 
 
-def test_state_extracted_once_for_same_schema_multiple_sources() -> None:
-    """When multiple sources share the same schema, state should be extracted only once"""
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extracted_once_for_same_schema_multiple_sources(use_single_dataset: bool) -> None:
+    """When multiple sources share the same schema, state should be extracted only once
+    regardless of the configuration"""
 
     schema = dlt.Schema("shared_schema")
     s1 = DltSource(schema, "module", [dlt.resource([1, 2, 3], name="resource_1")])
@@ -736,7 +751,7 @@ def test_state_extracted_once_for_same_schema_multiple_sources() -> None:
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = True
-    p.config.use_single_dataset = False
+    p.config.use_single_dataset = use_single_dataset
     p.extract([s1, s2])
     storage = ExtractStorage(p._normalize_storage_config())
 
@@ -753,8 +768,14 @@ def test_state_extracted_once_for_same_schema_multiple_sources() -> None:
     assert len(state_files) == 1
 
 
-def test_state_extracted_per_schema_for_multiple_schemas() -> None:
-    """When sources have different schemas, state should be extracted once per schema"""
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extracted_per_schema_for_multiple_schemas(use_single_dataset: bool) -> None:
+    """When sources have different schemas, state should be extracted once per schema
+    if the configuration allows."""
 
     schema_a = dlt.Schema("schema_a")
     schema_b = dlt.Schema("schema_b")
@@ -766,22 +787,34 @@ def test_state_extracted_per_schema_for_multiple_schemas() -> None:
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
 
-    # each schema has state
-    expect_extracted_file(storage, "schema_a", schema_a.state_table_name, "***")
-    expect_extracted_file(storage, "schema_b", schema_b.state_table_name, "***")
-    expect_extracted_file(storage, "schema_c", schema_c.state_table_name, "***")
-
-    # exactly 3 state files exist
     all_files = storage.list_files_to_normalize_sorted()
     state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
-    assert len(state_files) == 3
+
+    expect_extracted_file(storage, "schema_a", schema_a.state_table_name, "***")
+
+    if use_single_dataset:
+        with pytest.raises(FileNotFoundError):
+            expect_extracted_file(storage, "schema_b", schema_b.state_table_name, "***")
+        with pytest.raises(FileNotFoundError):
+            expect_extracted_file(storage, "schema_c", schema_c.state_table_name, "***")
+        assert len(state_files) == 1
+    else:
+        expect_extracted_file(storage, "schema_b", schema_b.state_table_name, "***")
+        expect_extracted_file(storage, "schema_c", schema_c.state_table_name, "***")
+        assert len(state_files) == 3
 
 
-def test_state_extraction_mixed_schemas() -> None:
-    """Test state extraction when some sources share schema and others don't"""
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
+    """Test state extraction when some sources share schema and others don't."""
 
     shared = dlt.Schema("shared")
     unique = dlt.Schema("unique")
@@ -792,17 +825,22 @@ def test_state_extraction_mixed_schemas() -> None:
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
     p.extract([s1, s2, s3])
     storage = ExtractStorage(p._normalize_storage_config())
 
-    # two schemas should have state
-    expect_extracted_file(storage, "shared", shared.state_table_name, "***")
-    expect_extracted_file(storage, "unique", unique.state_table_name, "***")
-
-    # exactly 2 state files exist
     all_files = storage.list_files_to_normalize_sorted()
     state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
-    assert len(state_files) == 2
+
+    expect_extracted_file(storage, "shared", shared.state_table_name, "***")
+
+    if use_single_dataset:
+        with pytest.raises(FileNotFoundError):
+            expect_extracted_file(storage, "unique", unique.state_table_name, "***")
+        assert len(state_files) == 1
+    else:
+        expect_extracted_file(storage, "unique", unique.state_table_name, "***")
+        assert len(state_files) == 2
 
 
 @pytest.mark.parametrize(
@@ -3281,7 +3319,12 @@ def test_run_file_format_sets_table_schema() -> None:
     assert pipeline.default_schema.get_table("_datax")["file_format"] == "jsonl"
 
 
-def test_resource_transformer_standalone() -> None:
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_resource_transformer_standalone(use_single_dataset: bool) -> None:
     # requires that standalone resources are executes in a single source
     page = 1
 
@@ -3305,9 +3348,10 @@ def test_resource_transformer_standalone() -> None:
         ]
 
     pipeline = dlt.pipeline("test_resource_transformer_standalone", destination="duckdb")
+    pipeline.config.use_single_dataset = use_single_dataset
     # here we must combine resources and transformers using the same instance
     info = pipeline.run([gen_pages, gen_pages | get_subpages])
-    assert_load_info(info)
+    assert_load_info(info, 1)
     # this works because we extract transformer and resource above in a single source so dlt optimizes
     # dag and extracts gen_pages only once.
     assert load_table_counts(pipeline) == {"subpages": 100, "pages": 10}
@@ -3319,9 +3363,18 @@ def test_resource_transformer_standalone() -> None:
         [DltSource(schema, "", [gen_pages]), DltSource(schema, "", [gen_pages | get_subpages])],
         dataset_name="new_dataset",
     )
-    assert_load_info(info, 1)
-    # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
-    assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    if use_single_dataset:
+        assert_load_info(info, 2)
+        # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
+        assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    else:
+        assert_load_info(info, 1)
+        with pipeline.sql_client() as sql_client:
+            with sql_client.execute_query("SELECT * FROM new_dataset_test.pages") as curr:
+                assert len(curr.fetchall()) == 10
+
+            with sql_client.execute_query("SELECT * FROM new_dataset_test.subpages") as curr:
+                assert len(curr.fetchall()) == 10
 
 
 def test_resources_same_name_in_single_source() -> None:
