@@ -163,9 +163,9 @@ The Arrow data types are translated to dlt data types as follows:
 All struct types are represented as `json` and will be loaded as JSON (if the destination permits) or a string. Currently, we do not support **struct** types,
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
-If you want to represent nested data as separate tables, you must yield panda frames and arrow tables as records. In the examples above:
+If you want to represent nested data as separate tables, you must yield pandas DataFrames and arrow tables as records. In the examples above:
 ```py
-# yield panda frame as records
+# yield pandas DataFrame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
 
 # yield arrow table
