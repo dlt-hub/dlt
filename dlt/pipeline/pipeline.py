@@ -452,7 +452,9 @@ class Pipeline(SupportsPipeline):
         )
         try:
             with self._maybe_destination_capabilities():
-                # unique schemas as we extract all sources
+                # extract all sources ordered by schema name
+                # while tracking schema transitions to extract
+                # state to each schema's package in multi-dataset mode
                 last_schema = None
                 for source in data_to_sources(
                     data,
