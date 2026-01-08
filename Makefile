@@ -143,7 +143,7 @@ PYTEST_SERIAL = \
 # Run xdist-safe tests first, then serial/forked ones
 define RUN_XDIST_SAFE_SPLIT
 	PYTEST_MARKERS="$(PYTEST_MARKERS)" PYTEST_ARGS="$(PYTEST_ARGS)" \
-	$(PYTEST_PARALLEL) $(1)
+	$(PYTEST_PARALLEL) $(1) || [ $$? -eq 5 ]
 	PYTEST_MARKERS="$(PYTEST_MARKERS)" PYTEST_ARGS="$(PYTEST_ARGS)" \
 	$(PYTEST_SERIAL)   $(1) || [ $$? -eq 5 ]
 endef
