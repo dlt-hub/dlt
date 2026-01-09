@@ -1,9 +1,6 @@
 from typing import cast
 import pytest
 
-from dlt.common.schema import Schema
-from dlt.common.utils import uniq_id
-from dlt.destinations import clickhouse_cluster
 from dlt.destinations.adapters import clickhouse_cluster_adapter
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster import ClickHouseClusterClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
@@ -11,9 +8,6 @@ from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import 
     DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
     DEFAULT_SHARDING_KEY,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
-)
-from dlt.destinations.impl.clickhouse_cluster.configuration import (
-    ClickHouseClusterClientConfiguration,
 )
 from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 from tests.load.clickhouse_cluster.utils import (
@@ -26,15 +20,6 @@ from tests.pipeline.utils import assert_load_info
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
-
-
-@pytest.fixture
-def client(empty_schema: Schema) -> ClickHouseClusterClient:
-    # return client without opening connection
-    return clickhouse_cluster().client(
-        empty_schema,
-        ClickHouseClusterClientConfiguration()._bind_dataset_name(dataset_name="test_" + uniq_id()),
-    )
 
 
 @pytest.mark.parametrize(
