@@ -72,6 +72,7 @@ from dlt.destinations.impl.lancedb.utils import (
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapperImpl
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
     NDArray = numpy.ndarray[Any, Any]
@@ -79,7 +80,7 @@ else:
     NDArray = numpy.ndarray
 
 
-class LanceDBClient(JobClientBase, WithStateSync):
+class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
     """LanceDB destination handler."""
 
     model_func: TextEmbeddingFunction
@@ -99,6 +100,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
+        self._sql_client: SqlClientBase[Any] = None
 
         embedding_model_provider = self.config.embedding_model_provider
         embedding_model_host = self.config.embedding_model_provider_host
@@ -117,6 +119,25 @@ class LanceDBClient(JobClientBase, WithStateSync):
             # actually the model func doesnt need the api-key!
             **({"host": embedding_model_host} if embedding_model_host else {}),
         )
+
+    @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+
+        return LanceDBSQLClient
+
+    @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        # inner import because `LanceDBSQLClient` depends on `duckdb` and is optional
+        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+
+        if not self._sql_client:
+            self._sql_client = LanceDBSQLClient(self)
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[Any]) -> None:
+        self._sql_client = client
 
     @property
     def sentinel_table(self) -> str:
