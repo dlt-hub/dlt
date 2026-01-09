@@ -5,6 +5,7 @@ from dlt.common.destination.typing import PreparedTableSchema
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
+    SHARDING_KEY_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
 )
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
@@ -51,13 +52,19 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         qual_dist_table_name = self.make_qualified_table_name(dist_table_name)
         create_table_sql = self._make_create_table(qual_dist_table_name)
 
+        # generate AS sql
+        as_sql = "AS " + self.make_qualified_table_name(table_name)
+
         # generate ENGINE clause
         cluster = self.config.cluster
-        database, table = self.make_qualified_table_name(table_name).split(".")
-        engine_sql = self._make_distributed_engine_clause(cluster, database, table)
+        database, table = self.make_qualified_table_name(table_name, quote=False).split(".")
+        sharding_key = table_schema[SHARDING_KEY_HINT]  # type: ignore[typeddict-item]
+        engine_sql = self._make_distributed_engine_clause(cluster, database, table, sharding_key)
 
-        return f"{create_table_sql} {engine_sql};"
+        return f"{create_table_sql} {as_sql} {engine_sql};"
 
     @staticmethod
-    def _make_distributed_engine_clause(cluster: str, database: str, table: str) -> str:
-        return f"ENGINE = Distributed('{cluster}', {database}, {table}, rand())"
+    def _make_distributed_engine_clause(
+        cluster: str, database: str, table: str, sharding_key: str
+    ) -> str:
+        return f"ENGINE = Distributed('{cluster}', '{database}', '{table}', {sharding_key})"

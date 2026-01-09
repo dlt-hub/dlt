@@ -42,8 +42,9 @@ def assert_clickhouse_cluster_conf(
         assert config.credentials.http_port == http_port
 
 
-def get_table_engine(sql_client: ClickHouseSqlClient, table_name: str) -> str:
-    qry = "SELECT engine FROM system.tables WHERE database = %s AND name = %s;"
+def get_table_engine(sql_client: ClickHouseSqlClient, table_name: str, full: bool = False) -> str:
+    col = "engine_full" if full else "engine"
+    qry = f"SELECT {col} FROM system.tables WHERE database = %s AND name = %s;"
     table_name = sql_client.make_qualified_table_name(table_name, quote=False)
     database, name = table_name.split(".")
     with sql_client:

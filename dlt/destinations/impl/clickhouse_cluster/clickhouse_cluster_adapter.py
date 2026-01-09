@@ -7,8 +7,10 @@ from dlt.extract.resource import DltResource
 
 CREATE_DISTRIBUTED_TABLE_HINT: Literal["x-create-distributed-table"] = "x-create-distributed-table"
 DISTRIBUTED_TABLE_SUFFIX_HINT: Literal["x-distributed-table-suffix"] = "x-distributed-table-suffix"
+SHARDING_KEY_HINT: Literal["x-sharding-key"] = "x-sharding-key"
 
 DEFAULT_DISTRIBUTED_TABLE_SUFFIX = "_dist"
+DEFAULT_SHARDING_KEY = "rand()"
 
 
 def clickhouse_cluster_adapter(
@@ -16,6 +18,7 @@ def clickhouse_cluster_adapter(
     table_engine_type: TTableEngineType = None,
     create_distributed_table: bool = False,
     distributed_table_suffix: str = DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
+    sharding_key: str = DEFAULT_SHARDING_KEY,
 ) -> DltResource:
     resource = clickhouse_adapter(
         data,
@@ -25,6 +28,7 @@ def clickhouse_cluster_adapter(
     additional_table_hints = {
         CREATE_DISTRIBUTED_TABLE_HINT: create_distributed_table,
         DISTRIBUTED_TABLE_SUFFIX_HINT: distributed_table_suffix,
+        SHARDING_KEY_HINT: sharding_key,
     }
 
     resource.apply_hints(additional_table_hints=additional_table_hints)
