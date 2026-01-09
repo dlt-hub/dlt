@@ -1,10 +1,12 @@
 from typing import List, Sequence, cast
 
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnSchema
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient, ClickHouseLoadJob
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
+    CONFIG_HINT_MAP,
     CREATE_DISTRIBUTED_TABLE_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
 )
@@ -40,6 +42,16 @@ class ClickHouseClusterClient(ClickHouseClient):
     @property
     def load_job_class(self) -> type[ClickHouseClusterLoadJob]:
         return ClickHouseClusterLoadJob
+
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        table = super().prepare_load_table(table_name)
+
+        # fall back to default values from config if hints are not set
+        for config_key, hint_key in CONFIG_HINT_MAP.items():
+            if hint_key not in table:
+                table[hint_key] = self.config.get(config_key)  # type: ignore[literal-required]
+
+        return table
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool

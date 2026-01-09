@@ -5,10 +5,8 @@ import pytest
 import dlt
 from dlt.destinations.adapters import clickhouse_cluster_adapter
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
-    DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
-)
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
+    DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
     ClickHouseClusterClientConfiguration,
 )
 from tests.load.clickhouse_cluster.utils import (

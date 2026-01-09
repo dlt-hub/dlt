@@ -1,10 +1,16 @@
 import os
 from typing import Optional
 
+import pytest
+
+from dlt.common.schema.schema import Schema
+from dlt.common.utils import uniq_id
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster import ClickHouseClusterClient
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     ClickHouseClusterClientConfiguration,
 )
+from dlt.destinations.impl.clickhouse_cluster.factory import clickhouse_cluster
 
 
 REPLICATED_CLUSTER_NAME = "cluster_1S_2R"
@@ -13,6 +19,15 @@ REPLICATED_SHARDED_CLUSTER_NAME = "cluster_2S_2R"
 
 CLICKHOUSE_CLUSTER_NODE_PORTS = (9001, 9002, 9003, 9004)
 CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS = (8124, 8125, 8126, 8127)
+
+
+@pytest.fixture
+def client(empty_schema: Schema) -> ClickHouseClusterClient:
+    # return client without opening connection
+    return clickhouse_cluster().client(
+        empty_schema,
+        ClickHouseClusterClientConfiguration()._bind_dataset_name(dataset_name="test_" + uniq_id()),
+    )
 
 
 def set_clickhouse_cluster_conf(

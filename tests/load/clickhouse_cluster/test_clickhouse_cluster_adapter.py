@@ -5,13 +5,17 @@ from dlt.destinations.adapters import clickhouse_cluster_adapter
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster import ClickHouseClusterClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
     CREATE_DISTRIBUTED_TABLE_HINT,
+    DISTRIBUTED_TABLE_SUFFIX_HINT,
+    SHARDING_KEY_HINT,
+)
+from dlt.destinations.impl.clickhouse_cluster.configuration import (
     DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
     DEFAULT_SHARDING_KEY,
-    DISTRIBUTED_TABLE_SUFFIX_HINT,
 )
 from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 from tests.load.clickhouse_cluster.utils import (
     SHARDED_CLUSTER_NAME,
+    client,
     get_table_engine,
     set_clickhouse_cluster_conf,
 )
@@ -22,6 +26,41 @@ from tests.pipeline.utils import assert_load_info
 pytestmark = pytest.mark.essential
 
 
+def test_clickhouse_cluster_adapter_defaults(client: ClickHouseClusterClient) -> None:
+    # first test that adapter does not set default table hint values in schema
+
+    # adapt resource without providing arguments
+    res = clickhouse_cluster_adapter([{"foo": "bar"}])
+
+    # assert hints are not set
+    table_schema = res.compute_table_schema()
+    assert CREATE_DISTRIBUTED_TABLE_HINT not in table_schema
+    assert DISTRIBUTED_TABLE_SUFFIX_HINT not in table_schema
+    assert SHARDING_KEY_HINT not in table_schema
+
+    # now test that default values are loaded from ClickHouseClusterClientConfiguration at runtime
+
+    table_name = "event_test_table"
+
+    # non-custom default values
+    assert client.config.create_distributed_tables is False
+    assert client.config.distributed_table_suffix == DEFAULT_DISTRIBUTED_TABLE_SUFFIX
+    assert client.config.sharding_key == DEFAULT_SHARDING_KEY
+    prepared_table = client.prepare_load_table(table_name)
+    assert prepared_table[CREATE_DISTRIBUTED_TABLE_HINT] is False  # type: ignore[typeddict-item]
+    assert prepared_table[DISTRIBUTED_TABLE_SUFFIX_HINT] == DEFAULT_DISTRIBUTED_TABLE_SUFFIX  # type: ignore[typeddict-item]
+    assert prepared_table[SHARDING_KEY_HINT] == DEFAULT_SHARDING_KEY  # type: ignore[typeddict-item]
+
+    # custom default values
+    client.config.create_distributed_tables = True
+    client.config.distributed_table_suffix = "_custom_suffix"
+    client.config.sharding_key = "custom sharding key"  # invalid key value, but okay for unit test
+    prepared_table = client.prepare_load_table(table_name)
+    assert prepared_table[CREATE_DISTRIBUTED_TABLE_HINT] is True  # type: ignore[typeddict-item]
+    assert prepared_table[DISTRIBUTED_TABLE_SUFFIX_HINT] == "_custom_suffix"  # type: ignore[typeddict-item]
+    assert prepared_table[SHARDING_KEY_HINT] == "custom sharding key"  # type: ignore[typeddict-item]
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
@@ -30,9 +69,9 @@ pytestmark = pytest.mark.essential
 @pytest.mark.parametrize(
     "distributed_table_suffix, sharding_key",
     [
-        pytest.param(DEFAULT_DISTRIBUTED_TABLE_SUFFIX, DEFAULT_SHARDING_KEY, id="defaults"),
-        pytest.param(DEFAULT_DISTRIBUTED_TABLE_SUFFIX, "user_id + 1", id="custom-sharding-key"),
-        pytest.param("_custom_suffix", DEFAULT_SHARDING_KEY, id="custom-distributed-table-suffix"),
+        pytest.param(None, None, id="defaults"),
+        pytest.param(None, "user_id + 1", id="custom-sharding-key"),
+        pytest.param("_custom_suffix", None, id="custom-distributed-table-suffix"),
     ],
 )
 def test_clickhouse_cluster_adapter_distributed_table(
@@ -51,7 +90,8 @@ def test_clickhouse_cluster_adapter_distributed_table(
 
     # define table names
     shard_table_name = "sharded_table"
-    dist_table_name = shard_table_name + distributed_table_suffix
+    effective_dist_table_suffix = distributed_table_suffix or DEFAULT_DISTRIBUTED_TABLE_SUFFIX
+    dist_table_name = shard_table_name + effective_dist_table_suffix
     shard_qual_table_name = client.sql_client.make_qualified_table_name(shard_table_name)
     dist_qual_table_name = client.sql_client.make_qualified_table_name(dist_table_name)
 
@@ -74,7 +114,7 @@ def test_clickhouse_cluster_adapter_distributed_table(
     # assert hints are set correctly
     table_schema = res.compute_table_schema()
     assert table_schema[CREATE_DISTRIBUTED_TABLE_HINT] is True  # type: ignore[typeddict-item]
-    assert table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT] == distributed_table_suffix  # type: ignore[typeddict-item]
+    assert table_schema.get(DISTRIBUTED_TABLE_SUFFIX_HINT) == distributed_table_suffix
 
     # assert create table statements are generated correctly
     client.schema.update_table(table_schema)
@@ -93,8 +133,9 @@ def test_clickhouse_cluster_adapter_distributed_table(
     dist_stmt = stmts[1]
     sql_client = cast(ClickHouseClusterSqlClient, client.sql_client)
     database, table = sql_client.make_qualified_table_name(shard_table_name, quote=False).split(".")
+    effective_sharding_key = sharding_key or DEFAULT_SHARDING_KEY
     expected_engine = (
-        f"Distributed('{SHARDED_CLUSTER_NAME}', '{database}', '{table}', {sharding_key})"
+        f"Distributed('{SHARDED_CLUSTER_NAME}', '{database}', '{table}', {effective_sharding_key})"
     )
     expected_dist_stmt = (
         f"CREATE TABLE {dist_qual_table_name} ON CLUSTER {SHARDED_CLUSTER_NAME} AS"
