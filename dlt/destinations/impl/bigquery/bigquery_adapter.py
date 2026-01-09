@@ -63,14 +63,13 @@ class bigquery_partition:
 
         return PartitionTransformation(template, column_name)
 
+
 def _set_column_hint(
-    column_hints: TTableSchemaColumns,
-    column_name: str,
-    hint_key: str,
-    value: Any = True
+    column_hints: TTableSchemaColumns, column_name: str, hint_key: str, value: Any = True
 ) -> None:
     """Add a hint to a column, initializing the column dict if needed."""
     column_hints.setdefault(column_name, {"name": column_name})[hint_key] = value  # type: ignore[literal-required]
+
 
 def bigquery_adapter(
     data: Any,
