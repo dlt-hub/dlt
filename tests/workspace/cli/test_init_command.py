@@ -649,6 +649,10 @@ def test_incompatible_dlt_version_warning(repo_dir: str, workspace_files: FileSt
     SUPPORTED_IDES,
 )
 def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: FileStorage) -> None:
+    # Point to localhost for scaffold API (integration test requires running API)
+    # monkeypatch.setenv("RUNTIME__SCAFFOLD__DOCS_API_URL", "http://localhost:8000")
+    # os.environ["RUNTIME__SCAFFOLD__DOCS_API_URL"] = "http://localhost:8000"
+
     # Second yes/no prompt also receives the ide_choice, but it doesn't matter
     with echo.always_choose(False, ide_choice):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
@@ -661,6 +665,9 @@ def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: Fil
 
 
 def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
+    # Note: if we want to point test to non-production URL, we can set the environment variable
+    # os.environ["RUNTIME__SCAFFOLD__DOCS_API_URL"] = "http://localhost:8000"
+
     # we test 20 hardcoded sources
     random_vibez = [
         "news_api",
