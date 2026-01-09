@@ -112,6 +112,7 @@ def sql_database(
     # set up alchemy engine
     engine = engine_from_credentials(credentials)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
+    engine = default_engine_adapter_callback(engine)
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)

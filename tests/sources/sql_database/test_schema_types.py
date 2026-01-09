@@ -1,17 +1,6 @@
-import pytest
-from typing import Optional, Union
-
-import pyarrow as pa
 import sqlalchemy as sa
-from sqlalchemy.dialects.oracle import NUMBER
-from sqlalchemy.sql.type_api import TypeEngine
 
-from dlt.common.data_types import TDataType
-from dlt.sources.sql_database.schema_types import get_table_references, sqla_col_to_column_schema
-
-from dlt.common.libs.pyarrow import get_py_arrow_datatype
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from decimal import Decimal
+from dlt.sources.sql_database.schema_types import get_table_references
 
 
 def test_get_table_references() -> None:
