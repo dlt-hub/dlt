@@ -231,3 +231,110 @@ def test_rest_api_data_json_mutual_exclusivity() -> None:
 
     # The actual error is wrapped in the pipeline exception
     assert "Cannot use both 'json' and 'data' parameters simultaneously" in str(exc_info.value)
+
+
+@pytest.mark.usefixtures("mock_api_server")
+@pytest.mark.parametrize(
+    "path,response_format",
+    [
+        ("/posts_csv_no_content_type", "csv"),  # explicit response_format
+        ("/posts_csv", None),  # auto-detection via Content-Type header
+    ],
+    ids=["explicit_format", "auto_detection"],
+)
+def test_rest_api_source_csv_response(path: str, response_format: str) -> None:
+    """Test REST API source with CSV response format (explicit and auto-detected)"""
+    endpoint_config = {"path": path}
+    if response_format:
+        endpoint_config["response_format"] = response_format
+
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.example.com",
+        },
+        "resources": [
+            {
+                "name": "posts_csv",
+                "endpoint": endpoint_config,
+            },
+        ],
+    }
+
+    pipeline = _make_pipeline("duckdb")
+    load_info = pipeline.run(rest_api_source(config))
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline, "posts_csv")
+    assert table_counts["posts_csv"] == 5
+
+    # Validate actual content
+    tables = load_tables_to_dicts(pipeline, "posts_csv", exclude_system_cols=True)
+    posts = sorted(tables["posts_csv"], key=lambda x: int(x["id"]))
+    assert len(posts) == 5
+    for i, post in enumerate(posts):
+        assert post["id"] == str(i)
+        assert post["title"] == f"Post {i}"
+
+
+@pytest.mark.usefixtures("mock_api_server")
+def test_rest_api_source_mixed_json_parent_csv_child() -> None:
+    """Test REST API source with JSON parent resource and CSV child resource"""
+    config: RESTAPIConfig = {
+        "client": {
+            "base_url": "https://api.example.com",
+        },
+        "resources": [
+            {
+                "name": "posts",
+                "endpoint": {
+                    "path": "/posts",
+                    "paginator": SinglePagePaginator(),
+                    "data_selector": "data",
+                },
+            },
+            {
+                "name": "comments_csv",
+                "endpoint": {
+                    "path": "/posts/{post_id}/comments_csv",
+                    "params": {
+                        "post_id": {
+                            "type": "resolve",
+                            "resource": "posts",
+                            "field": "id",
+                        },
+                    },
+                    "response_format": "csv",
+                },
+            },
+        ],
+    }
+
+    pipeline = _make_pipeline("duckdb")
+    load_info = pipeline.run(rest_api_source(config))
+    assert_load_info(load_info)
+
+    # Validate posts (JSON parent) - first page has 5 posts
+    table_counts = load_table_counts(pipeline, "posts", "comments_csv")
+    assert table_counts["posts"] == 5
+
+    # Validate comments (CSV child) - 3 comments per post, 5 posts = 15 comments
+    assert table_counts["comments_csv"] == 15
+
+    # Validate actual content
+    tables = load_tables_to_dicts(pipeline, "posts", "comments_csv", exclude_system_cols=True)
+
+    # Check posts content
+    posts = sorted(tables["posts"], key=lambda x: x["id"])
+    assert len(posts) == 5
+    for i, post in enumerate(posts):
+        assert post["id"] == i
+        assert post["title"] == f"Post {i}"
+
+    # Check comments content - each post should have 3 comments
+    comments = sorted(tables["comments_csv"], key=lambda x: (int(x["post_id"]), int(x["id"])))
+    assert len(comments) == 15
+    for post_idx in range(5):
+        post_comments = [c for c in comments if int(c["post_id"]) == post_idx]
+        assert len(post_comments) == 3
+        for comment_idx, comment in enumerate(post_comments):
+            assert comment["id"] == str(comment_idx)
+            assert comment["body"] == f"Comment {comment_idx} for post {post_idx}"

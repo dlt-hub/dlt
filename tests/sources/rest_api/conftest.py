@@ -410,6 +410,36 @@ def mock_api_server():
         def posts_with_reactions(request, context):
             return paginate_by_page_number(request, generate_posts_with_reactions())
 
+        @router.get(r"/posts_csv$")
+        def posts_csv(request, context):
+            """Return posts as CSV with proper Content-Type header"""
+            posts = generate_posts()[:5]
+            csv_content = "id,title\n"
+            for post in posts:
+                csv_content += f"{post['id']},{post['title']}\n"
+            context.headers["Content-Type"] = "text/csv"
+            return csv_content
+
+        @router.get(r"/posts_csv_no_content_type$")
+        def posts_csv_no_content_type(request, context):
+            """Return posts as CSV without Content-Type header (for explicit format testing)"""
+            posts = generate_posts()[:5]
+            csv_content = "id,title\n"
+            for post in posts:
+                csv_content += f"{post['id']},{post['title']}\n"
+            return csv_content
+
+        @router.get(r"/posts/(\d+)/comments_csv$")
+        def post_comments_csv(request, context):
+            """Return comments for a post as CSV (for mixed JSON parent + CSV child testing)"""
+            post_id = int(request.url.split("/")[-2])
+            comments = generate_comments(post_id, count=3)
+            csv_content = "id,post_id,body\n"
+            for comment in comments:
+                csv_content += f"{comment['id']},{comment['post_id']},{comment['body']}\n"
+            context.headers["Content-Type"] = "text/csv"
+            return csv_content
+
         router.register_routes(m)
 
         yield m
