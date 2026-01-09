@@ -374,7 +374,7 @@ filesystem_pipe = filesystem(
 
 - `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/)
 - `read_jsonl()` - processes JSONL files chunk by chunk
-- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/)
+- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/) control memory usage with `chunksize` (defaults to 1000 rows per batch) and toggle `use_pyarrow` when you want the reader to emit native `pyarrow.RecordBatch` objects instead of Python lists.
 - `read_csv_duckdb()` - this transformer processes CSV files using DuckDB, which usually shows better performance than pandas.
 
 :::tip

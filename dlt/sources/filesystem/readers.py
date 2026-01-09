@@ -70,6 +70,10 @@ def _read_parquet(
 
     Args:
         chunksize (int, optional): The number of records to process at once, defaults to 1000.
+        use_pyarrow (bool, optional): When False (default) batches are converted to Python
+            lists for broad destination compatibility; when True, native ``pyarrow``
+            ``RecordBatch`` objects are yielded for zero-copy pipelines and manual schema
+            control.
 
     Returns:
         TDataItem: The file content
