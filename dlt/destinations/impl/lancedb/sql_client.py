@@ -104,7 +104,9 @@ class LanceDBSQLClient(DuckDbSqlClient):
         table_name = table_schema["name"]
         table_format = table_schema.get("table_format")
         if table_format != "lance":
-            raise NotImplementedError(f"Can't create view for other formats than `.lance`. Received: {table_format}")
+            raise NotImplementedError(
+                f"Can't create view for other formats than `.lance`. Received: {table_format}"
+            )
 
         from_statement = f"{self.lance_uri}/{table_name}.lance"
         create_view_sql = f'CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM "{from_statement}"'

@@ -8,15 +8,18 @@ from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
 
 @pytest.fixture
 def tmp_lance_uri(tmp_path: pathlib.Path) -> str:
-    return str(tmp_path/"data.lancedb")
+    return str(tmp_path / "data.lancedb")
+
 
 @pytest.fixture
 def tmp_lance_destination(tmp_lance_uri: str):
     return dlt.destinations.lancedb(lance_uri=tmp_lance_uri)
 
+
 @pytest.fixture(scope="function")
 def tmp_pipelines_dir(tmp_path: pathlib.Path) -> pathlib.Path:
     return tmp_path / "pipelines_dir"
+
 
 @pytest.fixture(scope="function")
 def tmp_pipeline(
@@ -33,6 +36,7 @@ def tmp_pipeline(
         destination=tmp_lance_destination,
     )
 
+
 def test_sql_client_access(tmp_pipeline: dlt.Pipeline, tmp_lance_uri: str):
     table_name = "foo"
     data = [{"id": 1, "value": "foo"}, {"id": 2, "value": "bar"}]
@@ -42,6 +46,6 @@ def test_sql_client_access(tmp_pipeline: dlt.Pipeline, tmp_lance_uri: str):
 
     dataset = tmp_pipeline.dataset()
     table = dataset.table(table_name)
-    
+
     retrieved_data = table.select("id", "value").fetchall()
     assert retrieved_data == [(r["id"], r["value"]) for r in data]
