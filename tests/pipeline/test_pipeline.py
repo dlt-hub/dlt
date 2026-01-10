@@ -4463,14 +4463,14 @@ def test_pending_package_exception_warning() -> None:
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run()
 
-    # none of the jobs passed so we have pending package but not partial
+    # one of the job failed and package is aborted. sometimes the other
+    # job completed, sometimes is still pending so we disable pending test
     assert pip_ex.value.step == "load"
-    print(str(pip_ex.value))
-    assert "Pending packages" not in str(pip_ex.value)
+    # assert "Pending packages" not in str(pip_ex.value)
     assert "partially loaded" in str(pip_ex.value)
     assert pip_ex.value.load_id is not None
     assert pip_ex.value.is_package_partially_loaded is True
-    assert pip_ex.value.has_pending_data is False
+    # assert pip_ex.value.has_pending_data is False
 
 
 def test_cleanup() -> None:

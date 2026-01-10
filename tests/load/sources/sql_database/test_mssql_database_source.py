@@ -31,6 +31,9 @@ except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
 
 
+pytestmark = pytest.mark.mssql
+
+
 def make_pipeline(destination_name: TDestinationReferenceArg) -> dlt.Pipeline:
     return dlt.pipeline(
         pipeline_name="sql_database" + uniq_id(),
