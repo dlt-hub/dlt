@@ -199,7 +199,7 @@ def test_sqlite_catalog_from_env_vars(tmp_path, monkeypatch, clean_env):
     """
     INTEGRATION TEST: Create SQLite catalog from PYICEBERG_* environment variables.
         
-    This test uses a real SQLite catalog (no mocking) to verify that:
+    This test verifies that:
     1. PYICEBERG_* environment variables are correctly parsed
     2. Catalog is created with the right configuration
     3. We can inspect actual catalog properties to verify configuration
@@ -346,7 +346,7 @@ def test_sqlite_catalog_fallback_in_memory(clean_env):
     """
     INTEGRATION TEST: Verify SQLite fallback to in-memory catalog.
     
-    This test uses a real SQLite catalog (no mocking) to verify that:
+    This test verifies that:
     1. When no configuration is provided, get_catalog falls back to SQLite
     2. The fallback creates an in-memory SQLite catalog
     3. The catalog is functional
@@ -377,20 +377,25 @@ def test_sqlite_catalog_fallback_in_memory(clean_env):
 
 
 # ----------------------------------------------------------------------------
-# REST Catalog Integration Tests (require lakekeeper)
+# REST/PostgreSQL Catalog Integration Tests (require a REST/PostgreSQL catalog running)
 # ----------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
 def rest_catalog_config():
-    """Configuration for lakekeeper REST catalog running at localhost:8181.
+    """Configuration for Iceberg REST catalog running at localhost:8181.
     
-    Expects lakekeeper to be running - tests will fail if not available.
-    Set up the catalog before running tests (locally or in CI).
+    Uses apache/iceberg-rest-fixture from docker-compose-iceberg.yml.
+    Expects the REST catalog to be running - tests will fail if not available.
+    
+    Start with: docker compose -f tests/common/libs/docker-compose-iceberg.yml up -d
     """
     return {
         "type": "rest",
-        "uri": "http://localhost:8181/catalog",
-        "warehouse": "test_easy",
+        "uri": "http://localhost:8181",
+        "warehouse": "s3://warehouse/",
+        "s3.endpoint": "http://localhost:9000",
+        "s3.access-key-id": "admin",
+        "s3.secret-access-key": "password",
     }
 
 
@@ -398,9 +403,10 @@ def rest_catalog_config():
 def postgres_catalog_config(tmp_path_factory):
     """Configuration for PostgreSQL SQL catalog.
     
-    Uses the test PostgreSQL instance to store Iceberg catalog metadata.
+    Uses PostgreSQL from docker-compose-iceberg.yml to store Iceberg catalog metadata.
     Expects PostgreSQL to be running - tests will fail if not available.
-    Set up the database before running tests (locally or in CI).
+    
+    Start with: docker compose -f tests/common/libs/docker-compose-iceberg.yml up -d
     """
     temp_dir = tmp_path_factory.mktemp("postgres_catalog")
     return {
@@ -410,21 +416,22 @@ def postgres_catalog_config(tmp_path_factory):
     }
     
 @pytest.fixture(scope="session")
-def sqlite_catalog_config(tmp_path):
+def sqlite_catalog_config(tmp_path_factory):
     """Configuration for SQLite catalog.
     """
-    db_path = tmp_path / "test_catalog.db"
+    temp_dir = tmp_path_factory.mktemp("sqlite_catalog")
+    db_path = temp_dir / "test_catalog.db"
     return {
         "type": "sql",
         "uri": f"sqlite:///{db_path}",
-        "warehouse": str(tmp_path / "warehouse")
+        "warehouse": str(temp_dir / "warehouse")
     }
 
 @pytest.fixture(
     params=["sqlite", "postgres", "rest"],
     ids=["sqlite", "postgres", "rest"]
 )
-def catalog_config(request, tmp_path, postgres_catalog_config, rest_catalog_config):
+def catalog_config(request, sqlite_catalog_config, postgres_catalog_config, rest_catalog_config):
     """Parametrized fixture providing catalog configurations for all supported types.
     
     This allows tests to run against SQLite, PostgreSQL, and REST catalogs
@@ -551,15 +558,21 @@ def test_catalog_from_explicit_config_parametrized(catalog_config):
     
     Runs for: SQLite, PostgreSQL, and REST catalogs
     """
-    catalog_name = f"explicit_config_catalog_{catalog_config['type']}"
+    catalog_name = "explicit_config_catalog"
     
     catalog = get_catalog(catalog_name, iceberg_catalog_config=catalog_config)
     
     assert catalog is not None
     assert catalog.name == catalog_name
     
-    # Verify catalog is functional - verify namespace (we assume it has been created by CI)
+    # Verify catalog is functional
     test_namespace = "test_explicit_ns"
+    is_sqlite = "sqlite" in catalog_config.get("uri", "")
+    
+    # SQLite is ephemeral, so we create the namespace; for persistent catalogs, verify CI-created namespace
+    if is_sqlite:
+        catalog.create_namespace(test_namespace)
+    
     namespaces = catalog.list_namespaces()
     namespace_list = [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
     assert test_namespace in namespace_list
@@ -576,7 +589,7 @@ def test_catalog_from_yaml_parametrized(catalog_config, tmp_path, monkeypatch):
     
     Runs for: SQLite, PostgreSQL, and REST catalogs
     """
-    catalog_name = f"yaml_catalog_{catalog_config['type']}"
+    catalog_name = "yaml_catalog"
     
     # Create YAML config file
     yaml_file = tmp_path / ".pyiceberg.yaml"
@@ -605,6 +618,12 @@ def test_catalog_from_yaml_parametrized(catalog_config, tmp_path, monkeypatch):
     
     # Verify catalog is functional
     test_namespace = "test_yaml_ns"
+    is_sqlite = "sqlite" in catalog_config.get("uri", "")
+    
+    # SQLite is ephemeral, so we create the namespace; for persistent catalogs, verify CI-created namespace
+    if is_sqlite:
+        catalog.create_namespace(test_namespace)
+    
     namespaces = catalog.list_namespaces()
     namespace_list = [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
     assert test_namespace in namespace_list
