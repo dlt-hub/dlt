@@ -216,16 +216,17 @@ def _load_catalog_from_pyiceberg(
 
     Args:
         catalog_name: Name of the catalog to load from YAML
-        config_path: Optional path to .pyiceberg.yaml file. If None, searches in:
-                    1. Current directory (./.pyiceberg.yaml)
-                    2. DLT project directory (./.dlt/.pyiceberg.yaml)
-                    3. Home directory (~/.pyiceberg.yaml)
 
     Returns:
         IcebergCatalog instance loaded from YAML configuration
 
     Raises:
         CatalogNotFoundError: If no .pyiceberg.yaml file found or catalog not in file
+
+    Search paths (in order):
+        1. PYICEBERG_HOME environment variable (pyiceberg standard)
+        2. DLT run directory
+        3. DLT settings directory
 
     Example .pyiceberg.yaml:
         catalog:
@@ -244,6 +245,11 @@ def _load_catalog_from_pyiceberg(
     # Search through potential paths for Iceberg Config
     search_paths = []
     
+    pyiceberg_home = os.environ.get("PYICEBERG_HOME")
+    if pyiceberg_home:
+        search_paths.append(Path(pyiceberg_home) / ".pyiceberg.yaml")
+    
+    # Add dlt-specific paths
     search_paths.extend(
         [
             Path(active_run_context.run_dir) / ".pyiceberg.yaml",
