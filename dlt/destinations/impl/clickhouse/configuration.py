@@ -30,7 +30,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     secure: TSecureConnection = 1
     """Enables TLS encryption when connecting to ClickHouse Server. 0 means no encryption, 1 means encrypted."""
     connect_timeout: int = 15
-    """Timeout for establishing connection. Defaults to 10 seconds."""
+    """Timeout for establishing connection. Defaults to 15 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
 
