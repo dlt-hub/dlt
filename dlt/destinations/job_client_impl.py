@@ -935,7 +935,8 @@ class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
         if table["write_disposition"] == "merge":
             return True
         elif table["write_disposition"] == "replace" and (
-            table["x-replace-strategy"] in ["insert-from-staging", "staging-optimized"]  # type: ignore[typeddict-item]
+            table["x-replace-strategy"]  # type: ignore[typeddict-item]
+            in ["insert-from-staging", "staging-optimized", "staging-atomic-swap"]
         ):
             return True
         return False

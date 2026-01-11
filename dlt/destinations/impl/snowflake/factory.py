@@ -151,6 +151,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             "truncate-and-insert",
             "insert-from-staging",
             "staging-optimized",
+            "staging-atomic-swap",
         ]
         caps.timestamp_precision = 6
         caps.max_timestamp_precision = 9
