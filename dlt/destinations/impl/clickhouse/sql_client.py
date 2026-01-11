@@ -200,19 +200,29 @@ class ClickHouseSqlClient(
         ]
         self.execute_many(statements)
 
-    def insert_file(
-        self, file_path: str, table_name: str, file_format: str, compression: str
-    ) -> QuerySummary:
-        with clickhouse_connect.create_client(
+    def _clickhouse_connect_client(
+        self, http_port: Optional[int] = None
+    ) -> clickhouse_connect.driver.client.Client:
+        return clickhouse_connect.create_client(
             host=self.credentials.host,
-            port=self.credentials.http_port,
+            port=http_port or self.credentials.http_port,
             database=self.credentials.database,
             user_name=self.credentials.username,
             password=self.credentials.password,
             secure=bool(self.credentials.secure),
-        ) as clickhouse_connect_client:
+            send_receive_timeout=self.credentials.send_receive_timeout,
+        )
+
+    @raise_open_connection_error
+    def clickhouse_connect_client(self) -> clickhouse_connect.driver.client.Client:
+        return self._clickhouse_connect_client()
+
+    def insert_file(
+        self, file_path: str, table_name: str, file_format: str, compression: str
+    ) -> QuerySummary:
+        with self.clickhouse_connect_client() as client:
             return clk_insert_file(
-                clickhouse_connect_client,
+                client,
                 self.make_qualified_table_name(table_name),
                 file_path,
                 fmt=file_format,

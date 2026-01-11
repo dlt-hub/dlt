@@ -1,8 +1,10 @@
 from typing import List, Optional
 
+import clickhouse_connect
+
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
-from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
     SHARDING_KEY_HINT,
@@ -10,7 +12,9 @@ from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import 
 )
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     ClickHouseClusterClientConfiguration,
+    ClickHouseClusterCredentials,
 )
+from dlt.destinations.sql_client import raise_open_connection_error
 
 
 class ClickHouseClusterSqlClient(ClickHouseSqlClient):
@@ -19,7 +23,7 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         dataset_name: Optional[str],
         staging_dataset_name: str,
         known_table_names: List[str],
-        credentials: ClickHouseCredentials,
+        credentials: ClickHouseClusterCredentials,
         capabilities: DestinationCapabilitiesContext,
         config: ClickHouseClusterClientConfiguration,
     ) -> None:
@@ -31,7 +35,28 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
             capabilities,
             config,
         )
+        self.credentials: ClickHouseClusterCredentials = credentials
         self.config: ClickHouseClusterClientConfiguration = config
+
+    @raise_open_connection_error
+    def clickhouse_connect_client(self) -> clickhouse_connect.driver.client.Client:  # type: ignore[return]
+        # unlike `clickhouse_driver`, `clickhouse_connect` does not support `alt_hosts` (or similar)
+        # parameter, so we implement our own failover logic
+        # https://github.com/ClickHouse/clickhouse-connect/issues/74
+        http_ports = self.credentials._http_ports
+        for idx, port in enumerate(http_ports):
+            try:
+                return self._clickhouse_connect_client(http_port=port)
+            except clickhouse_connect.driver.exceptions.OperationalError as ex:
+                is_timeout = "timed out" in str(ex)
+                is_last_port = idx == len(http_ports) - 1
+                if is_timeout and not is_last_port:
+                    logger.warning(
+                        f"Connection attempt to ClickHouse cluster on port {port} timed out. Trying"
+                        f" next port: {http_ports[idx + 1]}."
+                    )
+                    continue
+                raise
 
     def _make_create_table(
         self, qualified_name: str, or_replace: bool = False, if_not_exists: bool = False

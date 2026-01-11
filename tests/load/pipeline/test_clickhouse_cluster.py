@@ -1,14 +1,17 @@
 import os
-from typing import cast
 import pytest
+from typing import cast
 
 import dlt
 from dlt.destinations.adapters import clickhouse_cluster_adapter
+from dlt.destinations.exceptions import DatabaseTransientException, DestinationConnectionError
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
     ClickHouseClusterClientConfiguration,
 )
+from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
+from dlt.extract import decorators
 from tests.load.clickhouse_cluster.utils import (
     CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS,
     CLICKHOUSE_CLUSTER_NODE_PORTS,
@@ -16,6 +19,8 @@ from tests.load.clickhouse_cluster.utils import (
     REPLICATED_SHARDED_CLUSTER_NAME,
     SHARDED_CLUSTER_NAME,
     assert_clickhouse_cluster_conf,
+    clickhouse_cluster_node_paused,
+    get_node_name,
     get_table_engine,
     set_clickhouse_cluster_conf,
 )
@@ -26,6 +31,99 @@ from tests.pipeline.utils import assert_load_info
 # NOTE: we can't use Dataset.row_counts, because distributed tables are not part of the schema
 def get_row_cnt(ds: dlt.Dataset, qualified_table_name: str) -> int:
     return ds.query(f"SELECT COUNT(*) FROM {qualified_table_name}").fetchone()[0]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
+    ids=lambda x: x.name,
+)
+def test_alt_ports(destination_config: DestinationTestConfiguration) -> None:
+    res = decorators.resource([{"foo": "bar"}], name="foo")
+    res = clickhouse_cluster_adapter(res, table_engine_type="replicated_merge_tree")
+
+    # define cluster config
+    cluster = REPLICATED_CLUSTER_NAME  # 1 shard, 2 replicas
+    port = CLICKHOUSE_CLUSTER_NODE_PORTS[0]  # first node port
+    http_port = CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[0]  # first node http port
+    alt_ports = [CLICKHOUSE_CLUSTER_NODE_PORTS[1]]  # second node port
+    alt_http_ports = [CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1]]  # second node http port
+
+    set_clickhouse_cluster_conf(
+        cluster=cluster,
+        port=port,
+        http_port=http_port,
+        alt_ports=alt_ports,
+        alt_http_ports=alt_http_ports,
+    )
+    # lower timeout for faster test execution
+    os.environ["DESTINATION__CLICKHOUSE_CLUSTER__CREDENTIALS__SEND_RECEIVE_TIMEOUT"] = "2"
+
+    pipe = destination_config.setup_pipeline("test_alt_hosts", dev_mode=True)
+
+    assert_clickhouse_cluster_conf(
+        config=cast(ClickHouseClusterClientConfiguration, pipe.destination_client().config),
+        cluster=cluster,
+        port=port,
+        http_port=http_port,
+        alt_ports=alt_ports,
+        alt_http_ports=alt_http_ports,
+    )
+
+    sql_client = cast(ClickHouseClusterSqlClient, pipe.sql_client())
+
+    # by default, we connect to first replica
+    assert get_node_name(sql_client, driver="clickhouse_driver") == "01"
+    assert get_node_name(sql_client, driver="clickhouse_connect") == "01"
+
+    # run pipeline as integration test
+    load_info = pipe.run(res, **destination_config.run_kwargs)
+    assert_load_info(load_info)
+
+    # assert row count on first node
+    node_one_ds = pipe.dataset()
+    assert get_node_name(node_one_ds.sql_client, driver="clickhouse_driver") == "01"  # type: ignore[arg-type]
+    assert len(node_one_ds["foo"].fetchall()) == 1
+
+    # pause first node to test failover
+    with clickhouse_cluster_node_paused(1):
+        # now we should connect to second replica
+        assert get_node_name(sql_client, driver="clickhouse_driver") == "02"
+        assert get_node_name(sql_client, driver="clickhouse_connect") == "02"
+
+        # assert row count on second node, before second load
+        node_two_ds = pipe.dataset()
+        assert get_node_name(node_two_ds.sql_client, driver="clickhouse_driver") == "02"  # type: ignore[arg-type]
+        assert len(node_two_ds["foo"].fetchall()) == 1
+
+        # run pipeline as integration test
+        load_info = pipe.run(res, **destination_config.run_kwargs)
+        assert_load_info(load_info)
+
+        # assert row count on second node, after second load
+        node_two_ds = pipe.dataset()
+        assert get_node_name(node_two_ds.sql_client, driver="clickhouse_driver") == "02"  # type: ignore[arg-type]
+        assert len(node_two_ds["foo"].fetchall()) == 2
+
+    # after unpausing first node we should connect to it again
+    assert get_node_name(sql_client, driver="clickhouse_driver") == "01"
+    assert get_node_name(sql_client, driver="clickhouse_connect") == "01"
+
+    # assert row count on first node, after second load
+    node_one_ds = pipe.dataset()
+    assert get_node_name(node_one_ds.sql_client, driver="clickhouse_driver") == "01"  # type: ignore[arg-type]
+    assert len(node_one_ds["foo"].fetchall()) == 2  # second load was replicated after unpausing
+
+    # pause both nodes and assert connection attempts fail
+    with clickhouse_cluster_node_paused(1, 2):
+        # clickhouse_driver driver
+        with pytest.raises(DatabaseTransientException):
+            with sql_client:
+                sql_client.execute_sql("SELECT 1;")
+
+        # clickhouse_connect driver
+        with pytest.raises(DestinationConnectionError):
+            sql_client.clickhouse_connect_client()
 
 
 @pytest.mark.parametrize(

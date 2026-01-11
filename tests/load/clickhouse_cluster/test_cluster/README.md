@@ -19,3 +19,4 @@ These adjustements are made to the cluster definition files (compared to ClickHo
 - environment variables added, to create `dlt_data` database and `loader` user
 - `users.xml` config files removed, because we create the user with environment variables
 - swapped data nodes two and three in configuration `cluster_2S_2R`, so it matches configuration `cluster_1S_2R`, so we can use the same `macros` definition for both
+- added `node` macros to be able to query the name of the cluster node the driver is connected to

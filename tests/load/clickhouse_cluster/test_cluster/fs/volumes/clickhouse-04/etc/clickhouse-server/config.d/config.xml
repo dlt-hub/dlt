@@ -98,6 +98,7 @@
         </node>
     </zookeeper>
     <macros>
+        <node>04</node>
         <shard>02</shard>
         <replica>02</replica>
     </macros>
