@@ -19,6 +19,7 @@ REPLICATED_CLUSTER_NAME = "cluster_1S_2R"
 SHARDED_CLUSTER_NAME = "cluster_2S_1R"
 REPLICATED_SHARDED_CLUSTER_NAME = "cluster_2S_2R"
 
+CLICKHOUSE_CLUSTER_HOST = "localhost"
 CLICKHOUSE_CLUSTER_NODES = (
     "clickhouse-01",
     "clickhouse-02",
@@ -44,8 +45,8 @@ def set_clickhouse_cluster_conf(
     cluster: Optional[str] = None,
     port: Optional[int] = None,
     http_port: Optional[int] = None,
-    alt_ports: Optional[Sequence[int]] = None,
-    alt_http_ports: Optional[Sequence[int]] = None,
+    alt_hosts: Optional[str] = None,
+    alt_http_hosts: Optional[str] = None,
 ) -> None:
     env_var_prefix = "DESTINATION__CLICKHOUSE_CLUSTER__"
     if cluster is not None:
@@ -54,10 +55,10 @@ def set_clickhouse_cluster_conf(
         os.environ[env_var_prefix + "CREDENTIALS__PORT"] = str(port)
     if http_port is not None:
         os.environ[env_var_prefix + "CREDENTIALS__HTTP_PORT"] = str(http_port)
-    if alt_ports is not None:
-        os.environ[env_var_prefix + "CREDENTIALS__ALT_PORTS"] = str(alt_ports)
-    if alt_http_ports is not None:
-        os.environ[env_var_prefix + "CREDENTIALS__ALT_HTTP_PORTS"] = str(alt_http_ports)
+    if alt_hosts is not None:
+        os.environ[env_var_prefix + "CREDENTIALS__ALT_HOSTS"] = alt_hosts
+    if alt_http_hosts is not None:
+        os.environ[env_var_prefix + "CREDENTIALS__ALT_HTTP_HOSTS"] = alt_http_hosts
 
 
 def assert_clickhouse_cluster_conf(
@@ -65,8 +66,8 @@ def assert_clickhouse_cluster_conf(
     cluster: Optional[str] = None,
     port: Optional[int] = None,
     http_port: Optional[int] = None,
-    alt_ports: Optional[Sequence[int]] = None,
-    alt_http_ports: Optional[Sequence[int]] = None,
+    alt_hosts: Optional[str] = None,
+    alt_http_hosts: Optional[str] = None,
 ) -> None:
     if cluster is not None:
         assert config.cluster == cluster
@@ -74,10 +75,10 @@ def assert_clickhouse_cluster_conf(
         assert config.credentials.port == port
     if http_port is not None:
         assert config.credentials.http_port == http_port
-    if alt_ports is not None:
-        assert config.credentials.alt_ports == alt_ports
-    if alt_http_ports is not None:
-        assert config.credentials.alt_http_ports == alt_http_ports
+    if alt_hosts is not None:
+        assert config.credentials.alt_hosts == alt_hosts
+    if alt_http_hosts is not None:
+        assert config.credentials.alt_http_hosts == alt_http_hosts
 
 
 def get_table_engine(sql_client: ClickHouseSqlClient, table_name: str, full: bool = False) -> str:

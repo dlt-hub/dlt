@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, ClassVar, Dict, List, Optional, Tuple
 from dlt.common.configuration import configspec
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
@@ -12,25 +12,39 @@ DEFAULT_SHARDING_KEY = "rand()"
 
 @configspec(init=False)
 class ClickHouseClusterCredentials(ClickHouseCredentials):
-    alt_ports: Optional[Sequence[int]] = None
-    alt_http_ports: Optional[Sequence[int]] = None
+    alt_hosts: Optional[str] = None
+    alt_http_hosts: Optional[str] = None
+
+    __query_params__: ClassVar[List[str]] = ["alt_hosts"]
 
     @property
-    def _http_ports(self) -> List[int]:
-        """Returns list of configured HTTP ports used to connect to ClickHouse cluster.
+    def _http_hosts(self) -> List[Tuple[str, int]]:
+        """Returns list of configured hosts used to connect to ClickHouse cluster over HTTP.
 
-        Starts with primary port, followed by alternative ports (if any).
+        Each host is represented as (host, port) tuple.
+        Starts with primary host, followed by alternative hosts (if any).
         """
 
-        alt_http_ports = self.alt_http_ports or []
-        return [self.http_port] + [p for p in alt_http_ports if p != self.http_port]
+        hosts = [(self.host, self.http_port)]
+        if self.alt_http_hosts:
+            hosts += [
+                (host, int(port))
+                for host_port in self.alt_http_hosts.split(",")
+                for host, port in [host_port.split(":")]
+            ]
+        return hosts
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        super().parse_native_representation(native_value)
+        for param in self.__query_params__:
+            if param in self.query:
+                setattr(self, param, self.query[param])
 
     def get_query(self) -> Dict[str, Any]:
         query = super().get_query()
-
-        if self.alt_ports:
-            query["alt_hosts"] = ",".join(f"{self.host}:{port}" for port in self.alt_ports)
-
+        for param in self.__query_params__:
+            if self.get(param) is not None:
+                query[param] = self[param]
         return query
 
 

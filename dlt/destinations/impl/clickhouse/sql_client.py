@@ -201,11 +201,11 @@ class ClickHouseSqlClient(
         self.execute_many(statements)
 
     def _clickhouse_connect_client(
-        self, http_port: Optional[int] = None
+        self, host: Optional[str] = None, port: Optional[int] = None
     ) -> clickhouse_connect.driver.client.Client:
         return clickhouse_connect.create_client(
-            host=self.credentials.host,
-            port=http_port or self.credentials.http_port,
+            host=host if host is not None else self.credentials.host,
+            port=port if port is not None else self.credentials.http_port,
             database=self.credentials.database,
             user_name=self.credentials.username,
             password=self.credentials.password,

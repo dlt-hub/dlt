@@ -43,17 +43,19 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         # unlike `clickhouse_driver`, `clickhouse_connect` does not support `alt_hosts` (or similar)
         # parameter, so we implement our own failover logic
         # https://github.com/ClickHouse/clickhouse-connect/issues/74
-        http_ports = self.credentials._http_ports
-        for idx, port in enumerate(http_ports):
+        http_hosts = self.credentials._http_hosts
+        for idx, host_port in enumerate(http_hosts):
+            host, port = host_port
             try:
-                return self._clickhouse_connect_client(http_port=port)
+                return self._clickhouse_connect_client(host=host, port=port)
             except clickhouse_connect.driver.exceptions.OperationalError as ex:
                 is_timeout = "timed out" in str(ex)
-                is_last_port = idx == len(http_ports) - 1
-                if is_timeout and not is_last_port:
+                has_next = idx + 1 < len(http_hosts)
+                if is_timeout and has_next:
+                    next_host, next_port = http_hosts[idx + 1]
                     logger.warning(
-                        f"Connection attempt to ClickHouse cluster on port {port} timed out. Trying"
-                        f" next port: {http_ports[idx + 1]}."
+                        f"Connection attempt to ClickHouse cluster on {host}:{port} timed out."
+                        f" Trying next: {next_host}:{next_port}."
                     )
                     continue
                 raise

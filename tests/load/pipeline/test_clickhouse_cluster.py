@@ -13,6 +13,7 @@ from dlt.destinations.impl.clickhouse_cluster.configuration import (
 from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 from dlt.extract import decorators
 from tests.load.clickhouse_cluster.utils import (
+    CLICKHOUSE_CLUSTER_HOST,
     CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS,
     CLICKHOUSE_CLUSTER_NODE_PORTS,
     REPLICATED_CLUSTER_NAME,
@@ -38,7 +39,7 @@ def get_row_cnt(ds: dlt.Dataset, qualified_table_name: str) -> int:
     destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
     ids=lambda x: x.name,
 )
-def test_alt_ports(destination_config: DestinationTestConfiguration) -> None:
+def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
     res = decorators.resource([{"foo": "bar"}], name="foo")
     res = clickhouse_cluster_adapter(res, table_engine_type="replicated_merge_tree")
 
@@ -46,15 +47,17 @@ def test_alt_ports(destination_config: DestinationTestConfiguration) -> None:
     cluster = REPLICATED_CLUSTER_NAME  # 1 shard, 2 replicas
     port = CLICKHOUSE_CLUSTER_NODE_PORTS[0]  # first node port
     http_port = CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[0]  # first node http port
-    alt_ports = [CLICKHOUSE_CLUSTER_NODE_PORTS[1]]  # second node port
-    alt_http_ports = [CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1]]  # second node http port
+    alt_hosts = f"{CLICKHOUSE_CLUSTER_HOST}:{CLICKHOUSE_CLUSTER_NODE_PORTS[1]}"  # second node port
+    alt_http_hosts = (  # second node http port
+        f"{CLICKHOUSE_CLUSTER_HOST}:{CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1]}"
+    )
 
     set_clickhouse_cluster_conf(
         cluster=cluster,
         port=port,
         http_port=http_port,
-        alt_ports=alt_ports,
-        alt_http_ports=alt_http_ports,
+        alt_hosts=alt_hosts,
+        alt_http_hosts=alt_http_hosts,
     )
     # lower timeout for faster test execution
     os.environ["DESTINATION__CLICKHOUSE_CLUSTER__CREDENTIALS__SEND_RECEIVE_TIMEOUT"] = "2"
@@ -66,8 +69,8 @@ def test_alt_ports(destination_config: DestinationTestConfiguration) -> None:
         cluster=cluster,
         port=port,
         http_port=http_port,
-        alt_ports=alt_ports,
-        alt_http_ports=alt_http_ports,
+        alt_hosts=alt_hosts,
+        alt_http_hosts=alt_http_hosts,
     )
 
     sql_client = cast(ClickHouseClusterSqlClient, pipe.sql_client())
