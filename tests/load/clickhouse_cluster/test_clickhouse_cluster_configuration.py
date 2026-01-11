@@ -1,4 +1,10 @@
+import pytest
+
 from dlt.destinations.impl.clickhouse_cluster.configuration import ClickHouseClusterCredentials
+
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 def test_clickhouse_cluster_credentials_parse_native_representation() -> None:

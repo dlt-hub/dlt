@@ -1,7 +1,7 @@
 import os
 import subprocess
 from contextlib import contextmanager
-from typing import Literal, Optional, Sequence
+from typing import Literal, Optional
 
 import pytest
 
@@ -112,6 +112,14 @@ def get_node_name(sql_client: ClickHouseSqlClient, driver=TClickHouseDriver) -> 
     """
 
     return query(sql_client, qry="SELECT getMacro('node');", driver=driver)[0][0]
+
+
+def get_node_port(node: int, http: bool = False) -> int:
+    return (
+        CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[node - 1]
+        if http
+        else CLICKHOUSE_CLUSTER_NODE_PORTS[node - 1]
+    )
 
 
 def get_clickhouse_cluster_node_container_name(node: int) -> str:

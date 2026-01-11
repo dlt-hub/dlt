@@ -1,4 +1,5 @@
 import os
+import time
 import pytest
 from typing import cast
 
@@ -14,19 +15,22 @@ from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseCluste
 from dlt.extract import decorators
 from tests.load.clickhouse_cluster.utils import (
     CLICKHOUSE_CLUSTER_HOST,
-    CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS,
-    CLICKHOUSE_CLUSTER_NODE_PORTS,
     REPLICATED_CLUSTER_NAME,
     REPLICATED_SHARDED_CLUSTER_NAME,
     SHARDED_CLUSTER_NAME,
     assert_clickhouse_cluster_conf,
     clickhouse_cluster_node_paused,
     get_node_name,
+    get_node_port,
     get_table_engine,
     set_clickhouse_cluster_conf,
 )
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
+
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 # NOTE: we can't use Dataset.row_counts, because distributed tables are not part of the schema
@@ -45,12 +49,10 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
 
     # define cluster config
     cluster = REPLICATED_CLUSTER_NAME  # 1 shard, 2 replicas
-    port = CLICKHOUSE_CLUSTER_NODE_PORTS[0]  # first node port
-    http_port = CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[0]  # first node http port
-    alt_hosts = f"{CLICKHOUSE_CLUSTER_HOST}:{CLICKHOUSE_CLUSTER_NODE_PORTS[1]}"  # second node port
-    alt_http_hosts = (  # second node http port
-        f"{CLICKHOUSE_CLUSTER_HOST}:{CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1]}"
-    )
+    port = get_node_port(1)
+    http_port = get_node_port(1, http=True)
+    alt_hosts = f"{CLICKHOUSE_CLUSTER_HOST}:{get_node_port(2)}"
+    alt_http_hosts = f"{CLICKHOUSE_CLUSTER_HOST}:{get_node_port(2, http=True)}"
 
     set_clickhouse_cluster_conf(
         cluster=cluster,
@@ -95,6 +97,7 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
         assert get_node_name(sql_client, driver="clickhouse_connect") == "02"
 
         # assert row count on second node, before second load
+        time.sleep(1)  # give cluster extra time to replicate data to from first to second node
         node_two_ds = pipe.dataset()
         assert get_node_name(node_two_ds.sql_client, driver="clickhouse_driver") == "02"  # type: ignore[arg-type]
         assert len(node_two_ds["foo"].fetchall()) == 1
@@ -113,6 +116,7 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
     assert get_node_name(sql_client, driver="clickhouse_connect") == "01"
 
     # assert row count on first node, after second load
+    time.sleep(1)  # give cluster extra time to replicate data from second to first node
     node_one_ds = pipe.dataset()
     assert get_node_name(node_one_ds.sql_client, driver="clickhouse_driver") == "01"  # type: ignore[arg-type]
     assert len(node_one_ds["foo"].fetchall()) == 2  # second load was replicated after unpausing
@@ -135,7 +139,14 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
     ids=lambda x: x.name,
 )
 def test_replication(destination_config: DestinationTestConfiguration) -> None:
-    """Tests typical replication use case of ClickHouse cluster."""
+    """Tests typical replication use case of ClickHouse cluster.
+
+    Based on https://clickhouse.com/docs/architecture/replication.
+
+    Use case:
+    - cluster: 1 shard, 2 replicas
+    - shard is replicated (ENGINE = ReplicatedMergeTree)
+    """
 
     data = [{"foo": "bar"}]
     replicated = clickhouse_cluster_adapter(
@@ -152,8 +163,8 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
     assert_clickhouse_cluster_conf(
         config=cast(ClickHouseClusterClientConfiguration, pipe.destination_client().config),
         cluster=REPLICATED_CLUSTER_NAME,
-        port=CLICKHOUSE_CLUSTER_NODE_PORTS[0],
-        http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[0],
+        port=get_node_port(1),
+        http_port=get_node_port(1, http=True),
     )
 
     # run pipeline
@@ -172,16 +183,16 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
 
     # change ports to connect to second cluster node
     set_clickhouse_cluster_conf(
-        port=CLICKHOUSE_CLUSTER_NODE_PORTS[1],
-        http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1],
+        port=get_node_port(2),
+        http_port=get_node_port(2, http=True),
     )
 
     # assert we are connecting to second node now
     assert_clickhouse_cluster_conf(
         config=cast(ClickHouseClusterClientConfiguration, pipe.destination_client().config),
         cluster=REPLICATED_CLUSTER_NAME,
-        port=CLICKHOUSE_CLUSTER_NODE_PORTS[1],
-        http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1],
+        port=get_node_port(2),
+        http_port=get_node_port(2, http=True),
     )
 
     # assert row counts on second cluster node
@@ -226,8 +237,8 @@ def test_distribution(destination_config: DestinationTestConfiguration) -> None:
     assert_clickhouse_cluster_conf(
         config=cast(ClickHouseClusterClientConfiguration, pipe.destination_client().config),
         cluster=SHARDED_CLUSTER_NAME,
-        port=CLICKHOUSE_CLUSTER_NODE_PORTS[0],
-        http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[0],
+        port=get_node_port(1),
+        http_port=get_node_port(1, http=True),
     )
 
     # run pipeline
@@ -253,16 +264,16 @@ def test_distribution(destination_config: DestinationTestConfiguration) -> None:
 
     # change ports to connect to second cluster node
     set_clickhouse_cluster_conf(
-        port=CLICKHOUSE_CLUSTER_NODE_PORTS[1],
-        http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1],
+        port=get_node_port(2),
+        http_port=get_node_port(2, http=True),
     )
 
     # assert we are connecting to second node now
     assert_clickhouse_cluster_conf(
         config=cast(ClickHouseClusterClientConfiguration, pipe.destination_client().config),
         cluster=SHARDED_CLUSTER_NAME,
-        port=CLICKHOUSE_CLUSTER_NODE_PORTS[1],
-        http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[1],
+        port=get_node_port(2),
+        http_port=get_node_port(2, http=True),
     )
 
     # assert row counts on second cluster node
@@ -329,19 +340,20 @@ def test_replication_distribution(destination_config: DestinationTestConfigurati
     dist_qual_table_name = sql_client.make_qualified_table_name(dist_table_name)
 
     # assert row counts on all cluster nodes
+    time.sleep(1)  # give cluster extra time to replicate data
     shard_row_cnts = []
-    for node in range(4):
+    for node in (1, 2, 3, 4):
         # set ports to connect to current node
         set_clickhouse_cluster_conf(
-            port=CLICKHOUSE_CLUSTER_NODE_PORTS[node],
-            http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[node],
+            port=get_node_port(node),
+            http_port=get_node_port(node, http=True),
         )
 
         # assert we are connecting to correct node
         assert_clickhouse_cluster_conf(
             config=cast(ClickHouseClusterClientConfiguration, pipe.destination_client().config),
-            port=CLICKHOUSE_CLUSTER_NODE_PORTS[node],
-            http_port=CLICKHOUSE_CLUSTER_NODE_HTTP_PORTS[node],
+            port=get_node_port(node),
+            http_port=get_node_port(node, http=True),
         )
 
         # assert row counts on current node
