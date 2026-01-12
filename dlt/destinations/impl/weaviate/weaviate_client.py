@@ -71,8 +71,20 @@ from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, Weav
 from dlt.destinations.utils import get_pipeline_state_query_columns
 
 
-# Type mapping from dlt types to Weaviate DataType
-DLT_TO_WEAVIATE_TYPE: Dict[str, DataType] = {
+# Type mapping from Weaviate type strings (output of WeaviateTypeMapper) to v4 DataType enums
+# The WeaviateTypeMapper in factory.py converts dlt types to these Weaviate type strings:
+#   dlt type -> Weaviate string -> DataType enum
+#   text -> "text" -> TEXT
+#   double -> "number" -> NUMBER
+#   bool -> "boolean" -> BOOL
+#   timestamp/date -> "date" -> DATE
+#   bigint -> "int" -> INT
+#   binary -> "blob" -> BLOB (binary data like images, PDFs, etc.)
+#   json -> "text" -> TEXT (complex nested objects are JSON-serialized)
+#   decimal -> "text" -> TEXT (decimal precision preserved as string)
+#   wei -> "number" -> NUMBER (Ethereum currency values as floats)
+#   time -> "text" -> TEXT (time values as ISO strings)
+WEAVIATE_TYPE_TO_DATATYPE: Dict[str, DataType] = {
     "text": DataType.TEXT,
     "number": DataType.NUMBER,
     "boolean": DataType.BOOL,
@@ -425,7 +437,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         data_type_str = (
             prop["dataType"][0] if isinstance(prop["dataType"], list) else prop["dataType"]
         )
-        data_type = DLT_TO_WEAVIATE_TYPE.get(data_type_str.lower(), DataType.TEXT)
+        data_type = WEAVIATE_TYPE_TO_DATATYPE.get(data_type_str.lower(), DataType.TEXT)
 
         # Handle tokenization
         tokenization = None
