@@ -55,8 +55,8 @@ iceberg_catalog_type = "rest"
 ```
 or 
 ```sh
-export DLT_ICEBERG_CATALOG_NAME=default
-export DLT_ICEBERG_CATALOG_TYPE=rest
+export ICEBERG_CATALOG__ICEBERG_CATALOG_NAME=default
+export ICEBERG_CATALOG__ICEBERG_CATALOG_TYPE=rest
 ```
 
 If we don't provide these variables they will default to `iceberg_catalog_name = 'default'` and `iceberg_catalog_type = 'sql'`. 
