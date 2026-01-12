@@ -1406,7 +1406,7 @@ def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = Non
     """
     Cast any date64 columns to timestamp with microsecond precision, preserving the
     semantic time values. Uses pyarrow.compute.cast on the column (works for chunked arrays)
-    and rescales from milliseconds (date64) to microseconds (timestamp[us]).
+    to cast from milliseconds (date64) to microseconds (timestamp[us]).
 
     Args:
         tbl: Input Arrow table.
