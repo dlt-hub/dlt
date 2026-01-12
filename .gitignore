@@ -21,6 +21,7 @@ logs/
 test-results/
 # temporary directory used by marimo for layout, caching, HTML snapshots; see marimo docs
 **/__marimo__  
+**.lancedb
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
