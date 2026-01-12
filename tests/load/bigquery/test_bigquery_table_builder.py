@@ -1,6 +1,7 @@
 import os
+import re
 from copy import deepcopy
-from typing import Iterator, Dict, Any, List
+from typing import Iterator, Dict, Any, List, Union
 
 import google
 import pytest
@@ -551,18 +552,28 @@ def test_bigquery_no_partition_by_integer(
             assert not has_partitions
 
 
-def test_bigquery_column_description(gcp_client: BigQueryClient) -> None:
+@pytest.mark.parametrize(
+    "description,expect_column_options",
+    [
+        ("This is a test description for column col1", True),
+        (None, False),
+        ("", False),
+    ],
+)
+def test_bigquery_column_description(
+    gcp_client: BigQueryClient, description: Union[str, None], expect_column_options: bool
+) -> None:
     columns = deepcopy(TABLE_UPDATE)
-    for column in columns:
-        column["description"] = f"This is a test description for column {column['name']}"
+    columns[0]["description"] = description
 
     sql = gcp_client._get_table_update_sql("event_test_table", columns, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert "event_test_table" in sql
-    for column in columns:
-        assert (
-            f"OPTIONS (description='This is a test description for column {column['name']}')" in sql
-        )
+
+    if expect_column_options:
+        assert (re.search(r"OPTIONS \(description='.*'\)", sql)) is not None
+    else:
+        assert "OPTIONS" not in sql
 
 
 def test_bigquery_column_description_character_escaping(gcp_client: BigQueryClient) -> None:
