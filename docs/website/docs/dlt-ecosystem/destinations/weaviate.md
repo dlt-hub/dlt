@@ -26,6 +26,9 @@ pip install "dlt[weaviate]"
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:
 
 ```toml
+[destination.weaviate]
+connection_type = "cloud"  # or "local" or "custom"
+
 [destination.weaviate.credentials]
 url = "https://your-weaviate-url"
 api_key = "your-weaviate-api-key"
@@ -349,15 +352,18 @@ module_config={text2vec-openai = {}, generative-openai = {}}
 
 This ensures the `generative-openai` module is used for generative queries.
 
-### Run Weaviate fully standalone
+### Run Weaviate locally
 
-Below is an example that configures the **contextionary** vectorizer. You can put this into `config.toml`. This configuration does not need external APIs for vectorization and may be used fully offline.
+You can run Weaviate locally using Docker. See the [Weaviate Local Quickstart](https://weaviate.io/developers/weaviate/quickstart/local) for details.
+
+Below is an example that configures the **contextionary** vectorizer in `config.toml`. This does not require external APIs and can run fully offline:
 ```toml
 [destination.weaviate]
-vectorizer="text2vec-contextionary"
-module_config={text2vec-contextionary = { vectorizeClassName = false, vectorizePropertyName = true}}
+connection_type = "local"
+vectorizer = "text2vec-contextionary"
+module_config = {text2vec-contextionary = {vectorizeClassName = false, vectorizePropertyName = true}}
 ```
-You can find Docker Compose with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl/weaviate/README.md).
+You can find the Docker Compose file and setup instructions in our [README](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl/weaviate/README.md).
 
 ### dbt support
 
