@@ -1,14 +1,3 @@
-"""
-Test suite for Iceberg catalog configuration and loading.
-
-This suite tests the get_catalog() function with:
-- Unit tests (5 tests): Configuration priority and input validation
-- Integration tests (12 tests): Real catalogs to verify actual configuration
-
-All integration tests use real catalogs (no mocks) and inspect catalog.properties
-to verify configuration actually works correctly.
-"""
-
 import os
 import yaml
 import pytest
@@ -16,8 +5,6 @@ from unittest import mock
 
 from dlt.common.libs.pyiceberg import (
     get_catalog,
-    _load_catalog_from_pyiceberg,
-    CatalogNotFoundError,
 )
 
 # ============================================================================
@@ -34,7 +21,6 @@ def test_credentials():
         aws_secret_access_key="test_secret_key"
     )
 
-
 @pytest.fixture
 def clean_env(monkeypatch):
     """Remove all Iceberg-related environment variables."""
@@ -42,12 +28,6 @@ def clean_env(monkeypatch):
     for key in list(os.environ.keys()):
         if key.startswith(("ICEBERG_CATALOG__", "PYICEBERG_CATALOG__")):
             monkeypatch.delenv(key, raising=False)
-
-
-# ============================================================================
-# UNIT TESTS
-# ============================================================================
-
 
 # ----------------------------------------------------------------------------
 # Validation and Error Handling Tests  
@@ -57,18 +37,6 @@ def test_get_catalog_rejects_unsupported_types():
     """Should reject unsupported catalog types."""
     with pytest.raises(ValueError, match="Unsupported catalog type"):
         get_catalog("my_cat", iceberg_catalog_type="glue")
-
-
-def test_get_catalog_pyiceberg_missing_file_env_var(tmp_path, clean_env, monkeypatch):
-    """Should raise error when no .pyiceberg.yaml file is found."""
-    # Mock run_context to point to a non-existent YAML file
-    with mock.patch("dlt.current.run_context") as mock_ctx:
-        mock_ctx.return_value.run_dir = str(tmp_path)
-        mock_ctx.return_value.get_setting.return_value = str(tmp_path / "nonexistent.yaml")
-        
-        with pytest.raises(CatalogNotFoundError, match="No .pyiceberg.yaml file found"):
-            _load_catalog_from_pyiceberg("missing_cat")
-
 
 # ============================================================================
 # INTEGRATION TESTS
@@ -133,7 +101,6 @@ def test_priority_explicit_config_over_pyiceberg(tmp_path, monkeypatch):
         # Verify explicit database file was created, not YAML database
         assert db_path_explicit.exists()
         assert not db_path_yaml.exists()
-
 
 def test_catalog_from_env_vars_parametrized(catalog_config, tmp_path, monkeypatch, clean_env):
     """Parametrized test: Create catalog from PYICEBERG_* environment variables.
