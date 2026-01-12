@@ -5,6 +5,7 @@ Initialize Iceberg catalogs with required namespaces for testing.
 This script creates the namespaces needed by test_pyiceberg.py tests:
 - test_explicit_ns: Used by test_catalog_from_explicit_config_parametrized
 - test_yaml_ns: Used by test_catalog_from_yaml_parametrized
+- test_env_ns: Used by test_catalog_from_env_vars_parametrized
 
 Usage:
     # From Docker (catalog-init service)
@@ -61,7 +62,7 @@ def init_rest_catalog():
         }
     )
     
-    namespaces_to_create = ["test_explicit_ns", "test_yaml_ns"]
+    namespaces_to_create = ["test_explicit_ns", "test_yaml_ns", "test_env_ns"]
     
     for ns in namespaces_to_create:
         try:
@@ -96,9 +97,10 @@ def init_postgres_catalog():
     catalog_names = [
         "explicit_config_catalog",  # test_catalog_from_explicit_config_parametrized
         "yaml_catalog",             # test_catalog_from_yaml_parametrized
+        "default",                  # test_catalog_from_env_vars_parametrized
     ]
     
-    namespaces_to_create = ["test_explicit_ns", "test_yaml_ns"]
+    namespaces_to_create = ["test_explicit_ns", "test_yaml_ns", "test_env_ns"]
     
     for catalog_name in catalog_names:
         print(f"\n  Creating namespaces for catalog: {catalog_name}")

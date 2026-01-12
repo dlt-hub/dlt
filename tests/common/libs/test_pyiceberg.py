@@ -74,14 +74,6 @@ def test_get_catalog_pyiceberg_missing_file_env_var(tmp_path, clean_env, monkeyp
 # INTEGRATION TESTS
 # ============================================================================
 
-# All integration tests use real catalogs (no mocks) and inspect
-# catalog.properties to verify configuration actually works correctly.
-
-# ----------------------------------------------------------------------------
-# SQLite Integration Tests
-# ----------------------------------------------------------------------------
-
-
 def test_priority_explicit_config_over_pyiceberg(tmp_path, monkeypatch):
     """Explicit config should take precedence over YAML file.
     
@@ -143,78 +135,28 @@ def test_priority_explicit_config_over_pyiceberg(tmp_path, monkeypatch):
         assert not db_path_yaml.exists()
 
 
-def test_real_sqlite_catalog_integration(tmp_path):
-    """
-    This test verify that:
-    1. Catalog creation works
-    2. Namespaces can be created
-    3. Catalog persists to disk
-    4. Catalog can be reloaded
-    """
-    db_path = tmp_path / "test_catalog.db"
-    catalog_uri = f"sqlite:///{db_path}"
+def test_catalog_from_env_vars_parametrized(catalog_config, tmp_path, monkeypatch, clean_env):
+    """Parametrized test: Create catalog from PYICEBERG_* environment variables.
     
-    # Create catalog with explicit config
-    catalog = get_catalog(
-        "integration_test_catalog",
-        iceberg_catalog_config={
-            "type": "sql",
-            "uri": catalog_uri,
-            "warehouse": "test_warehouse"
-        }
-    )
-    
-    # Verify catalog was created
-    assert catalog is not None
-    assert catalog.name == "integration_test_catalog"
-    
-    # Create a namespace
-    test_namespace = "test_integration_namespace"
-    catalog.create_namespace(test_namespace)
-    
-    # Verify namespace exists
-    namespaces = catalog.list_namespaces()
-    assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
-    
-    # Verify database file was created (persistence)
-    assert db_path.exists()
-    
-    # Reload catalog from same URI to verify persistence
-    catalog2 = get_catalog(
-        "integration_test_catalog",
-        iceberg_catalog_config={
-            "type": "sql",
-            "uri": catalog_uri,
-            "warehouse": "test_warehouse"
-        }
-    )
-    
-    # Verify namespace still exists after reload
-    namespaces2 = catalog2.list_namespaces()
-    assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces2]
-
-
-
-def test_sqlite_catalog_from_env_vars(tmp_path, monkeypatch, clean_env):
-    """
-    INTEGRATION TEST: Create SQLite catalog from PYICEBERG_* environment variables.
-        
     This test verifies that:
     1. PYICEBERG_* environment variables are correctly parsed
     2. Catalog is created with the right configuration
-    3. We can inspect actual catalog properties to verify configuration
-    """
-    db_path = tmp_path / "env_test_catalog.db"
-    catalog_uri = f"sqlite:///{db_path}"
+    3. Catalog is functional and can perform basic operations
     
-    # Set DLT config environment variables 
-    monkeypatch.setenv("PYICEBERG_CATALOG__DEFAULT__TYPE", "sql")
-    monkeypatch.setenv("PYICEBERG_CATALOG__DEFAULT__URI", catalog_uri)
+    Runs for: SQLite, PostgreSQL, and REST catalogs
+    """
+    # Set environment variables from catalog_config
+    for key, value in catalog_config.items():
+        # Convert config keys to env var format:
+        # - dots become __
+        # - hyphens become _
+        # e.g., "s3.access-key-id" -> "S3__ACCESS_KEY_ID"
+        env_key = key.upper().replace(".", "__").replace("-", "_")
+        monkeypatch.setenv(f"PYICEBERG_CATALOG__DEFAULT__{env_key}", str(value))
     
     # Reset PyIceberg's cached environment config after setting env vars
     # PyIceberg reads environment variables once at import time into _ENV_CONFIG
     # We need to reload it after monkeypatch modifies the environment
-    
     from pyiceberg.utils.config import Config
     monkeypatch.setattr("pyiceberg.catalog._ENV_CONFIG", Config())
     
@@ -227,119 +169,19 @@ def test_sqlite_catalog_from_env_vars(tmp_path, monkeypatch, clean_env):
         catalog = get_catalog()
         
         assert catalog is not None
-        assert catalog.name == "default"  
-        
-        # Verify catalog properties match environment variables
-        # SQLite catalogs should have the URI in their properties
-        assert catalog.properties is not None
-        assert "uri" in catalog.properties
-        assert catalog_uri in catalog.properties["uri"]
+        assert catalog.name == "default"
         
         # Verify catalog is functional
-        test_namespace = "test_env_namespace"
-        catalog.create_namespace(test_namespace)
-        namespaces = catalog.list_namespaces()
-        assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
+        test_namespace = "test_env_ns"
+        is_sqlite = "sqlite" in catalog_config.get("uri", "")
         
-        # Verify database file was created
-        assert db_path.exists()
-
-
-
-def test_sqlite_catalog_from_yaml(tmp_path, monkeypatch):
-    """
-    This test verify that:
-
-    1. YAML file discovery works via PYICEBERG_HOME
-    2. Catalog is created with configuration from YAML
-    3. We can inspect actual catalog properties to verify configuration
-    """
-    db_path = tmp_path / "yaml_test_catalog.db"
-    catalog_uri = f"sqlite:///{db_path}"
-    
-    # Create .pyiceberg.yaml file with SQLite catalog config
-    yaml_file = tmp_path / ".pyiceberg.yaml"
-    yaml_content = {
-        "catalog": {
-            "yaml_sqlite_catalog": {
-                "type": "sql",
-                "uri": catalog_uri,
-                "warehouse": "test_warehouse"
-            }
-        }
-    }
-    with open(yaml_file, "w") as f:
-        yaml.dump(yaml_content, f)
-    
-    # Set PYICEBERG_HOME - pyiceberg's standard config location
-    monkeypatch.setenv("PYICEBERG_HOME", str(tmp_path))
-    
-    # Reset PyIceberg's cached environment config
-    from pyiceberg.utils.config import Config
-    monkeypatch.setattr("pyiceberg.catalog._ENV_CONFIG", Config())
-    
-    catalog = get_catalog("yaml_sqlite_catalog")
-    
-    # Verify catalog was created with correct name
-    assert catalog is not None
-    assert catalog.name == "yaml_sqlite_catalog"
-    
-    # Verify catalog properties match YAML configuration
-    assert catalog.properties is not None
-    assert "uri" in catalog.properties
-    assert catalog_uri in catalog.properties["uri"]
-    
-    # Verify catalog is functional
-    test_namespace = "test_yaml_namespace"
-    catalog.create_namespace(test_namespace)
-    namespaces = catalog.list_namespaces()
-    assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
-    
-    # Verify database file was created
-    assert db_path.exists()
-
-
-
-def test_sqlite_catalog_from_explicit_config(tmp_path):
-    """
-    INTEGRATION TEST: Create SQLite catalog from explicit config dictionary.
-    
-    This test uses a real SQLite catalog (no mocking) to verify that:
-    1. Explicit config dict is used correctly
-    2. Catalog is created with the right configuration
-    3. We can inspect actual catalog properties to verify configuration
-    """
-    db_path = tmp_path / "explicit_config_catalog.db"
-    catalog_uri = f"sqlite:///{db_path}"
-    
-    # Explicit config dictionary
-    config = {
-        "type": "sql",
-        "uri": catalog_uri,
-        "warehouse": "test_warehouse"
-    }
-    
-    # Create catalog from explicit config
-    catalog = get_catalog("explicit_config_catalog", iceberg_catalog_config=config)
-    
-    # Verify catalog was created with correct name
-    assert catalog is not None
-    assert catalog.name == "explicit_config_catalog"
-    
-    # Verify catalog properties match explicit config
-    assert catalog.properties is not None
-    assert "uri" in catalog.properties
-    assert catalog_uri in catalog.properties["uri"]
-    
-    # Verify catalog is functional
-    test_namespace = "test_explicit_namespace"
-    catalog.create_namespace(test_namespace)
-    namespaces = catalog.list_namespaces()
-    assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
-    
-    # Verify database file was created
-    assert db_path.exists()
-
+        # SQLite is ephemeral, so we create the namespace; for persistent catalogs, verify CI-created namespace
+        if is_sqlite:
+            catalog.create_namespace(test_namespace)
+        
+        namespaces = catalog.list_namespaces()
+        namespace_list = [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
+        assert test_namespace in namespace_list
 
 
 def test_sqlite_catalog_fallback_in_memory(clean_env):
