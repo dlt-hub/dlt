@@ -598,7 +598,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         """
         query = f"""
 SELECT {",".join(self._get_storage_table_query_columns())}
-    FROM INFORMATION_SCHEMA.COLUMNS
+    FROM {self.sql_client._qualify_info_schema_table_name("COLUMNS")}
 WHERE """
 
         db_params = []

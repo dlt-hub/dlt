@@ -292,6 +292,23 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
     assert expected_clause in sql_partitioned
 
 
+def test_adapter_hints_comprehensive_single_column() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+            "created_at": "2021-01-01T00:00:00Z",
+            "category": "category 1",
+            "score": 100.0,
+        }
+
+    bigquery_adapter(partitioned_table, partition="user_id", cluster="user_id")
+    assert partitioned_table.columns == {
+        "user_id": {"name": "user_id", PARTITION_HINT: True, CLUSTER_HINT: True},
+    }
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
@@ -999,6 +1016,36 @@ def test_adapter_hints_clustering(
 
         assert not no_hints_cluster_fields, "`no_hints` table IS clustered by `col1`."
         assert ["col1"] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_clustering_and_partitioning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
+    def data() -> Iterator[Dict[str, str]]:
+        yield from [{"col1": str(i)} for i in range(10)]
+
+    bigquery_adapter(data, partition="col1", cluster="col1")
+
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
+    pipeline.run(data)
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+        fqtn = c.make_qualified_table_name("data", quote=False)
+        table = nc.get_table(fqtn)
+
+        assert table.clustering_fields == [
+            "col1"
+        ], f"Expected clustering fields ['col1'], got {table.clustering_fields}"
+        assert (
+            table.range_partitioning is not None and table.range_partitioning.field == "col1"
+        ), f"Expected partition field 'col1', got {table.range_partitioning}"
 
 
 def test_adapter_hints_empty() -> None:
