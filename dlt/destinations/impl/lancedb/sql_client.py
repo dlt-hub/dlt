@@ -12,11 +12,11 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, AnyStr, Iterator, TYPE_CHECKING
 
+import dlt
 import sqlglot
 import sqlglot.expressions as exp
 import duckdb
 
-from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.sql_client import raise_database_error, raise_open_connection_error
@@ -35,7 +35,7 @@ def _get_lancedb_sql_capabilities() -> DestinationCapabilitiesContext:
     return caps
 
 
-def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> DuckDBPyConnection:
+def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> None:
     """Ensure the `lance-duckdb` extension is loaded.
 
     DuckDB ensures installation is only done once per system.
@@ -43,47 +43,34 @@ def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> 
     """
     duckdb_con.execute("INSTALL lance FROM community;")
     duckdb_con.execute("LOAD lance;")
-    return duckdb_con
 
 
-def _maybe_create_lance_duckdb_view(
-    duckdb_con: DuckDBPyConnection, lance_uri, dlt_schema: dlt.Schema, table_name: str
-):
-    """Add the required tables as views to the duckdb in memory instance"""
-    tables_with_data = dlt_schema.dlt_table_names() + dlt_schema.data_table_names(
-        seen_data_only=True
-    )
-    if table_name in tables_with_data:
-        # TODO raise for tables `dlt_schema["table_format"] != "lance"`
-        from_statement = f"{lance_uri}/{table_name}.lance"
-        create_view_sql = f'CREATE OR REPLACE VIEW {table_name} AS SELECT * FROM "{from_statement}"'
-        duckdb_con.execute(create_view_sql)
+def _create_and_use_duckdb_dataset(duckdb_con: DuckDBPyConnection, dataset_qualified_name: str) -> None:
+    """Create a schema in the ephemeral DuckDB client that matches the `dlt` dataset name."""
+    create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {dataset_qualified_name}"
+    duckdb_con.execute(f"{create_schema_sql}; USE {dataset_qualified_name}")
 
 
-def _create_duckdb_views_for_lance_tables(
-    duckdb_con: DuckDBPyConnection,
-    lance_uri: str,
-    dlt_schema: dlt.Schema,
-    query: AnyStr,
-) -> None:
-    """Create views in DuckDB for each table found in the LanceDB destination."""
-    expression = sqlglot.maybe_parse(query)
-    for table in expression.find_all(exp.Table):
-        if not table.this:
-            continue
+def get_lance_table_uri(lancedb_client: LanceDBClient, table_name: str) -> str:
+    """Create a URI for a Lance table
 
-        _maybe_create_lance_duckdb_view(
-            duckdb_con=duckdb_con,
-            lance_uri=lance_uri,
-            dlt_schema=dlt_schema,
-            table_name=table.name,
-        )
+    This should be equivalent to
+    ```python
+    lancedb_client.credentials.get_conn().open_table("foo").to_lance().uri
+    ```
+    """
+    dataset_lance_uri = lancedb_client.config.lance_uri
+    qualified_table_name = lancedb_client.make_qualified_table_name(table_name)
+    return f"{dataset_lance_uri}/{qualified_table_name}.lance"
+
+
+def _prepare_create_view_statement(lance_table_uri: str, view_name: str) -> str:
+    return f'CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM "{lance_table_uri}"'
 
 
 class LanceDBSQLClient(DuckDbSqlClient):
     def __init__(self, lancedb_client: LanceDBClient) -> None:
         self.lancedb_client = lancedb_client
-        self.lance_uri = lancedb_client.config.lance_uri
         super().__init__(
             dataset_name=self.lancedb_client.dataset_name,
             staging_dataset_name=None,
@@ -97,9 +84,15 @@ class LanceDBSQLClient(DuckDbSqlClient):
     def open_connection(self) -> DuckDBPyConnection:
         if self._conn:
             return self._conn
-
+        
         self._conn = duckdb.connect(":memory:")
         _install_and_load_lance_duckdb_extension(self._conn)
+        
+        # by default, LanceDB has `dataset_name=None`. To be consistent, it uses DuckDB's
+        # main schema by default
+        if self.lancedb_client.dataset_name:
+            _create_and_use_duckdb_dataset(self._conn, self.fully_qualified_dataset_name())
+
         return self._conn
 
     def close_connection(self) -> None:
@@ -113,12 +106,17 @@ class LanceDBSQLClient(DuckDbSqlClient):
         if args or kwargs:
             query = query.replace("%s", "?")
 
-        _create_duckdb_views_for_lance_tables(
-            duckdb_con=self.open_connection(),
-            lance_uri=self.lance_uri,
-            dlt_schema=self.lancedb_client.schema,
-            query=query,
-        )
+        expression = sqlglot.maybe_parse(query)
+        for table in expression.find_all(exp.Table):
+            if not table.this:
+                continue
+
+            lance_table_uri = get_lance_table_uri(self.lancedb_client, table.name)
+            create_view_sql = _prepare_create_view_statement(
+                lance_table_uri=lance_table_uri,
+                view_name=self.make_qualified_table_name(table.name)
+            )
+            self.open_connection().execute(create_view_sql)
 
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
