@@ -121,7 +121,7 @@ _ColumnPropInfos = [
     TColumnPropInfo("nullable", (True, None)),
     TColumnPropInfo("variant", (False, None)),
     TColumnPropInfo("partition", (False, None), False, True),
-    TColumnPropInfo("cluster", (False, None)),
+    TColumnPropInfo("cluster", (False, None), False, True),
     TColumnPropInfo("primary_key", (False, None), False, True),
     TColumnPropInfo("sort", (False, None)),
     TColumnPropInfo("unique", (False, None)),
