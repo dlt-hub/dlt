@@ -1,4 +1,3 @@
-from pyiceberg.exceptions import NamespaceAlreadyExistsError
 import posixpath
 import os
 import orjson
@@ -1051,6 +1050,7 @@ class FilesystemClient(
             return self._catalog
 
         from dlt.common.libs.pyiceberg import get_catalog, IcebergCatalog
+        from pyiceberg.exceptions import NamespaceAlreadyExistsError
 
         catalog: IcebergCatalog
 

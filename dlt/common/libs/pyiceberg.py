@@ -1,9 +1,5 @@
-from pydantic import BaseModel, ConfigDict, Field
-from pyiceberg.catalog import load_catalog
-from dlt.common.configuration.inject import with_config
 import os
-import yaml
-from typing import Dict, Any, List, Literal, Optional, Union
+from typing import Dict, Any, List, Optional, Union
 from pathlib import Path
 import warnings
 
@@ -25,6 +21,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.specs.mixins import WithPyicebergConfig
+from dlt.common.configuration.inject import with_config
 
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
@@ -39,6 +36,7 @@ try:
         PartitionSpec as IcebergPartitionSpec,
     )
     import pyarrow as pa
+    from pydantic import BaseModel, ConfigDict, Field
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyiceberg helpers",
