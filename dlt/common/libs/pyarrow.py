@@ -1406,7 +1406,7 @@ def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = Non
     """
     Cast any date64 columns to timestamp with microsecond precision, preserving the
     semantic time values. Uses pyarrow.compute.cast on the column (works for chunked arrays)
-    and promotes precision from milliseconds (date64) to microseconds (timestamp[us]).
+    to cast from milliseconds (date64) to microseconds (timestamp[us]).
 
     Args:
         tbl: Input Arrow table.
@@ -1423,16 +1423,10 @@ def cast_date64_columns_to_timestamp(tbl: pyarrow.Table, tz: Optional[str] = Non
     for col, fld in zip(tbl.columns, tbl.schema):
         if pyarrow.types.is_date64(fld.type):
             changed = True
-            # promote to microseconds to avoid precision loss in downstream systems
             unit = "us"
             new_type = pyarrow.timestamp(unit, tz)
-            # reinterpret underlying 64-bit values without rescaling units
-            if isinstance(col, pyarrow.ChunkedArray):
-                new_chunks = [c.view(new_type) for c in col.chunks]
-                new_col = pyarrow.chunked_array(new_chunks)
-            else:
-                new_col = col.view(new_type)
-            arrays.append(new_col)
+            # Rescale from ms (date64) to us (timestamp).
+            arrays.append(pyarrow.compute.cast(col, new_type))
             fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
         else:
             arrays.append(col)
