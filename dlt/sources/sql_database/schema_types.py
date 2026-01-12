@@ -12,7 +12,6 @@ from typing import (
 from typing_extensions import TypeAlias
 
 from sqlalchemy.exc import NoReferencedTableError
-from sqlalchemy.dialects.oracle import NUMBER
 
 from dlt.common.typing import TypedDict
 from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine

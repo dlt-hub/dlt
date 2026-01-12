@@ -15,9 +15,6 @@ from typing import (
 )
 import operator
 
-from sqlalchemy.dialects.oracle import NUMBER
-from sqlalchemy.dialects.oracle.base import OracleDialect
-
 import dlt
 from dlt.common import logger
 from dlt.common.configuration.specs import (
@@ -53,6 +50,8 @@ from dlt.common.libs.sql_alchemy import (
     MetaData,
     sa,
     TextClause,
+    ORACLE_NUMBER,
+    OracleDialect,
 )
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
@@ -541,8 +540,8 @@ def oracle_get_multi_columns(  # type: ignore
             # don't conform to IEEE754 standard, so we're always using "decimal" type
             # to preserve values as accurately as possible. SQLAlchemy2 uses different
             # logic for determining asdecimal, we're overriding it here
-            if isinstance(column["type"], NUMBER):
-                column["type"] = NUMBER(
+            if isinstance(column["type"], ORACLE_NUMBER):
+                column["type"] = ORACLE_NUMBER(
                     precision=column["type"].precision,
                     scale=column["type"].scale,
                     asdecimal=True,
