@@ -10,8 +10,7 @@ keywords: [weaviate, vector database, destination, dlt]
 This destination helps you load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
 :::note
-Currently, the Weaviate destination is using [weaviate-client v.3 as a backend] for loading the data.
-This does not affect your downstream data workflows.
+The Weaviate destination uses the weaviate-client v4 Python library.
 :::
 
 <!--@@@DLT_DESTINATION_CAPABILITIES weaviate-->
@@ -45,6 +44,43 @@ X-OpenAI-Api-Key = "your-openai-api-key"
 ```
 The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for the Weaviate container.
 
+### Connection types
+
+The Weaviate destination supports three connection types that are auto-detected from the URL pattern:
+
+- **cloud**: For [Weaviate Cloud Services](https://console.weaviate.cloud/) - URLs containing `.weaviate.cloud`
+- **local**: For local Docker instances - URLs with `localhost` or `127.0.0.1`
+- **custom**: For self-hosted instances - any other URL (requires explicit port configuration)
+
+You can also explicitly set the connection type in `config.toml`:
+
+```toml
+[destination.weaviate]
+connection_type = "cloud"  # or "local" or "custom"
+```
+
+Or when creating the destination programmatically:
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.weaviate(connection_type="cloud"),
+)
+```
+
+For **custom** connection types, you must specify the HTTP and gRPC ports:
+
+```toml
+[destination.weaviate]
+connection_type = "custom"
+
+[destination.weaviate.credentials]
+url = "http://my-weaviate-host"
+http_port = 8080
+grpc_port = 50051
+```
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 

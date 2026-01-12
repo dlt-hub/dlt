@@ -14,6 +14,7 @@ from typing import (
     cast,
 )
 
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationTransientException,
@@ -277,31 +278,85 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     @staticmethod
     def create_db_client(config: WeaviateClientConfiguration) -> weaviate.WeaviateClient:
-        """Create a Weaviate client using v4 API"""
-        # Build connection parameters
-        additional_headers = config.credentials.additional_headers or {}
+        """Create a Weaviate client using v4 API.
 
-        # Parse URL to determine connection type
+        Supports three connection types:
+        - "cloud": For Weaviate Cloud Services (uses connect_to_weaviate_cloud)
+        - "local": For local Docker instances (uses connect_to_local)
+        - "custom": For self-hosted instances (uses connect_to_custom)
+
+        If connection_type is not specified, it's auto-detected from the URL:
+        - URLs containing ".weaviate.cloud" -> "cloud"
+        - URLs with "localhost" or "127.0.0.1" -> "local"
+        - Other URLs -> "custom" (requires http_port and grpc_port)
+        """
         url = config.credentials.url
         api_key = config.credentials.api_key
+        headers = config.credentials.additional_headers or {}
+        connection_type = config.connection_type
 
         # Create auth config if API key is provided
         auth_config = None
         if api_key:
             auth_config = weaviate.auth.AuthApiKey(api_key)
 
-        # Use connect_to_custom for flexibility
-        return weaviate.connect_to_custom(
-            http_host=url.replace("http://", "").replace("https://", "").split(":")[0],
-            http_port=int(url.split(":")[-1]) if ":" in url.rsplit("/", 1)[-1] else 8080,
-            http_secure=url.startswith("https"),
-            grpc_host=url.replace("http://", "").replace("https://", "").split(":")[0],
-            grpc_port=50051,  # Default gRPC port
-            grpc_secure=url.startswith("https"),
-            auth_credentials=auth_config,
-            headers=additional_headers,
-            skip_init_checks=True,  # Skip init checks for faster connection
-        )
+        # Auto-detect connection type if not specified
+        if connection_type is None:
+            if ".weaviate.cloud" in url or ".wcs.api.weaviate.io" in url:
+                connection_type = "cloud"
+            elif "localhost" in url or "127.0.0.1" in url:
+                connection_type = "local"
+            else:
+                connection_type = "custom"
+
+        if connection_type == "cloud":
+            # Use connect_to_weaviate_cloud for Weaviate Cloud Services
+            # Ensure URL has https:// prefix
+            cluster_url = url if url.startswith("https://") else f"https://{url}"
+            return weaviate.connect_to_weaviate_cloud(
+                cluster_url=cluster_url,
+                auth_credentials=auth_config,
+                headers=headers,
+                skip_init_checks=True,
+            )
+        elif connection_type == "local":
+            # Use connect_to_local for local Docker instances
+            # Parse host from URL
+            host = url.replace("http://", "").replace("https://", "").split(":")[0]
+            http_port = config.credentials.http_port or 8080
+            grpc_port = config.credentials.grpc_port or 50051
+            return weaviate.connect_to_local(
+                host=host,
+                port=http_port,
+                grpc_port=grpc_port,
+                headers=headers,
+                auth_credentials=auth_config,
+            )
+        else:  # custom
+            # Use connect_to_custom for self-hosted instances
+            # Require explicit ports for custom connections
+            http_port = config.credentials.http_port
+            grpc_port = config.credentials.grpc_port
+            if http_port is None or grpc_port is None:
+                raise ConfigurationValueError(
+                    "http_port and grpc_port",
+                    "http_port and grpc_port are required when connection_type is 'custom'. "
+                    "Set them in [destination.weaviate.credentials] or use connection_type='local' "
+                    "for default ports (http: 8080, grpc: 50051).",
+                )
+            host = url.replace("http://", "").replace("https://", "").split(":")[0]
+            is_secure = url.startswith("https")
+            return weaviate.connect_to_custom(
+                http_host=host,
+                http_port=http_port,
+                http_secure=is_secure,
+                grpc_host=host,
+                grpc_port=grpc_port,
+                grpc_secure=is_secure,
+                auth_credentials=auth_config,
+                headers=headers,
+                skip_init_checks=True,
+            )
 
     def make_qualified_collection_name(self, table_name: str) -> str:
         """Make a full Weaviate collection name from a table name by prepending
