@@ -81,7 +81,7 @@ def test_get_catalog_pyiceberg_missing_file_env_var(tmp_path, clean_env, monkeyp
 # SQLite Integration Tests
 # ----------------------------------------------------------------------------
 
-@pytest.mark.integration
+
 def test_priority_explicit_config_over_pyiceberg(tmp_path, monkeypatch):
     """Explicit config should take precedence over YAML file.
     
@@ -142,7 +142,7 @@ def test_priority_explicit_config_over_pyiceberg(tmp_path, monkeypatch):
         assert db_path_explicit.exists()
         assert not db_path_yaml.exists()
 
-@pytest.mark.integration
+
 def test_real_sqlite_catalog_integration(tmp_path):
     """
     This test verify that:
@@ -194,7 +194,7 @@ def test_real_sqlite_catalog_integration(tmp_path):
     assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces2]
 
 
-@pytest.mark.integration
+
 def test_sqlite_catalog_from_env_vars(tmp_path, monkeypatch, clean_env):
     """
     INTEGRATION TEST: Create SQLite catalog from PYICEBERG_* environment variables.
@@ -245,7 +245,7 @@ def test_sqlite_catalog_from_env_vars(tmp_path, monkeypatch, clean_env):
         assert db_path.exists()
 
 
-@pytest.mark.integration
+
 def test_sqlite_catalog_from_yaml(tmp_path, monkeypatch):
     """
     This test verify that:
@@ -299,7 +299,7 @@ def test_sqlite_catalog_from_yaml(tmp_path, monkeypatch):
     assert db_path.exists()
 
 
-@pytest.mark.integration
+
 def test_sqlite_catalog_from_explicit_config(tmp_path):
     """
     INTEGRATION TEST: Create SQLite catalog from explicit config dictionary.
@@ -341,7 +341,7 @@ def test_sqlite_catalog_from_explicit_config(tmp_path):
     assert db_path.exists()
 
 
-@pytest.mark.integration
+
 def test_sqlite_catalog_fallback_in_memory(clean_env):
     """
     INTEGRATION TEST: Verify SQLite fallback to in-memory catalog.
@@ -445,49 +445,6 @@ def catalog_config(request, sqlite_catalog_config, postgres_catalog_config, rest
         return rest_catalog_config
 
 
-@pytest.mark.integration
-def test_rest_catalog_from_explicit_config(rest_catalog_config):
-    """Test that REST catalog can be created and used with explicit config."""
-    catalog = get_catalog(
-        "rest_test_catalog",
-        iceberg_catalog_config=rest_catalog_config
-    )
-    
-    # Verify catalog is functional - can connect and perform basic operations
-    assert catalog is not None
-    assert catalog.name == "rest_test_catalog"
-    namespaces = catalog.list_namespaces()
-    assert isinstance(namespaces, list)
-
-
-@pytest.mark.integration
-def test_rest_catalog_from_yaml(rest_catalog_config, tmp_path, monkeypatch):
-    """Test creating REST catalog from .pyiceberg.yaml file using get_catalog."""
-    # Create YAML config file
-    yaml_file = tmp_path / ".pyiceberg.yaml"
-    yaml_content = {
-        "catalog": {
-            "yaml_rest_catalog": rest_catalog_config
-        }
-    }
-    with open(yaml_file, "w") as f:
-        yaml.dump(yaml_content, f)
-    
-    monkeypatch.setenv("PYICEBERG_HOME", str(tmp_path))
-    
-    # Reset PyIceberg's cached environment config
-    from pyiceberg.utils.config import Config
-    monkeypatch.setattr("pyiceberg.catalog._ENV_CONFIG", Config())
-    
-    catalog = get_catalog("yaml_rest_catalog")
-    
-    # Verify catalog is functional
-    assert catalog is not None
-    namespaces = catalog.list_namespaces()
-    assert isinstance(namespaces, list)
-
-
-@pytest.mark.integration
 def test_rest_catalog_namespace_operations(rest_catalog_config):
     """Smoke test: verify REST catalog can perform basic namespace operations."""
     import uuid
@@ -522,7 +479,7 @@ def test_rest_catalog_namespace_operations(rest_catalog_config):
 # Error Handling Tests
 
 
-@pytest.mark.integration
+
 def test_rest_catalog_invalid_uri():
     """Test that invalid REST catalog URI raises explicit connection error.
     
@@ -547,7 +504,7 @@ def test_rest_catalog_invalid_uri():
 # ----------------------------------------------------------------------------
 
 
-@pytest.mark.integration
+
 def test_catalog_from_explicit_config_parametrized(catalog_config):
     """Parametrized test: Create catalog from explicit config for all catalog types.
     
@@ -578,7 +535,7 @@ def test_catalog_from_explicit_config_parametrized(catalog_config):
     assert test_namespace in namespace_list
 
 
-@pytest.mark.integration
+
 def test_catalog_from_yaml_parametrized(catalog_config, tmp_path, monkeypatch):
     """Parametrized test: Create catalog from .pyiceberg.yaml for all catalog types.
     
