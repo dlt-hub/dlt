@@ -95,12 +95,17 @@ def _get_resource(with_apply_hints: bool, data: Dict[str, Any], **hints: Any) ->
     return my_resource
 
 
-@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
 @pytest.mark.parametrize(
     "key_hint",
     ["merge_key", "primary_key"],
 )
-def test_key_replaces_column_hints(key_hint: str, with_apply_hints: bool) -> None:
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
+@pytest.mark.parametrize(
+    "key_hint_as_list", [True, False], ids=["key_hint_as_list", "key_hint_as_string"]
+)
+def test_key_replaces_column_hints(
+    key_hint: str, with_apply_hints: bool, key_hint_as_list: bool
+) -> None:
     """Ensure that key hints on table level take precedence over hints on column level."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name="test_changing_merge_key_between_runs", destination="dummy")
@@ -109,15 +114,19 @@ def test_key_replaces_column_hints(key_hint: str, with_apply_hints: bool) -> Non
         with_apply_hints,
         {"id": 1, "other_id": 2},
         columns={"other_id": {key_hint: True}},
-        **{key_hint: ["id"]},
+        **{key_hint: ["id"] if key_hint_as_list else "id"},
     )
 
-    # Initially hints are set as is: "other_id" receives key hint
+    # Initially hints are set as is:
+    # - "other_id" receives key hint on column level
+    # - "id" is set as key hint on table level
     assert my_resource.columns == {"other_id": {key_hint: True, "name": "other_id"}}
     assert my_resource._hints["columns"] == my_resource.columns
-    assert my_resource._hints.get(key_hint) == ["id"]
+    assert my_resource._hints.get(key_hint) == ["id"] if key_hint_as_list else "id"
 
-    # Table level key hint takes precedence: "other_id" is not key, but "id" is
+    # Table level key hint takes precedence during schema computation:
+    # - "other_id" is not key
+    # - "id" is key
     expected = {
         "other_id": {"name": "other_id"},
         "id": {"name": "id", "nullable": False, key_hint: True},
@@ -130,12 +139,12 @@ def test_key_replaces_column_hints(key_hint: str, with_apply_hints: bool) -> Non
     assert not p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint)
 
 
-@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
-@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
 @pytest.mark.parametrize(
     "key_hint",
     ["merge_key", "primary_key"],
 )
+@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
 def test_empty_value_as_key(
     key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
 ) -> None:
@@ -163,12 +172,12 @@ def test_empty_value_as_key(
     )
 
 
-@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
-@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
 @pytest.mark.parametrize(
     "key_hint",
     ["merge_key", "primary_key"],
 )
+@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
 def test_empty_value_as_key_replace_column_hints(
     key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
 ) -> None:
@@ -185,12 +194,16 @@ def test_empty_value_as_key_replace_column_hints(
         **{key_hint: empty_value},
     )
 
-    # Initially hints are set as is: "other_id" receives key hint
+    # Initially hints are set as is:
+    # - "other_id" receives key hint on column level
+    # - empty value is set as key hint on table level
     assert my_resource.columns == {"other_id": {key_hint: True, "name": "other_id"}}
     assert my_resource._hints["columns"] == my_resource.columns
-    assert not my_resource._hints.get(key_hint)
+    assert my_resource._hints.get(key_hint) == empty_value
 
-    # Table level empty value key hint takes precedence: "other_id" is not key anymore
+    # Table level key hint takes precedence during schema computation:
+    # - "other_id" is not key
+    # - empty value is key, meaning no keys
     table_schema = my_resource.compute_table_schema()
     assert table_schema["columns"] == {"other_id": {"name": "other_id"}}
 
@@ -199,14 +212,16 @@ def test_empty_value_as_key_replace_column_hints(
     assert not p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint)
 
 
-@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
-@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
 @pytest.mark.parametrize(
     "key_hint",
     ["merge_key", "primary_key"],
 )
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
+@pytest.mark.parametrize(
+    "key_hint_as_list", [True, False], ids=["key_hint_as_list", "key_hint_as_string"]
+)
 def test_new_hints_replace_previous_key(
-    key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
+    key_hint: str, with_apply_hints: bool, key_hint_as_list: bool
 ) -> None:
     """Show that new key hints on existing resource replace previous ones."""
     os.environ["COMPLETED_PROB"] = "1.0"
@@ -222,24 +237,27 @@ def test_new_hints_replace_previous_key(
 
     # We change key to "other_id"
     my_resource = _get_resource(
-        with_apply_hints, {"id": 1, "other_id": 2}, **{key_hint: "other_id"}
+        with_apply_hints,
+        {"id": 1, "other_id": 2},
+        **{key_hint: ["other_id"] if key_hint_as_list else "other_id"},
     )
 
+    # "id" should no longer be key
     p.run(my_resource)
     assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint) is True
 
 
-@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
-@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
 @pytest.mark.parametrize(
     "key_hint",
     ["merge_key", "primary_key"],
 )
+@pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
 def test_empty_value_as_key_does_not_replaces_previous_key(
     key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
 ) -> None:
-    """Show that empty value key hints on existing resource currently does nothing."""
+    """Show that empty value key hints on existing resource currently do nothing."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(
         pipeline_name="test_empty_value_as_key_does_not_replaces_previous_key", destination="dummy"
@@ -258,5 +276,31 @@ def test_empty_value_as_key_does_not_replaces_previous_key(
         with_apply_hints, {"id": 1, "other_id": 2}, **{key_hint: empty_value}
     )
 
+    # "id" is still key
     p.run(my_resource)
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
+
+
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
+def test_consecutive_column_hints(key_hint: str, with_apply_hints: bool) -> None:
+    """Show that consecutive provision of hints on column level via apply_hints accumulates."""
+
+    my_resource = _get_resource(
+        with_apply_hints,
+        {"id": 1, "other_id": 2},
+        columns={"id": {key_hint: True}},
+        **{},
+    )
+
+    assert my_resource.columns == {"id": {key_hint: True, "name": "id"}}
+
+    my_resource.apply_hints(columns={"other_id": {key_hint: True}})  # type: ignore
+
+    assert my_resource.columns == {
+        "id": {key_hint: True, "name": "id"},
+        "other_id": {key_hint: True, "name": "other_id"},
+    }
