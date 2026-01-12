@@ -471,11 +471,12 @@ def merge_columns(
 
     * Incomplete columns in `columns_a` that are complete in `columns_b` are removed and re-added to preserve column order
     """
-    compound_props: set[str] = set()
-    for column_b in columns_b.values():
-        compound_props.update(prop for prop in column_b if is_compound_prop(prop))
-    if compound_props and not merge_compound_props:
-        remove_compound_props(columns=columns_a, compound_props=compound_props)
+    if not merge_compound_props:
+        compound_props: set[str] = set()
+        for column_b in columns_b.values():
+            compound_props.update(prop for prop in column_b if is_compound_prop(prop))
+        if compound_props:
+            remove_compound_props(columns=columns_a, compound_props=compound_props)
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
