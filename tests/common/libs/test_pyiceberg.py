@@ -1,4 +1,5 @@
 import os
+import socket
 import yaml
 import pytest
 from unittest import mock
@@ -6,6 +7,19 @@ from unittest import mock
 from dlt.common.libs.pyiceberg import (
     get_catalog,
 )
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def is_service_available(host: str, port: int, timeout: float = 1.0) -> bool:
+    """Check if a TCP service is reachable."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        return False
+
 
 # ============================================================================
 # FIXTURES
@@ -37,6 +51,57 @@ def test_get_catalog_rejects_unsupported_types():
     """Should reject unsupported catalog types."""
     with pytest.raises(ValueError, match="Unsupported catalog type"):
         get_catalog("my_cat", iceberg_catalog_type="glue")
+
+
+def test_persistence_of_sqlite_catalog(tmp_path):
+    """
+    This test verify that:
+    1. Catalog creation works
+    2. Namespaces can be created
+    3. Catalog persists to disk
+    4. Catalog can be reloaded
+    """
+    db_path = tmp_path / "test_catalog.db"
+    catalog_uri = f"sqlite:///{db_path}"
+
+    # Create catalog with explicit config
+    catalog = get_catalog(
+        "integration_test_catalog",
+        iceberg_catalog_config={
+            "type": "sql",
+            "uri": catalog_uri,
+            "warehouse": "test_warehouse"
+        }
+    )
+
+    # Verify catalog was created
+    assert catalog is not None
+    assert catalog.name == "integration_test_catalog"
+
+    # Create a namespace
+    test_namespace = "test_integration_namespace"
+    catalog.create_namespace(test_namespace)
+
+    # Verify namespace exists
+    namespaces = catalog.list_namespaces()
+    assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
+
+    # Verify database file was created (persistence)
+    assert db_path.exists()
+
+    # Reload catalog from same URI to verify persistence
+    catalog2 = get_catalog(
+        "integration_test_catalog",
+        iceberg_catalog_config={
+            "type": "sql",
+            "uri": catalog_uri,
+            "warehouse": "test_warehouse"
+        }
+    )
+
+    # Verify namespace still exists after reload
+    namespaces2 = catalog2.list_namespaces()
+    assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces2]
 
 # ============================================================================
 # INTEGRATION TESTS
