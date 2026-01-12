@@ -7,17 +7,7 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration,
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt._workspace.cli.exceptions import ScaffoldSourceNotFound, ScaffoldApiError
-
-
-@configspec
-class ScaffoldConfiguration(BaseConfiguration):
-    """Configuration for dltHub scaffold/docs API"""
-
-    # TODO: replace with production URL once app-plane is deployed
-    docs_api_url: str = "https://scaffolds.dlthub.app"
-    """Base URL for the scaffold/docs API"""
-
-    __section__: ClassVar[str] = "scaffold"
+from dlt._workspace.configuration import WorkspaceRuntimeConfiguration
 
 
 def _parse_and_validate_response(response: requests.Response, source_name: str) -> Dict[str, str]:
@@ -54,8 +44,8 @@ def _parse_and_validate_response(response: requests.Response, source_name: str) 
     return files
 
 
-@with_config(spec=ScaffoldConfiguration, sections=("runtime", "scaffold"))
-def _get_scaffold_files(source_name: str, docs_api_url: str = None) -> Dict[str, str]:
+@with_config(spec=WorkspaceRuntimeConfiguration, sections=("runtime", "workspace"))
+def _get_scaffold_files(source_name: str, scaffold_docs_api_url: str = None) -> Dict[str, str]:
     """
     Fetch scaffold content for a given source from the Scaffold API.
 
@@ -72,7 +62,7 @@ def _get_scaffold_files(source_name: str, docs_api_url: str = None) -> Dict[str,
         a general request exception
     """
     # Make HTTP request
-    url = f"{docs_api_url}/api/v1/scaffolds/{source_name}/files"
+    url = f"{scaffold_docs_api_url}/api/v1/scaffolds/{source_name}/files"
     try:
         response = requests.get(url, timeout=10)
     except requests.RequestException as e:
