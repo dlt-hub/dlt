@@ -496,26 +496,24 @@ def test_fill_empty_source_column_values_with_placeholder() -> None:
     assert new_table.equals(expected_table)
 
 
-def test_cast_date64_columns_to_timestamp_preserves_ms_bits() -> None:
-    # Prepare timestamp[us] values with non-ms microseconds to detect precision loss
-    us_values = [0, 1001, 1609459200123123, 1609459200456789, None]
-    ts_us_arr = pa.array(us_values, type=pa.timestamp("us"))
-    # Mimic connectorx mis-typed output by reinterpreting as date64[ms]
-    date64_arr = ts_us_arr.view(pa.date64())
+def test_cast_date64_columns_to_timestamp_rescales_ms_to_us() -> None:
+    # Prepare date64[ms] values and verify ms -> us rescaling.
+    ms_values = [0, 1001, 1609459200123, 1609459200456, None]
+    date64_arr = pa.array(ms_values, type=pa.date64())
     tbl = pa.table({"ts_like": date64_arr})
 
-    # Reinterpret date64 -> timestamp[us] (naive)
+    # Rescale date64[ms] -> timestamp[us] (naive)
     out = cast_date64_columns_to_timestamp(tbl)
 
-    # Type is timestamp[us] and values are preserved exactly (no precision loss)
     assert pa.types.is_timestamp(out["ts_like"].type)
     assert out["ts_like"].type == pa.timestamp("us")
-    expected_us = ts_us_arr
-    # Table columns are ChunkedArray; compare against a chunked view of the expected array
+    expected_us = pa.array(
+        [0, 1001000, 1609459200123000, 1609459200456000, None],
+        type=pa.timestamp("us"),
+    )
     assert out["ts_like"].equals(pa.chunked_array([expected_us]))
-    # Additionally ensure ms integer 1609459200456 is present when converting back to ms
     micros = pa.compute.cast(out["ts_like"], pa.int64()).combine_chunks()
-    assert micros[3].as_py() == 1609459200456789
+    assert micros[3].as_py() == 1609459200456000
 
 
 def test_cast_date64_is_noop_when_absent_and_returns_same_object() -> None:
@@ -526,16 +524,21 @@ def test_cast_date64_is_noop_when_absent_and_returns_same_object() -> None:
 
 
 def test_cast_date64_chunked_array_support() -> None:
-    # Build a chunked date64 column from two timestamp[us] chunks (simulate DB microseconds)
-    vals1 = pa.array([0, 1001, 2002], type=pa.timestamp("us"))
-    vals2 = pa.array([1609459200123123, None], type=pa.timestamp("us"))
-    date64_chunked = pa.chunked_array([vals1.view(pa.date64()), vals2.view(pa.date64())])
+    # Build a chunked date64 column with millisecond values
+    vals1 = pa.array([0, 1001, 2002], type=pa.date64())
+    vals2 = pa.array([1609459200123, None], type=pa.date64())
+    date64_chunked = pa.chunked_array([vals1, vals2])
     tbl = pa.table({"ts_like": date64_chunked})
 
     out = cast_date64_columns_to_timestamp(tbl)
 
-    # Should be timestamp[us] chunked array equal to original timestamp chunks (no rescale)
+    # Should be timestamp[us] chunked array with ms -> us rescaling
     assert pa.types.is_timestamp(out["ts_like"].type)
     assert out["ts_like"].type == pa.timestamp("us")
-    expected = pa.chunked_array([vals1, vals2])
+    expected = pa.chunked_array(
+        [
+            pa.array([0, 1001000, 2002000], type=pa.timestamp("us")),
+            pa.array([1609459200123000, None], type=pa.timestamp("us")),
+        ]
+    )
     assert out["ts_like"].equals(expected)
