@@ -174,6 +174,19 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         """
         return self.db_client.create_table(table_name, schema=schema, mode=mode)
 
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        """Drop multiple LanceDB tables.
+
+        Args:
+            table_names: The names of the tables to drop.
+        """
+        if not tables:
+            return
+
+        for table_name in tables:
+            if table_name in self.db_client.table_names():
+                self.db_client.drop_table(table_name)
+
     def delete_table(self, table_name: str) -> None:
         """Delete a LanceDB table.
 
@@ -340,6 +353,14 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
                 **self.type_mapper.from_destination_type(field.type, None, None),
             }
         return True, table_schema
+
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[bool, TTableSchemaColumns]]:
+        for table_name in table_names:
+            # mypy fails to resolve table_schema; ty succeeds
+            table_exists, table_schema = self.get_storage_table(table_name)
+            yield table_name, table_schema  # type: ignore[misc]
 
     @lancedb_error
     def extend_lancedb_table_schema(self, table_name: str, field_schemas: List[pa.Field]) -> None:
@@ -523,6 +544,8 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
     def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
+        if fq_version_table_name not in self.db_client.table_names():
+            return None
 
         version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()

@@ -177,7 +177,9 @@ configs = destinations_configs(
     all_buckets_filesystem_configs=True,
     table_format_filesystem_configs=True,
     bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-)
+) + [DestinationTestConfiguration(destination_type="lancedb")]
+# LanceDB is added explicitly here instead of the `destinations_configs()` logic
+# because it has SQL-read capabilities, but not SQL-write.
 
 
 @pytest.mark.no_load
@@ -307,6 +309,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.filesystem",
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+        "dlt.destinations.lancedb",  # default is 200
     ]
 
     # full frame
@@ -1337,7 +1340,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
         # filesystem uses duckdb and views to map know tables. for other ibis will list
         # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type != "dlt.destinations.filesystem":
+        if populated_pipeline.destination.destination_type not in [
+            "dlt.destinations.filesystem",
+            "dlt.destinations.lancedb",
+        ]:
             # from aleph schema
             additional_tables += ["digits"]
 
@@ -1347,9 +1353,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         if populated_pipeline.destination.destination_type != "dlt.destinations.databricks":
             # just do a basic check to see wether ibis can connect
             schema = populated_pipeline.default_schema
-            assert set(
-                ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
-            ) == {
+            table_names_in_ibis = ibis_connection.list_tables(
+                database=dataset_name, like=table_like_statement
+            )
+            expected_table_names = {
                 add_table_prefix(map_i(x))
                 for x in (
                     [
@@ -1364,6 +1371,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     + additional_tables
                 )
             }
+            assert set(table_names_in_ibis) == expected_table_names
 
         table_name = add_table_prefix(map_i("items"))
         items_table = ibis_connection.table(table_name, database=dataset_name)
