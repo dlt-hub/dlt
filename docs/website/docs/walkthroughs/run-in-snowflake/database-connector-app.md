@@ -228,17 +228,23 @@ Click the **view logs** tab to see the logs of the job:
 
 
 
-
 ## Schedule a pipeline
-Open a pipeline tab and click the **scheduling** button.
-1. Enable scheduling
-2. Choose a schedule string
-3. Save
+
+The app uses Snowflake [Tasks](https://docs.snowflake.com/en/user-guide/tasks-intro) to run pipelines on a schedule.
+
+To schedule a pipeline:
+
+1. Open the pipeline’s tab.
+2. Click the **scheduling** button
+3. Enable scheduling
+4. Enter a schedule string
+5. Click Save
+
 
 ![schedule a pipeline](https://storage.googleapis.com/dlt-blog-images/sna_scheduling_button.png)
 
 
-This operation creates or updates a Snowflake task that runs the pipeline according to the specified schedule. To stop the task, set its status to `SUSPENDED`. You can do this either via SQL:
+This operation creates or updates a Snowflake task that triggers the pipeline according to the specified schedule. To stop the task, set its status to `SUSPENDED`. You can do this either via SQL:
 
 ```sql
 ALTER TASK [ IF EXISTS ] <name> RESUME | SUSPEND
