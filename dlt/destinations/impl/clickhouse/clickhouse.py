@@ -22,7 +22,7 @@ from dlt.common.destination.client import (
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import is_nullable_column
+from dlt.common.schema.utils import get_columns_names_with_prop, is_nullable_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
@@ -234,6 +234,17 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = self.capabilities.get_type_mapper()
 
+    def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
+        table = super().prepare_load_table(table_name)
+
+        if SORT_HINT not in table:
+            table[SORT_HINT] = get_columns_names_with_prop(table, "sort")  # type: ignore[typeddict-unknown-key]
+
+        if PARTITION_HINT not in table:
+            table[PARTITION_HINT] = get_columns_names_with_prop(table, "partition")  # type: ignore[typeddict-unknown-key]
+
+        return table
+
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
@@ -292,15 +303,8 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             # it's a SQL expression; return as is
             return hint
         elif isinstance(hint, (list, tuple)):
-            # it's a sequence of column names; check existence and generate expression
+            # it's a sequence of column names; generate expression
             norm_hint_columns = [self.schema.naming.normalize_identifier(col) for col in hint]
-            non_existing_columns = set(norm_hint_columns) - set(table_schema["columns"].keys())
-            if non_existing_columns:
-                raise SchemaCorruptedException(
-                    self.schema.name,
-                    f"Found non-existing columns in {key_type} hint for table"
-                    f" `{table_schema['name']}`: {str(non_existing_columns)[1:-1]}",
-                )
             return "(" + ", ".join(norm_hint_columns) + ")"
 
     def _get_settings_clause(self, settings_hint: TMergeTreeSettings) -> str:

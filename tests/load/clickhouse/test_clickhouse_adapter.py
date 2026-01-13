@@ -1,12 +1,18 @@
 import pytest
 
-from typing import Generator, Dict, Literal, cast
+from typing import Generator, Dict, List, Literal, cast
 
 import dlt
-from dlt.common.schema.exceptions import SchemaCorruptedException
+from dlt.common.schema.exceptions import UnboundColumnException
+from dlt.common.schema.typing import TColumnSchema
 from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
+from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
+    extract_column_names,
+    get_column_names_from_table_hint,
+    set_column_hints_from_table_hint,
+)
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
     CODEC_HINT,
@@ -46,9 +52,9 @@ SORT_PARTITION_CASES = (
 def clickhouse_adapter_resource() -> DltResource:
     @dlt.resource(
         columns={
-            "TOWN": {"nullable": False, "data_type": "text"},
-            "street": {"nullable": False, "data_type": "text"},
-            "number": {"nullable": False, "data_type": "bigint"},
+            "TOWN": {"data_type": "text"},
+            "street": {"data_type": "text"},
+            "number": {"data_type": "bigint"},
         }
     )
     def data():
@@ -182,16 +188,22 @@ def test_clickhouse_adapter_sort(
     expected_order_by_clause: str,
     expected_sorting_key: str,
 ) -> None:
-    # hint gets set correctly
     res = clickhouse_adapter(clickhouse_adapter_resource, sort=sort)
     table_schema = res.compute_table_schema()
+
+    # table hint gets set correctly
     assert table_schema[SORT_HINT] == sort  # type: ignore[typeddict-item]
+
+    # column hints get set correctly
+    sort_column_names = get_column_names_from_table_hint(sort)
+    for col in table_schema["columns"].values():
+        assert col.get("sort") is (True if col["name"] in sort_column_names else None)
 
     pipe = destination_config.setup_pipeline("test_clickhouse_adapter_sort", dev_mode=True)
     client = cast(ClickHouseClient, pipe.destination_client())
 
     # clause gets set correctly
-    client.schema.update_table(table_schema)
+    table_schema = client.schema.update_table(table_schema)
     new_columns = list(table_schema["columns"].values())
     stmts = client._get_table_update_sql("data", new_columns, False)
     assert len(stmts) == 1
@@ -223,16 +235,22 @@ def test_clickhouse_adapter_partition(
     expected_partition_by_clause: str,
     expected_partition_key: str,
 ) -> None:
-    # hint gets set correctly
     res = clickhouse_adapter(clickhouse_adapter_resource, partition=partition)
     table_schema = res.compute_table_schema()
+
+    # table hint gets set correctly
     assert table_schema[PARTITION_HINT] == partition  # type: ignore[typeddict-item]
+
+    # column hints get set correctly
+    partition_column_names = get_column_names_from_table_hint(partition)
+    for col in table_schema["columns"].values():
+        assert col.get("partition") is (True if col["name"] in partition_column_names else None)
 
     pipe = destination_config.setup_pipeline("test_clickhouse_adapter_partition", dev_mode=True)
     client = cast(ClickHouseClient, pipe.destination_client())
 
     # clause gets set correctly
-    client.schema.update_table(table_schema)
+    table_schema = client.schema.update_table(table_schema)
     new_columns = list(table_schema["columns"].values())
     stmts = client._get_table_update_sql("data", new_columns, False)
     assert len(stmts) == 1
@@ -317,9 +335,9 @@ def test_clickhouse_adapter_codecs(
     stmts = client._get_table_update_sql("data", new_columns, False)
     assert len(stmts) == 1
     sql = stmts[0]
-    assert "`TOWN` String CODEC(ZSTD(3))," in sql
-    assert "`street` String," in sql  # no codec
-    assert "`number` Int64 CODEC(Delta, ZSTD(2))" in sql
+    assert "`TOWN` Nullable(String) CODEC(ZSTD(3))," in sql
+    assert "`street` Nullable(String)," in sql  # no codec
+    assert "`number` Nullable(Int64) CODEC(Delta, ZSTD(2))" in sql
 
     # codecs get set correctly
     pipe.run(res, **destination_config.run_kwargs, refresh="drop_sources")
@@ -344,24 +362,104 @@ def test_clickhouse_adapter_type_check() -> None:
         clickhouse_adapter([{"foo": "bar"}], settings="not_a_dict")  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("hint", ("sort", "partition"))
 @pytest.mark.parametrize(
-    "param",
-    ("sort", "partition"),  # adapter params for which column names should be checked
+    "table_hint,expected_key",
+    (
+        pytest.param(["c2", "c3"], "(c2, c3)", id="seq"),
+        pytest.param("(upper(c2), c3)", "(upper(c2), c3)", id="expr"),
+    ),
 )
-def test_clickhouse_adapter_column_check(
-    clickhouse_client: ClickHouseClient, param: Literal["sort", "partition"]
+def test_clickhouse_adapter_column_hints(
+    clickhouse_client: ClickHouseClient,
+    hint: Literal["sort", "partition"],
+    table_hint: TSQLExprOrColumnSeq,
+    expected_key: str,
 ) -> None:
-    @dlt.resource(columns={"existing_col": {"data_type": "text"}})
-    def data():
-        yield [{"existing_col": "foo"}]
+    """Tests `sort` and `partition` column hints and their interplay with corresponding table hints."""
 
-    kwargs = {str(param): ["non_existing_col1", "non_existing_col2"]}
-    res = clickhouse_adapter(data, **kwargs)  # type: ignore[arg-type]
-    table_schema = res.compute_table_schema()
+    @dlt.resource(
+        table_name="foo",
+        columns={
+            "c1": {"data_type": "text", "nullable": True, hint: True},  # type: ignore[misc]
+            "c2": {"data_type": "text", hint: False},  # type: ignore[misc]
+            "c3": {"data_type": "text", "nullable": True},
+        },
+    )
+    def res_with_column_hints_only():
+        yield [{"c1": "a", "c2": "b", "c3": "c"}]
+
+    table_hint_key = SORT_HINT if hint == "sort" else PARTITION_HINT
+    clause_type = "ORDER BY" if hint == "sort" else "PARTITION BY"
+
+    table_schema = res_with_column_hints_only.compute_table_schema()
+
+    # column hints from resource are retained
+    columns = table_schema["columns"]
+    assert columns["c1"].get(hint) is True
+    assert columns["c2"].get(hint) is False
+    assert columns["c3"].get(hint) is None
+
+    # table hint is not set
+    assert table_hint_key not in table_schema
+
+    # clause is based on column hints
     clickhouse_client.schema.update_table(table_schema)
     new_columns = list(table_schema["columns"].values())
-    with pytest.raises(SchemaCorruptedException):
-        clickhouse_client._get_table_update_sql("data", new_columns, False)
+    sql = clickhouse_client._get_table_update_sql("foo", new_columns, False)[0]
+    assert f"{clause_type} (c1)" in sql
+
+    # now add table hint
+    kwargs = {str(hint): table_hint}
+    res_with_table_hint = clickhouse_adapter(res_with_column_hints_only, **kwargs)  # type: ignore[arg-type]
+
+    # table hint is set correctly
+    table_schema = res_with_table_hint.compute_table_schema()
+    assert table_schema[table_hint_key] == table_hint  # type: ignore[typeddict-item]
+
+    # NOTE: we unit test setting of column hints based on table hint in `test_set_column_hints`,
+    # so we skip that here
+
+    # clause is based on table hint
+    clickhouse_client.schema.update_table(table_schema)
+    new_columns = list(table_schema["columns"].values())
+    sql = clickhouse_client._get_table_update_sql("foo", new_columns, False)[0]
+    assert f"{clause_type} {expected_key}" in sql
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("hint", ("sort", "partition"))
+@pytest.mark.parametrize(
+    "table_hint_val",
+    (
+        pytest.param(["unbound_col"], id="seq-unbound-col"),
+        pytest.param("toYYYYMMDD(unbound_col)", id="expr-unbound-col"),
+    ),
+)
+def test_clickhouse_adapter_unbound_column(
+    destination_config: DestinationTestConfiguration,
+    hint: Literal["sort", "partition"],
+    table_hint_val: TSQLExprOrColumnSeq,
+) -> None:
+    """Tests that unbound columns in `sort` and `partition` hints lead to UnboundColumnException.
+
+    Error is thrown because unbound columns are added to schema as non-nullable,
+    and dlt has generic mechanism in place to raise on unbound non-nullable columns.
+    """
+
+    kwargs = {str(hint): table_hint_val}
+    res = clickhouse_adapter([{"bound_col": "foo"}], **kwargs)  # type: ignore[arg-type]
+    pipe = destination_config.setup_pipeline(
+        "test_clickhouse_adapter_unbound_column", dev_mode=True
+    )
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipe.run(res, **destination_config.run_kwargs)
+    assert isinstance(pip_ex.value.__cause__, UnboundColumnException)
 
 
 @pytest.mark.parametrize(
@@ -392,7 +490,7 @@ def test_clickhouse_adapter_expr_fails(
     assert isinstance(cause, DatabaseTerminalException)
     assert str(cause).startswith("Code: 47.")  # UNKNOWN_IDENTIFIER
 
-    # fails when expression uses nullable column
+    # fails when expression uses nullable column (test ClickHouse has `allow_nullable_key` disabled)
     @dlt.resource(columns={"timestamp": {"nullable": True}})
     def res_nullable():
         yield [{"timestamp": "2025-12-15T13:32:45Z"}]
@@ -404,3 +502,47 @@ def test_clickhouse_adapter_expr_fails(
     cause = pip_ex.value.__cause__
     assert isinstance(cause, DatabaseTerminalException)
     assert str(cause).startswith("Code: 44.")  # ILLEGAL_COLUMN
+
+
+def test_extract_column_names() -> None:
+    assert extract_column_names("year") == {"year"}
+    assert extract_column_names("(year)") == {"year"}
+    assert extract_column_names("(year, month)") == {"year", "month"}
+    assert extract_column_names("toYYYYMMDD(timestamp)") == {"timestamp"}
+    assert extract_column_names("number % 4") == {"number"}
+    assert extract_column_names("(upper(town), street)") == {"town", "street"}
+
+
+def test_get_column_names_from_hint() -> None:
+    # column sequence inputs
+    assert get_column_names_from_table_hint(("year",)) == {"year"}
+    assert get_column_names_from_table_hint(["year"]) == {"year"}
+    assert get_column_names_from_table_hint(["year", "month"]) == {"year", "month"}
+
+    # SQL expression input
+    assert get_column_names_from_table_hint("(upper(town), street)") == {"town", "street"}
+
+
+@pytest.mark.parametrize(
+    "table_hint",
+    (
+        pytest.param(["c2", "c3"], id="seq"),
+        pytest.param("(upper(c2), c3)", id="expr"),
+    ),
+)
+def test_set_column_hints(table_hint: TSQLExprOrColumnSeq) -> None:
+    c1 = {"name": "c1", "data_type": "text", "nullable": True, "sort": True}
+    c2 = {"name": "c2", "data_type": "text", "sort": False}
+    c3 = {"name": "c3", "data_type": "text", "nullable": True}
+
+    columns = cast(List[TColumnSchema], [c1, c2, c3])
+
+    set_column_hints_from_table_hint(columns, table_hint, hint_name="sort")
+
+    # NOTE: see `set_column_hints` docstring for rules
+    assert c1.get("sort") is None  # removed (rule 3)
+    assert c2.get("sort") is True  # overridden (rule 1)
+    assert c3.get("sort") is True  # set (rule 1)
+    assert c1.get("nullable") is True  # retained (rule 4)
+    assert c2.get("nullable") is False  # set (rule 2)
+    assert c3.get("nullable") is True  # retained, despite being part of table hint (rule 4)

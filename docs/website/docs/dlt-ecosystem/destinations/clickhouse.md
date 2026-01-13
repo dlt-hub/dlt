@@ -283,6 +283,15 @@ clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non
 - We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `True` in your [table settings](#mergetree-table-settings) if you insist on nullable key columns.
 :::
 
+### `sort` and `partition` column hints
+`dlt` automatically creates `sort`/`partition` [column hints](../../general-usage/schema.md#tables-and-columns) for columns present in the `sort`/`partition` value provided to `clickhouse_adapter` (when this value is a SQL expression, we parse it to extract the column names).
+
+Although it's possible to set `sort`/`partition` column hints directly, we recommend using `clickhouse_adapter` instead.
+
+If you still choose to set `sort`/`partition` column hints yourself, know that:
+- columns are added to the `ORDER BY`/`PARTITION BY` clause in order of appearance in the schema
+- they may be overridden/removed if you also use `clickhouse_adapter`: the adapter takes precedence, and it will set column hints in accordance with the values provided to its `sort`/`partition` parameters
+
 ## MergeTree table settings
 Use the `settings` parameter of the `clickhouse_adapter` to specify [MergeTree settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) for the table:
 

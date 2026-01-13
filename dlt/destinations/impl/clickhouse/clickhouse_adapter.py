@@ -1,5 +1,9 @@
-from typing import Any, Dict, Optional
+from copy import deepcopy
+from typing import Any, Dict, List, Literal, Optional, Set, cast
 
+import sqlglot
+
+from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
 from dlt.common.typing import NoneType
 from dlt.destinations.impl.clickhouse.typing import (
     CODEC_HINT,
@@ -97,8 +101,9 @@ def clickhouse_adapter(
             raise TypeError(f"`{name}` must be a dictionary, got '{type(val).__name__}'")
 
     resource = get_resource_for_adapter(data)
+    current_columns = list(cast(TTableSchemaColumns, resource.columns).values())
 
-    columns = None
+    columns = deepcopy(current_columns)
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
 
     # table engine type
@@ -114,11 +119,13 @@ def clickhouse_adapter(
     raise_if_not_none_str_seq(sort, "sort")
     if sort:
         additional_table_hints[SORT_HINT] = sort
+        set_column_hints_from_table_hint(columns, sort, "sort")
 
     # partition
     raise_if_not_none_str_seq(partition, "partition")
     if partition:
         additional_table_hints[PARTITION_HINT] = partition
+        set_column_hints_from_table_hint(columns, partition, "partition")
 
     # settings
     raise_if_not_none_dict(settings, "settings")
@@ -128,7 +135,62 @@ def clickhouse_adapter(
     # codecs
     raise_if_not_none_dict(codecs, "codecs")
     if codecs:
-        columns = [{"name": name, CODEC_HINT: codec} for name, codec in codecs.items()]
+        columns = [{"name": name, CODEC_HINT: codec} for name, codec in codecs.items()]  # type: ignore[typeddict-unknown-key]
 
-    resource.apply_hints(columns=columns, additional_table_hints=additional_table_hints)  # type: ignore[arg-type]
+    resource.apply_hints(columns=columns, additional_table_hints=additional_table_hints)
     return resource
+
+
+def extract_column_names(sql: str) -> Set[str]:
+    cols = sqlglot.parse_one(sql, dialect="clickhouse").find_all(sqlglot.exp.Column)
+    return {col.name for col in cols}
+
+
+def get_column_names_from_table_hint(hint: TSQLExprOrColumnSeq) -> Set[str]:
+    if isinstance(hint, str):
+        # hint is SQL expression; extract column names
+        return extract_column_names(hint)
+    # hint is sequence of column names; return as set
+    return set(hint)
+
+
+def set_column_hints_from_table_hint(
+    columns: List[TColumnSchema],
+    hint: TSQLExprOrColumnSeq,
+    hint_name: Literal["sort", "partition"],
+) -> None:
+    """Sets column hints based on provided table hint.
+
+    Modifies `columns` in place.
+
+    When it's a `sort` table hint, it sets `sort` column hints.
+    When it's a `partition` table hint, it sets `partition` column hints.
+
+    Principles: table hint takes precedence over column hints.
+
+    Rules:
+    1. sets/overrides column hint to True for each column in table hint, even if user provided False
+    2. sets nullability to False for each column in table hint, unless user provided nullable=True
+    3. removes column hint if it's set to True but not in table hint
+    4. retains any user-provided nullability
+    """
+
+    table_hint_columns = get_column_names_from_table_hint(hint)
+
+    for name in get_column_names_from_table_hint(hint):
+        existing_col = next((c for c in columns if c["name"] == name), None)
+        if existing_col:
+            # rule 1 for existing column
+            existing_col[hint_name] = True
+
+            # rule 2 for existing column
+            if existing_col.get("nullable") is not True:
+                existing_col["nullable"] = False
+        else:
+            # rules 1 and 2 for new column
+            columns.append({"name": name, "nullable": False, hint_name: True})  # type: ignore[misc]
+
+    # rule 3
+    for col in columns:
+        if col.get(hint_name) is True and col["name"] not in table_hint_columns:
+            col.pop(hint_name)
