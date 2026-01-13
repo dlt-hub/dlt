@@ -48,12 +48,19 @@ DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
 
 
-def get_test_storage_root() -> str:
-    return os.environ.get(DLT_TEST_STORAGE_ROOT, "_storage")
-
-
 def get_test_worker_id() -> str:
     return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
+
+def compute_test_storage_root() -> str:
+    return f"_storage_{get_test_worker_id()}"
+
+def set_environment_test_storage_root() -> str:
+    test_storage_root = compute_test_storage_root()
+    os.environ[DLT_TEST_STORAGE_ROOT] = test_storage_root
+    return test_storage_root
+
+def get_test_storage_root() -> str:
+    return os.environ.get(DLT_TEST_STORAGE_ROOT, "_storage")
 
 
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [

@@ -39,14 +39,6 @@ from tests.utils import get_test_storage_root
 
 @contextmanager
 def test_workspace(extra_env: Optional[Dict[str, str]] = None):
-    """
-    Sets up a real DLT workspace exactly like CLI execution.
-
-    This mirrors create_test_run_context behavior:
-    - runs inside a workspace directory
-    - activates WorkspaceRunContext
-    - ensures providers & destinations are discoverable
-    """
     # store dlt data in test storage (like create_test_run_context)
     env = {DLT_DATA_DIR: dlt.current.run_context().data_dir}
 

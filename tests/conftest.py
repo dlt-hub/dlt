@@ -1,9 +1,6 @@
 import os
 import dataclasses
 import logging
-import pytest
-import shutil
-import sys
 from typing import Dict, List, Any
 
 # patch which providers to enable
@@ -59,15 +56,8 @@ def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching). this is needed by common storage tests
-    from tests.utils import get_test_worker_id
-
-    worker = get_test_worker_id()
-    os.environ["DLT_TEST_STORAGE_ROOT"] = f"_storage_{worker}"
-    test_storage_root = os.environ["DLT_TEST_STORAGE_ROOT"]
-    if os.path.exists(test_storage_root):
-        shutil.rmtree(test_storage_root, ignore_errors=True)
-
-    os.makedirs(test_storage_root, exist_ok=True)
+    from tests.utils import set_environment_test_storage_root
+    test_storage_root = set_environment_test_storage_root()
 
     from dlt.common.configuration.specs import runtime_configuration
     from dlt.common.storages import configuration as storage_configuration
