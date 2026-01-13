@@ -7,7 +7,14 @@ from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
     TablePropertiesConflictException,
 )
-from dlt.common.schema.typing import TColumnSchemaBase, TStoredSchema, TTableSchema, TColumnSchema
+from dlt.common.schema.typing import (
+    TColumnSchemaBase,
+    TStoredSchema,
+    TTableSchema,
+    TColumnSchema,
+    ColumnPropInfos,
+    TTableSchemaColumns,
+)
 
 
 COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
@@ -251,6 +258,40 @@ def test_merge_columns() -> None:
         columns_b={"test_4": COL_4_HINTS},
     )
     assert not columns["test_3"].get("merge_key")
+
+
+@pytest.mark.parametrize(
+    "merge_compound_props",
+    [True, False],
+    ids=["merge_compound_props", "replace_compound_props"],
+)
+def test_merge_columns_compound_props(merge_compound_props: bool) -> None:
+    """Test that compound props are replaced if the config is set so."""
+
+    compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
+    assert compound_props == {"merge_key", "primary_key", "cluster", "partition"}
+
+    columns_a: TTableSchemaColumns = {
+        "col1": {"name": "col1", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
+    }
+
+    columns_b: TTableSchemaColumns = {
+        "col2": {"name": "col2", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
+    }
+
+    result = utils.merge_columns(
+        deepcopy(columns_a), columns_b, merge_compound_props=merge_compound_props
+    )
+
+    if merge_compound_props:
+        for prop in compound_props:
+            assert result["col1"].get(prop) is True
+            assert result["col2"].get(prop) is True
+
+    else:
+        for prop in compound_props:
+            assert result["col1"].get(prop) is None
+            assert result["col2"].get(prop) is True
 
 
 def test_merge_incomplete_columns() -> None:
