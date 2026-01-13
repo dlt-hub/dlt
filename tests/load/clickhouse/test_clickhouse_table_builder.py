@@ -13,6 +13,9 @@ from dlt.destinations.impl.clickhouse.configuration import (
 from tests.load.clickhouse.utils import clickhouse_client
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 def test_clickhouse_configuration() -> None:
     # Check names normalized.

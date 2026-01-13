@@ -35,6 +35,9 @@ from tests.load.clickhouse.utils import (
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 # this constant relates to `clickhouse_adapter_resource`
 SORT_PARTITION_CASES = (
