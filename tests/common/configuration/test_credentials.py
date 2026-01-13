@@ -335,16 +335,9 @@ def test_needs_scopes_for_refresh_token() -> None:
 
 def test_requires_refresh_token_no_tty():
     # NOTE:
-    # This test must NOT rely on the presence or absence of a real TTY.
-    #
-    # Under pytest-xdist, worker processes do not have a TTY, which can cause
-    # GcpOAuthCredentialsWithoutDefaults.auth() to attempt an interactive OAuth
-    # browser flow. That behavior is outside the scope of this test and makes
-    # the test non-deterministic.
-    #
-    # We explicitly patch `_get_refresh_token` to prevent any interactive OAuth
-    # flow and assert that authentication fails when no refresh token is present.
-    # This keeps the test deterministic and consistent across pytest and xdist.
+    # Under pytest-xdist, the execution environment can differ from normal pytest
+    # (e.g. console attachment / interactivity detection), which has been observed
+    # to trigger interactive OAuth browser flows in some cases.
 
     c = GcpOAuthCredentialsWithoutDefaults()
     # without refresh token
