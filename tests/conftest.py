@@ -57,6 +57,7 @@ def pytest_configure(config):
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching). this is needed by common storage tests
     from tests.utils import set_environment_test_storage_root, compute_test_storage_root
+
     test_storage_root = compute_test_storage_root()
     set_environment_test_storage_root(test_storage_root)
 
