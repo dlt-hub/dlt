@@ -36,7 +36,7 @@ class ExtractStorage(NormalizeStorage):
 
     def __init__(self, config: NormalizeStorageConfiguration) -> None:
         super().__init__(True, config)
-        # always create new packages in an unique folder for each instance so
+        # always create new packages in a unique folder for each instance so
         # extracts are isolated ie. if they fail
         self.new_packages_folder = uniq_id(8)
         self.storage.create_folder(self.new_packages_folder, exists_ok=True)

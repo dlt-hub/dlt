@@ -137,15 +137,18 @@ weaviate = [
 mssql = [
     "pyodbc>=4.0.39"
 ]
+synapse = [
+    "pyodbc>=4.0.39",
+    "adlfs>=2024.7.0",
+    "pyarrow>=16.0.0",
+]
 fabric = [
     "pyodbc>=4.0.39",
     "adlfs>=2024.7.0",
     "pyarrow>=16.0.0",
 ]
-synapse = [
-    "pyodbc>=4.0.39",
-    "adlfs>=2024.7.0",
-    "pyarrow>=16.0.0",
+oracle = [
+    "oracledb>=3.4.1"
 ]
 qdrant = [
     "qdrant-client[fastembed]>=1.8"
@@ -406,5 +409,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",
     "no_load: marks tests that do not load anything",
-    "rfam: marks tests that use rfam db"
+    "rfam: marks tests that use rfam db",
+    "oracle: marks tests that use local oracle db",
+    "mssql: marks tests that use local mssql db"
 ]

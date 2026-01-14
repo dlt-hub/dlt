@@ -23,6 +23,8 @@ from dlt.common.schema.typing import (
     C_CHILD_PARENT_REF_LABEL,
     C_DESCENDANT_ROOT_REF_LABEL,
     C_ROOT_LOAD_REF_LABEL,
+    C_VERSION_SCHEMA_NAME_LABEL,
+    C_VERSION_SCHEMA_VERSION_LABEL,
     LOADS_TABLE_NAME,
     VERSION_TABLE_NAME,
     TColumnName,
@@ -885,10 +887,26 @@ def test_schema_references_property(naming: str) -> None:
             "referenced_table": "blocks",
             "referenced_columns": ["_dlt_id"],
         },
+        {
+            "label": "_dlt_schema_version",
+            "cardinality": "one_to_many",
+            "table": "_dlt_version",
+            "columns": ["version_hash"],
+            "referenced_table": "_dlt_loads",
+            "referenced_columns": ["schema_version_hash"],
+        },
+        {
+            "label": "_dlt_schema_name",
+            "cardinality": "many_to_many",
+            "table": "_dlt_version",
+            "columns": ["schema_name"],
+            "referenced_table": "_dlt_loads",
+            "referenced_columns": ["schema_name"],
+        },
     ]
 
     assert isinstance(schema.references, list)
-    assert len(schema.references) == 9
+    assert len(schema.references) == 11
     assert isinstance(schema.references[0], dict)
     # check that keys are from TStandaloneTableReference
     # can't do `isinstance(..., TStandaloneTableReference)` on a `TypedDict`
@@ -904,7 +922,13 @@ def test_schema_references_property(naming: str) -> None:
     )
     # `.references` should return parent-child, root-child, and load-root references
     assert set(ref["label"] for ref in schema.references) == set(
-        [C_CHILD_PARENT_REF_LABEL, C_DESCENDANT_ROOT_REF_LABEL, C_ROOT_LOAD_REF_LABEL]
+        [
+            C_CHILD_PARENT_REF_LABEL,
+            C_DESCENDANT_ROOT_REF_LABEL,
+            C_ROOT_LOAD_REF_LABEL,
+            C_VERSION_SCHEMA_VERSION_LABEL,
+            C_VERSION_SCHEMA_NAME_LABEL,
+        ]
     )
     # normalize table and column names in expected_references
     for reference in expected_references:

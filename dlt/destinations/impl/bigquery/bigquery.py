@@ -25,6 +25,7 @@ from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_
 from dlt.common.storages.load_package import destination_state
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
+from dlt.common.data_writers.escape import escape_bigquery_literal
 from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
@@ -465,10 +466,22 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)
+
+        # generate additional column options clause
+        # see: https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#alter_column_set_options_statement
+        options = []
         if column.get(ROUND_HALF_EVEN_HINT, False):
-            column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
+            options.append("rounding_mode='ROUND_HALF_EVEN'")
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):
-            column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_AWAY_FROM_ZERO')"
+            options.append("rounding_mode='ROUND_HALF_AWAY_FROM_ZERO'")
+        if column.get("description", False):
+            escaped_description = escape_bigquery_literal(column.get("description"))
+            options.append(f"description={escaped_description}")
+
+        if options:
+            option_arguments = ", ".join(options)
+            option_str = f" OPTIONS ({option_arguments})"
+            column_def_sql += option_str
         return column_def_sql
 
     def _create_load_job(self, table: PreparedTableSchema, file_path: str) -> bigquery.LoadJob:
