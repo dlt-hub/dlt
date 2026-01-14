@@ -22,11 +22,39 @@ from tests.load.clickhouse_cluster.utils import (
     get_table_engine,
     set_clickhouse_cluster_conf,
 )
+from dlt.destinations.impl.clickhouse.typing import (
+    CODEC_HINT,
+    PARTITION_HINT,
+    SETTINGS_HINT,
+    SORT_HINT,
+    TABLE_ENGINE_TYPE_HINT,
+)
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+
+
+def test_clickhouse_cluster_adapter_forwarding():
+    """Asserts `clickhouse_cluster_adapter` forwards params to `clickhouse_adapter` correctly."""
+
+    res = clickhouse_cluster_adapter(
+        [{"foo": "bar"}],
+        # include params available in `clickhouse_adapter`
+        table_engine_type="replicated_merge_tree",
+        sort=["foo"],
+        partition="toYYYYMMDD(foo)",
+        settings={"max_suspicious_broken_parts": 500},
+        codecs={"foo": "LZ4HC"},
+        # exclude params specific to `clickhouse_cluster_adapter`
+    )
+    table_schema = res.compute_table_schema()
+    assert table_schema[TABLE_ENGINE_TYPE_HINT] == "replicated_merge_tree"  # type: ignore[typeddict-item]
+    assert table_schema[SORT_HINT] == ["foo"]  # type: ignore[typeddict-item]
+    assert table_schema[PARTITION_HINT] == "toYYYYMMDD(foo)"  # type: ignore[typeddict-item]
+    assert table_schema[SETTINGS_HINT] == {"max_suspicious_broken_parts": 500}  # type: ignore[typeddict-item]
+    assert table_schema["columns"]["foo"][CODEC_HINT] == "LZ4HC"  # type: ignore[typeddict-item]
 
 
 def test_clickhouse_cluster_adapter_defaults(client: ClickHouseClusterClient) -> None:
