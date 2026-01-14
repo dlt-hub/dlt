@@ -54,14 +54,11 @@ def get_test_worker_id() -> str:
 def compute_test_storage_root() -> str:
     return f"_storage_{get_test_worker_id()}"
 
-def set_environment_test_storage_root() -> str:
-    test_storage_root = compute_test_storage_root()
+def set_environment_test_storage_root(test_storage_root: str) -> None:
     os.environ[DLT_TEST_STORAGE_ROOT] = test_storage_root
-    return test_storage_root
 
 def get_test_storage_root() -> str:
     return os.environ.get(DLT_TEST_STORAGE_ROOT, "_storage")
-
 
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
     "duckdb",

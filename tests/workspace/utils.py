@@ -16,8 +16,8 @@ from dlt._workspace._workspace_context import WorkspaceRunContext
 from tests.utils import get_test_storage_root
 
 WORKSPACE_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cases", "workspaces"))
-test_storage_root = os.path.abspath(get_test_storage_root())
-EMPTY_WORKSPACE_DIR = os.path.join(test_storage_root, "empty")
+test_storage_root_abs = os.path.abspath(get_test_storage_root())
+EMPTY_WORKSPACE_DIR = os.path.join(test_storage_root_abs, "empty")
 
 
 @contextmanager
@@ -30,15 +30,11 @@ def isolated_workspace(
     """
     new_run_dir = restore_clean_workspace(name)
     with set_working_dir(new_run_dir):
-        ctx = switch_context(".", profile=profile, required=required)
+        ctx = switch_context(new_run_dir, profile=profile, required=required)
+        assert ctx.run_dir == new_run_dir
         # also mock global dir so it does not point to default user ~
         if isinstance(ctx, WorkspaceRunContext):
-            ctx._global_dir = os.path.join(
-                get_test_storage_root(),
-                "global_dirs",
-                uniq_id(),
-                ".global_dir",
-            )
+            ctx._global_dir = os.path.abspath(".global_dir")
             os.makedirs(ctx._global_dir, exist_ok=True)
             # reload toml provides after patching
             Container()[PluggableRunContext].reload_providers()
@@ -58,13 +54,10 @@ def restore_clean_workspace(name: str) -> str:
         Absolute path to the restored workspace directory.
     """
     source_workspace_dir = os.path.join(WORKSPACE_CASES_DIR, name)
-    if name == "empty":
-        new_run_dir = os.path.join(get_test_storage_root(), name)
-    else:
-        new_run_dir = os.path.join(get_test_storage_root(), f"{name}_{uniq_id()}")
+    new_run_dir = os.path.join(test_storage_root_abs, name)
 
     # ensure parent exists before copying
-    os.makedirs(get_test_storage_root(), exist_ok=True)
+    os.makedirs(test_storage_root_abs, exist_ok=True)
 
     # if cwd is within the target directory, move out temporarily to allow deletion
     cwd = os.path.abspath(os.getcwd())
@@ -78,7 +71,7 @@ def restore_clean_workspace(name: str) -> str:
     # use a single code path, switching cwd only when needed
     from contextlib import nullcontext
 
-    cm = set_working_dir(get_test_storage_root()) if is_within_target else nullcontext()
+    cm = set_working_dir(test_storage_root_abs) if is_within_target else nullcontext()
     with cm:
         if os.path.isdir(new_run_dir):
             shutil.rmtree(new_run_dir, onerror=FileStorage.rmtree_del_ro)

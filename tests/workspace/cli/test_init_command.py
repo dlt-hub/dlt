@@ -302,14 +302,14 @@ def test_init_all_sources_together(repo_dir: str, workspace_files: FileStorage) 
 
 def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
     # Get initial repo dir for source candidates enumeration
-    initial_repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
+    repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
     # ensure we test both sources form verified sources and core sources
     source_candidates = (
-        set(get_source_candidates(initial_repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
+        set(get_source_candidates(repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
     )
 
     # Clean up the initial repo dir as we don't need it anymore
-    shutil.rmtree(initial_repo_dir, ignore_errors=True)
+    shutil.rmtree(repo_dir, ignore_errors=True)
 
     for candidate in source_candidates:
         # Clean workspace by removing all files except .dlt and .global_dir

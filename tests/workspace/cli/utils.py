@@ -12,6 +12,9 @@ from dlt.sources import SourceReference
 
 from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO, DEFAULT_VIBE_SOURCES_REPO
 
+from tests.utils import get_test_storage_root
+from tests.workspace.utils import EMPTY_WORKSPACE_DIR
+
 INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
 INIT_VIBE_REPO_LOCATION = DEFAULT_VIBE_SOURCES_REPO
@@ -27,14 +30,14 @@ def auto_echo_default_choice() -> Iterator[None]:
     echo.ALWAYS_CHOOSE_DEFAULT = False
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def cloned_init_repo() -> FileStorage:
     return git.get_fresh_repo_files(
         INIT_REPO_LOCATION, get_dlt_repos_dir(), branch=INIT_REPO_BRANCH
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def cloned_init_vibe_repo() -> FileStorage:
     return git.get_fresh_repo_files(
         DEFAULT_VIBE_SOURCES_REPO, get_dlt_repos_dir(), branch=INIT_VIBE_REPO_BRANCH
@@ -59,7 +62,7 @@ def workspace_files() -> Iterator[FileStorage]:
 
 def get_repo_dir(cloned_repo: FileStorage, repo_name: str) -> str:
     # Create repo dir relative to current working directory
-    repo_dir = os.path.join(os.getcwd(), repo_name)
+    repo_dir = os.path.join(get_test_storage_root(), repo_name)
     shutil.copytree(cloned_repo.storage_path, repo_dir)
     return repo_dir
 
@@ -76,4 +79,4 @@ def get_workspace_files(clear_all_sources: bool = True) -> FileStorage:
         SourceReference.SOURCES.clear()
 
     # project dir - use current working directory
-    return FileStorage(os.getcwd(), makedirs=False)
+    return FileStorage(EMPTY_WORKSPACE_DIR, makedirs=False)
