@@ -169,9 +169,17 @@ def is_compound_prop(prop: str) -> bool:
 def remove_compound_props(
     columns: TTableSchemaColumns, compound_props: Optional[set[str]] = None
 ) -> TTableSchemaColumns:
-    """
-    Removes compound properties from all columns in place,
-    including properties whose value is False.
+    """Removes compound properties from all columns in place.
+
+    Args:
+        columns: Table columns to modify
+        compound_props: Set of property names to remove. If None, removes all compound properties
+            defined in ColumnPropInfos (primary_key, merge_key, etc.)
+
+    Returns:
+        The modified columns dict (same object that was passed in)
+
+    Note: This function removes properties even if their value is False.
     """
     if not compound_props:
         compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
@@ -453,10 +461,22 @@ def merge_column(
     merge_defaults: bool = True,
     merge_compound_props: bool = True,
 ) -> TColumnSchema:
-    """Merges `col_b` into `col_a`. If `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
-    If `merge_compound_props` is True, compound props are merged, otherwise compound hints
+    """Merges properties from `col_b` into `col_a`, modifying `col_a` in place.
 
-    Modifies col_a in place and returns it
+    All properties from `col_b` are copied into `col_a`, potentially overwriting existing values.
+
+    Args:
+        col_a: Target column schema that will be modified
+        col_b: Source column schema with properties to merge in
+        merge_defaults: If False, removes properties with default values from `col_b` before merging.
+            This prevents unnecessary default values from being explicitly set in `col_a`.
+        merge_compound_props: If False, removes all compound properties (primary_key, merge_key, etc.)
+            from `col_a` before merging. This is critical when you have two sources of schema
+            information and want `col_b` to be authoritative for compound properties - meaning the
+            absence of a compound property in `col_b` should override its presence in `col_a`
+
+    Returns:
+        The modified col_a (same object that was passed in)
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
     if not merge_compound_props:
@@ -472,13 +492,24 @@ def merge_columns(
     columns_b: TTableSchemaColumns,
     merge_compound_props: bool = False,
 ) -> TTableSchemaColumns:
-    """Merges `columns_b` into `columns_a`. `columns_a` is modified in place and returned.
+    """Merges columns from `columns_b` into `columns_a`, modifying `columns_a` in place.
+
+    For each column in `columns_b`:
+    - If column doesn't exist in `columns_a`, it's added
+    - If column exists in `columns_a`, properties from `columns_b` are merged into it
 
     Args:
-        merge_compound_props: If set to True, compound properties from columns_b are merged to columns_a,
-            instead of replacing them.
+        columns_a: Target columns dict that will be modified
+        columns_b: Source columns dict with columns/properties to merge in
+        merge_compound_props: If False, compound properties (primary_key, merge_key, etc.)
+            from `columns_a` are removed before merging, making `columns_b` authoritative for
+            compound properties.
 
-    * Incomplete columns in `columns_a` that are complete in `columns_b` are removed and re-added to preserve column order
+    Returns:
+        The modified columns_a (same object that was passed in)
+
+    NOTE: Incomplete columns in `columns_a` that become complete in `columns_b` are removed and
+    re-added to preserve order.
     """
     if not merge_compound_props:
         compound_props: set[str] = set()
@@ -503,28 +534,44 @@ def merge_columns(
 
 
 def diff_table(
-    schema_name: str, tab_a: TTableSchema, tab_b: TPartialTableSchema
+    schema_name: str,
+    tab_a: TTableSchema,
+    tab_b: TPartialTableSchema,
+    merge_compound_props: bool = True,
 ) -> TPartialTableSchema:
-    """Creates a partial table that contains properties found in `tab_b` that are not present or different in `tab_a`.
-    The name is always present in returned partial.
-    It returns new columns (not present in tab_a) and merges columns from tab_b into tab_a (overriding non-default hint values).
-    If any columns are returned they contain full data (not diffs of columns)
+    """Computes the difference between `tab_a` and `tab_b`, returning what's new or changed in `tab_b`.
 
-    Raises SchemaException if tables cannot be merged
-    * when columns with the same name have different data types
-    * when table links to different parent tables
+    The returned partial table contains:
+    - New columns from `tab_b` that don't exist in `tab_a`
+    - Modified columns that exist in both but have different properties in `tab_b`
+    - Changed table properties (write_disposition, resource, etc.)
+
+    Columns in the result are complete column schemas, not property-level diffs. If a column changed,
+    the full merged column is returned. Unchanged columns are excluded.
+
+    When merge_compound_props is False, compound properties like primary_key and merge_key are replaced
+    entirely rather than merged, so tab_b's values fully override tab_a's.
+
+    Raises SchemaException when tables are incompatible (different names, different parents,
+    or columns with incompatible data types).
+
+    Note: This function does not validate data type compatibility. It computes differences permissively.
+    Validation happens later during normalization via `ensure_compatible_tables` with ensure_columns=True.
     """
     # allow for columns to differ
     ensure_compatible_tables(schema_name, tab_a, tab_b, ensure_columns=False)
 
-    # get new columns, changes in the column data type or other properties are not allowed
+    # get new columns that are new or have changed properties
     tab_a_columns = tab_a["columns"]
     new_columns: List[TColumnSchema] = []
+
     for col_b_name, col_b in tab_b["columns"].items():
         if col_b_name in tab_a_columns:
             col_a = tab_a_columns[col_b_name]
-            # all other properties can change
-            merged_column = merge_column(copy(col_a), col_b, merge_compound_props=False)
+            # merge col_b properties into a copy of col_a
+            merged_column = merge_column(
+                copy(col_a), col_b, merge_compound_props=merge_compound_props
+            )
             if merged_column != col_a:
                 new_columns.append(merged_column)
         else:
@@ -549,7 +596,7 @@ def diff_table(
         if existing_v != v:
             partial_table[k] = v  # type: ignore
 
-    # this should not really happen
+    # nested tables with the resource property set - this should not really happen
     if is_nested_table(tab_a) and (resource := tab_b.get("resource")):
         raise TablePropertiesConflictException(
             schema_name, table_name, "resource", resource, tab_a.get("parent")

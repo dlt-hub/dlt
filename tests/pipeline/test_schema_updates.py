@@ -80,6 +80,19 @@ def test_schema_updates() -> None:
     }
 
 
+def _get_item_with_format(
+    item: Dict[str, Any], item_format: TestDataItemFormat
+) -> Union[Dict[str, Any], pd.DataFrame, pa.Table, pa.RecordBatch]:
+    if item_format == "object":
+        return item
+    elif item_format == "pandas":
+        return pd.DataFrame({k: [v] for k, v in item.items()})
+    elif item_format == "arrow-table":
+        return pa.table({k: [v] for k, v in item.items()})
+    else:  # arrow-batch
+        return pa.RecordBatch.from_pydict({k: [v] for k, v in item.items()})
+
+
 def _get_resource(with_apply_hints: bool, data: Dict[str, Any], **hints: Any) -> DltResource:
     if with_apply_hints:
 
@@ -118,14 +131,7 @@ def test_key_replaces_column_hints(
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name="test_changing_merge_key_between_runs", destination="dummy")
 
-    if item_format == "object":
-        item = {"id": 1, "other_id": 2}
-    elif item_format == "pandas":
-        item = pd.DataFrame({"id": [1], "other_id": [2]})
-    elif item_format == "arrow-table":
-        item = pa.table({"id": [1], "other_id": [2]})
-    else:  # arrow-batch
-        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
     my_resource = _get_resource(
         with_apply_hints,
@@ -173,14 +179,7 @@ def test_empty_value_as_key(
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name="test_empty_key_replaces_column_hints", destination="dummy")
 
-    if item_format == "object":
-        item = {"id": 1, "other_id": 2}
-    elif item_format == "pandas":
-        item = pd.DataFrame({"id": [1], "other_id": [2]})
-    elif item_format == "arrow-table":
-        item = pa.table({"id": [1], "other_id": [2]})
-    else:  # arrow-batch
-        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
     my_resource = _get_resource(
         with_apply_hints,
@@ -221,14 +220,7 @@ def test_empty_value_as_key_replace_column_hints(
         pipeline_name="test_empty_value_as_key_replace_column_hints", destination="dummy"
     )
 
-    if item_format == "object":
-        item = {"id": 1, "other_id": 2}
-    elif item_format == "pandas":
-        item = pd.DataFrame({"id": [1], "other_id": [2]})
-    elif item_format == "arrow-table":
-        item = pa.table({"id": [1], "other_id": [2]})
-    else:  # arrow-batch
-        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
     my_resource = _get_resource(
         with_apply_hints,
@@ -282,14 +274,7 @@ def test_new_hints_replace_previous_key(
     p.run(get_resource())
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
 
-    if item_format == "object":
-        item = {"id": 1, "other_id": 2}
-    elif item_format == "pandas":
-        item = pd.DataFrame({"id": [1], "other_id": [2]})
-    elif item_format == "arrow-table":
-        item = pa.table({"id": [1], "other_id": [2]})
-    else:  # arrow-batch
-        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
     # We change key to "other_id"
     my_resource = _get_resource(
@@ -331,14 +316,7 @@ def test_empty_value_as_key_does_not_replace_previous_key(
     p.run(get_resource())
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
 
-    if item_format == "object":
-        item = {"id": 1, "other_id": 2}
-    elif item_format == "pandas":
-        item = pd.DataFrame({"id": [1], "other_id": [2]})
-    elif item_format == "arrow-table":
-        item = pa.table({"id": [1], "other_id": [2]})
-    else:  # arrow-batch
-        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
     # We try to remove the key with empty_value
     my_resource = _get_resource(with_apply_hints, item, **{key_hint: empty_value})
