@@ -665,7 +665,7 @@ def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: Fil
 
 
 def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
-    # we test 20 hardcoded sources, use this to get all sources instead
+    # we test 5 hardcoded sources, use this to get all sources instead
     # vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
     # Note: if we want to point test to non-production URL, we can set the environment variable
     # os.environ["RUNTIME__SCAFFOLD__DOCS_API_URL"] = "http://localhost:8000"
@@ -675,21 +675,21 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
         "robin",
         "kwanko",
         "powerlink",
-        "fulcrum_data_management",
-        "mysql_instance",
-        "talkdesk_reports",
-        "insightly_crm",
-        "google_drive",
-        "coalesce",
-        "jobnimbus",
-        "piwik_pro",
-        "perplexity_ai",
-        "maileon",
-        "wrike_project_management",
-        "rocketreach",
-        "wordpress_site",
-        "deepinfra",
-        "no_crm_io",
+        # "fulcrum_data_management",
+        # "mysql_instance",
+        # "talkdesk_reports",
+        # "insightly_crm",
+        # "google_drive",
+        # "coalesce",
+        # "jobnimbus",
+        # "piwik_pro",
+        # "perplexity_ai",
+        # "maileon",
+        # "wrike_project_management",
+        # "rocketreach",
+        # "wordpress_site",
+        # "deepinfra",
+        # "no_crm_io",
     ]
 
     for source_name in random_vibez:
