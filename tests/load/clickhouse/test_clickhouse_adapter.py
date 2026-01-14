@@ -1,10 +1,10 @@
 import pytest
 
-from typing import Generator, Dict, List, Literal, cast
+from typing import Generator, Dict, Literal, cast
 
 import dlt
 from dlt.common.schema.exceptions import UnboundColumnException
-from dlt.common.schema.typing import TColumnSchema
+from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
 from dlt.destinations.adapters import clickhouse_adapter
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
@@ -351,6 +351,24 @@ def test_clickhouse_adapter_codecs(
     assert applied_codecs["number"] == "CODEC(Delta(8), ZSTD(2))"
 
 
+def test_clickhouse_adapter_param_interplay(clickhouse_adapter_resource: DltResource) -> None:
+    """Asserts column hints are set correctly when multiple adapter parameters are used together."""
+
+    res = clickhouse_adapter(
+        clickhouse_adapter_resource,
+        sort=["number"],
+        partition=["street"],
+        codecs={"TOWN": "ZSTD(3)", "number": "Delta, ZSTD(2)"},
+    )
+    columns = res.compute_table_schema()["columns"]
+    assert columns["number"]["sort"] is True
+    assert columns["number"]["nullable"] is False
+    assert columns["street"]["partition"] is True
+    assert columns["street"]["nullable"] is False
+    assert columns["TOWN"][CODEC_HINT] == "ZSTD(3)"  # type: ignore[typeddict-item]
+    assert columns["number"][CODEC_HINT] == "Delta, ZSTD(2)"  # type: ignore[typeddict-item]
+
+
 def test_clickhouse_adapter_type_check() -> None:
     with pytest.raises(TypeError):
         clickhouse_adapter([{"foo": "bar"}], codecs="not_a_dict")  # type: ignore[arg-type]
@@ -420,8 +438,8 @@ def test_clickhouse_adapter_column_hints(
     table_schema = res_with_table_hint.compute_table_schema()
     assert table_schema[table_hint_key] == table_hint  # type: ignore[typeddict-item]
 
-    # NOTE: we unit test setting of column hints based on table hint in `test_set_column_hints`,
-    # so we skip that here
+    # NOTE: we unit test setting of column hints based on table hint in
+    # `test_set_column_hints_from_table_hint`, so we skip that here
 
     # clause is based on table hint
     clickhouse_client.schema.update_table(table_schema)
@@ -533,12 +551,12 @@ def test_get_column_names_from_hint() -> None:
         pytest.param("(upper(c2), c3)", id="expr"),
     ),
 )
-def test_set_column_hints(table_hint: TSQLExprOrColumnSeq) -> None:
-    c1 = {"name": "c1", "data_type": "text", "nullable": True, "sort": True}
-    c2 = {"name": "c2", "data_type": "text", "sort": False}
-    c3 = {"name": "c3", "data_type": "text", "nullable": True}
+def test_set_column_hints_from_table_hint(table_hint: TSQLExprOrColumnSeq) -> None:
+    c1: TColumnSchema = {"name": "c1", "data_type": "text", "nullable": True, "sort": True}
+    c2: TColumnSchema = {"name": "c2", "data_type": "text", "sort": False}
+    c3: TColumnSchema = {"name": "c3", "data_type": "text", "nullable": True}
 
-    columns = cast(List[TColumnSchema], [c1, c2, c3])
+    columns: TTableSchemaColumns = {"c1": c1, "c2": c2, "c3": c3}
 
     set_column_hints_from_table_hint(columns, table_hint, hint_name="sort")
 

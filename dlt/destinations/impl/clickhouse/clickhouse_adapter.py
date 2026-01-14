@@ -1,9 +1,10 @@
 from copy import deepcopy
-from typing import Any, Dict, List, Literal, Optional, Set, cast
+from typing import Any, Dict, Literal, Optional, Set, cast
 
 import sqlglot
 
-from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.utils import merge_columns
 from dlt.common.typing import NoneType
 from dlt.destinations.impl.clickhouse.typing import (
     CODEC_HINT,
@@ -101,7 +102,7 @@ def clickhouse_adapter(
             raise TypeError(f"`{name}` must be a dictionary, got '{type(val).__name__}'")
 
     resource = get_resource_for_adapter(data)
-    current_columns = list(cast(TTableSchemaColumns, resource.columns).values())
+    current_columns = cast(TTableSchemaColumns, resource.columns)
 
     columns = deepcopy(current_columns)
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
@@ -119,13 +120,13 @@ def clickhouse_adapter(
     raise_if_not_none_str_seq(sort, "sort")
     if sort:
         additional_table_hints[SORT_HINT] = sort
-        set_column_hints_from_table_hint(columns, sort, "sort")
+        columns = set_column_hints_from_table_hint(columns, sort, "sort")
 
     # partition
     raise_if_not_none_str_seq(partition, "partition")
     if partition:
         additional_table_hints[PARTITION_HINT] = partition
-        set_column_hints_from_table_hint(columns, partition, "partition")
+        columns = set_column_hints_from_table_hint(columns, partition, "partition")
 
     # settings
     raise_if_not_none_dict(settings, "settings")
@@ -135,7 +136,10 @@ def clickhouse_adapter(
     # codecs
     raise_if_not_none_dict(codecs, "codecs")
     if codecs:
-        columns = [{"name": name, CODEC_HINT: codec} for name, codec in codecs.items()]  # type: ignore[typeddict-unknown-key]
+        partial_codec_columns: TTableSchemaColumns = {
+            name: {"name": name, CODEC_HINT: codec} for name, codec in codecs.items()  # type: ignore[typeddict-unknown-key]
+        }
+        columns = merge_columns(columns, partial_codec_columns, merge_columns=True)
 
     resource.apply_hints(columns=columns, additional_table_hints=additional_table_hints)
     return resource
@@ -155,13 +159,13 @@ def get_column_names_from_table_hint(hint: TSQLExprOrColumnSeq) -> Set[str]:
 
 
 def set_column_hints_from_table_hint(
-    columns: List[TColumnSchema],
+    columns: TTableSchemaColumns,
     hint: TSQLExprOrColumnSeq,
     hint_name: Literal["sort", "partition"],
-) -> None:
+) -> TTableSchemaColumns:
     """Sets column hints based on provided table hint.
 
-    Modifies `columns` in place.
+    Modifies `columns` in place and returns it.
 
     When it's a `sort` table hint, it sets `sort` column hints.
     When it's a `partition` table hint, it sets `partition` column hints.
@@ -177,20 +181,21 @@ def set_column_hints_from_table_hint(
 
     table_hint_columns = get_column_names_from_table_hint(hint)
 
-    for name in get_column_names_from_table_hint(hint):
-        existing_col = next((c for c in columns if c["name"] == name), None)
-        if existing_col:
-            # rule 1 for existing column
-            existing_col[hint_name] = True
+    for name in table_hint_columns:
+        if name in columns:  # existing column
+            # rule 1
+            columns[name][hint_name] = True
 
-            # rule 2 for existing column
-            if existing_col.get("nullable") is not True:
-                existing_col["nullable"] = False
-        else:
-            # rules 1 and 2 for new column
-            columns.append({"name": name, "nullable": False, hint_name: True})  # type: ignore[misc]
+            # rule 2
+            if columns[name].get("nullable") is not True:
+                columns[name]["nullable"] = False
+        else:  # new column
+            # rules 1 and 2
+            columns[name] = {"name": name, "nullable": False, hint_name: True}  # type: ignore[misc]
 
     # rule 3
-    for col in columns:
+    for col in columns.values():
         if col.get(hint_name) is True and col["name"] not in table_hint_columns:
             col.pop(hint_name)
+
+    return columns
