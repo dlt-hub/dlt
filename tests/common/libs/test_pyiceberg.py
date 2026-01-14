@@ -268,10 +268,10 @@ def test_sqlite_catalog_fallback_in_memory():
         namespaces = catalog.list_namespaces()
         assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
 
-def test_rest_catalog_namespace_operations(rest_catalog_config):
+def test_rest_catalog_namespace_operations():
     """Smoke test: verify REST catalog can perform basic namespace operations."""
     import uuid
-    import requests.exceptions
+    from requests.exceptions import ConnectionError
     
     try:
         catalog = get_catalog(
@@ -294,7 +294,7 @@ def test_rest_catalog_namespace_operations(rest_catalog_config):
         
         catalog.drop_namespace(namespace)
         assert namespace not in [ns[0] if isinstance(ns, tuple) else ns for ns in catalog.list_namespaces()]
-    except requests.exceptions.ConnectionError as e:
+    except ConnectionError as e:
         if "HTTPConnectionPool(host='localhost', port=8181): Max retries exceeded" in str(e):
             print("Connection Error, we consider this a pass as the configuration was loaded correctly")
         else:
