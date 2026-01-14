@@ -1,3 +1,4 @@
+from os import name
 import re
 import base64
 import hashlib
@@ -166,12 +167,14 @@ def is_compound_prop(prop: str) -> bool:
 
 
 def remove_compound_props(
-    columns: TTableSchemaColumns, compound_props: set[str]
+    columns: TTableSchemaColumns, compound_props: Optional[set[str]] = None
 ) -> TTableSchemaColumns:
     """
     Removes compound properties from all columns in place,
     including properties whose value is False.
     """
+    if not compound_props:
+        compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
     for column in columns.values():
         for prop in compound_props:
             column.pop(prop, None)  # type: ignore[misc]
@@ -445,13 +448,19 @@ def diff_table_references(
 
 
 def merge_column(
-    col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = True
+    col_a: TColumnSchema,
+    col_b: TColumnSchema,
+    merge_defaults: bool = True,
+    merge_compound_props: bool = True,
 ) -> TColumnSchema:
-    """Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
+    """Merges `col_b` into `col_a`. If `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
+    If `merge_compound_props` is True, compound props are merged, otherwise compound hints
 
     Modifies col_a in place and returns it
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
+    if not merge_compound_props:
+        remove_compound_props({col_a["name"]: col_a})
     for n, v in col_b_clean.items():
         col_a[n] = v  # type: ignore
 
@@ -515,7 +524,7 @@ def diff_table(
         if col_b_name in tab_a_columns:
             col_a = tab_a_columns[col_b_name]
             # all other properties can change
-            merged_column = merge_column(copy(col_a), col_b)
+            merged_column = merge_column(copy(col_a), col_b, merge_compound_props=False)
             if merged_column != col_a:
                 new_columns.append(merged_column)
         else:

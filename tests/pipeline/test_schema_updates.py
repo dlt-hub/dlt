@@ -4,6 +4,10 @@ import pytest
 
 import dlt
 from dlt.extract.resource import DltResource
+from tests.utils import TestDataItemFormat, ALL_TEST_DATA_ITEM_FORMATS
+
+import pandas as pd
+import pyarrow as pa
 
 
 def test_schema_updates() -> None:
@@ -103,16 +107,29 @@ def _get_resource(with_apply_hints: bool, data: Dict[str, Any], **hints: Any) ->
 @pytest.mark.parametrize(
     "key_hint_as_list", [True, False], ids=["key_hint_as_list", "key_hint_as_string"]
 )
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_key_replaces_column_hints(
-    key_hint: str, with_apply_hints: bool, key_hint_as_list: bool
+    key_hint: str,
+    with_apply_hints: bool,
+    key_hint_as_list: bool,
+    item_format: TestDataItemFormat,
 ) -> None:
     """Ensure that key hints on table level take precedence over hints on column level."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name="test_changing_merge_key_between_runs", destination="dummy")
 
+    if item_format == "object":
+        item = {"id": 1, "other_id": 2}
+    elif item_format == "pandas":
+        item = pd.DataFrame({"id": [1], "other_id": [2]})
+    elif item_format == "arrow-table":
+        item = pa.table({"id": [1], "other_id": [2]})
+    else:  # arrow-batch
+        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+
     my_resource = _get_resource(
         with_apply_hints,
-        {"id": 1, "other_id": 2},
+        item,
         columns={"other_id": {key_hint: True}},
         **{key_hint: ["id"] if key_hint_as_list else "id"},
     )
@@ -145,16 +162,29 @@ def test_key_replaces_column_hints(
 )
 @pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
 @pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_empty_value_as_key(
-    key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
+    key_hint: str,
+    empty_value: Union[str, None],
+    with_apply_hints: bool,
+    item_format: TestDataItemFormat,
 ) -> None:
     """Show that empty value key hints aren't propagated."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name="test_empty_key_replaces_column_hints", destination="dummy")
 
+    if item_format == "object":
+        item = {"id": 1, "other_id": 2}
+    elif item_format == "pandas":
+        item = pd.DataFrame({"id": [1], "other_id": [2]})
+    elif item_format == "arrow-table":
+        item = pa.table({"id": [1], "other_id": [2]})
+    else:  # arrow-batch
+        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+
     my_resource = _get_resource(
         with_apply_hints,
-        {"id": 1, "other_id": 2},
+        item,
         **{key_hint: empty_value},
     )
 
@@ -178,8 +208,12 @@ def test_empty_value_as_key(
 )
 @pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
 @pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_empty_value_as_key_replace_column_hints(
-    key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
+    key_hint: str,
+    empty_value: Union[str, None],
+    with_apply_hints: bool,
+    item_format: TestDataItemFormat,
 ) -> None:
     """Ensure that empty value key hints on table level take precedence over hints on column level."""
     os.environ["COMPLETED_PROB"] = "1.0"
@@ -187,9 +221,18 @@ def test_empty_value_as_key_replace_column_hints(
         pipeline_name="test_empty_value_as_key_replace_column_hints", destination="dummy"
     )
 
+    if item_format == "object":
+        item = {"id": 1, "other_id": 2}
+    elif item_format == "pandas":
+        item = pd.DataFrame({"id": [1], "other_id": [2]})
+    elif item_format == "arrow-table":
+        item = pa.table({"id": [1], "other_id": [2]})
+    else:  # arrow-batch
+        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+
     my_resource = _get_resource(
         with_apply_hints,
-        {"id": 1, "other_id": 2},
+        item,
         columns={"other_id": {key_hint: True}},
         **{key_hint: empty_value},
     )
@@ -220,8 +263,12 @@ def test_empty_value_as_key_replace_column_hints(
 @pytest.mark.parametrize(
     "key_hint_as_list", [True, False], ids=["key_hint_as_list", "key_hint_as_string"]
 )
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_new_hints_replace_previous_key(
-    key_hint: str, with_apply_hints: bool, key_hint_as_list: bool
+    key_hint: str,
+    with_apply_hints: bool,
+    key_hint_as_list: bool,
+    item_format: TestDataItemFormat,
 ) -> None:
     """Show that new key hints on existing resource replace previous ones."""
     os.environ["COMPLETED_PROB"] = "1.0"
@@ -235,10 +282,19 @@ def test_new_hints_replace_previous_key(
     p.run(get_resource())
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
 
+    if item_format == "object":
+        item = {"id": 1, "other_id": 2}
+    elif item_format == "pandas":
+        item = pd.DataFrame({"id": [1], "other_id": [2]})
+    elif item_format == "arrow-table":
+        item = pa.table({"id": [1], "other_id": [2]})
+    else:  # arrow-batch
+        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+
     # We change key to "other_id"
     my_resource = _get_resource(
         with_apply_hints,
-        {"id": 1, "other_id": 2},
+        item,
         **{key_hint: ["other_id"] if key_hint_as_list else "other_id"},
     )
 
@@ -254,8 +310,12 @@ def test_new_hints_replace_previous_key(
 )
 @pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
 @pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
-def test_empty_value_as_key_does_not_replaces_previous_key(
-    key_hint: str, empty_value: Union[str, None], with_apply_hints: bool
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
+def test_empty_value_as_key_does_not_replace_previous_key(
+    key_hint: str,
+    empty_value: Union[str, None],
+    with_apply_hints: bool,
+    item_format: TestDataItemFormat,
 ) -> None:
     """Show that empty value key hints on existing resource currently do nothing."""
     os.environ["COMPLETED_PROB"] = "1.0"
@@ -271,10 +331,17 @@ def test_empty_value_as_key_does_not_replaces_previous_key(
     p.run(get_resource())
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
 
+    if item_format == "object":
+        item = {"id": 1, "other_id": 2}
+    elif item_format == "pandas":
+        item = pd.DataFrame({"id": [1], "other_id": [2]})
+    elif item_format == "arrow-table":
+        item = pa.table({"id": [1], "other_id": [2]})
+    else:  # arrow-batch
+        item = pa.RecordBatch.from_pydict({"id": [1], "other_id": [2]})
+
     # We try to remove the key with empty_value
-    my_resource = _get_resource(
-        with_apply_hints, {"id": 1, "other_id": 2}, **{key_hint: empty_value}
-    )
+    my_resource = _get_resource(with_apply_hints, item, **{key_hint: empty_value})
 
     # "id" is still key
     p.run(my_resource)
