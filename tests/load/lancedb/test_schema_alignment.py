@@ -10,7 +10,6 @@ import dlt
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.lancedb.fixtures import lancedb_destination
 from tests.load.lancedb.utils import assert_table
 from tests.pipeline.utils import assert_load_info
 from tests.cases import arrow_table_all_data_types, remove_column_from_data
@@ -19,12 +18,12 @@ from tests.utils import TestDataItemFormat
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
 def test_identical_schemas_all_types(
-    object_format: TestDataItemFormat, lancedb_destination
+    object_format: TestDataItemFormat
 ) -> None:
     """Test that identical schemas return the original table."""
     pipeline = dlt.pipeline(
         pipeline_name="test_identical_schemas_arrow_table_all_types",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_identical_schemas_arrow_table_all_types_{uniq_id()}",
         dev_mode=True,
     )
@@ -55,10 +54,10 @@ def test_identical_schemas_all_types(
     assert schema_after_first_load == pipeline.default_schema
 
 
-def test_add_columns_of_new_types_one_by_one(lancedb_destination) -> None:
+def test_add_columns_of_new_types_one_by_one() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_slow_schema_evolution",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_slow_schema_evolution_{uniq_id()}",
         dev_mode=True,
     )
@@ -108,11 +107,11 @@ def test_add_columns_of_new_types_one_by_one(lancedb_destination) -> None:
 
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
-def test_new_column_in_second_load(object_format: TestDataItemFormat, lancedb_destination) -> None:
+def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
     """Test that new columns in source are added to the target."""
     pipeline = dlt.pipeline(
         pipeline_name="test_new_column_in_second_load",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_new_column_in_second_load_{uniq_id()}",
         dev_mode=True,
     )
@@ -157,7 +156,7 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat, lancedb_de
         )
 
 
-def test_arrow_precision_types(lancedb_destination):
+def test_arrow_precision_types():
     # create a table with all those types as columns
     import numpy as np
 
@@ -183,7 +182,7 @@ def test_arrow_precision_types(lancedb_destination):
     # now run a pipeline with this table
     pipeline = dlt.pipeline(
         pipeline_name="test_arrow_precision_types",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_arrow_precision_types_{uniq_id()}",
         dev_mode=True,
     )
@@ -228,7 +227,7 @@ def test_arrow_precision_types(lancedb_destination):
 @pytest.mark.parametrize("remove_orphans", [True, False])
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
 def test_missing_column_in_second_load(
-    object_format: TestDataItemFormat, remove_orphans: bool, lancedb_destination
+    object_format: TestDataItemFormat, remove_orphans: bool
 ) -> None:
     """
     Test if same data is loaded with missing column and merge stragegy is present, column
@@ -236,7 +235,7 @@ def test_missing_column_in_second_load(
     """
     pipeline = dlt.pipeline(
         pipeline_name="test_missing_column_in_second_load",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_missing_column_in_second_load_{uniq_id()}",
     )
 
@@ -300,11 +299,11 @@ def test_missing_column_in_second_load(
 
 
 # @pytest.mark.xfail(reason="normalizer issue?")
-def test_json_nesting_evolution(lancedb_destination) -> None:
+def test_json_nesting_evolution() -> None:
     """Test that json nesting evolution is handled correctly."""
     pipeline = dlt.pipeline(
         pipeline_name="test_json_nesting_evolution",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_json_nesting_evolution_{uniq_id()}",
         dev_mode=True,
     )

@@ -16,7 +16,6 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
 )
 
-from tests.load.lancedb.fixtures import lancedb_destination
 from tests.load.lancedb.utils import chunk_document
 from tests.load.utils import (
     sequence_generator,
@@ -30,10 +29,10 @@ from tests.pipeline.utils import (
 pytestmark = pytest.mark.essential
 
 
-def test_lancedb_remove_nested_orphaned_records(lancedb_destination) -> None:
+def test_lancedb_remove_nested_orphaned_records() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_lancedb_remove_orphaned_records_{uniq_id()}",
         dev_mode=True,
     )
@@ -137,10 +136,10 @@ def test_lancedb_remove_nested_orphaned_records(lancedb_destination) -> None:
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
 
 
-def test_lancedb_remove_orphaned_records_root_table(lancedb_destination) -> None:
+def test_lancedb_remove_orphaned_records_root_table() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_root_table",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
         dev_mode=True,
     )
@@ -201,10 +200,10 @@ def test_lancedb_remove_orphaned_records_root_table(lancedb_destination) -> None
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_remove_orphaned_records_root_table_string_doc_id(lancedb_destination) -> None:
+def test_lancedb_remove_orphaned_records_root_table_string_doc_id() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_root_table",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
         dev_mode=True,
     )
@@ -265,9 +264,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(lancedb_destin
         assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
-    lancedb_destination,
-) -> None:
+def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> None:
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="document",
@@ -297,7 +294,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
 
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_remove_orphaned_records_with_embeddings",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_lancedb_remove_orphaned_records_{uniq_id()}",
         dev_mode=True,
     )
@@ -348,10 +345,10 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
             assert vector.size > 0
 
 
-def test_lancedb_compound_merge_key_root_table(lancedb_destination) -> None:
+def test_lancedb_compound_merge_key_root_table() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_lancedb_compound_merge_key",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
         dev_mode=True,
     )
@@ -406,7 +403,7 @@ def test_lancedb_compound_merge_key_root_table(lancedb_destination) -> None:
     assert_frame_equal(actual_root_df, expected_root_table_df)
 
 
-def test_must_provide_at_least_primary_key_on_merge_disposition(lancedb_destination) -> None:
+def test_must_provide_at_least_primary_key_on_merge_disposition() -> None:
     """We need upsert merge's deterministic _dlt_id to perform orphan removal.
     Hence, we require at least the primary key required (raises exception if missing).
     Specify a merge key for custom orphan identification."""
@@ -418,7 +415,7 @@ def test_must_provide_at_least_primary_key_on_merge_disposition(lancedb_destinat
 
     pipeline = dlt.pipeline(
         pipeline_name="test_must_provide_both_primary_and_merge_key_on_merge_disposition",
-        destination=lancedb_destination,
+        destination="lancedb",
         dataset_name=(
             f"test_must_provide_both_primary_and_merge_key_on_merge_disposition{uniq_id()}"
         ),

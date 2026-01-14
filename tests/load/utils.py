@@ -414,7 +414,7 @@ def destinations_configs(
                 supports_merge=True,
                 supports_dbt=False,
                 destination_name="sqlalchemy_sqlite",
-                credentials=f"sqlite:///{worker}.sqlite",
+                credentials=f"sqlite:///db.sqlite",
             ),
             # TODO: enable in sql alchemy destination test, 99% of tests work
             # DestinationTestConfiguration(
@@ -468,7 +468,6 @@ def destinations_configs(
             DestinationTestConfiguration(destination_type="weaviate"),
             DestinationTestConfiguration(
                 destination_type="lancedb",
-                env_vars={"DESTINATION__LANCEDB__LANCE_URI": f"lancedb_{worker}.lancedb"},
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
