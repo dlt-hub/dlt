@@ -1,8 +1,14 @@
 from dlt.common.destination.exceptions import DestinationException, DestinationTerminalException
 
 
-class WeaviateGrpcError(DestinationException):
+class WeaviateBatchError(DestinationException):
+    """Error raised when batch operations fail in Weaviate"""
+
     pass
+
+
+# Keep old name for backwards compatibility
+WeaviateGrpcError = WeaviateBatchError
 
 
 class PropertyNameConflict(DestinationTerminalException):
