@@ -505,10 +505,26 @@ def test_references_parameterized_by_naming(schema: dlt.Schema, name_normalizer_
             "referenced_table": schema.naming.normalize_identifier("root_table1"),
             "referenced_columns": [schema.naming.normalize_identifier("_dlt_id")],
         },
+        {
+            "label": "_dlt_schema_version",
+            "cardinality": "one_to_many",
+            "table": schema.naming.normalize_identifier("_dlt_version"),
+            "columns": [schema.naming.normalize_identifier("version_hash")],
+            "referenced_table": schema.naming.normalize_identifier("_dlt_loads"),
+            "referenced_columns": [schema.naming.normalize_identifier("schema_version_hash")],
+        },
+        {
+            "label": "_dlt_schema_name",
+            "cardinality": "many_to_many",
+            "table": schema.naming.normalize_identifier("_dlt_version"),
+            "columns": [schema.naming.normalize_identifier("schema_name")],
+            "referenced_table": schema.naming.normalize_identifier("_dlt_loads"),
+            "referenced_columns": [schema.naming.normalize_identifier("schema_name")],
+        },
     ]
 
     assert isinstance(schema.references, list)
-    assert len(schema.references) == 8
+    assert len(schema.references) == 10
     assert isinstance(schema.references[0], dict)
     # check that keys are from TStandaloneTableReference
     # can't do `isinstance(..., TStandaloneTableReference)` on a `TypedDict`

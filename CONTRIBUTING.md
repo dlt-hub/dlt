@@ -195,7 +195,7 @@ To run all tests including all external destinations run:
 make test
 ```
 
-For this to work you will need credentials to all destinations supported by dlt in scope of the tests in `tests/.dlt/secrets.tom`. Note that these tests will take a long time to run. See below how to develop for a particular destination efficiently.
+For this to work you will need credentials to all destinations supported by dlt in scope of the tests in `tests/.dlt/secrets.toml`. Note that these tests will take a long time to run. See below how to develop for a particular destination efficiently.
 
 We can provide access to these resources if you’d like to test locally.
 

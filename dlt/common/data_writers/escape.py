@@ -22,7 +22,10 @@ SQL_ESCAPE_RE = _make_sql_escape_re(SQL_ESCAPE_DICT)
 
 
 def _escape_extended(
-    v: str, prefix: str = "E'", escape_dict: Dict[str, str] = None, escape_re: re.Pattern = None  # type: ignore[type-arg]
+    v: str,
+    prefix: str = "E'",
+    escape_dict: Dict[str, str] = None,
+    escape_re: re.Pattern = None,  # type: ignore[type-arg]
 ) -> str:
     escape_dict = escape_dict or SQL_ESCAPE_DICT
     escape_re = escape_re or SQL_ESCAPE_RE
@@ -225,6 +228,46 @@ def escape_clickhouse_literal(v: Any) -> Any:
 
 def escape_clickhouse_identifier(v: str) -> str:
     return "`" + v.replace("`", "``").replace("\\", "\\\\") + "`"
+
+
+# https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#string_and_bytes_literals
+BIGQUERY_ESCAPE_DICT = {
+    "'": "\\'",
+    "\\": "\\\\",
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f",
+    "\a": "\\a",
+    "\v": "\\v",
+}
+
+BIGQUERY_ESCAPE_RE = _make_sql_escape_re(BIGQUERY_ESCAPE_DICT)
+
+
+def escape_bigquery_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return _escape_extended(
+            v, prefix="'", escape_dict=BIGQUERY_ESCAPE_DICT, escape_re=BIGQUERY_ESCAPE_RE
+        )
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(
+            json.dumps(v),
+            prefix="'",
+            escape_dict=BIGQUERY_ESCAPE_DICT,
+            escape_re=BIGQUERY_ESCAPE_RE,
+        )
+    if isinstance(v, bytes):
+        return f"FROM_BASE64('{base64.b64encode(v).decode('ascii')}')"
+    if isinstance(v, bool):
+        return str(v).upper()
+    return "NULL" if v is None else str(v)
+
+
+escape_bigquery_identifier = escape_hive_identifier
 
 
 def format_datetime_literal(v: pendulum.DateTime, precision: int = 6, no_tz: bool = False) -> str:
