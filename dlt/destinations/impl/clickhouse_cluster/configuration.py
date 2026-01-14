@@ -53,5 +53,6 @@ class ClickHouseClusterClientConfiguration(ClickHouseClientConfiguration):
     credentials: ClickHouseClusterCredentials = None
     cluster: str = None
     create_distributed_tables: bool = False
+    distributed_tables_database: Optional[str] = None
     distributed_table_suffix: str = DEFAULT_DISTRIBUTED_TABLE_SUFFIX
     sharding_key: str = DEFAULT_SHARDING_KEY

@@ -13,6 +13,7 @@ from dlt.destinations.impl.clickhouse_cluster.configuration import (
     ClickHouseClusterClientConfiguration,
 )
 from dlt.destinations.impl.clickhouse_cluster.factory import clickhouse_cluster
+from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 
 
 REPLICATED_CLUSTER_NAME = "cluster_1S_2R"
@@ -20,6 +21,7 @@ SHARDED_CLUSTER_NAME = "cluster_2S_1R"
 REPLICATED_SHARDED_CLUSTER_NAME = "cluster_2S_2R"
 
 CLICKHOUSE_CLUSTER_HOST = "localhost"
+CLICKHOUSE_CLUSTER_DATABASE = "dlt_data"
 CLICKHOUSE_CLUSTER_NODES = (
     "clickhouse-01",
     "clickhouse-02",
@@ -43,6 +45,7 @@ def client(empty_schema: Schema) -> ClickHouseClusterClient:
 
 def set_clickhouse_cluster_conf(
     cluster: Optional[str] = None,
+    distributed_tables_database: Optional[str] = None,
     port: Optional[int] = None,
     http_port: Optional[int] = None,
     alt_hosts: Optional[str] = None,
@@ -51,6 +54,8 @@ def set_clickhouse_cluster_conf(
     env_var_prefix = "DESTINATION__CLICKHOUSE_CLUSTER__"
     if cluster is not None:
         os.environ[env_var_prefix + "CLUSTER"] = cluster
+    if distributed_tables_database is not None:
+        os.environ[env_var_prefix + "DISTRIBUTED_TABLES_DATABASE"] = distributed_tables_database
     if port is not None:
         os.environ[env_var_prefix + "CREDENTIALS__PORT"] = str(port)
     if http_port is not None:
@@ -64,6 +69,7 @@ def set_clickhouse_cluster_conf(
 def assert_clickhouse_cluster_conf(
     config: ClickHouseClusterClientConfiguration,
     cluster: Optional[str] = None,
+    distributed_tables_database: Optional[str] = None,
     port: Optional[int] = None,
     http_port: Optional[int] = None,
     alt_hosts: Optional[str] = None,
@@ -71,6 +77,8 @@ def assert_clickhouse_cluster_conf(
 ) -> None:
     if cluster is not None:
         assert config.cluster == cluster
+    if distributed_tables_database is not None:
+        assert config.distributed_tables_database == distributed_tables_database
     if port is not None:
         assert config.credentials.port == port
     if http_port is not None:
@@ -81,10 +89,17 @@ def assert_clickhouse_cluster_conf(
         assert config.credentials.alt_http_hosts == alt_http_hosts
 
 
-def get_table_engine(sql_client: ClickHouseSqlClient, table_name: str, full: bool = False) -> str:
+def get_table_engine(
+    sql_client: ClickHouseSqlClient,
+    table_name: str,
+    full: bool = False,
+    alternative_database_name: Optional[str] = None,
+) -> str:
     col = "engine_full" if full else "engine"
     qry = f"SELECT {col} FROM system.tables WHERE database = %s AND name = %s;"
-    table_name = sql_client.make_qualified_table_name(table_name, quote=False)
+    database_name = alternative_database_name or sql_client.database_name
+    with sql_client.with_alternative_database_name(database_name):
+        table_name = sql_client.make_qualified_table_name(table_name, quote=False)
     database, name = table_name.split(".")
     with sql_client:
         result = sql_client.execute_sql(qry, database, name)
@@ -139,3 +154,25 @@ def clickhouse_cluster_node_paused(*node: int):
         # unpause docker containers
         for n in node:
             subprocess.run(["docker", "unpause", container(n)], capture_output=True, check=True)
+
+
+@contextmanager
+def clickhouse_cluster_database_created(
+    sql_client: ClickHouseClusterSqlClient,
+    database_name: str,
+):
+    # create database
+    with sql_client:
+        sql_client.execute_sql(
+            f"CREATE DATABASE IF NOT EXISTS `{database_name}` ON CLUSTER"
+            f" {sql_client.config.cluster};"
+        )
+    try:
+        yield
+    finally:
+        # drop database (except if it's the main test database)
+        if database_name != CLICKHOUSE_CLUSTER_DATABASE:
+            with sql_client:
+                sql_client.execute_sql(
+                    f"DROP DATABASE `{database_name}` ON CLUSTER {sql_client.config.cluster} SYNC;"
+                )

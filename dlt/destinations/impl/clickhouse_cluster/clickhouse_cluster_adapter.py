@@ -10,7 +10,6 @@ CREATE_DISTRIBUTED_TABLE_HINT: Literal["x-create-distributed-table"] = "x-create
 DISTRIBUTED_TABLE_SUFFIX_HINT: Literal["x-distributed-table-suffix"] = "x-distributed-table-suffix"
 SHARDING_KEY_HINT: Literal["x-sharding-key"] = "x-sharding-key"
 
-
 # maps ClickHouseClusterClientConfiguration keys to corresponding table hints
 CONFIG_HINT_MAP = {
     "create_distributed_tables": CREATE_DISTRIBUTED_TABLE_HINT,

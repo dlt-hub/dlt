@@ -269,17 +269,35 @@ SELECT 1
         return column_name
 
     @contextmanager
-    def with_alternative_dataset_name(
-        self, dataset_name: str
+    def _with_alternative_attribute_value(
+        self, attr_name: str, val: Any
     ) -> Iterator["SqlClientBase[TNativeConn]"]:
-        """Sets the `dataset_name` as the default dataset during the lifetime of the context. Does not modify any search paths in the existing connection."""
-        current_dataset_name = self.dataset_name
+        """Sets attribute `attr_name` to value `val` during lifetime of context."""
+        current_val = getattr(self, attr_name)
         try:
-            self.dataset_name = dataset_name
+            setattr(self, attr_name, val)
             yield self
         finally:
-            # restore previous dataset name
-            self.dataset_name = current_dataset_name
+            # restore previous value
+            setattr(self, attr_name, current_val)
+
+    def with_alternative_database_name(
+        self, database_name: str
+    ) -> ContextManager["SqlClientBase[TNativeConn]"]:
+        """Sets `database_name` as default database during lifetime of context.
+
+        Does not modify any search paths in existing connection.
+        """
+        return self._with_alternative_attribute_value("database_name", database_name)
+
+    def with_alternative_dataset_name(
+        self, dataset_name: str
+    ) -> ContextManager["SqlClientBase[TNativeConn]"]:
+        """Sets `dataset_name` as default dataset during lifetime of context.
+
+        Does not modify any search paths in existing connection.
+        """
+        return self._with_alternative_attribute_value("dataset_name", dataset_name)
 
     def with_staging_dataset(self) -> ContextManager["SqlClientBase[TNativeConn]"]:
         """Temporarily switch sql client to staging dataset name"""

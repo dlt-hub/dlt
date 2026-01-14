@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Optional, cast
 import pytest
 
 from dlt.destinations.adapters import clickhouse_cluster_adapter
@@ -14,7 +14,10 @@ from dlt.destinations.impl.clickhouse_cluster.configuration import (
 )
 from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 from tests.load.clickhouse_cluster.utils import (
+    CLICKHOUSE_CLUSTER_DATABASE,
     SHARDED_CLUSTER_NAME,
+    assert_clickhouse_cluster_conf,
+    clickhouse_cluster_database_created,
     client,
     get_table_engine,
     set_clickhouse_cluster_conf,
@@ -67,33 +70,50 @@ def test_clickhouse_cluster_adapter_defaults(client: ClickHouseClusterClient) ->
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
-    "distributed_table_suffix, sharding_key",
+    "distributed_tables_database, distributed_table_suffix, sharding_key",
     [
-        pytest.param(None, None, id="defaults"),
-        pytest.param(None, "user_id + 1", id="custom-sharding-key"),
-        pytest.param("_custom_suffix", None, id="custom-distributed-table-suffix"),
+        pytest.param(None, None, None, id="defaults"),
+        pytest.param(None, None, "user_id + 1", id="custom-sharding-key"),
+        pytest.param(None, "_custom_suffix", None, id="custom-distributed-table-suffix"),
+        pytest.param("dlt_data_dist", None, None, id="custom-distributed-tables-database"),
     ],
 )
 def test_clickhouse_cluster_adapter_distributed_table(
     destination_config: DestinationTestConfiguration,
-    distributed_table_suffix: str,
-    sharding_key: str,
+    distributed_tables_database: Optional[str],
+    distributed_table_suffix: Optional[str],
+    sharding_key: Optional[str],
 ) -> None:
-    # switch to sharded cluster
-    set_clickhouse_cluster_conf(cluster=SHARDED_CLUSTER_NAME)
+    set_clickhouse_cluster_conf(
+        cluster=SHARDED_CLUSTER_NAME, distributed_tables_database=distributed_tables_database
+    )
 
-    # define pipeline and client
+    # define pipeline and clients
     pipe = destination_config.setup_pipeline(
         "test_clickhouse_cluster_adapter_distributed_table", dev_mode=True
     )
     client = cast(ClickHouseClusterClient, pipe.destination_client())
+    sql_client = cast(ClickHouseClusterSqlClient, client.sql_client)
+
+    assert_clickhouse_cluster_conf(
+        client.config,
+        cluster=SHARDED_CLUSTER_NAME,
+        distributed_tables_database=distributed_tables_database,
+    )
 
     # define table names
     shard_table_name = "sharded_table"
     effective_dist_table_suffix = distributed_table_suffix or DEFAULT_DISTRIBUTED_TABLE_SUFFIX
     dist_table_name = shard_table_name + effective_dist_table_suffix
-    shard_qual_table_name = client.sql_client.make_qualified_table_name(shard_table_name)
-    dist_qual_table_name = client.sql_client.make_qualified_table_name(dist_table_name)
+    shard_qual_table_name = sql_client.make_qualified_table_name(shard_table_name)
+    with sql_client.with_alternative_database_name(sql_client.distributed_tables_database_name):
+        dist_qual_table_name = sql_client.make_qualified_table_name(dist_table_name)
+
+    # assert distributed table is created in correct database
+    if distributed_tables_database:
+        assert dist_qual_table_name.startswith(f"`{distributed_tables_database}`.")
+    else:
+        assert dist_qual_table_name.startswith(f"`{CLICKHOUSE_CLUSTER_DATABASE}`.")
 
     # create resource with distributed table hints
     res = clickhouse_cluster_adapter(
@@ -131,7 +151,6 @@ def test_clickhouse_cluster_adapter_distributed_table(
 
     # distributed table statement
     dist_stmt = stmts[1]
-    sql_client = cast(ClickHouseClusterSqlClient, client.sql_client)
     database, table = sql_client.make_qualified_table_name(shard_table_name, quote=False).split(".")
     effective_sharding_key = sharding_key or DEFAULT_SHARDING_KEY
     expected_engine = (
@@ -144,7 +163,15 @@ def test_clickhouse_cluster_adapter_distributed_table(
     assert dist_stmt == expected_dist_stmt
 
     # assert distributed table gets created and has correct engine
-    load_info = pipe.run(res, **destination_config.run_kwargs)
-    assert_load_info(load_info)
-    actual_engine = get_table_engine(sql_client, dist_table_name, full=True)
-    assert actual_engine == expected_engine
+    with clickhouse_cluster_database_created(
+        sql_client, sql_client.distributed_tables_database_name
+    ):
+        load_info = pipe.run(res, **destination_config.run_kwargs)
+        assert_load_info(load_info)
+        actual_engine = get_table_engine(
+            sql_client,
+            dist_table_name,
+            full=True,
+            alternative_database_name=sql_client.distributed_tables_database_name,
+        )
+        assert actual_engine == expected_engine

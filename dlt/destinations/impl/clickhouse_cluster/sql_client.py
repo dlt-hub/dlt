@@ -7,6 +7,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
+    CREATE_DISTRIBUTED_TABLE_HINT,
     SHARDING_KEY_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
 )
@@ -38,6 +39,10 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         self.credentials: ClickHouseClusterCredentials = credentials
         self.config: ClickHouseClusterClientConfiguration = config
 
+    @property
+    def distributed_tables_database_name(self) -> Optional[str]:
+        return self.config.distributed_tables_database or self.database_name
+
     @raise_open_connection_error
     def clickhouse_connect_client(self) -> clickhouse_connect.driver.client.Client:  # type: ignore[return]
         # unlike `clickhouse_driver`, `clickhouse_connect` does not support `alt_hosts` (or similar)
@@ -60,6 +65,18 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
                     continue
                 raise
 
+    def _insert_file_table(self, table_schema: PreparedTableSchema) -> str:
+        table_name = table_schema["name"]
+        database_name = self.database_name
+
+        # load into distributed table instead of local table if it exists
+        if table_schema.get(CREATE_DISTRIBUTED_TABLE_HINT):
+            table_name += table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT]  # type: ignore[typeddict-item]
+            database_name = self.distributed_tables_database_name
+
+        with self.with_alternative_database_name(database_name):
+            return self.make_qualified_table_name(table_name)
+
     def _make_create_table(
         self, qualified_name: str, or_replace: bool = False, if_not_exists: bool = False
     ) -> str:
@@ -76,7 +93,8 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
 
         # generate CREATE TABLE sql
         dist_table_name = table_name + table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT]  # type: ignore[typeddict-item]
-        qual_dist_table_name = self.make_qualified_table_name(dist_table_name)
+        with self.with_alternative_database_name(self.distributed_tables_database_name):
+            qual_dist_table_name = self.make_qualified_table_name(dist_table_name)
         create_table_sql = self._make_create_table(qual_dist_table_name)
 
         # generate AS sql
