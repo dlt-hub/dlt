@@ -1038,7 +1038,7 @@ class FilesystemClient(
                 f"Can't load tables using `{table_format=:}` with `filesystem` destination."
             )
 
-    def get_open_table_catalog(self, table_format: TTableFormat) -> Any:
+    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str | None = None) -> Any:
         """Gets a native catalog for a table with format `table_format`
 
         Returns: currently pyiceberg Catalog is supported
@@ -1056,6 +1056,7 @@ class FilesystemClient(
 
         # Try to load catalog using new function
         catalog = self._catalog = get_catalog(
+            iceberg_catalog_name=catalog_name,
             credentials=self.config.credentials,
         )
 
