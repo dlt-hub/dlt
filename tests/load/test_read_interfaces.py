@@ -1499,6 +1499,14 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_read_not_materialized_table(destination_config: DestinationTestConfiguration):
+    # TODO lancedb destination faills unreliably on the 2nd `pipeline.run()` because
+    # of the dltSentinel table. The test parallelization PR should solve this issue
+    # and upgrading LanceDB destination with `lance-namespace` should avoid it
+    # entirely.
+    # TODO reenable test after fix
+    if destinations_config.destination_type == "lancedb":
+        pytest.skip("lancedb has race conditions for dltSentinel table")
+
     @dlt.source
     def two_tables():
         @dlt.resource(
