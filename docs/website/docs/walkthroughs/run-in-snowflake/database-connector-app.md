@@ -64,9 +64,9 @@ Source settings define **what to ingest** from your external SQL database and **
   Select the type of [SQL database](../../dlt-ecosystem/verified-sources/sql_database) you want to ingest from. The selected type determines the driver and default connection behavior. 
 
   The following database types are currently supported:
-  - pymssql
-  - postgress
-  - mssql
+  - MySQL
+  - PostgreSQL
+  - MSSQL
 
   If you need support for a different database type, please reach out via our [contact form](https://dlthub.com/contact).
 
