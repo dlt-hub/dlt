@@ -61,7 +61,14 @@ Source settings define **what to ingest** from your external SQL database and **
 #### Required fields
 
 - **Database type**  
-  Select the type of [SQL database](../../dlt-ecosystem/verified-sources/sql_database) you want to ingest from (e.g. Postgres, MySQL, ...). The selected type determines the driver and default connection behavior.
+  Select the type of [SQL database](../../dlt-ecosystem/verified-sources/sql_database) you want to ingest from. The selected type determines the driver and default connection behavior. 
+
+  The following database types are currently supported:
+  - pymssql
+  - postgress
+  - mssql
+
+  If you need support for a different database type, please reach out via our [contact form](https://dlthub.com/contact).
 
 - **Host and port**  
   Enter the hostname and port of your source database. If you leave the port empty, the app will use the database type’s default port.
