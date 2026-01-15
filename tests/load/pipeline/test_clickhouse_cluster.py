@@ -148,6 +148,9 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
     - shard is replicated (ENGINE = ReplicatedMergeTree)
     """
 
+    # switch to replicated cluster
+    set_clickhouse_cluster_conf(cluster=REPLICATED_CLUSTER_NAME)
+
     data = [{"foo": "bar"}]
     replicated = clickhouse_cluster_adapter(
         data,
