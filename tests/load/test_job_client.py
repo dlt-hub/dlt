@@ -732,6 +732,7 @@ def test_load_with_all_types(
         ("replace", "truncate-and-insert"),
         ("replace", "insert-from-staging"),
         ("replace", "staging-optimized"),
+        ("replace", "staging-atomic-swap"),
     ],
 )
 @pytest.mark.parametrize(

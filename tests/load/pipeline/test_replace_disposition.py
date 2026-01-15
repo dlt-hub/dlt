@@ -410,6 +410,11 @@ def test_replace_sql_queries(
 
         destination_spy = mocker.spy(MsSqlStagingReplaceJob, "generate_sql")
 
+    elif dest_type == "snowflake":
+        from dlt.destinations.impl.snowflake.snowflake import SnowflakeStagingReplaceJob
+
+        destination_spy = mocker.spy(SnowflakeStagingReplaceJob, "generate_sql")
+
     pipeline = destination_config.setup_pipeline("insert_from_staging_test", dev_mode=True)
     load_info = pipeline.run(
         [{"id": 1}],
@@ -443,4 +448,10 @@ def test_replace_sql_queries(
             assert destination_spy.call_count == 1
         else:
             assert clone_sql_generator_spy.call_count == 1
+            assert insert_sql_generator_spy.call_count == 0
+
+    elif replace_strategy == "staging-atomic-swap":
+        if dest_type == "snowflake":
+            assert destination_spy.call_count == 1
+            assert clone_sql_generator_spy.call_count == 0
             assert insert_sql_generator_spy.call_count == 0
