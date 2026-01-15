@@ -195,7 +195,7 @@ def _run_dataset_checks(
             "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")  # type: ignore
         )
     table = external_db.sql("FROM second.arrow_all_types;").arrow().num_rows
-    assert  table.num_rows == (2 * total_records)
+    assert table.num_rows == (2 * total_records)
 
     external_db.close()
 
