@@ -367,7 +367,12 @@ def test_merge_incomplete_columns() -> None:
     assert columns["test_2"] == COL_2_HINTS
 
 
-def test_diff_tables() -> None:
+@pytest.mark.parametrize(
+    "merge_compound_props",
+    [True, False],
+    ids=["merge_compound_props", "replace_compound_props"],
+)
+def test_diff_tables(merge_compound_props: bool) -> None:
     table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
         "description": "description",
@@ -378,10 +383,10 @@ def test_diff_tables() -> None:
     empty = utils.new_table("table")
     del empty["resource"]
     print(empty)
-    partial = utils.diff_table("schema", empty, deepcopy(table))
+    partial = utils.diff_table("schema", empty, deepcopy(table), merge_compound_props)
     # partial is simply table
     assert partial == table
-    partial = utils.diff_table("schema", deepcopy(table), empty)
+    partial = utils.diff_table("schema", deepcopy(table), empty, merge_compound_props)
     # partial is empty
     assert partial == empty
 
@@ -392,7 +397,7 @@ def test_diff_tables() -> None:
     # names must be identical
     renamed_table = deepcopy(table)
     renamed_table["name"] = "new name"
-    partial = utils.diff_table("schema", renamed_table, changed)
+    partial = utils.diff_table("schema", renamed_table, changed, merge_compound_props)
     print(partial)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
@@ -400,7 +405,7 @@ def test_diff_tables() -> None:
     existing = deepcopy(renamed_table)
     changed["write_disposition"] = "append"
     changed["schema_contract"] = "freeze"
-    partial = utils.diff_table("schema", deepcopy(existing), changed)
+    partial = utils.diff_table("schema", deepcopy(existing), changed, merge_compound_props)
     assert partial == {
         "name": "new name",
         "description": "new description",
@@ -410,14 +415,14 @@ def test_diff_tables() -> None:
     }
     existing["write_disposition"] = "append"
     existing["schema_contract"] = "freeze"
-    partial = utils.diff_table("schema", deepcopy(existing), changed)
+    partial = utils.diff_table("schema", deepcopy(existing), changed, merge_compound_props)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
     # detect changed column
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["cluster"] = True
-    partial = utils.diff_table("schema", existing, changed)
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
     assert "test" in partial["columns"]
     assert "test_2" not in partial["columns"]
     assert existing["columns"]["test"] == table["columns"]["test"] != partial["columns"]["test"]
@@ -426,7 +431,7 @@ def test_diff_tables() -> None:
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["parent_key"] = False
-    partial = utils.diff_table("schema", existing, changed)
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
     assert "test" in partial["columns"]
 
     # even if not present in tab_a at all
@@ -434,8 +439,36 @@ def test_diff_tables() -> None:
     changed = deepcopy(table)
     changed["columns"]["test"]["parent_key"] = False
     del existing["columns"]["test"]["parent_key"]
-    partial = utils.diff_table("schema", existing, changed)
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
     assert "test" in partial["columns"]
+
+    # if replace_compound_props, compound_props in changed are authoritative
+    existing = deepcopy(table)
+    existing["columns"]["test"]["primary_key"] = True
+    changed = deepcopy(table)
+    changed["columns"]["test_2"]["primary_key"] = True
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
+    if merge_compound_props:
+        assert partial["columns"] == {
+            "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
+        }
+    else:
+        # primary_key removed in "test"
+        assert partial["columns"] == {
+            "test": {
+                "cluster": False,
+                "parent_key": True,
+                "data_type": "text",
+                "name": "test",
+                "x-special": "value",
+                "x-special-int": 100,
+                "nullable": False,
+                "x-special-bool-true": True,
+                "x-special-bool": False,
+                "prop": None,
+            },
+            "test_2": {"nullable": True, "name": "test_2", "primary_key": True},
+        }
 
 
 def test_tables_conflicts() -> None:

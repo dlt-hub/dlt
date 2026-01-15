@@ -291,7 +291,10 @@ class Extractor:
             if diff_table:
                 # diff table identifiers already normalized
                 self.schema.update_table(
-                    diff_table, normalize_identifiers=False, from_diff=bool(existing_table)
+                    diff_table,
+                    normalize_identifiers=False,
+                    from_diff=bool(existing_table),
+                    merge_compound_props=False,
                 )
 
             # process filters
