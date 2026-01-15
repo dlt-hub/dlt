@@ -1,12 +1,12 @@
 ---
 title: LanceDB
-description: LanceDB is an open source vector database that can be used as a destination in dlt.
+description: LanceDB is multimodal lakehouse for AI that can be used as a destination in dlt.
 keywords: [ lancedb, vector database, destination, dlt ]
 ---
 
 # LanceDB
 
-[LanceDB](https://lancedb.com/) is an open-source, high-performance vector database. It allows you to store data objects and perform similarity searches over them.
+[LanceDB](https://lancedb.com/) is multimodal lakehouse for AI, built on top of [Lance](https://lance.org), an open-source lakehouse format. It allows you to store data objects and perform similarity searches over them.
 This destination helps you load data into LanceDB from [dlt resources](../../general-usage/resource.md).
 
 
