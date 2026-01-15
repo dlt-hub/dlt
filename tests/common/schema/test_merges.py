@@ -281,6 +281,10 @@ def test_remove_compound_props() -> None:
     assert all("cluster" not in col_schema for col_schema in result.values())
     assert all("merge_key" not in col_schema for col_schema in result.values())
 
+    # in col3 and col4, nullable should be reset
+    assert columns["col3"]["nullable"] is True
+    assert columns["col4"]["nullable"] is True
+
     # the function is a generic property remover, validation of whether
     # properties are actually compound should be handled upstream
     assert all("data_type" not in col_schema for col_schema in result.values())

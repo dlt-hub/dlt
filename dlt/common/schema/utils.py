@@ -35,6 +35,7 @@ from dlt.common.schema.typing import (
     VERSION_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
     ColumnPropInfos,
+    COLUMN_HINTS_AUTO_NOT_NULL,
     TColumnName,
     TFileFormat,
     TPartialTableSchema,
@@ -171,6 +172,9 @@ def remove_compound_props(
 ) -> TTableSchemaColumns:
     """Removes compound properties from all columns in place.
 
+    When removing `primary_key` or `merge_key` (if True), also resets `nullable` to True,
+    since these key hints automatically set columns to NOT NULL when applied.
+
     Args:
         columns: Table columns to modify.
         compound_props: Set of property names to remove.
@@ -184,7 +188,13 @@ def remove_compound_props(
     """
     for column in columns.values():
         for prop in compound_props:
-            column.pop(prop, None)  # type: ignore[misc]
+            removed_value = column.pop(prop, None)  # type: ignore[misc]
+            if (
+                prop in COLUMN_HINTS_AUTO_NOT_NULL
+                and removed_value is True
+                and not is_nullable_column(column)
+            ):
+                column["nullable"] = True
 
     return columns
 

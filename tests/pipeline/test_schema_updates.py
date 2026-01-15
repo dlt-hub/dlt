@@ -161,7 +161,9 @@ def test_key_replaces_column_hints(
 
     p.run(my_resource)
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
+    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
     assert not p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint)
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"]["nullable"] is True
 
 
 @pytest.mark.parametrize(
@@ -275,6 +277,7 @@ def test_new_key_hints_replace_previous_keys(
 
     p.run(get_resource())
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
+    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
 
     item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
@@ -288,7 +291,9 @@ def test_new_key_hints_replace_previous_keys(
     # "id" should no longer be key
     p.run(my_resource)
     assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
+    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is True
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint) is True
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"]["nullable"] is False
 
 
 @pytest.mark.parametrize(

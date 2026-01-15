@@ -104,6 +104,9 @@ TColumnHint = Literal[
 """Known hints of a column"""
 COLUMN_HINTS: Set[TColumnHint] = set(get_args(TColumnHint))
 
+"""Column hints that automatically set nullable=False when applied"""
+COLUMN_HINTS_AUTO_NOT_NULL: Set[TColumnHint] = {"primary_key", "merge_key"}
+
 
 class TColumnPropInfo(NamedTuple):
     name: Union[TColumnProp, str]
