@@ -46,6 +46,7 @@ from dlt.common.utils import set_working_dir
 
 DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
+STORAGE_ROOT_PREFIX = "_storage"
 
 
 def get_test_worker_id() -> str:
@@ -53,7 +54,7 @@ def get_test_worker_id() -> str:
 
 
 def compute_test_storage_root() -> str:
-    return f"_storage_{get_test_worker_id()}"
+    return f"{STORAGE_ROOT_PREFIX}_{get_test_worker_id()}"
 
 
 def set_environment_test_storage_root(test_storage_root: str) -> None:
@@ -61,7 +62,7 @@ def set_environment_test_storage_root(test_storage_root: str) -> None:
 
 
 def get_test_storage_root() -> str:
-    return os.environ.get(DLT_TEST_STORAGE_ROOT, "_storage")
+    return os.environ.get(DLT_TEST_STORAGE_ROOT, f"{STORAGE_ROOT_PREFIX}_{get_test_worker_id()}")
 
 
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [

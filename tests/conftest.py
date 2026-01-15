@@ -2,6 +2,7 @@ import os
 import dataclasses
 import logging
 from typing import Dict, List, Any
+from pathlib import Path
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
@@ -59,6 +60,7 @@ def pytest_configure(config):
     from tests.utils import set_environment_test_storage_root, compute_test_storage_root
 
     test_storage_root = compute_test_storage_root()
+    Path(test_storage_root).mkdir(exist_ok=True)
     set_environment_test_storage_root(test_storage_root)
 
     from dlt.common.configuration.specs import runtime_configuration
