@@ -66,7 +66,7 @@ def test_merge_on_keys_in_schema_nested_hints(
     """Tests merge disposition on an annotated schema, no annotations on resource"""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
 
-    p = destination_config.setup_pipeline(f"eth_2_{uniq_id()}", dev_mode=True)
+    p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v11.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))

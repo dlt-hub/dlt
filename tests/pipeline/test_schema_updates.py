@@ -1,8 +1,10 @@
 from typing import Union, Any, Dict
 import os
+from pandas._libs import properties
 import pytest
 
 import dlt
+from dlt.common.schema.typing import ColumnPropInfos
 from dlt.extract.resource import DltResource
 from tests.utils import TestDataItemFormat, ALL_TEST_DATA_ITEM_FORMATS
 
@@ -256,7 +258,7 @@ def test_empty_value_as_key_replace_column_hints(
     "key_hint_as_list", [True, False], ids=["key_hint_as_list", "key_hint_as_string"]
 )
 @pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
-def test_new_hints_replace_previous_key(
+def test_new_key_hints_replace_previous_keys(
     key_hint: str,
     with_apply_hints: bool,
     key_hint_as_list: bool,
@@ -264,7 +266,7 @@ def test_new_hints_replace_previous_key(
 ) -> None:
     """Show that new key hints on existing resource replace previous ones."""
     os.environ["COMPLETED_PROB"] = "1.0"
-    p = dlt.pipeline(pipeline_name="test_new_hints_replace_previous_key", destination="dummy")
+    p = dlt.pipeline(pipeline_name="test_new_key_hints_replace_previous_keys", destination="dummy")
 
     # Initially "id" is set as key
     @dlt.resource(**{key_hint: "id"})  # type: ignore[call-overload]
@@ -290,6 +292,52 @@ def test_new_hints_replace_previous_key(
 
 
 @pytest.mark.parametrize(
+    "compound_prop",
+    [
+        prop
+        for prop, info in ColumnPropInfos.items()
+        if info.compound
+        if prop not in ["primary_key", "merge_key"]
+    ],
+)
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
+def test_new_compound_prop_hints_replace_previous_compound_props(
+    compound_prop: str,
+    item_format: TestDataItemFormat,
+) -> None:
+    """Show what new compound prop hints on existing resource replace previous ones."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(
+        pipeline_name="test_new_compound_prop_hints_replace_previous_compound_props",
+        destination="dummy",
+    )
+
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
+
+    # Initially "id" and "other_id" are set with compound_prop
+    my_resource = _get_resource(
+        with_apply_hints=False,
+        data=item,
+        columns={"other_id": {compound_prop: True}, "id": {compound_prop: True}},
+    )
+
+    p.run(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"]["id"].get(compound_prop) is True
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(compound_prop) is True
+
+    # We change to "other_id" only
+    my_resource = _get_resource(
+        with_apply_hints=False,
+        data=item,
+        columns={"other_id": {compound_prop: True}},
+    )
+    # "id" should no longer be key
+    p.run(my_resource)
+    assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(compound_prop)
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(compound_prop) is True
+
+
+@pytest.mark.parametrize(
     "key_hint",
     ["merge_key", "primary_key"],
 )
@@ -302,7 +350,7 @@ def test_empty_value_as_key_does_not_replace_previous_key(
     with_apply_hints: bool,
     item_format: TestDataItemFormat,
 ) -> None:
-    """Show that empty value key hints on existing resource currently do nothing."""
+    """Show that empty value key hints on existing resource CURRENTLY do nothing."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(
         pipeline_name="test_empty_value_as_key_does_not_replaces_previous_key", destination="dummy"
@@ -327,25 +375,25 @@ def test_empty_value_as_key_does_not_replace_previous_key(
 
 
 @pytest.mark.parametrize(
-    "key_hint",
-    ["merge_key", "primary_key"],
+    "compound_prop",
+    [prop for prop, info in ColumnPropInfos.items() if info.compound],
 )
 @pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
-def test_consecutive_column_hints(key_hint: str, with_apply_hints: bool) -> None:
-    """Show that consecutive provision of hints on column level via apply_hints accumulates."""
+def test_consecutive_column_hints(compound_prop: str, with_apply_hints: bool) -> None:
+    """Show that consecutive provision of compound property hints on column level via apply_hints accumulates."""
 
     my_resource = _get_resource(
         with_apply_hints,
         {"id": 1, "other_id": 2},
-        columns={"id": {key_hint: True}},
+        columns={"id": {compound_prop: True}},
         **{},
     )
 
-    assert my_resource.columns == {"id": {key_hint: True, "name": "id"}}
+    assert my_resource.columns == {"id": {compound_prop: True, "name": "id"}}
 
-    my_resource.apply_hints(columns={"other_id": {key_hint: True}})  # type: ignore
+    my_resource.apply_hints(columns={"other_id": {compound_prop: True}})  # type: ignore
 
     assert my_resource.columns == {
-        "id": {key_hint: True, "name": "id"},
-        "other_id": {key_hint: True, "name": "other_id"},
+        "id": {compound_prop: True, "name": "id"},
+        "other_id": {compound_prop: True, "name": "other_id"},
     }

@@ -455,9 +455,7 @@ def diff_table_references(
 
 
 def merge_column(
-    col_a: TColumnSchema,
-    col_b: TColumnSchema,
-    merge_defaults: bool = True,
+    col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = True
 ) -> TColumnSchema:
     """Merges properties from `col_b` into `col_a`, modifying `col_a` in place.
 
@@ -482,7 +480,6 @@ def merge_column(
 def merge_columns(
     columns_a: TTableSchemaColumns,
     columns_b: TTableSchemaColumns,
-    merge_compound_props: bool = False,
 ) -> TTableSchemaColumns:
     """Merges columns from `columns_b` into `columns_a`, modifying `columns_a` in place.
 
@@ -493,9 +490,6 @@ def merge_columns(
     Args:
         columns_a: Target columns dict that will be modified
         columns_b: Source columns dict with columns/properties to merge in
-        merge_compound_props: If False, compound properties (primary_key, merge_key, etc.)
-            from `columns_a` are removed before merging, making `columns_b` authoritative for
-            compound properties.
 
     Returns:
         The modified columns_a (same object that was passed in)
@@ -503,17 +497,8 @@ def merge_columns(
     NOTE: Incomplete columns in `columns_a` that become complete in `columns_b` are removed and
     re-added to preserve order.
     """
-    if not merge_compound_props:
-        compound_props: set[str] = set()
-        for column_b in columns_b.values():
-            compound_props.update(prop for prop in column_b if is_compound_prop(prop))
-        if compound_props:
-            remove_compound_props(columns=columns_a, compound_props=compound_props)
-
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
-        if not col_name:
-            continue
         column_a = columns_a.get(col_name)
         if is_complete_column(column_b):
             if column_a and not is_complete_column(column_a):
@@ -563,7 +548,6 @@ def diff_table(
     # get new columns that are new or have changed properties
     tab_a_columns = tab_a["columns"]
     new_columns: List[TColumnSchema] = []
-
     for col_b_name, col_b in tab_b["columns"].items():
         if col_b_name in tab_a_columns:
             col_a = tab_a_columns[col_b_name]
@@ -659,22 +643,15 @@ def ensure_compatible_tables(
 
 
 def merge_table(
-    schema_name: str,
-    table: TTableSchema,
-    partial_table: TPartialTableSchema,
-    merge_compound_props: bool = False,
+    schema_name: str, table: TTableSchema, partial_table: TPartialTableSchema
 ) -> TPartialTableSchema:
     """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
     `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`
     """
-    return merge_diff(table, diff_table(schema_name, table, partial_table), merge_compound_props)
+    return merge_diff(table, diff_table(schema_name, table, partial_table))
 
 
-def merge_diff(
-    table: TTableSchema,
-    table_diff: TPartialTableSchema,
-    merge_compound_props: bool = False,
-) -> TPartialTableSchema:
+def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartialTableSchema:
     """Merges a table diff `table_diff` into `table`. `table` is merged in place. Returns the diff.
     * new columns are added, updated columns are replaced from diff
     * incomplete columns in `table` that got completed in `partial_table` are removed to preserve order
@@ -695,11 +672,7 @@ def merge_diff(
             table["columns"][incremental_a_col].pop("incremental")
 
     # add new columns when all checks passed
-    updated_columns = merge_columns(
-        columns_a=table["columns"],
-        columns_b=table_diff["columns"],
-        merge_compound_props=merge_compound_props,
-    )
+    updated_columns = merge_columns(table["columns"], table_diff["columns"])
     table.update(table_diff)
     table["columns"] = updated_columns
 
