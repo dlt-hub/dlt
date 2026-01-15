@@ -254,12 +254,7 @@ class Extractor:
         ]
 
     def _compute_and_update_tables(
-        self,
-        resource: DltResource,
-        root_table_name: str,
-        items: TDataItems,
-        meta: Any,
-        merge_compound_hints: bool = True,
+        self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
         """
         Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
@@ -278,12 +273,11 @@ class Extractor:
                 computed_table["x-normalizer"] = {"evolve-columns-once": True}
             existing_table = self.schema.tables.get(table_name, None)
             if existing_table:
-                # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
                 diff_table = utils.diff_table(
                     self.schema.name,
                     existing_table,
                     computed_table,
-                    merge_compound_props=merge_compound_hints,
+                    merge_compound_props=False,
                 )
             else:
                 diff_table = computed_table
@@ -526,16 +520,9 @@ class ArrowExtractor(Extractor):
         return list(arrow_tables.values())
 
     def _compute_and_update_tables(
-        self,
-        resource: DltResource,
-        root_table_name: str,
-        items: TDataItems,
-        meta: Any,
-        merge_compound_hints: bool = False,
+        self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
-        items = super()._compute_and_update_tables(
-            resource, root_table_name, items, meta, merge_compound_hints
-        )
+        items = super()._compute_and_update_tables(resource, root_table_name, items, meta)
 
         if not isinstance(items, list):
             # filter data item as filters could be updated in compute table

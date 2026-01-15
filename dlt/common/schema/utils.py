@@ -459,7 +459,6 @@ def merge_column(
     col_a: TColumnSchema,
     col_b: TColumnSchema,
     merge_defaults: bool = True,
-    merge_compound_props: bool = True,
 ) -> TColumnSchema:
     """Merges properties from `col_b` into `col_a`, modifying `col_a` in place.
 
@@ -470,17 +469,11 @@ def merge_column(
         col_b: Source column schema with properties to merge in
         merge_defaults: If False, removes properties with default values from `col_b` before merging.
             This prevents unnecessary default values from being explicitly set in `col_a`.
-        merge_compound_props: If False, removes all compound properties (primary_key, merge_key, etc.)
-            from `col_a` before merging. This is critical when you have two sources of schema
-            information and want `col_b` to be authoritative for compound properties - meaning the
-            absence of a compound property in `col_b` should override its presence in `col_a`
 
     Returns:
         The modified col_a (same object that was passed in)
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
-    if not merge_compound_props:
-        remove_compound_props({col_a["name"]: col_a})
     for n, v in col_b_clean.items():
         col_a[n] = v  # type: ignore
 
@@ -561,6 +554,13 @@ def diff_table(
     # allow for columns to differ
     ensure_compatible_tables(schema_name, tab_a, tab_b, ensure_columns=False)
 
+    if not merge_compound_props:
+        compound_props: set[str] = set()
+        for col_b in tab_b["columns"].values():
+            compound_props.update(prop for prop in col_b if is_compound_prop(prop))
+        if compound_props:
+            remove_compound_props(columns=tab_a["columns"], compound_props=compound_props)
+
     # get new columns that are new or have changed properties
     tab_a_columns = tab_a["columns"]
     new_columns: List[TColumnSchema] = []
@@ -569,9 +569,7 @@ def diff_table(
         if col_b_name in tab_a_columns:
             col_a = tab_a_columns[col_b_name]
             # merge col_b properties into a copy of col_a
-            merged_column = merge_column(
-                copy(col_a), col_b, merge_compound_props=merge_compound_props
-            )
+            merged_column = merge_column(copy(col_a), col_b)
             if merged_column != col_a:
                 new_columns.append(merged_column)
         else:
