@@ -11,7 +11,6 @@ that extends Synapse capabilities with Fabric-specific requirements:
 from typing import Type, TYPE_CHECKING, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.data_writers.escape import escape_mssql_literal
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.destinations.impl.synapse.factory import synapse, SynapseTypeMapper
 from dlt.common.destination.typing import PreparedTableSchema

@@ -1,29 +1,24 @@
 """Fabric Warehouse job client implementation - based on Synapse with COPY INTO support"""
 
 import os
-from typing import Type, Sequence, List, Dict, cast
+from typing import ClassVar, Sequence, List, Dict
 from copy import deepcopy
 from textwrap import dedent
 from urllib.parse import urlparse
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
-from dlt.common.schema import Schema, TColumnHint
+from dlt.common.schema import Schema
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.destination.client import LoadJob
 from dlt.destinations.impl.synapse.synapse import (
     SynapseClient,
     HINT_TO_SYNAPSE_ATTR,
-    TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR,
     SynapseCopyFileLoadJob,
 )
-from dlt.destinations.impl.synapse.synapse_adapter import TABLE_INDEX_TYPE_HINT, TTableIndexType
 from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 from dlt.destinations.impl.fabric.sql_client import FabricSqlClient
-from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, SqlJobClientBase
-from dlt.destinations.type_mapping import TypeMapperImpl
-from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
@@ -35,7 +30,7 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
     """Custom COPY INTO job for Fabric that removes AUTO_CREATE_TABLE parameter"""
 
     # Class-level cache for initialized Service Principal tokens to avoid rate limiting
-    _token_initialized_cache: Dict[str, bool] = {}
+    _token_initialized_cache: ClassVar[Dict[str, bool]] = {}
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client

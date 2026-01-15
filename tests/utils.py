@@ -66,7 +66,6 @@ IMPLEMENTED_DESTINATIONS = {
     "dummy",
     "motherduck",
     "mssql",
-    "fabric",
     "qdrant",
     "lancedb",
     "destination",
