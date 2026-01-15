@@ -1,5 +1,4 @@
 import pytest
-from typing import Any, Dict
 
 import dlt
 import pyarrow as pa
