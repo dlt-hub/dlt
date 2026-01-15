@@ -151,9 +151,9 @@ jobs:
         run: uv run pip install sqlalchemy==2.0.32
         if: matrix.python-version != '3.14'
 
-      - name: Run extract and pipeline tests 
+      - name: Run sql database tests and others that require sqlalchemy 2.0
         run: |
-          pytest tests/sources/sql_database
+          pytest tests/sources/sql_database tests/common/libs/
         if: matrix.python-version != '3.14'
   matrix_job_required_check:
     name: common | common tests
