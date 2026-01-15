@@ -153,18 +153,20 @@ def get_sql_catalog(
 
 class CatalogNotFoundError(Exception):
     """Raised when a catalog cannot be found in the specified configuration method"""
+
     pass
+
 
 class PyicebergCatalogConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
-    
-    type: str = Field(..., description="Iceberg catalog type")
+
+    type: str = Field(..., description="Iceberg catalog type")  # noqa
     uri: str = Field(..., description="Iceberg catalog URI")
     warehouse: str = Field(..., description="Warehouse name")
-    
+
+
 @configspec
 class IcebergConfig(BaseConfiguration):
-
     # Iceberg catalog configuration
     iceberg_catalog_name: Optional[str] = "default"
     """Name of the Iceberg catalog to use. Corresponds to catalog name in .pyiceberg.yaml"""
@@ -236,17 +238,16 @@ def _load_catalog_from_pyiceberg(
     """
     from pyiceberg.catalog import load_catalog
     import dlt
-    
+
     active_run_context = dlt.current.run_context()
 
-        
     # Search through potential paths for Iceberg Config
     search_paths = []
-    
+
     pyiceberg_home = os.environ.get("PYICEBERG_HOME")
     if pyiceberg_home:
         search_paths.append(Path(pyiceberg_home) / ".pyiceberg.yaml")
-    
+
     # Add dlt-specific paths
     search_paths.extend(
         [
@@ -267,18 +268,18 @@ def _load_catalog_from_pyiceberg(
                     break
 
     # Check if any PYICEBERG_CATALOG_* environment variable is set
-    pyiceberg_env_var = any(
-        key.startswith("PYICEBERG_CATALOG_") for key in os.environ
-    )
+    pyiceberg_env_var = any(key.startswith("PYICEBERG_CATALOG_") for key in os.environ)
 
     # If no config file was found, raise error
     if no_config_file_found and not pyiceberg_env_var:
         raise CatalogNotFoundError(
-            f"No .pyiceberg.yaml file found. Searched in: {', '.join(str(p) for p in search_paths)}. No PYICEBERG_CATALOG_* environment variables found."
+            "No .pyiceberg.yaml file found. Searched in:"
+            f" {', '.join(str(p) for p in search_paths)}. No PYICEBERG_CATALOG_* environment"
+            " variables found."
         )
 
-
     return load_catalog(catalog_name)
+
 
 def _load_catalog_from_config(
     catalog_name: str,
@@ -321,7 +322,8 @@ def _load_catalog_from_config(
 
     return load_catalog(catalog_name, **config_dict)
 
-@with_config(spec=IcebergConfig, sections = 'iceberg_catalog')
+
+@with_config(spec=IcebergConfig, sections="iceberg_catalog")
 def get_catalog(
     iceberg_catalog_name: Optional[str] = None,
     iceberg_catalog_type: Optional[str] = None,
@@ -356,12 +358,12 @@ def get_catalog(
         # Load from environment variables
         # (set PYICEBERG_CATALOG_TYPE, PYICEBERG_CATALOG_URI, etc.)
         catalog = get_catalog('my_catalog', iceberg_catalog_type='rest')
-        
+
     """
     logger.info(f"Attempting to load Iceberg catalog: {iceberg_catalog_name}")
 
     # Validate catalog type
-    supported_catalog_types = ['sql', 'rest']
+    supported_catalog_types = ["sql", "rest"]
     if iceberg_catalog_type not in supported_catalog_types:
         raise ValueError(f"Unsupported catalog type: {iceberg_catalog_type}. Use 'sql' or 'rest'.")
 
@@ -378,10 +380,12 @@ def get_catalog(
     except CatalogNotFoundError as e:
         logger.debug(f"Catalog not found in .pyiceberg.yaml: {e}")
 
-
     # Priority 3: Fall back to in-memory SQLite (backward compatibility)
-    logger.info("No catalog configuration found, using in-memory SQLite catalog (backward compatibility)")
+    logger.info(
+        "No catalog configuration found, using in-memory SQLite catalog (backward compatibility)"
+    )
     return get_sql_catalog(iceberg_catalog_name, "sqlite:///:memory:", credentials)
+
 
 def evolve_table(
     catalog: IcebergCatalog,

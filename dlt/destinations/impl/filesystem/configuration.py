@@ -26,7 +26,6 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
 
-
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()

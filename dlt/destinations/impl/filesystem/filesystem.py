@@ -1040,7 +1040,9 @@ class FilesystemClient(
                 f"Can't load tables using `{table_format=:}` with `filesystem` destination."
             )
 
-    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str | None = None) -> Any:
+    def get_open_table_catalog(
+        self, table_format: TTableFormat, catalog_name: Optional[str] = None
+    ) -> Any:
         """Gets a native catalog for a table with format `table_format`
 
         Returns: currently pyiceberg Catalog is supported
@@ -1062,10 +1064,8 @@ class FilesystemClient(
             credentials=self.config.credentials,
         )
 
-        logger.info(
-            f"Successfully loaded catalog '{catalog.name}' "
-        )
-        
+        logger.info(f"Successfully loaded catalog '{catalog.name}' ")
+
         # Create namespace
         try:
             catalog.create_namespace(self.dataset_name)
