@@ -167,22 +167,21 @@ def is_compound_prop(prop: str) -> bool:
 
 
 def remove_compound_props(
-    columns: TTableSchemaColumns, compound_props: Optional[set[str]] = None
+    columns: TTableSchemaColumns, compound_props: set[str]
 ) -> TTableSchemaColumns:
     """Removes compound properties from all columns in place.
 
     Args:
-        columns: Table columns to modify
-        compound_props: Set of property names to remove. If None, removes all compound properties
-            defined in ColumnPropInfos (primary_key, merge_key, etc.)
+        columns: Table columns to modify.
+        compound_props: Set of property names to remove.
 
     Returns:
-        The modified columns dict (same object that was passed in)
+        The modified columns dict (same object that was passed in).
 
-    Note: This function removes properties even if their value is False.
+    Note: This is a generic property remover, but the name reflects its intended use.
+    It removes properties even if their value is False and does not validate `compound_props`
+    (validation should be handled upstream).
     """
-    if not compound_props:
-        compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
     for column in columns.values():
         for prop in compound_props:
             column.pop(prop, None)  # type: ignore[misc]

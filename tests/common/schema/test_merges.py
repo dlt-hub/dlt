@@ -261,6 +261,42 @@ def test_merge_columns() -> None:
 
 
 @pytest.mark.parametrize(
+    "prop",
+    [prop for prop, info in ColumnPropInfos.items() if info.compound] + ["unknown", "data_type"],
+)
+def test_is_compound_prop(prop: str) -> None:
+    """Test the functionality of is_compound_prop"""
+    is_compound = utils.is_compound_prop(prop)
+    if prop in ["unknown", "data_type"]:
+        assert is_compound is False
+    else:
+        assert is_compound is True
+
+
+def test_remove_compound_props() -> None:
+    """Test the removal of compound props."""
+
+    columns: TTableSchemaColumns = {
+        "col1": COL_1_HINTS,
+        "col3": COL_3_HINTS,
+        "col4": COL_4_HINTS,
+    }
+
+    result = utils.remove_compound_props(columns, {"cluster", "merge_key", "data_type"})
+
+    # ensure specified properties are removed from all columns
+    assert all("cluster" not in col_schema for col_schema in result.values())
+    assert all("merge_key" not in col_schema for col_schema in result.values())
+
+    # the function is a generic property remover, validation of whether
+    # properties are actually compound should be handled upstream
+    assert all("data_type" not in col_schema for col_schema in result.values())
+
+    # it modifies in place (returns same object)
+    assert result is columns
+
+
+@pytest.mark.parametrize(
     "merge_compound_props",
     [True, False],
     ids=["merge_compound_props", "replace_compound_props"],
