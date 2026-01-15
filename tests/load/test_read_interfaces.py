@@ -1504,7 +1504,7 @@ def test_read_not_materialized_table(destination_config: DestinationTestConfigur
     # and upgrading LanceDB destination with `lance-namespace` should avoid it
     # entirely.
     # TODO reenable test after fix
-    if destinations_config.destination_type == "lancedb":
+    if destination_config.destination_type == "lancedb":
         pytest.skip("lancedb has race conditions for dltSentinel table")
 
     @dlt.source
