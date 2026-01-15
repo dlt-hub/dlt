@@ -9,17 +9,28 @@ keywords: [snowflake, native app, database connector app]
 The dltHub Database Connector App is a Snowflake Native App that lets you move data from your source database into Snowflake using a simple UI. 
 
 You can: 
+<<<<<<< HEAD
 - connect an external [SQL database](../../dlt-ecosystem/verified-sources/sql_database) to Snowflake
 - create one or more [pipelines](../../general-usage/pipeline) (each pipeline defines what to load and where)
+=======
+- connect an external SQL database to Snowflake
+- create one or more pipelines (each pipeline defines what to load and where)
+>>>>>>> c7f486a99 (formatting)
 - run pipelines on demand
 - schedule pipelines to run automatically
 - monitor runs and inspect logs 
 
+<<<<<<< HEAD
 without leaving Snowflake.
 
 
 
 Under the hood, the app uses Snowflake-managed compute and [dlt](https://dlthub.com/product/dlt) to [extract](../../reference/explainers/how-dlt-works#extract), [normalize](../../reference/explainers/how-dlt-works#normalize), and [load](../../reference/explainers/how-dlt-works#load) data into your destination database, while keeping credentials stored securely in your account. 
+=======
+without leaving Snowflake. 
+
+Under the hood, the app uses Snowflake-managed compute and dlt to extract, normalize, and load data into your destination database, while keeping credentials stored securely in your account. 
+>>>>>>> c7f486a99 (formatting)
 
 This documentation explains how to set up sources, create and manage pipelines, monitor runs, and troubleshoot common issues.
 
@@ -61,6 +72,7 @@ Source settings define **what to ingest** from your external SQL database and **
 #### Required fields
 
 - **Database type**  
+<<<<<<< HEAD
   Select the type of [SQL database](../../dlt-ecosystem/verified-sources/sql_database) you want to ingest from. The selected type determines the driver and default connection behavior. 
 
   The following database types are currently supported:
@@ -69,6 +81,9 @@ Source settings define **what to ingest** from your external SQL database and **
   - MSSQL
 
   If you need support for a different database type, please reach out via our [contact form](https://dlthub.com/contact).
+=======
+  Select the type of SQL database you want to ingest from (e.g. Postgres, MySQL, ...). The selected type determines the driver and default connection behavior.
+>>>>>>> c7f486a99 (formatting)
 
 - **Host and port**  
   Enter the hostname and port of your source database. If you leave the port empty, the app will use the database type’s default port.
@@ -86,7 +101,11 @@ Source settings define **what to ingest** from your external SQL database and **
 #### Optional fields
 
 - **Schema name**  
+<<<<<<< HEAD
   Specify a [schema](../../general-usage/schema) to ingest from. Leave empty to use the default schema of the database/user.
+=======
+  Specify a schema to ingest from. Leave empty to use the default schema of the database/user.
+>>>>>>> c7f486a99 (formatting)
 
 - **Chunk size**  
   Number of rows fetched per batch during extraction. Larger values reduce round trips but increase memory usage.
@@ -96,7 +115,11 @@ Source settings define **what to ingest** from your external SQL database and **
   See the backend options in the [verified source docs](../../dlt-ecosystem/verified-sources/sql_database/configuration#configuring-the-backend).
 
 - **JSON format configuration (advanced)**  
+<<<<<<< HEAD
     Provide additional `sql_database` source options not exposed in the UI. Values are passed as keyword arguments to dlt’s `sql_database` source [function](../../api_reference/dlt/sources/sql_database/__init__) and override UI values if the same option is set in both places.
+=======
+    Provide additional `sql_database` source options not exposed in the UI. Values are passed as keyword arguments to dlt’s `sql_database` source function and override UI values if the same option is set in both places.
+>>>>>>> c7f486a99 (formatting)
 
     Example:
 
@@ -132,11 +155,19 @@ If you choose **Subset**, add the tables you want to ingest. If you choose **All
 - **Max chunks**  
   Maximum number of chunks to extract. `max_chunks × chunk_size` defines the maximum rows extracted. Set to **0** for no limit. Passed to dlt as `max_items` via `add_limit()`.
 
+<<<<<<< HEAD
 - **[Incremental loading](../../general-usage/incremental-loading)**  
   Enable cursor-based incremental loading for the table. Only new or changed rows since the last run are extracted.
 
 - **Table JSON configuration (advanced)**  
   Provide per-table hints not available in the UI. Values override UI settings when the same option is set in both places. These are passed as keyword arguments to dlt’s `apply_hints()` [function](../../api_reference/dlt/extract/hints#apply_hints) for the table resource.
+=======
+- **Incremental loading**  
+  Enable cursor-based incremental loading for the table. Only new or changed rows since the last run are extracted.
+
+- **Table JSON configuration (advanced)**  
+  Provide per-table hints not available in the UI. Values override UI settings when the same option is set in both places. These are passed as keyword arguments to dlt’s `apply_hints()` for the table resource.
+>>>>>>> c7f486a99 (formatting)
 
 
     Example:
@@ -159,11 +190,16 @@ Destination settings define where in Snowflake the data is loaded and allow adva
     Name of the Snowflake database to load into.
 - **Check privileges**:
     Validates that the app has access to the destination database. If permissions are missing, the app will request/grant the required access.
+<<<<<<< HEAD
 
 ![destination settings](https://storage.googleapis.com/dlt-blog-images/sna_destination_settings.png)
 
 - **Destination JSON configuration**:
     Provide additional destination options not exposed in the UI. Values override UI settings when the same option is set in both places. These are passed as keyword arguments to dlt’s Snowflake destination [factory](../../api_reference/dlt/destinations/impl/snowflake/factory).
+=======
+- **Destination JSON configuration**:
+    Provide additional destination options not exposed in the UI. Values override UI settings when the same option is set in both places. These are passed as keyword arguments to dlt’s Snowflake destination factory.
+>>>>>>> c7f486a99 (formatting)
     
     Example:
     ```json
@@ -177,7 +213,11 @@ Destination settings define where in Snowflake the data is loaded and allow adva
 This section contains optional pipeline-level defaults that affect how and where data is written.
 - **Dataset name**:
     Destination schema name for the pipeline output. If not set, the app derives it from the pipeline name as `<pipeline_name>_dataset`.
+<<<<<<< HEAD
 - **[Dev mode](../../general-usage/pipeline#do-experiments-with-dev-mode)**:
+=======
+- **Dev mode**:
+>>>>>>> c7f486a99 (formatting)
     Enables dlt dev mode. When enabled, dlt appends a datetime-based suffix to the dataset name, producing a fresh schema on each run. This is intended for testing and avoids overwriting existing datasets.
 
 - **[Staging](../../dlt-ecosystem/destinations/snowflake#staging-support)**  
@@ -196,7 +236,11 @@ Fields may vary depending on what the app exposes in your environment.
 - **Warehouse**  
   The warehouse is used for [loading](../../reference/explainers/how-dlt-works#load) the extracted/normalized data into the destination database.
 
+<<<<<<< HEAD
 - **[Instance family](https://docs.snowflake.com/en/sql-reference/sql/create-compute-pool)**  
+=======
+- **Instance family**  
+>>>>>>> c7f486a99 (formatting)
   The instance family of the compute pool the ingestion job runs on. This determines the CPU/memory profile available to the job container.
 
 - **Auto-suspend (compute pool)**  
@@ -213,9 +257,14 @@ Fields may vary depending on what the app exposes in your environment.
 
 ## Monitor runs and logs
 
+<<<<<<< HEAD
 Go to the **Runs** tab to see a history list of the Jobs. 
 
 Click the **view details** button to view:
+=======
+Go to the **Runs** tab
+You’ll see a history list of the Jobs. 
+>>>>>>> c7f486a99 (formatting)
 - pipeline name
 - Job ID
 - triggered by 
@@ -225,6 +274,7 @@ Click the **view details** button to view:
 - status
 Statuses typically move through:
 `STARTING → RUNNING → SUCCESS or FAILED`.
+<<<<<<< HEAD
 
 Click the **view logs** tab to see the logs of the job:
 - When each pipeline stage (extract, normalize, load) starts and finishes
@@ -236,6 +286,14 @@ Click the **view logs** tab to see the logs of the job:
 
 
 ## Schedule a pipeline
+=======
+
+## Schedule a pipeline
+Open a pipeline tab and click the **scheduling** button.
+1. Enable scheduling
+2. Choose a schedule string
+3. Save
+>>>>>>> c7f486a99 (formatting)
 
 The app uses Snowflake [Tasks](https://docs.snowflake.com/en/user-guide/tasks-intro) to run pipelines on a schedule.
 
