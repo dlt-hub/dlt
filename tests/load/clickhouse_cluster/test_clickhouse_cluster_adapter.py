@@ -144,8 +144,13 @@ def test_clickhouse_cluster_adapter_distributed_table(
         assert dist_qual_table_name.startswith(f"`{CLICKHOUSE_CLUSTER_DATABASE}`.")
 
     # create resource with distributed table hints
+    data = [
+        {"UserID": 100},
+        # include nested data to test distributed tables for child/grandchild tables
+        {"UserID": 101, "child": [{"grandchild": [1, 2]}]},
+    ]
     res = clickhouse_cluster_adapter(
-        [{"UserID": 100}, {"UserID": 101}],
+        data,
         create_distributed_table=True,
         distributed_table_suffix=distributed_table_suffix,
         sharding_key=sharding_key,
@@ -190,12 +195,14 @@ def test_clickhouse_cluster_adapter_distributed_table(
     )
     assert dist_stmt == expected_dist_stmt
 
-    # assert distributed table gets created and has correct engine
+    # assert distributed tables get created and have correct engine
     with clickhouse_cluster_database_created(
         sql_client, sql_client.distributed_tables_database_name
     ):
         load_info = pipe.run(res, **destination_config.run_kwargs)
         assert_load_info(load_info)
+
+        # parent table
         actual_engine = get_table_engine(
             sql_client,
             dist_table_name,
@@ -203,3 +210,39 @@ def test_clickhouse_cluster_adapter_distributed_table(
             alternative_database_name=sql_client.distributed_tables_database_name,
         )
         assert actual_engine == expected_engine
+
+        # child table
+        child_shard_table_name = shard_table_name + "__child"
+        child_dist_table_name = child_shard_table_name + effective_dist_table_suffix
+        child_actual_engine = get_table_engine(
+            sql_client,
+            child_dist_table_name,
+            full=True,
+            alternative_database_name=sql_client.distributed_tables_database_name,
+        )
+        database, table = sql_client.make_qualified_table_name(
+            child_shard_table_name, quote=False
+        ).split(".")
+        child_expected_engine = (  # child tables always use default sharding key
+            f"Distributed('{SHARDED_CLUSTER_NAME}', '{database}', '{table}',"
+            f" {DEFAULT_SHARDING_KEY})"
+        )
+        assert child_actual_engine == child_expected_engine
+
+        # grandchild table
+        grandchild_shard_table_name = shard_table_name + "__child__grandchild"
+        grandchild_dist_table_name = grandchild_shard_table_name + effective_dist_table_suffix
+        grandchild_actual_engine = get_table_engine(
+            sql_client,
+            grandchild_dist_table_name,
+            full=True,
+            alternative_database_name=sql_client.distributed_tables_database_name,
+        )
+        database, table = sql_client.make_qualified_table_name(
+            grandchild_shard_table_name, quote=False
+        ).split(".")
+        grandchild_expected_engine = (  # (grand)child tables always use default sharding key
+            f"Distributed('{SHARDED_CLUSTER_NAME}', '{database}', '{table}',"
+            f" {DEFAULT_SHARDING_KEY})"
+        )
+        assert grandchild_actual_engine == grandchild_expected_engine
