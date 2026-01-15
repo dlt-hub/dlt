@@ -75,7 +75,7 @@ def test_merge_on_keys_in_schema_nested_hints(
         # remove `partition` hint because it conflicts with `cluster` on databricks
         schema.merge_hints({"partition": []}, replace=True)
 
-    if destination_config.destination_type == "clickhouse":
+    if destination_config.destination_type in ("clickhouse", "clickhouse_cluster"):
         # remove `partition` hint because it conflicts with `nullable` on clickhouse
         schema.merge_hints({"partition": []}, replace=True)
         # remove `sort` hints because it conflicts with `primary_key` on clickhouse
