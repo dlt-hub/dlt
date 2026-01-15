@@ -174,16 +174,13 @@ def test_load_sql_schema_loads_all_tables_parallel_connectorx_arrow_stream(
     assert pa.types.is_timestamp(col_field.type)
     assert col_field.type.unit == "us"
 
-    # verify at least one value has non-zero microseconds (not only millisecond multiples)
+    # verify all values are millisecond multiples
+    # since arrow_stream returns timestamp columns as date64[ms] and we cast them to
+    # timestamps with microsecond precision
     micros = pa.compute.cast(data_["datetime_ntz_col"], pa.int64()).combine_chunks()
-    has_sub_ms = False
     for i in range(len(micros)):
-        if micros[i].is_valid and (micros[i].as_py() % 1000 != 0):
-            has_sub_ms = True
-            break
-    assert (
-        has_sub_ms
-    ), "Expected at least one datetime_ntz_col value with non-zero microseconds remainder"
+        assert micros[i].is_valid
+        assert micros[i].as_py() % 1000 == 0
 
 
 @pytest.mark.parametrize(

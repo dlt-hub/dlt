@@ -85,21 +85,31 @@ def test_default_pipeline_names(
         yield data
 
     # this will create default schema
-    p.extract(
+    extract_info = p.extract(
         data_fun,
         table_format=destination_config.table_format,
         loader_file_format=destination_config.file_format,
     )
+    assert len(extract_info.loads_ids) == 1
+    first_load_id = extract_info.loads_ids[0]
     # _pipeline suffix removed when creating default schema name
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
-    p.extract(
+    extract_info = p.extract(
         data_fun(),
         schema=dlt.Schema("names"),
         table_format=destination_config.table_format,
         loader_file_format=destination_config.file_format,
     )
+    # if use_single_dataset
+    #   - state goes to default schema package
+    #   - data goes to "names" schema package
+    # otherwise
+    #   - state and data both go to "names" schema package
+    assert len(extract_info.loads_ids) == 2 if use_single_dataset else 1
+    second_load_id = extract_info.loads_ids[0]
+
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 
@@ -129,17 +139,24 @@ def test_default_pipeline_names(
         else:
             # does not need dataset
             assert p.dataset_name is None
-    # the last package contains just the state (we added a new schema)
-    last_load_id = p.list_extracted_load_packages()[-1]
-    state_package = p.get_load_package_info(last_load_id)
-    assert len(state_package.jobs["new_jobs"]) == 1
-    assert state_package.schema_name == p.default_schema_name
+
+    first_package = p.get_load_package_info(first_load_id)
+    assert len(first_package.jobs["new_jobs"]) == 2
+    assert first_package.schema_name == p.default_schema_name
+
+    second_package = p.get_load_package_info(second_load_id)
+    assert len(second_package.jobs["new_jobs"]) == 1 if use_single_dataset else 2
+    assert second_package.schema_name == "names"
+
     p.normalize()
     info = p.load(dataset_name="default_names_ds_" + uniq_id())
-    print(p.dataset_name)
     assert info.pipeline is p
-    # two packages in two different schemas were loaded
-    assert len(info.loads_ids) == 3
+    # if use_single_dataset, second extract created two packages where
+    #   - state went to default schema package
+    #   - data went to "names" schema package
+    # otherwise
+    #   - state and data both went to "names" schema package
+    assert len(info.loads_ids) == 3 if use_single_dataset else 2
 
     # if loaded to single data, double the data was loaded to a single table because the schemas overlapped
     if use_single_dataset:
