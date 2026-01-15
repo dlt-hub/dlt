@@ -181,7 +181,9 @@ def _run_dataset_checks(
     # `iceberg` table format
     with fs_sql_client as sql_client:
         sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
-    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == total_records
+
+    table = external_db.sql("FROM second.arrow_all_types;").arrow().read_all()
+    assert table.num_rows == total_records
 
     pipeline.run(  # run pipeline again to add rows to source table
         source().with_resources("arrow_all_types"),
@@ -192,7 +194,8 @@ def _run_dataset_checks(
         sql_client.create_view(
             "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")  # type: ignore
         )
-    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == (2 * total_records)
+    table = external_db.sql("FROM second.arrow_all_types;").arrow().num_rows
+    assert  table.num_rows == (2 * total_records)
 
     external_db.close()
 
