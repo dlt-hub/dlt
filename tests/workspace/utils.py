@@ -9,7 +9,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase, PluggableRunContext
 from dlt.common.runtime.run_context import switch_context
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import set_working_dir, uniq_id
+from dlt.common.utils import set_working_dir
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
