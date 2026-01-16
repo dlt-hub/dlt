@@ -1040,8 +1040,10 @@ class FilesystemClient(
                 f"Can't load tables using `{table_format=:}` with `filesystem` destination."
             )
 
-    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
-        """Gets a native catalog for a table `table_name` with format `table_format`
+    def get_open_table_catalog(
+        self, table_format: TTableFormat, catalog_name: Optional[str] = None
+    ) -> Any:
+        """Gets a native catalog for a table with format `table_format`
 
         Returns: currently pyiceberg Catalog is supported
         """
@@ -1051,16 +1053,25 @@ class FilesystemClient(
         if self._catalog:
             return self._catalog
 
-        from dlt.common.libs.pyiceberg import get_sql_catalog, IcebergCatalog
+        from dlt.common.libs.pyiceberg import get_catalog, IcebergCatalog
+        from pyiceberg.exceptions import NamespaceAlreadyExistsError
 
-        # create in-memory catalog
         catalog: IcebergCatalog
-        catalog = self._catalog = get_sql_catalog(
-            catalog_name or "default", "sqlite:///:memory:", self.config.credentials
+
+        # Try to load catalog using new function
+        catalog = self._catalog = get_catalog(
+            iceberg_catalog_name=catalog_name,
+            credentials=self.config.credentials,
         )
 
-        # create namespace
-        catalog.create_namespace(self.dataset_name)
+        logger.info(f"Successfully loaded catalog '{catalog.name}' ")
+
+        # Create namespace
+        try:
+            catalog.create_namespace(self.dataset_name)
+            logger.info(f"Created Iceberg namespace: {self.dataset_name}")
+        except NamespaceAlreadyExistsError as e:
+            logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")
 
         return catalog
 
