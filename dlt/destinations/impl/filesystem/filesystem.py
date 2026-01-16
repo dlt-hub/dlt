@@ -36,7 +36,7 @@ from dlt.common.storages.exceptions import (
 )
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.time import ensure_pendulum_datetime_utc
-from dlt.common.typing import DictStrAny
+from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
@@ -1060,7 +1060,7 @@ class FilesystemClient(
 
         # Try to load catalog using new function
         catalog = self._catalog = get_catalog(
-            iceberg_catalog_name=catalog_name,
+            iceberg_catalog_name=catalog_name or ConfigValue,
             credentials=self.config.credentials,
         )
 

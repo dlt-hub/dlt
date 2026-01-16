@@ -710,7 +710,9 @@ class SupportsOpenTables(ABC):
     """
 
     @abstractmethod
-    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
+    def get_open_table_catalog(
+        self, table_format: TTableFormat, catalog_name: Optional[str] = None
+    ) -> Any:
         """Gets the catalog that keeps tables' metadata. Currently only pyiceberg Catalog is supported"""
 
     @abstractmethod

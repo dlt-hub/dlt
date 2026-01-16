@@ -4,6 +4,9 @@ import yaml
 import pytest
 from unittest import mock
 
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.typing import ConfigValue
+
 # Skip entire module if SQLAlchemy 2.0 is not installed (required by pyiceberg)
 sqlalchemy = pytest.importorskip("sqlalchemy", minversion="2.0")
 
@@ -38,15 +41,6 @@ def test_credentials():
     return AwsCredentials(
         aws_access_key_id="test_access_key", aws_secret_access_key="test_secret_key"
     )
-
-
-@pytest.fixture
-def clean_env(monkeypatch):
-    """Remove all Iceberg-related environment variables."""
-    # Remove any ICEBERG_CATALOG__* or PYICEBERG_CATALOG__* vars
-    for key in list(os.environ.keys()):
-        if key.startswith(("ICEBERG_CATALOG__", "PYICEBERG_CATALOG__")):
-            monkeypatch.delenv(key, raising=False)
 
 
 @pytest.fixture(scope="session")
@@ -91,7 +85,7 @@ def postgres_catalog_config(tmp_path_factory):
     }
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def sqlite_catalog_config(tmp_path_factory):
     """Configuration for SQLite catalog."""
     temp_dir = tmp_path_factory.mktemp("sqlite_catalog")
@@ -264,6 +258,22 @@ def test_sqlite_catalog_fallback_in_memory():
         catalog.create_namespace(test_namespace)
         namespaces = catalog.list_namespaces()
         assert test_namespace in [ns[0] if isinstance(ns, tuple) else ns for ns in namespaces]
+
+
+def test_default_sqlite_memory_catalog() -> None:
+    # makes sure "default" catalog is created when no name is provided
+    catalog = get_catalog()
+    assert catalog.name == "default"
+
+    # make sure we can create namespace
+    test_namespace = "test_fallback_namespace"
+    catalog.create_namespace(test_namespace)
+
+    catalog = get_catalog(iceberg_catalog_name=ConfigValue)
+    assert catalog.name == "default"
+
+    with pytest.raises(ConfigFieldMissingException):
+        catalog = get_catalog(iceberg_catalog_name=None)
 
 
 def test_rest_catalog_namespace_operations():

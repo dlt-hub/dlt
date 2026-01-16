@@ -168,7 +168,7 @@ class PyicebergCatalogConfig(BaseModel):
 @configspec
 class IcebergConfig(BaseConfiguration):
     # Iceberg catalog configuration
-    iceberg_catalog_name: Optional[str] = "default"
+    iceberg_catalog_name: str = "default"
     """Name of the Iceberg catalog to use. Corresponds to catalog name in .pyiceberg.yaml"""
 
     iceberg_catalog_type: Optional[str] = "sql"
@@ -325,7 +325,7 @@ def _load_catalog_from_config(
 
 @with_config(spec=IcebergConfig, sections="iceberg_catalog")
 def get_catalog(
-    iceberg_catalog_name: Optional[str] = None,
+    iceberg_catalog_name: str = "default",
     iceberg_catalog_type: Optional[str] = None,
     iceberg_catalog_config: Optional[Dict[str, Any]] = None,
     credentials: Optional[FileSystemCredentials] = None,
