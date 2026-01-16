@@ -1760,3 +1760,62 @@ def test_merge_arrow(
             {"id": 2, "name": "updated bar"},
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_replacing_merge_key(destination_config: DestinationTestConfiguration) -> None:
+    """Test that changing merge_key properly deletes records based on the NEW key.
+    Records matching the new merge_key in incoming data should replace old ones.
+    """
+    p = destination_config.setup_pipeline("test_replacing_merge_key")
+
+    # load initial data with merge_key "time_off_date"
+    @dlt.resource(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+        },
+        merge_key=["time_off_date"],
+    )
+    def people(data):
+        yield from data
+
+    initial_data = [
+        {"email": "user_1@example.com", "time_off_date": "25.07.2025", "month_key": "2025-07"},
+        {"email": "user_2@example.com", "time_off_date": "18.08.2025", "month_key": "2025-08"},
+    ]
+
+    info = p.run(people(initial_data), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"email": row[0], "time_off_date": row[1], "month_key": row[2]}
+        for row in select_data(p, "SELECT email, time_off_date, month_key FROM people")
+    ]
+
+    assert sorted(observed, key=lambda d: d["email"]) == initial_data
+
+    # change merge_key to "month_key"
+    people.apply_hints(merge_key=["month_key"])
+
+    # new data has month_key "2025-08" which exists in old data
+    # should delete the old 2025-08 record (18.08.2025) and insert new one (19.08.2025)
+    new_data = [
+        {"email": "user_2@example.com", "time_off_date": "19.08.2025", "month_key": "2025-08"},
+        {"email": "user_2@example.com", "time_off_date": "20.09.2025", "month_key": "2025-09"},
+    ]
+
+    info = p.run(people(new_data), **destination_config.run_kwargs)
+
+    observed = [
+        {"email": row[0], "time_off_date": row[1], "month_key": row[2]}
+        for row in select_data(p, "SELECT email, time_off_date, month_key FROM people")
+    ]
+
+    expected = [initial_data[0]] + new_data
+
+    assert sorted(observed, key=lambda d: d["email"]) == expected
