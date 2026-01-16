@@ -4,6 +4,7 @@ from pandas._libs import properties
 import pytest
 
 import dlt
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import ColumnPropInfos
 from dlt.extract.resource import DltResource
 from tests.utils import TestDataItemFormat, ALL_TEST_DATA_ITEM_FORMATS
@@ -290,8 +291,71 @@ def test_new_key_hints_replace_previous_keys(
 
     # "id" should no longer be key
     p.run(my_resource)
+
+    # NOTE: Due to the following two reasons:
+    #   1. Removal of compound does not automatically resets nullable to True.
+    #   2. Arrow formats re-infer nullable from the data schema, while the default json
+    #      format preserves the nullable setting from the schema
+    # There's inconsistent behavior: json format objects retain nullable=False
+    # (orphaned NOT NULL constraint from when it was a key), whereas Arrow/pandas
+    # formats have nullable=True (re-inferred from data).
     assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
-    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is True
+    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
+    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint) is True
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"]["nullable"] is False
+
+
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
+def test_explicit_schema(
+    key_hint: str,
+    with_apply_hints: bool,
+    item_format: TestDataItemFormat,
+) -> None:
+    """Test that resource-level key hints override explicit schema definitions.
+
+    When a schema explicitly sets "id" as key, but the resource defines "other_id"
+    as key, the resource hint should win and properly update the schema.
+    """
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name="test_new_key_hints_replace_previous_keys", destination="dummy")
+
+    schema = Schema("test_schema")
+    schema.update_table(
+        {
+            "name": "get_resource",
+            "columns": {
+                "id": {"data_type": "bigint", "name": "id", key_hint: True, "nullable": False}  # type: ignore[misc]
+            },
+        }
+    )
+
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
+    my_resource = _get_resource(
+        with_apply_hints,
+        item,
+        **{key_hint: "other_id"},
+    )
+
+    @dlt.source(schema=schema)
+    def my_source():
+        return my_resource
+
+    # NOTE: Due to the following two reasons:
+    #   1. Removal of compound does not automatically resets nullable to True.
+    #   2. Arrow formats re-infer nullable from the data schema, while the default json
+    #      format preserves the nullable setting from the schema
+    # There's inconsistent behavior: json format objects retain nullable=False
+    # (orphaned NOT NULL constraint from when it was a key), whereas Arrow/pandas
+    # formats have nullable=True (re-inferred from data).
+    p.run(my_source())
+    assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
+    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint) is True
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"]["nullable"] is False
 

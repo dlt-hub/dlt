@@ -1,9 +1,7 @@
-from os import name
 import re
 import base64
 import hashlib
 import warnings
-from jsonpath_ng import filterfalse
 import yaml
 from argparse import Namespace
 from copy import deepcopy, copy
@@ -36,7 +34,6 @@ from dlt.common.schema.typing import (
     VERSION_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
     ColumnPropInfos,
-    COLUMN_HINTS_AUTO_NOT_NULL,
     TColumnName,
     TFileFormat,
     TPartialTableSchema,
@@ -160,6 +157,15 @@ def has_default_column_prop_value(prop: str, value: Any) -> bool:
     return value in (None, False)
 
 
+def columns_equal_ignoring_nullable(col_a: TColumnSchema, col_b: TColumnSchema) -> bool:
+    """Check if two column schemas are equal, ignoring the nullable property."""
+    col_a_copy = copy(col_a)
+    col_b_copy = copy(col_b)
+    col_a_copy.pop("nullable", None)
+    col_b_copy.pop("nullable", None)
+    return col_a_copy == col_b_copy
+
+
 def is_compound_prop(prop: str) -> bool:
     """Checks if a column property is compound."""
     if prop in ColumnPropInfos:
@@ -173,9 +179,6 @@ def remove_compound_props(
 ) -> TTableSchemaColumns:
     """Removes compound properties from all columns in place.
 
-    When removing `primary_key` or `merge_key` (if True), also resets `nullable` to True,
-    since these key hints automatically set columns to NOT NULL when applied.
-
     Args:
         columns: Table columns to modify.
         compound_props: Set of property names to remove.
@@ -184,19 +187,11 @@ def remove_compound_props(
         The modified columns dict (same object that was passed in).
 
     Note: This is a generic property remover, but the name reflects its intended use.
-    It removes properties even if their value is False and does not validate `compound_props`
-    (validation should be handled upstream).
+    It removes properties even if their value is False.
     """
     for column in columns.values():
         for prop in compound_props:
-            removed_value = column.pop(prop, None)  # type: ignore[misc]
-            if (
-                prop in COLUMN_HINTS_AUTO_NOT_NULL
-                and removed_value is True
-                and not is_nullable_column(column)
-            ):
-                column["nullable"] = True
-
+            column.pop(prop, None)  # type: ignore[misc]
     return columns
 
 
@@ -488,6 +483,28 @@ def merge_column(
     return col_a
 
 
+def _collect_and_remove_compound_props(
+    source_columns: TTableSchemaColumns,
+    target_columns: TTableSchemaColumns,
+) -> None:
+    """Finds all non-default compound properties in source columns and removes
+    those properties from all target columns.
+
+    Args:
+        source_columns: Columns to collect compound properties from
+        target_columns: Columns to remove compound properties from
+    """
+    compound_props: set[str] = set()
+    for column in source_columns.values():
+        compound_props.update(
+            prop
+            for prop in column
+            if is_compound_prop(prop) and not has_default_column_prop_value(prop, column[prop])  # type: ignore[literal-required]
+        )
+    if compound_props:
+        remove_compound_props(columns=target_columns, compound_props=compound_props)
+
+
 def merge_columns(
     columns_a: TTableSchemaColumns,
     columns_b: TTableSchemaColumns,
@@ -502,26 +519,18 @@ def merge_columns(
     Args:
         columns_a: Target columns dict that will be modified
         columns_b: Source columns dict with columns/properties to merge in
-        merge_compound_props: If set to True, compound properties from columns_b are merged to columns_a,
+        merge_compound_props: If set to True, compound properties from `columns_b` are merged to `columns_a`,
             If False, compound properties like primary_key and merge_key are replaced entirely
-            rather than merged, so columns_b's non-default values fully override columns_a's.
+            rather than merged, so `columns_b`'s non-default values fully override `columns_a`'s.
 
     Returns:
-        The modified columns_a (same object that was passed in)
+        The modified `columns_a` (same object that was passed in)
 
     NOTE: Incomplete columns in `columns_a` that become complete in `columns_b` are removed and
     re-added to preserve order.
     """
     if not merge_compound_props:
-        compound_props: set[str] = set()
-        for column_b in columns_b.values():
-            compound_props.update(
-                prop
-                for prop in column_b
-                if is_compound_prop(prop) and not has_default_column_prop_value(prop, column_b[prop])  # type: ignore[literal-required]
-            )
-        if compound_props:
-            remove_compound_props(columns=columns_a, compound_props=compound_props)
+        _collect_and_remove_compound_props(columns_b, columns_a)
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
@@ -541,6 +550,7 @@ def diff_table(
     tab_a: TTableSchema,
     tab_b: TPartialTableSchema,
     merge_compound_props: bool = True,
+    disregard_nullability: bool = False,
 ) -> TPartialTableSchema:
     """Computes the difference between `tab_a` and `tab_b`, returning what's new or changed in `tab_b`.
 
@@ -553,12 +563,17 @@ def diff_table(
         schema_name: Name of the schema for error messages
         tab_a: Original table schema to compare against
         tab_b: New/updated table schema with potential changes
-        merge_compound_props: If set to True, compound properties from tab_b are merged to tab_a.
-            If False, compound properties like primary_key and merge_key are replaced entirely
-            rather than merged, so tab_b's non-default values fully override tab_a's.
+        merge_compound_props: Controls how the diff handles compound properties:
+            - If True: The diff is calculated assuming compound properties from `tab_b` will be
+              merged with existing ones in `tab_a`. Only columns with new compound properties
+              appear in the result.
+            - If False: The diff is calculated assuming compound properties in `tab_b` will
+              replace existing ones in `tab_a`. The partial table includes information about
+              which columns will be affected by this replacement - both columns losing
+              compound properties and columns gaining them.
 
     Returns:
-        Partial table schema containing only what's new or changed in tab_b.
+        Partial table schema containing only what's new or changed in `tab_b`.
         Columns in the result are complete column schemas, not property-level diffs.
 
     Raises:
@@ -574,15 +589,7 @@ def diff_table(
     tab_a_copy = deepcopy(tab_a)
 
     if not merge_compound_props:
-        compound_props: set[str] = set()
-        for col_b in tab_b["columns"].values():
-            compound_props.update(
-                prop
-                for prop in col_b
-                if is_compound_prop(prop) and not has_default_column_prop_value(prop, col_b[prop])  # type: ignore[literal-required]
-            )
-        if compound_props:
-            remove_compound_props(columns=tab_a_copy["columns"], compound_props=compound_props)
+        _collect_and_remove_compound_props(tab_b["columns"], tab_a_copy["columns"])
 
     # get new columns that are new or have changed properties
     tab_a_columns = tab_a_copy["columns"]
@@ -592,7 +599,9 @@ def diff_table(
             col_a = tab_a_columns[col_b_name]
             # merge col_b properties into a copy of col_a
             merged_column = merge_column(copy(col_a), col_b)
-            if merged_column != col_a:
+            if disregard_nullability and not columns_equal_ignoring_nullable(merged_column, col_a):
+                new_columns.append(merged_column)
+            elif not disregard_nullability and merged_column != col_a:
                 new_columns.append(merged_column)
         else:
             new_columns.append(col_b)

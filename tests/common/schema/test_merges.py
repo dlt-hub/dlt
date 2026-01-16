@@ -281,9 +281,9 @@ def test_remove_compound_props() -> None:
     assert all("cluster" not in col_schema for col_schema in result.values())
     assert all("merge_key" not in col_schema for col_schema in result.values())
 
-    # in col3 and col4, nullable should be reset
-    assert columns["col3"]["nullable"] is True
-    assert columns["col4"]["nullable"] is True
+    # in col3 and col4, nullable should not be reset
+    assert columns["col3"]["nullable"] is False
+    assert columns["col4"]["nullable"] is False
 
     # the function is a generic property remover, validation of whether
     # properties are actually compound should be handled upstream
@@ -293,38 +293,66 @@ def test_remove_compound_props() -> None:
     assert result is columns
 
 
-# @pytest.mark.parametrize(
-#     "merge_compound_props",
-#     [True, False],
-#     ids=["merge_compound_props", "replace_compound_props"],
-# )
-# def test_merge_columns_compound_props(merge_compound_props: bool) -> None:
-#     """Test that compound props are replaced if the config is set so."""
+@pytest.mark.parametrize(
+    "prop",
+    [prop for prop, info in ColumnPropInfos.items() if info.compound] + ["unknown", "data_type"],
+)
+def test_collect_and_remove_compound_props(prop: str) -> None:
+    """Test collection and removal of compound props."""
 
-#     compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
-#     assert compound_props == {"merge_key", "primary_key", "cluster", "partition"}
+    col_1: TTableSchemaColumns = {"test_1": {"name": "test_1", prop: True}}  # type: ignore[misc]
+    col_2: TTableSchemaColumns = {"test_2": {"name": "test_2", prop: True}}  # type: ignore[misc]
+    utils._collect_and_remove_compound_props(col_1, col_2)
+    if prop in ["unknown", "data_type"]:
+        # "unknown" is not a recognized prop, "data_type" is not compound
+        # both should be ignored by the helper
+        assert col_2["test_2"].get(prop) is True
+    else:
+        assert not col_2["test_2"].get(prop)
 
-#     columns_a: TTableSchemaColumns = {
-#         "col1": {"name": "col1", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
-#     }
+    col_3: TTableSchemaColumns = {"test_3": {"name": "test_3", prop: False}}  # type: ignore[misc]
+    col_4: TTableSchemaColumns = {"test_4": {"name": "test_4", prop: True}}  # type: ignore[misc]
+    utils._collect_and_remove_compound_props(col_3, col_4)
+    assert col_4["test_4"].get(prop) is True
 
-#     columns_b: TTableSchemaColumns = {
-#         "col2": {"name": "col2", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
-#     }
+    col_5: TTableSchemaColumns = {"test_5": {"name": "test_5", prop: None}}  # type: ignore[misc]
+    col_6: TTableSchemaColumns = {"test_6": {"name": "test_6", prop: True}}  # type: ignore[misc]
+    utils._collect_and_remove_compound_props(col_5, col_6)
+    assert col_6["test_6"].get(prop) is True
 
-#     result = utils.merge_columns(
-#         deepcopy(columns_a), columns_b, merge_compound_props=merge_compound_props
-#     )
 
-#     if merge_compound_props:
-#         for prop in compound_props:
-#             assert result["col1"].get(prop) is True
-#             assert result["col2"].get(prop) is True
+@pytest.mark.parametrize(
+    "merge_compound_props",
+    [True, False],
+    ids=["merge_compound_props", "replace_compound_props"],
+)
+def test_merge_columns_compound_props(merge_compound_props: bool) -> None:
+    """Test that compound props are replaced if the config is set so in merge_columns."""
 
-#     else:
-#         for prop in compound_props:
-#             assert result["col1"].get(prop) is None
-#             assert result["col2"].get(prop) is True
+    compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
+    assert compound_props == {"merge_key", "primary_key", "cluster", "partition"}
+
+    columns_a: TTableSchemaColumns = {
+        "col1": {"name": "col1", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
+    }
+
+    columns_b: TTableSchemaColumns = {
+        "col2": {"name": "col2", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
+    }
+
+    result = utils.merge_columns(
+        deepcopy(columns_a), columns_b, merge_compound_props=merge_compound_props
+    )
+
+    if merge_compound_props:
+        for prop in compound_props:
+            assert result["col1"].get(prop) is True
+            assert result["col2"].get(prop) is True
+
+    else:
+        for prop in compound_props:
+            assert result["col1"].get(prop) is None
+            assert result["col2"].get(prop) is True
 
 
 def test_merge_incomplete_columns() -> None:
@@ -448,27 +476,9 @@ def test_diff_tables(merge_compound_props: bool) -> None:
     changed = deepcopy(table)
     changed["columns"]["test_2"]["primary_key"] = True
     partial = utils.diff_table("schema", existing, changed, merge_compound_props)
-    if merge_compound_props:
-        assert partial["columns"] == {
-            "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
-        }
-    else:
-        # primary_key removed in "test"
-        assert partial["columns"] == {
-            "test": {
-                "cluster": False,
-                "parent_key": True,
-                "data_type": "text",
-                "name": "test",
-                "x-special": "value",
-                "x-special-int": 100,
-                "nullable": False,
-                "x-special-bool-true": True,
-                "x-special-bool": False,
-                "prop": None,
-            },
-            "test_2": {"nullable": True, "name": "test_2", "primary_key": True},
-        }
+    assert partial["columns"] == {
+        "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
+    }
 
 
 def test_tables_conflicts() -> None:
