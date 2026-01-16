@@ -205,6 +205,10 @@ workspace = [
 dbml = [
     "pydbml"
 ]
+widgets = [
+    "marimo>=0.19.0 ; python_version >= '3.11'",
+    "mowidgets>=0.2.1 ; python_version >= '3.11'",
+]
 
 [project.urls]
 Homepage = "https://github.com/dlt-hub"
