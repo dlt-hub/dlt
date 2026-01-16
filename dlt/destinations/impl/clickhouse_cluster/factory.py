@@ -28,3 +28,6 @@ class clickhouse_cluster(
         caps = DestinationCapabilitiesContext()
         caps = clickhouse_factory._set_raw_capabilities(caps)
         return caps
+
+
+clickhouse_cluster.register()
