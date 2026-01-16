@@ -57,6 +57,30 @@ def test_clickhouse_configuration() -> None:
     assert ClickHouseClientConfiguration(credentials=config).fingerprint() == digest128("host1")
 
 
+def test_clickhouse_configuration_on_partial() -> None:
+    # `ClickHouseClientConfiguration` has two required fields that default to `None`:
+    # 1. `credentials`: must be provided
+    # 2. `dlt_tables_table_engine_type`: should fall back to `table_engine_type` if not provided
+
+    # create configuration without providing any values
+    config = ClickHouseClientConfiguration()
+    assert config.credentials is None
+    assert config.dlt_tables_table_engine_type is None
+    assert config.is_partial()  # missing `credentials` and `dlt_tables_table_engine_type`
+
+    # call on_partial to resolve `dlt_tables_table_engine_type`
+    config.on_partial()
+    assert config.credentials is None  # still None
+    assert config.dlt_tables_table_engine_type == config.table_engine_type  # resolved
+    assert config.is_partial()  # missing `credentials`
+
+    # provide credentials
+    config.credentials = {"host": "host1"}  # type: ignore[assignment]
+    assert not config.is_partial()  # all required fields provided
+    config.on_partial()
+    assert config.is_resolved()  # `on_partial` marked config as resolved
+
+
 def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
     """Test experimental settings are set correctly for the session."""
     # with client.sql_client.open_connection() as conn:

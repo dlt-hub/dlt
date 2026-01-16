@@ -79,8 +79,10 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
 
     dataset_table_separator: str = "___"
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
-    table_engine_type: Optional[TTableEngineType] = "merge_tree"
-    """The default table engine to use. Defaults to 'merge_tree'. Other implemented options are 'shared_merge_tree' and 'replicated_merge_tree'."""
+    table_engine_type: TTableEngineType = "merge_tree"
+    """Default table engine to use for all tables. Can be overridden per table via `clickhouse_adapter`."""
+    dlt_tables_table_engine_type: TTableEngineType = None
+    """Default table engine to use for dlt tables. Also applies to dataset sentinel table. Falls back to `table_engine_type` if set to `None`."""
     dataset_sentinel_table_name: str = "dlt_sentinel_table"
     """Special table to mark dataset as existing"""
     staging_use_https: bool = True
@@ -90,6 +92,7 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         "dataset_table_separator",
         "dataset_sentinel_table_name",
         "table_engine_type",
+        "dlt_tables_table_engine_type",
     ]
 
     def fingerprint(self) -> str:
@@ -97,3 +100,10 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
+
+    def on_partial(self) -> None:
+        if self.dlt_tables_table_engine_type is None:
+            self.dlt_tables_table_engine_type = self.table_engine_type
+
+        if not self.is_partial():
+            self.resolve()

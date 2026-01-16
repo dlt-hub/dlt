@@ -21,7 +21,6 @@ from typing import (
     ClassVar,
     Literal,
     Tuple,
-    cast,
 )
 
 from pendulum import DateTime  # noqa: I251
@@ -132,18 +131,20 @@ class ClickHouseSqlClient(
         with self.execute_query(sql, *args, **kwargs) as curr:
             return None if curr.description is None else curr.fetchall()
 
+    def _make_create_sentinel_table(self) -> str:
+        table_name = self.make_qualified_table_name(self.config.dataset_sentinel_table_name)
+        table_engine_type = self.config.dlt_tables_table_engine_type
+        return f"""
+            {self._make_create_table(table_name)}
+            (_dlt_id String NOT NULL)
+            ENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_engine_type)}
+            PRIMARY KEY _dlt_id
+            COMMENT 'internal dlt sentinel table'
+        """
+
     def create_dataset(self) -> None:
         # We create a sentinel table which defines whether we consider the dataset created.
-        sentinel_table_name = self.make_qualified_table_name(
-            self.config.dataset_sentinel_table_name
-        )
-        sentinel_table_type = cast(TTableEngineType, self.config.table_engine_type)
-        self.execute_sql(f"""
-            {self._make_create_table(sentinel_table_name)}
-            (_dlt_id String NOT NULL)
-            ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
-            PRIMARY KEY _dlt_id
-            COMMENT 'internal dlt sentinel table'""")
+        self.execute_sql(self._make_create_sentinel_table())
 
     def _make_drop_table(self, qualified_name: str, if_exists: bool = False) -> str:
         if_exists_sql = "IF EXISTS " if if_exists else ""

@@ -165,8 +165,18 @@ You can set a default table engine for all resources and dlt tables by adding th
 ```toml
 [destination.clickhouse]
 # ... (other configuration options)
-table_engine_type = "merge_tree"                        # The default table engine to use.
+table_engine_type = "merge_tree"                        # default table engine for all tables
 ```
+
+Set `dlt_tables_table_engine_type` if you want to use a different default table engine for `dlt`-managed metadata tables (such as `_dlt_loads` and `_dlt_version`):
+
+```toml
+[destination.clickhouse]
+table_engine_type = "merge_tree"                        # default table engine for data tables
+dlt_tables_table_engine_type = "replicated_merge_tree"  # default table engine for dlt tables
+```
+
+`dlt_tables_table_engine_type` falls back to `table_engine_type` if not explicitly configured.
 
 ### Setting the table engine for specific resources
 
