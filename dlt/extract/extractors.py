@@ -278,7 +278,6 @@ class Extractor:
                     existing_table,
                     computed_table,
                     merge_compound_props=False,
-                    disregard_nullability=True,
                 )
             else:
                 diff_table = computed_table

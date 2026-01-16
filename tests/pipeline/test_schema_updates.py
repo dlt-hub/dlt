@@ -300,8 +300,10 @@ def test_new_key_hints_replace_previous_keys(
     # (orphaned NOT NULL constraint from when it was a key), whereas Arrow/pandas
     # formats have nullable=True (re-inferred from data).
     assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
-    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
-    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
+    if item_format == "object":
+        assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
+    else:
+        assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is True
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint) is True
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"]["nullable"] is False
 
@@ -355,7 +357,10 @@ def test_explicit_schema(
     # formats have nullable=True (re-inferred from data).
     p.run(my_source())
     assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
-    assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
+    if item_format == "object":
+        assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
+    else:
+        assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is True
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint) is True
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"]["nullable"] is False
 

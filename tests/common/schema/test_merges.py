@@ -470,7 +470,6 @@ def test_diff_tables(merge_compound_props: bool) -> None:
     partial = utils.diff_table("schema", existing, changed, merge_compound_props)
     assert "test" in partial["columns"]
 
-    # if replace_compound_props, compound_props in changed are authoritative
     existing = deepcopy(table)
     existing["columns"]["test"]["primary_key"] = True
     changed = deepcopy(table)
@@ -479,6 +478,20 @@ def test_diff_tables(merge_compound_props: bool) -> None:
     assert partial["columns"] == {
         "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
     }
+
+    # if replace_compound_props, compound_props in changed are authoritative
+    existing = deepcopy(table)
+    existing["columns"]["test"]["primary_key"] = True
+    existing["columns"]["test_2"]["primary_key"] = True
+    changed = deepcopy(table)
+    changed["columns"]["test_2"]["primary_key"] = True
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
+    if merge_compound_props:
+        assert partial["columns"] == {}
+    else:
+        assert partial["columns"] == {
+            "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
+        }
 
 
 def test_tables_conflicts() -> None:

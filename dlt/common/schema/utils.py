@@ -550,7 +550,6 @@ def diff_table(
     tab_a: TTableSchema,
     tab_b: TPartialTableSchema,
     merge_compound_props: bool = True,
-    disregard_nullability: bool = False,
 ) -> TPartialTableSchema:
     """Computes the difference between `tab_a` and `tab_b`, returning what's new or changed in `tab_b`.
 
@@ -564,13 +563,12 @@ def diff_table(
         tab_a: Original table schema to compare against
         tab_b: New/updated table schema with potential changes
         merge_compound_props: Controls how the diff handles compound properties:
-            - If True: The diff is calculated assuming compound properties from `tab_b` will be
-              merged with existing ones in `tab_a`. Only columns with new compound properties
-              appear in the result.
-            - If False: The diff is calculated assuming compound properties in `tab_b` will
-              replace existing ones in `tab_a`. The partial table includes information about
-              which columns will be affected by this replacement - both columns losing
-              compound properties and columns gaining them.
+            - True: Compound properties from `tab_b` are additions
+            to `tab_a`. Only new compound property assignments are included in the diff.
+            - False: Compound properties in `tab_b` represent
+            the complete/authoritative set. All compound property assignments from `tab_b`
+            are included in the diff, even if they already exist in `tab_a` with the same
+            values.
 
     Returns:
         Partial table schema containing only what's new or changed in `tab_b`.
@@ -599,9 +597,7 @@ def diff_table(
             col_a = tab_a_columns[col_b_name]
             # merge col_b properties into a copy of col_a
             merged_column = merge_column(copy(col_a), col_b)
-            if disregard_nullability and not columns_equal_ignoring_nullable(merged_column, col_a):
-                new_columns.append(merged_column)
-            elif not disregard_nullability and merged_column != col_a:
+            if merged_column != col_a:
                 new_columns.append(merged_column)
         else:
             new_columns.append(col_b)
