@@ -273,6 +273,8 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
             spec_list = self._get_partition_spec_list()
+            # get properties from hints
+            properties = self._load_table.get("x-iceberg-table-properties")
 
             if spec_list:
                 partition_spec, iceberg_schema = build_iceberg_partition_spec(
@@ -284,6 +286,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_location=location,
                     schema=iceberg_schema,
                     partition_spec=partition_spec,
+                    properties=properties,
                 )
             else:
                 create_table(
@@ -291,6 +294,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table_id,
                     table_location=location,
                     schema=self.arrow_dataset.schema,
+                    properties=properties,
                 )
             # run again with created table
             self.run()
@@ -688,8 +692,7 @@ class FilesystemClient(
             if (
                 # TODO: isdir is sufficient if table_dir == table prefix
                 #   since this method is used currently only for tests we do not need to improve it
-                self.fs_client.isdir(table_dir)
-                and len(self.list_table_files(table_name)) > 0
+                self.fs_client.isdir(table_dir) and len(self.list_table_files(table_name)) > 0
             ):
                 if table_name in self.schema.tables:
                     yield (table_name, self.schema.get_table_columns(table_name))
@@ -1307,7 +1310,7 @@ class FilesystemClient(
 
         # Create namespace
         try:
-            catalog.create_namespace(self.dataset_name)
+            catalog.create_namespace(self.dataset_name, self.config.iceberg_namespace_properties)
             logger.info(f"Created Iceberg namespace: {self.dataset_name}")
         except NamespaceAlreadyExistsError as e:
             logger.debug(f"Namespace {self.dataset_name} already exists or error: {e}")

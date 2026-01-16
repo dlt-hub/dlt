@@ -384,7 +384,7 @@ def get_catalog(
     logger.info(
         "No catalog configuration found, using in-memory SQLite catalog (backward compatibility)"
     )
-    return get_sql_catalog(iceberg_catalog_name, "sqlite:///:memory:", credentials)
+    return get_sql_catalog(iceberg_catalog_name or "default", "sqlite:///:memory:", credentials)
 
 
 def evolve_table(
@@ -422,6 +422,7 @@ def create_table(
     schema: Union[pa.Schema, "pyiceberg.schema.Schema"],
     partition_columns: Optional[List[str]] = None,
     partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
+    properties: Dict[str, str] = None,
 ) -> None:
     if isinstance(schema, pa.Schema):
         schema = ensure_iceberg_compatible_arrow_schema(schema)
@@ -434,6 +435,7 @@ def create_table(
             table_id,
             schema=schema,
             location=table_location,
+            properties=properties or {},
         ) as txn:
             # add partitioning
             with txn.update_spec() as update_spec:
@@ -445,6 +447,7 @@ def create_table(
             schema=schema,
             location=table_location,
             partition_spec=partition_spec,
+            properties=properties or {},
         )
 
 
