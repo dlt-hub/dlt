@@ -75,11 +75,7 @@ LOAD_1_STATS = {
 }
 
 
-TLoadsFixture = tuple[
-    dlt.Dataset,
-    tuple[str, str],
-    tuple[dict[str, Any], dict[str, Any]]
-]
+TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[dict[str, Any], dict[str, Any]]]
 
 
 @pytest.fixture(scope="module")

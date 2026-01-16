@@ -229,15 +229,23 @@ class Dataset:
             return dlt.Relation(dataset=self, table_name=table_name)
 
     def loads_table(self) -> dlt.Relation:
-        """Get a `dlt.Relation` associated with the `_dlt_loads` table from the dataset."""
-        return dlt.Relation(dataset=self, table_name=LOADS_TABLE_NAME)
+        """Get `_dlt_loads` table from the dataset."""
+        return dlt.Relation(dataset=self, table_name=self.schema.loads_table_name)
 
     def load_ids(self) -> list[str]:
-        """Get a list of load ids associated with the dataset."""
+        """Retrieved the list of load ids for this dataset.
+
+        This queries the `_dlt_loads` table on the destination and filters
+        the `schema_name` columns based on the current dataset.
+        """
         return _get_load_ids(self)
 
     def latest_load_id(self) -> Optional[str]:
-        """Get the latest load id associated with the dataset."""
+        """Retrieved the latest load id for this dataset.
+
+        This is the max value of the `load_id` column in the `_dlt_loads` table
+        on the destination when filtering the `schema_name` columns based on the current dataset.
+        """
         return _get_latest_load_id(self)
 
     def row_counts(

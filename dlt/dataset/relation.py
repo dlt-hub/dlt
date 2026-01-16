@@ -498,10 +498,16 @@ class Relation(WithSqlClient):
 
     # TODO could be refactored to join any column from `_dlt_loads` table
     def with_load_id_col(self) -> dlt.Relation:
-        """Add a load_id column to the relation.
+        """Return the relation with the `_dlt_load_id` included.
 
-        Returns:
-            Self: A new Relation with the load_id column added.
+        There are 3 cases:
+        - If the relation is a root table, this is a no-op
+        - If the relation has a root key, join relation to root table
+        - If the relation has a parent key, iteratively join the root to the relation
+        - Else raise
+
+        This should only raise if the `dlt.Schema` was tempered, breaking the
+        dlt-generated root and parent relationships.
         """
         table_schema = self._dataset.schema.tables[self._table_name]
 
@@ -512,26 +518,18 @@ class Relation(WithSqlClient):
         elif schema_utils.has_column_with_prop(table_schema, "parent_key"):
             return _add_load_id_via_parent_key(self)
         else:
-            raise ValueError()
+            raise ValueError
 
-    def from_loads(self, load_ids: Collection[str]) -> dlt.Relation:
-        """Filter relation by load_ids, handling root and nested table relationships.
+    def from_loads(
+        self,
+        load_ids: Collection[str],
+        include_load_id: bool = False,
+    ) -> dlt.Relation:
+        """Filter the table to rows associated with `load_ids`.
 
-        This method only works for relations created via `.table()`. For arbitrary queries,
-        use `dataset.filter_loads(table_name, load_ids)` instead.
-
-        Args:
-            load_ids (Union[str, list[str]]): Single load_id string or list of load_ids
-
-        Returns:
-            Self: A new Relation filtered by the specified load_ids
-
-        Raises:
-            ValueError: If relation was not created via `.table()`
-            ValueError: If load_ids don't exist in _dlt_loads table
-
-        Examples:
-            >>> dataset.table("orders").from_loads(["load_id_1", "load_id_2"])
+        This resolves the `_dlt_load_id` column then filters rows of the
+        current relation. `include_load_id` allows to keep the `_dlt_load_id` column
+        or exclude it after filtering.
         """
         if not self._table_name:
             raise ValueError(
@@ -539,7 +537,13 @@ class Relation(WithSqlClient):
                 " It can't be applied to arbitrary relation."
             )
 
-        return self.with_load_id_col().where(C_DLT_LOAD_ID, "in", load_ids)
+        initial_columns = self.columns
+        filtered_rel_with_load_id = self.with_load_id_col().where(C_DLT_LOAD_ID, "in", load_ids)
+        return (
+            filtered_rel_with_load_id
+            if include_load_id
+            else filtered_rel_with_load_id.select(*initial_columns)
+        )
 
     # TODO move this to the WithSqlClient / data accessor mixin.
     def fetchscalar(self) -> Any:
@@ -669,16 +673,9 @@ def _add_load_id_via_root_key_query(
 
 
 def _add_load_id_via_root_key(relation: dlt.Relation) -> dlt.Relation:
-    """Build query for filtering a child table with root_key by load_ids.
+    """Return the input relation with the `_dlt_load_id` column added.
 
-    Args:
-        dataset: The dlt.Dataset instance
-        table_name: Name of the child table
-        load_ids: List of load_ids to filter by
-        load_id_col: Normalized name of the _dlt_load_id column
-
-    Returns:
-        SQLGlot SELECT expression
+    This is done by joining the `root_table._dlt_id` with the `table._dlt_root_id`
     """
     origin_table_name: str = relation._table_name
     tables_schema = relation._dataset.schema.tables
@@ -763,6 +760,11 @@ def _add_load_id_via_parent_key_query(
 
 
 def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
+    """Return the input relation with the `_dlt_load_id` column added.
+
+    This is done by iteratively joining the `root_table._dlt_id` with `child._dlt_parent_id`
+    until the input relation is reached.
+    """
     origin_table_name: str = relation._table_name
     table_schemas = relation._dataset.schema.tables
 
