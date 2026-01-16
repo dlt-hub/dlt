@@ -1,6 +1,5 @@
 """Configuration for Fabric Warehouse destination - extends Synapse configuration with COPY INTO support"""
 
-import dataclasses
 from typing import Optional, Final, ClassVar, Dict, Any, List
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
@@ -145,44 +144,6 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     Note: Fabric Warehouse does not support table indexing. Storage is automatically managed by the system.
     """
-
-    def on_resolved(self) -> None:
-        """Auto-configure staging credentials from warehouse Service Principal credentials.
-
-        When using OneLake/Lakehouse staging with Fabric, the filesystem destination needs
-        Service Principal credentials (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)
-        and the OneLake blob endpoint (azure_account_host).
-        Instead of requiring users to specify these, we automatically propagate them
-        from the Fabric warehouse credentials to the staging filesystem credentials.
-        """
-
-        # If we have staging config and warehouse credentials with Service Principal
-        if self.staging_config and self.credentials:
-            staging_creds = self.staging_config.credentials
-
-            # Check if staging is using OneLake (azure_storage_account_name == "onelake")
-            if hasattr(staging_creds, "azure_storage_account_name"):
-                if staging_creds.azure_storage_account_name == "onelake":
-                    # OneLake staging - propagate Service Principal credentials
-                    if self.credentials.azure_client_id and not hasattr(
-                        staging_creds, "azure_client_id"
-                    ):
-                        staging_creds.azure_client_id = self.credentials.azure_client_id  # type: ignore
-                    if self.credentials.azure_client_secret and not hasattr(
-                        staging_creds, "azure_client_secret"
-                    ):
-                        staging_creds.azure_client_secret = self.credentials.azure_client_secret  # type: ignore
-                    if self.credentials.azure_tenant_id and not hasattr(
-                        staging_creds, "azure_tenant_id"
-                    ):
-                        staging_creds.azure_tenant_id = self.credentials.azure_tenant_id  # type: ignore
-
-                    # Also set the OneLake blob endpoint if not already set
-                    if (
-                        not hasattr(staging_creds, "azure_account_host")
-                        or not staging_creds.azure_account_host
-                    ):
-                        staging_creds.azure_account_host = "onelake.blob.fabric.microsoft.com"  # type: ignore
 
     # Set to False by default because PRIMARY KEY and UNIQUE constraints
     # are NOT ENFORCED in Fabric and can lead to inaccurate results
