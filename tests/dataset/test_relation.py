@@ -301,36 +301,6 @@ def test_relation_from_loads(
     assert set(df[C_DLT_LOAD_ID]) == set(selected_load_ids)
 
 
-# def test_from_loads_root_table_nonexistent_load_id(pipeline_with_loads):
-#     """Test that filtering by non-existent load_id raises ValueError."""
-#     pipeline, load_id_1, load_id_2 = pipeline_with_loads
-#     dataset = pipeline.dataset()
-
-#     with pytest.raises(ValueError, match="Load IDs not found in _dlt_loads"):
-#         dataset.table("foobar").from_loads("nonexistent_load_id")
-
-
-# def test_from_loads_invalid_table_name(pipeline_with_loads):
-#     """Test that invalid table name raises ValueErrorWithKnownValues."""
-#     pipeline, load_id_1, load_id_2 = pipeline_with_loads
-#     dataset = pipeline.dataset()
-
-#     with pytest.raises(ValueErrorWithKnownValues) as exc_info:
-#         dataset.table("nonexistent_table").from_load(load_id_1)
-
-#     assert exc_info.value.key == "table_name"
-#     assert exc_info.value.value_received == "nonexistent_table"
-
-
-# def test_from_loads_empty_load_ids(pipeline_with_loads):
-#     """Test that empty load_ids raises ValueError."""
-#     pipeline, load_id_1, load_id_2 = pipeline_with_loads
-#     dataset = pipeline.dataset()
-
-#     with pytest.raises(ValueError, match="load_ids cannot be empty"):
-#         dataset.table("load1").from_loads([])
-
-
 def test_from_loads_relation_api(dataset_with_loads: TLoadsFixture) -> None:
     """Test Relation.from_loads() public API."""
     dataset, load_ids, load_stats = dataset_with_loads
