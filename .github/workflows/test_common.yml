@@ -163,8 +163,8 @@ jobs:
         run: make install-sqlalchemy2
         if: matrix.python-version != '3.14'
 
-      - name: Run extract and pipeline tests 
-        run: make test-sql-database
+      - name: Run sql database tests and others that require sqlalchemy 2.0
+        run: make test-with-sqlalchemy-2
         env:
           PYTEST_XDIST_N: auto
         if: matrix.python-version != '3.14'

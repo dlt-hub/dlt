@@ -158,7 +158,7 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     )
 
     with pipeline.sql_client() as client:
-        table = client.native_connection.sql("SELECT * FROM row").arrow()
+        table = client.native_connection.sql("SELECT * FROM row").fetch_arrow_table()
 
     # only us has TZ aware timestamp in duckdb, also we have UTC here
     _verify_schema(table.schema, pa.decimal128(38, 0))
