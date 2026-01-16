@@ -288,10 +288,10 @@ def test_new_key_hints_replace_previous_keys(
         item,
         **{key_hint: ["other_id"] if key_hint_as_list else "other_id"},
     )
-
-    # "id" should no longer be key
     p.run(my_resource)
 
+    # "id" should no longer be key
+    assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
     # NOTE: Due to the following two reasons:
     #   1. Removal of compound does not automatically resets nullable to True.
     #   2. Arrow formats re-infer nullable from the data schema, while the default json
@@ -299,7 +299,6 @@ def test_new_key_hints_replace_previous_keys(
     # There's inconsistent behavior: json format objects retain nullable=False
     # (orphaned NOT NULL constraint from when it was a key), whereas Arrow/pandas
     # formats have nullable=True (re-inferred from data).
-    assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
     if item_format == "object":
         assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
     else:
@@ -405,8 +404,8 @@ def test_new_compound_prop_hints_replace_previous_compound_props(
         data=item,
         columns={"other_id": {compound_prop: True}},
     )
-    # "id" should no longer be key
     p.run(my_resource)
+    # "id" should no longer be key
     assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(compound_prop)
     assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(compound_prop) is True
 

@@ -157,15 +157,6 @@ def has_default_column_prop_value(prop: str, value: Any) -> bool:
     return value in (None, False)
 
 
-def columns_equal_ignoring_nullable(col_a: TColumnSchema, col_b: TColumnSchema) -> bool:
-    """Check if two column schemas are equal, ignoring the nullable property."""
-    col_a_copy = copy(col_a)
-    col_b_copy = copy(col_b)
-    col_a_copy.pop("nullable", None)
-    col_b_copy.pop("nullable", None)
-    return col_a_copy == col_b_copy
-
-
 def is_compound_prop(prop: str) -> bool:
     """Checks if a column property is compound."""
     if prop in ColumnPropInfos:
@@ -549,7 +540,7 @@ def diff_table(
     schema_name: str,
     tab_a: TTableSchema,
     tab_b: TPartialTableSchema,
-    merge_compound_props: bool = True,
+    additive_compound_props: bool = True,
 ) -> TPartialTableSchema:
     """Computes the difference between `tab_a` and `tab_b`, returning what's new or changed in `tab_b`.
 
@@ -562,7 +553,7 @@ def diff_table(
         schema_name: Name of the schema for error messages
         tab_a: Original table schema to compare against
         tab_b: New/updated table schema with potential changes
-        merge_compound_props: Controls how the diff handles compound properties:
+        additive_compound_props: Controls how the diff handles compound properties:
             - True: Compound properties from `tab_b` are additions
             to `tab_a`. Only new compound property assignments are included in the diff.
             - False: Compound properties in `tab_b` represent
@@ -586,7 +577,7 @@ def diff_table(
 
     tab_a_copy = deepcopy(tab_a)
 
-    if not merge_compound_props:
+    if not additive_compound_props:
         _collect_and_remove_compound_props(tab_b["columns"], tab_a_copy["columns"])
 
     # get new columns that are new or have changed properties

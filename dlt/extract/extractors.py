@@ -277,7 +277,7 @@ class Extractor:
                     self.schema.name,
                     existing_table,
                     computed_table,
-                    merge_compound_props=False,
+                    additive_compound_props=False,
                 )
             else:
                 diff_table = computed_table
