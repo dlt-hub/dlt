@@ -277,10 +277,8 @@ pipeline = [
     "pyarrow>=16.0.0",
     # this pandas and above has functional numpy dependency
     "pandas>=2.1.4",
-    # 1.4 dev fails on azure again
-    "duckdb<1.4",
-    # 1.3.0 and 1.3.1 crash on Windows (fixed in 1.3.2 via duckdb/duckdb#17991)
-    "duckdb!=1.3.0,!=1.3.1 ; os_name == 'nt'",
+    # 1.4.3 fixes Windows crashes
+    "duckdb>=1.4.3,<1.5",
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
