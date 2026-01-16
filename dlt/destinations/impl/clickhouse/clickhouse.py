@@ -225,6 +225,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         sql_client = self._create_sql_client(schema, config, capabilities)
         super().__init__(schema, config, sql_client)
         self.config: ClickHouseClientConfiguration = config
+        self.sql_client: ClickHouseSqlClient = sql_client
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = self.capabilities.get_type_mapper()
 
