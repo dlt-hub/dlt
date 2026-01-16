@@ -1,13 +1,141 @@
+from typing import Any
 import sys
 
 import pytest
 
 import dlt
+from dlt.common.exceptions import ValueErrorWithKnownValues
+from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
 
 # TODO move destination-independent tests from `test_read_interfaces.py` to this module
 
+USERS_DATA_0 = [
+    {
+        "id": 1,
+        "name": "Alice",
+        "orders": [
+            {"order_id": 101, "amount": 100.0, "items": [{"item": "A"}, {"item": "B"}]},
+            {"order_id": 102, "amount": 200.0, "items": [{"item": "C"}]},
+        ],
+    },
+    {
+        "id": 2,
+        "name": "Bob",
+        "orders": [{"order_id": 103, "amount": 150.0, "items": [{"item": "D"}]}],
+    },
+]
 
-@pytest.fixture
+USERS_DATA_1 = [
+    {
+        "id": 3,
+        "name": "Charlie",
+        "orders": [{"order_id": 104, "amount": 300.0, "items": [{"item": "E"}]}],
+    }
+]
+
+PRODUCTS_DATA_0 = [{"product_id": 1, "name": "Widget"}, {"product_id": 2, "name": "Gadget"}]
+PRODUCTS_DATA_1 = [{"product_id": 3, "name": "Doohickey"}]
+
+
+@dlt.source(root_key=False)
+def crm(i: int = 0):
+    @dlt.resource
+    def users(i: int):
+        if i == 0:
+            yield USERS_DATA_0
+        elif i == 1:
+            yield USERS_DATA_1
+
+    @dlt.resource
+    def products(i: int):
+        if i == 0:
+            yield PRODUCTS_DATA_0
+        elif i == 1:
+            yield PRODUCTS_DATA_1
+
+    return [users(i), products(i)]
+
+
+LOAD_0_STATS = {
+    "users": len(USERS_DATA_0),
+    "products": len(PRODUCTS_DATA_0),
+    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_0),  # type: ignore[misc,arg-type]
+    "users__orders__items": sum(
+        len(order["items"]) for user in USERS_DATA_0 for order in user["orders"]  # type: ignore[misc,attr-defined]
+    ),
+}
+LOAD_1_STATS = {
+    "users": len(USERS_DATA_1),
+    "products": len(PRODUCTS_DATA_1),
+    "users__orders": sum(len(user["orders"]) for user in USERS_DATA_1),  # type: ignore[misc,arg-type]
+    "users__orders__items": sum(
+        len(order["items"]) for user in USERS_DATA_1 for order in user["orders"]  # type: ignore[misc,attr-defined]
+    ),
+}
+
+
+TLoadsFixture = tuple[
+    dlt.Dataset,
+    tuple[str, str],
+    tuple[dict[str, Any], dict[str, Any]]
+]
+
+
+@pytest.fixture(scope="module")
+def loads_with_root_key() -> TLoadsFixture:
+    """Create a pipeline with nested data across multiple loads."""
+    pipeline = dlt.pipeline("test_from_loads", destination="duckdb", full_refresh=True)
+
+    source = crm(0)
+    source.root_key = True
+    pipeline.run(source)
+    load_id_1 = pipeline.last_trace.last_normalize_info.loads_ids[0]
+
+    source = crm(1)
+    source.root_key = True
+    pipeline.run(source)
+    load_id_2 = pipeline.last_trace.last_normalize_info.loads_ids[0]
+
+    return (pipeline.dataset(), (load_id_1, load_id_2), (LOAD_0_STATS, LOAD_1_STATS))
+
+
+@pytest.fixture(scope="module")
+def loads_without_root_key() -> TLoadsFixture:
+    """Create a pipeline with nested data across multiple loads."""
+    """Create a pipeline with nested data across multiple loads."""
+    pipeline = dlt.pipeline("test_from_loads", destination="duckdb", full_refresh=True)
+
+    source = crm(0)
+    source.root_key = False
+    pipeline.run(source)
+    load_id_1 = pipeline.last_trace.last_normalize_info.loads_ids[0]
+
+    source = crm(1)
+    source.root_key = False
+    pipeline.run(source)
+    load_id_2 = pipeline.last_trace.last_normalize_info.loads_ids[0]
+
+    return (pipeline.dataset(), (load_id_1, load_id_2), (LOAD_0_STATS, LOAD_1_STATS))
+
+
+# params= sets the default value for tests not specifying
+@pytest.fixture(params=["with_root_key"])
+def dataset_with_loads(
+    request: pytest.FixtureRequest,
+    loads_with_root_key: TLoadsFixture,
+    loads_without_root_key: TLoadsFixture,
+) -> TLoadsFixture:
+    """Router fixture for indirect parametrization of dataset fixtures."""
+    if request.param == "with_root_key":
+        return loads_with_root_key
+    elif request.param == "without_root_key":
+        return loads_without_root_key
+    else:
+        raise ValueError(f"Unknown dataset fixture: {request.param}")
+
+
+@pytest.fixture(scope="module")
 def dataset() -> dlt.Dataset:
     @dlt.resource
     def purchases():
@@ -72,3 +200,161 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
     assert isinstance(table, ir.Table)
     # executes without error
     table.execute()
+
+
+def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
+    dataset, load_ids, _ = dataset_with_loads
+
+    retrieved_load_ids = _get_load_ids(dataset)
+
+    assert tuple(retrieved_load_ids) == load_ids
+    assert isinstance(retrieved_load_ids, list)
+    assert all(isinstance(load_id, str) for load_id in retrieved_load_ids)
+    assert len(retrieved_load_ids) == 2
+
+    assert _get_load_ids(dataset) == dataset.load_ids()
+
+
+def test_dataset_latest_load_id(dataset_with_loads: TLoadsFixture):
+    dataset, load_ids, _ = dataset_with_loads
+
+    load_id = _get_latest_load_id(dataset)
+
+    assert isinstance(load_id, str)
+    assert load_id == load_ids[-1]
+    assert _get_latest_load_id(dataset) == dataset.latest_load_id()
+
+
+@pytest.mark.parametrize("selected_load_id_idx", [[0], [1], [0, 1]])
+def test_dataset_access_equivalent_relation_access(
+    dataset_with_loads: TLoadsFixture,
+    selected_load_id_idx: list[int],
+) -> None:
+    dataset, load_ids, _ = dataset_with_loads
+    selected_load_ids = [load_ids[idx] for idx in selected_load_id_idx]
+
+    dataset_output = dataset.table("users", load_ids=selected_load_ids)
+    relation_output = dataset.table("users").from_loads(selected_load_ids)
+
+    assert dataset_output._sqlglot_expression == relation_output._sqlglot_expression
+
+
+@pytest.mark.parametrize("table_name", ["products", "users__orders", "users__orders__items"])
+@pytest.mark.parametrize(
+    "dataset_with_loads",
+    [
+        pytest.param("with_root_key", id="root_key-True"),
+        pytest.param("without_root_key", id="root_key-False"),
+    ],
+    indirect=True,
+)
+def test_relation_with_load_id(
+    dataset_with_loads: TLoadsFixture,
+    table_name: str,
+) -> None:
+    """Test filtering a root table with a single load_id string."""
+    dataset, load_ids, load_stats = dataset_with_loads
+    table = dataset.table(table_name)
+    expected_columns = (
+        table.columns if C_DLT_LOAD_ID in table.columns else table.columns + [C_DLT_LOAD_ID]
+    )
+
+    output = dataset.table(table_name).with_load_id_col()
+
+    assert isinstance(output, dlt.Relation)
+    assert output.columns == expected_columns
+
+    df = output.df()
+
+    assert len(df) == len(table.df())
+    assert list(df.columns) == expected_columns
+
+
+@pytest.mark.parametrize("selected_load_id_idx", [[0], [1], [0, 1]])
+@pytest.mark.parametrize("table_name", ["products", "users__orders", "users__orders__items"])
+@pytest.mark.parametrize(
+    "dataset_with_loads",
+    [
+        pytest.param("with_root_key", id="root_key-True"),
+        pytest.param("without_root_key", id="root_key-False"),
+    ],
+    indirect=True,
+)
+def test_relation_from_loads(
+    dataset_with_loads: TLoadsFixture,
+    selected_load_id_idx: list[int],
+    table_name: str,
+) -> None:
+    """Test filtering a root table with a single load_id string."""
+    dataset, load_ids, load_stats = dataset_with_loads
+    selected_load_ids = [load_ids[idx] for idx in selected_load_id_idx]
+    table = dataset.table(table_name)
+    expected_columns = (
+        table.columns if C_DLT_LOAD_ID in table.columns else table.columns + [C_DLT_LOAD_ID]
+    )
+
+    output = dataset.table(table_name).from_loads(selected_load_ids)
+
+    assert isinstance(output, dlt.Relation)
+    assert output.columns == expected_columns
+
+    df = output.df()
+
+    assert len(df) == sum(load_stats[idx][table_name] for idx in selected_load_id_idx)
+    assert list(df.columns) == expected_columns
+    assert set(df[C_DLT_LOAD_ID]) == set(selected_load_ids)
+
+
+# def test_from_loads_root_table_nonexistent_load_id(pipeline_with_loads):
+#     """Test that filtering by non-existent load_id raises ValueError."""
+#     pipeline, load_id_1, load_id_2 = pipeline_with_loads
+#     dataset = pipeline.dataset()
+
+#     with pytest.raises(ValueError, match="Load IDs not found in _dlt_loads"):
+#         dataset.table("foobar").from_loads("nonexistent_load_id")
+
+
+# def test_from_loads_invalid_table_name(pipeline_with_loads):
+#     """Test that invalid table name raises ValueErrorWithKnownValues."""
+#     pipeline, load_id_1, load_id_2 = pipeline_with_loads
+#     dataset = pipeline.dataset()
+
+#     with pytest.raises(ValueErrorWithKnownValues) as exc_info:
+#         dataset.table("nonexistent_table").from_load(load_id_1)
+
+#     assert exc_info.value.key == "table_name"
+#     assert exc_info.value.value_received == "nonexistent_table"
+
+
+# def test_from_loads_empty_load_ids(pipeline_with_loads):
+#     """Test that empty load_ids raises ValueError."""
+#     pipeline, load_id_1, load_id_2 = pipeline_with_loads
+#     dataset = pipeline.dataset()
+
+#     with pytest.raises(ValueError, match="load_ids cannot be empty"):
+#         dataset.table("load1").from_loads([])
+
+
+def test_from_loads_relation_api(dataset_with_loads: TLoadsFixture) -> None:
+    """Test Relation.from_loads() public API."""
+    dataset, load_ids, load_stats = dataset_with_loads
+    table_name = "users"
+
+    # Use relation API
+    result = dataset.table(table_name).from_loads(load_ids[0])
+    df = result.df()
+
+    assert len(df) == load_stats[0][table_name]
+    assert "_dlt_load_id" in df.columns
+    assert (df["_dlt_load_id"] == load_ids[0]).all()
+
+
+def test_from_loads_relation_api_on_query_fails(dataset_with_loads: TLoadsFixture) -> None:
+    """Test that Relation.from_loads() fails on arbitrary queries."""
+    dataset, load_ids, load_stats = dataset_with_loads
+
+    # Create relation from query (not via .table())
+    relation = dataset.query("SELECT * FROM users")
+
+    with pytest.raises(ValueError, match="only works on relations created via .table"):
+        relation.from_loads(load_ids[0])
