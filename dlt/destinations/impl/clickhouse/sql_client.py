@@ -220,16 +220,21 @@ class ClickHouseSqlClient(
     def clickhouse_connect_client(self) -> clickhouse_connect.driver.client.Client:
         return self._clickhouse_connect_client()
 
-    def _insert_file_table(self, table_schema: PreparedTableSchema) -> str:
-        return self.make_qualified_table_name(table_schema["name"])
+    def _insert_file_table(self, table_name: str, database_name: str) -> str:
+        return self.make_qualified_table_name(table_name)
 
     def insert_file(
-        self, file_path: str, table_schema: PreparedTableSchema, file_format: str, compression: str
+        self,
+        file_path: str,
+        table_name: str,
+        database_name: str,
+        file_format: str,
+        compression: str,
     ) -> QuerySummary:
         with self.clickhouse_connect_client() as client:
             return clk_insert_file(
                 client,
-                table=self._insert_file_table(table_schema),
+                table=self._insert_file_table(table_name, database_name),
                 file_path=file_path,
                 fmt=file_format,
                 settings={

@@ -73,6 +73,10 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._staging_credentials = staging_credentials
         self._config = config
 
+    @property
+    def load_database_name(self) -> str:
+        return self._job_client.sql_client.database_name
+
     def run(self) -> None:
         client = self._job_client.sql_client
 
@@ -104,7 +108,13 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 else FilesystemConfiguration.make_local_path(bucket_path)
             )
             try:
-                client.insert_file(file_path, self._load_table, clickhouse_format, compression)
+                client.insert_file(
+                    file_path,
+                    self.load_table_name,
+                    self.load_database_name,
+                    clickhouse_format,
+                    compression,
+                )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
                     self._file_path,
@@ -233,6 +243,10 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def sql_client_class(self) -> type[ClickHouseSqlClient]:
         return ClickHouseSqlClient
 
+    @property
+    def load_job_class(self) -> type[ClickHouseLoadJob]:
+        return ClickHouseLoadJob
+
     def _create_sql_client(
         self,
         schema: Schema,
@@ -295,7 +309,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return super().create_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
+        return super().create_load_job(table, file_path, load_id, restore) or self.load_job_class(
             file_path,
             config=self.config,
             staging_credentials=(

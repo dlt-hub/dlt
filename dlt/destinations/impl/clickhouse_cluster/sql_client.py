@@ -65,15 +65,7 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
                     continue
                 raise
 
-    def _insert_file_table(self, table_schema: PreparedTableSchema) -> str:
-        table_name = table_schema["name"]
-        database_name = self.database_name
-
-        # load into distributed table instead of local table if it exists
-        if table_schema.get(CREATE_DISTRIBUTED_TABLE_HINT):
-            table_name += table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT]  # type: ignore[typeddict-item]
-            database_name = self.distributed_tables_database_name
-
+    def _insert_file_table(self, table_name: str, database_name: str) -> str:
         with self.with_alternative_database_name(database_name):
             return self.make_qualified_table_name(table_name)
 

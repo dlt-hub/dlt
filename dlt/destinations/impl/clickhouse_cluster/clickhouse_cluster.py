@@ -1,11 +1,12 @@
-from typing import List, Sequence, cast
+from typing import List, Optional, Sequence, cast
 
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_inherited_table_hint
-from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
+from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient, ClickHouseLoadJob
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
     CONFIG_HINT_MAP,
     CREATE_DISTRIBUTED_TABLE_HINT,
@@ -17,6 +18,34 @@ from dlt.destinations.impl.clickhouse_cluster.configuration import (
 from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 
 
+class ClickHouseClusterLoadJob(ClickHouseLoadJob):
+    def __init__(
+        self,
+        file_path: str,
+        config: ClickHouseClusterClientConfiguration,
+        staging_credentials: Optional[CredentialsConfiguration] = None,
+    ) -> None:
+        super().__init__(file_path, config, staging_credentials)
+        self._job_client: "ClickHouseClusterClient" = None
+
+    @property
+    def load_into_distributed_table(self) -> bool:
+        return cast(bool, self._load_table.get(CREATE_DISTRIBUTED_TABLE_HINT, False))
+
+    @property
+    def load_table_name(self) -> str:
+        table_name = super().load_table_name
+        if self.load_into_distributed_table:
+            table_name += self._load_table[DISTRIBUTED_TABLE_SUFFIX_HINT]  # type: ignore[typeddict-item]
+        return table_name
+
+    @property
+    def load_database_name(self) -> str:
+        if self.load_into_distributed_table:
+            return self._job_client.sql_client.distributed_tables_database_name
+        return super().load_database_name
+
+
 class ClickHouseClusterClient(ClickHouseClient):
     def __init__(
         self,
@@ -26,10 +55,15 @@ class ClickHouseClusterClient(ClickHouseClient):
     ) -> None:
         super().__init__(schema, config, capabilities)
         self.config: ClickHouseClusterClientConfiguration = config
+        self.sql_client: ClickHouseClusterSqlClient = self.sql_client
 
     @property
     def sql_client_class(self) -> type[ClickHouseClusterSqlClient]:
         return ClickHouseClusterSqlClient
+
+    @property
+    def load_job_class(self) -> type[ClickHouseClusterLoadJob]:
+        return ClickHouseClusterLoadJob
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
@@ -67,8 +101,6 @@ class ClickHouseClusterClient(ClickHouseClient):
         table = self.prepare_load_table(table_name)
 
         if table.get(CREATE_DISTRIBUTED_TABLE_HINT):
-            sql_client = cast(ClickHouseClusterSqlClient, self.sql_client)
-            create_dist_table_sql = sql_client._make_create_distributed_table(table)
-            sql.append(create_dist_table_sql)
+            sql.append(self.sql_client._make_create_distributed_table(table))
 
         return sql

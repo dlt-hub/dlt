@@ -121,7 +121,7 @@ def test_clickhouse_cluster_adapter_distributed_table(
         "test_clickhouse_cluster_adapter_distributed_table", dev_mode=True
     )
     client = cast(ClickHouseClusterClient, pipe.destination_client())
-    sql_client = cast(ClickHouseClusterSqlClient, client.sql_client)
+    sql_client = client.sql_client
 
     assert_clickhouse_cluster_conf(
         client.config,

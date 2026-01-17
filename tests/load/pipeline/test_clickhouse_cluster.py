@@ -25,7 +25,7 @@ from tests.load.clickhouse_cluster.utils import (
     get_table_engine,
     set_clickhouse_cluster_conf,
 )
-from tests.load.utils import DestinationTestConfiguration, destinations_configs
+from tests.load.utils import AWS_BUCKET, DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 
 
@@ -206,7 +206,14 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
+    # we use one staging and one non-staging config; they use different insert methods, and we
+    # want to assert both write into the distributed table instead of the local table
+    destinations_configs(
+        default_sql_configs=True,
+        default_staging_configs=True,
+        subset=["clickhouse_cluster"],
+        bucket_subset=[None, AWS_BUCKET],
+    ),
     ids=lambda x: x.name,
 )
 def test_distribution(destination_config: DestinationTestConfiguration) -> None:
