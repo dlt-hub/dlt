@@ -72,6 +72,7 @@ from dlt.destinations.impl.lancedb.utils import (
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapperImpl
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
     NDArray = numpy.ndarray[Any, Any]
@@ -79,7 +80,7 @@ else:
     NDArray = numpy.ndarray
 
 
-class LanceDBClient(JobClientBase, WithStateSync):
+class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
     """LanceDB destination handler."""
 
     model_func: TextEmbeddingFunction
@@ -99,6 +100,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
+        self._sql_client: SqlClientBase[Any] = None
 
         embedding_model_provider = self.config.embedding_model_provider
         embedding_model_host = self.config.embedding_model_provider_host
@@ -117,6 +119,25 @@ class LanceDBClient(JobClientBase, WithStateSync):
             # actually the model func doesnt need the api-key!
             **({"host": embedding_model_host} if embedding_model_host else {}),
         )
+
+    @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+
+        return LanceDBSQLClient
+
+    @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        # inner import because `LanceDBSQLClient` depends on `duckdb` and is optional
+        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+
+        if not self._sql_client:
+            self._sql_client = LanceDBSQLClient(self)
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[Any]) -> None:
+        self._sql_client = client
 
     @property
     def sentinel_table(self) -> str:
@@ -152,6 +173,19 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 If you want to overwrite the table, use mode="overwrite".
         """
         return self.db_client.create_table(table_name, schema=schema, mode=mode)
+
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        """Drop multiple LanceDB tables.
+
+        Args:
+            table_names: The names of the tables to drop.
+        """
+        if not tables:
+            return
+
+        for table_name in tables:
+            if table_name in self.db_client.table_names():
+                self.db_client.drop_table(table_name)
 
     def delete_table(self, table_name: str) -> None:
         """Delete a LanceDB table.
@@ -319,6 +353,14 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 **self.type_mapper.from_destination_type(field.type, None, None),
             }
         return True, table_schema
+
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[bool, TTableSchemaColumns]]:
+        for table_name in table_names:
+            # mypy fails to resolve table_schema; ty succeeds
+            table_exists, table_schema = self.get_storage_table(table_name)
+            yield table_name, table_schema  # type: ignore[misc]
 
     @lancedb_error
     def extend_lancedb_table_schema(self, table_name: str, field_schemas: List[pa.Field]) -> None:
@@ -502,6 +544,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def get_stored_schema(self, schema_name: str = None) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
+        if fq_version_table_name not in self.db_client.table_names():
+            return None
 
         version_table: "lancedb.table.Table" = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
