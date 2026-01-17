@@ -26,6 +26,17 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
 
+    # Hive partition configuration
+    use_hive_partition: bool = False
+    """Enable Hive-style partitioning with format: {table_name}/partition_column=value/{file}
+    When enabled, files are organized in Hive partition format (e.g., users/loaded_at=2024-01-15/file.parquet)"""
+
+    hive_partition_column: str = "loaded_at"
+    """Column name to use for Hive partitioning (default: 'loaded_at')"""
+
+    hive_partition_date_format: str = "YYYY-MM-DD"
+    """Date format for Hive partition value (default: 'YYYY-MM-DD' which produces '2024-01-15')"""
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
@@ -38,3 +49,10 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
         )
         if unused_placeholders:
             logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
+
+        # Log Hive partition configuration
+        if self.use_hive_partition:
+            logger.info(
+                f"Hive partitioning enabled: column='{self.hive_partition_column}', "
+                f"date_format='{self.hive_partition_date_format}'"
+            )

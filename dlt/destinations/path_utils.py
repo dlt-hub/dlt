@@ -218,13 +218,45 @@ def create_path(
     load_package_timestamp: Optional[pendulum.DateTime] = None,
     current_datetime: Optional[TCurrentDateTime] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
+    partition_column: Optional[str] = None,
+    date_format: Optional[str] = None,
+    use_hive_partition: bool = False,
 ) -> str:
-    """create a filepath from the layout and our default params"""
+    """Create a filepath from the layout and our default params.
+
+    Can generate either standard paths or Hive-partitioned paths based on use_hive_partition flag.
+
+    Args:
+        layout: Original layout template (e.g., '{table_name}/{load_id}.{file_id}.{ext}')
+        file_name: Name of the file
+        schema_name: Schema name
+        load_id: Load identifier
+        load_package_timestamp: Timestamp from load package
+        current_datetime: Current datetime or callable returning datetime
+        extra_placeholders: Additional placeholder values
+        partition_column: Name of partition column for Hive partitioning (default: "loaded_at")
+        date_format: Date format for Hive partition value (default: "YYYY-MM-DD")
+        use_hive_partition: Enable Hive-style partitioning (default: False)
+
+    Returns:
+        File path with either standard format or Hive partition format
+
+    Examples:
+        >>> # Standard path
+        >>> create_path("{table_name}/{load_id}.{file_id}.{ext}", ...)
+        'users/1704067200/0.parquet'
+
+        >>> # Hive partitioned path
+        >>> create_path("{table_name}/{load_id}.{file_id}.{ext}", ..., use_hive_partition=True)
+        'users/loaded_at=2024-01-15/users.1704067200.0.parquet'
+    """
+    # Handle callable current_datetime
     if callable(current_datetime):
         current_datetime = current_datetime()
         if not isinstance(current_datetime, pendulum.DateTime):
             raise RuntimeError("`current_datetime` is not an instance of `pendulum.DateTime`")
 
+    # Parse job info and prepare parameters
     job_info = ParsedLoadJobFileName.parse(file_name)
     params = prepare_params(
         extra_placeholders=extra_placeholders,
@@ -233,17 +265,43 @@ def create_path(
         load_id=load_id,
     )
 
+    # Add datetime parameters
     datetime_params = prepare_datetime_params(current_datetime, load_package_timestamp)
     params.update(datetime_params)
 
+    # Build the standard file path using the layout
     placeholders, _ = check_layout(layout, params)
-    path = layout.format(**params)
+    file_path = layout.format(**params)
 
-    # if extension is not defined, we append it at the end
+    # Add extension if not in layout
     if "ext" not in placeholders:
-        path = job_info.full_extension()
+        file_path = job_info.full_extension()
 
-    return path
+    # If Hive partitioning is disabled, return standard path
+    if not use_hive_partition:
+        return file_path
+
+    # Hive partitioning is enabled - transform the path
+    # Extract table name and prepare partition folder
+    table_name = params.get("table_name", "unknown_table")
+
+    # Get partition datetime and format it
+    partition_datetime = load_package_timestamp or current_datetime or pendulum.now()
+    partition_date = partition_datetime.format(date_format or "YYYY-MM-DD")
+    partition_folder = f"{partition_column or 'loaded_at'}={partition_date}"
+
+    # Extract filename from the path (handle directories in layout)
+    path_parts = file_path.replace("\\", "/").split("/")
+
+    if len(path_parts) > 1:
+        # Path has directories - extract just the filename
+        file_name_only = path_parts[-1]
+        hive_path = f"{table_name}/{partition_folder}/{file_name_only}"
+    else:
+        # Path is just a filename
+        hive_path = f"{table_name}/{partition_folder}/{file_path}"
+
+    return hive_path
 
 
 def get_table_prefix_layout(

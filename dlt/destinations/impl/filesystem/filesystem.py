@@ -134,6 +134,9 @@ class FilesystemLoadJob(RunnableLoadJob):
             current_datetime=self._job_client.config.current_datetime,
             load_package_timestamp=package_timestamp,
             extra_placeholders=self._job_client.config.extra_placeholders,
+            partition_column=self._job_client.config.hive_partition_column,
+            date_format=self._job_client.config.hive_partition_date_format,
+            use_hive_partition=self._job_client.config.use_hive_partition,
         )
         # pick local filesystem pathlib or posix for buckets
         pathlib = self._job_client.config.pathlib

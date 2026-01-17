@@ -613,3 +613,153 @@ def test_get_file_format_and_compression(
     file_format, is_compressed = get_file_format_and_compression(file_path)
     assert file_format == expected_format
     assert is_compressed == expected_compression
+
+class TestCreatePathBasic:
+    """Test basic create_path functionality."""
+
+    def test_standard_path(self) -> None:
+        """Test standard path without Hive partitioning."""
+        path = create_path(
+            layout="{table_name}/{load_id}.{file_id}.{ext}",
+            file_name="users.1704067200.0.json",
+            schema_name="public",
+            load_id="1704067200",
+        )
+
+        assert path == "users/1704067200.1704067200.json"
+
+    def test_hive_partitioned_path(self, mocker) -> None:
+        """Test Hive-partitioned path."""
+        mocker.patch("pendulum.now", return_value=frozen_datetime)
+
+        path = create_path(
+            layout="{table_name}/{load_id}.{file_id}.{ext}",
+            file_name="users.1704067200.0.json",
+            schema_name="public",
+            load_id="1704067200",
+            use_hive_partition=True,
+            partition_column="loaded_at",
+            date_format="YYYY-MM-DD",
+        )
+
+        assert path == "users/loaded_at=2024-04-14/1704067200.1704067200.json"
+
+
+class TestCreatePathParameters:
+    """Test create_path parameter handling."""
+
+    def test_with_datetime_placeholders(self, mocker) -> None:
+        """Test with datetime placeholders in layout."""
+        mocker.patch("pendulum.now", return_value=frozen_datetime)
+
+        path = create_path(
+            layout="{table_name}/{YYYY}/{MM}/{DD}/{load_id}.{ext}",
+            file_name="test.123.0.json",
+            schema_name="public",
+            load_id="123",
+        )
+
+        assert path == "test/2024/04/14/123.json"
+
+    def test_with_extra_placeholders(self) -> None:
+        """Test with extra placeholders."""
+        path = create_path(
+            layout="{table_name}/{env}/{load_id}.{ext}",
+            file_name="users.1704067200.0.json",
+            schema_name="public",
+            load_id="1704067200",
+            extra_placeholders={"env": "prod"},
+        )
+
+        assert "prod/" in path
+        assert "users/" in path
+
+    def test_custom_datetime(self) -> None:
+        """Test with custom datetime."""
+        custom_time = pendulum.DateTime(2024, 6, 15, 12, 0, 0)
+
+        path = create_path(
+            layout="{table_name}/{YYYY}/{load_id}.{ext}",
+            file_name="test.1704067200.0.json",
+            schema_name="public",
+            load_id="1704067200",
+            current_datetime=custom_time,
+        )
+
+        assert "/2024/" in path
+
+
+class TestCreatePathHivePartitioning:
+    """Test Hive partitioning functionality."""
+
+    def test_hive_partition_custom_format(self, mocker) -> None:
+        """Test Hive partitioning with custom date format."""
+        mocker.patch("pendulum.now", return_value=frozen_datetime)
+
+        path = create_path(
+            layout="{table_name}/{load_id}.{ext}",
+            file_name="test.123.0.json",
+            schema_name="public",
+            load_id="123",
+            use_hive_partition=True,
+            partition_column="ingestion_date",
+            date_format="YYYY/MM/DD",
+        )
+
+        assert path == "test/ingestion_date=2024/04/14/123.json"
+
+    def test_hive_partition_with_layout(self, mocker) -> None:
+        """Test that Hive partitioning overrides complex layouts."""
+        mocker.patch("pendulum.now", return_value=frozen_datetime)
+
+        path = create_path(
+            layout="{table_name}/{YYYY}/{MM}/{load_id}.{ext}",
+            file_name="transactions.1704067200.1.parquet",
+            schema_name="public",
+            load_id="1704067200",
+            use_hive_partition=True,
+            partition_column="loaded_at",
+            date_format="YYYY-MM-DD",
+        )
+
+        # Hive partition should restructure the path
+        assert "transactions/" in path
+        assert "loaded_at=2024-04-14/" in path
+
+
+class TestCreatePathEdgeCases:
+    """Test edge cases."""
+
+    def test_empty_file_name(self) -> None:
+        """Test with empty file name raises error."""
+        with pytest.raises(Exception):
+            create_path(
+                layout="{table_name}/{load_id}.{ext}",
+                file_name="",
+                schema_name="public",
+                load_id="123",
+            )
+
+    def test_special_characters(self) -> None:
+        """Test with special characters in table name."""
+        path = create_path(
+            layout="{table_name}/{load_id}.{ext}",
+            file_name="test-with_dash.123.0.json",
+            schema_name="public",
+            load_id="123",
+        )
+
+        assert "test-with_dash/" in path
+
+    def test_very_long_load_id(self) -> None:
+        """Test with very long load ID."""
+        long_load_id = "1234567890" * 10  # 100 characters
+
+        path = create_path(
+            layout="{table_name}/{load_id}.{ext}",
+            file_name="test.123.0.json",
+            schema_name="public",
+            load_id=long_load_id,
+        )
+
+        assert long_load_id in path
