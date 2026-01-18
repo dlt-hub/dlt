@@ -23,6 +23,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
 )
 
+from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.destination.client import (
     StateInfo,
@@ -35,6 +36,7 @@ from dlt.common.time import ensure_pendulum_datetime_utc
 
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
+from tests.load.clickhouse_cluster.utils import get_table_engine
 from tests.utils import TEST_STORAGE_ROOT
 from tests.common.utils import load_json_case
 from tests.load.utils import (
@@ -842,7 +844,14 @@ def test_write_dispositions(
                 # NOTE: on second load, number of records in table "t" is zero in case of merge on
                 #  clickhouse. query log looks good. if I disable deleting from table "t" I still
                 #  get 0 rows 🤯
-                if client.destination_config.destination_type != "clickhouse":
+                # NOTE: this issue seems to occur only when using replicated tables
+                is_clickhouse_replicated = isinstance(
+                    client, ClickHouseClient
+                ) and get_table_engine(client.sql_client, t) in (
+                    "SharedMergeTree",
+                    "ReplicatedMergeTree",
+                )
+                if not is_clickhouse_replicated:
                     # merge data should be copied to destination dataset and PK should be applied
                     assert len(db_rows) == 1
                 # check staging
