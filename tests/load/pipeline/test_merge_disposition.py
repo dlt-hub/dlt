@@ -75,6 +75,15 @@ def test_merge_on_keys_in_schema_nested_hints(
         # remove `partition` hint because it conflicts with `cluster` on databricks
         schema.merge_hints({"partition": []}, replace=True)
 
+    if destination_config.destination_type == "clickhouse":
+        # remove `partition` hint because it conflicts with `nullable` on clickhouse
+        schema.merge_hints({"partition": []}, replace=True)
+        # remove `sort` hints because it conflicts with `primary_key` on clickhouse
+        for table in schema.tables.values():
+            for column in table["columns"].values():
+                if "sort" in column:
+                    del column["sort"]
+
     # make block uncles unseen to trigger filtering loader in loader for nested tables
     if has_table_seen_data(schema.tables["blocks__uncles"]):
         del schema.tables["blocks__uncles"]["x-normalizer"]
@@ -94,15 +103,16 @@ def test_merge_on_keys_in_schema_nested_hints(
     }
 
     @dlt.source(schema=schema)
-    def ethereum(slice_: slice = None):
+    def ethereum(slice_: slice = None, duplicates: int = 0):
         @dlt.resource(**hints, nested_hints=nested_hints)  # type: ignore[call-overload]
         def blocks():
-            with open(
-                "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
-                "r",
-                encoding="utf-8",
-            ) as f:
-                yield json.load(f) if slice_ is None else json.load(f)[slice_]
+            for _ in range(duplicates + 1):
+                with open(
+                    "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    yield json.load(f) if slice_ is None else json.load(f)[slice_]
 
         return blocks()
 

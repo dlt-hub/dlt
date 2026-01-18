@@ -3,7 +3,11 @@ from abc import abstractmethod, ABC
 from functools import lru_cache
 import math
 import hashlib
+import re
 from typing import Sequence, ClassVar
+
+
+RE_LEADING_UNDERSCORES = re.compile(r"^_+")
 
 
 class NamingConvention(ABC):
@@ -127,3 +131,7 @@ class NamingConvention(ABC):
         )
         assert len(identifier) == max_length
         return identifier
+
+    @staticmethod
+    def _remove_leading_underscores(identifier: str) -> str:
+        return RE_LEADING_UNDERSCORES.sub("", identifier)

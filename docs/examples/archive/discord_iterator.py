@@ -7,7 +7,7 @@
 # # this is example of extracting from iterator that may be a
 # # - jsonl file you read line by line
 # # - a list of dicts
-# # - iterator over panda frame https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_dict.html
+# # - iterator over pandas DataFrame https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_dict.html
 # # - any iterator with map function
 # # - any iterator whatsoever ie getting data from REST API
 

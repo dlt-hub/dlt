@@ -1,4 +1,7 @@
+from typing import Optional
+
 from dlt.common.configuration.specs import RuntimeConfiguration
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
     RunContextBase,
@@ -29,8 +32,12 @@ def initialize_runtime(logger_name: str, runtime_config: RuntimeConfiguration) -
     start_telemetry(runtime_config)
 
 
-def restore_run_context(run_context: RunContextBase) -> None:
-    """Restores `run_context` by placing it into container and if `runtime_config` is present, initializes runtime
+def restore_run_context(
+    run_context: RunContextBase, section_context: Optional[ConfigSectionContext] = None
+) -> None:
+    """Restores `run_context` and optionally `section_context` by placing them into container.
+    If `runtime_config` is present, initializes runtime.
+
     Intended to be called by workers in a process pool.
     """
     from dlt.common.configuration.container import Container
@@ -39,3 +46,6 @@ def restore_run_context(run_context: RunContextBase) -> None:
     assert run_context.runtime_config is not None
 
     Container()[PluggableRunContext] = PluggableRunContext(run_context)
+
+    if section_context:
+        Container()[ConfigSectionContext] = section_context

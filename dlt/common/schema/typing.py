@@ -57,6 +57,10 @@ C_DESCENDANT_ROOT_REF_LABEL = "_dlt_root"
 """Label of the implicit `TTableReference` between a descendant table and its root table"""
 C_ROOT_LOAD_REF_LABEL = "_dlt_load"
 """Label of the implicit `TTableReference` between a root table and the _dlt_loads table"""
+C_VERSION_SCHEMA_VERSION_LABEL = "_dlt_schema_version"
+"""Label of the implicit TTableReference between {LOAD_TABLE_NAME} and {VERSION_TABLE_NAME} for schema version."""
+C_VERSION_SCHEMA_NAME_LABEL = "_dlt_schema_name"
+"""Label of the implicit TTableReference between {LOAD_TABLE_NAME} and {VERSION_TABLE_NAME} for schema name."""
 
 TColumnProp = Literal[
     "name",

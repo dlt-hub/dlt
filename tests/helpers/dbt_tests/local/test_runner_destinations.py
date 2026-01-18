@@ -53,6 +53,7 @@ def test_setup_dbt_runner() -> None:
     assert runner.working_dir == TEST_STORAGE_ROOT
 
 
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 def test_initialize_package_wrong_key() -> None:
     runner = setup_rasa_runner(
         "redshift",

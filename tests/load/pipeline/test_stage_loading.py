@@ -6,6 +6,7 @@ from dlt.common import json
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
+from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.path_utils import get_file_format_and_compression
 
 from tests.load.pipeline.test_merge_disposition import github
@@ -77,9 +78,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     num_sql_jobs = 0
     if destination_config.supports_merge:
         num_sql_jobs += 1
-        # sql job is used to copy parquet to Athena Iceberg table (_dlt_pipeline_state)
-        # if destination_config.destination == "athena":
-        #     num_sql_jobs += 1
+    if destination_config.uses_table_format_for_state_table:
+        num_sql_jobs += 1
     assert len(package_info.jobs["completed_jobs"]) == num_jobs + num_sql_jobs
     assert (
         len(
@@ -124,7 +124,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     # check item of first row in db
     with pipeline.sql_client() as sql_client:
         qual_name = sql_client.make_qualified_table_name
-        if destination_config.destination_type in ["mssql", "synapse"]:
+        use_top_n_syntax = isinstance(sql_client, PyOdbcMsSqlClient)
+        if use_top_n_syntax:
             rows = sql_client.execute_sql(
                 f"SELECT TOP 1 url FROM {qual_name('issues')} WHERE id = 388089021"
             )
@@ -144,7 +145,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
         # check changes where merged in
         with pipeline.sql_client() as sql_client:
-            if destination_config.destination_type in ["mssql", "synapse"]:
+            if use_top_n_syntax:
                 qual_name = sql_client.make_qualified_table_name
                 rows_1 = sql_client.execute_sql(
                     f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id = 1232152492"
@@ -227,7 +228,8 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
             destination_config.destination_type == "athena"
             and destination_config.table_format == "iceberg"
         ):
-            table_count = 9
+            # with S3 Tables Catalog, Athena uses a managed location, so no files in staging client
+            table_count = 0 if destination_config.is_athena_s3_tables else 9
             # but keeps them in staging dataset on staging destination - but only the last one
             with staging_client.with_staging_dataset():  # type: ignore[attr-defined]
                 assert len(staging_client.list_table_files(table_name)) == 1  # type: ignore[attr-defined]

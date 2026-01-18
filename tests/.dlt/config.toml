@@ -13,11 +13,14 @@ bucket_url_http="http://localhost:8189"
 bucket_url_file="data"
 bucket_url_az="az://dlt-ci-test-bucket"
 bucket_url_abfss="abfss://dlt-ci-test-bucket@dltdata.dfs.core.windows.net"
+bucket_url_onelake="abfss://a9afb708-5f0c-4c3b-b914-efaa7e1e20da@onelake.dfs.fabric.microsoft.com/b31ba46b-27ea-475e-ab64-cd57438cd41f/Files"
 bucket_url_r2="s3://dlt-ci-test-bucket"
 # use "/" as root path
 bucket_url_gdrive="gdrive://15eC3e5MNew2XAIefWNlG8VlEa0ISnnaG"
 bucket_url_sftp="sftp://localhost/data"
 memory="memory:///m"
+s3_table_bucket_arn="arn:aws:s3tables:eu-central-1:267388281016:bucket/dlt-ci-test-table-bucket"
+s3_tables_catalog="s3tablescatalog/dlt-ci-test-table-bucket"
 
 [destination.custom_name]
 destination_type = "duckdb"

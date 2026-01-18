@@ -57,6 +57,7 @@ IMPLEMENTED_DESTINATIONS = {
     "athena",
     "duckdb",
     "bigquery",
+    "fabric",
     "redshift",
     "postgres",
     "snowflake",
@@ -95,9 +96,12 @@ except ImportError:
 
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
-# exclude destination configs (for now used for athena and athena iceberg separation)
+# exclude destination test configurations
 EXCLUDED_DESTINATION_CONFIGURATIONS = set(
     dlt.config.get("EXCLUDED_DESTINATION_CONFIGURATIONS", list) or set()
+)
+EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS = set(
+    dlt.config.get("EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS", list) or set()
 )
 
 
