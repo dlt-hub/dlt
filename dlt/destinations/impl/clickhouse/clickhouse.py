@@ -283,6 +283,13 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
         table = super().prepare_load_table(table_name)
 
+        if TABLE_ENGINE_TYPE_HINT not in table:
+            table[TABLE_ENGINE_TYPE_HINT] = (  # type: ignore[typeddict-unknown-key]
+                self.config.dlt_tables_table_engine_type
+                if self.schema.is_dlt_table(table_name)
+                else self.config.table_engine_type
+            )
+
         if SORT_HINT not in table:
             table[SORT_HINT] = get_columns_names_with_prop(table, "sort")  # type: ignore[typeddict-unknown-key]
 
@@ -375,16 +382,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         if generate_alter:
             return sql
 
-        # fall back to default table engine type if not specified in table schema
-        default_table_engine_type = (
-            self.config.dlt_tables_table_engine_type
-            if self.schema.is_dlt_table(table_name)
-            else self.config.table_engine_type
-        )
-        table_engine_type = cast(
-            TTableEngineType,
-            table.get(TABLE_ENGINE_TYPE_HINT, default_table_engine_type),
-        )
+        table_engine_type = cast(TTableEngineType, table[TABLE_ENGINE_TYPE_HINT])  # type: ignore[typeddict-item]
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_engine_type)}"
 
         # PRIMARY KEY
