@@ -174,12 +174,9 @@ def populated_pipeline(
 # pipeline population per fixture setup will work and save a lot of time
 configs = destinations_configs(
     default_sql_configs=True,
-    all_buckets_filesystem_configs=True,
-    table_format_filesystem_configs=True,
+    read_only_sqlclient_configs=True,
     bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-) + [DestinationTestConfiguration(destination_type="lancedb")]
-# LanceDB is added explicitly here instead of the `destinations_configs()` logic
-# because it has SQL-read capabilities, but not SQL-write.
+)
 
 
 @pytest.mark.no_load

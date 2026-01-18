@@ -174,11 +174,8 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      # TODO fix parameterization
-      # current GHA runs `tests/load/test_read_interfaces.py` in all parameterization;
-      # It's missing `lancedb` extra, so it's explicitly added here
       - name: Install dependencies
-        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }} --extra lancedb
+        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Copy secrets for local tests
         run: |

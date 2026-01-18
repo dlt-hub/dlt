@@ -20,6 +20,7 @@ from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfiguration
 from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
+from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 
 try:
     import ibis
@@ -130,8 +131,8 @@ def create_ibis_backend(
             schema=dataset_name, **sn_credentials, create_object_udfs=False
         )
     elif issubclass(destination.spec, MsSqlClientConfiguration) and not issubclass(
-        destination.spec, SynapseClientConfiguration
-    ):  # exclude synapse
+        destination.spec, (SynapseClientConfiguration, FabricClientConfiguration)
+    ):  # exclude synapse and fabric
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         assert isinstance(client, MsSqlJobClient)
@@ -265,6 +266,8 @@ def _get_ibis_to_sqlglot_compiler(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
         compiler = sc.DruidCompiler()
     elif dialect == "duckdb":
         compiler = sc.DuckDBCompiler()
+    elif dialect == "fabric":
+        compiler = sc.MSSQLCompiler()
     elif dialect == "mysql":
         compiler = sc.MySQLCompiler()
     elif dialect == "oracle":
