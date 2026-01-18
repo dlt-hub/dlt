@@ -1,6 +1,5 @@
 """SQL database source helpers"""
 
-from functools import partial
 import warnings
 from typing import (
     Callable,
@@ -509,51 +508,36 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     merge_key: Optional[TColumnNames] = None
 
 
-def oracle_get_multi_columns(  # type: ignore
-    original_fn,
-    connection,
-    *,
-    schema,
-    filter_names,
-    scope,
-    kind,
-    dblink=None,
-    **kw,
-):
+def _oracle_column_reflect_listener(
+    inspector: Any, table: Any, column_info: Dict[str, Any]
+) -> None:
     """
-    A patch/"sublcass" method for OracleDialect.get_multi_columns that enforces NUMBER type
-    to translate to python decimal.Decimal
+    SQLAlchemy event listener for `column_reflect` that enforces Oracle NUMBER type
+    to translate to python decimal.Decimal.
+
+    Oracle NUMBER may express floating- or fixed-point numbers, but floats
+    don't conform to IEEE754 standard, so we're always using "decimal" type
+    to preserve values as accurately as possible. SQLAlchemy2 uses different
+    logic for determining asdecimal, we're overriding it here.
     """
-    superclass_result = original_fn(
-        connection,
-        schema=schema,
-        filter_names=filter_names,
-        scope=scope,
-        kind=kind,
-        dblink=dblink,
-        **kw,
-    )
-    result = {}
-    for key, columns in superclass_result:
-        for column in columns:
-            # Oracle NUMBER may express floating- or fixed-point numbers, but floats
-            # don't conform to IEEE754 standard, so we're always using "decimal" type
-            # to preserve values as accurately as possible. SQLAlchemy2 uses different
-            # logic for determining asdecimal, we're overriding it here
-            if isinstance(column["type"], ORACLE_NUMBER):
-                column["type"] = ORACLE_NUMBER(
-                    precision=column["type"].precision,
-                    scale=column["type"].scale,
-                    asdecimal=True,
-                )
-        result[key] = columns
-    return result.items()
-
-
-def default_engine_adapter_callback(engine: Engine) -> Engine:
-    if isinstance(engine.dialect, OracleDialect):
-        engine.dialect.get_multi_columns = partial(  # type: ignore
-            oracle_get_multi_columns,
-            engine.dialect.get_multi_columns,  # type: ignore
+    column_type = column_info.get("type")
+    if isinstance(column_type, ORACLE_NUMBER):
+        column_info["type"] = ORACLE_NUMBER(
+            precision=column_type.precision,
+            scale=column_type.scale,
+            asdecimal=True,
         )
-    return engine
+
+
+def default_engine_adapter_callback(engine: Engine, metadata: MetaData) -> None:
+    """Applies default engine adaptations for known dialects.
+
+    For Oracle dialect, registers an event listener on the provided MetaData that forces
+    NUMBER columns to be reflected as Python Decimal to preserve numeric precision.
+
+    Args:
+        engine: The SQLAlchemy engine to check dialect for.
+        metadata: The MetaData instance to register the listener on.
+    """
+    if isinstance(engine.dialect, OracleDialect):
+        sa.event.listen(metadata, "column_reflect", _oracle_column_reflect_listener)

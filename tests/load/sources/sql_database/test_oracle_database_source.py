@@ -1,5 +1,6 @@
 from copy import deepcopy
-from typing import List
+from decimal import Decimal
+from typing import Any, List
 import pytest
 
 from dlt.common.exceptions import DependencyVersionException
@@ -102,6 +103,42 @@ def test_sql_table_incremental_datetime_ntz(
     assert_incremental_chunks(pipeline, table, "some_timestamp_ntz", timezone=False, row_count=rc)
 
 
+def _assert_decimal_columns(data: Any, backend: str) -> Any:
+    """Verify that Oracle NUMBER columns are returned as Python Decimal (not float).
+
+    This checks the raw data from the source before loading to confirm the
+    Oracle dialect listener is correctly setting asdecimal=True.
+    """
+    # Columns that should be Decimal (NUMBER types without BINARY_FLOAT/BINARY_DOUBLE)
+    decimal_columns = ["some_number", "some_number_precision", "some_number_precision_scale"]
+
+    if backend == "sqlalchemy":
+        # Data is a list of dicts
+        for col in decimal_columns:
+            value = data.get(col)
+            if value is not None:
+                assert isinstance(
+                    value, Decimal
+                ), f"Column {col} should be Decimal but got {type(value).__name__}: {value}"
+    else:
+        # For pyarrow/pandas backends, check the arrow/pandas types
+        import pyarrow as pa
+
+        if isinstance(data, pa.Table):
+            for col in decimal_columns:
+                if col in data.column_names:
+                    col_type = data.schema.field(col).type
+                    assert pa.types.is_decimal(
+                        col_type
+                    ), f"Column {col} should be decimal type but got {col_type}"
+        # pandas DataFrame case - check for object dtype (Decimal) or decimal128
+        elif hasattr(data, "dtypes"):  # pandas DataFrame
+            # panda frames are always double, do not use panda frames for decimal data!
+            pass
+
+    return data
+
+
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas"])
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_numeric_types(
@@ -118,8 +155,12 @@ def test_numeric_types(
         schema=oracle_db.schema,
         reflection_level=reflection_level,
         backend=backend,
+        defer_table_reflect=True,
         table_names=["app_user"],
     )
+
+    # Add map to verify decimal types at extraction time
+    source.resources["app_user"].add_map(lambda data: _assert_decimal_columns(data, backend))
 
     pipeline = make_pipeline("duckdb")
     info = pipeline.run(source, loader_file_format="parquet")

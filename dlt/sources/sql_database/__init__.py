@@ -112,10 +112,10 @@ def sql_database(
     # set up alchemy engine
     engine = engine_from_credentials(credentials)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
-    engine = default_engine_adapter_callback(engine)
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     if defer_table_reflect:
         if not table_names:
@@ -254,10 +254,10 @@ def sql_table(
 
     engine = engine_from_credentials(credentials, may_dispose_after_use=True)
     engine.execution_options(stream_results=True, max_row_buffer=2 * chunk_size)
-    engine = default_engine_adapter_callback(engine)
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     # Table object is only created when reflecting, we don't want empty tables in metadata
     # as it breaks foreign key resolution
