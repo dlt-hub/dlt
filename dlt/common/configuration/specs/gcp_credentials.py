@@ -24,28 +24,28 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.utils import is_interactive
 
 
-def _get_pyiceberg_fileio_config_from_adc(
-    credentials: Any, project_id: Optional[str]
-) -> Dict[str, Any]:
-    """Get pyiceberg FileIO config from Google Application Default Credentials.
+# GCS scope required for OAuth2 token requests
+GCS_SCOPE = "https://www.googleapis.com/auth/devstorage.read_write"
 
-    This refreshes the ADC credentials to get a valid OAuth2 token and returns
+
+def _get_pyiceberg_fileio_config(credentials: Any, project_id: Optional[str]) -> Dict[str, Any]:
+    """Get pyiceberg FileIO config from Google credentials.
+
+    This refreshes the credentials to get a valid OAuth2 token and returns
     the configuration dict that pyiceberg expects for GCS access.
     """
-    import google.auth
     from google.auth.transport.requests import Request
 
-    native_credentials, project = google.auth.default()
-    native_credentials.refresh(Request())
-
     if not credentials.token:
+        # For service account credentials, we need to add scopes before refresh
+        # The credentials.requires_scopes check handles both service account and OAuth credentials
+        if credentials.requires_scopes:
+            credentials = credentials.with_scopes([GCS_SCOPE])
         credentials.refresh(Request())
 
     config: Dict[str, Any] = {}
-    config["gcs.project-id"] = project_id if project_id else project
-    config["gcs.oauth2.token"] = (
-        credentials.token if credentials.token else native_credentials.token
-    )
+    config["gcs.project-id"] = project_id
+    config["gcs.oauth2.token"] = credentials.token
     if credentials.expiry:
         expiry_ms = int(credentials.expiry.timestamp() * 1000)
         config["gcs.oauth2.token-expires-at"] = str(expiry_ms)
@@ -158,10 +158,7 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials, WithPyicebergC
             return ServiceAccountCredentials.from_service_account_info(self)
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
-        raise UnsupportedAuthenticationMethodException(
-            "Service Account authentication not supported with `iceberg` table format. Use OAuth"
-            " authentication instead."
-        )
+        return _get_pyiceberg_fileio_config(self.to_native_credentials(), self.project_id)
 
     @classmethod
     def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
@@ -395,9 +392,7 @@ class GcpServiceAccountCredentials(
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            return _get_pyiceberg_fileio_config_from_adc(
-                self.default_credentials(), self.project_id
-            )
+            return _get_pyiceberg_fileio_config(self.default_credentials(), self.project_id)
         else:
             return GcpServiceAccountCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
 
@@ -413,8 +408,6 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            return _get_pyiceberg_fileio_config_from_adc(
-                self.default_credentials(), self.project_id
-            )
+            return _get_pyiceberg_fileio_config(self.default_credentials(), self.project_id)
         else:
             return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
