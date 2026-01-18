@@ -111,6 +111,10 @@ staging_use_https = true                                # Whether to connect to 
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
+:::note
+Be aware that, when using the `delete-insert` merge strategy with `replicated_merge_tree` tables, `dlt` allows the delete mutation to be non-deterministic (i.e. it sets `allow_nondeterministic_mutations=1` for the `DELETE FROM` SQL statement). This may lead to incorrect results when data is out-of-sync across nodes. See ClickHouse [docs](https://clickhouse.com/docs/operations/settings/settings#allow_nondeterministic_mutations) on this topic.
+:::
+
 ## Data loading
 
 Data is loaded into ClickHouse using the most efficient method depending on the data source:

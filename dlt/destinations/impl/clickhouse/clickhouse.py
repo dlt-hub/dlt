@@ -224,6 +224,21 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     def requires_temp_table_for_delete(cls) -> bool:
         return True
 
+    @classmethod
+    def gen_delete_from_sql(
+        cls,
+        table_name: str,
+        unique_column: str,
+        delete_temp_table_name: str,
+        temp_table_column: str,
+    ) -> str:
+        sql = super().gen_delete_from_sql(
+            table_name, unique_column, delete_temp_table_name, temp_table_column
+        )
+        # `sql` is DELETE FROM statement with subquery, which may be non-deterministic when using
+        # replicated tables; we allow non-deterministic mutations to make this work in that case
+        return sql.rstrip().rstrip(";") + " SETTINGS allow_nondeterministic_mutations = 1;"
+
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(

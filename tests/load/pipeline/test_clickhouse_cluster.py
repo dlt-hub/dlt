@@ -383,3 +383,24 @@ def test_replication_distribution(destination_config: DestinationTestConfigurati
     # assert total row count across both shards
     assert shard_row_cnts[0] + shard_row_cnts[2] == n_rows  # shard 1 on node 1, shard 2 on node 3
     assert shard_row_cnts[1] + shard_row_cnts[3] == n_rows  # shard 1 on node 2, shard 2 on node 4
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
+    ids=lambda x: x.name,
+)
+def test_replicated_table_merge(destination_config: DestinationTestConfiguration) -> None:
+    """Tests `merge` write disposition with `ReplicatedMergeTree` table engine.
+
+    We explicitly test this configuration to trigger `ClickHouseMergeJob.gen_delete_from_sql`.
+    """
+
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def res():
+        yield {"id": 1, "val": "a"}
+
+    adapted = clickhouse_cluster_adapter(res, table_engine_type="replicated_merge_tree")
+
+    pipe = destination_config.setup_pipeline("test_replicated_table_merge", dev_mode=True)
+    pipe.run(adapted())
