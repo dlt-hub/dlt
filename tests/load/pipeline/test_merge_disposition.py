@@ -103,15 +103,16 @@ def test_merge_on_keys_in_schema_nested_hints(
     }
 
     @dlt.source(schema=schema)
-    def ethereum(slice_: slice = None):
+    def ethereum(slice_: slice = None, duplicates: int = 0):
         @dlt.resource(**hints, nested_hints=nested_hints)  # type: ignore[call-overload]
         def blocks():
-            with open(
-                "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
-                "r",
-                encoding="utf-8",
-            ) as f:
-                yield json.load(f) if slice_ is None else json.load(f)[slice_]
+            for _ in range(duplicates + 1):
+                with open(
+                    "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    yield json.load(f) if slice_ is None else json.load(f)[slice_]
 
         return blocks()
 

@@ -129,6 +129,13 @@ jobs:
               extras: "--extra synapse --extra parquet"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
 
+            # Fabric
+            - name: fabric
+              destinations: "[\"fabric\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "--extra fabric"
+              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+
             # Postgres and Redshift (used to be test_destinations.yml)
             - name: redshift
               destinations: "[\"redshift\"]"
@@ -204,11 +211,8 @@ jobs:
         run: ${{ matrix.pre_install_commands }}
         if: ${{ matrix.pre_install_commands }}
 
-      # TODO fix parameterization
-      # current GHA runs `tests/load/test_read_interfaces.py` in all parameterization;
-      # It's missing `lancedb` extra, so it's explicitly added here
       - name: Install dependencies
-        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }} --extra lancedb
+        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}
