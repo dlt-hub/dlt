@@ -6,6 +6,14 @@ keywords: [snowflake, native app, database connector app]
 
 # Database Connector App
 
+:::info Early Access
+This application is currently in early access.
+
+If you’d like to request trial access, please fill out the form here:  
+https://dlthub.com/contact
+:::
+
+
 The dltHub Database Connector App is a Snowflake Native App that lets you move data from your source database into Snowflake using a simple UI. 
 
 You can: 
