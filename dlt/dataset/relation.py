@@ -322,7 +322,7 @@ class Relation(WithSqlClient):
         subquery = self.sqlglot_expression.subquery()
         new_expr = sge.select(*proj).from_(subquery)
         rel = self.__copy__()
-        if allow_merge_subqueries:
+        if _merge_subqueries:
             rel._sqlglot_expression = merge_subqueries(new_expr)
         else:
             rel._sqlglot_expression = new_expr
@@ -545,7 +545,7 @@ class Relation(WithSqlClient):
         return (
             filtered_rel_with_load_id
             if add_load_id_column
-            else filtered_rel_with_load_id.select(*initial_columns, _enable_merge_subqueries=False)
+            else filtered_rel_with_load_id.select(*initial_columns, _merge_subqueries=False)
         )
 
     # TODO move this to the WithSqlClient / data accessor mixin.
