@@ -28,6 +28,7 @@ from dlt.destinations.impl.clickhouse.typing import (
     SETTINGS_HINT,
     SORT_HINT,
     TABLE_ENGINE_TYPE_HINT,
+    TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
 )
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
@@ -180,7 +181,8 @@ def test_clickhouse_cluster_adapter_distributed_table(
     assert shard_stmt.startswith(
         f"CREATE TABLE {shard_qual_table_name} ON CLUSTER {SHARDED_CLUSTER_NAME} ("
     )
-    assert "ENGINE = MergeTree" in shard_stmt
+    engine = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR[client.config.table_engine_type]
+    assert f"ENGINE = {engine}" in shard_stmt
 
     # distributed table statement
     dist_stmt = stmts[1]

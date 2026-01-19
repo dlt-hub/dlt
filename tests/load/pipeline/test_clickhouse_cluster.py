@@ -25,7 +25,7 @@ from tests.load.clickhouse_cluster.utils import (
     get_table_engine,
     set_clickhouse_cluster_conf,
 )
-from tests.load.utils import AWS_BUCKET, DestinationTestConfiguration, destinations_configs
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 
 
@@ -40,12 +40,11 @@ def get_row_cnt(ds: dlt.Dataset, qualified_table_name: str) -> int:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
+    destinations_configs(default_sql_configs=True, cid="clickhouse-cluster-replicated-merge-tree"),
     ids=lambda x: x.name,
 )
 def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
     res = decorators.resource([{"foo": "bar"}], name="foo")
-    res = clickhouse_cluster_adapter(res, table_engine_type="replicated_merge_tree")
 
     # define cluster config
     cluster = REPLICATED_CLUSTER_NAME  # 1 shard, 2 replicas
@@ -135,7 +134,11 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
+    destinations_configs(
+        default_sql_configs=True,
+        # we set engine in test with adapter; limit to merge tree config here to avoid test redundancy
+        cid="clickhouse-cluster-merge-tree",
+    ),
     ids=lambda x: x.name,
 )
 def test_replication(destination_config: DestinationTestConfiguration) -> None:
@@ -152,14 +155,10 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
     set_clickhouse_cluster_conf(cluster=REPLICATED_CLUSTER_NAME)
 
     data = [{"foo": "bar"}]
-    replicated = clickhouse_cluster_adapter(
-        data,
-        table_engine_type="replicated_merge_tree",  # use replicated engine
-    ).apply_hints(table_name="replicated")
-    not_replicated = clickhouse_cluster_adapter(
-        data,
-        table_engine_type="merge_tree",  # use non-replicated engine
-    ).apply_hints(table_name="not_replicated")
+    replicated = decorators.resource(data, name="replicated")
+    replicated = clickhouse_cluster_adapter(replicated, table_engine_type="replicated_merge_tree")
+    not_replicated = decorators.resource(data, name="not_replicated")
+    not_replicated = clickhouse_cluster_adapter(not_replicated, table_engine_type="merge_tree")
     pipe = destination_config.setup_pipeline("test_replication", dev_mode=True)
 
     # assert we are connecting to first node on replicated cluster
@@ -211,8 +210,7 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
     destinations_configs(
         default_sql_configs=True,
         default_staging_configs=True,
-        subset=["clickhouse_cluster"],
-        bucket_subset=[None, AWS_BUCKET],
+        cid=("clickhouse-cluster-merge-tree", "clickhouse-cluster-merge-tree-s3-staging"),
     ),
     ids=lambda x: x.name,
 )
@@ -299,7 +297,10 @@ def test_distribution(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
+    destinations_configs(
+        default_sql_configs=True,
+        cid="clickhouse-cluster-replicated-merge-tree",
+    ),
     ids=lambda x: x.name,
 )
 def test_replication_distribution(destination_config: DestinationTestConfiguration) -> None:
@@ -322,11 +323,8 @@ def test_replication_distribution(destination_config: DestinationTestConfigurati
     n_rows = 100
     data = [{"foo": "bar"} for _ in range(n_rows)]
     shard_table_name = "replicated_sharded_table"
-    res = clickhouse_cluster_adapter(
-        data,
-        table_engine_type="replicated_merge_tree",  # use replicated engine
-        create_distributed_table=True,
-    ).apply_hints(table_name=shard_table_name)
+    res = decorators.resource(data, name=shard_table_name)
+    res = clickhouse_cluster_adapter(res, create_distributed_table=True)
     pipe = destination_config.setup_pipeline("test_replication_distribution", dev_mode=True)
 
     # assert we are connecting to replicated sharded cluster
@@ -383,24 +381,3 @@ def test_replication_distribution(destination_config: DestinationTestConfigurati
     # assert total row count across both shards
     assert shard_row_cnts[0] + shard_row_cnts[2] == n_rows  # shard 1 on node 1, shard 2 on node 3
     assert shard_row_cnts[1] + shard_row_cnts[3] == n_rows  # shard 1 on node 2, shard 2 on node 4
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
-    ids=lambda x: x.name,
-)
-def test_replicated_table_merge(destination_config: DestinationTestConfiguration) -> None:
-    """Tests `merge` write disposition with `ReplicatedMergeTree` table engine.
-
-    We explicitly test this configuration to trigger `ClickHouseMergeJob.gen_delete_from_sql`.
-    """
-
-    @dlt.resource(write_disposition="merge", primary_key="id")
-    def res():
-        yield {"id": 1, "val": "a"}
-
-    adapted = clickhouse_cluster_adapter(res, table_engine_type="replicated_merge_tree")
-
-    pipe = destination_config.setup_pipeline("test_replicated_table_merge", dev_mode=True)
-    pipe.run(adapted())
