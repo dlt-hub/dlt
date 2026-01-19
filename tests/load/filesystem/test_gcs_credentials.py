@@ -1,11 +1,14 @@
 from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 import pytest
 
 import dlt
 from dlt.common.configuration.specs.exceptions import UnsupportedAuthenticationMethodException
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpOAuthCredentialsWithoutDefaults,
+    GcpServiceAccountCredentials,
     GcpServiceAccountCredentialsWithoutDefaults,
+    _get_pyiceberg_fileio_config,
 )
 from dlt.destinations import filesystem
 from dlt.sources.credentials import GcpOAuthCredentials
@@ -78,8 +81,8 @@ def test_gcp_oauth_credentials_pyiceberg_export_import() -> None:
     assert imported_creds.token == original_creds.token
 
 
-def test_gcp_service_account_credentials_pyiceberg_not_supported() -> None:
-    """test that GCP Service Account credentials raise the expected exception with PyIceberg."""
+def test_gcp_service_account_credentials_pyiceberg_export() -> None:
+    """test that GCP Service Account credentials can be exported to PyIceberg config."""
     import dlt
 
     # get GCP Service Account credentials
@@ -95,10 +98,15 @@ def test_gcp_service_account_credentials_pyiceberg_not_supported() -> None:
         client_email=sa_config["client_email"],
     )
 
-    # should raise exception when calling to_pyiceberg_fileio_config
-    with pytest.raises(UnsupportedAuthenticationMethodException):
-        sa_creds.to_pyiceberg_fileio_config()
+    # export to PyIceberg config - now this should work
+    pyiceberg_config = sa_creds.to_pyiceberg_fileio_config()
 
-    # should also raise exception when calling from_pyiceberg_fileio_config
+    # config should contain required fields
+    assert "gcs.project-id" in pyiceberg_config
+    assert pyiceberg_config["gcs.project-id"] == sa_creds.project_id
+    assert "gcs.oauth2.token" in pyiceberg_config
+    assert pyiceberg_config["gcs.oauth2.token"] is not None
+
+    # from_pyiceberg_fileio_config should still raise exception for service account
     with pytest.raises(UnsupportedAuthenticationMethodException):
         GcpServiceAccountCredentialsWithoutDefaults.from_pyiceberg_fileio_config({})
