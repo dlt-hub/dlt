@@ -235,9 +235,48 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         sql = super().gen_delete_from_sql(
             table_name, unique_column, delete_temp_table_name, temp_table_column
         )
-        # `sql` is DELETE FROM statement with subquery, which may be non-deterministic when using
-        # replicated tables; we allow non-deterministic mutations to make this work in that case
-        return sql.rstrip().rstrip(";") + " SETTINGS allow_nondeterministic_mutations = 1;"
+        return cls._add_mutation_settings(sql)
+
+    @classmethod
+    def gen_scd2_retire_sql(
+        cls,
+        root_table: PreparedTableSchema,
+        sql_client: SqlClientBase[Any],
+        validity_to_column: str,
+        row_hash_column: str,
+        boundary_literal: str,
+        is_active_clause: str,
+    ) -> str:
+        sql = super().gen_scd2_retire_sql(
+            root_table,
+            sql_client,
+            validity_to_column,
+            row_hash_column,
+            boundary_literal,
+            is_active_clause,
+        )
+        return cls._add_mutation_settings(sql)
+
+    @classmethod
+    def _add_mutation_settings(cls, sql: str) -> str:
+        """Adds SETTINGS clause to `sql` to apply mutation settings.
+
+        Added settings only affect mutations on `ReplicatedMergeTree` tables; they do not affect
+        mutations on `MergeTree` tables.
+
+        Settings added:
+        1. `allow_nondeterministic_mutations=1` to allow non-deterministic mutations
+            (mutations with subqueries are considered non-deterministic when using
+            `ReplicatedMergeTree` tables)
+        2. `mutations_sync=2` to make mutations that use `ReplicatedMergeTree` tables synchronous
+            (they are already synchronous for `MergeTree` tables by default)
+        """
+        # NOTE: there may be better ways to do UPDATES/DELETES than our current approach, which
+        # may let us avoid these settings:
+        # https://clickhouse.com/blog/handling-updates-and-deletes-in-clickhouse#updating-an-entire-table
+
+        settings_clause = " SETTINGS allow_nondeterministic_mutations=1, mutations_sync=2;"
+        return sql.rstrip().rstrip(";") + settings_clause
 
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):

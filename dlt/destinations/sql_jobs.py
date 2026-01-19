@@ -549,6 +549,45 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return col
 
     @classmethod
+    def gen_scd2_retire_sql(
+        cls,
+        root_table: PreparedTableSchema,
+        sql_client: SqlClientBase[Any],
+        validity_to_column: str,
+        row_hash_column: str,
+        boundary_literal: str,
+        is_active_clause: str,
+    ) -> str:
+        """Retires records in root table by updating `validity_to_column`.
+
+        Logic:
+        - no `merge_key`: retire all absent records
+        - yes `merge_key`: retire absent records whose `merge_key` is present in staging data
+        """
+
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
+        retire_sql = f"""
+            {cls.gen_update_table_prefix(root_table_name)} {validity_to_column} = {boundary_literal}
+            WHERE {is_active_clause}
+            AND {row_hash_column} NOT IN (SELECT {row_hash_column} FROM {staging_root_table_name});
+        """
+        merge_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "merge_key"),
+            sql_client.escape_column_name,
+        )
+        if len(merge_keys) > 0:
+            if len(merge_keys) == 1:
+                key = merge_keys[0]
+            else:
+                key = cls.gen_concat_sql(merge_keys)  # compound key
+            key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
+            retire_sql = retire_sql.rstrip().rstrip(";")
+            retire_sql += f" AND {key_present}"
+        return retire_sql
+
+    @classmethod
     def gen_merge_sql(
         cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
@@ -875,28 +914,17 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             )
             is_active = f"{to} = {active_record_literal}"
 
-        # retire records:
-        # - no `merge_key`: retire all absent records
-        # - yes `merge_key`: retire those absent records whose `merge_key`
-        # is present in staging data
-        retire_sql = f"""
-            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_literal}
-            WHERE {is_active}
-            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
-        """
-        merge_keys = cls._escape_list(
-            get_columns_names_with_prop(root_table, "merge_key"),
-            escape_column_id,
+        # retire records
+        sql.append(
+            cls.gen_scd2_retire_sql(
+                root_table,
+                sql_client,
+                validity_to_column=to,
+                row_hash_column=hash_,
+                boundary_literal=boundary_literal,
+                is_active_clause=is_active,
+            )
         )
-        if len(merge_keys) > 0:
-            if len(merge_keys) == 1:
-                key = merge_keys[0]
-            else:
-                key = cls.gen_concat_sql(merge_keys)  # compound key
-            key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
-            retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
-            retire_sql += f" AND {key_present}"
-        sql.append(retire_sql)
 
         # insert new active records in root table
         columns = map(escape_column_id, list(root_table["columns"].keys()))
