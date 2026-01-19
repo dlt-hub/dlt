@@ -1974,7 +1974,7 @@ def test_apply_hints_table_variants() -> None:
     table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
     assert table_b["name"] == "table_b"
     assert table_b["write_disposition"] == "merge"
-    assert table_b["columns"] == {}
+    assert len(table_b["columns"]) == 0
 
     # dyn hints not allowed
     with pytest.raises(InconsistentTableTemplate):
@@ -2038,10 +2038,7 @@ def test_apply_hints_keys(key_prop: TColumnProp) -> None:
     empty = DltResource.from_data(empty_gen)
     empty.apply_hints(**{key_prop: key_columns_2}, columns=[id_2_col])  # type: ignore
     table = empty.compute_table_schema()
-    # only 2 columns explicitly specified as key have the compound key,
-    # we do not prevent setting keys via schema,
-    # but only use the ones that are explicitly passed as key_prop to replace those
-    # specified in schema
+    # only 2 columns specified via the direct key hint are set so
     actual_keys = utils.get_columns_names_with_prop(table, key_prop, include_incomplete=True)
     assert actual_keys == key_columns_2
     actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
