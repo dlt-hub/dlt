@@ -1,4 +1,4 @@
-from typing import Literal, Dict, Set
+from typing import Literal, Dict, Set, Union
 
 from dlt.common.schema import TColumnHint
 from dlt.common.typing import get_args
@@ -10,6 +10,12 @@ TTableEngineType = Literal[
     "shared_merge_tree",
     "replicated_merge_tree",
 ]
+TColumnName = str
+TSQLExprOrColumnSeq = Union[str, list[TColumnName], tuple[TColumnName]]
+TMergeTreeSettingsValue = Union[str, int, float, bool]
+TMergeTreeSettings = Dict[str, TMergeTreeSettingsValue]
+TCodecExpr = str
+TColumnCodecs = Dict[TColumnName, TCodecExpr]
 
 HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
     "primary_key": "PRIMARY KEY",
@@ -31,3 +37,7 @@ FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING: Dict[SUPPORTED_FILE_FORMATS, str] = {
 }
 TABLE_ENGINE_TYPES: Set[TTableEngineType] = set(get_args(TTableEngineType))
 TABLE_ENGINE_TYPE_HINT: Literal["x-table-engine-type"] = "x-table-engine-type"
+SORT_HINT: Literal["x-clickhouse-sort"] = "x-clickhouse-sort"
+PARTITION_HINT: Literal["x-clickhouse-partition"] = "x-clickhouse-partition"
+SETTINGS_HINT: Literal["x-clickhouse-settings"] = "x-clickhouse-settings"
+CODEC_HINT: Literal["x-clickhouse-codec"] = "x-clickhouse-codec"

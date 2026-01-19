@@ -51,12 +51,12 @@ from __future__ import annotations
 import os
 import pathlib
 from packaging.version import Version
-from typing import Iterable, List, Optional, Sequence
+from typing import Any, Iterable, List, Optional, Sequence
 
 import dlt
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.client import LoadJob
+from dlt.common.destination.client import FollowupJobRequest, LoadJob
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.typing import TColumnSchema
@@ -65,6 +65,49 @@ from dlt.destinations.impl.duckdb.duck import DuckDbClient, DuckDbCopyJob
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeClientConfiguration
 from dlt.destinations.insert_job_client import InsertValuesJobClient
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.sql_client import SqlClientBase
+
+
+class DuckLakeMergeFollowupJob(SqlMergeFollowupJob):
+    """DuckLake-specific merge job that handles hard deletes separately.
+
+    DuckLake doesn't support DELETE in MERGE statements, so we split into
+    MERGE (upsert only) + separate DELETE for hard deletes.
+    """
+
+    @classmethod
+    def gen_upsert_merge_sql(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        root_table_column_names: Sequence[str],
+        hard_delete_col: Optional[str],
+        deleted_cond: Optional[str],
+    ) -> List[str]:
+        """Generate MERGE statement without DELETE clause + separate DELETE for hard deletes."""
+        # Get MERGE statement from base class without DELETE clause (pass hard_delete_col=None)
+        sql = SqlMergeFollowupJob.gen_upsert_merge_sql(
+            root_table_name,
+            staging_root_table_name,
+            primary_keys,
+            root_table_column_names,
+            hard_delete_col=None,  # No DELETE in MERGE for DuckLake
+            deleted_cond=None,
+        )
+
+        # Add separate DELETE for hard deletes
+        if hard_delete_col is not None:
+            sql.append(f"""
+                DELETE FROM {root_table_name}
+                WHERE ({", ".join(primary_keys)}) IN (
+                    SELECT {", ".join(primary_keys)}
+                    FROM {staging_root_table_name}
+                    WHERE {deleted_cond}
+                );
+            """)
+        return sql
 
 
 class DuckLakeCopyJob(DuckDbCopyJob):
@@ -163,3 +206,8 @@ class DuckLakeClient(DuckDbClient):
                         + ")"
                     )
         return sql
+
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        return [DuckLakeMergeFollowupJob.from_table_chain(table_chain, self.sql_client)]

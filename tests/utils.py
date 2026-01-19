@@ -57,6 +57,7 @@ IMPLEMENTED_DESTINATIONS = {
     "athena",
     "duckdb",
     "bigquery",
+    "fabric",
     "redshift",
     "postgres",
     "snowflake",

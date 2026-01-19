@@ -129,8 +129,6 @@ def test_dev_env_overwrite() -> None:
 
 
 def test_workspace_pipeline() -> None:
-    pytest.importorskip("duckdb", minversion="1.3.2")
-
     with isolated_workspace("pipelines", profile="tests") as ctx:
         # prod and test have explicit config for profiles
         assert set(ctx.configured_profiles()) == {"tests", "prod"}
@@ -185,8 +183,6 @@ def test_workspace_pipeline() -> None:
 
 
 def test_workspace_send_artifacts() -> None:
-    pytest.importorskip("duckdb", minversion="1.3.2")
-
     # create a random temp directory for the test bucket
     with tempfile.TemporaryDirectory() as temp_bucket_dir:
         bucket_base = os.path.join(temp_bucket_dir, "local_bucket", "workspace_id")
