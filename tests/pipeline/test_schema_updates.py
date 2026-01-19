@@ -1,6 +1,5 @@
 from typing import Union, Any, Dict
 import os
-from pandas._libs import properties
 import pytest
 
 import dlt
@@ -130,7 +129,7 @@ def test_key_replaces_column_hints(
     key_hint_as_list: bool,
     item_format: TestDataItemFormat,
 ) -> None:
-    """Ensure that key hints on table level take precedence over hints on column level."""
+    """Ensure that key hints on table level take precedence over hints on column level when both are set."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name="test_changing_merge_key_between_runs", destination="dummy")
 
@@ -219,7 +218,7 @@ def test_empty_value_as_key_replace_column_hints(
     with_apply_hints: bool,
     item_format: TestDataItemFormat,
 ) -> None:
-    """Ensure that empty value key hints on table level take precedence over hints on column level."""
+    """Ensure that empty value key hints on table level take precedence over hints on column level when both are set."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(
         pipeline_name="test_empty_value_as_key_replace_column_hints", destination="dummy"
@@ -256,38 +255,37 @@ def test_empty_value_as_key_replace_column_hints(
     "key_hint",
     ["merge_key", "primary_key"],
 )
-@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
 @pytest.mark.parametrize(
     "key_hint_as_list", [True, False], ids=["key_hint_as_list", "key_hint_as_string"]
 )
 @pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_new_key_hints_replace_previous_keys(
     key_hint: str,
-    with_apply_hints: bool,
     key_hint_as_list: bool,
     item_format: TestDataItemFormat,
 ) -> None:
-    """Show that new key hints on existing resource replace previous ones."""
+    """Show that redefining key hints on existing resource replaces previous ones."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(pipeline_name="test_new_key_hints_replace_previous_keys", destination="dummy")
+
+    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
     # Initially "id" is set as key
     @dlt.resource(**{key_hint: "id"})  # type: ignore[call-overload]
     def get_resource():
-        yield {"id": 1, "other_id": 2}
+        yield item
 
     p.run(get_resource())
     assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
     assert p.default_schema.tables["get_resource"]["columns"]["id"]["nullable"] is False
 
-    item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
-
     # We change key to "other_id"
     my_resource = _get_resource(
-        with_apply_hints,
-        item,
+        with_apply_hints=False,
+        data=item,
         **{key_hint: ["other_id"] if key_hint_as_list else "other_id"},
     )
+
     p.run(my_resource)
 
     # "id" should no longer be key
@@ -378,7 +376,7 @@ def test_new_compound_prop_hints_replace_previous_compound_props(
     compound_prop: str,
     item_format: TestDataItemFormat,
 ) -> None:
-    """Show what new compound prop hints on existing resource replace previous ones."""
+    """Show that redefining compound prop hints on existing resource replaces previous ones."""
     os.environ["COMPLETED_PROB"] = "1.0"
     p = dlt.pipeline(
         pipeline_name="test_new_compound_prop_hints_replace_previous_compound_props",
@@ -415,12 +413,10 @@ def test_new_compound_prop_hints_replace_previous_compound_props(
     ["merge_key", "primary_key"],
 )
 @pytest.mark.parametrize("empty_value", ["", []], ids=["empty_string", "empty_list"])
-@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
 @pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_empty_value_as_key_does_not_replace_previous_key(
     key_hint: str,
     empty_value: Union[str, None],
-    with_apply_hints: bool,
     item_format: TestDataItemFormat,
 ) -> None:
     """Show that empty value key hints on existing resource CURRENTLY do nothing."""
@@ -440,7 +436,7 @@ def test_empty_value_as_key_does_not_replace_previous_key(
     item = _get_item_with_format({"id": 1, "other_id": 2}, item_format)
 
     # We try to remove the key with empty_value
-    my_resource = _get_resource(with_apply_hints, item, **{key_hint: empty_value})
+    my_resource = _get_resource(with_apply_hints=False, data=item, **{key_hint: empty_value})
 
     # "id" is still key
     p.run(my_resource)
@@ -452,21 +448,68 @@ def test_empty_value_as_key_does_not_replace_previous_key(
     [prop for prop, info in ColumnPropInfos.items() if info.compound],
 )
 @pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
-def test_consecutive_column_hints(compound_prop: str, with_apply_hints: bool) -> None:
-    """Show that consecutive provision of compound property hints on column level via apply_hints accumulates."""
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
+def test_column_hints_via_apply_hints_are_merged(
+    compound_prop: str,
+    with_apply_hints: bool,
+    item_format: TestDataItemFormat,
+) -> None:
+    """Show that column level hints via apply_hints are merged."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name="test_consecutive_column_hints", destination="dummy")
 
+    item = _get_item_with_format({"id": 1, "other_id": 2, "third_id": 3}, item_format)
+
+    # Initially "id" is set as key
     my_resource = _get_resource(
         with_apply_hints,
-        {"id": 1, "other_id": 2},
+        item,
         columns={"id": {compound_prop: True}},
         **{},
     )
 
-    assert my_resource.columns == {"id": {compound_prop: True, "name": "id"}}
+    p.run(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"]["id"].get(compound_prop) is True
 
+    # We apply column-level hints, which will be merged
     my_resource.apply_hints(columns={"other_id": {compound_prop: True}})  # type: ignore
 
-    assert my_resource.columns == {
-        "id": {compound_prop: True, "name": "id"},
-        "other_id": {compound_prop: True, "name": "other_id"},
-    }
+    p.run(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"]["id"].get(compound_prop) is True
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(compound_prop) is True
+
+
+@pytest.mark.parametrize(
+    "key_hint",
+    ["merge_key", "primary_key"],
+)
+@pytest.mark.parametrize("with_apply_hints", [True, False], ids=["apply_hints", "resource_def"])
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
+def test_direct_key_hint_via_apply_hints_replace(
+    key_hint: str,
+    with_apply_hints: bool,
+    item_format: TestDataItemFormat,
+) -> None:
+    """Show that direct key hints via apply_hints replace."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    p = dlt.pipeline(pipeline_name="test_consecutive_column_hints", destination="dummy")
+
+    item = _get_item_with_format({"id": 1, "other_id": 2, "third_id": 3}, item_format)
+
+    # Initially "id" is set as key
+    my_resource = _get_resource(
+        with_apply_hints,
+        item,
+        columns={"id": {key_hint: True}},
+        **{},
+    )
+
+    p.run(my_resource)
+    assert p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint) is True
+
+    # We apply direct key hint, which will replace existing
+    my_resource.apply_hints(**{key_hint: "other_id"})  # type: ignore
+
+    p.run(my_resource)
+    assert not p.default_schema.tables["get_resource"]["columns"]["id"].get(key_hint)
+    assert p.default_schema.tables["get_resource"]["columns"]["other_id"].get(key_hint) is True
