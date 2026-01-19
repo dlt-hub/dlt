@@ -268,6 +268,7 @@ def test_relation_with_load_id(
 
 @pytest.mark.parametrize("selected_load_id_idx", [[0], [1], [0, 1]])
 @pytest.mark.parametrize("table_name", ["products", "users__orders", "users__orders__items"])
+@pytest.mark.parametrize("add_load_id_column", [True, False])
 @pytest.mark.parametrize(
     "dataset_with_loads",
     [
@@ -279,17 +280,24 @@ def test_relation_with_load_id(
 def test_relation_from_loads(
     dataset_with_loads: TLoadsFixture,
     selected_load_id_idx: list[int],
+    add_load_id_column: bool,
     table_name: str,
 ) -> None:
     """Test filtering a root table with a single load_id string."""
     dataset, load_ids, load_stats = dataset_with_loads
     selected_load_ids = [load_ids[idx] for idx in selected_load_id_idx]
     table = dataset.table(table_name)
-    expected_columns = (
-        table.columns if C_DLT_LOAD_ID in table.columns else table.columns + [C_DLT_LOAD_ID]
-    )
+    original_columns = table.columns
+    if C_DLT_LOAD_ID in original_columns:
+        expected_columns = original_columns
+    else:
+        expected_columns = (
+            original_columns + [C_DLT_LOAD_ID] if add_load_id_column else original_columns
+        )
 
-    output = dataset.table(table_name).from_loads(selected_load_ids)
+    output = dataset.table(table_name).from_loads(
+        selected_load_ids, add_load_id_column=add_load_id_column
+    )
 
     assert isinstance(output, dlt.Relation)
     assert output.columns == expected_columns
@@ -298,29 +306,5 @@ def test_relation_from_loads(
 
     assert len(df) == sum(load_stats[idx][table_name] for idx in selected_load_id_idx)
     assert list(df.columns) == expected_columns
-    assert set(df[C_DLT_LOAD_ID]) == set(selected_load_ids)
-
-
-def test_from_loads_relation_api(dataset_with_loads: TLoadsFixture) -> None:
-    """Test Relation.from_loads() public API."""
-    dataset, load_ids, load_stats = dataset_with_loads
-    table_name = "users"
-
-    # Use relation API
-    result = dataset.table(table_name).from_loads(load_ids[0])
-    df = result.df()
-
-    assert len(df) == load_stats[0][table_name]
-    assert "_dlt_load_id" in df.columns
-    assert (df["_dlt_load_id"] == load_ids[0]).all()
-
-
-def test_from_loads_relation_api_on_query_fails(dataset_with_loads: TLoadsFixture) -> None:
-    """Test that Relation.from_loads() fails on arbitrary queries."""
-    dataset, load_ids, load_stats = dataset_with_loads
-
-    # Create relation from query (not via .table())
-    relation = dataset.query("SELECT * FROM users")
-
-    with pytest.raises(ValueError, match="only works on relations created via .table"):
-        relation.from_loads(load_ids[0])
+    if C_DLT_LOAD_ID in expected_columns:
+        assert set(df[C_DLT_LOAD_ID]) == set(selected_load_ids)

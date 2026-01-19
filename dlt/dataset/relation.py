@@ -523,7 +523,7 @@ class Relation(WithSqlClient):
     def from_loads(
         self,
         load_ids: Collection[str],
-        include_load_id: bool = False,
+        add_load_id_column: bool = False,
     ) -> dlt.Relation:
         """Filter the table to rows associated with `load_ids`.
 
@@ -541,8 +541,8 @@ class Relation(WithSqlClient):
         filtered_rel_with_load_id = self.with_load_id_col().where(C_DLT_LOAD_ID, "in", load_ids)
         return (
             filtered_rel_with_load_id
-            if include_load_id
-            else filtered_rel_with_load_id.select(*initial_columns)
+            if add_load_id_column
+            else filtered_rel_with_load_id.select(*initial_columns, _enable_merge_subqueries=False)
         )
 
     # TODO move this to the WithSqlClient / data accessor mixin.
@@ -631,7 +631,6 @@ def _add_load_id_via_root_key_query(
     child_root_key: str,
     root_row_key: str,
 ) -> sge.Select:
-    # Build tables
     child_table = sge.Table(
         this=sge.to_identifier(table_name, quoted=True),
         alias=sge.TableAlias(this=sge.to_identifier("child", quoted=False)),
@@ -650,7 +649,6 @@ def _add_load_id_via_root_key_query(
         ),
     ]
 
-    # Build JOIN condition: child._dlt_root_id = root._dlt_id
     join_condition = sge.EQ(
         this=sge.Column(
             table=sge.to_identifier("child", quoted=False),
@@ -662,13 +660,11 @@ def _add_load_id_via_root_key_query(
         ),
     )
 
-    # Construct SELECT with INNER JOIN
     query = (
         sge.Select(expressions=columns)
         .from_(child_table)
         .join(root_table_expr, on=join_condition, join_type="INNER")
     )
-
     return query
 
 
@@ -715,7 +711,6 @@ def _add_load_id_via_parent_key_query(
         if reference["table"] == table_name:
             break
 
-    # Alias the queried table as t0
     queried_table = sge.Table(
         this=sge.to_identifier(table_name, quoted=True),
         alias=sge.TableAlias(this=sge.to_identifier("t0", quoted=False)),
