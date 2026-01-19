@@ -316,13 +316,16 @@ class Relation(WithSqlClient):
         """
         return self.limit(limit)
 
-    def select(self, *columns: str) -> Self:
+    def select(self, *columns: str, allow_merge_subqueries: bool = True) -> Self:
         """Create a `Relation` with the selected columns using a `SELECT` clause."""
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
         subquery = self.sqlglot_expression.subquery()
         new_expr = sge.select(*proj).from_(subquery)
         rel = self.__copy__()
-        rel._sqlglot_expression = merge_subqueries(new_expr)
+        if allow_merge_subqueries:
+            rel._sqlglot_expression = merge_subqueries(new_expr)
+        else:
+            rel._sqlglot_expression = new_expr
         return rel
 
     def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
