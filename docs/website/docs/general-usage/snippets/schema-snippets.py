@@ -65,6 +65,7 @@ def test_nested_hints_primary_key() -> None:
     assert row_count == [("customers", 3), ("customers__purchases", 3)]
     # @@@DLT_SNIPPET_END nested_hints_primary_key
 
+
 def test_compound_hints_direct_key_precedence() -> None:
     """Demonstrates that direct key hints take precedence over column level hints."""
     # @@@DLT_SNIPPET_START compound_hints_direct_key_precedence
@@ -84,10 +85,18 @@ def test_compound_hints_direct_key_precedence() -> None:
 
     pipeline.run(my_resource)
     # @@@DLT_SNIPPET_END compound_hints_direct_key_precedence
-   
+
     # Verify: col_1 should have primary_key (direct key takes precedence)
-    assert pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("primary_key") is True
-    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get("primary_key")
+    assert (
+        pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+            "primary_key"
+        )
+        is True
+    )
+    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+        "primary_key"
+    )
+
 
 def test_compound_hints_empty_direct_key_precedence() -> None:
     """Demonstrates that direct key hints take precedence over column level hints."""
@@ -96,6 +105,7 @@ def test_compound_hints_empty_direct_key_precedence() -> None:
         destination="duckdb",
         dataset_name="my_data",
     )
+
     # @@@DLT_SNIPPET_START test_compound_hints_empty_direct_key_precedence
     @dlt.resource(
         name="my_table",
@@ -107,10 +117,15 @@ def test_compound_hints_empty_direct_key_precedence() -> None:
 
     pipeline.run(my_resource)
     # @@@DLT_SNIPPET_END test_compound_hints_empty_direct_key_precedence
-   
+
     # Verify: both should not have primary_key (direct key takes precedence)
-    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("primary_key")
-    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get("primary_key")
+    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+        "primary_key"
+    )
+    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+        "primary_key"
+    )
+
 
 def test_compound_hints_direct_key_precedence_apply_hints() -> None:
     """Demonstrates that direct key hints take precedence over column level hints in apply_hints."""
@@ -119,6 +134,7 @@ def test_compound_hints_direct_key_precedence_apply_hints() -> None:
         destination="duckdb",
         dataset_name="my_data",
     )
+
     # @@@DLT_SNIPPET_START test_compound_hints_direct_key_precedence_apply_hints
     @dlt.resource(
         name="my_table",
@@ -130,10 +146,16 @@ def test_compound_hints_direct_key_precedence_apply_hints() -> None:
 
     pipeline.run(my_resource)
     # @@@DLT_SNIPPET_END test_compound_hints_direct_key_precedence_apply_hints
-   
+
     # Verify: both should not have primary_key (direct key takes precedence)
-    assert pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("merge_key") is True
-    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get("merge_key")
+    assert (
+        pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("merge_key")
+        is True
+    )
+    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+        "merge_key"
+    )
+
 
 def test_compound_hints_replace_previous_compound_props() -> None:
     """Demonstrate what new compound prop hints on existing resource replace previous ones."""
@@ -142,6 +164,7 @@ def test_compound_hints_replace_previous_compound_props() -> None:
         destination="duckdb",
         dataset_name="my_data",
     )
+
     # @@@DLT_SNIPPET_START test_compound_hints_replace_previous_compound_props
     @dlt.resource(
         name="my_table",
@@ -149,22 +172,28 @@ def test_compound_hints_replace_previous_compound_props() -> None:
     )
     def my_resource():
         yield {"col_1": 1, "col_2": 2}
-    
+
     pipeline.run(my_resource)
 
-    @dlt.resource(
+    @dlt.resource(  # type: ignore[no-redef]
         name="my_table",
         columns={"col_1": {"partition": True}},
     )
     def my_resource():
         yield {"col_1": 1, "col_2": 2}
-    
+
     pipeline.run(my_resource)
     # @@@DLT_SNIPPET_END test_compound_hints_replace_previous_compound_props
 
     # Verify: only col_1 should have partition property
-    assert pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("partition") is True
-    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get("partition")
+    assert (
+        pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("partition")
+        is True
+    )
+    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+        "partition"
+    )
+
 
 def test_empty_value_key_hints_do_not_replace_previous_hints() -> None:
     """Demonstrate that new empty value key hint hints on existing resource do nothing."""
@@ -173,6 +202,7 @@ def test_empty_value_key_hints_do_not_replace_previous_hints() -> None:
         destination="duckdb",
         dataset_name="my_data",
     )
+
     # @@@DLT_SNIPPET_START test_empty_value_key_hints_do_not_replace_previous_hints
     @dlt.resource(
         name="my_table",
@@ -183,7 +213,7 @@ def test_empty_value_key_hints_do_not_replace_previous_hints() -> None:
 
     pipeline.run(my_resource)
 
-    @dlt.resource(
+    @dlt.resource(  # type: ignore[no-redef]
         name="my_table",
         primary_key=[],
     )
@@ -193,7 +223,13 @@ def test_empty_value_key_hints_do_not_replace_previous_hints() -> None:
     pipeline.run(my_resource)
     # @@@DLT_SNIPPET_END test_empty_value_key_hints_do_not_replace_previous_hints
 
-    assert pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("primary_key") is True
+    assert (
+        pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+            "primary_key"
+        )
+        is True
+    )
+
 
 def test_column_level_compound_prop_hints_via_apply_hints_merged() -> None:
     """Demonstrate that column level hints via apply_hints are merged."""
@@ -202,6 +238,7 @@ def test_column_level_compound_prop_hints_via_apply_hints_merged() -> None:
         destination="duckdb",
         dataset_name="my_data",
     )
+
     # @@@DLT_SNIPPET_START test_column_level_compound_prop_hints_via_apply_hints_merged
     @dlt.resource(
         name="my_table",
@@ -217,8 +254,19 @@ def test_column_level_compound_prop_hints_via_apply_hints_merged() -> None:
     pipeline.run(my_resource)
     # @@@DLT_SNIPPET_END test_column_level_compound_prop_hints_via_apply_hints_merged
 
-    assert pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("primary_key") is True
-    assert pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get("primary_key") is True
+    assert (
+        pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+            "primary_key"
+        )
+        is True
+    )
+    assert (
+        pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+            "primary_key"
+        )
+        is True
+    )
+
 
 def test_direct_key_hint_via_apply_hints_replaces() -> None:
     """Demonstrate that direct key hints via apply_hints replace."""
@@ -227,6 +275,7 @@ def test_direct_key_hint_via_apply_hints_replaces() -> None:
         destination="duckdb",
         dataset_name="my_data",
     )
+
     # @@@DLT_SNIPPET_START test_direct_key_hint_via_apply_hints_replaces
     @dlt.resource(
         name="my_table",
@@ -242,5 +291,12 @@ def test_direct_key_hint_via_apply_hints_replaces() -> None:
     pipeline.run(my_resource)
     # @@@DLT_SNIPPET_END test_direct_key_hint_via_apply_hints_replaces
 
-    assert pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("primary_key") is True
-    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get("primary_key")
+    assert (
+        pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+            "primary_key"
+        )
+        is True
+    )
+    assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+        "primary_key"
+    )
