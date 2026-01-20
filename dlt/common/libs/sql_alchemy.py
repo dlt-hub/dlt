@@ -8,6 +8,8 @@ try:
     from sqlalchemy.sql.elements import TextClause
     from sqlalchemy.sql.sqltypes import TypeEngine
     from sqlalchemy.exc import CompileError
+    from sqlalchemy.dialects.oracle import NUMBER as ORACLE_NUMBER
+    from sqlalchemy.dialects.oracle.base import OracleDialect
     import sqlalchemy as sa
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -36,5 +38,7 @@ __all__ = [
     "TextClause",
     "TypeEngine",
     "CompileError",
+    "ORACLE_NUMBER",
+    "OracleDialect",
     "sa",
 ]

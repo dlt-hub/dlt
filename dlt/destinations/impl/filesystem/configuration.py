@@ -1,6 +1,6 @@
 import dataclasses
 
-from typing import Final, Optional, Type
+from typing import Final, Optional, Type, Dict, Any
 
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type

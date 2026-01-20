@@ -1,4 +1,5 @@
 import datetime  # noqa: I251
+import re
 
 from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
 import clickhouse_driver
@@ -258,7 +259,7 @@ class ClickHouseSqlClient(
 
         with self._conn.cursor() as cursor:
             for query_line in query.split(";"):
-                if query_line := query_line.strip():
+                if query_line := self.escape_pct(query_line.strip()):
                     try:
                         cursor.execute(query_line, db_args)
                     except KeyError as e:
@@ -307,19 +308,20 @@ class ClickHouseSqlClient(
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, clickhouse_driver.dbapi.errors.OperationalError):
-            if "Code: 57." in str(ex) or "Code: 82." in str(ex) or "Code: 47." in str(ex):
-                return DatabaseTerminalException(ex)
-            elif "Code: 60." in str(ex) or "Code: 81." in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            else:
-                return DatabaseTransientException(ex)
-        elif isinstance(
-            ex,
-            (
-                clickhouse_driver.dbapi.errors.OperationalError,
-                clickhouse_driver.dbapi.errors.InternalError,
-            ),
-        ):
+            # https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/ErrorCodes.cpp
+            TERMINAL_CODES = {44, 47, 57, 82}
+            UNDEFINED_RELATION_CODES = {60, 81}
+
+            match = re.match(r"Code: (\d+)\.", str(ex))
+            if match:
+                code = int(match.group(1))
+                if code in TERMINAL_CODES:
+                    return DatabaseTerminalException(ex)
+                elif code in UNDEFINED_RELATION_CODES:
+                    return DatabaseUndefinedRelation(ex)
+
+            return DatabaseTransientException(ex)
+        elif isinstance(ex, clickhouse_driver.dbapi.errors.InternalError):
             return DatabaseTransientException(ex)
         elif isinstance(
             ex,
@@ -338,3 +340,17 @@ class ClickHouseSqlClient(
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, clickhouse_driver.dbapi.Error)
+
+    @staticmethod
+    def escape_pct(expr: str) -> str:
+        """Returns SQL expression with % characters escaped.
+
+        This doubles % characters used as modulo, wildcard, or literal, but leaves those used in
+        placeholders (%s) alone:
+        - modulo: 16 % 4  ➜  16 %% 4
+        - wildcard: 'test' LIKE '%es%'  ➜  'test' LIKE '%%es%%'
+        - literal: '100% sure'  ➜  '100%% sure'
+        - placeholder: SELECT %s AS value  ➜  SELECT %s AS value
+        """
+
+        return re.sub(r"%(?!\()", "%%", expr)

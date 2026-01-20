@@ -5,10 +5,16 @@
 #
 
 from typing import Any
+from unittest.mock import patch
+
+import duckdb
 import dlt
 import pytest
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
+)
+from dlt._workspace._templates._single_file_templates.arrow_pipeline import (
+    resource as humans,
 )
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
@@ -21,6 +27,7 @@ NORMALIZE_EXCEPTION_PIPELINE = "normalize_exception_pipeline"
 NEVER_RAN_PIPELINE = "never_ran_pipline"
 LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
 NO_DESTINATION_PIPELINE = "no_destination_pipeline"
+SYNC_EXCEPTION_PIPELINE = "sync_exception_pipeline"
 
 ALL_PIPELINES = [
     SUCCESS_PIPELINE_DUCKDB,
@@ -30,12 +37,14 @@ ALL_PIPELINES = [
     LOAD_EXCEPTION_PIPELINE,
     NO_DESTINATION_PIPELINE,
     SUCCESS_PIPELINE_FILESYSTEM,
+    SYNC_EXCEPTION_PIPELINE,
 ]
 
 PIPELINES_WITH_EXCEPTIONS = [
     EXTRACT_EXCEPTION_PIPELINE,
     NORMALIZE_EXCEPTION_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
+    SYNC_EXCEPTION_PIPELINE,
 ]
 PIPELINES_WITH_LOAD = [SUCCESS_PIPELINE_DUCKDB, SUCCESS_PIPELINE_FILESYSTEM]
 
@@ -121,6 +130,39 @@ def create_success_pipeline_filesystem(
     )
 
     run_success_pipeline(pipeline)
+
+    return pipeline
+
+
+def create_fruitshop_duckdb_with_shared_dataset(pipelines_dir: str = None):
+    """Create a test pipeline with in memory duckdb destination, properties see `run_success_pipeline`"""
+    import duckdb
+
+    pipeline = dlt.pipeline(
+        pipeline_name="fruits_test_pipeline",
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:/data.db")),
+        dataset_name="test_shared_dataset",
+    )
+
+    run_success_pipeline(pipeline)
+
+    return pipeline
+
+
+def create_humans_arrow_duckdb_with_shared_dataset(
+    pipelines_dir: str = None,
+):
+    """Create a test pipeline with filesystem destination, properties see `run_success_pipeline`"""
+
+    pipeline = dlt.pipeline(
+        pipeline_name="humans_test_pipeline",
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:/data.db")),
+        dataset_name="test_shared_dataset",
+    )
+
+    pipeline.run(humans())
 
     return pipeline
 
@@ -213,6 +255,29 @@ def create_no_destination_pipeline(pipelines_dir: str = None):
     return pipeline
 
 
+def create_sync_exception_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline that raises an exception in the sync step"""
+    pipeline = dlt.pipeline(
+        pipeline_name=SYNC_EXCEPTION_PIPELINE,
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+
+    @dlt.resource
+    def dummy_data():
+        yield [{"id": 1, "value": "test"}]
+
+    with patch.object(pipeline, "_restore_state_from_destination") as mock_restore:
+        mock_restore.side_effect = ConnectionError("Cannot connect to destination for sync")
+
+        with pytest.raises(Exception) as excinfo:
+            pipeline.run(dummy_data())
+
+    assert "failed at `step=sync`" in str(excinfo)
+
+    return pipeline
+
+
 # NOTE: this script can be run to create the test pipelines globally for manual testing of the dashboard app and cli
 if __name__ == "__main__":
     create_success_pipeline_duckdb()
@@ -222,3 +287,4 @@ if __name__ == "__main__":
     create_never_ran_pipeline()
     create_load_exception_pipeline()
     create_no_destination_pipeline()
+    create_sync_exception_pipeline()

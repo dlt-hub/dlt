@@ -8,6 +8,7 @@ import dlt
 import os
 import shutil
 
+import pyarrow
 
 from dlt import Pipeline
 from dlt.common.utils import uniq_id
@@ -181,7 +182,16 @@ def _run_dataset_checks(
     # `iceberg` table format
     with fs_sql_client as sql_client:
         sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
-    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == total_records
+
+    # duckdb changed the return type of `.arrow()` from pyarrow.Table to pyarrow.RecordBatchReader
+    # between 1.3.2 and 1.4.3. We need to catch this explicitly
+    data = external_db.sql("FROM second.arrow_all_types;").arrow()
+    if isinstance(data, pyarrow.Table):
+        row_count = data.num_rows
+    elif isinstance(data, pyarrow.RecordBatchReader):
+        row_count = data.read_all().num_rows
+
+    assert row_count == total_records
 
     pipeline.run(  # run pipeline again to add rows to source table
         source().with_resources("arrow_all_types"),
@@ -192,7 +202,15 @@ def _run_dataset_checks(
         sql_client.create_view(
             "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")  # type: ignore
         )
-    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == (2 * total_records)
+
+    # duckdb changed the return type of `.arrow()` from pyarrow.Table to pyarrow.RecordBatchReader
+    # between 1.3.2 and 1.4.3. We need to catch this explicitly
+    data = external_db.sql("FROM second.arrow_all_types;").arrow()
+    if isinstance(data, pyarrow.Table):
+        row_count = data.num_rows
+    elif isinstance(data, pyarrow.RecordBatchReader):
+        row_count = data.read_all().num_rows
+    assert row_count == (2 * total_records)
 
     external_db.close()
 
