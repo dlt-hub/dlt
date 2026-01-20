@@ -56,7 +56,10 @@ from dlt.common.time import precise_time
 
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
+
 JOB_EXCEPTION_EXTENSION = ".exception"
+TExceptionState = Literal["retry", "failed"]
+TExceptionType = Literal["terminal", "transient"]
 
 
 class TPipelineStateDoc(TypedDict, total=False):
@@ -176,6 +179,10 @@ class ParsedLoadJobFileName(NamedTuple):
     def to_reference_file_name(self) -> str:
         """Returns a file name for a reference job"""
         return f"{self.table_name}.{self.file_id}.{self.retry_count}.reference"
+
+    def to_exception_file_name(self) -> str:
+        """Returns a file name for an exception"""
+        return f"{self.table_name}.{self.file_id}.{self.retry_count}{JOB_EXCEPTION_EXTENSION}"
 
     def full_extension(self) -> str:
         """Returns the full file extension"""
@@ -320,6 +327,7 @@ class PackageStorage:
     FAILED_JOBS_FOLDER: ClassVar[TPackageJobState] = "failed_jobs"
     STARTED_JOBS_FOLDER: ClassVar[TPackageJobState] = "started_jobs"
     COMPLETED_JOBS_FOLDER: ClassVar[TPackageJobState] = "completed_jobs"
+    EXCEPTIONS_FOLDER: str = "exceptions"
 
     SCHEMA_FILE_NAME: ClassVar[str] = "schema.json"
     SCHEMA_UPDATES_FILE_NAME = (  # updates to the tables in schema created by normalizer
@@ -453,6 +461,15 @@ class PackageStorage:
                 ),
                 failed_message,
             )
+            # (also) save to exceptions folder
+            self.save_job_exception(
+                load_id,
+                file_name,
+                failed_message,
+                state="failed",
+                exception_type=None,
+            )
+
         # move to failed jobs
         return self._move_job(
             load_id,
@@ -495,6 +512,7 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.EXCEPTIONS_FOLDER))
         # use initial state or create a new by loading non existing state
         state = self.get_load_package_state(load_id) if initial_state is None else initial_state
         if not state.get("created_at"):
@@ -571,6 +589,43 @@ class PackageStorage:
             raise LoadPackageNotFound(load_id)
         if self.storage.has_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME)):
             raise LoadPackageCancelled(load_id)
+
+    def save_job_exception(
+        self,
+        load_id: str,
+        file_name: str,
+        exception_message: str,
+        state: TExceptionState,
+        exception_type: Optional[TExceptionType] = None,
+    ) -> None:
+        """Save exception message for a job in the exceptions folder
+
+        Args:
+            load_id: Load package ID
+            file_name: Current job file name (with retry count)
+            exception_message: Full exception traceback/message
+            state: "retry" (job being retried) or "failed" (job permanently failed)
+            exception_type: If state is "retry", specify "terminal" or "transient"
+
+        The exception file is stored as: exceptions/job_name.retry_N.exception
+        First line indicates: "retry: terminal" or "retry: transient"
+        """
+        job_info = ParsedLoadJobFileName.parse(file_name)
+        exception_file_name = job_info.to_exception_file_name()
+        exception_path = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.EXCEPTIONS_FOLDER,
+            exception_file_name,
+        )
+        if state == "retry":
+            if exception_type is None:
+                raise ValueError("Exception type required when state is 'retry'")
+            first_line = f"retry: {exception_type}"
+        else:
+            first_line = "failed"
+
+        content = f"{first_line}\n{exception_message}"
+        self.storage.save(exception_path, content)
 
     #
     # Load package state
