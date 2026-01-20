@@ -1,5 +1,6 @@
-from typing import Any
 import sys
+import pathlib
+from typing import Any, Generator
 
 import pytest
 
@@ -79,9 +80,14 @@ TLoadsFixture = tuple[dlt.Dataset, tuple[str, str], tuple[dict[str, Any], dict[s
 
 
 @pytest.fixture(scope="module")
-def loads_with_root_key() -> TLoadsFixture:
+def loads_with_root_key(module_tmp_path: pathlib.Path) -> TLoadsFixture:
     """Create a pipeline with nested data across multiple loads."""
-    pipeline = dlt.pipeline("test_from_loads", destination="duckdb", full_refresh=True)
+    pipeline = dlt.pipeline(
+        pipeline_name="with_root_key",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "duckdb.db")),
+        dev_mode=True,
+    )
 
     source = crm(0)
     source.root_key = True
@@ -97,10 +103,14 @@ def loads_with_root_key() -> TLoadsFixture:
 
 
 @pytest.fixture(scope="module")
-def loads_without_root_key() -> TLoadsFixture:
+def loads_without_root_key(module_tmp_path: pathlib.Path) -> TLoadsFixture:
     """Create a pipeline with nested data across multiple loads."""
-    """Create a pipeline with nested data across multiple loads."""
-    pipeline = dlt.pipeline("test_from_loads", destination="duckdb", full_refresh=True)
+    pipeline = dlt.pipeline(
+        pipeline_name="without_root_key",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "duckdb.db")),
+        dev_mode=True,
+    )
 
     source = crm(0)
     source.root_key = False
@@ -141,7 +151,9 @@ def dataset() -> dlt.Dataset:
             {"id": 3, "name": "charlie", "city": "barcelona"},
         )
 
-    pipeline = dlt.pipeline("_relation_to_ibis", destination="duckdb")
+    pipeline = dlt.pipeline(
+        "_relation_to_ibis", destination="duckdb", full_refresh=True, dev_mode=True
+    )
     pipeline.run([purchases])
     return pipeline.dataset()
 
@@ -151,6 +163,11 @@ def purchases(dataset: dlt.Dataset) -> dlt.Relation:
     purchases = dataset.table("purchases")
     assert isinstance(purchases, dlt.Relation)
     return purchases
+
+
+def _set_name_normalizer_on_schema(schema: dlt.Schema, name_normalizer_ref: str) -> None:
+    schema._normalizers_config["names"] = name_normalizer_ref
+    schema.update_normalizers()
 
 
 @pytest.mark.skipif(
@@ -282,6 +299,7 @@ def test_relation_from_loads(
     selected_load_id_idx: list[int],
     add_load_id_column: bool,
     table_name: str,
+    # name_normalizer_ref: str,
 ) -> None:
     """Test filtering a root table with a single load_id string."""
     dataset, load_ids, load_stats = dataset_with_loads
