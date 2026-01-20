@@ -49,6 +49,7 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
+    LoadClientJobRetryPending,
     LoadClientJobRetry,
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
@@ -432,29 +433,36 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 logger.debug(f"job {job.job_id()} still running")
                 remaining_jobs.append(job)
             elif state == "failed":
-                # create followup jobs
-                self.create_followup_jobs(load_id, state, job, schema)
-                # try to get exception message from job
+                # save exception
                 failed_message = job.failed_message()
-                self.load_storage.normalized_packages.fail_job(
-                    load_id, job.file_name(), failed_message
+                self.load_storage.normalized_packages.save_job_exception(
+                    load_id,
+                    job.file_name(),
+                    failed_message,
+                    state="retry",
+                    exception_type="terminal",
                 )
-                logger.error(
-                    f"Job for {job.job_id()} failed terminally in load {load_id} with message"
-                    f" {failed_message}"
-                )
-                # schedule exception on job failure
+                # retry the job
+                self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
+                # set pending exception
                 if self.config.raise_on_failed_jobs:
-                    pending_exception = LoadClientJobFailed(
+                    pending_exception = LoadClientJobRetryPending(
                         load_id,
                         job.job_file_info().job_id(),
                         failed_message,
                         job.exception(),
                     )
-                finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.failed_message()
+                # save exception
+                self.load_storage.normalized_packages.save_job_exception(
+                    load_id,
+                    job.file_name(),
+                    retry_message,
+                    state="retry",
+                    exception_type="transient",
+                )
                 # move back to new folder to try again
                 self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
                 logger.warning(
@@ -641,7 +649,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # if a pending exception was discovered during completion of jobs
         # we can raise it now
         if pending_exception:
+            if isinstance(pending_exception, LoadClientJobRetryPending):
+                if self.config.auto_abort_on_terminal_error:
+                    self.complete_package(load_id, schema, aborted=True)
+                    raise LoadClientJobFailed(
+                        load_id,
+                        pending_exception.job_id,
+                        pending_exception.failed_message,
+                        pending_exception.client_exception,
+                    )
             if isinstance(pending_exception, LoadClientJobFailed):
+                # TODO: old path, this shouldn't be hit all
                 # the package is completed and skipped
                 self.complete_package(load_id, schema, aborted=True)
             else:
