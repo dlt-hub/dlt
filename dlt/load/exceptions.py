@@ -1,4 +1,5 @@
 from typing import Sequence
+from unittest.mock import Base
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
@@ -22,6 +23,17 @@ class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
             f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
             f" {failed_message}. The package is aborted and cannot be retried."
         )
+
+
+class LoadClientJobRetryPending(DestinationTerminalException, LoadClientJobException):
+    def __init__(
+        self, load_id: str, job_id: str, failed_message: str, exception: BaseException
+    ) -> None:
+        self.load_id = load_id
+        self.job_id = job_id
+        self.failed_message = failed_message
+        self.client_exception = exception
+        super().__init__("You have three options: retry, fail, or abort!")
 
 
 class LoadClientJobRetry(DestinationTransientException, LoadClientJobException):
