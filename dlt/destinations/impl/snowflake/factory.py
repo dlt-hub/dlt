@@ -30,7 +30,9 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
         "binary": "BINARY",
         "time": "TIME",
-        "decimal": "DECFLOAT",
+        "decimal": (
+            "DECIMAL"
+        ),  # this is the default, `to_db_decimal_type` might convert to DECFLOAT if configured
     }
 
     sct_to_dbt = {
@@ -50,8 +52,17 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "BINARY": "binary",
         "VARIANT": "json",
         "TIME": "time",
-        "DECFLOAT": "decimal",
+        "DECFLOAT": "decimal",  # DECFLOAT is always handled as decimal internally
+        "DECIMAL": "decimal",
     }
+
+    def __init__(
+        self,
+        capabilities: DestinationCapabilitiesContext,
+        config: Optional[SnowflakeClientConfiguration] = None,
+    ) -> None:
+        super().__init__(capabilities)
+        self.client_config = config  # store client config for possible dynamic conversion
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -97,9 +108,25 @@ class SnowflakeTypeMapper(TypeMapperImpl):
     def decimal_precision(
         self, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> Optional[Tuple[int, int]]:
-        if precision is None and scale is None:
+        # prevent default precision fallback when unbound decimal to DECFLOAT conversion is enabled
+        if (
+            self.client_config
+            and self.client_config.unbound_decimal_to_decfloat
+            and precision is None
+            and scale is None
+        ):
             return None
         return super().decimal_precision(precision, scale)
+
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
+        precision_tup = self.decimal_precision(column.get("precision"), column.get("scale"))
+        if (
+            self.client_config
+            and self.client_config.unbound_decimal_to_decfloat
+            and precision_tup is None
+        ):
+            return "DECFLOAT"
+        return super().to_db_decimal_type(column)
 
 
 class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
