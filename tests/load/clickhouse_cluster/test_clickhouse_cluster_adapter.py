@@ -4,7 +4,7 @@ import pytest
 from dlt.destinations.adapters import clickhouse_cluster_adapter
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster import ClickHouseClusterClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
-    CREATE_DISTRIBUTED_TABLE_HINT,
+    CREATE_DISTRIBUTED_TABLES_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
     SHARDING_KEY_HINT,
 )
@@ -66,7 +66,7 @@ def test_clickhouse_cluster_adapter_defaults(client: ClickHouseClusterClient) ->
 
     # assert hints are not set
     table_schema = res.compute_table_schema()
-    assert CREATE_DISTRIBUTED_TABLE_HINT not in table_schema
+    assert CREATE_DISTRIBUTED_TABLES_HINT not in table_schema
     assert DISTRIBUTED_TABLE_SUFFIX_HINT not in table_schema
     assert SHARDING_KEY_HINT not in table_schema
 
@@ -79,7 +79,7 @@ def test_clickhouse_cluster_adapter_defaults(client: ClickHouseClusterClient) ->
     assert client.config.distributed_table_suffix == DEFAULT_DISTRIBUTED_TABLE_SUFFIX
     assert client.config.sharding_key == DEFAULT_SHARDING_KEY
     prepared_table = client.prepare_load_table(table_name)
-    assert prepared_table[CREATE_DISTRIBUTED_TABLE_HINT] is False  # type: ignore[typeddict-item]
+    assert prepared_table[CREATE_DISTRIBUTED_TABLES_HINT] is False  # type: ignore[typeddict-item]
     assert prepared_table[DISTRIBUTED_TABLE_SUFFIX_HINT] == DEFAULT_DISTRIBUTED_TABLE_SUFFIX  # type: ignore[typeddict-item]
     assert prepared_table[SHARDING_KEY_HINT] == DEFAULT_SHARDING_KEY  # type: ignore[typeddict-item]
 
@@ -88,7 +88,7 @@ def test_clickhouse_cluster_adapter_defaults(client: ClickHouseClusterClient) ->
     client.config.distributed_table_suffix = "_custom_suffix"
     client.config.sharding_key = "custom sharding key"  # invalid key value, but okay for unit test
     prepared_table = client.prepare_load_table(table_name)
-    assert prepared_table[CREATE_DISTRIBUTED_TABLE_HINT] is True  # type: ignore[typeddict-item]
+    assert prepared_table[CREATE_DISTRIBUTED_TABLES_HINT] is True  # type: ignore[typeddict-item]
     assert prepared_table[DISTRIBUTED_TABLE_SUFFIX_HINT] == "_custom_suffix"  # type: ignore[typeddict-item]
     assert prepared_table[SHARDING_KEY_HINT] == "custom sharding key"  # type: ignore[typeddict-item]
 
@@ -152,7 +152,7 @@ def test_clickhouse_cluster_adapter_distributed_table(
     ]
     res = clickhouse_cluster_adapter(
         data,
-        create_distributed_table=True,
+        create_distributed_tables=True,
         distributed_table_suffix=distributed_table_suffix,
         sharding_key=sharding_key,
     ).apply_hints(
@@ -167,7 +167,7 @@ def test_clickhouse_cluster_adapter_distributed_table(
 
     # assert hints are set correctly
     table_schema = res.compute_table_schema()
-    assert table_schema[CREATE_DISTRIBUTED_TABLE_HINT] is True  # type: ignore[typeddict-item]
+    assert table_schema[CREATE_DISTRIBUTED_TABLES_HINT] is True  # type: ignore[typeddict-item]
     assert table_schema.get(DISTRIBUTED_TABLE_SUFFIX_HINT) == distributed_table_suffix
 
     # assert create table statements are generated correctly

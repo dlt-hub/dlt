@@ -12,7 +12,7 @@ from dlt.destinations.impl.clickhouse.clickhouse import (
 )
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
     CONFIG_HINT_MAP,
-    CREATE_DISTRIBUTED_TABLE_HINT,
+    CREATE_DISTRIBUTED_TABLES_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
 )
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
@@ -33,7 +33,7 @@ class ClickHouseClusterLoadJob(ClickHouseLoadJob):
 
     @property
     def load_into_distributed_table(self) -> bool:
-        return cast(bool, self._load_table.get(CREATE_DISTRIBUTED_TABLE_HINT, False))
+        return cast(bool, self._load_table.get(CREATE_DISTRIBUTED_TABLES_HINT, False))
 
     @property
     def load_table_name(self) -> str:
@@ -74,11 +74,11 @@ class ClickHouseClusterClient(ClickHouseClient):
         # inherit distributed table hints if not set
         # NOTE: we don't inherit SHARDING_KEY_HINT, because it may contain columns not
         # present in child table; instead, we fall back to robust default from config
-        if CREATE_DISTRIBUTED_TABLE_HINT not in table:
-            table[CREATE_DISTRIBUTED_TABLE_HINT] = get_inherited_table_hint(  # type: ignore[typeddict-unknown-key]
+        if CREATE_DISTRIBUTED_TABLES_HINT not in table:
+            table[CREATE_DISTRIBUTED_TABLES_HINT] = get_inherited_table_hint(  # type: ignore[typeddict-unknown-key]
                 self.schema.tables,
                 table_name,
-                CREATE_DISTRIBUTED_TABLE_HINT,
+                CREATE_DISTRIBUTED_TABLES_HINT,
                 allow_none=True,
             )
         if DISTRIBUTED_TABLE_SUFFIX_HINT not in table:
@@ -103,7 +103,7 @@ class ClickHouseClusterClient(ClickHouseClient):
 
         table = self.prepare_load_table(table_name)
 
-        if table.get(CREATE_DISTRIBUTED_TABLE_HINT):
+        if table.get(CREATE_DISTRIBUTED_TABLES_HINT):
             sql.append(self.sql_client._make_create_distributed_table(table))
 
         return sql

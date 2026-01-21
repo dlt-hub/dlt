@@ -7,7 +7,6 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
-    CREATE_DISTRIBUTED_TABLE_HINT,
     SHARDING_KEY_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
 )

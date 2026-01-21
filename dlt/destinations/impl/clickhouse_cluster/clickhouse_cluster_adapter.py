@@ -11,13 +11,15 @@ from dlt.extract.resource import DltResource
 from tests.common.test_validation import TTableHintTemplate
 
 
-CREATE_DISTRIBUTED_TABLE_HINT: Literal["x-create-distributed-table"] = "x-create-distributed-table"
+CREATE_DISTRIBUTED_TABLES_HINT: Literal["x-create-distributed-tables"] = (
+    "x-create-distributed-tables"
+)
 DISTRIBUTED_TABLE_SUFFIX_HINT: Literal["x-distributed-table-suffix"] = "x-distributed-table-suffix"
 SHARDING_KEY_HINT: Literal["x-sharding-key"] = "x-sharding-key"
 
 # maps ClickHouseClusterClientConfiguration keys to corresponding table hints
 CONFIG_HINT_MAP = {
-    "create_distributed_tables": CREATE_DISTRIBUTED_TABLE_HINT,
+    "create_distributed_tables": CREATE_DISTRIBUTED_TABLES_HINT,
     "distributed_table_suffix": DISTRIBUTED_TABLE_SUFFIX_HINT,
     "sharding_key": SHARDING_KEY_HINT,
 }
@@ -30,7 +32,7 @@ def clickhouse_cluster_adapter(
     partition: Optional[TSQLExprOrColumnSeq] = None,
     settings: Optional[TMergeTreeSettings] = None,
     codecs: Optional[TColumnCodecs] = None,
-    create_distributed_table: Optional[bool] = None,
+    create_distributed_tables: Optional[bool] = None,
     distributed_table_suffix: Optional[str] = None,
     sharding_key: Optional[str] = None,
 ) -> DltResource:
@@ -45,8 +47,8 @@ def clickhouse_cluster_adapter(
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
 
-    if create_distributed_table is not None:
-        additional_table_hints[CREATE_DISTRIBUTED_TABLE_HINT] = create_distributed_table
+    if create_distributed_tables is not None:
+        additional_table_hints[CREATE_DISTRIBUTED_TABLES_HINT] = create_distributed_tables
 
     if distributed_table_suffix is not None:
         additional_table_hints[DISTRIBUTED_TABLE_SUFFIX_HINT] = distributed_table_suffix

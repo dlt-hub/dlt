@@ -237,7 +237,7 @@ def test_distribution(destination_config: DestinationTestConfiguration) -> None:
     res = clickhouse_cluster_adapter(
         data,
         table_engine_type="merge_tree",  # use non-replicated engine
-        create_distributed_table=True,
+        create_distributed_tables=True,
     ).apply_hints(table_name=shard_table_name)
     pipe = destination_config.setup_pipeline("test_distribution", dev_mode=True)
 
@@ -324,7 +324,7 @@ def test_replication_distribution(destination_config: DestinationTestConfigurati
     data = [{"foo": "bar"} for _ in range(n_rows)]
     shard_table_name = "replicated_sharded_table"
     res = decorators.resource(data, name=shard_table_name)
-    res = clickhouse_cluster_adapter(res, create_distributed_table=True)
+    res = clickhouse_cluster_adapter(res, create_distributed_tables=True)
     pipe = destination_config.setup_pipeline("test_replication_distribution", dev_mode=True)
 
     # assert we are connecting to replicated sharded cluster
