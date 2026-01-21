@@ -207,7 +207,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
 
         caps.supports_truncate_command = True
 
-        caps.supported_merge_strategies = ["delete-insert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "scd2", "insert-only"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.enforces_nulls_on_alter = False
 

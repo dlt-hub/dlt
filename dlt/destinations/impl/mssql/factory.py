@@ -150,7 +150,7 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         # NOTE: timestamp_precision is 7 in the database but there's no way to write it via Python
         caps.timestamp_precision = 6
         caps.max_timestamp_precision = 7
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",
