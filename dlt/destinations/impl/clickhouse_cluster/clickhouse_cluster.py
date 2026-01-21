@@ -6,7 +6,10 @@ from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_inherited_table_hint
-from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient, ClickHouseLoadJob
+from dlt.destinations.impl.clickhouse.clickhouse import (
+    ClickHouseClient,
+    ClickHouseLoadJob,
+)
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
     CONFIG_HINT_MAP,
     CREATE_DISTRIBUTED_TABLE_HINT,

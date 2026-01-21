@@ -359,9 +359,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         unique_column: str,
         delete_temp_table_name: str,
         temp_table_column: str,
+        sql_client: SqlClientBase[Any],
     ) -> str:
         """Generate DELETE FROM statement deleting the records found in the deletes temp table."""
-        return f"""DELETE FROM {table_name}
+        return f"""{sql_client._make_delete_from(table_name)}
             WHERE {unique_column} IN (
                 SELECT * FROM {delete_temp_table_name}
             );
@@ -405,7 +406,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql}"
 
     @classmethod
-    def gen_update_table_prefix(cls, table_name: str) -> str:
+    def gen_update_table_prefix(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
         return f"UPDATE {table_name} SET"
 
     @classmethod
@@ -569,7 +570,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             root_table["name"]
         )
         retire_sql = f"""
-            {cls.gen_update_table_prefix(root_table_name)} {validity_to_column} = {boundary_literal}
+            {cls.gen_update_table_prefix(root_table_name, sql_client)} {validity_to_column} = {boundary_literal}
             WHERE {is_active_clause}
             AND {row_hash_column} NOT IN (SELECT {row_hash_column} FROM {staging_root_table_name});
         """
@@ -677,14 +678,22 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     )
                     sql.append(
                         cls.gen_delete_from_sql(
-                            table_name, root_key_column, delete_temp_table_name, row_key_column
+                            table_name,
+                            root_key_column,
+                            delete_temp_table_name,
+                            row_key_column,
+                            sql_client,
                         )
                     )
 
                 # delete from root table now that nested tables have been processed
                 sql.append(
                     cls.gen_delete_from_sql(
-                        root_table_name, row_key_column, delete_temp_table_name, row_key_column
+                        root_table_name,
+                        row_key_column,
+                        delete_temp_table_name,
+                        row_key_column,
+                        sql_client,
                     )
                 )
 
@@ -827,7 +836,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
                 # delete records for elements no longer in the list
                 sql.append(f"""
-                    DELETE FROM {table_name}
+                    {sql_client._make_delete_from(table_name)}
                     WHERE {root_key_column} IN (SELECT {root_row_key_column} FROM {staging_root_table_name})
                     AND {nested_row_key_column} NOT IN (SELECT {nested_row_key_column} FROM {staging_table_name});
                 """)
@@ -848,7 +857,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 # delete hard-deleted records
                 if hard_delete_col is not None:
                     sql.append(f"""
-                        DELETE FROM {table_name}
+                        {sql_client._make_delete_from(table_name)}
                         WHERE {root_key_column} IN (
                             SELECT {root_row_key_column}
                             FROM {staging_root_table_name}

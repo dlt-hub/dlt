@@ -345,11 +345,6 @@ SELECT 1
     #
     # generate sql statements
     #
-    def _truncate_table_sql(self, qualified_table_name: str) -> str:
-        if self.capabilities.supports_truncate_command:
-            return f"TRUNCATE TABLE {qualified_table_name}"
-        else:
-            return f"DELETE FROM {qualified_table_name} WHERE 1=1"
 
     def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
         return "", f"LIMIT {limit}"
@@ -360,6 +355,21 @@ SELECT 1
         or_replace_sql = "OR REPLACE " if or_replace else ""
         if_not_exists_sql = "IF NOT EXISTS " if if_not_exists else ""
         return f"CREATE {or_replace_sql}TABLE {if_not_exists_sql}{qualified_name}"
+
+    def _make_alter_table(self, qualified_table_name: str) -> str:
+        return f"ALTER TABLE {qualified_table_name}"
+
+    def _make_delete_from(self, qualified_table_name: str) -> str:
+        return f"DELETE FROM {qualified_table_name}"
+
+    def _make_truncate_table(self, qualified_table_name: str) -> str:
+        return f"TRUNCATE TABLE {qualified_table_name}"
+
+    def _truncate_table_sql(self, qualified_table_name: str) -> str:
+        if self.capabilities.supports_truncate_command:
+            return self._make_truncate_table(qualified_table_name)
+        else:
+            return f"{self._make_delete_from(qualified_table_name)} WHERE 1=1"
 
 
 class WithSqlClient(ABC):

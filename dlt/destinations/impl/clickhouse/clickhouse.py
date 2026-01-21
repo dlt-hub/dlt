@@ -20,7 +20,6 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop, is_nullable_column
 from dlt.common.storages import FileStorage
@@ -217,8 +216,8 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         ]
 
     @classmethod
-    def gen_update_table_prefix(cls, table_name: str) -> str:
-        return f"ALTER TABLE {table_name} UPDATE"
+    def gen_update_table_prefix(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
+        return f"{sql_client._make_alter_table(table_name)} UPDATE"
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
@@ -231,9 +230,10 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         unique_column: str,
         delete_temp_table_name: str,
         temp_table_column: str,
+        sql_client: SqlClientBase[Any],
     ) -> str:
         sql = super().gen_delete_from_sql(
-            table_name, unique_column, delete_temp_table_name, temp_table_column
+            table_name, unique_column, delete_temp_table_name, temp_table_column, sql_client
         )
         return cls._add_mutation_settings(sql)
 

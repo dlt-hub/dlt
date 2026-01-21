@@ -150,6 +150,9 @@ class ClickHouseSqlClient(
         if_exists_sql = "IF EXISTS " if if_exists else ""
         return f"DROP TABLE {if_exists_sql}{qualified_name} SYNC"
 
+    def _make_truncate_table(self, qualified_table_name: str) -> str:
+        return f"TRUNCATE TABLE {qualified_table_name} SYNC"
+
     def drop_dataset(self) -> None:
         # always try to drop the sentinel table.
         sentinel_table_name = self.make_qualified_table_name(

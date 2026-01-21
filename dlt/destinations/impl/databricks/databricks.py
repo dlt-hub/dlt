@@ -299,7 +299,12 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def gen_delete_from_sql(
-        cls, table_name: str, column_name: str, temp_table_name: str, temp_table_column: str
+        cls,
+        table_name: str,
+        column_name: str,
+        temp_table_name: str,
+        temp_table_column: str,
+        sql_client: SqlClientBase[Any],
     ) -> str:
         # Databricks does not support subqueries in DELETE FROM statements so we use a MERGE statement instead
         return f"""MERGE INTO {table_name}

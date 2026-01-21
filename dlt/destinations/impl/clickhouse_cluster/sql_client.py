@@ -75,10 +75,19 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         create_table_sql = super()._make_create_table(qualified_name, or_replace, if_not_exists)
         return f"{create_table_sql} ON CLUSTER {self.config.cluster}"
 
+    def _make_alter_table(self, qualified_table_name: str) -> str:
+        return f"ALTER TABLE {qualified_table_name} ON CLUSTER {self.config.cluster}"
+
     def _make_drop_table(self, qualified_table_name: str, if_exists: bool = False) -> str:
         if_exists_sql = "IF EXISTS " if if_exists else ""
         cluster = self.config.cluster
         return f"DROP TABLE {if_exists_sql}{qualified_table_name} ON CLUSTER {cluster} SYNC"
+
+    def _make_delete_from(self, qualified_table_name: str) -> str:
+        return f"DELETE FROM {qualified_table_name} ON CLUSTER {self.config.cluster}"
+
+    def _make_truncate_table(self, qualified_table_name: str) -> str:
+        return f"TRUNCATE TABLE {qualified_table_name} ON CLUSTER {self.config.cluster} SYNC"
 
     def _make_create_distributed_table(self, table_schema: PreparedTableSchema) -> str:
         table_name = table_schema["name"]

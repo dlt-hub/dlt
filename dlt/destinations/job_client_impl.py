@@ -693,11 +693,6 @@ WHERE """
         )
         return self.sql_client._make_create_table(qualified_name, if_not_exists=if_not_exists)
 
-    @staticmethod
-    def _make_alter_table(qualified_name: str) -> str:
-        """Begins ALTER TABLE statement"""
-        return f"ALTER TABLE {qualified_name}\n"
-
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -715,7 +710,7 @@ WHERE """
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = self._make_alter_table(qualified_name)
+            sql_base = self.sql_client._make_alter_table(qualified_name) + "\n"
             add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
@@ -842,7 +837,8 @@ WHERE """
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_schema_name,) = self._norm_and_escape_columns("schema_name")
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s", schema.name)
+        sql = f"{self.sql_client._make_delete_from(name)} WHERE {c_schema_name} = %s"
+        self.sql_client.execute_sql(sql, schema.name)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         # get schema string or zip
