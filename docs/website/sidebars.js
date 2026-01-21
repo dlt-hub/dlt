@@ -231,6 +231,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
         'dlt-ecosystem/destinations/ducklake',
+        'dlt-ecosystem/destinations/fabric',
         'dlt-ecosystem/destinations/community-destinations',
         'walkthroughs/create-new-destination'
       ]
