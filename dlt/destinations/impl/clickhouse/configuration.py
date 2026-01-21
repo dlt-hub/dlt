@@ -58,9 +58,11 @@ class ClickHouseCredentials(ConnectionStringCredentials):
                 "connect_timeout": str(self.connect_timeout),
                 "send_receive_timeout": str(self.send_receive_timeout),
                 "secure": 1 if self.secure else 0,
-                "allow_experimental_lightweight_delete": 1,
+                "enable_lightweight_delete": 1,
                 "enable_http_compression": 1,
                 "date_time_input_format": "best_effort",
+                "mutations_sync": 2,
+                "lightweight_deletes_sync": 2,
             }
         )
         return query

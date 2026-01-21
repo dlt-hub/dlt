@@ -237,7 +237,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         sql = super().gen_delete_from_sql(
             table_name, unique_column, delete_temp_table_name, temp_table_column, sql_client
         )
-        return cls._add_mutation_settings(sql)
+        return cls._allow_non_deterministic_mutation(sql)
 
     @classmethod
     def gen_scd2_retire_sql(
@@ -257,27 +257,24 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
             boundary_literal,
             is_active_clause,
         )
-        return cls._add_mutation_settings(sql)
+        return cls._allow_non_deterministic_mutation(sql)
 
     @classmethod
-    def _add_mutation_settings(cls, sql: str) -> str:
-        """Adds SETTINGS clause to `sql` to apply mutation settings.
+    def _allow_non_deterministic_mutation(cls, sql: str) -> str:
+        """Adds `SETTINGS allow_nondeterministic_mutations = 1` clause to `sql`.
 
-        Added settings only affect mutations on `ReplicatedMergeTree` tables; they do not affect
-        mutations on `MergeTree` tables.
+        Avoid using this function if you can.
 
-        Settings added:
-        1. `allow_nondeterministic_mutations=1` to allow non-deterministic mutations
-            (mutations with subqueries are considered non-deterministic when using
-            `ReplicatedMergeTree` tables)
-        2. `mutations_sync=2` to make mutations that use `ReplicatedMergeTree` tables synchronous
-            (they are already synchronous for `MergeTree` tables by default)
+        Function can be used to allow mutation with subquery, which is considered non-deterministic
+        when using `ReplicatedMergeTree` tables.
         """
+        # NOTE: while other settings are applied globally in `ClickHouseCredentials.get_query()`,
+        # we apply `allow_nondeterministic_mutations` at the query level to highlight potentially
+        # problematic statements
         # NOTE: there may be better ways to do UPDATES/DELETES than our current approach, which
-        # may let us avoid these settings:
-        # https://clickhouse.com/blog/handling-updates-and-deletes-in-clickhouse#updating-an-entire-table
+        # may let us avoid this setting: https://clickhouse.com/blog/handling-updates-and-deletes-in-clickhouse#updating-an-entire-table
 
-        settings_clause = " SETTINGS allow_nondeterministic_mutations=1, mutations_sync=2;"
+        settings_clause = " SETTINGS allow_nondeterministic_mutations = 1;"
         return sql.rstrip().rstrip(";") + settings_clause
 
 
