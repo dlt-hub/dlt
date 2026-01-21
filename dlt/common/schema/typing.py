@@ -109,6 +109,7 @@ class TColumnPropInfo(NamedTuple):
     name: Union[TColumnProp, str]
     defaults: Tuple[Any, ...] = (None,)
     is_hint: bool = False
+    compound: bool = False
 
 
 _ColumnPropInfos = [
@@ -119,12 +120,12 @@ _ColumnPropInfos = [
     TColumnPropInfo("timezone", (True, None)),
     TColumnPropInfo("nullable", (True, None)),
     TColumnPropInfo("variant", (False, None)),
-    TColumnPropInfo("partition", (False, None)),
-    TColumnPropInfo("cluster", (False, None)),
-    TColumnPropInfo("primary_key", (False, None)),
+    TColumnPropInfo("partition", (False, None), False, True),
+    TColumnPropInfo("cluster", (False, None), False, True),
+    TColumnPropInfo("primary_key", (False, None), False, True),
     TColumnPropInfo("sort", (False, None)),
     TColumnPropInfo("unique", (False, None)),
-    TColumnPropInfo("merge_key", (False, None)),
+    TColumnPropInfo("merge_key", (False, None), False, True),
     TColumnPropInfo("row_key", (False, None)),
     TColumnPropInfo("parent_key", (False, None)),
     TColumnPropInfo("root_key", (False, None)),

@@ -50,6 +50,10 @@ You can modify the generation process by using the table and column hints. The r
 1. `primary_key` and `merge_key`: define the name of the columns (compound keys are allowed) that will receive those hints. Used in [incremental loading](incremental-loading.md) and [merge loading](merge-loading.md).
 1. `columns`: lets you define one or more columns, including the data types, nullability, and other hints. The column definition is a `TypedDict`: `TTableSchemaColumns`. In the example below, we tell `dlt` that the column `tags` (containing a list of tags) in the `user` table should have type `json`, which means that it will be loaded as JSON/struct and not as a separate nested table.
 
+:::tip
+When using `primary_key`, `merge_key`, or `columns`, be aware of the [precedence and replacement rules of compound hints](schema.md#compound-hints).
+:::
+
   ```py
   @dlt.resource(name="user", columns={"tags": {"data_type": "json"}})
   def get_users():

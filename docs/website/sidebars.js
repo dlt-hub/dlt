@@ -69,7 +69,8 @@ const sidebars = {
       items: [
         'release-notes/1.12.1',
         'release-notes/1.13-1.14',
-        'release-notes/1.15'
+        'release-notes/1.15',
+        'release-notes/1.21.2'
       ]
     },
     {
