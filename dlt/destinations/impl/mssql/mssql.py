@@ -80,6 +80,7 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         temp_table_name: str,
         unique_column: str,
         sql_client: SqlClientBase[Any],
+        table_schema: PreparedTableSchema,
     ) -> str:
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t"
 

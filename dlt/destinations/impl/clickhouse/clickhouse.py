@@ -198,9 +198,11 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         temp_table_name: str,
         unique_column: str,
         sql_client: SqlClientBase[Any],
+        table_schema: PreparedTableSchema,
     ) -> str:
         create_table_sql = sql_client._make_create_table(temp_table_name, or_replace=True)
-        return f"{create_table_sql} ENGINE = MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
+        engine = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR[table_schema[TABLE_ENGINE_TYPE_HINT]]  # type: ignore[typeddict-item]
+        return f"{create_table_sql} ENGINE = {engine} PRIMARY KEY {unique_column} AS {select_sql}"
 
     @classmethod
     def gen_key_table_clauses(

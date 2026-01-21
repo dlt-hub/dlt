@@ -40,6 +40,7 @@ class DremioMergeJob(SqlMergeFollowupJob):
         temp_table_name: str,
         unique_column: str,
         sql_client: SqlClientBase[Any],
+        table_schema: PreparedTableSchema,
     ) -> str:
         return (
             f"DROP TABLE IF EXISTS {temp_table_name}; CREATE TABLE {temp_table_name} AS"
