@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from typing import Any, ClassVar, Dict, Iterator, List, Optional
+from typing import Any, ClassVar, Dict, Iterator, List, Optional, Union
 import pytest
 
 from dlt.common.destination.client import SupportsOpenTables
@@ -862,3 +862,55 @@ def test_null_in_non_null_arrow() -> None:
         # generates variant column on non-nullable column. original "foo" will receive null
         pipeline.run(inconsistent_data("text"))
     assert pip_ex.value.step == "normalize"
+
+
+@pytest.mark.parametrize("return_models", [True, False])
+@pytest.mark.parametrize("yield_models", [True, False])
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_pydantic_return_validated_models(return_models, yield_models, yield_list):
+    class TempModel(BaseModel):
+        _id: int
+        dlt_config: ClassVar[DltConfig] = {"return_validated_models": return_models}
+
+    @dlt.resource(columns=TempModel)
+    def data():
+        if yield_list:
+            if yield_models:
+                yield [TempModel(_id=i) for i in range(3)]
+            else:
+                yield [{"_id": i} for i in range(3)]
+        else:
+            if yield_models:
+                for i in range(3):
+                    yield TempModel(_id=i)
+            else:
+                for i in range(3):
+                    yield {"_id": i}
+
+    seen_outer: list[type] = []
+    seen_inner: list[Union[type, None]] = []
+
+    @dlt.transformer(data_from=data)
+    def inspect(x):
+        seen_outer.append(type(x))
+        if isinstance(x, list) and x:
+            seen_inner.append(type(x[0]))
+        else:
+            seen_inner.append(None)
+        yield x
+
+    pipeline = dlt.pipeline(destination="duckdb", dev_mode=True)
+    pipeline.run(inspect)
+
+    if return_models:
+        if yield_list:
+            assert all(t is list for t in seen_outer)
+            assert all(issubclass(t, BaseModel) for t in seen_inner if t)
+        else:
+            assert all(issubclass(t, BaseModel) for t in seen_outer)
+    else:
+        if yield_list:
+            assert all(t is list for t in seen_outer)
+            assert all(t is dict for t in seen_inner if t)
+        else:
+            assert all(t is dict for t in seen_outer)

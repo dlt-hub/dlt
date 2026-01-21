@@ -1,3 +1,4 @@
+import decimal
 import random
 from typing import Any, Dict, List, TypedDict, cast
 
@@ -7,6 +8,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Float,
     Integer,
     MetaData,
     Numeric,
@@ -17,7 +19,7 @@ from sqlalchemy import (
     Identity,
 )
 from sqlalchemy import text
-from sqlalchemy.dialects.oracle import TIMESTAMP
+from sqlalchemy.dialects.oracle import BINARY_DOUBLE, BINARY_FLOAT, NUMBER, TIMESTAMP
 
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.sources.credentials import ConnectionStringCredentials
@@ -96,13 +98,18 @@ class OracleSourceDB:
                 nullable=nullable,
                 server_default=func.current_timestamp(),
             ),
-            Column("some_integer", Integer(), nullable=nullable),
-            Column("some_numeric", Numeric(10, 2), nullable=nullable),
             Column("some_boolean", Boolean(), nullable=nullable, server_default=text("TRUE")),
             Column("some_date", Date(), nullable=nullable),
             Column("some_timestamp_tz", TIMESTAMP(timezone=True), nullable=nullable),
             Column("some_timestamp_ntz", TIMESTAMP(timezone=False), nullable=nullable),
             Column("some_blob", BLOB, nullable=nullable),
+            Column("some_integer", Integer(), nullable=nullable),
+            Column("some_number", NUMBER(), nullable=nullable),
+            Column("some_number_precision", NUMBER(precision=10), nullable=nullable),
+            Column("some_number_precision_scale", NUMBER(precision=10, scale=2), nullable=nullable),
+            Column("some_float", Float(), nullable=nullable),
+            Column("some_binary_float", BINARY_FLOAT(), nullable=nullable),
+            Column("some_binary_double", BINARY_DOUBLE(), nullable=nullable),
         )
         self.metadata.create_all(bind=self.engine)
 
@@ -130,12 +137,17 @@ class OracleSourceDB:
                     created_at=created_at,
                     updated_at=updated_at,
                     some_integer=random.randint(1, 100),
-                    some_numeric=round(random.uniform(0, 9999.99), 2),
                     some_boolean=random.choice([True, False]),
                     some_date=mimesis.Datetime().date(),
                     some_timestamp_tz=mimesis.Datetime().datetime(timezone="UTC"),
                     some_timestamp_ntz=mimesis.Datetime().datetime(),
                     some_blob=b"\x00\x01\x02",
+                    some_number=random.randint(1, 1000000),
+                    some_number_precision=random.randint(1, 1000000),
+                    some_number_precision_scale=decimal.Decimal(random.randint(1, 1000000)) / 100,
+                    some_float=random.uniform(0, 1000000),
+                    some_binary_float=random.uniform(1, 1000000),
+                    some_binary_double=random.uniform(1, 1000000),
                 )
             )
         with self.engine.begin() as conn:

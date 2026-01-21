@@ -307,7 +307,7 @@ class Relation(WithSqlClient):
         return self.limit(limit)
 
     def select(self, *columns: str) -> Self:
-        """CReate a `Relation` with the selected columns using a `SELECT` clause."""
+        """Create a `Relation` with the selected columns using a `SELECT` clause."""
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
         subquery = self.sqlglot_expression.subquery()
         new_expr = sge.select(*proj).from_(subquery)

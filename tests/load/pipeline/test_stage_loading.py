@@ -254,8 +254,8 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
         # except for Athena which does not delete staging destination tables
         if destination_config.destination_type == "athena":
             if destination_config.table_format == "iceberg":
-                # even more iceberg metadata
-                table_count = 13
+                # even more iceberg metadata (but not with s3 tables, see comment above)
+                table_count = 0 if destination_config.is_athena_s3_tables else 13
             else:
                 table_count = 3
         else:
