@@ -147,7 +147,7 @@ Please report issues with particular dialects. We'll try to make them work.
 * Trino does not support PRIMARY/UNIQUE constraints
 
 ### Oracle limitations
-* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation]((../staging.md#staging-dataset)) for more details
+* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
 
 
 ### Adapting destination for a dialect
