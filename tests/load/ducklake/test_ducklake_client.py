@@ -311,9 +311,7 @@ def test_ducklake_factory_instantiation() -> None:
 
     ducklake = dlt.destinations.ducklake(
         loader_parallelism_strategy="parallel",
-        credentials=DuckLakeCredentials(
-            ducklake_name=f"ducklake_{worker}"
-        ),
+        credentials=DuckLakeCredentials(ducklake_name=f"ducklake_{worker}"),
     )
     pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
 
