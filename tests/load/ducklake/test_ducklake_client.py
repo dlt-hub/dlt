@@ -17,7 +17,7 @@ from dlt.destinations.impl.ducklake.configuration import (
 )
 
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
-from tests.utils import get_test_storage_root
+from tests.utils import get_test_storage_root, get_test_worker_id
 
 
 def test_native_duckdb_workflow(tmp_path):
@@ -307,7 +307,14 @@ def test_ducklake_conn_pool_always_open() -> None:
 @pytest.mark.no_load
 def test_ducklake_factory_instantiation() -> None:
     # force parallel loads on sqlite
-    ducklake = dlt.destinations.ducklake(loader_parallelism_strategy="parallel")
+    worker = get_test_worker_id()
+
+    ducklake = dlt.destinations.ducklake(
+        loader_parallelism_strategy="parallel",
+        credentials=DuckLakeCredentials(
+            ducklake_name=f"ducklake_{worker}"
+        ),
+    )
     pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
 
     with pipeline.destination_client() as client:
