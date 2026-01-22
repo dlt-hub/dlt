@@ -25,10 +25,14 @@
                 <replica>
                     <host>clickhouse-01</host>
                     <port>9001</port>
+                    <user>loader</user>
+                    <password>loader</password>
                 </replica>
                 <replica>
                     <host>clickhouse-02</host>
                     <port>9001</port>
+                    <user>loader</user>
+                    <password>loader</password>
                 </replica>
             </shard>
         </cluster_1S_2R>
