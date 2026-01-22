@@ -104,6 +104,7 @@ jobs:
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
+              xdist_workers: 2
 
             # Ducklake
             - name: ducklake
