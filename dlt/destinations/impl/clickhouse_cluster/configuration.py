@@ -14,7 +14,15 @@ DEFAULT_SHARDING_KEY = "rand()"
 @configspec(init=False)
 class ClickHouseClusterCredentials(ClickHouseCredentials):
     alt_hosts: Optional[str] = None
+    """Comma-separated list of alternative host:port pairs.
+
+    Used as fallback when connecting to `host`:`port` fails. Example: `host1:9441,host2:9440`.
+    """
     alt_http_hosts: Optional[str] = None
+    """Comma-separated list of alternative host:http_port pairs.
+
+    Used as fallback when connecting to `host`:`http_port` fails. Example: `host1:8444,host2:8443`.
+    """
 
     __query_params__: ClassVar[List[str]] = ["alt_hosts"]
 
@@ -55,11 +63,34 @@ class ClickHouseClusterClientConfiguration(ClickHouseClientConfiguration):
     credentials: ClickHouseClusterCredentials = None
     # NOTE: `replicated_merge_tree` makes sense for dlt tables because they are small
     dlt_tables_table_engine_type: TTableEngineType = "replicated_merge_tree"
-    """Default table engine to use for dlt tables. Also applies to dataset sentinel table. Falls back to `table_engine_type` if set to `None`."""
+    """Default table engine to use for dlt tables.
+
+    Also applies to dataset sentinel table. Falls back to `table_engine_type` if set to `None`.
+    """
 
     # add `clickhouse_cluster` specific attributes
     cluster: str = None
+    """Name of the ClickHouse cluster to load data into."""
     create_distributed_tables: bool = False
+    """Whether to create distributed tables in addition to standard tables.
+
+    Can be overridden per resource using `clickhouse_cluster_adapter`.
+    """
     distributed_tables_database: Optional[str] = None
+    """Name of the database to create distributed tables in.
+
+    If set to `None`, uses the same database as standard tables.
+    """
     distributed_table_suffix: str = DEFAULT_DISTRIBUTED_TABLE_SUFFIX
+    """Suffix to append to table names when creating distributed tables.
+
+    For example, if set to `_dist`, a table named `events` will have a distributed table named
+    `events_dist`.
+
+    Can be overridden per resource using `clickhouse_cluster_adapter`.
+    """
     sharding_key: str = DEFAULT_SHARDING_KEY
+    """Sharding key expression to use for distributed tables.
+
+    Can be overridden per resource using `clickhouse_cluster_adapter`.
+    """
