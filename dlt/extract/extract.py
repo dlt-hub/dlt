@@ -1,15 +1,16 @@
 import contextlib
+import itertools
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-import itertools
-from typing import Iterator, List, Dict, Any, Optional
-import yaml
+from typing import Any, Dict, Iterator, List, Literal, Optional, Union
 
+import yaml
 from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS, TDataItemFormat
+from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -17,9 +18,8 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
 )
-from dlt.common.typing import TColumnNames, TLoaderFileFormat
 from dlt.common.runtime import signals
-from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
+from dlt.common.runtime.collector import NULL_COLLECTOR, Collector
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
@@ -27,36 +27,35 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TWriteDispositionConfig,
 )
-from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
+from dlt.common.storages import LoadPackageInfo, NormalizeStorageConfiguration, SchemaStorage
 from dlt.common.storages.load_package import (
-    ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
+    ParsedLoadJobFileName,
     TLoadPackageState,
     commit_load_package_state,
 )
+from dlt.common.typing import TColumnNames, TLoaderFileFormat
 from dlt.common.utils import (
     get_callable_name,
     get_full_obj_class_name,
     group_dict_of_lists,
     update_dict_nested,
 )
-
 from dlt.extract.decorators import (
-    _DltSingleSource,
     SourceInjectableContext,
     SourceSchemaInjectableContext,
+    _DltSingleSource,
 )
 from dlt.extract.exceptions import UnknownSourceReference
+from dlt.extract.extractors import ArrowExtractor, Extractor, ModelExtractor, ObjectExtractor
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.items_transform import ItemTransform
-from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
-from dlt.extract.source import DltSource
-from dlt.extract.reference import SourceReference, SourceFactory
+from dlt.extract.reference import SourceFactory, SourceReference
 from dlt.extract.resource import DltResource
-from dlt.extract.storage import ExtractStorage
-from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
+from dlt.extract.source import DltSource
 from dlt.extract.state import reset_resource_state
+from dlt.extract.storage import ExtractStorage
 from dlt.extract.utils import get_data_item_format, make_schema_with_default_name
 
 
@@ -329,7 +328,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         }
 
     def _write_empty_files(
-        self, source: DltSource, extractors: Dict[TDataItemFormat, Extractor]
+        self,
+        source: DltSource,
+        extractors: Dict[Union[TDataItemFormat, Literal["arrow_ipc"]], Extractor],
     ) -> None:
         schema = source.schema
         json_extractor = extractors["object"]
@@ -380,7 +381,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     ) -> None:
         schema = source.schema
         collector = self.collector
-        extractors: Dict[TDataItemFormat, Extractor] = {
+        extractors: Dict[Union[TDataItemFormat, Literal["arrow_ipc"]], Extractor] = {
             "object": ObjectExtractor(
                 load_id, self.extract_storage.item_storages["object"], schema, collector=collector
             ),
@@ -390,6 +391,12 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "model": ModelExtractor(
                 load_id, self.extract_storage.item_storages["model"], schema, collector=collector
             ),
+            "arrow_ipc": ArrowExtractor(
+                load_id,
+                self.extract_storage.item_storages["arrow_ipc"],
+                schema,
+                collector=collector,
+            ),  # Additional extractor for Arrow IPC (Feather v2) format arrow data
         }
         # make sure we close storage on exception
         with collector(f"Extract {source.name}"):
@@ -413,7 +420,18 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         signals.raise_if_signalled()
 
                         resource = source.resources.with_pipe(pipe_item.pipe)
-                        item_format = get_data_item_format(pipe_item.item)
+                        item_format: Union[TDataItemFormat, Literal["arrow_ipc"]] = (
+                            get_data_item_format(pipe_item.item)
+                        )
+
+                        # Check if resource has file_format="arrow" hint - route to arrow_ipc storage
+                        if (
+                            item_format == "arrow"
+                            and resource._hints
+                            and resource._hints.get("file_format") == "arrow"
+                        ):
+                            item_format = "arrow_ipc"
+
                         extractors[item_format].write_items(
                             resource, pipe_item.item, pipe_item.meta
                         )
