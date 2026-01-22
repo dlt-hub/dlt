@@ -13,6 +13,7 @@ from dlt.common.configuration.specs import (
     AwsCredentials,
     GcpOAuthCredentials,
     AnyAzureCredentials,
+    HfCredentials,
     BaseConfiguration,
     SFTPCredentials,
 )
@@ -194,6 +195,7 @@ class FilesystemConfiguration(BaseConfiguration):
         "adl": AnyAzureCredentials,
         "abfss": AnyAzureCredentials,
         "azure": AnyAzureCredentials,
+        "hf": HfCredentials,
         "sftp": SFTPCredentials,
     }
 
