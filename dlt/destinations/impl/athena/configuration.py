@@ -20,7 +20,7 @@ class LakeformationConfig:
 @configspec
 class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="athena", init=False, repr=False, compare=False)  # type: ignore[misc]
-    query_result_bucket: str = None
+    query_result_bucket: Optional[str] = None
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None
     aws_data_catalog: str = DEFAULT_AWS_DATA_CATALOG
