@@ -39,16 +39,14 @@ def session_repos_dir(tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="session")
 def cloned_init_repo(session_repos_dir) -> FileStorage:
-    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped 
+    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped
     # and this fixture is too expensive to be function scoped
-    return git.get_fresh_repo_files(
-        INIT_REPO_LOCATION, session_repos_dir, branch=INIT_REPO_BRANCH
-    )
+    return git.get_fresh_repo_files(INIT_REPO_LOCATION, session_repos_dir, branch=INIT_REPO_BRANCH)
 
 
 @pytest.fixture(scope="session")
 def cloned_init_vibe_repo(session_repos_dir) -> FileStorage:
-    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped 
+    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped
     # and this fixture is too expensive to be function scoped
     return git.get_fresh_repo_files(
         DEFAULT_VIBE_SOURCES_REPO, session_repos_dir, branch=INIT_VIBE_REPO_BRANCH
