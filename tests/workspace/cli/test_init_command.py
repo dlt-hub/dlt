@@ -58,7 +58,8 @@ from tests.workspace.cli.utils import (
     cloned_init_repo,
     cloned_init_vibe_repo,
     get_repo_dir,
-    get_workspace_files,
+    get_workspace_files, 
+    session_repos_dir
 )
 from tests.common.utils import modify_and_commit_file
 from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root

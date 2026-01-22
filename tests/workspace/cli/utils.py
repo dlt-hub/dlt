@@ -2,6 +2,7 @@ import os
 import pytest
 import shutil
 from typing import Iterator
+from pathlib import Path
 
 from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
@@ -30,17 +31,27 @@ def auto_echo_default_choice() -> Iterator[None]:
     echo.ALWAYS_CHOOSE_DEFAULT = False
 
 
-@pytest.fixture
-def cloned_init_repo() -> FileStorage:
+@pytest.fixture(scope="session")
+def session_repos_dir(tmp_path_factory) -> Path:
+    # One fixed temp dir for the entire pytest session
+    return tmp_path_factory.mktemp("dlt_repos")
+
+
+@pytest.fixture(scope="session")
+def cloned_init_repo(session_repos_dir) -> FileStorage:
+    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped 
+    # and this fixture is too expensive to be function scoped
     return git.get_fresh_repo_files(
-        INIT_REPO_LOCATION, get_dlt_repos_dir(), branch=INIT_REPO_BRANCH
+        INIT_REPO_LOCATION, session_repos_dir, branch=INIT_REPO_BRANCH
     )
 
 
-@pytest.fixture
-def cloned_init_vibe_repo() -> FileStorage:
+@pytest.fixture(scope="session")
+def cloned_init_vibe_repo(session_repos_dir) -> FileStorage:
+    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped 
+    # and this fixture is too expensive to be function scoped
     return git.get_fresh_repo_files(
-        DEFAULT_VIBE_SOURCES_REPO, get_dlt_repos_dir(), branch=INIT_VIBE_REPO_BRANCH
+        DEFAULT_VIBE_SOURCES_REPO, session_repos_dir, branch=INIT_VIBE_REPO_BRANCH
     )
 
 
