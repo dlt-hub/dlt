@@ -60,7 +60,7 @@ from tests.workspace.cli.utils import (
     get_repo_dir,
     get_workspace_files,
     _cached_init_repo,
-    _cached_init_vibe_repo
+    _cached_init_vibe_repo,
 )
 from tests.common.utils import modify_and_commit_file
 from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root

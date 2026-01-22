@@ -38,6 +38,7 @@ def _cached_init_repo(tmp_path_factory) -> FileStorage:
         branch=INIT_REPO_BRANCH,
     )
 
+
 @pytest.fixture(scope="session")
 def _cached_init_vibe_repo(tmp_path_factory) -> FileStorage:
     cache_dir = tmp_path_factory.mktemp("cached_vibe_sources_repo")
@@ -46,6 +47,7 @@ def _cached_init_vibe_repo(tmp_path_factory) -> FileStorage:
         cache_dir,
         branch=INIT_VIBE_REPO_BRANCH,
     )
+
 
 @pytest.fixture
 def cloned_init_repo(_cached_init_repo: FileStorage) -> FileStorage:
