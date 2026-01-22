@@ -273,8 +273,12 @@ class Extractor:
                 computed_table["x-normalizer"] = {"evolve-columns-once": True}
             existing_table = self.schema.tables.get(table_name, None)
             if existing_table:
-                # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
-                diff_table = utils.diff_table(self.schema.name, existing_table, computed_table)
+                diff_table = utils.diff_table(
+                    self.schema.name,
+                    existing_table,
+                    computed_table,
+                    additive_compound_props=False,
+                )
             else:
                 diff_table = computed_table
 
@@ -287,7 +291,10 @@ class Extractor:
             if diff_table:
                 # diff table identifiers already normalized
                 self.schema.update_table(
-                    diff_table, normalize_identifiers=False, from_diff=bool(existing_table)
+                    diff_table,
+                    normalize_identifiers=False,
+                    from_diff=bool(existing_table),
+                    merge_compound_props=False,
                 )
 
             # process filters
@@ -510,9 +517,7 @@ class ArrowExtractor(Extractor):
                         " schema and data were unmodified. It is up to destination to coerce the"
                         " differences when loading. Change log level to INFO for more details."
                     )
-                utils.merge_columns(
-                    arrow_table["columns"], computed_table["columns"], merge_columns=True
-                )
+                utils.merge_columns(arrow_table["columns"], computed_table["columns"])
                 arrow_tables[computed_table["name"]] = arrow_table
 
         return list(arrow_tables.values())

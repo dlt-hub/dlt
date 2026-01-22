@@ -34,7 +34,7 @@ def github_repo_events():
     yield from _get_event_pages()
 ```
 
-You can use compound primary keys:
+Since primary key is a [compound property](../general-usage/schema.md#compound-hints), you can define a composite primary key by providing multiple column names:
 
 ```py
 @dlt.resource(primary_key=("id", "url"), write_disposition="merge")
@@ -43,7 +43,7 @@ def resource():
 ```
 
 The example below merges on the `batch_day` column that holds the day for which the given record is valid.
-Merge keys also can be compound:
+Merge keys also can be [compound](../general-usage/schema.md#compound-hints):
 
 ```py
 @dlt.resource(merge_key="batch_day", write_disposition="merge")

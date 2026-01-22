@@ -7,7 +7,14 @@ from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
     TablePropertiesConflictException,
 )
-from dlt.common.schema.typing import TColumnSchemaBase, TStoredSchema, TTableSchema, TColumnSchema
+from dlt.common.schema.typing import (
+    TColumnSchemaBase,
+    TStoredSchema,
+    TTableSchema,
+    TColumnSchema,
+    ColumnPropInfos,
+    TTableSchemaColumns,
+)
 
 
 COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
@@ -34,6 +41,19 @@ COL_1_HINTS_NO_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key
 }
 
 COL_2_HINTS: TColumnSchema = {"nullable": True, "name": "test_2", "primary_key": False}
+
+
+COL_3_HINTS: TColumnSchema = {
+    "name": "test_3",
+    "merge_key": True,
+    "nullable": False,
+}
+
+COL_4_HINTS: TColumnSchema = {
+    "name": "test_4",
+    "merge_key": True,
+    "nullable": False,
+}
 
 
 @pytest.mark.parametrize(
@@ -226,19 +246,113 @@ def test_merge_columns() -> None:
     assert columns["test"] == COL_1_HINTS
     assert columns["test_2"] == COL_2_HINTS
 
-    # replace test with new test
     columns = utils.merge_columns(
-        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=False
-    )
-    assert list(columns.keys()) == ["test"]
-    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
-
-    # merge
-    columns = utils.merge_columns(
-        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=True
+        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}
     )
     assert list(columns.keys()) == ["test"]
     assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+
+
+@pytest.mark.parametrize(
+    "prop",
+    [prop for prop, info in ColumnPropInfos.items() if info.compound] + ["unknown", "data_type"],
+)
+def test_is_compound_prop(prop: str) -> None:
+    """Test the functionality of is_compound_prop"""
+    is_compound = utils.is_compound_prop(prop)
+    if prop in ["unknown", "data_type"]:
+        assert is_compound is False
+    else:
+        assert is_compound is True
+
+
+def test_remove_compound_props() -> None:
+    """Test the removal of compound props."""
+
+    columns: TTableSchemaColumns = {
+        "col1": deepcopy(COL_1_HINTS),
+        "col3": deepcopy(COL_3_HINTS),
+        "col4": deepcopy(COL_4_HINTS),
+    }
+
+    result = utils.remove_compound_props(columns, {"cluster", "merge_key", "data_type"})
+
+    # ensure specified properties are removed from all columns
+    assert all("cluster" not in col_schema for col_schema in result.values())
+    assert all("merge_key" not in col_schema for col_schema in result.values())
+
+    # in col3 and col4, nullable should not be reset
+    assert columns["col3"]["nullable"] is False
+    assert columns["col4"]["nullable"] is False
+
+    # the function is a generic property remover, validation of whether
+    # properties are actually compound should be handled upstream
+    assert all("data_type" not in col_schema for col_schema in result.values())
+
+    # it modifies in place (returns same object)
+    assert result is columns
+
+
+@pytest.mark.parametrize(
+    "prop",
+    [prop for prop, info in ColumnPropInfos.items() if info.compound] + ["unknown", "data_type"],
+)
+def test_collect_and_remove_compound_props(prop: str) -> None:
+    """Test collection and removal of compound props."""
+
+    col_1: TTableSchemaColumns = {"test_1": {"name": "test_1", prop: True}}  # type: ignore[misc]
+    col_2: TTableSchemaColumns = {"test_2": {"name": "test_2", prop: True}}  # type: ignore[misc]
+    utils._collect_and_remove_compound_props(col_1, col_2)
+    if prop in ["unknown", "data_type"]:
+        # "unknown" is not a recognized prop, "data_type" is not compound
+        # both should be ignored by the helper
+        assert col_2["test_2"].get(prop) is True
+    else:
+        assert not col_2["test_2"].get(prop)
+
+    col_3: TTableSchemaColumns = {"test_3": {"name": "test_3", prop: False}}  # type: ignore[misc]
+    col_4: TTableSchemaColumns = {"test_4": {"name": "test_4", prop: True}}  # type: ignore[misc]
+    utils._collect_and_remove_compound_props(col_3, col_4)
+    assert col_4["test_4"].get(prop) is True
+
+    col_5: TTableSchemaColumns = {"test_5": {"name": "test_5", prop: None}}  # type: ignore[misc]
+    col_6: TTableSchemaColumns = {"test_6": {"name": "test_6", prop: True}}  # type: ignore[misc]
+    utils._collect_and_remove_compound_props(col_5, col_6)
+    assert col_6["test_6"].get(prop) is True
+
+
+@pytest.mark.parametrize(
+    "merge_compound_props",
+    [True, False],
+    ids=["merge_compound_props", "replace_compound_props"],
+)
+def test_merge_columns_compound_props(merge_compound_props: bool) -> None:
+    """Test that compound props are replaced if the config is set so in merge_columns."""
+
+    compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
+    assert compound_props == {"merge_key", "primary_key", "cluster", "partition"}
+
+    columns_a: TTableSchemaColumns = {
+        "col1": {"name": "col1", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
+    }
+
+    columns_b: TTableSchemaColumns = {
+        "col2": {"name": "col2", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
+    }
+
+    result = utils.merge_columns(
+        deepcopy(columns_a), columns_b, merge_compound_props=merge_compound_props
+    )
+
+    if merge_compound_props:
+        for prop in compound_props:
+            assert result["col1"].get(prop) is True
+            assert result["col2"].get(prop) is True
+
+    else:
+        for prop in compound_props:
+            assert result["col1"].get(prop) is None
+            assert result["col2"].get(prop) is True
 
 
 def test_merge_incomplete_columns() -> None:
@@ -262,13 +376,12 @@ def test_merge_incomplete_columns() -> None:
         {"test": COL_1_HINTS_NO_DEFAULTS},
     )
     assert list(columns.keys()) == ["test_2", "test"]
-    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
+    assert columns["test"] == COL_1_HINTS
     assert columns["test_2"] == COL_2_HINTS
 
     columns = utils.merge_columns(
         {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
         {"test": COL_1_HINTS_NO_DEFAULTS},
-        merge_columns=True,
     )
     assert list(columns.keys()) == ["test_2", "test"]
     assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
@@ -278,11 +391,16 @@ def test_merge_incomplete_columns() -> None:
         {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS}, {"test": incomplete_col_1_nd}
     )
     assert list(columns.keys()) == ["test", "test_2"]
-    assert columns["test"] == incomplete_col_1_nd
+    assert columns["test"] == incomplete_col_1
     assert columns["test_2"] == COL_2_HINTS
 
 
-def test_diff_tables() -> None:
+@pytest.mark.parametrize(
+    "merge_compound_props",
+    [True, False],
+    ids=["merge_compound_props", "replace_compound_props"],
+)
+def test_diff_tables(merge_compound_props: bool) -> None:
     table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
         "description": "description",
@@ -293,10 +411,10 @@ def test_diff_tables() -> None:
     empty = utils.new_table("table")
     del empty["resource"]
     print(empty)
-    partial = utils.diff_table("schema", empty, deepcopy(table))
+    partial = utils.diff_table("schema", empty, deepcopy(table), merge_compound_props)
     # partial is simply table
     assert partial == table
-    partial = utils.diff_table("schema", deepcopy(table), empty)
+    partial = utils.diff_table("schema", deepcopy(table), empty, merge_compound_props)
     # partial is empty
     assert partial == empty
 
@@ -307,7 +425,7 @@ def test_diff_tables() -> None:
     # names must be identical
     renamed_table = deepcopy(table)
     renamed_table["name"] = "new name"
-    partial = utils.diff_table("schema", renamed_table, changed)
+    partial = utils.diff_table("schema", renamed_table, changed, merge_compound_props)
     print(partial)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
@@ -315,7 +433,7 @@ def test_diff_tables() -> None:
     existing = deepcopy(renamed_table)
     changed["write_disposition"] = "append"
     changed["schema_contract"] = "freeze"
-    partial = utils.diff_table("schema", deepcopy(existing), changed)
+    partial = utils.diff_table("schema", deepcopy(existing), changed, merge_compound_props)
     assert partial == {
         "name": "new name",
         "description": "new description",
@@ -325,14 +443,14 @@ def test_diff_tables() -> None:
     }
     existing["write_disposition"] = "append"
     existing["schema_contract"] = "freeze"
-    partial = utils.diff_table("schema", deepcopy(existing), changed)
+    partial = utils.diff_table("schema", deepcopy(existing), changed, merge_compound_props)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
     # detect changed column
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["cluster"] = True
-    partial = utils.diff_table("schema", existing, changed)
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
     assert "test" in partial["columns"]
     assert "test_2" not in partial["columns"]
     assert existing["columns"]["test"] == table["columns"]["test"] != partial["columns"]["test"]
@@ -341,7 +459,7 @@ def test_diff_tables() -> None:
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["parent_key"] = False
-    partial = utils.diff_table("schema", existing, changed)
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
     assert "test" in partial["columns"]
 
     # even if not present in tab_a at all
@@ -349,8 +467,31 @@ def test_diff_tables() -> None:
     changed = deepcopy(table)
     changed["columns"]["test"]["parent_key"] = False
     del existing["columns"]["test"]["parent_key"]
-    partial = utils.diff_table("schema", existing, changed)
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
     assert "test" in partial["columns"]
+
+    existing = deepcopy(table)
+    existing["columns"]["test"]["primary_key"] = True
+    changed = deepcopy(table)
+    changed["columns"]["test_2"]["primary_key"] = True
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
+    assert partial["columns"] == {
+        "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
+    }
+
+    # if replace_compound_props, compound_props in changed are authoritative
+    existing = deepcopy(table)
+    existing["columns"]["test"]["primary_key"] = True
+    existing["columns"]["test_2"]["primary_key"] = True
+    changed = deepcopy(table)
+    changed["columns"]["test_2"]["primary_key"] = True
+    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
+    if merge_compound_props:
+        assert partial["columns"] == {}
+    else:
+        assert partial["columns"] == {
+            "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
+        }
 
 
 def test_tables_conflicts() -> None:
