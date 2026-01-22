@@ -23,7 +23,6 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
 )
 
-from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.destination.client import (
     StateInfo,
@@ -36,7 +35,6 @@ from dlt.common.time import ensure_pendulum_datetime_utc
 
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.load.clickhouse_cluster.utils import get_table_engine
 from tests.utils import TEST_STORAGE_ROOT
 from tests.common.utils import load_json_case
 from tests.load.utils import (
@@ -424,18 +422,8 @@ def test_drop_tables(client: SqlJobClientBaseWithDestinationTestConfiguration) -
     rows = client.sql_client.execute_sql(
         f"SELECT version_hash FROM {table_name} WHERE schema_name = %s", schema.name
     )
-
-    # NOTE: below tests are flaky on ClickHouse when using the ReplicatedMergeTree engine. Theory:
-    # the `DELETE FROM` operation in `SqlJobClientBase._delete_schema_from_storage` is asynchronous
-    # on ClickHouse when using the ReplicatedMergeTree engine. Tried different ways to make it
-    # synchronous, but none worked. Maybe reloted to similar issue experienced in
-    # `test_write_dispositions` test.
-    is_clickhouse_replicated = isinstance(client, ClickHouseClient) and get_table_engine(
-        client.sql_client, schema.version_table_name
-    ) in ("ReplicatedMergeTree",)
-    if not is_clickhouse_replicated:
-        assert len(rows) == 1
-        assert rows[0][0] == schema.version_hash
+    assert len(rows) == 1
+    assert rows[0][0] == schema.version_hash
 
     # Other schema is not replaced
     rows = client.sql_client.execute_sql(
@@ -851,19 +839,8 @@ def test_write_dispositions(
                 # we overwrite with the same row. merge falls back to replace when no keys specified
                 assert len(db_rows) == 1
             else:
-                # NOTE: on second load, number of records in table "t" is zero in case of merge on
-                #  clickhouse. query log looks good. if I disable deleting from table "t" I still
-                #  get 0 rows 🤯
-                # NOTE: this issue seems to occur only when using replicated tables
-                is_clickhouse_replicated = isinstance(
-                    client, ClickHouseClient
-                ) and get_table_engine(client.sql_client, t) in (
-                    "SharedMergeTree",
-                    "ReplicatedMergeTree",
-                )
-                if not is_clickhouse_replicated:
-                    # merge data should be copied to destination dataset and PK should be applied
-                    assert len(db_rows) == 1
+                # merge data should be copied to destination dataset and PK should be applied
+                assert len(db_rows) == 1
                 # check staging
                 if isinstance(
                     client, WithStagingDataset

@@ -1,5 +1,6 @@
 import datetime  # noqa: I251
 import re
+import uuid
 
 from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
 import clickhouse_driver
@@ -145,6 +146,11 @@ class ClickHouseSqlClient(
     def create_dataset(self) -> None:
         # We create a sentinel table which defines whether we consider the dataset created.
         self.execute_sql(self._make_create_sentinel_table())
+
+    def _make_insert_into(self, qualified_table_name: str, columns: Optional[str] = None) -> str:
+        sql = super()._make_insert_into(qualified_table_name, columns)
+        sql += f" SETTINGS insert_deduplication_token = '{uuid.uuid4()}'"
+        return sql
 
     def _make_drop_table(self, qualified_name: str, if_exists: bool = False) -> str:
         if_exists_sql = "IF EXISTS " if if_exists else ""

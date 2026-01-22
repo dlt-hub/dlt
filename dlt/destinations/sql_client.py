@@ -359,6 +359,11 @@ SELECT 1
     def _make_alter_table(self, qualified_table_name: str) -> str:
         return f"ALTER TABLE {qualified_table_name}"
 
+    def _make_insert_into(self, qualified_table_name: str, columns: Optional[str] = None) -> str:
+        if columns:
+            return f"INSERT INTO {qualified_table_name} ({columns})"
+        return f"INSERT INTO {qualified_table_name}"
+
     def _make_delete_from(self, qualified_table_name: str) -> str:
         return f"DELETE FROM {qualified_table_name}"
 

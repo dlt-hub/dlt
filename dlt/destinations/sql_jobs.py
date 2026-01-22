@@ -104,9 +104,8 @@ class SqlStagingFollowupJob(SqlFollowupJob):
             )
             if truncate_first:
                 sql.append(sql_client._truncate_table_sql(table_name))
-            sql.append(
-                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name}"
-            )
+            insert_into = sql_client._make_insert_into(table_name, columns)
+            sql.append(f"{insert_into} SELECT {columns} FROM {staging_table_name}")
         return sql
 
 
@@ -249,7 +248,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             )
         )
         for clause in key_table_clauses[1:]:
-            sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause}")
+            insert_into = sql_client._make_insert_into(temp_table_name)
+            sql.append(f"{insert_into} SELECT {unique_column} {clause}")
         return sql, temp_table_name
 
     @classmethod
@@ -719,7 +719,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
             if len(primary_keys) > 0 or hard_delete_col is not None:
-                # condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
                 condition_columns = None if hard_delete_col is None else [hard_delete_col]
                 (
                     create_insert_temp_table_sql,
@@ -764,7 +763,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     skip_dedup=skip_dedup,
                 )
 
-            sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql}")
+            insert_into = sql_client._make_insert_into(table_name, col_str)
+            sql.append(f"{insert_into} {select_sql};")
         return sql
 
     @classmethod
@@ -946,7 +946,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         columns = map(escape_column_id, list(root_table["columns"].keys()))
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
-            INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
+            {sql_client._make_insert_into(root_table_name, f"{col_str}, {from_}, {to}")}
             SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
             WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active});
@@ -970,7 +970,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""
-                    INSERT INTO {table_name}
+                    {sql_client._make_insert_into(table_name)}
                     SELECT *
                     FROM {staging_table_name}
                     WHERE {row_key_column} NOT IN (SELECT {row_key_column} FROM {table_name});

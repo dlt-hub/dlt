@@ -175,9 +175,9 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 f"ClickHouse loader does not support `{bucket_scheme}` filesystem.",
             )
 
-        statement = f"INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"
+        sql = f"{client._make_insert_into(qualified_table_name)} SELECT * FROM {table_function}"
         with client.begin_transaction():
-            client.execute_sql(statement)
+            client.execute_sql(sql)
 
 
 class ClickHouseMergeJob(SqlMergeFollowupJob):
