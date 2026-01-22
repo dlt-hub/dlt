@@ -2,8 +2,6 @@ import os
 import pytest
 import shutil
 from typing import Iterator
-from pathlib import Path
-
 from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.storages.file_storage import FileStorage
@@ -32,25 +30,41 @@ def auto_echo_default_choice() -> Iterator[None]:
 
 
 @pytest.fixture(scope="session")
-def session_repos_dir(tmp_path_factory) -> Path:
-    # One fixed temp dir for the entire pytest session
-    return tmp_path_factory.mktemp("dlt_repos")
-
-
-@pytest.fixture(scope="session")
-def cloned_init_repo(session_repos_dir) -> FileStorage:
-    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped
-    # and this fixture is too expensive to be function scoped
-    return git.get_fresh_repo_files(INIT_REPO_LOCATION, session_repos_dir, branch=INIT_REPO_BRANCH)
-
-
-@pytest.fixture(scope="session")
-def cloned_init_vibe_repo(session_repos_dir) -> FileStorage:
-    # we cant use dlt repos dir because the fixture that changes the global dir is session scoped
-    # and this fixture is too expensive to be function scoped
+def _cached_init_repo(tmp_path_factory) -> FileStorage:
+    cache_dir = tmp_path_factory.mktemp("cached_verified_sources_repo")
     return git.get_fresh_repo_files(
-        DEFAULT_VIBE_SOURCES_REPO, session_repos_dir, branch=INIT_VIBE_REPO_BRANCH
+        INIT_REPO_LOCATION,
+        cache_dir,
+        branch=INIT_REPO_BRANCH,
     )
+
+@pytest.fixture(scope="session")
+def _cached_init_vibe_repo(tmp_path_factory) -> FileStorage:
+    cache_dir = tmp_path_factory.mktemp("cached_vibe_sources_repo")
+    return git.get_fresh_repo_files(
+        DEFAULT_VIBE_SOURCES_REPO,
+        cache_dir,
+        branch=INIT_VIBE_REPO_BRANCH,
+    )
+
+@pytest.fixture
+def cloned_init_repo(_cached_init_repo: FileStorage) -> FileStorage:
+    target = os.path.join(
+        get_dlt_repos_dir(),
+        f"verified_sources_repo_{uniq_id()}",
+    )
+    shutil.copytree(_cached_init_repo.storage_path, target)
+    return FileStorage(target)
+
+
+@pytest.fixture
+def cloned_init_vibe_repo(_cached_init_vibe_repo: FileStorage) -> FileStorage:
+    target = os.path.join(
+        get_dlt_repos_dir(),
+        f"vibe_sources_repo_{uniq_id()}",
+    )
+    shutil.copytree(_cached_init_vibe_repo.storage_path, target)
+    return FileStorage(target)
 
 
 @pytest.fixture
