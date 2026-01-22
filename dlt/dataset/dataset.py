@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+import tempfile
 from types import TracebackType
-from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload
+from typing import Any, Generator, Optional, Type, Union, TYPE_CHECKING, Literal, overload
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
@@ -12,19 +14,25 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
 from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
-from dlt.common.schema import Schema
-from dlt.common.typing import Self
-from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.typing import Self, TDataItems
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TWriteDisposition
+from dlt.common.pipeline import LoadInfo
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
 from dlt.common.destination.exceptions import SqlClientNotAvailable
+from dlt.common.schema.exceptions import (
+    TableNotFound,
+)
 
 if TYPE_CHECKING:
     from ibis import ir
     from ibis import BaseBackend as IbisBackend
+
+
+_INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE = "_dlt_dataset_{dataset_name}"
 
 
 class Dataset:
@@ -169,6 +177,70 @@ class Dataset:
         helpful if we want to run sql queries without extracting the data
         """
         return is_same_physical_destination(self, other)
+
+    # TODO explain users can inspect `_dlt_loads` table to differentiate data originating
+    # from `pipeline.run()` or `dataset.write()`
+    @contextmanager
+    def write_pipeline(self) -> Generator[dlt.Pipeline, None, None]:
+        """Get the internal pipeline used by `Dataset.write()`.
+        It uses "_dlt_dataset_{dataset_name}" as pipeline name. Its working directory is
+        so that load packages can be inspected after a run, but is cleared before each write.
+
+        """
+        pipeline = _get_internal_pipeline(
+            dataset_name=self.dataset_name, destination=self._destination
+        )
+        yield pipeline
+
+    def write(
+        self,
+        data: TDataItems,
+        *,
+        table_name: str,
+        overwrite: bool = False,
+        # todo: do we need other args? like column-hints if we merge by something tricky?
+    ) -> LoadInfo:
+        """Write `data` to the specified table.
+
+        This method uses a full-on `dlt.Pipeline` internally. You can retrieve this pipeline
+        using `Dataset.get_write_pipeline()` for complete flexibility.
+        The resulting load packages can be inspected in the pipeline's working directory which is
+        named "_dlt_dataset_{dataset_name}".
+        This directory will be wiped before each `write()` call.
+        """
+        with self.write_pipeline() as internal_pipeline:
+            # drop all load packages and schemas from previous writes
+            internal_pipeline.drop()
+            # pipeline needs to know old schema so that it can drop the correct tables
+            if overwrite:
+                internal_pipeline._inject_schema(self.schema)
+                # get write disposition from resource (data)
+                write_disposition = None # let resource/data define it
+            else:
+                # get write dispostion for existing table from schema (or "append" if table is new)
+                try:
+                    write_disposition = self.schema.get_table(table_name)["write_disposition"]
+                except TableNotFound:
+                    write_disposition = "append"
+
+            # TODO should we try/except this run to gracefully handle failed writes?
+            info = internal_pipeline.run(
+                data,
+                dataset_name=self.dataset_name,
+                table_name=table_name,
+                schema=self.schema if not overwrite else None,
+                write_disposition=write_disposition,
+                refresh="drop_resources" if overwrite else None,
+            )
+
+        # maybe update the dataset schema
+        self._update_schema(internal_pipeline.default_schema)
+        return info
+
+    def _update_schema(self, new_schema: dlt.Schema) -> None:
+        """Update the dataset schema"""
+        # todo: verify if we need to purge any cached objects (eg. sql_client)
+        self._schema = new_schema
 
     def query(
         self,
@@ -374,7 +446,7 @@ class Dataset:
 def dataset(
     destination: TDestinationReferenceArg,
     dataset_name: str,
-    schema: Union[Schema, str, None] = None,
+    schema: Union[dlt.Schema, str, None] = None,
 ) -> Dataset:
     return Dataset(destination, dataset_name, schema)
 
@@ -438,3 +510,23 @@ def _get_dataset_schema_from_destination_using_dataset_name(
                 schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
 
     return schema
+
+
+def _get_internal_pipeline(
+    dataset_name: str,
+    destination: TDestinationReferenceArg,
+    pipelines_dir: str = None,
+) -> dlt.Pipeline:
+    """Setup the internal pipeline used by `Dataset.write()`"""
+    pipeline = dlt.pipeline(
+        pipeline_name=_INTERNAL_DATASET_PIPELINE_NAME_TEMPLATE.format(dataset_name=dataset_name),
+        dataset_name=dataset_name,
+        destination=destination,
+        pipelines_dir=pipelines_dir,
+    )
+    # the internal write pipeline is stateless; it is limited to the data passed in one write call
+    # it's artifacts will be written to a regular pipeline directory for inspection, but it should
+    # be dropped before every run
+    pipeline.config.restore_from_destination = False
+
+    return pipeline
