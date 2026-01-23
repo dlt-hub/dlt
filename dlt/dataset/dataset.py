@@ -469,9 +469,9 @@ def _get_load_ids(dataset: dlt.Dataset) -> list[str]:
         loads_table
         # need to filter out rare case where a dataset includes multiple `dlt.Schema`
         # this mechanism is currently used by data quality metrics and checks
-        .where("schema_name", "eq", dataset.schema.name)
-        .select(C_DLT_LOADS_TABLE_LOAD_ID)
-        .order_by(C_DLT_LOADS_TABLE_LOAD_ID, "asc")
+        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
+        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
+        .order_by(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID), "asc")
     )
     load_ids: list[str] = [load_id[0] for load_id in query.fetchall()]
     return load_ids
@@ -484,8 +484,8 @@ def _get_latest_load_id(dataset: dlt.Dataset) -> Optional[str]:
         loads_table
         # need to filter out rare case where a dataset includes multiple `dlt.Schema`
         # this mechanism is currently used by data quality metrics and checks
-        .where("schema_name", "eq", dataset.schema.name)
-        .select(C_DLT_LOADS_TABLE_LOAD_ID)
+        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
+        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
         .max()
     )
     load_id: list[str] = query.fetchone()
