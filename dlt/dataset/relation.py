@@ -316,13 +316,13 @@ class Relation(WithSqlClient):
         """
         return self.limit(limit)
 
-    def select(self, *columns: str, allow_merge_subqueries: bool = True) -> Self:
+    def select(self, *columns: str, _allow_merge_subqueries: bool = True) -> Self:
         """Create a `Relation` with the selected columns using a `SELECT` clause."""
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
         subquery = self.sqlglot_expression.subquery()
         new_expr = sge.select(*proj).from_(subquery)
         rel = self.__copy__()
-        if _merge_subqueries:
+        if _allow_merge_subqueries:
             rel._sqlglot_expression = merge_subqueries(new_expr)
         else:
             rel._sqlglot_expression = new_expr
@@ -430,6 +430,7 @@ class Relation(WithSqlClient):
 
         assert isinstance(column_or_expr, str)
         column_name = column_or_expr
+        normalized_column_name = self._dataset.schema.naming.normalize_identifier(column_name)
 
         if isinstance(operator, str):
             try:
@@ -442,15 +443,15 @@ class Relation(WithSqlClient):
                 )
 
         sqlgot_type = to_sqlglot_type(
-            dlt_type=self.columns_schema[column_name].get("data_type"),
-            precision=self.columns_schema[column_name].get("precision"),
-            timezone=self.columns_schema[column_name].get("timezone"),
-            nullable=self.columns_schema[column_name].get("nullable"),
+            dlt_type=self.columns_schema[normalized_column_name].get("data_type"),
+            precision=self.columns_schema[normalized_column_name].get("precision"),
+            timezone=self.columns_schema[normalized_column_name].get("timezone"),
+            nullable=self.columns_schema[normalized_column_name].get("nullable"),
         )
 
         value_expr = build_typed_literal(value, sqlgot_type)
 
-        column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
+        column = sge.Column(this=sge.to_identifier(normalized_column_name, quoted=True))
 
         condition: sge.Expression = None
         if operator == "in":
@@ -514,7 +515,7 @@ class Relation(WithSqlClient):
         """
         table_schema = self._dataset.schema.tables[self._table_name]
 
-        if C_DLT_LOAD_ID in self.columns:
+        if self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID) in self.columns:
             return self
         elif schema_utils.has_column_with_prop(table_schema, "root_key"):
             return _add_load_id_via_root_key(self)
@@ -541,11 +542,14 @@ class Relation(WithSqlClient):
             )
 
         initial_columns = self.columns
-        filtered_rel_with_load_id = self.with_load_id_col().where(C_DLT_LOAD_ID, "in", load_ids)
+        normalized_load_id = self._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
+        filtered_rel_with_load_id = self.with_load_id_col().where(
+            normalized_load_id, "in", load_ids
+        )
         return (
             filtered_rel_with_load_id
             if add_load_id_column
-            else filtered_rel_with_load_id.select(*initial_columns, _merge_subqueries=False)
+            else filtered_rel_with_load_id.select(*initial_columns, _allow_merge_subqueries=False)
         )
 
     # TODO move this to the WithSqlClient / data accessor mixin.
@@ -633,6 +637,8 @@ def _add_load_id_via_root_key_query(
     root_table_name: str,
     child_root_key: str,
     root_row_key: str,
+    *,
+    normalized_load_id: str = C_DLT_LOAD_ID,
 ) -> sge.Select:
     child_table = sge.Table(
         this=sge.to_identifier(table_name, quoted=True),
@@ -648,7 +654,7 @@ def _add_load_id_via_root_key_query(
         sge.Column(table=sge.to_identifier("child", quoted=False), this=sge.Star()),
         sge.Column(
             table=sge.to_identifier("root", quoted=False),
-            this=sge.to_identifier(C_DLT_LOAD_ID, quoted=True),
+            this=sge.to_identifier(normalized_load_id, quoted=True),
         ),
     ]
 
@@ -691,6 +697,7 @@ def _add_load_id_via_root_key(relation: dlt.Relation) -> dlt.Relation:
         root_table_name=root_table_name,
         child_root_key=child_root_key,
         root_row_key=root_row_key,
+        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
     )
 
     rel = relation.__copy__()
@@ -699,8 +706,7 @@ def _add_load_id_via_root_key(relation: dlt.Relation) -> dlt.Relation:
 
 
 def _add_load_id_via_parent_key_query(
-    table_name: str,
-    table_schemas: TSchemaTables,
+    table_name: str, table_schemas: TSchemaTables, normalized_load_id: str = C_DLT_LOAD_ID
 ) -> sge.Select:
     # The reference_chain goes from root to the queried table
     # Each reference contains: child table -> parent table relationship
@@ -730,7 +736,7 @@ def _add_load_id_via_parent_key_query(
     columns.append(
         sge.Column(
             table=sge.to_identifier(f"t{len(reference_chain)}", quoted=False),
-            this=sge.to_identifier(C_DLT_LOAD_ID, quoted=True),
+            this=sge.to_identifier(normalized_load_id, quoted=True),
         )
     )
     query = sge.Select(expressions=columns).from_(queried_table)
@@ -769,6 +775,7 @@ def _add_load_id_via_parent_key(relation: dlt.Relation) -> dlt.Relation:
     query = _add_load_id_via_parent_key_query(
         table_name=origin_table_name,
         table_schemas=table_schemas,
+        normalized_load_id=relation._dataset.schema.naming.normalize_identifier(C_DLT_LOAD_ID),
     )
 
     rel = relation.__copy__()

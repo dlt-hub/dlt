@@ -1,11 +1,11 @@
 import sys
 import pathlib
-from typing import Any, Generator
+from typing import Any
 
 import pytest
+from sqlglot import expressions as sge
 
 import dlt
-from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
 
@@ -299,7 +299,6 @@ def test_relation_from_loads(
     selected_load_id_idx: list[int],
     add_load_id_column: bool,
     table_name: str,
-    # name_normalizer_ref: str,
 ) -> None:
     """Test filtering a root table with a single load_id string."""
     dataset, load_ids, load_stats = dataset_with_loads
@@ -313,9 +312,7 @@ def test_relation_from_loads(
             original_columns + [C_DLT_LOAD_ID] if add_load_id_column else original_columns
         )
 
-    output = dataset.table(table_name).from_loads(
-        selected_load_ids, add_load_id_column=add_load_id_column
-    )
+    output = table.from_loads(selected_load_ids, add_load_id_column=add_load_id_column)
 
     assert isinstance(output, dlt.Relation)
     assert output.columns == expected_columns
@@ -326,3 +323,71 @@ def test_relation_from_loads(
     assert list(df.columns) == expected_columns
     if C_DLT_LOAD_ID in expected_columns:
         assert set(df[C_DLT_LOAD_ID]) == set(selected_load_ids)
+
+
+@pytest.mark.parametrize("selected_load_id_idx", [[0], [1], [0, 1]])
+@pytest.mark.parametrize("table_name", ["products", "users__orders", "users__orders__items"])
+@pytest.mark.parametrize("add_load_id_column", [True, False])
+@pytest.mark.parametrize(
+    "dataset_with_loads",
+    [
+        "with_root_key",
+        "without_root_key",
+    ],
+    indirect=True,
+)
+@pytest.mark.parametrize(
+    "name_normalizer_ref",
+    (
+        "tests.common.cases.normalizers.title_case",
+        "tests.common.cases.normalizers.sql_upper",
+        "tests.common.cases.normalizers.snake_no_x",
+    ),
+)
+def test_relation_from_loads_query(
+    dataset_with_loads: TLoadsFixture,
+    selected_load_id_idx: list[int],
+    add_load_id_column: bool,
+    table_name: str,
+    name_normalizer_ref: str,
+) -> None:
+    """Use different naming normalization to check if the internal queries
+    properly used normalized ids instead of constants.
+
+    The relation / query isn't executable because the stored data won't
+    match the name normalization that we force. Checks are conducted
+    against the query itself
+    """
+    original_dataset, load_ids, _ = dataset_with_loads
+    selected_load_ids = [load_ids[idx] for idx in selected_load_id_idx]
+    # change normalization; this query won't be executable
+    schema = original_dataset.schema.clone()  # copy to avoid mutating the fixture
+    schema._normalizers_config["allow_identifier_change_on_table_with_data"] = True
+    schema._normalizers_config["names"] = name_normalizer_ref
+    schema.update_normalizers()
+    dataset = dlt.dataset(
+        dataset_name=original_dataset.dataset_name,
+        destination=original_dataset._destination_reference,
+        schema=schema,
+    )
+    normalized_table_name = schema.naming.normalize_tables_path(table_name)
+    normalized_load_id = schema.naming.normalize_identifier(C_DLT_LOAD_ID)
+
+    rel = dataset.table(normalized_table_name).from_loads(
+        selected_load_ids, add_load_id_column=add_load_id_column
+    )
+    expr = rel._sqlglot_expression
+    sql_query = expr.sql()
+
+    assert normalized_table_name in sql_query
+    assert all(load_id in sql_query for load_id in selected_load_ids)
+
+    # root tables return star select() when not modifying the selection
+    if table_name == "products" and add_load_id_column:
+        assert expr.expressions[0] == sge.Star()
+    elif C_DLT_LOAD_ID in original_dataset.table(table_name).columns:
+        assert any(col.name == normalized_load_id for col in expr.expressions)
+    elif add_load_id_column:
+        assert any(col.name == normalized_load_id for col in expr.expressions)
+    else:
+        assert not any(col.name == normalized_load_id for col in expr.expressions)
