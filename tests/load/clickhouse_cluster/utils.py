@@ -89,24 +89,44 @@ def assert_clickhouse_cluster_conf(
         assert config.credentials.alt_http_hosts == alt_http_hosts
 
 
+def query_system_table(
+    sql_client: ClickHouseSqlClient,
+    table_name: str,
+    alternative_database_name: Optional[str] = None,
+    projection: str = "*",
+):
+    qry = f"SELECT {projection} FROM system.tables WHERE database = %s AND name = %s;"
+    database_name = alternative_database_name or sql_client.database_name
+    with sql_client.with_alternative_database_name(database_name):
+        table_name = sql_client.make_qualified_table_name(table_name, quote=False)
+    database, name = table_name.split(".")
+    if sql_client._conn:
+        rows = sql_client.execute_sql(qry, database, name)
+    else:
+        with sql_client:
+            rows = sql_client.execute_sql(qry, database, name)
+    return rows
+
+
+def table_exists(
+    sql_client: ClickHouseSqlClient,
+    table_name: str,
+    alternative_database_name: Optional[str] = None,
+) -> bool:
+    projection = "count()"
+    rows = query_system_table(sql_client, table_name, alternative_database_name, projection)
+    return rows[0][0] > 0
+
+
 def get_table_engine(
     sql_client: ClickHouseSqlClient,
     table_name: str,
     full: bool = False,
     alternative_database_name: Optional[str] = None,
 ) -> str:
-    col = "engine_full" if full else "engine"
-    qry = f"SELECT {col} FROM system.tables WHERE database = %s AND name = %s;"
-    database_name = alternative_database_name or sql_client.database_name
-    with sql_client.with_alternative_database_name(database_name):
-        table_name = sql_client.make_qualified_table_name(table_name, quote=False)
-    database, name = table_name.split(".")
-    if sql_client._conn:
-        result = sql_client.execute_sql(qry, database, name)
-    else:
-        with sql_client:
-            result = sql_client.execute_sql(qry, database, name)
-    return result[0][0]
+    projection = "engine_full" if full else "engine"
+    rows = query_system_table(sql_client, table_name, alternative_database_name, projection)
+    return rows[0][0]
 
 
 def query(

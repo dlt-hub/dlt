@@ -64,6 +64,15 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
                     continue
                 raise
 
+    def drop_dataset(self) -> None:
+        # drop tables in standard database
+        super().drop_dataset()
+
+        # drop tables in distributed tables database (if different from standard database)
+        if self.distributed_tables_database_name != self.database_name:
+            with self.with_alternative_database_name(self.distributed_tables_database_name):
+                self.drop_tables(*self._list_tables())
+
     def _insert_file_table(self, table_name: str, database_name: str) -> str:
         with self.with_alternative_database_name(database_name):
             return self.make_qualified_table_name(table_name)

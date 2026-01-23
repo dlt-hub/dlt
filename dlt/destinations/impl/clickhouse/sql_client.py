@@ -22,6 +22,7 @@ from typing import (
     ClassVar,
     Literal,
     Tuple,
+    cast,
 )
 
 from pendulum import DateTime  # noqa: I251
@@ -89,15 +90,7 @@ class ClickHouseSqlClient(
         self.config = config
 
     def has_dataset(self) -> bool:
-        # we do not need to normalize dataset_sentinel_table_name.
-        sentinel_table = self.config.dataset_sentinel_table_name
-        all_ds_tables = self._list_tables()
-        if self.dataset_name:
-            prefix = self.dataset_name + self.config.dataset_table_separator
-            return sentinel_table in [removeprefix(t, prefix) for t in all_ds_tables]
-        else:
-            # if no dataset specified we look for sentinel table
-            return sentinel_table in all_ds_tables
+        return self.config.dataset_sentinel_table_name in self._list_tables()
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
@@ -160,47 +153,23 @@ class ClickHouseSqlClient(
         return f"TRUNCATE TABLE {qualified_table_name} SYNC"
 
     def drop_dataset(self) -> None:
-        # always try to drop the sentinel table.
-        sentinel_table_name = self.make_qualified_table_name(
-            self.config.dataset_sentinel_table_name
-        )
-
-        all_ds_tables = self._list_tables()
-
         if self.dataset_name:
-            # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
-            # or collection of tables, that has the `dataset_name` as a prefix.
-            to_drop_results = all_ds_tables
+            all_ds_tables = self._list_tables()
+            if self.config.dataset_sentinel_table_name not in all_ds_tables:
+                # no sentinel table, dataset does not exist
+                sentinel_table_name = self.make_qualified_table_name_path(
+                    self.config.dataset_sentinel_table_name, quote=False
+                )[-1]
+                # artificially raise DatabaseUndefinedRelation
+                self.execute_sql(f"SELECT 1 FROM {sentinel_table_name}")
+                raise AssertionError(f"{sentinel_table_name} must not exist")
+            self.drop_tables(*all_ds_tables)
         else:
-            # drop only tables known in logical (dlt) schema
-            to_drop_results = [
-                table_name for table_name in self.known_table_names if table_name in all_ds_tables
-            ]
-
-        catalog_name = self.catalog_name()
-        # drop a sentinel table only when dataset name was empty (was not included in the schema)
-        if not self.dataset_name:
-            stmt = self._make_drop_table(sentinel_table_name)
-            self.execute_sql(stmt)
+            self.drop_tables(self.config.dataset_sentinel_table_name, *self.known_table_names)
             logger.warning(
                 "Dataset without name (tables without prefix) got dropped. Only tables known in the"
                 " current dlt schema and sentinel tables were removed."
             )
-        else:
-            sentinel_table_name = self.make_qualified_table_name_path(
-                self.config.dataset_sentinel_table_name, quote=False
-            )[-1]
-            if sentinel_table_name not in all_ds_tables:
-                # no sentinel table, dataset does not exist
-                self.execute_sql(f"SELECT 1 FROM {sentinel_table_name}")
-                raise AssertionError(f"{sentinel_table_name} must not exist")
-        for table in to_drop_results:
-            # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
-            # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
-            # To resolve this, we are forced to provide the full query string here.
-            qualified_table_name = f"{catalog_name}.{self.capabilities.escape_identifier(table)}"
-            stmt = self._make_drop_table(qualified_table_name)
-            self.execute_sql(stmt)
 
     def drop_tables(self, *tables: str) -> None:
         """Drops a set of tables if they exist"""
@@ -256,17 +225,10 @@ class ClickHouseSqlClient(
 
     def _list_tables(self) -> List[str]:
         catalog_name, table_name = self.make_qualified_table_name_path("%", quote=False)
-        rows = self.execute_sql(
-            """
-            SELECT name
-            FROM system.tables
-            WHERE database = %s
-            AND name LIKE %s
-            """,
-            catalog_name,
-            table_name,
-        )
-        return [row[0] for row in rows]
+        qry = "SELECT name FROM system.tables WHERE database = %s AND name LIKE %s"
+        rows = self.execute_sql(qry, catalog_name, table_name)
+        full_table_names = [row[0] for row in rows]
+        return [self.extract_table_name(name) for name in full_table_names]
 
     @staticmethod
     def _sanitise_dbargs(db_args: DictStrAny) -> DictStrAny:
@@ -311,18 +273,25 @@ class ClickHouseSqlClient(
             database_name = self.capabilities.escape_identifier(database_name)
         return database_name
 
+    def make_full_table_name(self, table_name: str) -> str:
+        if self.dataset_name:
+            table_name = f"{self.dataset_name}{self.config.dataset_table_separator}{table_name}"
+        return table_name
+
+    def extract_table_name(self, full_table_name: str) -> str:
+        if self.dataset_name:
+            prefix = self.dataset_name + self.config.dataset_table_separator
+            table_name = cast(str, removeprefix(full_table_name, prefix))
+            return table_name
+        return full_table_name
+
     def make_qualified_table_name_path(
         self, table_name: Optional[str], quote: bool = True, casefold: bool = True
     ) -> List[str]:
         # get catalog and dataset
         path = super().make_qualified_table_name_path(None, quote=quote, casefold=casefold)
         if table_name:
-            # table name combines dataset name and table name
-            if self.dataset_name:
-                table_name = f"{self.dataset_name}{self.config.dataset_table_separator}{table_name}"
-            else:
-                # without dataset just use the table name
-                pass
+            table_name = self.make_full_table_name(table_name)
             if casefold:
                 table_name = self.capabilities.casefold_identifier(table_name)
             if quote:

@@ -12,7 +12,6 @@ from dlt.destinations.impl.clickhouse_cluster.configuration import (
     DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
     DEFAULT_SHARDING_KEY,
 )
-from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 from tests.load.clickhouse_cluster.utils import (
     CLICKHOUSE_CLUSTER_DATABASE,
     SHARDED_CLUSTER_NAME,
@@ -21,6 +20,7 @@ from tests.load.clickhouse_cluster.utils import (
     client,
     get_table_engine,
     set_clickhouse_cluster_conf,
+    table_exists,
 )
 from dlt.destinations.impl.clickhouse.typing import (
     CODEC_HINT,
@@ -135,7 +135,8 @@ def test_clickhouse_cluster_adapter_distributed_table(
     effective_dist_table_suffix = distributed_table_suffix or DEFAULT_DISTRIBUTED_TABLE_SUFFIX
     dist_table_name = shard_table_name + effective_dist_table_suffix
     shard_qual_table_name = sql_client.make_qualified_table_name(shard_table_name)
-    with sql_client.with_alternative_database_name(sql_client.distributed_tables_database_name):
+    dist_db = sql_client.distributed_tables_database_name
+    with sql_client.with_alternative_database_name(dist_db):
         dist_qual_table_name = sql_client.make_qualified_table_name(dist_table_name)
 
     # assert distributed table is created in correct database
@@ -198,29 +199,29 @@ def test_clickhouse_cluster_adapter_distributed_table(
     assert dist_stmt == expected_dist_stmt
 
     # assert distributed tables get created and have correct engine
-    with clickhouse_cluster_database_created(
-        sql_client, sql_client.distributed_tables_database_name
-    ):
+    with clickhouse_cluster_database_created(sql_client, dist_db):
         load_info = pipe.run(res, **destination_config.run_kwargs)
         assert_load_info(load_info)
 
         # parent table
+        assert table_exists(sql_client, dist_table_name, dist_db)
         actual_engine = get_table_engine(
             sql_client,
             dist_table_name,
             full=True,
-            alternative_database_name=sql_client.distributed_tables_database_name,
+            alternative_database_name=dist_db,
         )
         assert actual_engine == expected_engine
 
         # child table
         child_shard_table_name = shard_table_name + "__child"
         child_dist_table_name = child_shard_table_name + effective_dist_table_suffix
+        assert table_exists(sql_client, child_dist_table_name, dist_db)
         child_actual_engine = get_table_engine(
             sql_client,
             child_dist_table_name,
             full=True,
-            alternative_database_name=sql_client.distributed_tables_database_name,
+            alternative_database_name=dist_db,
         )
         database, table = sql_client.make_qualified_table_name(
             child_shard_table_name, quote=False
@@ -234,11 +235,12 @@ def test_clickhouse_cluster_adapter_distributed_table(
         # grandchild table
         grandchild_shard_table_name = shard_table_name + "__child__grandchild"
         grandchild_dist_table_name = grandchild_shard_table_name + effective_dist_table_suffix
+        assert table_exists(sql_client, grandchild_dist_table_name, dist_db)
         grandchild_actual_engine = get_table_engine(
             sql_client,
             grandchild_dist_table_name,
             full=True,
-            alternative_database_name=sql_client.distributed_tables_database_name,
+            alternative_database_name=dist_db,
         )
         database, table = sql_client.make_qualified_table_name(
             grandchild_shard_table_name, quote=False
@@ -248,3 +250,15 @@ def test_clickhouse_cluster_adapter_distributed_table(
             f" {DEFAULT_SHARDING_KEY})"
         )
         assert grandchild_actual_engine == grandchild_expected_engine
+
+        # `drop_dataset` drops distributed tables in addition to standard tables
+        with sql_client:
+            sql_client.drop_dataset()
+        # distributed tables
+        assert not table_exists(sql_client, dist_table_name, dist_db)
+        assert not table_exists(sql_client, child_dist_table_name, dist_db)
+        assert not table_exists(sql_client, grandchild_dist_table_name, dist_db)
+        # standard tables
+        assert not table_exists(sql_client, shard_table_name)
+        assert not table_exists(sql_client, child_shard_table_name)
+        assert not table_exists(sql_client, grandchild_shard_table_name)
