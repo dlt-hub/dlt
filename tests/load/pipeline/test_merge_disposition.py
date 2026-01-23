@@ -1818,4 +1818,10 @@ def test_replacing_merge_key(destination_config: DestinationTestConfiguration) -
 
     expected = [initial_data[0]] + new_data
 
-    assert sorted(observed, key=lambda d: d["email"]) == expected
+    assert sorted(
+        observed,
+        key=lambda d: (d["email"], d["month_key"])
+    ) == sorted(
+        expected,
+        key=lambda d: (d["email"], d["month_key"])
+    )
