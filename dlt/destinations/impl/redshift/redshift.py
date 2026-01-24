@@ -35,7 +35,6 @@ from dlt.destinations.impl.redshift.configuration import RedshiftClientConfigura
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
 
-
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     "cluster": "DISTKEY",
     # it is better to not enforce constraints in redshift
@@ -48,10 +47,30 @@ class RedshiftSqlClient(Psycopg2SqlClient):
     def has_dataset(self) -> bool:
         # In Redshift, the 'public' schema always exists but may not be
         # returned by INFORMATION_SCHEMA.SCHEMATA query, so we handle it as a special case
-        if self.dataset_name == "public":
+        if self.dataset_name.lower() == "public":
             return True
 
+        all_schemas_view_name = "svv_redshift_schemas"
+        # Check for svv_redshift_schemas
+        check_svv_redshift_schemas_exists_query = (
+            "SELECT 1 FROM information_schema.tables WHERE table_name = %s"
+        )
+        svv_redshift_schemas_exists = (
+            len(self.execute_sql(check_svv_redshift_schemas_exists_query, all_schemas_view_name))
+            > 0
+        )
+        if svv_redshift_schemas_exists:
+            db_params = []
+            _, schema_name, _ = self._get_information_schema_components()
+            query = f"SELECT 1 FROM {all_schemas_view_name} WHERE schema_name = %s"
+            db_params.append(schema_name)
+            rows = self.execute_sql(query, *db_params)
+            return len(rows) > 0
+
         return super().has_dataset()
+
+    def create_dataset(self) -> None:
+        self.execute_sql("CREATE SCHEMA IF NOT EXISTS %s" % self.fully_qualified_dataset_name())
 
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
@@ -129,14 +148,16 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY
-            self._sql_client.execute_sql(f"""
+            self._sql_client.execute_sql(
+                f"""
                 COPY {self._sql_client.make_qualified_table_name(self.load_table_name)}
                 FROM '{self._bucket_path}'
                 {file_type}
                 {dateformat}
                 {compression}
                 {credentials}
-                {region} MAXERROR 0;""")
+                {region} MAXERROR 0;"""
+            )
 
 
 class RedshiftMergeJob(SqlMergeFollowupJob):
