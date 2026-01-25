@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload
+from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload, Collection
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
@@ -14,8 +14,9 @@ from dlt.common.destination.reference import AnyDestination, TDestinationReferen
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
-from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.schema.typing import C_DLT_LOAD_ID, C_DLT_LOADS_TABLE_LOAD_ID, LOADS_TABLE_NAME
 from dlt.common.utils import simple_repr, without_none
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
 from dlt.dataset.utils import get_destination_clients
@@ -206,11 +207,10 @@ class Dataset:
         """Convenience method to proxy `Dataset.query()`. See this method for details."""
         return self.query(query, query_dialect, _execute_raw_query=_execute_raw_query)
 
-    def table(self, table_name: str, **kwargs: Any) -> dlt.Relation:
+    def table(
+        self, table_name: str, *, load_ids: Optional[Collection[str]] = None, **kwargs: Any
+    ) -> dlt.Relation:
         """Get a `dlt.Relation` associated with a table from the dataset."""
-
-        # NOTE dataset only provides access to tables known in dlt schema
-        # raw query execution could access tables unknown by dlt
         if table_name not in self.tables:
             # TODO: raise TableNotFound
             raise ValueError(f"Table `{table_name}` not found. Available table(s): {self.tables}")
@@ -223,8 +223,30 @@ class Dataset:
                 " Ibis Table."
             )
 
-        # fallback to the standard dbapi relation
-        return dlt.Relation(dataset=self, table_name=table_name)
+        if load_ids:
+            return dlt.Relation(dataset=self, table_name=table_name).from_loads(load_ids)
+        else:
+            return dlt.Relation(dataset=self, table_name=table_name)
+
+    def loads_table(self) -> dlt.Relation:
+        """Get `_dlt_loads` table from the dataset."""
+        return dlt.Relation(dataset=self, table_name=self.schema.loads_table_name)
+
+    def load_ids(self) -> list[str]:
+        """Retrieved the list of load ids for this dataset.
+
+        This queries the `_dlt_loads` table on the destination and filters
+        the `schema_name` columns based on the current dataset.
+        """
+        return _get_load_ids(self)
+
+    def latest_load_id(self) -> Optional[str]:
+        """Retrieved the latest load id for this dataset.
+
+        This is the max value of the `load_id` column in the `_dlt_loads` table
+        on the destination when filtering the `schema_name` columns based on the current dataset.
+        """
+        return _get_latest_load_id(self)
 
     def row_counts(
         self,
@@ -438,3 +460,33 @@ def _get_dataset_schema_from_destination_using_dataset_name(
                 schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
 
     return schema
+
+
+def _get_load_ids(dataset: dlt.Dataset) -> list[str]:
+    """Get a list of load ids associated with the dataset."""
+    loads_table = dataset.loads_table()
+    query = (
+        loads_table
+        # need to filter out rare case where a dataset includes multiple `dlt.Schema`
+        # this mechanism is currently used by data quality metrics and checks
+        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
+        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
+        .order_by(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID), "asc")
+    )
+    load_ids: list[str] = [load_id[0] for load_id in query.fetchall()]
+    return load_ids
+
+
+def _get_latest_load_id(dataset: dlt.Dataset) -> Optional[str]:
+    """Get the latest load id associated with the dataset."""
+    loads_table = dataset.loads_table()
+    query = (
+        loads_table
+        # need to filter out rare case where a dataset includes multiple `dlt.Schema`
+        # this mechanism is currently used by data quality metrics and checks
+        .where(dataset.schema.naming.normalize_identifier("schema_name"), "eq", dataset.schema.name)
+        .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
+        .max()
+    )
+    load_id: list[str] = query.fetchone()
+    return load_id[0] if load_id else None
