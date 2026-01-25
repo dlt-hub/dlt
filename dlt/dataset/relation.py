@@ -430,7 +430,6 @@ class Relation(WithSqlClient):
 
         assert isinstance(column_or_expr, str)
         column_name = column_or_expr
-        normalized_column_name = self._dataset.schema.naming.normalize_identifier(column_name)
 
         if isinstance(operator, str):
             try:
@@ -443,15 +442,15 @@ class Relation(WithSqlClient):
                 )
 
         sqlgot_type = to_sqlglot_type(
-            dlt_type=self.columns_schema[normalized_column_name].get("data_type"),
-            precision=self.columns_schema[normalized_column_name].get("precision"),
-            timezone=self.columns_schema[normalized_column_name].get("timezone"),
-            nullable=self.columns_schema[normalized_column_name].get("nullable"),
+            dlt_type=self.columns_schema[column_name].get("data_type"),
+            precision=self.columns_schema[column_name].get("precision"),
+            timezone=self.columns_schema[column_name].get("timezone"),
+            nullable=self.columns_schema[column_name].get("nullable"),
         )
 
         value_expr = build_typed_literal(value, sqlgot_type)
 
-        column = sge.Column(this=sge.to_identifier(normalized_column_name, quoted=True))
+        column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
         condition: sge.Expression = None
         if operator == "in":
