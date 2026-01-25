@@ -92,9 +92,12 @@ This approach can help resolve connection-related issues.
 ### Notes on specific databases
 
 #### Oracle
-1. When using the `oracledb` dialect in thin mode, we are getting protocol errors. Use thick mode or the `cx_oracle` (old) client.
+1. We recommend to use the `oracledb` dialect in thin mode instead of the `cx_oracle` (old) client. It is the setup that we test and support. Note that `oracledb` is not supported in `SQLAlchemy` below 2.0.
 2. Mind that `SQLAlchemy` translates Oracle identifiers into lower case! Keep the default `dlt` naming convention (`snake_case`) when loading data. We'll support more naming conventions soon.
-3. `Connectorx` is for some reason slower for Oracle than the `PyArrow` backend.  
+3. `Connectorx` is not compatible with `oracledb` in thin mode. In thick mode with `cx_oracle` it is for some reason slower for Oracle than the `PyArrow` backend, so it is not recommended for Oracle.
+4. To preserve the original DB type semantics and avoid data loss, NUMBER is always treated as decimal, with sqlalchemy backend keeping the original DB precision and scale and pyarrow setting the default ones. pandas is generally discouraged when it comes to decimals, not only for Oracle
+5. For the `TIMESTAMP WITH TIME ZONE` columns, both `cx_Oracle` and `oracledb` truncate timezone info in select results, so it's not possible to fetch actual timezone data.
+
   
 See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/oracledb#installing-and-setting-up-oracle-db) for information and code on setting up and benchmarking on Oracle.
 
