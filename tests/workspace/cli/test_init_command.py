@@ -675,21 +675,12 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
         "robin",
         "kwanko",
         "powerlink",
-        # "fulcrum_data_management",
-        # "mysql_instance",
-        # "talkdesk_reports",
-        # "insightly_crm",
-        # "google_drive",
-        # "coalesce",
-        # "jobnimbus",
-        # "piwik_pro",
-        # "perplexity_ai",
-        # "maileon",
-        # "wrike_project_management",
-        # "rocketreach",
-        # "wordpress_site",
-        # "deepinfra",
-        # "no_crm_io",
+        "mysql_instance",
+        "google_drive",
+        "coalesce",
+        "jobnimbus",
+        "perplexity_ai",
+        "wordpress_site",
     ]
 
     for source_name in random_vibez:
@@ -707,6 +698,24 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
     # credentials for all destinations
     for destination_name in ["bigquery", "postgres", "redshift"]:
         assert secrets.get_value(destination_name, type, None, "destination") is not None
+
+
+def test_init_nonexisting_vibe_source_writes_generic_template(workspace_files: FileStorage) -> None:
+    nonexisting_source_name = "bogus_agi"
+    with echo.always_choose(False, "cursor"):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            _init_command.init_command(
+                f"dlthub:{nonexisting_source_name}", "duckdb", DEFAULT_VERIFIED_SOURCES_REPO
+            )
+            _out = buf.getvalue()
+
+    _, secrets = assert_common_files(
+        workspace_files, f"{nonexisting_source_name}_pipeline.py", "duckdb"
+    )
+
+    assert secrets.get_value(nonexisting_source_name, type, None, "sources") is not None
+
+    assert f"We have nothing for {nonexisting_source_name} at dltHub yet." in _out
 
 
 def assert_init_files(
