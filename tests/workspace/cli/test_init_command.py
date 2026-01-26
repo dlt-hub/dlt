@@ -705,12 +705,12 @@ def test_init_nonexisting_vibe_source_writes_generic_template(workspace_files: F
     with echo.always_choose(False, "cursor"):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             _init_command.init_command(
-                f"dlthub:{nonexisting_source_name}", "duckdb", DEFAULT_VERIFIED_SOURCES_REPO
+                f"dlthub:{nonexisting_source_name}", "bigquery", DEFAULT_VERIFIED_SOURCES_REPO
             )
             _out = buf.getvalue()
 
     _, secrets = assert_common_files(
-        workspace_files, f"{nonexisting_source_name}_pipeline.py", "duckdb"
+        workspace_files, f"{nonexisting_source_name}_pipeline.py", "bigquery"
     )
 
     assert secrets.get_value(nonexisting_source_name, type, None, "sources") is not None
