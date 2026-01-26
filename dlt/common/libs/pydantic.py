@@ -414,7 +414,7 @@ def validate_and_filter_item(
     this function will return None (`discard_row`) or raise on non-validating items (`freeze`). Note
     that the model itself may be configured to remove non validating or extra items as well."""
     try:
-        return model.parse_obj(item)
+        return model.model_validate(item)
     except ValidationError as e:
         for err in e.errors():
             # raise on freeze

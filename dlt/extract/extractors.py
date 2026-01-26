@@ -2,6 +2,8 @@ from copy import copy
 from functools import lru_cache, partial
 from typing import Set, Dict, Any, Optional, List, Union
 
+from pydantic import ValidationError
+
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
 from dlt.common.configuration.specs import BaseConfiguration, configspec
@@ -28,6 +30,7 @@ from dlt.extract.hints import HintsMeta, TResourceHints
 from dlt.extract.resource import DltResource
 from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
+from dlt.extract.validation import PydanticValidator
 from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 try:
@@ -271,6 +274,16 @@ class Extractor:
             # this is a new table so allow evolve once
             if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
                 computed_table["x-normalizer"] = {"evolve-columns-once": True}
+
+            elif schema_contract["columns"] != "evolve" and isinstance(
+                resource.validator, PydanticValidator
+            ):
+                try:
+                    resource.validator.model.model_validate(items)
+                    computed_table["x-normalizer"] = {"evolve-columns-once": True}
+                except ValidationError:
+                    pass
+
             existing_table = self.schema.tables.get(table_name, None)
             if existing_table:
                 diff_table = utils.diff_table(

@@ -233,7 +233,11 @@ class Schema:
 
         column_mode, data_mode = schema_contract["columns"], schema_contract["data_type"]
         # allow to add new columns when table is new or if columns are allowed to evolve once
-        if is_new_table or existing_table.get("x-normalizer", {}).get("evolve-columns-once", False):
+        if (
+            is_new_table
+            or existing_table.get("x-normalizer", {}).get("evolve-columns-once", False)
+            or partial_table.get("x-normalizer", {}).get("evolve-columns-once", False)
+        ):
             column_mode = "evolve"
 
         # check if we should filter any columns,
