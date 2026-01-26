@@ -25,7 +25,7 @@ p.run(issues, write_disposition="replace", primary_key="id", table_name="issues"
 
 ## Choosing the correct replace strategy for your full load
 
-dlt implements three different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, and `staging-optimized`. The exact behavior of these strategies can also vary between the available destinations.
+dlt implements four different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, `staging-optimized`, and `staging-atomic-swap`. The exact behavior of these strategies can also vary between the available destinations.
 
 You can select a strategy with a setting in your `config.toml` file. If you do not select a strategy, dlt will default to `truncate-and-insert`.
 
@@ -37,7 +37,7 @@ replace_strategy = "staging-optimized"
 
 ### The `truncate-and-insert` strategy
 
-The `truncate-and-insert` replace strategy is the default and the fastest of all three strategies. If you load data with this setting, then the destination tables will be truncated at the beginning of the load, and the new data will be inserted consecutively but not within the same transaction.
+The `truncate-and-insert` replace strategy is the default and the fastest of all four strategies. If you load data with this setting, then the destination tables will be truncated at the beginning of the load, and the new data will be inserted consecutively but not within the same transaction.
 The downside of this strategy is that your tables will have no data for a while until the load is completed. You may end up with new data in some tables and no data in other tables if the load fails during the run. Such an incomplete load may be detected by checking if the [_dlt_loads table contains a load id](destination-tables.md#load-packages-and-load-ids) from _dlt_load_id of the replaced tables. If you prefer to have no data downtime, please use one of the other strategies.
 
 ### The `insert-from-staging` strategy
@@ -56,3 +56,6 @@ The `staging-optimized` strategy has all the upsides of the `insert-from-staging
 
 For all other [destinations](../dlt-ecosystem/destinations/index.md), please look at their respective documentation pages to see if and how the `staging-optimized` strategy is implemented. If it is not implemented, `dlt` will fall back to the `insert-from-staging` strategy.
 
+### The `staging-atomic-swap` strategy
+
+This strategy is currently supported only for Snowflake. It atomically swaps the destination and staging tables in a single transaction, enabling efficient, zero-downtime data loading. Please note that [permission caveats](../dlt-ecosystem/destinations/snowflake.md#atomic-swap-replacement) apply when using this strategy on Snowflake.
