@@ -1,0 +1,33 @@
+# Submits uv.lock dependencies to GitHub's dependency graph for security scanning.
+# Requires: Settings → Security → Dependency graph enabled.
+# See: https://github.com/rmuir/uv-dependency-submission
+name: Dependency Submission
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['master', 'devel']
+    paths:
+      - '**/uv.lock'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-submission:
+    name: Submit uv dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write   # required to submit dependency graph data
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          persist-credentials: false
+
+      - name: Submit dependency snapshot
+        uses: rmuir/uv-dependency-submission@1c48aaac13e566e39fd04269ff1900b86c1105c5 # v1.0.0
