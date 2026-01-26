@@ -2,15 +2,15 @@ import os
 import shutil
 from pathlib import Path
 from typing import List, Tuple, get_args, Literal, Union, cast
-from dlt.common import logger
 
-from dlt._workspace.cli.exceptions import ScaffoldApiError, ScaffoldSourceNotFound
+from dlt.common import logger
 from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
 
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli._scaffold_api_client import get_scaffold_files_storage
+from dlt._workspace.cli.exceptions import ScaffoldApiError, ScaffoldSourceNotFound
 
 TSupportedIde = Literal[
     "amp",
