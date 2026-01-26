@@ -488,5 +488,5 @@ def _get_latest_load_id(dataset: dlt.Dataset) -> Optional[str]:
         .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
         .max()
     )
-    load_id: list[str] = query.fetchone()
-    return load_id[0] if load_id else None
+    load_id = query.fetchone()
+    return load_id[0] if load_id else None  # type: ignore[no-any-return]

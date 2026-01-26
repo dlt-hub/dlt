@@ -37,6 +37,8 @@ from dlt.common.destination.dataset import SupportsDataAccess
 
 if TYPE_CHECKING:
     from ibis import ir
+    from dlt.common.libs.pandas import pandas as pd
+    from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.helpers.ibis import Expr as IbisExpr
 
 
@@ -97,47 +99,38 @@ class Relation(WithSqlClient):
         self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
 
-    def _wrap_iter(self, func_name: str) -> Any:
-        """wrap Relation generators in cursor context"""
+    def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
+        with self._cursor() as cursor:
+            return cursor.df(*args, **kwargs)
 
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
-            with self._cursor() as cursor:
-                yield from getattr(cursor, func_name)(*args, **kwargs)
+    def arrow(self, *args: Any, **kwargs: Any) -> pa.Table | None:
+        with self._cursor() as cursor:
+            return cursor.arrow(*args, **kwargs)
 
-        return _wrap
+    def fetchall(self, *args: Any, **kwargs: Any) -> list[tuple[Any, ...]]:
+        with self._cursor() as cursor:
+            return cursor.fetchall(*args, **kwargs)
 
-    def _wrap_func(self, func_name: str) -> Any:
-        """wrap Relation functions in cursor context"""
+    def fetchmany(self, *args: Any, **kwargs: Any) -> list[tuple[Any, ...]]:
+        with self._cursor() as cursor:
+            return cursor.fetchmany(*args, **kwargs)
 
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
-            with self._cursor() as cursor:
-                return getattr(cursor, func_name)(*args, **kwargs)
+    def fetchone(self, *args: Any, **kwargs: Any) -> tuple[Any, ...] | None:
+        with self._cursor() as cursor:
+            return cursor.fetchone(*args, **kwargs)
 
-        return _wrap
+    def iter_df(self, *args: Any, **kwargs: Any) -> Generator[pd.DataFrame, None, None]:
+        with self._cursor() as cursor:
+            yield from cursor.iter_df(*args, **kwargs)
 
-    def df(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_func("df")(*args, **kwargs)
+    # TODO maybe it should return record batches
+    def iter_arrow(self, *args: Any, **kwargs: Any) -> Generator[pa.Table, None, None]:
+        with self._cursor() as cursor:
+            yield from cursor.iter_arrow(*args, **kwargs)
 
-    def arrow(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_func("arrow")(*args, **kwargs)
-
-    def fetchall(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_func("fetchall")(*args, **kwargs)
-
-    def fetchmany(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_func("fetchmany")(*args, **kwargs)
-
-    def fetchone(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_func("fetchone")(*args, **kwargs)
-
-    def iter_df(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_iter("iter_df")(*args, **kwargs)
-
-    def iter_arrow(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_iter("iter_arrow")(*args, **kwargs)
-
-    def iter_fetch(self, *args: Any, **kwargs: Any) -> Any:
-        return self._wrap_iter("iter_fetch")(*args, **kwargs)
+    def iter_fetch(self, *args: Any, **kwargs: Any) -> Generator[list[tuple[Any, ...]], None, None]:
+        with self._cursor() as cursor:
+            yield from cursor.iter_fetch(*args, **kwargs)
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:
