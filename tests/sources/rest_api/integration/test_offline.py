@@ -1874,3 +1874,37 @@ def test_post_data_param_with_list_of_tuples(mock_api_server):
             "title": [f"Post {index}"],
             "escaped": ["{literal_braces}"],
         }
+
+
+def test_dependent_resource_parallelized(mock_api_server):
+    """Test that parallelized flag on dependent resources yields correct data."""
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "parallelized": True,
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments",
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+
+    assert table_counts.keys() == {"posts", "post_comments"}
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_comments"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * 50

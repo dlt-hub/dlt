@@ -400,9 +400,9 @@ def expand_and_index_resources(
         _bind_path_params(endpoint_resource)
 
         resource_name = endpoint_resource["name"]
-        assert isinstance(
-            resource_name, str
-        ), f"Resource name must be a string, got {type(resource_name)}"
+        assert isinstance(resource_name, str), (
+            f"Resource name must be a string, got {type(resource_name)}"
+        )
 
         if resource_name in endpoint_resource_map:
             raise ValueError(f"Resource `{resource_name}` is already defined.")
@@ -556,7 +556,10 @@ def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
 
 def _action_type_unless_custom_hook(
     action_type: Optional[str], custom_hook: Optional[List[Callable[..., Any]]]
-) -> Union[Tuple[str, Optional[List[Callable[..., Any]]]], Tuple[None, List[Callable[..., Any]]],]:
+) -> Union[
+    Tuple[str, Optional[List[Callable[..., Any]]]],
+    Tuple[None, List[Callable[..., Any]]],
+]:
     if custom_hook:
         return (None, custom_hook)
     return (action_type, None)
@@ -1038,6 +1041,7 @@ def paginate_dependent_resource(
     incremental_object: Optional[Incremental[Any]],
     incremental_param: Optional[IncrementalParam],
     incremental_cursor_transform: Optional[Callable[..., Any]],
+    parallelized: bool = False,
 ) -> Generator[Any, None, None]:
     if incremental_object:
         params = _set_incremental_params(
@@ -1047,7 +1051,7 @@ def paginate_dependent_resource(
             incremental_cursor_transform,
         )
 
-    for item in items:
+    def _fetch_for_item(item: Dict[str, Any], params: Dict[str, Any]) -> Generator[Any, None, None]:
         processed_data = process_parent_data_item(
             path=path,
             item=item,
@@ -1076,6 +1080,18 @@ def paginate_dependent_resource(
                 for child_record in child_page:
                     child_record.update(processed_data.parent_record)
             yield child_page
+
+    for item in items:
+        if parallelized:
+
+            def _deferred(
+                item: Dict[str, Any] = item, params: Dict[str, Any] = params
+            ) -> List[Any]:
+                return [record for page in _fetch_for_item(item, params) for record in page]
+
+            yield _deferred
+        else:
+            yield from _fetch_for_item(item, params)
 
 
 def paginate_resource(
