@@ -84,7 +84,7 @@ def pokemon_pipeline_context() -> Generator[RunContextBase, None, None]:
     from dlt._workspace._templates._core_source_templates.rest_api_pipeline import load_pokemon
 
     with isolated_workspace(name="pipelines") as ctx:
-        load_pokemon()
+        load_pokemon(base_url="https://pokeapi.apps.dlthub.com/api/v2/")
         yield ctx
 
 

@@ -105,7 +105,7 @@ def load_github() -> None:
     print(load_info)  # noqa: T201
 
 
-def load_pokemon() -> None:
+def load_pokemon(base_url: str = "https://pokeapi.co/api/v2/") -> None:
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_pokemon",
         destination="duckdb",
@@ -115,7 +115,7 @@ def load_pokemon() -> None:
     pokemon_source = rest_api_source(
         {
             "client": {
-                "base_url": "https://pokeapi.co/api/v2/",
+                "base_url": base_url,
                 # If you leave out the paginator, it will be inferred from the API:
                 # "paginator": "json_link",
             },
