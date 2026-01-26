@@ -154,11 +154,27 @@ Our goal is to maintain stability and compatibility across all environments. Ple
 
 ## Testing
 
-`dlt` uses `pytest` for testing. 
+`dlt` uses `pytest` for testing.
+
+### Parallel testing
+
+Parallel testing has been introduced to allow for more time-efficient testing via `pytest-xdist`. The harnessing of parallel testing has already been done in the root Makefile of the project. You can consult the Makefile directly to see the specifics of the implementation. Summarized, the different testing suites that are described below will have an equivalent Make invocation command with a suffix `-p`, which will enable parallelized testing for the selected tests. This parallelizing strategy helps surfacing test leakages an execution-order dependencies.
+
+How does the parallelization strategy work? `pytest-xdist` spawns python processes where all tests are collected, then the `pytest-xdist` workers will pick up any test available to be executed (in any order, from any module). By default, when running tests locally, the number of python parallel processes is set to auto. This will spawn as many processes as cpu cores the machine has. You can override this value by passing PYTEST_XDIST_N to the make invocation command with the number of desired processes.
+
+Not all tests are able to be run in parallel, an example are tests that require all cpu cores saturating for performance reasons. Those tests have been marked with the pytest `serial` marker. Any parallel test execution will do a second pass to run tests that have the serial marker to be run without parallelism.
+
+In general, the parallel testing safety is achieved through:
+- unique pipeline names (with a unique identifier in the pipeline name, usually `from dlt.common.utils import uniq_id`)
+- independent test storage root folders based on `pytest-xdist` workers, called "_storage_gwX" where X is the worker number. In order to get the pytest-worker-aware test storage root, you can use `from tests.utils import get_test_storage_root`
+
+Make sure to respect those guidelines to keep parallelization safe.
+
+If, for any reason, you need to access the `pytest-xdist` worker id, do it with `from tests.utils import get_test_worker_id`.
 
 ### CI Setup
 
-You can view our GitHub Actions setup in `.github/workflows` to see which tests are run with which dependencies  / extras installed, and which platforms and python versions are used for linting and testing. The main entry point is `.github/workflows/main.yml` which orchestrates all other workflows. Certain dependencies exist, for example no tests will be run if the linter reports problems. Some workflows use test matrixes to test several destinations or run tests on various operating systems and with various python versions or dependency resolution strategies. 
+You can view our GitHub Actions setup in `.github/workflows` to see which tests are run with which dependencies  / extras installed, and which platforms and python versions are used for linting and testing. The main entry point is `.github/workflows/main.yml` which orchestrates all other workflows. Certain dependencies exist, for example no tests will be run if the linter reports problems. Some workflows use test matrixes to test several destinations or run tests on various operating systems and with various python versions or dependency resolution strategies. To reduce CI execution time and improve feedback cycles, parallel test execution via `pytest-xdist` has been enabled in CI. Try to run any test suite that is involved in your development work in parallel if possible, since that is how it will be run in CI. Some CI tests have been restricted the number of workers due to destination performance reasons.
 
 ### Common Components
 
@@ -166,6 +182,12 @@ To test components that don’t require external resources, run:
 
 ```sh
 make test-common
+```
+
+or, in parallel:
+
+```sh
+make test-common-p
 ```
 
 You can see the GitHub actions setup for the common tests, including DuckDb smoke-tests in `.github/workflows/test_common.yml`.
@@ -183,6 +205,12 @@ To test the two primary local destinations (`duckdb` and `postgres`), start your
 
 ```sh
 make test-load-local
+```
+
+or, in parallel:
+
+```sh
+make test-load-local-p
 ```
 
 You can see the GitHub actions setup for local destinations in `.github/workflows/test_destinations_local.yml`.
