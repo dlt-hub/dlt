@@ -10,6 +10,8 @@ from dlt.common.runtime import signals
 
 from tests.utils import skipifwindows
 
+pytestmark = pytest.mark.serial
+
 
 @pytest.fixture(autouse=True)
 def clear_signal() -> Iterator[None]:

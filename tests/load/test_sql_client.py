@@ -21,7 +21,7 @@ from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_databa
 from dlt.destinations.typing import TNativeConn
 from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.load.utils import (
     SqlJobClientBaseWithDestinationTestConfiguration,
     prepare_table,
@@ -42,7 +42,7 @@ TEST_NAMING_CONVENTIONS = (
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.mark.parametrize(

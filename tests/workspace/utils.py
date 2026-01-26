@@ -13,11 +13,11 @@ from dlt.common.utils import set_working_dir
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 WORKSPACE_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cases", "workspaces"))
-TEST_STORAGE_ROOT = os.path.abspath(TEST_STORAGE_ROOT)
-EMPTY_WORKSPACE_DIR = os.path.join(TEST_STORAGE_ROOT, "empty")
+test_storage_root_abs = os.path.abspath(get_test_storage_root())
+EMPTY_WORKSPACE_DIR = os.path.join(test_storage_root_abs, "empty")
 
 
 @contextmanager
@@ -35,6 +35,7 @@ def isolated_workspace(
         # also mock global dir so it does not point to default user ~
         if isinstance(ctx, WorkspaceRunContext):
             ctx._global_dir = os.path.abspath(".global_dir")
+            os.makedirs(ctx._global_dir, exist_ok=True)
             # reload toml provides after patching
             Container()[PluggableRunContext].reload_providers()
         yield ctx  # type: ignore
@@ -53,10 +54,10 @@ def restore_clean_workspace(name: str) -> str:
         Absolute path to the restored workspace directory.
     """
     source_workspace_dir = os.path.join(WORKSPACE_CASES_DIR, name)
-    new_run_dir = os.path.join(TEST_STORAGE_ROOT, name)
+    new_run_dir = os.path.join(test_storage_root_abs, name)
 
     # ensure parent exists before copying
-    os.makedirs(TEST_STORAGE_ROOT, exist_ok=True)
+    os.makedirs(test_storage_root_abs, exist_ok=True)
 
     # if cwd is within the target directory, move out temporarily to allow deletion
     cwd = os.path.abspath(os.getcwd())
@@ -70,7 +71,7 @@ def restore_clean_workspace(name: str) -> str:
     # use a single code path, switching cwd only when needed
     from contextlib import nullcontext
 
-    cm = set_working_dir(TEST_STORAGE_ROOT) if is_within_target else nullcontext()
+    cm = set_working_dir(test_storage_root_abs) if is_within_target else nullcontext()
     with cm:
         if os.path.isdir(new_run_dir):
             shutil.rmtree(new_run_dir, onerror=FileStorage.rmtree_del_ro)

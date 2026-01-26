@@ -56,7 +56,7 @@ dependencies = [
     "packaging>=21.1",
     "pluggy>=1.3.0",
     "win-precise-time>=1.4.2 ; os_name == 'nt' and python_version < '3.13'",
-    "sqlglot>=25.4.0,!=28.1",
+    "sqlglot>=25.4.0,<28",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
 ]
@@ -224,6 +224,7 @@ dev = [
     "types-deprecated>=1.2.9.2,<2",
     "pytest-console-scripts>=1.4.1,<2",
     "pytest>=7.4.4,<8",
+    "pytest-xdist>=3.5,<4",
     "mypy>=1.11.0,<1.13.0",
     "flake8>=7.0.0,<8",
     "bandit>=1.7.0,<2",
@@ -397,7 +398,7 @@ multi_line_output = 3
 [tool.pytest.ini_options]
 pythonpath = ["dlt"]
 norecursedirs = [".direnv", ".eggs", "build", "dist"]
-addopts = "--showlocals --durations 10 -m 'not rfam'"
+addopts = "-p no:xdist --showlocals --durations 10 -m 'not rfam'"
 xfail_strict = true
 log_cli_level = "INFO"
 console_output_style = "count"
@@ -406,8 +407,10 @@ python_functions = ["*_test", "test_*"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
     "essential: marks all essential tests",
+    "forked: marks tests that must run in a separate process (forked), e.g. due to global state, crashes, or side effects",
     "no_load: marks tests that do not load anything",
     "rfam: marks tests that use rfam db",
+    "serial: tests that must not run under pytest-xdist / require isolated CPU",
     "oracle: marks tests that use local oracle db",
     "mssql: marks tests that use local mssql db"
 ]
