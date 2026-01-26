@@ -475,8 +475,9 @@ def test_state_with_simple_incremental(
 ) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = str(restore)
     os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
+    dataset_name = "incremental_test_" + uniq_id(6)
 
-    p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+    p = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
 
     @dlt.resource(name="items")
     def my_resource(prim_key=dlt.sources.incremental("id")):
@@ -498,7 +499,7 @@ def test_state_with_simple_incremental(
     p._wipe_working_folder()
 
     # check incremental
-    p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+    p = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
     p.run(my_resource_inc)
     assert load_table_counts(p, "items") == {"items": 4 if restore else 6}
 
