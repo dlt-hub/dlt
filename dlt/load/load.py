@@ -433,25 +433,41 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 logger.debug(f"job {job.job_id()} still running")
                 remaining_jobs.append(job)
             elif state == "failed":
-                # save exception
+                # create followup jobs
+                self.create_followup_jobs(load_id, state, job, schema)
+                # try to get exception message from job
                 failed_message = job.failed_message()
-                self.load_storage.normalized_packages.save_job_exception(
-                    load_id,
-                    job.file_name(),
-                    failed_message,
-                    state="retry",
-                    exception_type="terminal",
-                )
-                # retry the job
-                self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
-                # set pending exception
-                if self.config.raise_on_failed_jobs:
-                    pending_exception = LoadClientJobRetryPending(
-                        load_id,
-                        job.job_file_info().job_id(),
-                        failed_message,
-                        job.exception(),
+                if self.config.auto_abort_on_terminal_error:
+                    self.load_storage.normalized_packages.fail_job(
+                        load_id, job.file_name(), failed_message
                     )
+                    logger.error(
+                        f"Job for {job.job_id()} failed terminally in load {load_id} with message"
+                        f" {failed_message}"
+                    )
+                    if self.config.raise_on_failed_jobs:
+                        pending_exception = LoadClientJobFailed(
+                            load_id,
+                            job.job_file_info().job_id(),
+                            failed_message,
+                            job.exception(),
+                        )
+                    finalized_jobs.append(job)
+                else:
+                    self.load_storage.normalized_packages.retry_job(
+                        load_id, job.file_name(), failed_message
+                    )
+                    logger.error(
+                        f"Job for {job.job_id()} with terminal error in load {load_id} with message"
+                        f" {failed_message} is moved to new jobs."
+                    )
+                    if self.config.raise_on_failed_jobs:
+                        pending_exception = LoadClientJobRetryPending(
+                            load_id,
+                            job.job_file_info().job_id(),
+                            failed_message,
+                            job.exception(),
+                        )
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.failed_message()
