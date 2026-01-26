@@ -36,7 +36,7 @@ def get_scaffold_files_storage(
         ScaffoldSourceNotFound: If the source doesn't exist (404)
         ScaffoldApiError: If there's an error connecting to the API or extracting the ZIP
     """
-    # Make HTTP request with Accept header requesting ZIP format for efficient transfer
+    # Make HTTP request with Accept header requesting ZIP format for efficient file transfer
     url = f"{scaffold_docs_api_url}/api/v1/scaffolds/{source_name}/files"
     headers = {"Accept": "application/zip"}
     try:
