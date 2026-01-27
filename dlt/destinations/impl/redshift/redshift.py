@@ -69,9 +69,6 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 
         return super().has_dataset()
 
-    def create_dataset(self) -> None:
-        self.execute_sql("CREATE SCHEMA IF NOT EXISTS %s" % self.fully_qualified_dataset_name())
-
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
         pg_ex: psycopg2.DataError,
