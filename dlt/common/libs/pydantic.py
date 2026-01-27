@@ -118,7 +118,7 @@ def pydantic_to_table_schema_columns(
 
     result: TTableSchemaColumns = {}
 
-    for field_name, field in model.__fields__.items():  # type: ignore[union-attr]
+    for field_name, field in model.__class__.model_fields.items():  # type: ignore[union-attr]
         annotation = field.annotation
         if inner_annotation := getattr(annotation, "inner_type", None):
             # This applies to pydantic.Json fields, the inner type is the type after json parsing
@@ -293,7 +293,7 @@ def apply_schema_contract_to_model(
     new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
         model.__name__ + "Extra" + extra.title(),
         __config__=config,
-        **{n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.__fields__.items()},  # type: ignore[attr-defined]
+        **{n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.__class__.model_fields.items()},  # type: ignore[attr-defined]
     )
     # pass dlt config along
     dlt_config = getattr(model, "dlt_config", None)
@@ -414,7 +414,7 @@ def validate_and_filter_item(
     this function will return None (`discard_row`) or raise on non-validating items (`freeze`). Note
     that the model itself may be configured to remove non validating or extra items as well."""
     try:
-        return model.parse_obj(item)
+        return model.model_validate(item)
     except ValidationError as e:
         for err in e.errors():
             # raise on freeze
