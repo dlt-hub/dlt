@@ -97,14 +97,16 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
     def _make_truncate_table(self, qualified_table_name: str) -> str:
         return f"TRUNCATE TABLE {qualified_table_name} ON CLUSTER {self.config.cluster} SYNC"
 
-    def _make_create_distributed_table(self, table_schema: PreparedTableSchema) -> str:
+    def _make_create_or_replace_distributed_table(self, table_schema: PreparedTableSchema) -> str:
+        # NOTE: we simply REPLACE instead of ALTER distributed tables (https://stackoverflow.com/a/77215211)
+
         table_name = table_schema["name"]
 
         # generate CREATE TABLE sql
         dist_table_name = table_name + table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT]  # type: ignore[typeddict-item]
         with self.with_alternative_database_name(self.distributed_tables_database_name):
             qual_dist_table_name = self.make_qualified_table_name(dist_table_name)
-        create_table_sql = self._make_create_table(qual_dist_table_name)
+        create_table_sql = self._make_create_table(qual_dist_table_name, or_replace=True)
 
         # generate AS sql
         as_sql = "AS " + self.make_qualified_table_name(table_name)

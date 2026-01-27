@@ -104,6 +104,6 @@ class ClickHouseClusterClient(ClickHouseClient):
         table = self.prepare_load_table(table_name)
 
         if table.get(CREATE_DISTRIBUTED_TABLES_HINT):
-            sql.append(self.sql_client._make_create_distributed_table(table))
+            sql.append(self.sql_client._make_create_or_replace_distributed_table(table))
 
         return sql

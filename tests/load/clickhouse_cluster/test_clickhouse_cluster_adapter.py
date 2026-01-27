@@ -193,7 +193,7 @@ def test_clickhouse_cluster_adapter_distributed_table(
         f"Distributed('{SHARDED_CLUSTER_NAME}', '{database}', '{table}', {effective_sharding_key})"
     )
     expected_dist_stmt = (
-        f"CREATE TABLE {dist_qual_table_name} ON CLUSTER {SHARDED_CLUSTER_NAME} AS"
+        f"CREATE OR REPLACE TABLE {dist_qual_table_name} ON CLUSTER {SHARDED_CLUSTER_NAME} AS"
         f" {shard_qual_table_name} ENGINE = {expected_engine};"
     )
     assert dist_stmt == expected_dist_stmt
