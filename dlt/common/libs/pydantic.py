@@ -118,7 +118,8 @@ def pydantic_to_table_schema_columns(
 
     result: TTableSchemaColumns = {}
 
-    for field_name, field in model.__class__.model_fields.items():  # type: ignore[union-attr]
+    model_class = model if isinstance(model, type) else model.__class__
+    for field_name, field in model_class.__class__.model_fields.items():  # type: ignore[union-attr]
         annotation = field.annotation
         if inner_annotation := getattr(annotation, "inner_type", None):
             # This applies to pydantic.Json fields, the inner type is the type after json parsing
