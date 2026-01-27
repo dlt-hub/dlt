@@ -160,9 +160,13 @@ Our goal is to maintain stability and compatibility across all environments. Ple
 
 Parallel testing has been introduced to allow for more time-efficient testing via `pytest-xdist`. The harnessing of parallel testing has already been done in the root Makefile of the project. You can consult the Makefile directly to see the specifics of the implementation. Summarized, the different testing suites that are described below will have an equivalent Make invocation command with a suffix `-p`, which will enable parallelized testing for the selected tests. This parallelizing strategy helps surfacing test leakages an execution-order dependencies.
 
-How does the parallelization strategy work? `pytest-xdist` spawns python processes where all tests are collected, then the `pytest-xdist` workers will pick up any test available to be executed (in any order, from any module). By default, when running tests locally, the number of python parallel processes is set to auto. This will spawn as many processes as cpu cores the machine has. You can override this value by passing PYTEST_XDIST_N to the make invocation command with the number of desired processes.
+How does the parallelization strategy work? `pytest-xdist` spawns python processes where all tests are collected, then the `pytest-xdist` workers will pick up any test available to be executed (in any order, from any module). By default, when running tests locally, the number of python parallel processes is set to auto. This will spawn as many processes as cpu cores the machine has. You can override this value by passing `PYTEST_XDIST_N` to the `make` invocation command with the number of desired processes. Example:
 
-Not all tests are able to be run in parallel, an example are tests that require all cpu cores saturating for performance reasons. Those tests have been marked with the pytest `serial` marker. Any parallel test execution will do a second pass to run tests that have the serial marker to be run without parallelism.
+```sh
+PYTEST_XDIST_N=4 make test-common-p
+```
+
+They pytest `serial` marker has been used to mark a series of tests that cannot be run in parallel. An example of tests that cannot run in parallel are the ones that require all cpu cores saturating for performance reasons. Any parallel test execution will do a second pass to run tests that have the `serial` marker to be run without parallelism.
 
 In general, the parallel testing safety is achieved through:
 - unique pipeline names (with a unique identifier in the pipeline name, usually `from dlt.common.utils import uniq_id`)
