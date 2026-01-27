@@ -294,7 +294,7 @@ def apply_schema_contract_to_model(
     new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
         model.__name__ + "Extra" + extra.title(),
         __config__=config,
-        **{n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.__class__.model_fields.items()},  # type: ignore[attr-defined]
+        **{n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.model_fields.items()},  # type: ignore[attr-defined]
     )
     # pass dlt config along
     dlt_config = getattr(model, "dlt_config", None)
