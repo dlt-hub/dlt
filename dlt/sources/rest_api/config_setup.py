@@ -400,9 +400,9 @@ def expand_and_index_resources(
         _bind_path_params(endpoint_resource)
 
         resource_name = endpoint_resource["name"]
-        assert isinstance(resource_name, str), (
-            f"Resource name must be a string, got {type(resource_name)}"
-        )
+        assert isinstance(
+            resource_name, str
+        ), f"Resource name must be a string, got {type(resource_name)}"
 
         if resource_name in endpoint_resource_map:
             raise ValueError(f"Resource `{resource_name}` is already defined.")
@@ -556,10 +556,7 @@ def _find_resolved_params(endpoint_config: Endpoint) -> List[ResolvedParam]:
 
 def _action_type_unless_custom_hook(
     action_type: Optional[str], custom_hook: Optional[List[Callable[..., Any]]]
-) -> Union[
-    Tuple[str, Optional[List[Callable[..., Any]]]],
-    Tuple[None, List[Callable[..., Any]]],
-]:
+) -> Union[Tuple[str, Optional[List[Callable[..., Any]]]], Tuple[None, List[Callable[..., Any]]],]:
     if custom_hook:
         return (None, custom_hook)
     return (action_type, None)

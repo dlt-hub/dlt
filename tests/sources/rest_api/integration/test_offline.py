@@ -17,7 +17,11 @@ from dlt.sources.rest_api import (
     RESTAPIConfig,
     rest_api_source,
 )
-from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
+from tests.sources.rest_api.conftest import (
+    DEFAULT_COMMENTS_COUNT,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_TOTAL_PAGES,
+)
 from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_column
 
 
@@ -1908,3 +1912,128 @@ def test_dependent_resource_parallelized(mock_api_server):
     assert table_counts.keys() == {"posts", "post_comments"}
     assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
     assert table_counts["post_comments"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * 50
+
+
+def test_dependent_resource_parallelized_with_include_from_parent(mock_api_server):
+    """Test that parallelized dependent resources correctly include fields from parent.
+
+    Setting include_from_parent=["id", "title"] on the post_comments resource adds
+    _posts_id and _posts_title columns to each child record, populated from the
+    corresponding parent post's data.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "parallelized": True,
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments",
+                    },
+                    "include_from_parent": ["id", "title"],
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+
+    assert table_counts.keys() == {"posts", "post_comments"}
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_comments"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * 50
+
+    with pipeline.sql_client() as client:
+        post_comments_table = client.make_qualified_table_name("post_comments")
+
+    # Verify _posts_id is populated from parent: first 50 comments belong to post 0
+    assert_query_column(
+        pipeline,
+        f"SELECT _posts_id FROM {post_comments_table} ORDER BY _posts_id, id LIMIT 5",
+        [0, 0, 0, 0, 0],
+    )
+    # Verify _posts_title is populated from parent
+    assert_query_column(
+        pipeline,
+        f"SELECT _posts_title FROM {post_comments_table} ORDER BY _posts_id, id LIMIT 5",
+        ["Post 0", "Post 0", "Post 0", "Post 0", "Post 0"],
+    )
+    # Verify a different parent's fields appear correctly
+    assert_query_column(
+        pipeline,
+        f"SELECT DISTINCT _posts_title FROM {post_comments_table} WHERE _posts_id = 3 LIMIT 1",
+        ["Post 3"],
+    )
+
+
+def test_dependent_resource_parallelized_with_incremental(mock_api_server):
+    """Test that parallelized dependent resources work correctly with incremental.
+
+    Sets initial_value=45 on the incremental cursor for comment id. The mock API
+    returns all 50 comments (ids 0-49) regardless, but dlt's incremental filter
+    should discard comments with id < 45, leaving only comments with id >= 45.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "parallelized": True,
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments",
+                        "incremental": {
+                            "start_param": "since",
+                            "cursor_path": "id",
+                            "initial_value": 45,
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+    total_posts = DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+
+    assert table_counts.keys() == {"posts", "post_comments"}
+    assert table_counts["posts"] == total_posts
+    # Incremental filtered out comments with id < 45, so fewer than 50 * 25 = 1250
+    assert table_counts["post_comments"] < total_posts * DEFAULT_COMMENTS_COUNT
+
+    with pipeline.sql_client() as client:
+        post_comments_table = client.make_qualified_table_name("post_comments")
+
+    # Verify no comment with id < 45 was loaded
+    assert_query_column(
+        pipeline,
+        f"SELECT MIN(id) FROM {post_comments_table}",
+        [45],
+    )
