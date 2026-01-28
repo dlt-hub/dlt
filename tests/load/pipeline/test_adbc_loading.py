@@ -92,3 +92,48 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
     # load again and make sure we still have 1 record
     pipeline.run(complex_resource())
     assert load_table_counts(pipeline) == {"complex_resource": 1, "complex_resource__child": 3}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres", "mssql", "sqlalchemy"]),
+    ids=lambda x: x.name,
+)
+def test_adbc_parquet_with_dlt_load_id(
+    destination_config: DestinationTestConfiguration, preserve_environ
+) -> None:
+    """Test that ADBC loading works with _dlt_load_id column.
+
+    This test verifies the fix for https://github.com/dlt-hub/dlt/issues/3551
+    where ADBC drivers (especially MSSQL) fail on dictionary-encoded Arrow arrays.
+    """
+    import pyarrow as pa
+
+    # Enable add_dlt_load_id for parquet normalizer in extract step
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+
+    pipeline = destination_config.setup_pipeline("pipeline_adbc_load_id", dev_mode=True)
+
+    @dlt.resource(file_format="parquet")
+    def test_data():
+        # Yield Arrow table to test the dictionary encoding fix
+        yield pa.Table.from_pylist([{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}])
+
+    info = pipeline.run(test_data(), loader_file_format="parquet")
+
+    # Verify load succeeded
+    assert info.loads_ids is not None
+    load_id = info.loads_ids[0]
+
+    # Verify parquet jobs were used
+    jobs = get_load_package_jobs(info.load_packages[0], "completed_jobs", "test_data", ".parquet")
+    assert len(jobs) == 1, "Expected parquet job for ADBC loading"
+
+    # Verify data was loaded with _dlt_load_id column
+    rows = pipeline.dataset().table("test_data").fetchall()
+    assert len(rows) == 2
+
+    # Check that _dlt_load_id column exists and has correct value
+    df = pipeline.dataset().test_data.df()
+    assert "_dlt_load_id" in df.columns
+    assert all(df["_dlt_load_id"] == load_id)
