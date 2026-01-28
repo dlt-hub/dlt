@@ -58,7 +58,6 @@ from tests.workspace.cli.utils import (
     get_repo_dir,
     get_workspace_files,
     _cached_init_repo,
-    _cached_init_vibe_repo,
 )
 from tests.common.utils import modify_and_commit_file
 from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root
@@ -698,7 +697,7 @@ def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
     # we test 5 hardcoded sources, use this to get all sources instead
     # vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
     # Note: if we want to point test to non-production URL, we can set the environment variable
-    # os.environ["RUNTIME__SCAFFOLD__DOCS_API_URL"] = "http://localhost:8000"
+    # os.environ["RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL"] = "http://localhost:8000"
     random_vibez = [
         "news_api",
         "alpaca",

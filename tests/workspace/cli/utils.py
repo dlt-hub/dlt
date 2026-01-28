@@ -38,6 +38,16 @@ def _cached_init_repo(tmp_path_factory) -> FileStorage:
 
 
 @pytest.fixture
+def cloned_init_repo(_cached_init_repo: FileStorage) -> FileStorage:
+    target = os.path.join(
+        get_dlt_repos_dir(),
+        f"verified_sources_repo_{uniq_id()}",
+    )
+    shutil.copytree(_cached_init_repo.storage_path, target)
+    return FileStorage(target)
+
+
+@pytest.fixture
 def repo_dir(cloned_init_repo: FileStorage) -> str:
     return get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
 

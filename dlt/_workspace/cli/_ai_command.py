@@ -3,7 +3,6 @@ import shutil
 from pathlib import Path
 from typing import List, Tuple, get_args, Literal, Union, cast
 
-from dlt.common import logger
 from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
@@ -134,8 +133,6 @@ def vibe_source_setup(
     dest_dir = Path(run_context.active().run_dir)
     copied_files, count_files = _copy_repo_files(src_dir, dest_dir)
     if count_files == 0:
-        # NOTE: this should never happen, but we can't be sure
-        logger.warning(f"Source `{source}` was found but has no files to copy.")
         fmt.warning("We have nothing for %s at dltHub yet." % fmt.bold(source))
     else:
         fmt.echo(
