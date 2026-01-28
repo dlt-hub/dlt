@@ -44,6 +44,7 @@ from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
+from dlt.common.storages import PackageStorage
 from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.warnings import DltDeprecationWarning
@@ -59,7 +60,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.extract import ExtractStorage, data_to_sources
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
-from dlt.load.exceptions import LoadClientJobFailed
+from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetryPending
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import (
@@ -1457,27 +1458,87 @@ def test_run_with_table_name_exceeding_path_length() -> None:
     assert isinstance(sf_ex.value.__context__, OSError)
 
 
-def test_raise_on_failed_job() -> None:
-    os.environ["FAIL_PROB"] = "1.0"
+@pytest.mark.parametrize(
+    "raise_on_failed_jobs",
+    [True, False],
+    ids=["raise_exception", "no_exception"],
+)
+def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = str(raise_on_failed_jobs)
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
-    with pytest.raises(PipelineStepFailed) as py_ex:
-        p.run([1, 2, 3], table_name="numbers")
-    assert py_ex.value.step == "load"
-    assert py_ex.value.load_id is not None
-    assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
-    # loaded
-    assert py_ex.value.has_pending_data is False
-    # all packages failed
-    assert py_ex.value.is_package_partially_loaded is False
-    # get package info
-    package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
-    assert package_info.state == "aborted"
-    assert isinstance(py_ex.value.__context__, LoadClientJobFailed)
-    assert isinstance(py_ex.value.__context__, DestinationTerminalException)
-    # next call to run does nothing
-    load_info = p.run()
-    assert load_info is None
+    if raise_on_failed_jobs:
+        s = DltSource(
+            Schema("source"),
+            "module",
+            [
+                dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+                dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+            ],
+        )
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.run(s)
+        assert py_ex.value.step == "load"
+        assert py_ex.value.load_id is not None
+        assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
+        # loaded
+        assert py_ex.value.has_pending_data is True
+        # all packages failed
+        assert py_ex.value.is_package_partially_loaded is True
+        # get package info
+        package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
+        assert package_info.state == "normalized"
+        assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+        assert isinstance(py_ex.value.__context__, DestinationTerminalException)
+        # next call reraises
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.run()
+        assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+    else:
+        load_info = p.run([1, 2, 3], table_name="numbers")
+        assert load_info.has_failed_jobs is True
+        package_info = p.get_load_package_info(load_info.loads_ids[0])
+        assert package_info.state == "loaded"
+        assert PackageStorage.is_package_partially_loaded(load_info.load_packages[0]) is True
+
+
+@pytest.mark.parametrize(
+    "raise_on_failed_jobs",
+    [True, False],
+    ids=["raise_exception", "no_exception"],
+)
+def test_raise_on_failed_job(raise_on_failed_jobs: bool) -> None:
+    os.environ["FAIL_PROB"] = "1.0"
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "true"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = str(raise_on_failed_jobs)
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    if raise_on_failed_jobs:
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.run([1, 2, 3], table_name="numbers")
+        assert py_ex.value.step == "load"
+        assert py_ex.value.load_id is not None
+        assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
+        # loaded
+        assert py_ex.value.has_pending_data is False
+        # all packages failed
+        assert py_ex.value.is_package_partially_loaded is False
+        # get package info
+        package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
+        assert package_info.state == "aborted"
+        assert isinstance(py_ex.value.__context__, LoadClientJobFailed)
+        assert isinstance(py_ex.value.__context__, DestinationTerminalException)
+        # next call to run does nothing
+        load_info = p.run()
+        assert load_info is None
+    else:
+        load_info = p.run([1, 2, 3], table_name="numbers")
+        assert load_info.has_failed_jobs is True
+        package_info = p.get_load_package_info(load_info.loads_ids[0])
+        assert package_info.state == "aborted"
+        assert PackageStorage.is_package_partially_loaded(load_info.load_packages[0]) is False
 
 
 def test_load_info_raise_on_failed_jobs() -> None:
