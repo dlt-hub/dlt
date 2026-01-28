@@ -1,4 +1,6 @@
-from typing import Sequence
+from typing import Sequence, List
+from unittest.mock import Base
+from dlt.common.typing import TypedDict
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
@@ -21,6 +23,25 @@ class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
         super().__init__(
             f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
             f" {failed_message}. The package is aborted and cannot be retried."
+        )
+
+
+class FailedJobInfo(TypedDict):
+    job_id: str
+    failed_message: str
+    client_exception: BaseException
+
+
+class LoadClientJobRetryPending(DestinationTerminalException, LoadClientJobException):
+    def __init__(self, load_id: str, failed_jobs: List[FailedJobInfo]) -> None:
+        self.load_id = load_id
+        self.job_id = failed_jobs[0]["job_id"]
+        self.client_exception = failed_jobs[0]["client_exception"]
+        self.failed_jobs = failed_jobs
+
+        super().__init__(
+            f"Load {load_id} has {len(failed_jobs)} pending job(s) with terminal errors. "
+            "You have three options: retry, fail, or abort!"
         )
 
 
