@@ -9,15 +9,13 @@ from dlt.common.utils import uniq_id
 
 from dlt.sources import SourceReference
 
-from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO, DEFAULT_VIBE_SOURCES_REPO
+from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO
 
 from tests.utils import get_test_storage_root
 from tests.workspace.utils import EMPTY_WORKSPACE_DIR
 
 INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
-INIT_VIBE_REPO_LOCATION = DEFAULT_VIBE_SOURCES_REPO
-INIT_VIBE_REPO_BRANCH = "main"
 WORKSPACE_CLI_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cli", "cases"))
 
 
@@ -39,16 +37,6 @@ def _cached_init_repo(tmp_path_factory) -> FileStorage:
     )
 
 
-@pytest.fixture(scope="session")
-def _cached_init_vibe_repo(tmp_path_factory) -> FileStorage:
-    cache_dir = tmp_path_factory.mktemp("cached_vibe_sources_repo")
-    return git.get_fresh_repo_files(
-        DEFAULT_VIBE_SOURCES_REPO,
-        cache_dir,
-        branch=INIT_VIBE_REPO_BRANCH,
-    )
-
-
 @pytest.fixture
 def cloned_init_repo(_cached_init_repo: FileStorage) -> FileStorage:
     target = os.path.join(
@@ -60,23 +48,8 @@ def cloned_init_repo(_cached_init_repo: FileStorage) -> FileStorage:
 
 
 @pytest.fixture
-def cloned_init_vibe_repo(_cached_init_vibe_repo: FileStorage) -> FileStorage:
-    target = os.path.join(
-        get_dlt_repos_dir(),
-        f"vibe_sources_repo_{uniq_id()}",
-    )
-    shutil.copytree(_cached_init_vibe_repo.storage_path, target)
-    return FileStorage(target)
-
-
-@pytest.fixture
 def repo_dir(cloned_init_repo: FileStorage) -> str:
     return get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
-
-
-@pytest.fixture
-def vibe_repo_dir(cloned_init_vibe_repo: FileStorage) -> str:
-    return get_repo_dir(cloned_init_vibe_repo, f"vibe_sources_repo_{uniq_id()}")
 
 
 @pytest.fixture
