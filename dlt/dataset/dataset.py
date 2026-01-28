@@ -138,7 +138,6 @@ class Dataset:
             # force re-fetch
             self._schema = schema_name
 
-
     def _ipython_key_completions_(self) -> list[str]:
         """Provide table names as completion suggestion in interactive environments."""
         return self.tables
