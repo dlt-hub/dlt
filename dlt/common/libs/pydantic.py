@@ -65,18 +65,29 @@ class ListModel(BaseModel, Generic[_TPydanticModel]):
 
 
 class DltConfig(TypedDict, total=False):
-    """dlt configuration that can be attached to Pydantic model
+    """dlt configuration that can be attached to a Pydantic model.
 
-    Example below removes `nested` field from the resulting dlt schema.
-    >>> class ItemModel(BaseModel):
-    >>>     b: bool
-    >>>     nested: Dict[str, Any]
-    >>>     dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
+    Example:
+        >>> class ItemModel(BaseModel):
+        >>>     field: int
+        >>>     dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
+    Options:
+        skip_nested_types:
+            If True, columns of complex types (`dict`, `list`, `BaseModel`) are excluded
+            from the schema generated from the model.
+
+        skip_complex_types:  # deprecated
+
+        return_validated_models:
+            If True, the Pydantic validator returns validated Pydantic model instances
+            instead of converting them to dictionaries during extraction/transform steps.
+            Defaults to False to preserve current behavior.
     """
 
     skip_nested_types: bool
-    """If True, columns of complex types (`dict`, `list`, `BaseModel`) will be excluded from dlt schema generated from the model"""
     skip_complex_types: bool  # deprecated
+    return_validated_models: bool
 
 
 def pydantic_to_table_schema_columns(

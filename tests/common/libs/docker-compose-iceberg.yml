@@ -1,0 +1,146 @@
+# Docker Compose for Iceberg Catalog Integration Tests
+#
+# This sets up the infrastructure needed to test dlt's Iceberg catalog support:
+# - REST catalog (apache/iceberg-rest-fixture) on port 8181
+# - PostgreSQL for SQL catalog backend on port 5432
+# - MinIO for S3-compatible storage on port 9000
+# - Catalog initialization (creates test namespaces)
+#
+# Inspired by: https://github.com/apache/iceberg-python/blob/main/dev/docker-compose-integration.yml
+#
+# Usage:
+#   docker compose -f docker-compose-iceberg.yml up -d
+#   pytest tests/common/libs/test_pyiceberg.py -m integration
+#   docker compose -f docker-compose-iceberg.yml down
+
+services:
+  # ==========================================================================
+  # REST Catalog (Iceberg REST Fixture)
+  # ==========================================================================
+  rest:
+    image: apache/iceberg-rest-fixture
+    container_name: dlt-iceberg-rest
+    networks:
+      iceberg_net:
+    ports:
+      - "8181:8181"
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+      - CATALOG_WAREHOUSE=s3://warehouse/
+      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
+      - CATALOG_S3_ENDPOINT=http://minio:9000
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/v1/config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ==========================================================================
+  # PostgreSQL (SQL Catalog Backend)
+  # ==========================================================================
+  postgres:
+    image: postgres:15
+    container_name: dlt-iceberg-postgres
+    networks:
+      iceberg_net:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: dlt_data
+      POSTGRES_USER: loader
+      POSTGRES_PASSWORD: loader
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loader -d dlt_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # MinIO (S3-compatible storage for REST catalog)
+  # ==========================================================================
+  minio:
+    image: minio/minio
+    container_name: dlt-iceberg-minio
+    networks:
+      iceberg_net:
+        aliases:
+          - warehouse.minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+      - MINIO_DOMAIN=minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # MinIO Setup (creates warehouse bucket)
+  # ==========================================================================
+  minio-setup:
+    image: minio/mc
+    container_name: dlt-iceberg-minio-setup
+    networks:
+      iceberg_net:
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set minio http://minio:9000 admin password;
+      /usr/bin/mc mb minio/warehouse --ignore-existing;
+      /usr/bin/mc anonymous set public minio/warehouse;
+      exit 0;
+      "
+
+  # ==========================================================================
+  # Catalog Initialization (creates test namespaces)
+  # Uses UV for fast package installation
+  # ==========================================================================
+  catalog-init:
+    image: ghcr.io/astral-sh/uv:python3.11-alpine
+    container_name: dlt-iceberg-catalog-init
+    networks:
+      iceberg_net:
+    depends_on:
+      rest:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./init-iceberg-catalogs.py:/init-iceberg-catalogs.py:ro
+    environment:
+      - IN_DOCKER=1
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      uv pip install --system pyiceberg[s3fs,sql-postgres] psycopg2-binary requests &&
+      python /init-iceberg-catalogs.py
+      "
+
+networks:
+  iceberg_net:
+    name: dlt-iceberg-network
+
+volumes:
+  postgres_data:
+

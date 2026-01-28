@@ -27,6 +27,7 @@ from tests.load.utils import (
 )
 
 from tests.pipeline.utils import load_table_counts
+from tests.utils import get_test_storage_root
 
 
 skip_if_not_active("filesystem")
@@ -83,7 +84,7 @@ def test_pipeline_csv_filesystem_destination(item_type: TestDataItemFormat) -> N
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
 
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
@@ -109,7 +110,7 @@ def test_csv_options(item_type: TestDataItemFormat) -> None:
     os.environ["NORMALIZE__DATA_WRITER__DELIMITER"] = "|"
     os.environ["NORMALIZE__DATA_WRITER__INCLUDE_HEADER"] = "False"
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
         destination="filesystem",
@@ -137,7 +138,7 @@ def test_csv_quoting_style(item_type: TestDataItemFormat) -> None:
     os.environ["NORMALIZE__DATA_WRITER__QUOTING"] = "quote_all"
     os.environ["NORMALIZE__DATA_WRITER__INCLUDE_HEADER"] = "False"
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
         destination="filesystem",
@@ -167,7 +168,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     import pyarrow.parquet as pq  # Module is evaluated by other tests
 
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
         destination="filesystem",
@@ -261,7 +262,7 @@ def test_filesystem_destination_extended_layout_placeholders(
         "hiphip": counter("Hurraaaa"),
     }
     now = pendulum.now()
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
 
     # the reason why we are patching pendulum.from_timestamp is that
@@ -474,8 +475,9 @@ def test_state_with_simple_incremental(
 ) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = str(restore)
     os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
+    dataset_name = "incremental_test_" + uniq_id(6)
 
-    p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+    p = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
 
     @dlt.resource(name="items")
     def my_resource(prim_key=dlt.sources.incremental("id")):
@@ -497,7 +499,7 @@ def test_state_with_simple_incremental(
     p._wipe_working_folder()
 
     # check incremental
-    p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
+    p = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
     p.run(my_resource_inc)
     assert load_table_counts(p, "items") == {"items": 4 if restore else 6}
 

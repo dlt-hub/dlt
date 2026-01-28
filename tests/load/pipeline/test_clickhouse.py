@@ -9,7 +9,7 @@ from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.pipeline.utils import assert_load_info, load_table_counts
 
 
@@ -95,7 +95,7 @@ def test_clickhouse_destination_append(destination_config: DestinationTestConfig
 )
 def test_clickhouse_no_dataset_name(destination_config: DestinationTestConfiguration) -> None:
     # add staging to cover staging dataset name that must be present
-    destination_config.staging = dlt.destinations.filesystem(TEST_STORAGE_ROOT)
+    destination_config.staging = dlt.destinations.filesystem(get_test_storage_root())
     # create explicitly empty dataset
     # NOTE: we use empty string here but when creating pipeline directly you can just skip
     # the dataset_name argument

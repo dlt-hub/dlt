@@ -453,6 +453,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.IntegrityError):
             return DatabaseTerminalException(e)
+        elif isinstance(e, sa.exc.DatabaseError):
+            if "oracle" in msg:
+                if "00942" in msg and "does not exist" in msg:  # ORA-00942
+                    return DatabaseUndefinedRelation(e)
+            return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.SQLAlchemyError):
             return DatabaseTransientException(e)
         else:

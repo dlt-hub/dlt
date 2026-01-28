@@ -16,6 +16,7 @@ from typing import (
     NamedTuple,
     get_args,
 )
+import datetime  # noqa: 251
 from typing_extensions import TypeAlias
 import os
 import platform
@@ -282,7 +283,7 @@ def create_column_list(
                 **{hint: column.get(hint, None) for hint in c.column_other_hints},
             }
 
-        # show custom hints (x-) if requesed
+        # show custom hints (x-) if requested
         if show_custom_hints:
             for key in column:
                 if key.startswith("x-"):
@@ -390,6 +391,7 @@ def get_row_counts(
         DestinationUndefinedEntity,
         SqlClientNotAvailable,
         PipelineConfigMissing,
+        ConnectionError,
     ):
         # TODO: somehow propagate errors to the user here
         pass
@@ -826,6 +828,7 @@ def _build_pipeline_execution_html(
     status: TPipelineRunStatus,
     steps_data: List[PipelineStepData],
     migrations_count: int = 0,
+    finished_at: Optional[datetime.datetime] = None,
 ) -> mo.Html:
     """
     Build an HTML visualization for a pipeline execution using CSS classes
@@ -834,9 +837,15 @@ def _build_pipeline_execution_html(
     last = len(steps_data) - 1
 
     # Build the general info of the execution
+    relative_time = ""
+    if finished_at:
+        time_ago = pendulum.instance(finished_at).diff_for_humans()
+        relative_time = f"<div>Executed: <strong>{time_ago}</strong></div>"
+
     general_info = f"""
     <div>Last execution ID: <strong>{transaction_id[:8]}</strong></div>
     <div>Total time: <strong>{_format_duration(total_ms)}</strong></div>
+    {relative_time}
     """
 
     # Build the pipeline execution timeline bar and labels
@@ -895,16 +904,16 @@ def _get_steps_data_and_status(
 ) -> Tuple[List[PipelineStepData], TPipelineRunStatus]:
     """Gets trace steps data and the status of the corresponding pipeline execution"""
     steps_data: List[PipelineStepData] = []
+    any_step_failed: bool = False
 
     for step in trace_steps:
-        if step.step not in get_args(TVisualPipelineStep):
-            continue
+        if step.step_exception is not None:
+            any_step_failed = True
 
-        if not step.finished_at:
+        if step.step not in get_args(TVisualPipelineStep) or not step.finished_at:
             continue
 
         duration_ms = (step.finished_at - step.started_at).total_seconds() * 1000
-
         steps_data.append(
             PipelineStepData(
                 step=cast(TVisualPipelineStep, step.step),
@@ -912,8 +921,7 @@ def _get_steps_data_and_status(
                 failed=step.step_exception is not None,
             )
         )
-    is_failed = any(s.failed for s in steps_data)
-    status: TPipelineRunStatus = "failed" if is_failed else "succeeded"
+    status: TPipelineRunStatus = "failed" if any_step_failed else "succeeded"
     return steps_data, status
 
 
@@ -941,6 +949,7 @@ def build_pipeline_execution_visualization(trace: PipelineTrace) -> Optional[mo.
         status,
         steps_data,
         migrations_count,
+        trace.finished_at,
     )
 
 

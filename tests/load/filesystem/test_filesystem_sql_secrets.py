@@ -4,7 +4,7 @@ import pytest
 import os
 from pytest_mock import MockerFixture
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -46,8 +46,8 @@ def test_secrets_management(
         DuckDbCredentials,
     )
 
-    duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
-    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    duck_db_location = get_test_storage_root() + "/" + uniq_id()
+    secrets_dir = f"{get_test_storage_root()}/duck_secrets_{uniq_id()}"
 
     def _external_duckdb_connection() -> duckdb.DuckDBPyConnection:
         external_db = duckdb.connect(duck_db_location)
@@ -102,8 +102,8 @@ def test_secrets_management(
     logger_spy.assert_not_called()
 
     # check that warning is logged when secrets are persisted in the default folder
-    duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
-    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    duck_db_location = get_test_storage_root() + "/" + uniq_id()
+    secrets_dir = f"{get_test_storage_root()}/duck_secrets_{uniq_id()}"
     duck_db = duckdb.connect(duck_db_location)
     fs_sql_client = _fs_sql_client_for_external_db(duck_db, persist_secrets=True)
     with fs_sql_client as sql_client:

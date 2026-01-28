@@ -132,7 +132,7 @@ with engine.connect() as conn:
 ```
 
 ## Notes on other dialects
-We tested this destination on **mysql**, **sqlite** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
+We tested this destination on **mysql**, **sqlite**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
@@ -145,6 +145,9 @@ Please report issues with particular dialects. We'll try to make them work.
 * Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
+
+### Oracle limitations
+* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
 
 
 ### Adapting destination for a dialect

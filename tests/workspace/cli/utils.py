@@ -2,7 +2,6 @@ import os
 import pytest
 import shutil
 from typing import Iterator
-
 from dlt.common.libs import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.storages.file_storage import FileStorage
@@ -12,14 +11,12 @@ from dlt.sources import SourceReference
 
 from dlt._workspace.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.workspace.utils import EMPTY_WORKSPACE_DIR
-
 
 INIT_REPO_LOCATION = DEFAULT_VERIFIED_SOURCES_REPO
 INIT_REPO_BRANCH = "master"
 WORKSPACE_CLI_CASES_DIR = os.path.abspath(os.path.join("tests", "workspace", "cli", "cases"))
-REPO_ROOT = os.path.abspath(TEST_STORAGE_ROOT)
 
 
 @pytest.fixture(autouse=True)
@@ -30,10 +27,13 @@ def auto_echo_default_choice() -> Iterator[None]:
     echo.ALWAYS_CHOOSE_DEFAULT = False
 
 
-@pytest.fixture(scope="module")
-def cloned_init_repo() -> FileStorage:
+@pytest.fixture(scope="session")
+def _cached_init_repo(tmp_path_factory) -> FileStorage:
+    cache_dir = tmp_path_factory.mktemp("cached_verified_sources_repo")
     return git.get_fresh_repo_files(
-        INIT_REPO_LOCATION, get_dlt_repos_dir(), branch=INIT_REPO_BRANCH
+        INIT_REPO_LOCATION,
+        cache_dir,
+        branch=INIT_REPO_BRANCH,
     )
 
 
@@ -49,7 +49,8 @@ def workspace_files() -> Iterator[FileStorage]:
 
 
 def get_repo_dir(cloned_repo: FileStorage, repo_name: str) -> str:
-    repo_dir = os.path.join(REPO_ROOT, repo_name)
+    # Create repo dir relative to current working directory
+    repo_dir = os.path.join(get_test_storage_root(), repo_name)
     shutil.copytree(cloned_repo.storage_path, repo_dir)
     return repo_dir
 
@@ -65,5 +66,5 @@ def get_workspace_files(clear_all_sources: bool = True) -> FileStorage:
     if clear_all_sources:
         SourceReference.SOURCES.clear()
 
-    # project dir
+    # project dir - use current working directory
     return FileStorage(EMPTY_WORKSPACE_DIR, makedirs=False)

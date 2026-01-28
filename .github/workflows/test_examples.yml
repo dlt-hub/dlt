@@ -45,7 +45,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --extra duckdb --extra weaviate --extra parquet --extra qdrant --extra bigquery --extra postgres --extra lancedb  --extra s3 --extra workspace --group docs --group sentry-sdk --group ibis --group providers
+        run: uv sync --extra duckdb --extra weaviate --extra parquet --extra qdrant --extra bigquery --extra postgres --extra lancedb  --extra s3 --extra workspace --group docs --group ibis --group providers
 
       # - name: Install dlthub incl alpha releases
       #   run: uv run pip install --pre dlthub

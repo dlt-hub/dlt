@@ -27,7 +27,7 @@ from tests.common.storages.utils import (
     load_storage,
     start_loading_files,
 )
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
+from tests.utils import get_test_storage_root, autouse_test_storage
 
 
 def test_is_partially_loaded(load_storage: LoadStorage) -> None:
@@ -447,7 +447,7 @@ def add_new_jobs(
         file_name = PackageStorage.build_job_file_name(
             table_name, ParsedLoadJobFileName.new_file_id(), 0, False, "csv"
         )
-        file_path = os.path.join(TEST_STORAGE_ROOT, file_name)
+        file_path = os.path.join(get_test_storage_root(), file_name)
         with open(file_path, "wt", encoding="utf-8") as f:
             f.write("a|b|c")
         package_storage.import_job(load_id, file_path)

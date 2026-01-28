@@ -72,6 +72,7 @@ def test_clone_with_wrong_branch(test_storage: FileStorage) -> None:
         clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="wrong_branch")
 
 
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
     repo_path = test_storage.make_full_path("private_repo")
@@ -80,6 +81,7 @@ def test_clone_with_deploy_key_access_denied(test_storage: FileStorage) -> None:
             clone_repo(PRIVATE_REPO, repo_path, with_git_command=git_command)
 
 
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 @skipifwindows
 def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")
@@ -89,7 +91,7 @@ def test_clone_with_deploy_key(test_storage: FileStorage) -> None:
         ensure_remote_head(repo_path, with_git_command=git_command)
 
 
-@pytest.mark.skip("disabled due to something locking in github")
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 @skipifwindows
 def test_repo_status_update(test_storage: FileStorage) -> None:
     secret = load_secret("deploy_key")

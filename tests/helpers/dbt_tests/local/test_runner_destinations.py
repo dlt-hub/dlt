@@ -9,7 +9,7 @@ from dlt.helpers.dbt.dbt_utils import DBTProcessingError
 from dlt.helpers.dbt.exceptions import PrerequisitesException
 from tests.helpers.dbt_tests.utils import find_run_result
 
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, preserve_environ
+from tests.utils import get_test_storage_root, clean_test_storage, preserve_environ
 from tests.common.utils import modify_and_commit_file, load_secret
 from tests.helpers.dbt_tests.local.utils import (
     setup_rasa_runner_client,
@@ -50,9 +50,10 @@ def test_setup_dbt_runner() -> None:
     }
     assert runner.source_dataset_name == "carbon_bot_3"
     assert runner.cloned_package_name == "rasa_semantic_schema"
-    assert runner.working_dir == TEST_STORAGE_ROOT
+    assert runner.working_dir == get_test_storage_root()
 
 
+@pytest.mark.skip("disabled due github locking the key because found in a public repo")
 def test_initialize_package_wrong_key() -> None:
     runner = setup_rasa_runner(
         "redshift",

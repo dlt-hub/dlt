@@ -173,6 +173,64 @@ On the other hand, if the `id` field was already a string, then introducing new 
 
 Now go ahead and try to add a new record where `id` is a float number; you should see a new field `id__v_double` in the schema.
 
+### Compound hints
+
+Compound hints are column-level properties that you can apply to multiple columns to define a composite (compound) value. Supported compound hints are:
+
+- `primary_key`
+- `merge_key`
+- `cluster`
+- `partition`
+
+When passing these hints to a resource, keep in mind that:
+
+#### 1. Direct `primary_key` and `merge_key` hints override column-level hints when both are set
+
+In the example below, the `primary_key="col_1"` argument takes precedence over any `primary_key` hints defined in `columns`. As a result, only `col_1` will be treated as the primary key.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::compound_hints_direct_key_precedence-->
+
+Note that direct `primary_key` and `merge_key` hints are always authoritative within a single resource definition, even if they are set to an empty value (e.g. `""` or `[]`). In that case, the empty direct hint forces any column-level key hints to be ignored. In the following example, `col_2` will not receive a primary key hint.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_empty_direct_key_precedence-->
+
+The same precedence rule applies to `merge_key`. It also applies when direct key and column-level hints are both provided via `apply_hints`. In the example below, only `col_1` will be treated as the merge key.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_direct_key_precedence_apply_hints-->
+
+#### 2. Redefining hints on an already extracted resource replaces previous configuration
+
+If you redefine a compound hint for a resource that has already been extracted, the new hint configuration overwrites the previous one. This means that old and new compound hints are not merged.
+
+In the example below, the resource is first defined with `partition` on `col_2`. After the first run, we update the resource hints and set `partition` on `col_1` instead. On the next run, only `col_1` will remain partitioned, and `col_2` will no longer have the `partition` property.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_replace_previous_compound_props-->
+
+:::warning
+Note that direct `primary_key` and `merge_key` hints automatically set `nullable=False` for the respective columns, unless you explicitly set `nullable=True`. If you later redefine the key hints, columns that were previously part of the key will keep their existing nullability and will not be reset to `nullable=True` automatically.
+:::
+
+Be aware that redefining `primary_key` or `merge_key` to an empty value on an extracted resource does not clear any key properties in the schema. In the example below, `col_1` will remain the primary key.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_empty_value_key_hints_do_not_replace_previous_hints-->
+
+#### 3. Column-level compound hints via `apply_hints` are merged
+
+When you call `apply_hints` with column-level compound hints on a resource that has already been extracted, the new column hints are merged into the existing schema. In the example below, the first run defines `col_2` as a primary key. After the run, we add a `primary_key` hint for `col_1` via the `columns` argument of `apply_hints`. On the next run, both `col_1` and `col_2` are treated as primary keys.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_column_level_compound_prop_hints_via_apply_hints_merged-->
+
+:::note
+This merging behavior applies to all column-level hints passed via `apply_hints`, not only to 
+compound hints.
+:::
+
+#### 4. Direct key hints via `apply_hints` replace existing key properties
+
+Unlike column-level hints, direct key hints provided through `apply_hints` are treated as authoritative. As a result, they replace any existing key configuration instead of being merged. In the example below, setting `primary_key="col_1"` via `apply_hints` replaces the previously defined primary key on `col_2`.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_direct_key_hint_via_apply_hints_replaces-->
+
 ## Data types
 
 | dlt Data Type | Source Value Example                                | Precision and Scale                                     |
