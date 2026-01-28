@@ -843,7 +843,7 @@ def add_constant_column(
         column_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
     else:
         # Create a regular array filled with the repeated value
-        column_array = pyarrow.array([value] * item.num_rows, type=data_type)
+        column_array = pyarrow.repeat(pyarrow.scalar(value, type=data_type), item.num_rows)
 
     field = pyarrow.field(name, column_array.type, nullable=nullable)
     if index == -1:
