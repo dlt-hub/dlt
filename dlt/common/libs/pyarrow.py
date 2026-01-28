@@ -704,6 +704,11 @@ def add_dlt_load_id_column(
         "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
     )
 
+    # Check if destination supports dictionary encoding (default True if not specified)
+    use_dictionary = True
+    if caps.parquet_format is not None:
+        use_dictionary = caps.parquet_format.supports_dictionary_encoding
+
     # add the column with the new value at previous index or append
     item = add_constant_column(
         item=item,
@@ -716,6 +721,7 @@ def add_dlt_load_id_column(
             else dlt_load_id_column()["nullable"]
         ),
         index=idx,
+        use_dictionary=use_dictionary,
     )
 
     return item
@@ -806,6 +812,7 @@ def add_constant_column(
     value: Any = None,
     nullable: bool = True,
     index: int = -1,
+    use_dictionary: bool = True,
 ) -> TAnyArrowItem:
     """Add column with a single value to the table.
 
@@ -816,26 +823,32 @@ def add_constant_column(
         nullable: Whether the new column is nullable
         value: The value to fill the new column with
         index: The index at which to insert the new column. Defaults to -1 (append)
+        use_dictionary: When True (default), creates a dictionary-encoded column which is
+            memory-efficient for repeated values. Set to False for destinations that don't
+            support dictionary types (e.g., ADBC drivers for MSSQL).
     Note:
-        This function creates a dictionary field for the new column, which is memory-efficient
-        when the column contains a single repeated value.
-        The column is created as a DictionaryArray with int8 indices.
+        When use_dictionary=True, the column is created as a DictionaryArray with int8 indices.
+        When use_dictionary=False, a regular array filled with the repeated value is created.
     """
-    dictionary = pyarrow.array([value], type=data_type)
-    zero_buffer = pyarrow.allocate_buffer(item.num_rows, resizable=False)
-    ctypes.memset(zero_buffer.address, 0, item.num_rows)
+    if use_dictionary:
+        dictionary = pyarrow.array([value], type=data_type)
+        zero_buffer = pyarrow.allocate_buffer(item.num_rows, resizable=False)
+        ctypes.memset(zero_buffer.address, 0, item.num_rows)
 
-    indices = pyarrow.Array.from_buffers(
-        pyarrow.int8(),
-        item.num_rows,
-        [None, zero_buffer],  # None validity bitmap means arrow assumes all entries are valid
-    )
-    dict_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
+        indices = pyarrow.Array.from_buffers(
+            pyarrow.int8(),
+            item.num_rows,
+            [None, zero_buffer],  # None validity bitmap means arrow assumes all entries are valid
+        )
+        column_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
+    else:
+        # Create a regular array filled with the repeated value
+        column_array = pyarrow.array([value] * item.num_rows, type=data_type)
 
-    field = pyarrow.field(name, dict_array.type, nullable=nullable)
+    field = pyarrow.field(name, column_array.type, nullable=nullable)
     if index == -1:
-        return item.append_column(field, dict_array)
-    return item.add_column(index, field, dict_array)
+        return item.append_column(field, column_array)
+    return item.add_column(index, field, column_array)
 
 
 def pq_stream_with_new_columns(
