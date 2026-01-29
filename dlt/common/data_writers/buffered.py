@@ -245,12 +245,17 @@ class BufferedDataWriter(Generic[TWriter]):
                     self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
                 self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
-            # write buffer
+            # swap out buffer before writing so batch references are released
+            # as soon as write_data returns, without waiting for the next
+            # write_data_item call.
             if self._buffered_items:
-                self._writer.write_data(self._buffered_items)
-            # reset buffer and counter
-            self._buffered_items.clear()
-            self._buffered_items_count = 0
+                items = self._buffered_items
+                self._buffered_items = []
+                self._buffered_items_count = 0
+                self._writer.write_data(items)
+                items.clear()
+            else:
+                self._buffered_items_count = 0
 
     def _flush_and_close_file(
         self, allow_empty_file: bool = False, skip_flush: bool = False
