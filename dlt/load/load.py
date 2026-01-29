@@ -49,7 +49,6 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
-    FailedJobInfo,
     LoadClientJobRetryPending,
     LoadClientJobRetry,
     LoadClientUnsupportedWriteDisposition,
@@ -423,7 +422,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         finalized_jobs: List[LoadJob] = []
         # if an exception condition was met, return it to the main runner
         pending_exception: Optional[LoadClientJobException] = None
-        pending_retries: List[FailedJobInfo] = []
 
         logger.info(f"Will complete {len(jobs)} for {load_id}")
         for ii in range(len(jobs)):
@@ -439,14 +437,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.create_followup_jobs(load_id, state, job, schema)
                 # try to get exception message from job
                 failed_message = job.failed_message()
-                if (
-                    not self.config.auto_abort_on_terminal_error
-                    and self.config.raise_on_failed_jobs
-                ):
-                    self.load_storage.normalized_packages.retry_job(
-                        load_id, job.file_name(), failed_message
-                    )
-                else:
+                if self.config.auto_abort_on_terminal_error or not self.config.raise_on_failed_jobs:
                     self.load_storage.normalized_packages.fail_job(
                         load_id, job.file_name(), failed_message
                     )
@@ -454,6 +445,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                         f" {failed_message}"
                     )
+                else:
+                    self.load_storage.normalized_packages.retry_job(
+                        load_id, job.file_name(), failed_message, "terminal"
+                    )
+                #                if self.config.raise_on_failed_jobs:
                 if self.config.auto_abort_on_terminal_error:
                     pending_exception = LoadClientJobFailed(
                         load_id,
@@ -462,25 +458,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         job.exception(),
                     )
                 else:
-                    pending_retries.append(
-                        {
-                            "job_id": job.job_file_info().job_id(),
-                            "failed_message": failed_message,
-                            "client_exception": job.exception(),
-                        }
+                    pending_exception = LoadClientJobRetryPending(
+                        load_id,
+                        job.job_file_info().job_id(),
+                        failed_message,
+                        job.exception(),
                     )
                 finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.failed_message()
-                # save exception
-                self.load_storage.normalized_packages.save_job_exception(
-                    load_id,
-                    job.file_name(),
-                    retry_message,
-                    state="retry",
-                    exception_type="transient",
-                )
                 # move back to new folder to try again
                 self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
                 logger.warning(
@@ -523,8 +510,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         "Jobs", 1, message="WARNING: Some of the jobs failed!", label="Failed"
                     )
 
-        if pending_retries:
-            pending_exception = LoadClientJobRetryPending(load_id, pending_retries)
         return remaining_jobs, finalized_jobs, pending_exception
 
     def complete_package(self, load_id: str, schema: Schema, aborted: bool = False) -> None:
@@ -631,15 +616,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             running_jobs, finalized_jobs, new_pending_exception = self.complete_jobs(
                 load_id, running_jobs, schema
             )
-            if new_pending_exception:
-                if pending_exception is None:
-                    pending_exception = new_pending_exception
-                elif isinstance(pending_exception, LoadClientJobRetryPending) and isinstance(
-                    new_pending_exception, LoadClientJobRetryPending
-                ):
-                    # Merge failed jobs
-                    pending_exception.failed_jobs.extend(new_pending_exception.failed_jobs)
-                # else: keep first exception (don't overwrite)
+            pending_exception = pending_exception or new_pending_exception
 
             # do not spool new jobs if there was a signal or an exception was encountered
             # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
@@ -676,25 +653,31 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         remaining_jobs = self.load_storage.list_new_jobs(load_id)
         # if a pending exception was discovered during completion of jobs
         # we can raise it now
+        mark_aborted: bool = False
         if pending_exception:
-            if isinstance(pending_exception, LoadClientJobRetryPending):
-                if self.config.raise_on_failed_jobs:
-                    raise pending_exception from pending_exception.client_exception
-                else:
-                    self.complete_package(load_id, schema, aborted=False)
-                    return
             if isinstance(pending_exception, LoadClientJobFailed):
-                # the package is completed and skipped
-                self.complete_package(load_id, schema, aborted=True)
-                if not self.config.raise_on_failed_jobs:
-                    return
-            # raise exception with continuous backtrace into client exception
-            raise pending_exception from pending_exception.client_exception
+                mark_aborted = True
+                if self.config.raise_on_failed_jobs:
+                    # the package is completed and skipped
+                    self.complete_package(load_id, schema, aborted=True)
+                    # raise exception with continuous backtrace into client exception
+                    raise pending_exception from pending_exception.client_exception
+            elif isinstance(pending_exception, LoadClientJobRetryPending):
+                if self.config.raise_on_failed_jobs:
+                    # we do not complete
+                    raise pending_exception from pending_exception.client_exception
+            else:
+                self.gather_metrics(load_id, finished=False)
+                logger.warning(
+                    f"Package {load_id} was not fully loaded. Load job pool is successfully drained"
+                    f" but {len(remaining_jobs)} new jobs are left in the package."
+                )
+                # raise exception with continuous backtrace into client exception
+                raise pending_exception from pending_exception.client_exception
 
         # pool is drained
         if not remaining_jobs:
-            # no new jobs, load package done
-            self.complete_package(load_id, schema, aborted=False)
+            self.complete_package(load_id, schema, aborted=mark_aborted)
         else:
             self.gather_metrics(load_id, finished=False)
             logger.warning(

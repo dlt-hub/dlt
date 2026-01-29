@@ -1789,15 +1789,15 @@ def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
     os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
     if raise_on_failed_jobs:
-        s = DltSource(
-            Schema("source"),
-            "module",
-            [
-                dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
-                dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
-            ],
-        )
         with pytest.raises(PipelineStepFailed) as py_ex:
             p.run(s)
         assert py_ex.value.step == "load"
@@ -1817,7 +1817,7 @@ def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
             p.run()
         assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
     else:
-        load_info = p.run([1, 2, 3], table_name="numbers")
+        load_info = p.run(s)
         assert load_info.has_failed_jobs is True
         package_info = p.get_load_package_info(load_info.loads_ids[0])
         assert package_info.state == "loaded"
@@ -1835,9 +1835,17 @@ def test_raise_on_failed_job(raise_on_failed_jobs: bool) -> None:
     os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = str(raise_on_failed_jobs)
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
     if raise_on_failed_jobs:
         with pytest.raises(PipelineStepFailed) as py_ex:
-            p.run([1, 2, 3], table_name="numbers")
+            p.run(s)
         assert py_ex.value.step == "load"
         assert py_ex.value.load_id is not None
         assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
@@ -1854,7 +1862,7 @@ def test_raise_on_failed_job(raise_on_failed_jobs: bool) -> None:
         load_info = p.run()
         assert load_info is None
     else:
-        load_info = p.run([1, 2, 3], table_name="numbers")
+        load_info = p.run(s)
         assert load_info.has_failed_jobs is True
         package_info = p.get_load_package_info(load_info.loads_ids[0])
         assert package_info.state == "aborted"
@@ -3009,6 +3017,7 @@ def test_resource_state_name_not_normalized() -> None:
 
 
 def test_pipeline_list_packages() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
     pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
     pipeline.extract(airtable_emojis())
     load_ids = pipeline.list_extracted_load_packages()
