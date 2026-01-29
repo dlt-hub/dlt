@@ -220,9 +220,8 @@ def test_spool_job_failed_and_package_completed() -> None:
             )
         )
         assert load.load_storage.normalized_packages.storage.has_file(
-            load.load_storage.normalized_packages.get_job_exception_path(
-                load_id,
-                job.job_file_info().to_exception_file_name(),
+            load.load_storage.normalized_packages.get_job_file_path(
+                load_id, PackageStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"
             )
         )
         # load should collect two jobs

@@ -365,17 +365,6 @@ class PackageStorage:
         """Get path to job with `file_name` in `state` in package `load_id`, relative to the storage root"""
         return os.path.join(self.get_job_state_folder_path(load_id, state), file_name)
 
-    def get_job_exception_folder_path(self, load_id: str) -> str:
-        """Gets path to the exceptions folder of package `load_id`, relative to the storage root"""
-        return os.path.join(self.get_package_path(load_id), PackageStorage.EXCEPTIONS_FOLDER)
-
-    def get_job_exception_path(self, load_id: str, file_name: str) -> str:
-        """Get path to the exception message of job with `file_name` in the exceptions folder of package `load_id`,
-        relative to the storage root"""
-        job = ParsedLoadJobFileName.parse(file_name)
-        exception_file_name = job.to_exception_file_name()
-        return os.path.join(self.get_job_exception_folder_path(load_id), exception_file_name)
-
     def list_packages(self) -> Sequence[str]:
         """Lists all load ids in storage, earliest first
 
@@ -464,14 +453,13 @@ class PackageStorage:
         )
 
     def fail_job(self, load_id: str, file_name: str, failed_message: Optional[str]) -> str:
-        # save the exception to the exceptions folder
+        # save the exception to failed jobs
         if failed_message:
-            self.save_job_exception(
-                load_id,
-                file_name,
+            self.storage.save(
+                self.get_job_file_path(
+                    load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + JOB_EXCEPTION_EXTENSION
+                ),
                 failed_message,
-                state="failed",
-                exception_type=None,
             )
 
         # move to failed jobs
@@ -749,16 +737,12 @@ class PackageStorage:
 
     def get_job_failed_message(self, load_id: str, job: ParsedLoadJobFileName) -> str:
         """Get exception message of a failed job."""
-        # validate the failed job itself exists
-        job_path = self.get_job_file_path(load_id, "failed_jobs", job.file_name())
-        if not self.storage.has_file(job_path):
-            raise FileNotFoundError(job_path)
-        exception_path = self.get_job_exception_path(load_id, job.file_name())
+        rel_path = self.get_job_file_path(load_id, "failed_jobs", job.file_name())
+        if not self.storage.has_file(rel_path):
+            raise FileNotFoundError(rel_path)
         failed_message: str = None
-        if self.storage.has_file(exception_path):
-            content = self.storage.load(exception_path)
-            # first line is "failed" or "retry: terminal/transient"
-            failed_message = content.split("\n", 1)[1]
+        with contextlib.suppress(FileNotFoundError):
+            failed_message = self.storage.load(rel_path + JOB_EXCEPTION_EXTENSION)
         return failed_message
 
     def job_to_job_info(
