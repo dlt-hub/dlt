@@ -232,6 +232,7 @@ def test_spool_job_failed_and_package_completed() -> None:
 
     # test the whole flow - disable raising exceptions on failed jobs and let package to complete
     loader_config = LoaderConfiguration(
+        auto_abort_on_terminal_error=False,
         raise_on_failed_jobs=False,
         workers=1,
         pool_type="none",

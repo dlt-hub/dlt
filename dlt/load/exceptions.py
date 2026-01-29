@@ -26,22 +26,18 @@ class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
         )
 
 
-class FailedJobInfo(TypedDict):
-    job_id: str
-    failed_message: str
-    client_exception: BaseException
-
-
 class LoadClientJobRetryPending(DestinationTerminalException, LoadClientJobException):
-    def __init__(self, load_id: str, failed_jobs: List[FailedJobInfo]) -> None:
+    def __init__(
+        self, load_id: str, job_id: str, failed_message: str, exception: BaseException
+    ) -> None:
         self.load_id = load_id
-        self.job_id = failed_jobs[0]["job_id"]
-        self.client_exception = failed_jobs[0]["client_exception"]
-        self.failed_jobs = failed_jobs
+        self.job_id = job_id
+        self.failed_message = failed_message
+        self.client_exception = exception
 
         super().__init__(
-            f"Load {load_id} has {len(failed_jobs)} pending job(s) with terminal errors. "
-            "You have three options: retry, fail, or abort!"
+            f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
+            f" {failed_message}. Take the necessary action pls."
         )
 
 
