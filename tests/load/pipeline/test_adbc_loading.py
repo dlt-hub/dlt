@@ -78,7 +78,8 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
     def complex_resource():
         # add child table
         data_["child"] = [1, 2, 3]
-        assert len([data_] * 10) == 10
+        # generate 10 identical rows to make sure multiple rows can be loaded to staging table
+        # via ADBC
         yield [data_] * 10
 
     info = pipeline.run(complex_resource())
@@ -86,9 +87,13 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
         info.load_packages[0], "completed_jobs", "complex_resource", ".parquet"
     )
     # there must be a parquet job or adbc is not installed so we fall back to other job type
+    # it should be just one job due to batching
     assert len(jobs) == 1
     # verify row count and selected column values (int and string)
+    # this is a smoke test (TODO: verify all values) - it was mostly used to detect
+    # corrupted data in sqllite (couldn't be fixed and got disabled)
     rows = pipeline.dataset().complex_resource.fetchall()
+    # merge disposition should deduplicate to one single row:
     assert len(rows) == 1
     assert rows[0][0] == data_["col1"]  # col1 (bigint)
     assert rows[0][4] == data_["col5"]  # col5 (text)
@@ -124,7 +129,6 @@ def test_adbc_parquet_with_dlt_load_id(
             "ADBC disabled for SQLite due to WAL mmap conflicts between sqlite3 and"
             " adbc_driver_sqlite"
         )
-    import pyarrow as pa
 
     # Enable add_dlt_load_id for parquet normalizer in extract step
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"

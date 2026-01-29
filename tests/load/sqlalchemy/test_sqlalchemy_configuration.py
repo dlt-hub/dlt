@@ -63,7 +63,7 @@ def test_sqlalchemy_sqlite_follows_local_dir() -> None:
     db_path = os.path.join(local_dir, "local.db")
     assert c.credentials.database.endswith(db_path)
 
-    # pipeline context: uses pipeline_name for the filename
+    # pipeline context: uses <pipeline_name>.db for the filename
     pipeline = dlt.pipeline("test_sqlalchemy_sqlite_follows_local_dir")
     c = resolve_configuration(
         pipeline._bind_local_files(

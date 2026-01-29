@@ -80,13 +80,12 @@ def pytest_xdist_setupnodes(config, specs):
         "sqlite_scanner",
     ]
 
-    conn = duckdb.connect()
-    for ext in extensions:
-        try:
-            conn.execute(f"INSTALL {ext}")
-        except Exception:
-            pass  # extension might not be available
-    conn.close()
+    with duckdb.connect() as conn:
+        for ext in extensions:
+            try:
+                conn.execute(f"INSTALL {ext}")
+            except Exception:
+                pass  # extension might not be available
 
 
 def pytest_configure(config):
