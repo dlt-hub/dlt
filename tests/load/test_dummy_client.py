@@ -427,6 +427,10 @@ def test_try_retrieve_job() -> None:
     load.pool = ThreadPoolExecutor()
     jobs = load.start_new_jobs(load_id, schema, [])  # type: ignore
     assert len(jobs) == 2
+    # wait for jobs submitted to the thread pool to complete before resuming
+    for j in jobs:
+        while j.state() not in ("completed", "failed", "retry"):
+            sleep(0.01)
     # now jobs are known
     jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2
