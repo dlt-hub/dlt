@@ -13,6 +13,7 @@ from clickhouse_connect.driver.summary import QuerySummary
 
 from contextlib import contextmanager
 from typing import (
+    Dict,
     Iterator,
     AnyStr,
     Any,
@@ -140,9 +141,13 @@ class ClickHouseSqlClient(
         # We create a sentinel table which defines whether we consider the dataset created.
         self.execute_sql(self._make_create_sentinel_table())
 
+    def _gen_insert_deduplication_token(self) -> str:
+        return str(uuid.uuid4())
+
     def _make_insert_into(self, qualified_table_name: str, columns: Optional[str] = None) -> str:
         sql = super()._make_insert_into(qualified_table_name, columns)
-        sql += f" SETTINGS insert_deduplication_token = '{uuid.uuid4()}'"
+        insert_deduplication_token = self._gen_insert_deduplication_token()
+        sql += f" SETTINGS insert_deduplication_token = '{insert_deduplication_token}'"
         return sql
 
     def _make_drop_table(self, qualified_name: str, if_exists: bool = False) -> str:
@@ -201,6 +206,11 @@ class ClickHouseSqlClient(
     def _insert_file_table(self, table_name: str, database_name: str) -> str:
         return self.make_qualified_table_name(table_name)
 
+    def _gen_insert_file_settings(self) -> Dict[str, Any]:
+        return self.config.credentials.__session_settings__ | {
+            "insert_deduplication_token": self._gen_insert_deduplication_token()
+        }
+
     def insert_file(
         self,
         file_path: str,
@@ -215,11 +225,7 @@ class ClickHouseSqlClient(
                 table=self._insert_file_table(table_name, database_name),
                 file_path=file_path,
                 fmt=file_format,
-                settings={
-                    "allow_experimental_lightweight_delete": 1,
-                    "enable_http_compression": 1,
-                    "date_time_input_format": "best_effort",
-                },
+                settings=self._gen_insert_file_settings(),
                 compression=compression,
             )
 

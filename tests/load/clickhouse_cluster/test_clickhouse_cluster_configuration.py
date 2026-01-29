@@ -60,4 +60,4 @@ def test_clickhouse_cluster_credentials_alt_hosts() -> None:
         }
     )
     query = creds.get_query()
-    assert query["connect_timeout"] == "7"  # inherited correctly
+    assert query["connect_timeout"] == 7  # inherited correctly

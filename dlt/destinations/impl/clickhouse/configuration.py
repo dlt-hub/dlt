@@ -34,6 +34,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
 
+    __query_params__: ClassVar[List[str]] = ["secure", "connect_timeout", "send_receive_timeout"]
+
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
         "port",
@@ -42,6 +44,12 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "username",
         "password",
     ]
+
+    __session_settings__: ClassVar[Dict[str, Any]] = {
+        "enable_lightweight_delete": 1,
+        "enable_http_compression": 1,
+        "date_time_input_format": "best_effort",
+    }
 
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
@@ -52,20 +60,11 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         self.secure = cast(TSecureConnection, int(self.query.get("secure", self.secure)))
 
     def get_query(self) -> Dict[str, Any]:
-        query = dict(super().get_query())
-        query.update(
-            {
-                "connect_timeout": str(self.connect_timeout),
-                "send_receive_timeout": str(self.send_receive_timeout),
-                "secure": 1 if self.secure else 0,
-                "enable_lightweight_delete": 1,
-                "enable_http_compression": 1,
-                "date_time_input_format": "best_effort",
-                "mutations_sync": 2,
-                "lightweight_deletes_sync": 2,
-            }
-        )
-        return query
+        query = super().get_query()
+        for param in self.__query_params__:
+            if self.get(param) is not None:
+                query[param] = self[param]
+        return query | self.__session_settings__
 
 
 @configspec

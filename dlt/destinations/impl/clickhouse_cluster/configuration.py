@@ -24,7 +24,19 @@ class ClickHouseClusterCredentials(ClickHouseCredentials):
     Used as fallback when connecting to `host`:`http_port` fails. Example: `host1:8444,host2:8443`.
     """
 
-    __query_params__: ClassVar[List[str]] = ["alt_hosts"]
+    __query_params__: ClassVar[List[str]] = ClickHouseCredentials.__query_params__ + ["alt_hosts"]
+
+    __session_settings__: ClassVar[Dict[str, Any]] = ClickHouseCredentials.__session_settings__ | {
+        # NOTE: ClickHouse' default setting do not guarantee strong consistency when working with
+        # replicated tables; these settings increase consistency. We err on the side of correctness,
+        # not performance.
+        # https://blog.sentry.io/how-to-get-stronger-consistency-out-of-a-datastore/#how-do-we-ensure-we-read-from-an-up-to-date-replica-3
+        "mutations_sync": 2,
+        "insert_distributed_sync": 1,
+        "lightweight_deletes_sync": 2,
+        "select_sequential_consistency": 1,
+        "load_balancing": "in_order",
+    }
 
     @property
     def _http_hosts(self) -> List[Tuple[str, int]]:
@@ -45,16 +57,8 @@ class ClickHouseClusterCredentials(ClickHouseCredentials):
 
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
-        for param in self.__query_params__:
-            if param in self.query:
-                setattr(self, param, self.query[param])
-
-    def get_query(self) -> Dict[str, Any]:
-        query = super().get_query()
-        for param in self.__query_params__:
-            if self.get(param) is not None:
-                query[param] = self[param]
-        return query
+        if "alt_hosts" in self.query:
+            self.alt_hosts = self.query["alt_hosts"]
 
 
 @configspec
