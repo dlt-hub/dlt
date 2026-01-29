@@ -482,7 +482,13 @@ class PackageStorage:
             file_name,
         )
 
-    def retry_job(self, load_id: str, file_name: str, failed_message: Optional[str] = None) -> str:
+    def retry_job(
+        self,
+        load_id: str,
+        file_name: str,
+        failed_message: Optional[str] = None,
+        exception_type: Optional[TExceptionType] = "transient",
+    ) -> str:
         # save the exception to the exceptions folder
         if failed_message:
             self.save_job_exception(
@@ -490,7 +496,7 @@ class PackageStorage:
                 file_name,
                 failed_message,
                 state="retry",
-                exception_type="terminal",
+                exception_type=exception_type,
             )
         # when retrying job we must increase the retry count
         source_fn = ParsedLoadJobFileName.parse(file_name)
