@@ -88,18 +88,18 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
     # there must be a parquet job or adbc is not installed so we fall back to other job type
     assert len(jobs) == 1
     # verify row count and selected column values (int and string)
-    df = pipeline.dataset().complex_resource.df()
-    assert len(df) == 1
-    assert df["col1"].iloc[0] == data_["col1"]
-    assert df["col5"].iloc[0] == data_["col5"]
+    rows = pipeline.dataset().complex_resource.fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == data_["col1"]  # col1 (bigint)
+    assert rows[0][4] == data_["col5"]  # col5 (text)
     # verify child table values
-    df_child = pipeline.dataset().complex_resource__child.df()
-    assert len(df_child) == 3
-    assert set(df_child["value"].tolist()) == {1, 2, 3}
+    child_rows = pipeline.dataset().complex_resource__child.fetchall()
+    assert len(child_rows) == 3
+    assert set(row[0] for row in child_rows) == {1, 2, 3}  # value column
     # verify pipeline state table values
-    df_state = pipeline.dataset()._dlt_pipeline_state.df()
-    assert len(df_state) == 1
-    assert df_state["pipeline_name"].iloc[0] == "pipeline_adbc"
+    state_rows = pipeline.dataset()._dlt_pipeline_state.fetchall()
+    assert len(state_rows) == 1
+    assert state_rows[0][2] == "pipeline_adbc"  # pipeline_name column
 
     # load again and make sure we still have 1 record
     pipeline.run(complex_resource())

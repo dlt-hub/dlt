@@ -4,6 +4,8 @@ import logging
 from typing import Dict, List, Any
 from pathlib import Path
 
+import pytest
+
 # patch which providers to enable
 from dlt.common.configuration.providers import (
     ConfigProvider,
@@ -53,6 +55,40 @@ from dlt.common.configuration.providers import google_secrets
 google_secrets.GoogleSecretsProvider = CachedGoogleSecretsProvider  # type: ignore[misc]
 
 
+@pytest.hookimpl(optionalhook=True)
+def pytest_xdist_setupnodes(config, specs):
+    """Called on master before workers start. Pre-install DuckDB extensions to avoid
+    race conditions during concurrent auto-install by workers.
+    """
+    try:
+        import duckdb
+    except ImportError:
+        return
+
+    extensions = [
+        "avro",
+        "azure",
+        "delta",
+        "ducklake",
+        "httpfs",
+        "iceberg",
+        "lance",
+        "motherduck",
+        "parquet",
+        "postgres_scanner",
+        "spatial",
+        "sqlite_scanner",
+    ]
+
+    conn = duckdb.connect()
+    for ext in extensions:
+        try:
+            conn.execute(f"INSTALL {ext}")
+        except Exception:
+            pass  # extension might not be available
+    conn.close()
+
+
 def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields
     # the dataclass implementation will use those patched values when creating instances (the values present
@@ -62,12 +98,6 @@ def pytest_configure(config):
     test_storage_root = compute_test_storage_root()
     Path(test_storage_root).mkdir(exist_ok=True)
     set_environment_test_storage_root(test_storage_root)
-
-    # isolate duckdb extension directory per xdist worker to avoid race conditions
-    # during concurrent auto-install of extensions
-    duckdb_extensions_dir = os.path.join(test_storage_root, "duckdb_extensions")
-    Path(duckdb_extensions_dir).mkdir(exist_ok=True)
-    os.environ["DUCKDB_EXTENSION_DIRECTORY"] = duckdb_extensions_dir
 
     from dlt.common.configuration.specs import runtime_configuration
     from dlt.common.storages import configuration as storage_configuration
