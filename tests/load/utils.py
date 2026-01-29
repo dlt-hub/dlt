@@ -442,22 +442,24 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="clickhouse", file_format="jsonl", supports_dbt=False
             ),
-            DestinationTestConfiguration(
+            DestinationTestConfiguration(  # default config: no replication, no distribution
                 destination_type="clickhouse_cluster",
-                cid="clickhouse-cluster-merge-tree",
+                cid="clickhouse-cluster-default",
                 file_format="jsonl",
                 supports_dbt=False,
-                extra_info="merge-tree",
+                extra_info="default",
             ),
-            DestinationTestConfiguration(
+            DestinationTestConfiguration(  # non-default config: replication and distribution
                 destination_type="clickhouse_cluster",
-                cid="clickhouse-cluster-replicated-merge-tree",
+                cid="clickhouse-cluster-replicated-distributed",
                 file_format="jsonl",
                 supports_dbt=False,
                 env_vars={
-                    "DESTINATION__CLICKHOUSE_CLUSTER__TABLE_ENGINE_TYPE": "replicated_merge_tree"
+                    "DESTINATION__CLICKHOUSE_CLUSTER__CLUSTER": "cluster_2S_2R",
+                    "DESTINATION__CLICKHOUSE_CLUSTER__TABLE_ENGINE_TYPE": "replicated_merge_tree",
+                    "DESTINATION__CLICKHOUSE_CLUSTER__CREATE_DISTRIBUTED_TABLES": "true",
                 },
-                extra_info="replicated-merge-tree",
+                extra_info="replicated-distributed",
             ),
         ]
 
@@ -621,7 +623,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="clickhouse_cluster",
-                cid="clickhouse-cluster-merge-tree-s3-staging",
+                cid="clickhouse-cluster-default-s3-staging",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,

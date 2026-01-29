@@ -8,6 +8,7 @@ import pytest
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse.typing import TTableEngineType
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster import ClickHouseClusterClient
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     ClickHouseClusterClientConfiguration,
@@ -46,6 +47,7 @@ def client(empty_schema: Schema) -> ClickHouseClusterClient:
 def set_clickhouse_cluster_conf(
     cluster: Optional[str] = None,
     distributed_tables_database: Optional[str] = None,
+    table_engine_type: Optional[TTableEngineType] = None,
     port: Optional[int] = None,
     http_port: Optional[int] = None,
     alt_hosts: Optional[str] = None,
@@ -56,6 +58,8 @@ def set_clickhouse_cluster_conf(
         os.environ[env_var_prefix + "CLUSTER"] = cluster
     if distributed_tables_database is not None:
         os.environ[env_var_prefix + "DISTRIBUTED_TABLES_DATABASE"] = distributed_tables_database
+    if table_engine_type is not None:
+        os.environ[env_var_prefix + "TABLE_ENGINE_TYPE"] = table_engine_type
     if port is not None:
         os.environ[env_var_prefix + "CREDENTIALS__PORT"] = str(port)
     if http_port is not None:
@@ -70,6 +74,7 @@ def assert_clickhouse_cluster_conf(
     config: ClickHouseClusterClientConfiguration,
     cluster: Optional[str] = None,
     distributed_tables_database: Optional[str] = None,
+    table_engine_type: Optional[TTableEngineType] = None,
     port: Optional[int] = None,
     http_port: Optional[int] = None,
     alt_hosts: Optional[str] = None,
@@ -79,6 +84,8 @@ def assert_clickhouse_cluster_conf(
         assert config.cluster == cluster
     if distributed_tables_database is not None:
         assert config.distributed_tables_database == distributed_tables_database
+    if table_engine_type is not None:
+        assert config.table_engine_type == table_engine_type
     if port is not None:
         assert config.credentials.port == port
     if http_port is not None:

@@ -95,7 +95,7 @@ def test_clickhouse_cluster_adapter_defaults(client: ClickHouseClusterClient) ->
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["clickhouse_cluster"]),
+    destinations_configs(default_sql_configs=True, cid="clickhouse-cluster-default"),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(

@@ -7,6 +7,7 @@ import dlt
 from dlt.destinations.adapters import clickhouse_cluster_adapter
 from dlt.destinations.exceptions import DatabaseTransientException, DestinationConnectionError
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse.typing import TTableEngineType
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
     ClickHouseClusterClientConfiguration,
@@ -40,7 +41,7 @@ def get_row_cnt(ds: dlt.Dataset, qualified_table_name: str) -> int:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, cid="clickhouse-cluster-replicated-merge-tree"),
+    destinations_configs(default_sql_configs=True, cid="clickhouse-cluster-default"),
     ids=lambda x: x.name,
 )
 def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
@@ -48,6 +49,7 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
 
     # define cluster config
     cluster = REPLICATED_CLUSTER_NAME  # 1 shard, 2 replicas
+    table_engine_type: TTableEngineType = "replicated_merge_tree"
     port = get_node_port(1)
     http_port = get_node_port(1, http=True)
     alt_hosts = f"{CLICKHOUSE_CLUSTER_HOST}:{get_node_port(2)}"
@@ -55,6 +57,7 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
 
     set_clickhouse_cluster_conf(
         cluster=cluster,
+        table_engine_type=table_engine_type,
         port=port,
         http_port=http_port,
         alt_hosts=alt_hosts,
@@ -68,6 +71,7 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
     assert_clickhouse_cluster_conf(
         config=cast(ClickHouseClusterClientConfiguration, pipe.destination_client().config),
         cluster=cluster,
+        table_engine_type=table_engine_type,
         port=port,
         http_port=http_port,
         alt_hosts=alt_hosts,
@@ -136,8 +140,8 @@ def test_alt_hosts(destination_config: DestinationTestConfiguration) -> None:
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        # we set engine in test with adapter; limit to merge tree config here to avoid test redundancy
-        cid="clickhouse-cluster-merge-tree",
+        # we override configuration in test with adapter; limit to default config here to avoid test redundancy
+        cid="clickhouse-cluster-default",
     ),
     ids=lambda x: x.name,
 )
@@ -210,7 +214,7 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
     destinations_configs(
         default_sql_configs=True,
         default_staging_configs=True,
-        cid=("clickhouse-cluster-merge-tree", "clickhouse-cluster-merge-tree-s3-staging"),
+        cid=("clickhouse-cluster-default", "clickhouse-cluster-default-s3-staging"),
     ),
     ids=lambda x: x.name,
 )
@@ -299,7 +303,7 @@ def test_distribution(destination_config: DestinationTestConfiguration) -> None:
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        cid="clickhouse-cluster-replicated-merge-tree",
+        cid="clickhouse-cluster-replicated-distributed",
     ),
     ids=lambda x: x.name,
 )
