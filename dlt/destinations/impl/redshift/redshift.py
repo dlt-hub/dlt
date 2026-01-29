@@ -52,11 +52,11 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 
         all_schemas_view_name = "svv_redshift_schemas"
 
+        db_params = []
+        _, schema_name, _ = self._get_information_schema_components()
+        query = f"SELECT 1 FROM {all_schemas_view_name} WHERE schema_name = %s"
+        db_params.append(schema_name)
         try:
-            db_params = []
-            _, schema_name, _ = self._get_information_schema_components()
-            query = f"SELECT 1 FROM {all_schemas_view_name} WHERE schema_name = %s"
-            db_params.append(schema_name)
             rows = self.execute_sql(query, *db_params)
             return len(rows) > 0
         except psycopg2.Error:
