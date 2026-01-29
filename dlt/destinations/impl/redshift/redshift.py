@@ -51,23 +51,16 @@ class RedshiftSqlClient(Psycopg2SqlClient):
             return True
 
         all_schemas_view_name = "svv_redshift_schemas"
-        # Check for svv_redshift_schemas
-        check_svv_redshift_schemas_exists_query = (
-            "SELECT 1 FROM information_schema.tables WHERE table_name = %s"
-        )
-        svv_redshift_schemas_exists = (
-            len(self.execute_sql(check_svv_redshift_schemas_exists_query, all_schemas_view_name))
-            > 0
-        )
-        if svv_redshift_schemas_exists:
+
+        try:
             db_params = []
             _, schema_name, _ = self._get_information_schema_components()
             query = f"SELECT 1 FROM {all_schemas_view_name} WHERE schema_name = %s"
             db_params.append(schema_name)
             rows = self.execute_sql(query, *db_params)
             return len(rows) > 0
-
-        return super().has_dataset()
+        except psycopg2.Error:
+            return super().has_dataset()
 
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
