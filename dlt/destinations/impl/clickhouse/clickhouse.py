@@ -174,7 +174,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
-        # reproducible name so we know which table to drop
+        # Deterministic name for crash recovery - orphaned temp tables can be identified and cleaned up
         with sql_client.with_staging_dataset():
             return sql_client.make_qualified_table_name(
                 cls._shorten_table_name(
@@ -184,8 +184,12 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+        # Use CREATE OR REPLACE to avoid slow DROP TABLE ... SYNC on replicated ClickHouse clusters.
+        # The Atomic database engine (default since ClickHouse 20.5) handles this via atomic swap
+        # using renameat2(), which is nearly instant. The old table is cleaned up asynchronously.
+        # See: https://github.com/dlt-hub/dlt/issues/3562
         return (
-            f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
+            f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE ="
             f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
         )
 
