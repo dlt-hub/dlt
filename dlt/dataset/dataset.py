@@ -100,6 +100,44 @@ class Dataset:
         # return only completed tables
         return self.schema.data_table_names() + self.schema.dlt_table_names()
 
+    def sync_schema(
+        self,
+        schema: Union[dlt.Schema, str, None] = None,
+        local_only: bool = False,
+    ) -> None:
+        """Syncs the schema of the dataset.
+
+        Args:
+            schema (Union[dlt.Schema, str, None]): The schema to sync. If a string is provided,
+                it is treated as the schema name. If None, the current schema name or dataset name
+                is used.
+            local_only (bool): If True, only local schema is used. If False, schema is fetched
+                from the destination if local schema is not found.
+        """
+        # reset schema and clients
+        self._sqlglot_schema = None
+        self._sql_client = None
+        self._opened_sql_client = None
+        self._table_client = None
+        if schema:
+            self._schema = schema
+            return
+
+        # default behavior: reset schema to name (or None) forcing a re-fetch
+        if self._schema:
+            schema_name = (
+                self._schema.name if isinstance(self._schema, dlt.Schema) else self._schema
+            )
+        else:
+            schema_name = self.dataset_name
+
+        if local_only:
+            # force local schema
+            self._schema = dlt.Schema(schema_name)
+        else:
+            # force re-fetch
+            self._schema = schema_name
+
     def _ipython_key_completions_(self) -> list[str]:
         """Provide table names as completion suggestion in interactive environments."""
         return self.tables
@@ -488,5 +526,5 @@ def _get_latest_load_id(dataset: dlt.Dataset) -> Optional[str]:
         .select(dataset.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID))
         .max()
     )
-    load_id = query.fetchone()
-    return load_id[0] if load_id else None  # type: ignore[no-any-return]
+    load_id: list[str] = query.fetchone()
+    return load_id[0] if load_id else None
