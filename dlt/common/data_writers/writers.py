@@ -316,6 +316,8 @@ class ParquetDataWriter(DataWriter):
         coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
         allow_truncated_timestamps: bool = False,
         use_compliant_nested_type: bool = True,
+        use_content_defined_chunking: bool = False,
+        write_page_index: bool = False,
         _format: ParquetFormatConfiguration = None,  # will receive the full config
     ) -> None:
         super().__init__(f, caps or DestinationCapabilitiesContext.generic_capabilities("parquet"))
@@ -351,6 +353,8 @@ class ParquetDataWriter(DataWriter):
             coerce_timestamps=self.parquet_format.coerce_timestamps,
             allow_truncated_timestamps=self.parquet_format.allow_truncated_timestamps,
             use_compliant_nested_type=self.parquet_format.use_compliant_nested_type,
+            use_content_defined_chunking=self.parquet_format.use_content_defined_chunking,
+            write_page_index=self.parquet_format.write_page_index,
         )
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
