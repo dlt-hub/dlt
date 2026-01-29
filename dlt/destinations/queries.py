@@ -1,22 +1,23 @@
-from typing import Dict, Any, List
+from typing import Dict, List
 
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.destination.capabilities import TCasefoldIdentifier
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.destination.client import JobClientBase
+from dlt.destinations.sql_client import WithSqlClient
 
 
 def _normalize_query(
     qualified_query: sge.Query,
     sqlglot_schema: SQLGlotSchema,
     *,
-    # TODO ideally, we don't have to pass an SQLClient around just to get `.make_qualified_table_name_path()`
-    sql_client: SqlClientBase[Any],
+    destination_client: JobClientBase,
     casefold_identifier: TCasefoldIdentifier,
 ) -> sge.Query:
     """Normalizes a qualified query compliant with the dlt schema into the namespace of the source dataset"""
+    assert isinstance(destination_client, WithSqlClient)
 
     qualified_query = qualified_query.copy()
     is_casefolding = casefold_identifier is not str
@@ -34,8 +35,8 @@ def _normalize_query(
             # expand named of known tables. this is currently clickhouse things where
             # we use dataset.table in queries but render those as dataset___table
             if sqlglot_schema.column_names(node):
-                expanded_path = sql_client.make_qualified_table_name_path(
-                    node.name, quote=False, casefold=False
+                expanded_path = destination_client.sql_client.make_qualified_table_name_path(
+                    destination_client.get_select_table_name(node.name), quote=False, casefold=False
                 )
                 # set the table name
                 if node.name != expanded_path[-1]:

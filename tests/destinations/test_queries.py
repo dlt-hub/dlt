@@ -128,13 +128,12 @@ ORDER BY i.id ASC
         dlt.Schema("foobar"), DuckDbClientConfiguration()._bind_dataset_name("dataset_name")
     )
 
-    with duckdb_destination_client.sql_client as sql_client:
-        normalized_query_expr = _normalize_query(
-            qualified_query=cast(sge.Query, qualified_query_expr),
-            sqlglot_schema=sqlglot_schema,
-            sql_client=sql_client,
-            casefold_identifier=sql_client.capabilities.casefold_identifier,
-        )
-        normalized_query = normalized_query_expr.sql()
+    normalized_query_expr = _normalize_query(
+        qualified_query=cast(sge.Query, qualified_query_expr),
+        sqlglot_schema=sqlglot_schema,
+        destination_client=duckdb_destination_client,
+        casefold_identifier=duckdb_destination_client.sql_client.capabilities.casefold_identifier,
+    )
+    normalized_query = normalized_query_expr.sql()
 
     assert normalized_query == expected_normalized_query

@@ -389,6 +389,10 @@ class WithSqlClient(ABC):
     def sql_client_class(self) -> Type[SqlClientBase[TNativeConn]]:
         pass
 
+    def get_select_table_name(self, table_name: str) -> str:
+        """Returns table name to use in SELECT SQL statements."""
+        return table_name
+
 
 class DBApiCursorImpl(DBApiCursor):
     """A DBApi Cursor wrapper with dataframes reading functionality"""
