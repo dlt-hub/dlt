@@ -58,7 +58,6 @@ TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
 
 JOB_EXCEPTION_EXTENSION = ".exception"
-TExceptionState = Literal["retry", "failed"]
 TExceptionType = Literal["terminal", "transient"]
 
 
@@ -476,7 +475,7 @@ class PackageStorage:
         Reads the exception from exceptions/ folder and copies it to failed_jobs/.
         """
         job_info = ParsedLoadJobFileName.parse(file_name)
-        failed_message = self.get_pending_job_exception_message(load_id, job_info)
+        _, failed_message = self.get_pending_job_exception(load_id, job_info)
         if failed_message:
             self.storage.save(
                 self.get_job_file_path(
@@ -485,7 +484,7 @@ class PackageStorage:
                 failed_message,
             )
 
-        self._clean_up_exceptions(load_id, job_info)
+        self._remove_pending_job_exceptions(load_id, file_name)
 
         return self._move_job(
             load_id,
@@ -498,18 +497,16 @@ class PackageStorage:
         self,
         load_id: str,
         file_name: str,
-        failed_message: Optional[str] = None,
-        exception_type: Optional[TExceptionType] = "transient",
+        failed_message: str,
+        exception_type: TExceptionType,
     ) -> str:
         # save the exception to the exceptions folder
-        if failed_message:
-            self.save_job_exception(
-                load_id,
-                file_name,
-                failed_message,
-                state="retry",
-                exception_type=exception_type,
-            )
+        self._save_pending_job_exception(
+            load_id,
+            file_name,
+            failed_message,
+            exception_type=exception_type,
+        )
         # when retrying job we must increase the retry count
         source_fn = ParsedLoadJobFileName.parse(file_name)
         dest_fn = source_fn.with_retry()
@@ -620,43 +617,6 @@ class PackageStorage:
             raise LoadPackageNotFound(load_id)
         if self.storage.has_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME)):
             raise LoadPackageCancelled(load_id)
-
-    def save_job_exception(
-        self,
-        load_id: str,
-        file_name: str,
-        exception_message: str,
-        state: TExceptionState,
-        exception_type: Optional[TExceptionType] = None,
-    ) -> None:
-        """Save exception message for a job in the exceptions folder
-
-        Args:
-            load_id: Load package ID
-            file_name: Current job file name (with retry count)
-            exception_message: Full exception traceback/message
-            state: "retry" (job being retried) or "failed" (job permanently failed)
-            exception_type: If state is "retry", specify "terminal" or "transient"
-
-        The exception file is stored as: exceptions/job_name.retry_N.exception
-        First line indicates: "retry: terminal" or "retry: transient"
-        """
-        job_info = ParsedLoadJobFileName.parse(file_name)
-        exception_file_name = job_info.to_exception_file_name()
-        exception_path = os.path.join(
-            self.get_package_path(load_id),
-            PackageStorage.EXCEPTIONS_FOLDER,
-            exception_file_name,
-        )
-        if state == "retry":
-            if exception_type is None:
-                raise ValueError("Exception type required when state is 'retry'")
-            first_line = f"retry: {exception_type}"
-        else:
-            first_line = "failed"
-
-        content = f"{first_line}\n{exception_message}"
-        self.storage.save(exception_path, content)
 
     #
     # Load package state
@@ -769,8 +729,10 @@ class PackageStorage:
             failed_message = self.storage.load(rel_path + JOB_EXCEPTION_EXTENSION)
         return failed_message
 
-    def get_pending_job_exception_message(self, load_id: str, job: ParsedLoadJobFileName) -> str:
-        """Get exception message of a job that is currently in new_jobs (pending retry)"""
+    def get_pending_job_exception(
+        self, load_id: str, job: ParsedLoadJobFileName
+    ) -> Tuple[TExceptionType, str]:
+        """Get exception type and message of a job that is currently in new_jobs (pending retry)"""
         rel_path = self.get_job_file_path(load_id, "new_jobs", job.file_name())
         if not self.storage.has_file(rel_path):
             raise FileNotFoundError(rel_path)
@@ -784,8 +746,12 @@ class PackageStorage:
         )
         failed_message: Optional[str] = None
         with contextlib.suppress(FileNotFoundError):
-            failed_message = self.storage.load(exception_path)
-        return failed_message
+            content = self.storage.load(exception_path)
+            first_line, message = content.split("\n", 1)
+            failed_message = content.split("\n", 1)[1]
+            exception_type = first_line.split(": ", 1)[1]
+            failed_message = message
+        return exception_type, failed_message
 
     def job_to_job_info(
         self, load_id: str, state: TPackageJobState, job: ParsedLoadJobFileName
@@ -854,18 +820,52 @@ class PackageStorage:
         schema_path = os.path.join(load_id, PackageStorage.SCHEMA_FILE_NAME)
         return json.loads(self.storage.load(schema_path))  # type: ignore[no-any-return]
 
-    def _clean_up_exceptions(self, load_id: str, job: ParsedLoadJobFileName) -> None:
+    def _save_pending_job_exception(
+        self,
+        load_id: str,
+        file_name: str,
+        exception_message: str,
+        exception_type: TExceptionType,
+    ) -> None:
+        """Save exception message for a job in the exceptions folder
+
+        Args:
+            load_id: Load package ID
+            file_name: Current job file name (with retry count)
+            exception_message: Full exception traceback/message
+            exception_type: "terminal" or "transient"
+
+        The exception file is stored as: exceptions/job_name.retry_N.exception
+        First line indicates: "retry: terminal" or "retry: transient"
+        """
+        job_info = ParsedLoadJobFileName.parse(file_name)
+        exception_file_name = job_info.to_exception_file_name()
+        exception_path = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.EXCEPTIONS_FOLDER,
+            exception_file_name,
+        )
+        first_line = f"retry: {exception_type}"
+        content = f"{first_line}\n{exception_message}"
+        self.storage.save(exception_path, content)
+
+    def _remove_pending_job_exceptions(
+        self,
+        load_id: str,
+        file_name: str,
+    ) -> None:
         """Remove all exception files for a job from the exceptions/ folder.
 
         Args:
             load_id: Load package ID
             job: Parsed job file name (any retry count - we match by table_name.file_id prefix)
         """
+        job_info = ParsedLoadJobFileName.parse(file_name)
         exceptions_folder = os.path.join(
             self.get_package_path(load_id),
             PackageStorage.EXCEPTIONS_FOLDER,
         )
-        job_prefix = f"{job.table_name}.{job.file_id}."
+        job_prefix = f"{job_info.table_name}.{job_info.file_id}."
         with contextlib.suppress(FileNotFoundError):
             for exc_file in self.storage.list_folder_files(exceptions_folder, to_root=False):
                 if exc_file.startswith(job_prefix) and exc_file.endswith(JOB_EXCEPTION_EXTENSION):
