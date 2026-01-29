@@ -16,7 +16,6 @@ from tests.workspace.cli.utils import (
     repo_dir,
     cloned_init_repo,
     _cached_init_repo,
-    _cached_init_vibe_repo,
 )
 
 

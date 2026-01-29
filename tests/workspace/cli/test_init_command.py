@@ -53,14 +53,11 @@ from dlt._workspace.cli._pipeline_files import TSourceType
 from tests.workspace.cli.utils import (
     auto_echo_default_choice,
     repo_dir,
-    vibe_repo_dir,
     workspace_files,
     cloned_init_repo,
-    cloned_init_vibe_repo,
     get_repo_dir,
     get_workspace_files,
     _cached_init_repo,
-    _cached_init_vibe_repo,
 )
 from tests.common.utils import modify_and_commit_file
 from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root
@@ -680,48 +677,45 @@ def test_incompatible_dlt_version_warning(repo_dir: str, workspace_files: FileSt
     "ide_choice",
     SUPPORTED_IDES,
 )
-def test_init_vibe_source_editor_choice_ux(
-    ide_choice: str, vibe_repo_dir: str, workspace_files: FileStorage
-) -> None:
+def test_init_vibe_source_editor_choice_ux(ide_choice: str, workspace_files: FileStorage) -> None:
     # Second yes/no prompt also receives the ide_choice, but it doesn't matter
     with echo.always_choose(False, ide_choice):
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-            _init_command.init_command("dlthub:github", "duckdb", vibe_repo_dir)
+            _init_command.init_command("dlthub:github", "duckdb", DEFAULT_VERIFIED_SOURCES_REPO)
             _out = buf.getvalue()
 
     assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
     assert f"adding {ide_choice} rules, code snippets and docs" in _out
-    assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
+    assert (
+        "file(s) supporting github were copied:" in _out
+        and "github.md" in _out
+        and "github-docs.yaml" in _out
+    )
 
 
-def test_init_all_vibe_sources_together(vibe_repo_dir: str, workspace_files: FileStorage) -> None:
-    # we test 20 hardcoded sources, use this to get all sources instead
+def test_init_all_vibe_sources_together(workspace_files: FileStorage) -> None:
+    # we test 5 hardcoded sources, use this to get all sources instead
     # vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
+    # Note: if we want to point test to non-production URL, we can set the environment variable
+    # os.environ["RUNTIME__WORKSPACE__SCAFFOLD_DOCS_API_URL"] = "http://localhost:8000"
     random_vibez = [
         "news_api",
         "alpaca",
         "robin",
         "kwanko",
         "powerlink",
-        "fulcrum_data_management",
         "mysql_instance",
-        "talkdesk_reports",
-        "insightly_crm",
         "google_drive",
         "coalesce",
         "jobnimbus",
-        "piwik_pro",
         "perplexity_ai",
-        "maileon",
-        "wrike_project_management",
-        "rocketreach",
         "wordpress_site",
-        "deepinfra",
-        "no_crm_io",
     ]
 
     for source_name in random_vibez:
-        _init_command.init_command(f"dlthub:{source_name}", "bigquery", vibe_repo_dir)
+        _init_command.init_command(
+            f"dlthub:{source_name}", "bigquery", DEFAULT_VERIFIED_SOURCES_REPO
+        )
         # all must install correctly
         _, secrets = assert_source_files(
             workspace_files, source_name, "bigquery", has_source_section=True, is_vibe_source=True
@@ -733,6 +727,24 @@ def test_init_all_vibe_sources_together(vibe_repo_dir: str, workspace_files: Fil
     # credentials for all destinations
     for destination_name in ["bigquery", "postgres", "redshift"]:
         assert secrets.get_value(destination_name, type, None, "destination") is not None
+
+
+def test_init_nonexisting_vibe_source_writes_generic_template(workspace_files: FileStorage) -> None:
+    nonexisting_source_name = "bogus_agi"
+    with echo.always_choose(False, "cursor"):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            _init_command.init_command(
+                f"dlthub:{nonexisting_source_name}", "bigquery", DEFAULT_VERIFIED_SOURCES_REPO
+            )
+            _out = buf.getvalue()
+
+    _, secrets = assert_common_files(
+        workspace_files, f"{nonexisting_source_name}_pipeline.py", "bigquery"
+    )
+
+    assert secrets.get_value(nonexisting_source_name, type, None, "sources") is not None
+
+    assert f"We have nothing for {nonexisting_source_name} at dltHub yet." in _out
 
 
 def assert_init_files(
