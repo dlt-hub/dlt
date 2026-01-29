@@ -63,6 +63,12 @@ def pytest_configure(config):
     Path(test_storage_root).mkdir(exist_ok=True)
     set_environment_test_storage_root(test_storage_root)
 
+    # isolate duckdb extension directory per xdist worker to avoid race conditions
+    # during concurrent auto-install of extensions
+    duckdb_extensions_dir = os.path.join(test_storage_root, "duckdb_extensions")
+    Path(duckdb_extensions_dir).mkdir(exist_ok=True)
+    os.environ["DUCKDB_EXTENSION_DIRECTORY"] = duckdb_extensions_dir
+
     from dlt.common.configuration.specs import runtime_configuration
     from dlt.common.storages import configuration as storage_configuration
 

@@ -141,8 +141,12 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             return SqlalchemyJsonLInsertJob(file_path, table_obj)
         elif parsed_file.file_format == "parquet":
             table_obj = self._to_table_object(table)
-            # if driver for a given dialect is installed
-            if adbc_has_driver(self.config.credentials.engine.dialect.name)[0]:
+            dialect_name = self.config.credentials.engine.dialect.name
+            # Skip ADBC for SQLite: Python's sqlite3 and adbc_driver_sqlite bundle different
+            # SQLite versions. In WAL mode, both libraries mmap the same -shm index file but
+            # have separate internal state, causing page-level corruption when writing.
+            # See: https://github.com/tensorflow/tensorboard/issues/1467
+            if dialect_name != "sqlite" and adbc_has_driver(dialect_name)[0]:
                 return SqlalchemyParquetADBCJob(file_path, table_obj)
             else:
                 return SqlalchemyParquetInsertJob(file_path, table_obj)

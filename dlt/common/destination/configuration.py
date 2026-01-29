@@ -31,6 +31,10 @@ class ParquetFormatConfiguration(BaseConfiguration):
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
     allow_truncated_timestamps: bool = False
     use_compliant_nested_type: bool = True
+    supports_dictionary_encoding: bool = True
+    """When False, constant columns (like _dlt_load_id) will use regular arrays instead of
+    dictionary-encoded arrays. Set to False for destinations using ADBC drivers that don't
+    support dictionary types (e.g., MSSQL)."""
 
     def max_timestamp_precision(self) -> int:
         if (self.flavor or "").lower() == "spark":

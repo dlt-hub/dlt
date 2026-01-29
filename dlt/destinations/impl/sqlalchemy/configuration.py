@@ -1,3 +1,4 @@
+import os
 import threading
 import warnings
 from typing import TYPE_CHECKING, ClassVar, List, Optional, Any, Final, Type, Dict, Union
@@ -7,6 +8,7 @@ from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.storages.configuration import WithLocalFiles
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine, Dialect, Connection
@@ -123,8 +125,11 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
     ]
 
 
+SQLITE_DB_NAME_PAT = "%s.db"
+
+
 @configspec
-class SqlalchemyClientConfiguration(DestinationClientDwhConfiguration):
+class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(default="sqlalchemy", init=False, repr=False, compare=False)  # type: ignore
     credentials: SqlalchemyCredentials = None
     """SQLAlchemy connection string"""
@@ -145,3 +150,12 @@ class SqlalchemyClientConfiguration(DestinationClientDwhConfiguration):
     def on_resolved(self) -> None:
         if not self.credentials.engine_args and self.engine_args:
             self.credentials.engine_args = self.engine_args
+        # resolve local file path for sqlite backends
+        if self.credentials.drivername == "sqlite":
+            db = self.credentials.database
+            if db == ":memory:":
+                pass
+            elif not db or not os.path.isabs(db):
+                self.credentials.database = os.path.normpath(
+                    self.make_location(db or None, SQLITE_DB_NAME_PAT)
+                )

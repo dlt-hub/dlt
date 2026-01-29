@@ -11,7 +11,10 @@ from dlt.common.libs.pyarrow import (
     NameNormalizationCollision,
     py_arrow_to_table_schema_columns,
     should_normalize_arrow_schema,
+    add_constant_column,
+    add_dlt_load_id_column,
 )
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 
 from dlt.common.schema.utils import new_column, TColumnSchema
 from dlt.common.schema.normalizers import configured_normalizers, import_normalizers
@@ -469,3 +472,132 @@ def test_normalize_py_arrow_item_column_with_multiple_timestamps() -> None:
         converted_ts = modified_column[i].as_py()
         assert converted_ts == original_ts.replace(tzinfo=timezone.utc)
         assert converted_ts.tzinfo.tzname(None) == "UTC"
+
+
+# Tests for supports_dictionary_encoding option
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_constant_column_with_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_constant_column creates DictionaryArray when use_dictionary=True."""
+    item = _make_item([{"col1": 1}, {"col1": 2}, {"col1": 3}], use_record_batch)
+
+    result = add_constant_column(
+        item,
+        name="load_id",
+        data_type=pa.string(),
+        value="test_load_123",
+        nullable=True,
+        use_dictionary=True,
+    )
+
+    assert "load_id" in result.column_names
+    load_id_col = result.column("load_id")
+    # Check that the column is dictionary-encoded
+    assert pa.types.is_dictionary(load_id_col.type)
+    # Check all values are correct
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "test_load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_constant_column_without_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_constant_column creates regular array when use_dictionary=False."""
+    item = _make_item([{"col1": 1}, {"col1": 2}, {"col1": 3}], use_record_batch)
+
+    result = add_constant_column(
+        item,
+        name="load_id",
+        data_type=pa.string(),
+        value="test_load_123",
+        nullable=True,
+        use_dictionary=False,
+    )
+
+    assert "load_id" in result.column_names
+    load_id_col = result.column("load_id")
+    # Check that the column is NOT dictionary-encoded (regular string type)
+    assert not pa.types.is_dictionary(load_id_col.type)
+    assert pa.types.is_string(load_id_col.type) or pa.types.is_large_string(load_id_col.type)
+    # Check all values are correct
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "test_load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_constant_column_at_specific_index(use_record_batch: bool) -> None:
+    """Test add_constant_column inserts column at specified index."""
+    item = _make_item([{"col1": 1, "col2": "a"}], use_record_batch)
+
+    # Insert at index 1 (between col1 and col2)
+    result = add_constant_column(
+        item,
+        name="inserted",
+        data_type=pa.string(),
+        value="middle",
+        index=1,
+        use_dictionary=False,
+    )
+
+    assert result.column_names == ["col1", "inserted", "col2"]
+    assert result.column("inserted")[0].as_py() == "middle"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_with_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_dlt_load_id_column creates DictionaryArray when supports_dictionary_encoding=True."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    # Default: supports_dictionary_encoding=True (no parquet_format set means default behavior)
+
+    item = _make_item([{"col1": 1}, {"col1": 2}], use_record_batch)
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "load_123")
+
+    load_id_col = result.column("_dlt_load_id")
+    # Should be dictionary-encoded by default
+    assert pa.types.is_dictionary(load_id_col.type)
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_without_dictionary_encoding(use_record_batch: bool) -> None:
+    """Test add_dlt_load_id_column creates regular array when supports_dictionary_encoding=False."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    # Simulate MSSQL-like destination that doesn't support dictionary encoding
+    caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
+
+    item = _make_item([{"col1": 1}, {"col1": 2}], use_record_batch)
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "load_123")
+
+    load_id_col = result.column("_dlt_load_id")
+    # Should NOT be dictionary-encoded
+    assert not pa.types.is_dictionary(load_id_col.type)
+    assert pa.types.is_string(load_id_col.type) or pa.types.is_large_string(load_id_col.type)
+    for i in range(result.num_rows):
+        assert load_id_col[i].as_py() == "load_123"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_replaces_existing(use_record_batch: bool) -> None:
+    """Test add_dlt_load_id_column replaces existing _dlt_load_id column."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
+
+    # Create item with existing _dlt_load_id
+    item = _make_item([{"col1": 1, "_dlt_load_id": "old_load"}], use_record_batch)
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "new_load_456")
+
+    # Should have replaced the old value
+    load_id_col = result.column("_dlt_load_id")
+    assert load_id_col[0].as_py() == "new_load_456"
+    # Should not be dictionary-encoded
+    assert not pa.types.is_dictionary(load_id_col.type)
