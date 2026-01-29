@@ -37,7 +37,8 @@ class LoadClientJobRetryPending(DestinationTerminalException, LoadClientJobExcep
 
         super().__init__(
             f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
-            f" {failed_message}. Take the necessary action pls."
+            f" {failed_message}. The job has been retried and the package is left pending. Options:"
+            " TODO"
         )
 
 
