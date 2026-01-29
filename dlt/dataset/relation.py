@@ -1,7 +1,8 @@
 from __future__ import annotations
 from collections.abc import Collection
+from functools import reduce
 
-from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
+from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING, Literal
 from textwrap import indent
 from contextlib import contextmanager
 from dlt.common.utils import simple_repr, without_none
@@ -52,6 +53,107 @@ _FILTER_OP_MAP = {
     "in": sge.In,
     "not_in": sge.Not,
 }
+
+
+def _parent_reference_chain_to_root(
+    schema: dlt.Schema, table: str
+) -> list[TTableReferenceStandalone]:
+    chain: list[TTableReferenceStandalone] = []
+    while parent := schema.tables[table].get("parent"):
+        chain.append(schema_utils.create_parent_child_reference(schema.tables, table))
+        table = parent
+    return chain
+
+
+def _resolve_parent_reference_chain(
+    schema: dlt.Schema, left: str, right: str
+) -> list[TTableReferenceStandalone]:
+    left_chain = _parent_reference_chain_to_root(schema, left)
+    right_chain = _parent_reference_chain_to_root(schema, right)
+    for left_ref in left_chain:
+        if left_ref["referenced_table"] == right:
+            # right is a parent of left so references point left -> ... -> right
+            return left_chain[: left_chain.index(left_ref) + 1]
+    for right_ref in right_chain:
+        if right_ref["referenced_table"] == left:
+            # left is a parent of right so references point right -> ... -> left. Reverse refs and chain.
+            return [
+                _reverse_ref(ref)
+                for ref in reversed(right_chain[: right_chain.index(right_ref) + 1])
+            ]
+    raise ValueError(f"No reference found between {left} and {right}")
+
+
+def _reverse_ref(ref: TTableReferenceStandalone) -> TTableReferenceStandalone:
+    if ref["table"] is None:
+        raise ValueError(f"Reference {ref} has no base table")
+    return TTableReferenceStandalone(
+        {
+            **ref,
+            "table": ref["referenced_table"],
+            "referenced_table": ref["table"],
+            "columns": ref["referenced_columns"],
+            "referenced_columns": ref["columns"],
+        }
+    )
+
+
+def _resolve_reference_chain(
+    schema: dlt.Schema, left: str, right: str
+) -> list[TTableReferenceStandalone]:
+    # direct reference
+    for ref in schema.references:
+        if ref["table"] == left and ref["referenced_table"] == right:
+            return [ref]
+        if ref["table"] == right and ref["referenced_table"] == left:
+            return [_reverse_ref(ref)]
+
+    # through n-level parent-child references
+    chain = _resolve_parent_reference_chain(schema, left, right)
+    return chain
+
+
+def _build_join_condition(
+    ref: TTableReferenceStandalone,
+    left_alias: str = "l",
+    right_alias: str = "r",
+) -> sge.Expression:
+    conditions: list[sge.Expression] = []
+    for left_col, right_col in zip(ref["columns"], ref["referenced_columns"]):
+        condition = sge.EQ(
+            this=sge.Column(
+                this=sge.to_identifier(left_col, quoted=True),
+                table=sge.to_identifier(left_alias, quoted=False),
+            ),
+            expression=sge.Column(
+                this=sge.to_identifier(right_col, quoted=True),
+                table=sge.to_identifier(right_alias, quoted=False),
+            ),
+        )
+        conditions.append(condition)
+
+    if len(conditions) == 1:
+        return conditions[0]
+
+    return reduce(lambda x, y: sge.And(this=x, expression=y), conditions)
+
+
+def _build_join(
+    refs: list[TTableReferenceStandalone],
+) -> list[sge.Join]:
+    joins: list[sge.Join] = []
+    level = 0
+    for ref in refs:
+        join = sge.Join(
+            this=sge.Table(
+                this=sge.to_identifier(ref["referenced_table"], quoted=True),
+                alias=sge.TableAlias(this=sge.to_identifier(f"t{level+1}", quoted=False)),
+            ),
+            join_type="INNER",
+        ).on(_build_join_condition(ref, left_alias=f"t{level}", right_alias=f"t{level + 1}"))
+        joins.append(join)
+        level += 1
+    return joins
 
 
 class Relation(WithSqlClient):
@@ -343,6 +445,27 @@ class Relation(WithSqlClient):
         )
         rel = self.__copy__()
         rel._sqlglot_expression = rel.sqlglot_expression.order_by(order_expr)
+        return rel
+
+    def join(self, other: str | Self, how: Literal["left", "inner"]) -> Self:
+        if not self._table_name:
+            raise ValueError("Reference-based join requires a base table relation")
+
+        left = self._table_name
+        right = other._table_name if isinstance(other, Relation) else other
+        if not isinstance(right, str):
+            raise ValueError("Unable to fetch table name for relation")
+        schema = self._dataset.schema
+
+        ref = _resolve_reference_chain(schema, left, right)
+
+        query = sge.Select(expressions=[sge.Star()]).from_(
+            sge.Table(this=sge.to_identifier(left, quoted=True), alias=sge.TableAlias(this="t0"))
+        )
+        for join in _build_join(ref):
+            query = query.join(join)
+        rel = self.__copy__()
+        rel._sqlglot_expression = query
         return rel
 
     # NOTE we currently force to have one column selected; we could be more flexible
