@@ -470,6 +470,30 @@ class PackageStorage:
             file_name,
         )
 
+    def fail_pending_job(self, load_id: str, file_name: str) -> str:
+        """
+        Fails a job that is currently in new_jobs (pending retry).
+        Reads the exception from exceptions/ folder and copies it to failed_jobs/.
+        """
+        job_info = ParsedLoadJobFileName.parse(file_name)
+        failed_message = self.get_pending_job_exception_message(load_id, job_info)
+        if failed_message:
+            self.storage.save(
+                self.get_job_file_path(
+                    load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + JOB_EXCEPTION_EXTENSION
+                ),
+                failed_message,
+            )
+
+        self._clean_up_exceptions(load_id, job_info)
+
+        return self._move_job(
+            load_id,
+            PackageStorage.NEW_JOBS_FOLDER,
+            PackageStorage.FAILED_JOBS_FOLDER,
+            file_name,
+        )
+
     def retry_job(
         self,
         load_id: str,
@@ -745,6 +769,24 @@ class PackageStorage:
             failed_message = self.storage.load(rel_path + JOB_EXCEPTION_EXTENSION)
         return failed_message
 
+    def get_pending_job_exception_message(self, load_id: str, job: ParsedLoadJobFileName) -> str:
+        """Get exception message of a job that is currently in new_jobs (pending retry)"""
+        rel_path = self.get_job_file_path(load_id, "new_jobs", job.file_name())
+        if not self.storage.has_file(rel_path):
+            raise FileNotFoundError(rel_path)
+        # Exception was saved at previous retry count
+        prev_retry_job = job._replace(retry_count=job.retry_count - 1)
+        exception_file_name = prev_retry_job.to_exception_file_name()
+        exception_path = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.EXCEPTIONS_FOLDER,
+            exception_file_name,
+        )
+        failed_message: Optional[str] = None
+        with contextlib.suppress(FileNotFoundError):
+            failed_message = self.storage.load(exception_path)
+        return failed_message
+
     def job_to_job_info(
         self, load_id: str, state: TPackageJobState, job: ParsedLoadJobFileName
     ) -> LoadJobInfo:
@@ -811,6 +853,23 @@ class PackageStorage:
     def _load_schema(self, load_id: str) -> DictStrAny:
         schema_path = os.path.join(load_id, PackageStorage.SCHEMA_FILE_NAME)
         return json.loads(self.storage.load(schema_path))  # type: ignore[no-any-return]
+
+    def _clean_up_exceptions(self, load_id: str, job: ParsedLoadJobFileName) -> None:
+        """Remove all exception files for a job from the exceptions/ folder.
+
+        Args:
+            load_id: Load package ID
+            job: Parsed job file name (any retry count - we match by table_name.file_id prefix)
+        """
+        exceptions_folder = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.EXCEPTIONS_FOLDER,
+        )
+        job_prefix = f"{job.table_name}.{job.file_id}."
+        with contextlib.suppress(FileNotFoundError):
+            for exc_file in self.storage.list_folder_files(exceptions_folder, to_root=False):
+                if exc_file.startswith(job_prefix) and exc_file.endswith(JOB_EXCEPTION_EXTENSION):
+                    self.storage.delete(os.path.join(exceptions_folder, exc_file))
 
     @staticmethod
     def build_job_file_name(

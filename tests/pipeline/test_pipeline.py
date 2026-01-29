@@ -1483,11 +1483,8 @@ def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
         assert py_ex.value.step == "load"
         assert py_ex.value.load_id is not None
         assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
-        # loaded
         assert py_ex.value.has_pending_data is True
-        # all packages failed
         assert py_ex.value.is_package_partially_loaded is True
-        # get package info
         package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
         assert package_info.state == "normalized"
         assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
