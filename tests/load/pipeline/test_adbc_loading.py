@@ -49,8 +49,11 @@ def test_adbc_detection(destination_config: DestinationTestConfiguration) -> Non
     ids=lambda x: x.name,
 )
 def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
-    # if destination_config.destination_name == "sqlalchemy_sqlite":
-    #     pytest.skip("skip generic ADBC test for sqlite because just a few data types are supported")
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        pytest.skip(
+            "ADBC disabled for SQLite due to WAL mmap conflicts between sqlite3 and"
+            " adbc_driver_sqlite"
+        )
     column_schemas, data_ = table_update_and_row()
 
     pipeline = destination_config.setup_pipeline("pipeline_adbc", dev_mode=True)
@@ -75,7 +78,8 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
     def complex_resource():
         # add child table
         data_["child"] = [1, 2, 3]
-        yield data_
+        assert len([data_] * 10) == 10
+        yield [data_] * 10
 
     info = pipeline.run(complex_resource())
     jobs = get_load_package_jobs(
@@ -83,11 +87,19 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
     )
     # there must be a parquet job or adbc is not installed so we fall back to other job type
     assert len(jobs) == 1
-    # make sure we can read data back. TODO: verify data types
-    rows = pipeline.dataset().table("complex_resource").fetchall()
-    assert len(rows) == 1
-    rows = pipeline.dataset().table("complex_resource__child").fetchall()
-    assert len(rows) == 3
+    # verify row count and selected column values (int and string)
+    df = pipeline.dataset().complex_resource.df()
+    assert len(df) == 1
+    assert df["col1"].iloc[0] == data_["col1"]
+    assert df["col5"].iloc[0] == data_["col5"]
+    # verify child table values
+    df_child = pipeline.dataset().complex_resource__child.df()
+    assert len(df_child) == 3
+    assert set(df_child["value"].tolist()) == {1, 2, 3}
+    # verify pipeline state table values
+    df_state = pipeline.dataset()._dlt_pipeline_state.df()
+    assert len(df_state) == 1
+    assert df_state["pipeline_name"].iloc[0] == "pipeline_adbc"
 
     # load again and make sure we still have 1 record
     pipeline.run(complex_resource())
@@ -107,6 +119,11 @@ def test_adbc_parquet_with_dlt_load_id(
     This test verifies the fix for https://github.com/dlt-hub/dlt/issues/3551
     where ADBC drivers (especially MSSQL) fail on dictionary-encoded Arrow arrays.
     """
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        pytest.skip(
+            "ADBC disabled for SQLite due to WAL mmap conflicts between sqlite3 and"
+            " adbc_driver_sqlite"
+        )
     import pyarrow as pa
 
     # Enable add_dlt_load_id for parquet normalizer in extract step
@@ -114,10 +131,10 @@ def test_adbc_parquet_with_dlt_load_id(
 
     pipeline = destination_config.setup_pipeline("pipeline_adbc_load_id", dev_mode=True)
 
-    @dlt.resource(file_format="parquet")
+    @dlt.resource(file_format="parquet")  # write_disposition="merge", primary_key="id"
     def test_data():
         # Yield Arrow table to test the dictionary encoding fix
-        yield pa.Table.from_pylist([{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}])
+        yield [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
 
     info = pipeline.run(test_data(), loader_file_format="parquet")
 
