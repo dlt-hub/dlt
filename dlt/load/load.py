@@ -469,7 +469,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # try to get exception message from job
                 retry_message = job.failed_message()
                 # move back to new folder to try again
-                self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
+                self.load_storage.normalized_packages.retry_job(
+                    load_id,
+                    job.file_name(),
+                    failed_message=retry_message,
+                    exception_type="transient",
+                )
                 logger.warning(
                     f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}"
                 )
