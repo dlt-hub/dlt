@@ -11,7 +11,6 @@ from dlt.common.schema.typing import TAnySchemaColumns, TSchemaContract, TSchema
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.items_transform import BaseItemTransform, ValidateItem
 
-
 _TPydanticModel = TypeVar("_TPydanticModel", bound=PydanticBaseModel)
 
 
@@ -48,7 +47,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
             )
             if return_models:
                 return validated_list
-            return [m.dict(by_alias=True) for m in validated_list]
+            return [m.model_dump(by_alias=True) for m in validated_list]
 
         validated = validate_and_filter_item(
             self.table_name, self.model, item, self.column_mode, self.data_mode
@@ -59,7 +58,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         if return_models:
             return validated
 
-        return validated.dict(by_alias=True)
+        return validated.model_dump(by_alias=True)
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
         return f"PydanticValidator(model={self.model.__qualname__})"
