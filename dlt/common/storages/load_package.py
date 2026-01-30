@@ -90,6 +90,9 @@ class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=Fals
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
 
+    abort_requested: NotRequired[bool]
+    """Flag indicating the package should be aborted on next load"""
+
 
 class TLoadPackage(TypedDict, total=False):
     load_id: str
@@ -704,6 +707,54 @@ class PackageStorage:
     def get_load_package_state_path(self, load_id: str) -> str:
         package_path = self.get_package_path(load_id)
         return os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
+
+    def set_abort_flag(self, load_id: str) -> None:
+        """Mark a package to be aborted on the next load.
+
+        Args:
+            load_id: Load package ID to mark for abort
+        """
+        state = self.get_load_package_state(load_id)
+        state["abort_requested"] = True
+        self.save_load_package_state(load_id, state)
+
+    def has_abort_flag(self, load_id: str) -> bool:
+        """Check if a package is marked for abort.
+
+        Args:
+            load_id: Load package ID to check
+
+        Returns:
+            True if the package is marked for abort
+        """
+        state = self.get_load_package_state(load_id)
+        return state.get("abort_requested", False)
+
+    def clear_abort_flag(self, load_id: str) -> None:
+        """Clear the abort flag from a package.
+
+        Args:
+            load_id: Load package ID to clear the flag from
+        """
+        state = self.get_load_package_state(load_id)
+        state.pop("abort_requested", None)
+        self.save_load_package_state(load_id, state)
+
+    #
+    # Abort package
+    #
+    def abort_package(self, load_id: str) -> None:
+        """Abort a package by moving all pending jobs to failed_jobs.
+
+        This moves:
+        - All pending retry jobs (jobs that were retried, have exceptions)
+
+        Does NOT complete the package - that's the loader's responsibility.
+        """
+        for job_file in self.list_pending_jobs(load_id):
+            job_file_name = os.path.basename(job_file)
+            self.fail_pending_job(load_id, job_file_name)
+        self.clear_abort_flag(load_id)
 
     #
     # Get package info

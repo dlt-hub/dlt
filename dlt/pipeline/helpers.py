@@ -5,13 +5,15 @@ from typing import (
     Iterable,
     Optional,
     Union,
+    Dict,
+    Any,
     TYPE_CHECKING,
 )
 
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
 from dlt.common.schema.typing import TSimpleRegex
-from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
+from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode, LoadInfo
 from dlt.common.storages.load_package import TLoadPackageDropTablesState
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
@@ -191,3 +193,45 @@ def prepare_refresh_source(
             # if any tables should be dropped, we force state to extract
             force_state_extract(pipeline_state)
     return load_package_state
+
+
+class pipeline_abort:
+    def __init__(self, pipeline: "Pipeline", load_ids: Sequence[str] = ()) -> None:
+        """
+        Prepares pipeline abort for a load package. You can inspect what will be aborted
+        by inspecting the `info` property before calling.
+        """
+        self.pipeline = pipeline
+        self.load_ids = (
+            load_ids
+            if load_ids
+            else pipeline._get_load_storage().normalized_packages.list_packages()
+        )
+        self.info = self._collect_abort_info()
+
+    def _collect_abort_info(self) -> Dict[str, Any]:
+        """Collect information about what will be aborted (dry-run)."""
+
+        info: Dict[str, Dict[str, Any]] = {}
+
+        load_storage = self.pipeline._get_load_storage()
+        for load_id in self.load_ids:
+            terminal_jobs = load_storage.normalized_packages.list_pending_jobs(load_id, "terminal")
+            transient_jobs = load_storage.normalized_packages.list_pending_jobs(
+                load_id, "transient"
+            )
+            info[load_id] = {
+                "terminal_jobs": terminal_jobs,
+                "transient_jobs": transient_jobs,
+            }
+
+        return info
+
+    @property
+    def is_empty(self) -> bool:
+        return self.info == {}
+
+    def __call__(self) -> LoadInfo:
+        for load_id in self.load_ids:
+            self.pipeline._get_load_storage().normalized_packages.set_abort_flag(load_id)
+        return self.pipeline.load()

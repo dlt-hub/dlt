@@ -69,7 +69,7 @@ from dlt.pipeline.exceptions import (
     PipelineNotActive,
     PipelineStepFailed,
 )
-from dlt.pipeline.helpers import retry_load
+from dlt.pipeline.helpers import retry_load, pipeline_abort
 
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -1544,6 +1544,50 @@ def test_raise_on_failed_job(raise_on_failed_jobs: bool) -> None:
         package_info = p.get_load_package_info(load_info.loads_ids[0])
         assert package_info.state == "aborted"
         assert PackageStorage.is_package_partially_loaded(load_info.load_packages[0]) is False
+
+
+def test_abort_package() -> None:
+    """Test manual abort of a pending package."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    # first run fails with terminal error, package stays pending
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run(s)
+    assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+    assert isinstance(py_ex.value.__context__, DestinationTerminalException)
+
+    # package is still pending (normalized state)
+    load_id = py_ex.value.step_info.loads_ids[0]
+    package_info = p.get_load_package_info(load_id)
+    assert package_info.state == "normalized"
+
+    # manually abort the package using helper
+    load_info = pipeline_abort(p, load_ids=[load_id])()
+
+    # package is now aborted
+    assert load_info is not None
+    package_info = p.get_load_package_info(load_id)
+    assert package_info.state == "aborted"
+
+    # jobs are in failed_jobs
+    assert len(package_info.jobs["failed_jobs"]) > 0
+    assert len(package_info.jobs["new_jobs"]) == 0
+
+    # next run does nothing (no pending packages)
+    load_info = p.run()
+    assert load_info is None
 
 
 def test_load_info_raise_on_failed_jobs() -> None:
