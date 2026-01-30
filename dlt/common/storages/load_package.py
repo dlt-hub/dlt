@@ -393,6 +393,30 @@ class PackageStorage:
             if not file.endswith(JOB_EXCEPTION_EXTENSION)
         ]
 
+    def list_pending_jobs(
+        self, load_id: str, exception_type: Optional[TExceptionType] = None
+    ) -> Sequence[str]:
+        """List all jobs in new_jobs that have been retried (retry_count > 0).
+
+        Args:
+            load_id: Load package ID
+            exception_type: "terminal" or "transient". If None, returns all retried jobs.
+
+        Returns:
+            List of job file names that are pending retry.
+        """
+        retry_jobs: List[str] = []
+        for job_file in self.list_new_jobs(load_id):
+            job = ParsedLoadJobFileName.parse(job_file)
+            if job.retry_count == 0:
+                continue
+            if exception_type is not None:
+                job_exc_type, _ = self.get_pending_job_exception(load_id, job)
+                if job_exc_type != exception_type:
+                    continue
+            retry_jobs.append(job_file)
+        return retry_jobs
+
     def list_job_with_states_for_table(
         self, load_id: str, table_name: str
     ) -> Sequence[Tuple[TPackageJobState, ParsedLoadJobFileName]]:
@@ -474,8 +498,8 @@ class PackageStorage:
         Fails a job that is currently in new_jobs (pending retry).
         Reads the exception from exceptions/ folder and copies it to failed_jobs/.
         """
-        job_info = ParsedLoadJobFileName.parse(file_name)
-        _, failed_message = self.get_pending_job_exception(load_id, job_info)
+        source_fn = ParsedLoadJobFileName.parse(file_name)
+        _, failed_message = self.get_pending_job_exception(load_id, source_fn)
         if failed_message:
             self.storage.save(
                 self.get_job_file_path(
@@ -514,6 +538,38 @@ class PackageStorage:
         return self._move_job(
             load_id,
             PackageStorage.STARTED_JOBS_FOLDER,
+            PackageStorage.NEW_JOBS_FOLDER,
+            file_name,
+            dest_fn.file_name(),
+        )
+
+    def retry_failed_job(self, load_id: str, file_name: str) -> str:
+        """
+        Retry a job that is currently in failed_jobs.
+        Moves exception to exceptions/ folder and job to new_jobs with retry count increased.
+        """
+        job_info = ParsedLoadJobFileName.parse(file_name)
+
+        failed_exception_path = self.get_job_file_path(
+            load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + JOB_EXCEPTION_EXTENSION
+        )
+        exception_message: Optional[str] = None
+        if self.storage.has_file(failed_exception_path):
+            exception_message = self.storage.load(failed_exception_path)
+            self.storage.delete(failed_exception_path)
+
+        if exception_message:
+            self._save_pending_job_exception(
+                load_id,
+                file_name,
+                exception_message,
+                exception_type="terminal",  # since it was in failed jobs
+            )
+
+        dest_fn = job_info.with_retry()
+        return self._move_job(
+            load_id,
+            PackageStorage.FAILED_JOBS_FOLDER,
             PackageStorage.NEW_JOBS_FOLDER,
             file_name,
             dest_fn.file_name(),

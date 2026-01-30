@@ -510,7 +510,20 @@ def test_retry_and_fail_pending_job(
     assert exc_type == exception_type
     assert exc_msg == "second error!"
 
-    # fail the pending jo
+    # ensure list pending jobs works as expected
+    # we have only one pending job with terminal exception, should still be returned if we don't specify exception type
+    path_in_package = load_storage.new_packages.list_pending_jobs(load_id)[0]
+    assert ParsedLoadJobFileName.parse(os.path.basename(path_in_package)) == retried_job
+    # should be returned if we specify exception type
+    path_in_package = load_storage.new_packages.list_pending_jobs(load_id, exception_type)[0]
+    assert ParsedLoadJobFileName.parse(os.path.basename(path_in_package)) == retried_job
+    # should not be returned with the other exception type
+    result = load_storage.new_packages.list_pending_jobs(
+        load_id, "terminal" if exception_type == "transient" else "transient"
+    )
+    assert len(result) == 0
+
+    # fail the pending job
     load_storage.new_packages.fail_pending_job(load_id, os.path.basename(retried_path))
 
     # job is now in failed_jobs
@@ -523,7 +536,7 @@ def test_retry_and_fail_pending_job(
     failed_message = load_storage.new_packages.get_job_failed_message(load_id, failed_job)
     assert failed_message == "second error!"
 
-    # exception was cleaned up from exceptions/ folder
+    # all exceptions were cleaned up from exceptions/ folder
     exceptions_folder = os.path.join(
         load_storage.new_packages.get_package_path(load_id),
         PackageStorage.EXCEPTIONS_FOLDER,
@@ -532,3 +545,32 @@ def test_retry_and_fail_pending_job(
         exceptions_folder, to_root=False
     )
     assert len(exc_files) == 0
+
+    # retry the failed job
+    retry_again_path = load_storage.new_packages.retry_failed_job(
+        load_id, os.path.basename(retried_path)
+    )
+    retry_again_job = ParsedLoadJobFileName.parse(retry_again_path)
+    assert retry_again_job.retry_count == 3
+
+    # job is back in new_jobs
+    new_jobs = load_storage.new_packages.list_pending_jobs(load_id)
+    assert len(new_jobs) == 1
+    assert os.path.basename(retry_again_path) in new_jobs[0]
+
+    # failed_jobs is now empty
+    failed_jobs = load_storage.new_packages.list_failed_jobs(load_id)
+    assert len(failed_jobs) == 0
+
+    # exception was moved to exceptions/ folder (marked as terminal)
+    exc_type, exc_msg = load_storage.new_packages.get_pending_job_exception(
+        load_id, retry_again_job
+    )
+    assert exc_type == "terminal"  # always terminal when coming from failed_jobs
+    assert exc_msg == "second error!"
+
+    # exception file exists in exceptions/
+    exc_files = load_storage.new_packages.storage.list_folder_files(
+        exceptions_folder, to_root=False
+    )
+    assert len(exc_files) == 1
