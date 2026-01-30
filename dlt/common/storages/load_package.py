@@ -56,7 +56,9 @@ from dlt.common.time import precise_time
 
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
+
 JOB_EXCEPTION_EXTENSION = ".exception"
+TExceptionType = Literal["terminal", "transient"]
 
 
 class TPipelineStateDoc(TypedDict, total=False):
@@ -87,6 +89,9 @@ class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=Fals
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+
+    abort_requested: NotRequired[bool]
+    """Flag indicating the package should be aborted on next load"""
 
 
 class TLoadPackage(TypedDict, total=False):
@@ -176,6 +181,10 @@ class ParsedLoadJobFileName(NamedTuple):
     def to_reference_file_name(self) -> str:
         """Returns a file name for a reference job"""
         return f"{self.table_name}.{self.file_id}.{self.retry_count}.reference"
+
+    def to_exception_file_name(self) -> str:
+        """Returns a file name for an exception"""
+        return f"{self.table_name}.{self.file_id}.{self.retry_count}{JOB_EXCEPTION_EXTENSION}"
 
     def full_extension(self) -> str:
         """Returns the full file extension"""
@@ -320,6 +329,7 @@ class PackageStorage:
     FAILED_JOBS_FOLDER: ClassVar[TPackageJobState] = "failed_jobs"
     STARTED_JOBS_FOLDER: ClassVar[TPackageJobState] = "started_jobs"
     COMPLETED_JOBS_FOLDER: ClassVar[TPackageJobState] = "completed_jobs"
+    EXCEPTIONS_FOLDER: str = "exceptions"
 
     SCHEMA_FILE_NAME: ClassVar[str] = "schema.json"
     SCHEMA_UPDATES_FILE_NAME = (  # updates to the tables in schema created by normalizer
@@ -385,6 +395,30 @@ class PackageStorage:
             )
             if not file.endswith(JOB_EXCEPTION_EXTENSION)
         ]
+
+    def list_pending_jobs(
+        self, load_id: str, exception_type: Optional[TExceptionType] = None
+    ) -> Sequence[str]:
+        """List all jobs in new_jobs that have been retried (retry_count > 0).
+
+        Args:
+            load_id: Load package ID
+            exception_type: "terminal" or "transient". If None, returns all retried jobs.
+
+        Returns:
+            List of job file names that are pending retry.
+        """
+        retry_jobs: List[str] = []
+        for job_file in self.list_new_jobs(load_id):
+            job = ParsedLoadJobFileName.parse(job_file)
+            if job.retry_count == 0:
+                continue
+            if exception_type is not None:
+                job_exc_type, _ = self.get_pending_job_exception(load_id, job)
+                if job_exc_type != exception_type:
+                    continue
+            retry_jobs.append(job_file)
+        return retry_jobs
 
     def list_job_with_states_for_table(
         self, load_id: str, table_name: str
@@ -453,6 +487,7 @@ class PackageStorage:
                 ),
                 failed_message,
             )
+
         # move to failed jobs
         return self._move_job(
             load_id,
@@ -461,7 +496,44 @@ class PackageStorage:
             file_name,
         )
 
-    def retry_job(self, load_id: str, file_name: str) -> str:
+    def fail_pending_job(self, load_id: str, file_name: str) -> str:
+        """
+        Fails a job that is currently in new_jobs (pending retry).
+        Reads the exception from exceptions/ folder and copies it to failed_jobs/.
+        """
+        source_fn = ParsedLoadJobFileName.parse(file_name)
+        _, failed_message = self.get_pending_job_exception(load_id, source_fn)
+        if failed_message:
+            self.storage.save(
+                self.get_job_file_path(
+                    load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + JOB_EXCEPTION_EXTENSION
+                ),
+                failed_message,
+            )
+
+        self._remove_pending_job_exceptions(load_id, file_name)
+
+        return self._move_job(
+            load_id,
+            PackageStorage.NEW_JOBS_FOLDER,
+            PackageStorage.FAILED_JOBS_FOLDER,
+            file_name,
+        )
+
+    def retry_job(
+        self,
+        load_id: str,
+        file_name: str,
+        failed_message: str,
+        exception_type: TExceptionType,
+    ) -> str:
+        # save the exception to the exceptions folder
+        self._save_pending_job_exception(
+            load_id,
+            file_name,
+            failed_message,
+            exception_type=exception_type,
+        )
         # when retrying job we must increase the retry count
         source_fn = ParsedLoadJobFileName.parse(file_name)
         dest_fn = source_fn.with_retry()
@@ -469,6 +541,38 @@ class PackageStorage:
         return self._move_job(
             load_id,
             PackageStorage.STARTED_JOBS_FOLDER,
+            PackageStorage.NEW_JOBS_FOLDER,
+            file_name,
+            dest_fn.file_name(),
+        )
+
+    def retry_failed_job(self, load_id: str, file_name: str) -> str:
+        """
+        Retry a job that is currently in failed_jobs.
+        Moves exception to exceptions/ folder and job to new_jobs with retry count increased.
+        """
+        job_info = ParsedLoadJobFileName.parse(file_name)
+
+        failed_exception_path = self.get_job_file_path(
+            load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + JOB_EXCEPTION_EXTENSION
+        )
+        exception_message: Optional[str] = None
+        if self.storage.has_file(failed_exception_path):
+            exception_message = self.storage.load(failed_exception_path)
+            self.storage.delete(failed_exception_path)
+
+        if exception_message:
+            self._save_pending_job_exception(
+                load_id,
+                file_name,
+                exception_message,
+                exception_type="terminal",  # since it was in failed jobs
+            )
+
+        dest_fn = job_info.with_retry()
+        return self._move_job(
+            load_id,
+            PackageStorage.FAILED_JOBS_FOLDER,
             PackageStorage.NEW_JOBS_FOLDER,
             file_name,
             dest_fn.file_name(),
@@ -495,6 +599,7 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.EXCEPTIONS_FOLDER))
         # use initial state or create a new by loading non existing state
         state = self.get_load_package_state(load_id) if initial_state is None else initial_state
         if not state.get("created_at"):
@@ -603,6 +708,54 @@ class PackageStorage:
         package_path = self.get_package_path(load_id)
         return os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
 
+    def set_abort_flag(self, load_id: str) -> None:
+        """Mark a package to be aborted on the next load.
+
+        Args:
+            load_id: Load package ID to mark for abort
+        """
+        state = self.get_load_package_state(load_id)
+        state["abort_requested"] = True
+        self.save_load_package_state(load_id, state)
+
+    def has_abort_flag(self, load_id: str) -> bool:
+        """Check if a package is marked for abort.
+
+        Args:
+            load_id: Load package ID to check
+
+        Returns:
+            True if the package is marked for abort
+        """
+        state = self.get_load_package_state(load_id)
+        return state.get("abort_requested", False)
+
+    def clear_abort_flag(self, load_id: str) -> None:
+        """Clear the abort flag from a package.
+
+        Args:
+            load_id: Load package ID to clear the flag from
+        """
+        state = self.get_load_package_state(load_id)
+        state.pop("abort_requested", None)
+        self.save_load_package_state(load_id, state)
+
+    #
+    # Abort package
+    #
+    def abort_package(self, load_id: str) -> None:
+        """Abort a package by moving all pending jobs to failed_jobs.
+
+        This moves:
+        - All pending retry jobs (jobs that were retried, have exceptions)
+
+        Does NOT complete the package - that's the loader's responsibility.
+        """
+        for job_file in self.list_pending_jobs(load_id):
+            job_file_name = os.path.basename(job_file)
+            self.fail_pending_job(load_id, job_file_name)
+        self.clear_abort_flag(load_id)
+
     #
     # Get package info
     #
@@ -683,6 +836,30 @@ class PackageStorage:
             failed_message = self.storage.load(rel_path + JOB_EXCEPTION_EXTENSION)
         return failed_message
 
+    def get_pending_job_exception(
+        self, load_id: str, job: ParsedLoadJobFileName
+    ) -> Tuple[TExceptionType, str]:
+        """Get exception type and message of a job that is currently in new_jobs (pending retry)"""
+        rel_path = self.get_job_file_path(load_id, "new_jobs", job.file_name())
+        if not self.storage.has_file(rel_path):
+            raise FileNotFoundError(rel_path)
+        # Exception was saved at previous retry count
+        prev_retry_job = job._replace(retry_count=job.retry_count - 1)
+        exception_file_name = prev_retry_job.to_exception_file_name()
+        exception_path = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.EXCEPTIONS_FOLDER,
+            exception_file_name,
+        )
+        failed_message: Optional[str] = None
+        with contextlib.suppress(FileNotFoundError):
+            content = self.storage.load(exception_path)
+            first_line, message = content.split("\n", 1)
+            failed_message = content.split("\n", 1)[1]
+            exception_type = first_line.split(": ", 1)[1]
+            failed_message = message
+        return exception_type, failed_message
+
     def job_to_job_info(
         self, load_id: str, state: TPackageJobState, job: ParsedLoadJobFileName
     ) -> LoadJobInfo:
@@ -749,6 +926,57 @@ class PackageStorage:
     def _load_schema(self, load_id: str) -> DictStrAny:
         schema_path = os.path.join(load_id, PackageStorage.SCHEMA_FILE_NAME)
         return json.loads(self.storage.load(schema_path))  # type: ignore[no-any-return]
+
+    def _save_pending_job_exception(
+        self,
+        load_id: str,
+        file_name: str,
+        exception_message: str,
+        exception_type: TExceptionType,
+    ) -> None:
+        """Save exception message for a job in the exceptions folder
+
+        Args:
+            load_id: Load package ID
+            file_name: Current job file name (with retry count)
+            exception_message: Full exception traceback/message
+            exception_type: "terminal" or "transient"
+
+        The exception file is stored as: exceptions/job_name.retry_N.exception
+        First line indicates: "retry: terminal" or "retry: transient"
+        """
+        job_info = ParsedLoadJobFileName.parse(file_name)
+        exception_file_name = job_info.to_exception_file_name()
+        exception_path = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.EXCEPTIONS_FOLDER,
+            exception_file_name,
+        )
+        first_line = f"retry: {exception_type}"
+        content = f"{first_line}\n{exception_message}"
+        self.storage.save(exception_path, content)
+
+    def _remove_pending_job_exceptions(
+        self,
+        load_id: str,
+        file_name: str,
+    ) -> None:
+        """Remove all exception files for a job from the exceptions/ folder.
+
+        Args:
+            load_id: Load package ID
+            job: Parsed job file name (any retry count - we match by table_name.file_id prefix)
+        """
+        job_info = ParsedLoadJobFileName.parse(file_name)
+        exceptions_folder = os.path.join(
+            self.get_package_path(load_id),
+            PackageStorage.EXCEPTIONS_FOLDER,
+        )
+        job_prefix = f"{job_info.table_name}.{job_info.file_id}."
+        with contextlib.suppress(FileNotFoundError):
+            for exc_file in self.storage.list_folder_files(exceptions_folder, to_root=False):
+                if exc_file.startswith(job_prefix) and exc_file.endswith(JOB_EXCEPTION_EXTENSION):
+                    self.storage.delete(os.path.join(exceptions_folder, exc_file))
 
     @staticmethod
     def build_job_file_name(

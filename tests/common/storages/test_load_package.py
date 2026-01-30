@@ -1,3 +1,4 @@
+from operator import ne
 import os
 import pytest
 from pathlib import Path
@@ -13,6 +14,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.storages.load_package import (
+    TExceptionType,
     LoadPackageStateInjectableContext,
     create_load_id,
     destination_state,
@@ -234,7 +236,7 @@ def test_job_elapsed_time_seconds(load_storage: LoadStorage) -> None:
     # most probably
     assert elapsed_2 - elapsed >= 0.47
     # rename the file
-    fp = load_storage.normalized_packages.retry_job(load_id, fn)
+    fp = load_storage.normalized_packages.retry_job(load_id, fn, "error!", "transient")
     # retry_job increases retry number in file name so the line below does not work
     # fp = storage.storage._make_path(storage._get_job_file_path(load_id, "new_jobs", fn))
     elapsed_2 = PackageStorage._job_elapsed_time_seconds(fp)
@@ -248,13 +250,13 @@ def test_retry_job(load_storage: LoadStorage) -> None:
     assert job_fn_t.table_name == "mock_table"
     assert job_fn_t.retry_count == 0
     # now retry
-    new_fp = load_storage.normalized_packages.retry_job(load_id, fn)
+    new_fp = load_storage.normalized_packages.retry_job(load_id, fn, "error!", "transient")
     assert_package_info(load_storage, load_id, "normalized", "new_jobs")
     assert ParsedLoadJobFileName.parse(new_fp).retry_count == 1
     # try again
     fn = Path(new_fp).name
     load_storage.normalized_packages.start_job(load_id, fn)
-    new_fp = load_storage.normalized_packages.retry_job(load_id, fn)
+    new_fp = load_storage.normalized_packages.retry_job(load_id, fn, "error!", "transient")
     assert ParsedLoadJobFileName.parse(new_fp).retry_count == 2
 
 
@@ -341,7 +343,9 @@ def test_load_package_listings(load_storage: LoadStorage) -> None:
     load_storage.new_packages.complete_job(load_id, os.path.basename(new_jobs[0]))
     load_storage.new_packages.fail_job(load_id, os.path.basename(new_jobs[1]), None)
     load_storage.new_packages.fail_job(load_id, os.path.basename(new_jobs[-1]), "error!")
-    path = load_storage.new_packages.retry_job(load_id, os.path.basename(new_jobs[-2]))
+    path = load_storage.new_packages.retry_job(
+        load_id, os.path.basename(new_jobs[-2]), "error!", "terminal"
+    )
     assert ParsedLoadJobFileName.parse(path).retry_count == 1
     assert (
         load_storage.new_packages.get_job_failed_message(
@@ -473,3 +477,100 @@ def test_migrate_to_load_package_state() -> None:
     storage.storage.delete(join(LoadStorage.NORMALIZED_FOLDER, state_path))
 
     p.load()
+
+
+@pytest.mark.parametrize(
+    "exception_type",
+    ["terminal", "transient"],
+)
+def test_retry_and_fail_pending_job(
+    load_storage: LoadStorage, exception_type: TExceptionType
+) -> None:
+    load_id = create_load_package(load_storage.new_packages, 1)
+    new_job = sorted(load_storage.new_packages.list_new_jobs(load_id))[0]
+
+    # retry twice
+    load_storage.new_packages.start_job(load_id, os.path.basename(new_job))
+    path = load_storage.new_packages.retry_job(
+        load_id, os.path.basename(new_job), "first error!", exception_type
+    )
+    job = ParsedLoadJobFileName.parse(path)
+    assert job.retry_count == 1
+    exc_type, exc_msg = load_storage.new_packages.get_pending_job_exception(load_id, job)
+    assert exc_type == exception_type
+    assert exc_msg == "first error!"
+
+    load_storage.new_packages.start_job(load_id, os.path.basename(path))
+    retried_path = load_storage.new_packages.retry_job(
+        load_id, os.path.basename(path), "second error!", exception_type
+    )
+    retried_job = ParsedLoadJobFileName.parse(retried_path)
+    assert retried_job.retry_count == 2
+    exc_type, exc_msg = load_storage.new_packages.get_pending_job_exception(load_id, retried_job)
+    assert exc_type == exception_type
+    assert exc_msg == "second error!"
+
+    # ensure list pending jobs works as expected
+    # we have only one pending job with terminal exception, should still be returned if we don't specify exception type
+    path_in_package = load_storage.new_packages.list_pending_jobs(load_id)[0]
+    assert ParsedLoadJobFileName.parse(os.path.basename(path_in_package)) == retried_job
+    # should be returned if we specify exception type
+    path_in_package = load_storage.new_packages.list_pending_jobs(load_id, exception_type)[0]
+    assert ParsedLoadJobFileName.parse(os.path.basename(path_in_package)) == retried_job
+    # should not be returned with the other exception type
+    result = load_storage.new_packages.list_pending_jobs(
+        load_id, "terminal" if exception_type == "transient" else "transient"
+    )
+    assert len(result) == 0
+
+    # fail the pending job
+    load_storage.new_packages.fail_pending_job(load_id, os.path.basename(retried_path))
+
+    # job is now in failed_jobs
+    failed_jobs = load_storage.new_packages.list_failed_jobs(load_id)
+    assert len(failed_jobs) == 1
+    assert os.path.basename(retried_path) in failed_jobs[0]
+
+    # exception is in failed_jobs
+    failed_job = ParsedLoadJobFileName.parse(failed_jobs[0])
+    failed_message = load_storage.new_packages.get_job_failed_message(load_id, failed_job)
+    assert failed_message == "second error!"
+
+    # all exceptions were cleaned up from exceptions/ folder
+    exceptions_folder = os.path.join(
+        load_storage.new_packages.get_package_path(load_id),
+        PackageStorage.EXCEPTIONS_FOLDER,
+    )
+    exc_files = load_storage.new_packages.storage.list_folder_files(
+        exceptions_folder, to_root=False
+    )
+    assert len(exc_files) == 0
+
+    # retry the failed job
+    retry_again_path = load_storage.new_packages.retry_failed_job(
+        load_id, os.path.basename(retried_path)
+    )
+    retry_again_job = ParsedLoadJobFileName.parse(retry_again_path)
+    assert retry_again_job.retry_count == 3
+
+    # job is back in new_jobs
+    new_jobs = load_storage.new_packages.list_pending_jobs(load_id)
+    assert len(new_jobs) == 1
+    assert os.path.basename(retry_again_path) in new_jobs[0]
+
+    # failed_jobs is now empty
+    failed_jobs = load_storage.new_packages.list_failed_jobs(load_id)
+    assert len(failed_jobs) == 0
+
+    # exception was moved to exceptions/ folder (marked as terminal)
+    exc_type, exc_msg = load_storage.new_packages.get_pending_job_exception(
+        load_id, retry_again_job
+    )
+    assert exc_type == "terminal"  # always terminal when coming from failed_jobs
+    assert exc_msg == "second error!"
+
+    # exception file exists in exceptions/
+    exc_files = load_storage.new_packages.storage.list_folder_files(
+        exceptions_folder, to_root=False
+    )
+    assert len(exc_files) == 1
