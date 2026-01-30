@@ -74,9 +74,7 @@ def test_engine_kwargs_sqlalchemy_echo(caplog, echo, expect_logs):
         list(source.resources["test_table"])
 
     engine_logs = [
-        r.message.lower()
-        for r in caplog.records
-        if r.name.startswith("sqlalchemy.engine")
+        r.message.lower() for r in caplog.records if r.name.startswith("sqlalchemy.engine")
     ]
     logs = " ".join(engine_logs)
 

@@ -145,6 +145,12 @@ def sql_database(
             if table_names is None or table.name in table_names
         ]
 
+    # dispose the reflection engine — MetaData no longer needs it and each
+    # sql_table() resource creates its own engine from credentials.
+    # skipped for externally-provided Engine instances (user manages lifecycle).
+    if not isinstance(credentials, Engine):
+        engine.dispose()
+
     for table_schema, table_name in table_infos:
         yield sql_table(
             credentials=credentials,
