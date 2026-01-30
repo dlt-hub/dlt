@@ -32,6 +32,8 @@ pipeline = dlt.pipeline(
     # on each `pipeline.run()`; remove the argument once you have a
     # working pipeline.
     refresh="drop_sources",
+    # show basic progress of resources extracted, normalized files and load-jobs on stdout
+    progress="log",
 )
 
 

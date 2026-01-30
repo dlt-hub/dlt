@@ -8,6 +8,8 @@ from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
 
 from dlt._workspace.cli import echo as fmt, utils
+from dlt._workspace.cli._scaffold_api_client import get_scaffold_files_storage
+from dlt._workspace.cli.exceptions import ScaffoldApiError, ScaffoldSourceNotFound
 
 TSupportedIde = Literal[
     "amp",
@@ -113,19 +115,19 @@ def ai_setup_command(
 
 def vibe_source_setup(
     source: str,
-    location: str,
-    branch: Union[str, None] = None,
 ) -> None:
-    """Copies files from vibe sources repo into the current working folder"""
+    """Copies files from vibe sources scaffold API into the current working folder"""
 
     fmt.echo("Looking up in dltHub for rules, docs and snippets for %s..." % fmt.bold(source))
-    src_storage = git.get_fresh_repo_files(
-        location, get_dlt_repos_dir(), branch=branch, path=source
-    )
-    if not src_storage.has_folder(source):
+    try:
+        src_storage = get_scaffold_files_storage(source)
+    except ScaffoldSourceNotFound:
         fmt.warning("We have nothing for %s at dltHub yet." % fmt.bold(source))
         return
-    src_dir = Path(src_storage.make_full_path(source))
+    except ScaffoldApiError as e:
+        fmt.warning("There was an error connecting to the scaffold-api: %s" % str(e))
+        return
+    src_dir = Path(src_storage.storage_path)
 
     # where the command is ran, i.e., project root
     dest_dir = Path(run_context.active().run_dir)

@@ -10,8 +10,7 @@ keywords: [weaviate, vector database, destination, dlt]
 This destination helps you load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
 :::note
-Currently, the Weaviate destination is using [weaviate-client v.3 as a backend] for loading the data.
-This does not affect your downstream data workflows.
+The Weaviate destination uses the weaviate-client v4 Python library.
 :::
 
 <!--@@@DLT_DESTINATION_CAPABILITIES weaviate-->
@@ -27,6 +26,9 @@ pip install "dlt[weaviate]"
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:
 
 ```toml
+[destination.weaviate]
+connection_type = "cloud"  # or "local" or "custom"
+
 [destination.weaviate.credentials]
 url = "https://your-weaviate-url"
 api_key = "your-weaviate-api-key"
@@ -37,7 +39,7 @@ X-OpenAI-Api-Key = "your-openai-api-key"
 
 In this setup guide, we are using the [Weaviate Cloud Services](https://console.weaviate.cloud/) to get a Weaviate instance and [OpenAI API](https://platform.openai.com/) for generating embeddings through the [text2vec-openai](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules/text2vec-openai) module.
 
-You can host your own Weaviate instance using Docker Compose, Kubernetes, or embedded. Refer to Weaviate's [How-to: Install](https://weaviate.io/developers/weaviate/installation) or [dlt recipe we use for our tests](#run-weaviate-fully-standalone). In that case, you can skip the credentials part altogether:
+You can host your own Weaviate instance using Docker Compose, Kubernetes, or embedded. Refer to Weaviate's [How-to: Install](https://weaviate.io/developers/weaviate/installation) or [dlt recipe we use for our tests](#run-weaviate-locally). In that case, you can skip the credentials part altogether:
 
 ```toml
 [destination.weaviate.credentials.additional_headers]
@@ -45,6 +47,43 @@ X-OpenAI-Api-Key = "your-openai-api-key"
 ```
 The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for the Weaviate container.
 
+### Connection types
+
+The Weaviate destination supports three connection types that are auto-detected from the URL pattern:
+
+- **cloud**: For [Weaviate Cloud Services](https://console.weaviate.cloud/) - URLs containing `.weaviate.cloud`
+- **local**: For local Docker instances - URLs with `localhost` or `127.0.0.1`
+- **custom**: For self-hosted instances - any other URL (requires explicit port configuration)
+
+You can also explicitly set the connection type in `config.toml`:
+
+```toml
+[destination.weaviate]
+connection_type = "cloud"  # or "local" or "custom"
+```
+
+Or when creating the destination programmatically:
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.weaviate(connection_type="cloud"),
+)
+```
+
+For **custom** connection types, you must specify the HTTP and gRPC ports:
+
+```toml
+[destination.weaviate]
+connection_type = "custom"
+
+[destination.weaviate.credentials]
+url = "http://my-weaviate-host"
+http_port = 8080
+grpc_port = 50051
+```
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
@@ -313,15 +352,18 @@ module_config={text2vec-openai = {}, generative-openai = {}}
 
 This ensures the `generative-openai` module is used for generative queries.
 
-### Run Weaviate fully standalone
+### Run Weaviate locally
 
-Below is an example that configures the **contextionary** vectorizer. You can put this into `config.toml`. This configuration does not need external APIs for vectorization and may be used fully offline.
+You can run Weaviate locally using Docker. See the [Weaviate Local Quickstart](https://weaviate.io/developers/weaviate/quickstart/local) for details.
+
+Below is an example that configures the **contextionary** vectorizer in `config.toml`. This does not require external APIs and can run fully offline:
 ```toml
 [destination.weaviate]
-vectorizer="text2vec-contextionary"
-module_config={text2vec-contextionary = { vectorizeClassName = false, vectorizePropertyName = true}}
+connection_type = "local"
+vectorizer = "text2vec-contextionary"
+module_config = {text2vec-contextionary = {vectorizeClassName = false, vectorizePropertyName = true}}
 ```
-You can find Docker Compose with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl/weaviate/README.md).
+You can find the Docker Compose file and setup instructions in our [README](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl/weaviate/README.md).
 
 ### dbt support
 

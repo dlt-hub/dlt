@@ -8,6 +8,7 @@ from typing_extensions import ParamSpec
 from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.runtime import init
 from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
@@ -145,18 +146,22 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
         start_method = config.start_method or get_default_start_method(
             multiprocessing.get_start_method()
         )
+        # get the mp_context for the configured start method
+        mp_context = multiprocessing.get_context(method=start_method)
         if start_method != "fork":
             ctx = Container()[PluggableRunContext]
+            section_ctx = None
+            if ConfigSectionContext in Container():
+                section_ctx = Container()[ConfigSectionContext]
+
             executor = ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.restore_run_context,
-                initargs=(ctx.context,),
-                mp_context=multiprocessing.get_context(method=start_method),
+                initargs=(ctx.context, section_ctx),
+                mp_context=mp_context,
             )
         else:
-            executor = ProcessPoolExecutor(
-                max_workers=config.workers, mp_context=multiprocessing.get_context()
-            )
+            executor = ProcessPoolExecutor(max_workers=config.workers, mp_context=mp_context)
     elif config.pool_type == "thread":
         # wait 2 seconds before bailing out from pool shutdown
         executor = TimeoutThreadPoolExecutor(

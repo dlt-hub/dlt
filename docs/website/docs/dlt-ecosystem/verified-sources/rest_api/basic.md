@@ -921,6 +921,23 @@ You can include data from the parent resource in the child resource by using the
 
 This will include the `id`, `title`, and `created_at` fields from the `issues` resource in the `issue_comments` resource data. The names of the included fields will be prefixed with the parent resource name and an underscore (`_`) like so: `_issues_id`, `_issues_title`, `_issues_created_at`.
 
+#### Parallelize dependent resource fetching
+
+By default, dependent resources fetch child data for each parent item sequentially. You can set `parallelized` to `True` on a dependent resource to fetch child data concurrently using dlt's thread pool:
+
+```py
+{
+    "name": "issue_comments",
+    "parallelized": True,
+    "endpoint": {
+        "path": "issues/{resources.issues.number}/comments",
+    },
+    "include_from_parent": ["id"],
+}
+```
+
+See [Per-resource parallelization](./advanced.md#per-resource-parallelization-for-dependent-resources) for more details.
+
 ### Define a resource which is not a REST endpoint
 
 Sometimes, we want to request endpoints with specific values that are not returned by another endpoint.

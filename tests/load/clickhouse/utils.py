@@ -1,5 +1,27 @@
+import pytest
+
+from typing import Literal
+
+from dlt.common.schema import Schema
+from dlt.common.utils import uniq_id
+from dlt.destinations import clickhouse
+from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
+from dlt.destinations.impl.clickhouse.configuration import (
+    ClickHouseClientConfiguration,
+    ClickHouseCredentials,
+)
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.typing import TDeployment
+from dlt.destinations.impl.clickhouse.typing import TColumnCodecs, TDeployment
+
+
+@pytest.fixture
+def clickhouse_client(empty_schema: Schema) -> ClickHouseClient:
+    # Return a client without opening connection.
+    creds = ClickHouseCredentials()
+    return clickhouse().client(
+        empty_schema,
+        ClickHouseClientConfiguration(credentials=creds)._bind_dataset_name(f"test_{uniq_id()}"),
+    )
 
 
 def get_deployment_type(client: ClickHouseSqlClient) -> TDeployment:
@@ -7,3 +29,68 @@ def get_deployment_type(client: ClickHouseSqlClient) -> TDeployment:
         SELECT value FROM system.settings WHERE name = 'cloud_mode'
     """)[0][0])
     return "ClickHouseCloud" if cloud_mode else "ClickHouseOSS"
+
+
+def get_codecs(sql_client: ClickHouseSqlClient, table_name: str) -> TColumnCodecs:
+    """Returns mapping of column names to their codecs for given table.
+
+    If no codec is set for a column, its value is an empty string.
+    """
+    qry = "SELECT name, compression_codec FROM system.columns WHERE database = %s AND table = %s;"
+    table_name = sql_client.make_qualified_table_name(table_name, quote=False)
+    database, name = table_name.split(".")
+    with sql_client:
+        columns = sql_client.execute_sql(qry, database, name)
+
+    return {col[0]: col[1] for col in columns}
+
+
+def get_sorting_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
+    """Returns sorting key of given table.
+
+    - returns empty string if no sorting key is set
+    - returns composite key as tuple WITHOUT parentheses
+    """
+    return _get_key(sql_client, table_name, "sorting")
+
+
+def get_partition_key(sql_client: ClickHouseSqlClient, table_name: str) -> str:
+    """Returns partition key of given table.
+
+    - returns empty string if no partition key is set
+    - returns composite key as tuple WITH parentheses
+    """
+    return _get_key(sql_client, table_name, "partition")
+
+
+def _get_key(
+    sql_client: ClickHouseSqlClient, table_name: str, key_type: Literal["sorting", "partition"]
+) -> str:
+    """Returns sorting or partition key of given table.
+
+    - returns empty string if no such key is set
+    - returns composite key as tuple WITHOUT parentheses
+    """
+    qry = f"SELECT {key_type}_key FROM system.tables WHERE database = %s AND name = %s;"
+    table_name = sql_client.make_qualified_table_name(table_name, quote=False)
+    database, name = table_name.split(".")
+    with sql_client:
+        result = sql_client.execute_sql(qry, database, name)
+
+    key = result[0][0]
+
+    # partition key has parentheses if it's composite; remove them for uniformity
+    if key.startswith("(") and key.endswith(")"):
+        return key[1:-1]
+
+    return key
+
+
+def get_create_table_query(sql_client: ClickHouseSqlClient, table_name: str) -> str:
+    qry = "SELECT create_table_query FROM system.tables WHERE database = %s AND name = %s;"
+    table_name = sql_client.make_qualified_table_name(table_name, quote=False)
+    database, name = table_name.split(".")
+    with sql_client:
+        result = sql_client.execute_sql(qry, database, name)
+
+    return result[0][0]

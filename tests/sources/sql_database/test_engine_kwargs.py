@@ -1,15 +1,12 @@
 import pytest
-import time
-import sqlite3
 import sqlalchemy as sa
 import logging
 from pathlib import Path
 import uuid
 
-from dlt.extract.exceptions import ResourceExtractionError
 from dlt.sources.sql_database import sql_database, sql_table
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 MYSQL_TEST = "mysql+pymysql://user:pass@10.255.255.1/testdb"
 
@@ -52,7 +49,7 @@ def test_invalid_engine_kwargs_fail_during_reflection_for_table(credentials):
 @pytest.mark.parametrize("echo, expect_logs", [(True, True), (False, False)])
 def test_engine_kwargs_sqlalchemy_echo(caplog, echo, expect_logs):
     """SQLAlchemy echo flag must control logging output."""
-    test_dir = Path(TEST_STORAGE_ROOT) / f"sqlite_{uuid.uuid4().hex}"
+    test_dir = Path(get_test_storage_root()) / f"sqlite_{uuid.uuid4().hex}"
     test_dir.mkdir(parents=True, exist_ok=True)
     db_path = test_dir / "test.db"
 

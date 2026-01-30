@@ -87,13 +87,15 @@ def _write_to_bucket(
     pipeline_name: str,
     paths: List[str],
     data: Union[str, bytes],
-    mode: str = "w",
 ) -> None:
     # write to bucket using the config, same object may be written to multiple paths
 
     logger.info(f"Will send run artifact to {bucket_url}: {paths}")
     for path in paths:
-        with fs.open(f"{bucket_url}/{pipeline_name}/{path}", mode=mode) as f:
+        with fs.open(f"{bucket_url}/{pipeline_name}/{path}", mode="wb") as f:
+            # encode text data as utf-8
+            if isinstance(data, str):
+                data = data.encode("utf-8")
             f.write(data)
 
 
@@ -112,7 +114,6 @@ def _send_trace_to_bucket(
             "trace.pickle",
         ],  # save current and by start time
         pickled_trace,
-        mode="wb",
     )
 
 
@@ -128,7 +129,6 @@ def _send_state_to_bucket(
             "state.json",
         ],  # save current and by start time
         encoded_state,
-        mode="w",
     )
 
 
@@ -143,7 +143,6 @@ def _send_schemas_to_bucket(
             pipeline.pipeline_name,
             [f"schemas/{schema_file}"],
             open(os.path.join(schema_dir, schema_file), "rb").read(),
-            mode="wb",
         )
 
 

@@ -10,7 +10,7 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, List, Tuple, cast
+from typing import Any, List, Tuple, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -53,7 +53,7 @@ from dlt.extract.exceptions import (
     ResourceExtractionError,
     SourceExhausted,
 )
-from dlt.extract.extract import ExtractStorage
+from dlt.extract.extract import ExtractStorage, data_to_sources
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
@@ -72,7 +72,7 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT, skipifwindows
+from tests.utils import get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -94,7 +94,9 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     # default dataset name is not created until a destination that requires it is set
     assert p.dataset_name is None
     assert p.destination is None
@@ -144,7 +146,9 @@ def test_default_pipeline_dataset_layout(environment) -> None:
         dataset_name_layout % "dlt_pipeline_dataset",
     ]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
     assert p.default_schema_name is None
@@ -187,7 +191,7 @@ def test_default_pipeline_dataset_late_destination() -> None:
     assert p.dataset_name is None
 
     # default dataset name will be created
-    p.sync_destination(destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT))
+    p.sync_destination(destination=dlt.destinations.filesystem(get_test_storage_root()))
     assert p.dataset_name == "test_default_pipeline_dataset"
     p._wipe_working_folder()
 
@@ -233,7 +237,7 @@ def test_default_pipeline_dataset_layout_empty(environment) -> None:
 
 
 def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
-    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     # mock tmp dir
     os.environ[DLT_LOCAL_DIR] = local_dir
@@ -244,8 +248,8 @@ def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
 def test_pipeline_configuration_top_level_section(environment) -> None:
     environment["PIPELINES__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__DESTINATION_TYPE"] = "dummy"
-    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
-    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
+    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
 
     pipeline = dlt.pipeline()
     assert pipeline.dataset_name == "pipeline_dataset"
@@ -263,8 +267,12 @@ def test_pipeline_configuration_top_level_section(environment) -> None:
 def test_pipeline_configuration_named_section(environment) -> None:
     environment["PIPELINES__NAMED__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__NAMED__DESTINATION_TYPE"] = "dummy"
-    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
-    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
+    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
 
     pipeline = dlt.pipeline(pipeline_name="named")
     assert pipeline.dataset_name == "pipeline_dataset"
@@ -613,26 +621,34 @@ def test_extract_source_twice() -> None:
     assert py_ex.value.exception.source_name == "source"
 
 
-def test_disable_enable_state_sync(environment: Any) -> None:
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_disable_enable_state_sync(environment: Any, use_single_dataset: bool) -> None:
     environment["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(destination="redshift")
+    p.config.use_single_dataset = use_single_dataset
 
     def some_data():
         yield [1, 2, 3]
 
-    s = DltSource(dlt.Schema("default"), "module", [dlt.resource(some_data())])
+    s = _create_simple_source(dlt.Schema("default"), "some_data", some_data())
     dlt.pipeline().extract(s)
     storage = ExtractStorage(p._normalize_storage_config())
     assert len(storage.list_files_to_normalize_sorted()) == 1
     expect_extracted_file(storage, "default", "some_data", json.dumps([1, 2, 3]))
-    with pytest.raises(FileNotFoundError):
-        expect_extracted_file(storage, "default", s.schema.state_table_name, "")
+    _assert_extracted_file_exists(storage, "default", s.schema.state_table_name, should_exist=False)
 
     p.config.restore_from_destination = True
-    # extract to different schema, state must go to default schema
+    # extract to different schema, state must go to the corresponding schema
     s = DltSource(dlt.Schema("default_2"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
-    expect_extracted_file(storage, "default", s.schema.state_table_name, "***")
+    if use_single_dataset:
+        expect_extracted_file(storage, "default", s.schema.state_table_name, "***")
+    else:
+        expect_extracted_file(storage, "default_2", s.schema.state_table_name, "***")
 
 
 def test_extract_multiple_sources() -> None:
@@ -682,6 +698,306 @@ def test_extract_multiple_sources() -> None:
     # pipeline state is successfully rollbacked after the last extract and default_3 and 4 schemas are not present
     assert set(p.schema_names) == {"default", "default_2"}
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
+
+
+# Helper functions for state extraction tests
+def _get_state_files_count(storage: ExtractStorage, schema_name: Optional[str] = None) -> int:
+    """Get count of state files from extract storage, optionally filtered by schema."""
+    all_files = storage.list_files_to_normalize_sorted()
+    state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
+
+    if schema_name:
+        state_files = [f for f in state_files if schema_name in f]
+
+    return len(state_files)
+
+
+def _assert_extracted_file_exists(
+    storage: ExtractStorage, schema_name: str, file_name: str, should_exist: bool = True
+) -> None:
+    """Assert whether a file exists in extract storage for a given schema."""
+    if should_exist:
+        expect_extracted_file(storage, schema_name, file_name, "***")
+    else:
+        with pytest.raises(FileNotFoundError):
+            expect_extracted_file(storage, schema_name, file_name, "***")
+
+
+def _create_simple_source(
+    schema: Schema, resource_name: str, data: TDataItems, use_incremental: bool = False
+) -> DltSource:
+    """Create a simple DltSource with one resource with optional incremental loading."""
+    if use_incremental:
+        resource = dlt.resource(data, name=resource_name, incremental=dlt.sources.incremental("id"))
+    else:
+        resource = dlt.resource(data, name=resource_name)
+
+    return DltSource(schema, "module", [resource])
+
+
+@pytest.mark.parametrize(
+    ("initial_order", "expected_order"),
+    [
+        (
+            ["A", "A", "B", "B", "C"],
+            ["A", "A", "B", "B", "C"],
+        ),
+        (
+            ["C", "C", "B", "B", "A"],
+            ["A", "B", "B", "C", "C"],
+        ),
+        (
+            ["B", "A", "B", "C", "A"],
+            ["A", "A", "B", "B", "C"],
+        ),
+        (
+            ["B", "A", "B", "A", "B"],
+            ["A", "A", "B", "B", "B"],
+        ),
+    ],
+)
+def test_extract_sources_ordered_by_schema_name(
+    initial_order: list[str],
+    expected_order: list[str],
+) -> None:
+    """Ensure data_to_sources returns sources ordered by schema name so that if there are
+    many instances of the same source, they will be extracted one after another, and we can attach
+    state to each schema's package without having to wait for everything to finish."""
+    sources = [
+        DltSource(
+            dlt.Schema(f"{schema_name}"), "module", [dlt.resource([1, 2, 3], name=f"resource_{i}")]
+        )
+        for i, schema_name in enumerate(initial_order)
+    ]
+
+    actual_order = data_to_sources(
+        data=sources,
+        pipeline=dlt.pipeline(destination="dummy"),
+    )
+
+    assert [source.schema.name for source in actual_order] == expected_order
+
+
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extracted_once_for_same_schema_multiple_sources(use_single_dataset: bool) -> None:
+    """Test that when multiple sources share the same schema:
+    - First extraction: state is extracted
+    - Second extraction with same data: state is not extracted (unchanged hash)
+    - Third extraction with new incremental data: State is extracted (cursor updated, hash changed)
+    """
+    schema = dlt.Schema("shared_schema")
+
+    s1 = _create_simple_source(schema, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}])
+    s2 = _create_simple_source(
+        schema, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
+
+    # First extraction: state extracted once
+    p.extract([s1, s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    # both resources in same package
+    expect_extracted_file(
+        storage, "shared_schema", "resource_1", json.dumps([{"id": 1}, {"id": 2}, {"id": 3}])
+    )
+    expect_extracted_file(
+        storage, "shared_schema", "resource_2", json.dumps([{"id": 4}, {"id": 5}, {"id": 6}])
+    )
+
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=True
+    )
+    assert _get_state_files_count(storage) == 1
+
+    p.normalize()
+
+    # Second extraction: state not extracted (unchanged hash)
+    p.extract([s1, s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=False
+    )
+
+    p.normalize()
+
+    # Third extraction: state extracted (incremental data changed)
+    new_s2 = _create_simple_source(
+        schema, "resource_2", [{"id": 7}, {"id": 8}, {"id": 9}], use_incremental=True
+    )
+    p.extract([s1, new_s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=True
+    )
+
+
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extracted_per_schema_for_multiple_schemas(use_single_dataset: bool) -> None:
+    """Test that when multiple sources have different schemas:
+    - First extraction:
+        - use_single_dataset=True: only the first schema (default) gets state
+        - use_single_dataset=False: each schema gets its own state in separate packages
+    - Second extraction with same data:
+        - state is not extracted (unchanged hash)
+    - Third extraction with incremental change in "schema_b":
+        - use_single_dataset=True: state is extracted to default schema ("schema_a")
+        - use_single_dataset=False: state is extracted to the schema that changed ("schema_b")
+    """
+    schema_a = dlt.Schema("schema_a")
+    schema_b = dlt.Schema("schema_b")
+    schema_c = dlt.Schema("schema_c")
+
+    s1 = _create_simple_source(schema_a, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}])
+    s2 = _create_simple_source(
+        schema_b, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+    s3 = _create_simple_source(schema_c, "resource_3", [{"id": 7}, {"id": 8}, {"id": 9}])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
+
+    # First extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    _assert_extracted_file_exists(
+        storage, schema_a.name, schema_a.state_table_name, should_exist=True
+    )
+
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=False
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+        assert _get_state_files_count(storage) == 1
+    else:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=True
+        )
+        assert _get_state_files_count(storage) == 3
+
+    p.normalize()
+
+    # Second extraction: no state change, no extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    for s in [schema_a, schema_b, schema_c]:
+        _assert_extracted_file_exists(storage, s.name, s.state_table_name, should_exist=False)
+
+    p.normalize()
+
+    # Third extraction: incremental data changed in schema_b
+    new_s2 = _create_simple_source(
+        schema_b, "resource_2", [{"id": 10}, {"id": 11}, {"id": 12}], use_incremental=True
+    )
+    p.extract([s1, new_s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    assert _get_state_files_count(storage) == 1
+    _assert_extracted_file_exists(
+        storage, schema_c.name, schema_c.state_table_name, should_exist=False
+    )
+
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+    else:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=False
+        )
+
+
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
+    """Test that when two sources share "shared" schema, one source has "unique" schema.
+    - First extraction:
+        - use_single_dataset=True: only the first schema (default) gets state
+        - use_single_dataset=False: each schema gets its own state in separate packages
+    - Second extraction with same data:
+        - state is not extracted (unchanged hash)
+    - Third extraction with incremental change in "shared":
+        - use_single_dataset=True: state is extracted to default schema ("shared")
+        - use_single_dataset=False: state is extracted to the schema that changed ("shared")
+    """
+    shared = dlt.Schema("shared")
+    unique = dlt.Schema("unique")
+
+    s1 = _create_simple_source(
+        shared, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}], use_incremental=True
+    )
+    s2 = _create_simple_source(shared, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}])
+    s3 = _create_simple_source(unique, "resource_3", [{"id": 7}, {"id": 8}, {"id": 9}])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
+
+    # First extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    _assert_extracted_file_exists(storage, shared.name, shared.state_table_name, should_exist=True)
+
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, unique.name, unique.state_table_name, should_exist=False
+        )
+        assert _get_state_files_count(storage) == 1
+    else:
+        _assert_extracted_file_exists(
+            storage, unique.name, unique.state_table_name, should_exist=True
+        )
+        assert _get_state_files_count(storage) == 2
+
+    p.normalize()
+
+    # Second extraction: no state change, no extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    for s in [shared, unique]:
+        _assert_extracted_file_exists(storage, s.name, s.state_table_name, should_exist=False)
+
+    p.normalize()
+
+    # Third extraction: incremental data changed in shared schema
+    new_s1 = _create_simple_source(
+        shared, "resource_1", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+    p.extract([new_s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    _assert_extracted_file_exists(storage, shared.name, shared.state_table_name, should_exist=True)
+    _assert_extracted_file_exists(storage, unique.name, unique.state_table_name, should_exist=False)
+    assert _get_state_files_count(storage) == 1
 
 
 @pytest.mark.parametrize(
@@ -1313,7 +1629,7 @@ def test_set_get_local_value() -> None:
 def test_update_last_run_context() -> None:
     p = dlt.pipeline(destination="dummy", dev_mode=True)
     p._update_last_run_context()
-    assert p.last_run_context["local_dir"] == os.path.join(os.getcwd(), "_storage")
+    assert p.last_run_context["local_dir"].endswith(get_test_storage_root())
     assert p.last_run_context["settings_dir"] == os.path.join(os.getcwd(), ".dlt")
 
 
@@ -2830,18 +3146,31 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-local_paths = [os.path.abspath(TEST_STORAGE_ROOT), "."]
-if os.name == "nt":
-    local_paths += [
-        # UNC extended path
-        "\\\\?\\UNC\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
-        # UNC path
-        "\\\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
-    ]
+@pytest.mark.parametrize(
+    "local_path_kind",
+    (
+        "storage_root",
+        "dot",
+        "unc_extended",
+        "unc",
+    ),
+)
+def test_local_filesystem_destination(local_path_kind: str) -> None:
+    root = os.path.abspath(get_test_storage_root())
 
+    if local_path_kind == "storage_root":
+        local_path = root
+    elif local_path_kind == "dot":
+        local_path = "."
+    elif local_path_kind == "unc_extended":
+        pytest.skip("UNC paths only valid on Windows") if os.name != "nt" else None
+        local_path = "\\\\?\\UNC\\localhost\\" + root.replace(":", "$")
+    elif local_path_kind == "unc":
+        pytest.skip("UNC paths only valid on Windows") if os.name != "nt" else None
+        local_path = "\\\\localhost\\" + root.replace(":", "$")
+    else:
+        raise AssertionError(local_path_kind)
 
-@pytest.mark.parametrize("local_path", local_paths)
-def test_local_filesystem_destination(local_path: str) -> None:
     dataset_name = "mydata_" + uniq_id()
 
     @dlt.resource
@@ -2869,7 +3198,7 @@ def test_local_filesystem_destination(local_path: str) -> None:
 
     # check all the files, paths may get messed up in many different ways
     # and data may land anywhere especially on Windows
-    expected_dataset = pathlib.Path("_storage").joinpath(dataset_name).resolve()
+    expected_dataset = pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
     assert expected_dataset.exists()
     assert expected_dataset.is_dir()
 
@@ -2885,11 +3214,15 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 1
 
     fs_client = pipeline._fs_client()
-    # all path formats we use must lead to "_storage" relative to tests
-    expect_path_fragment = str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve())
-    expect_path_fragment = expect_path_fragment[expect_path_fragment.index(TEST_STORAGE_ROOT) :]
+    # all path formats we use must lead to test storage root relative to tests
+    expect_path_fragment = str(
+        pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
+    )
+    expect_path_fragment = expect_path_fragment[
+        expect_path_fragment.index(get_test_storage_root()) :
+    ]
     # TODO: restore on windows
-    assert str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve()).endswith(
+    assert str(pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()).endswith(
         expect_path_fragment
     )
     # same for client
@@ -3160,7 +3493,12 @@ def test_run_file_format_sets_table_schema() -> None:
     assert pipeline.default_schema.get_table("_datax")["file_format"] == "jsonl"
 
 
-def test_resource_transformer_standalone() -> None:
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_resource_transformer_standalone(use_single_dataset: bool) -> None:
     # requires that standalone resources are executes in a single source
     page = 1
 
@@ -3184,9 +3522,10 @@ def test_resource_transformer_standalone() -> None:
         ]
 
     pipeline = dlt.pipeline("test_resource_transformer_standalone", destination="duckdb")
+    pipeline.config.use_single_dataset = use_single_dataset
     # here we must combine resources and transformers using the same instance
     info = pipeline.run([gen_pages, gen_pages | get_subpages])
-    assert_load_info(info)
+    assert_load_info(info, 1)
     # this works because we extract transformer and resource above in a single source so dlt optimizes
     # dag and extracts gen_pages only once.
     assert load_table_counts(pipeline) == {"subpages": 100, "pages": 10}
@@ -3198,9 +3537,18 @@ def test_resource_transformer_standalone() -> None:
         [DltSource(schema, "", [gen_pages]), DltSource(schema, "", [gen_pages | get_subpages])],
         dataset_name="new_dataset",
     )
-    assert_load_info(info, 2)
-    # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
-    assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    if use_single_dataset:
+        assert_load_info(info, 2)
+        # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
+        assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    else:
+        assert_load_info(info, 1)
+        with pipeline.sql_client() as sql_client:
+            with sql_client.execute_query("SELECT * FROM new_dataset_test.pages") as curr:
+                assert len(curr.fetchall()) == 10
+
+            with sql_client.execute_query("SELECT * FROM new_dataset_test.subpages") as curr:
+                assert len(curr.fetchall()) == 10
 
 
 def test_resources_same_name_in_single_source() -> None:
@@ -3626,7 +3974,7 @@ def test_nested_hints_file_format() -> None:
 
     p = dlt.pipeline(
         pipeline_name="test_nested_hints_file_format",
-        destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT),
+        destination=dlt.destinations.filesystem(get_test_storage_root()),
         dataset_name="local",
     )
     p.extract(nested_data())

@@ -29,7 +29,7 @@ from dlt.pipeline.exceptions import (
 )
 
 from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES, table_update_and_row
-from tests.utils import TEST_STORAGE_ROOT, data_to_item_format
+from tests.utils import get_test_storage_root, data_to_item_format
 from tests.pipeline.utils import (
     assert_table_counts,
     assert_load_info,
@@ -68,7 +68,9 @@ def test_default_pipeline_names(
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
@@ -83,21 +85,31 @@ def test_default_pipeline_names(
         yield data
 
     # this will create default schema
-    p.extract(
+    extract_info = p.extract(
         data_fun,
         table_format=destination_config.table_format,
         loader_file_format=destination_config.file_format,
     )
+    assert len(extract_info.loads_ids) == 1
+    first_load_id = extract_info.loads_ids[0]
     # _pipeline suffix removed when creating default schema name
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
-    p.extract(
+    extract_info = p.extract(
         data_fun(),
         schema=dlt.Schema("names"),
         table_format=destination_config.table_format,
         loader_file_format=destination_config.file_format,
     )
+    # if use_single_dataset
+    #   - state goes to default schema package
+    #   - data goes to "names" schema package
+    # otherwise
+    #   - state and data both go to "names" schema package
+    assert len(extract_info.loads_ids) == 2 if use_single_dataset else 1
+    second_load_id = extract_info.loads_ids[0]
+
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 
@@ -127,17 +139,24 @@ def test_default_pipeline_names(
         else:
             # does not need dataset
             assert p.dataset_name is None
-    # the last package contains just the state (we added a new schema)
-    last_load_id = p.list_extracted_load_packages()[-1]
-    state_package = p.get_load_package_info(last_load_id)
-    assert len(state_package.jobs["new_jobs"]) == 1
-    assert state_package.schema_name == p.default_schema_name
+
+    first_package = p.get_load_package_info(first_load_id)
+    assert len(first_package.jobs["new_jobs"]) == 2
+    assert first_package.schema_name == p.default_schema_name
+
+    second_package = p.get_load_package_info(second_load_id)
+    assert len(second_package.jobs["new_jobs"]) == 1 if use_single_dataset else 2
+    assert second_package.schema_name == "names"
+
     p.normalize()
     info = p.load(dataset_name="default_names_ds_" + uniq_id())
-    print(p.dataset_name)
     assert info.pipeline is p
-    # two packages in two different schemas were loaded
-    assert len(info.loads_ids) == 3
+    # if use_single_dataset, second extract created two packages where
+    #   - state went to default schema package
+    #   - data went to "names" schema package
+    # otherwise
+    #   - state and data both went to "names" schema package
+    assert len(info.loads_ids) == 3 if use_single_dataset else 2
 
     # if loaded to single data, double the data was loaded to a single table because the schemas overlapped
     if use_single_dataset:
@@ -184,7 +203,7 @@ def test_default_schema_name(
     p = destination_config.setup_pipeline(
         "test_default_schema_name",
         dataset_name=dataset_name,
-        pipelines_dir=TEST_STORAGE_ROOT,
+        pipelines_dir=get_test_storage_root(),
     )
 
     p.config.use_single_dataset = use_single_dataset
@@ -200,7 +219,7 @@ def test_default_schema_name(
     print(info)
 
     # try to restore pipeline
-    r_p = dlt.attach("test_default_schema_name", TEST_STORAGE_ROOT)
+    r_p = dlt.attach("test_default_schema_name", get_test_storage_root())
     schema = r_p.default_schema
     # schema name not normalized
     assert schema.name == "default"
@@ -455,8 +474,8 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
 
         return simple_rows(), extended_rows(), dlt.resource(["a", "b", "c"], name="simple")
 
-    import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
-    export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
+    import_schema_path = os.path.join(get_test_storage_root(), "schemas", "import")
+    export_schema_path = os.path.join(get_test_storage_root(), "schemas", "export")
     p = destination_config.setup_pipeline(
         "my_pipeline", import_schema_path=import_schema_path, export_schema_path=export_schema_path
     )
@@ -638,6 +657,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         "synapse",
         "databricks",
         "clickhouse",
+        "fabric",
     ]:
         datetime_data.pop("col11")
         datetime_data.pop("col11_null")
@@ -1215,7 +1235,7 @@ def test_pipeline_with_named_destination_via_factory_initializer() -> None:
 
     info = pipeline.run(test_data())
     assert_load_info(info)
-    assert (Path(TEST_STORAGE_ROOT) / "random_duck_db.duckdb").exists()
+    assert (Path(get_test_storage_root()) / "random_duck_db.duckdb").exists()
 
     # 8. Should also accept additional destination parameters (such as bucket_url)
     pipeline = dlt.pipeline(
@@ -1230,7 +1250,9 @@ def test_pipeline_with_named_destination_via_factory_initializer() -> None:
 
     info = pipeline.run(test_data())
     assert_load_info(info)
-    assert (Path(TEST_STORAGE_ROOT) / FILE_BUCKET / pipeline.dataset_name / "test_data").exists()
+    assert (
+        Path(get_test_storage_root()) / FILE_BUCKET / pipeline.dataset_name / "test_data"
+    ).exists()
 
     # 9. Should automatically infer destination type as 'dlt.destinations.destination' (custom destination implementation),
     # if destination_callable is provided

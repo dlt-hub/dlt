@@ -12,6 +12,7 @@ from dlt.extract import DltResource, Incremental, decorators
 
 from .helpers import (
     _execute_table_adapter,
+    default_engine_adapter_callback,
     table_rows,
     engine_from_credentials,
     remove_nullability_adapter,
@@ -122,6 +123,7 @@ def sql_database(
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     if defer_table_reflect:
         if not table_names:
@@ -273,6 +275,7 @@ def sql_table(
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     # Table object is only created when reflecting, we don't want empty tables in metadata
     # as it breaks foreign key resolution
