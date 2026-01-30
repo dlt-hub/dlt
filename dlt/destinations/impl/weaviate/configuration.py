@@ -9,6 +9,7 @@ from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.utils import digest128
 
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
+TWeaviateConnectionType = Literal["cloud", "local", "custom"]
 
 
 @configspec
@@ -16,6 +17,9 @@ class WeaviateCredentials(CredentialsConfiguration):
     url: str = "http://localhost:8080"
     api_key: Optional[str] = None
     additional_headers: Optional[Dict[str, str]] = None
+    # Optional ports for custom/local connections
+    http_port: Optional[int] = None
+    grpc_port: Optional[int] = None
 
     def __str__(self) -> str:
         """Used to display user friendly data location"""
@@ -41,6 +45,10 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     startup_period: int = 5
 
     dataset_separator: str = "_"
+
+    # Connection type: "cloud" for Weaviate Cloud, "local" for Docker, "custom" for self-hosted
+    # If None, auto-detected from URL pattern
+    connection_type: Optional[TWeaviateConnectionType] = None
 
     credentials: WeaviateCredentials = None
     vectorizer: str = "text2vec-openai"

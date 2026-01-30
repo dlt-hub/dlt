@@ -5,6 +5,7 @@ from dlt.destinations.impl.duckdb.factory import duckdb
 from dlt.destinations.impl.ducklake.factory import ducklake
 from dlt.destinations.impl.dummy.factory import dummy
 from dlt.destinations.impl.mssql.factory import mssql
+from dlt.destinations.impl.fabric.factory import fabric
 from dlt.destinations.impl.bigquery.factory import bigquery
 from dlt.destinations.impl.athena.factory import athena
 from dlt.destinations.impl.redshift.factory import redshift
@@ -28,6 +29,7 @@ __all__ = [
     "ducklake",
     "dummy",
     "mssql",
+    "fabric",
     "bigquery",
     "athena",
     "redshift",

@@ -2,7 +2,7 @@ import posixpath
 import os
 from dlt.common.exceptions import MissingDependencyException
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from website.docs.utils import parse_toml_file
 
 
@@ -132,7 +132,7 @@ def destination_instantiation_snippet() -> None:
     assert pipeline.destination.destination_type == "dlt.destinations.duckdb"
     assert pipeline.destination.destination_name == "bigquery"
 
-    bucket_url = posixpath.join("file://", os.path.abspath(TEST_STORAGE_ROOT))
+    bucket_url = posixpath.join("file://", os.path.abspath(get_test_storage_root()))
 
     # @@@DLT_SNIPPET_START late_destination_access
     import dlt

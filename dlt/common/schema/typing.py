@@ -57,6 +57,10 @@ C_DESCENDANT_ROOT_REF_LABEL = "_dlt_root"
 """Label of the implicit `TTableReference` between a descendant table and its root table"""
 C_ROOT_LOAD_REF_LABEL = "_dlt_load"
 """Label of the implicit `TTableReference` between a root table and the _dlt_loads table"""
+C_VERSION_SCHEMA_VERSION_LABEL = "_dlt_schema_version"
+"""Label of the implicit TTableReference between {LOAD_TABLE_NAME} and {VERSION_TABLE_NAME} for schema version."""
+C_VERSION_SCHEMA_NAME_LABEL = "_dlt_schema_name"
+"""Label of the implicit TTableReference between {LOAD_TABLE_NAME} and {VERSION_TABLE_NAME} for schema name."""
 
 TColumnProp = Literal[
     "name",
@@ -105,6 +109,7 @@ class TColumnPropInfo(NamedTuple):
     name: Union[TColumnProp, str]
     defaults: Tuple[Any, ...] = (None,)
     is_hint: bool = False
+    compound: bool = False
 
 
 _ColumnPropInfos = [
@@ -115,12 +120,12 @@ _ColumnPropInfos = [
     TColumnPropInfo("timezone", (True, None)),
     TColumnPropInfo("nullable", (True, None)),
     TColumnPropInfo("variant", (False, None)),
-    TColumnPropInfo("partition", (False, None)),
-    TColumnPropInfo("cluster", (False, None)),
-    TColumnPropInfo("primary_key", (False, None)),
+    TColumnPropInfo("partition", (False, None), False, True),
+    TColumnPropInfo("cluster", (False, None), False, True),
+    TColumnPropInfo("primary_key", (False, None), False, True),
     TColumnPropInfo("sort", (False, None)),
     TColumnPropInfo("unique", (False, None)),
-    TColumnPropInfo("merge_key", (False, None)),
+    TColumnPropInfo("merge_key", (False, None), False, True),
     TColumnPropInfo("row_key", (False, None)),
     TColumnPropInfo("parent_key", (False, None)),
     TColumnPropInfo("root_key", (False, None)),
@@ -246,9 +251,9 @@ TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
-WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
-MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
-REPLACE_STRATEGIES: Set[TLoaderReplaceStrategy] = set(get_args(TLoaderReplaceStrategy))
+WRITE_DISPOSITIONS: Sequence[TWriteDisposition] = sorted(get_args(TWriteDisposition))
+MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = sorted(get_args(TLoaderMergeStrategy))
+REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
 """Default values for validity column names used in `scd2` merge strategy."""

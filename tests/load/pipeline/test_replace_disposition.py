@@ -410,7 +410,9 @@ def test_replace_sql_queries(
 
         destination_spy = mocker.spy(MsSqlStagingReplaceJob, "generate_sql")
 
-    pipeline = destination_config.setup_pipeline("insert_from_staging_test", dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        f"insert_from_staging_test_{uniq_id()}", dev_mode=True
+    )
     load_info = pipeline.run(
         [{"id": 1}],
         table_name="my_table",

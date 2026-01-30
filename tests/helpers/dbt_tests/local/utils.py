@@ -10,7 +10,7 @@ from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.runner import DBTPackageRunner, create_runner
 
 from tests.load.utils import cm_yield_client, delete_dataset
-from tests.utils import TEST_STORAGE_ROOT, init_test_logging
+from tests.utils import get_test_storage_root, init_test_logging
 
 
 FIXTURES_DATASET_NAME = "test_fixture_carbon_bot_session_cases"
@@ -43,7 +43,7 @@ def setup_rasa_runner(
         DestinationClientDwhConfiguration()._bind_dataset_name(
             dataset_name=dataset_name or FIXTURES_DATASET_NAME
         ),
-        TEST_STORAGE_ROOT,
+        get_test_storage_root(),
         package_profile_name=profile_name,
         config=C,
     )

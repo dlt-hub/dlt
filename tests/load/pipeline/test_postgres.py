@@ -16,7 +16,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
 )
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
-from tests.utils import TestDataItemFormat
+from tests.utils import TestDataItemFormat, get_test_storage_root
 
 
 @pytest.mark.parametrize(
@@ -123,7 +123,7 @@ def test_pipeline_explicit_destination_credentials(
     # with staging
     p = dlt.pipeline(
         pipeline_name="postgres_pipeline",
-        staging=filesystem("_storage"),
+        staging=filesystem(get_test_storage_root()),
         destination=redshift(credentials="redshift://loader:password@localhost:5432/dlt_data"),
     )
     config = p.destination_client().config

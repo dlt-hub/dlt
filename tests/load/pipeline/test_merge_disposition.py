@@ -18,7 +18,7 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat
 from dlt.common.typing import StrAny
-from dlt.common.utils import digest128
+from dlt.common.utils import digest128, uniq_id
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
@@ -75,6 +75,15 @@ def test_merge_on_keys_in_schema_nested_hints(
         # remove `partition` hint because it conflicts with `cluster` on databricks
         schema.merge_hints({"partition": []}, replace=True)
 
+    if destination_config.destination_type == "clickhouse":
+        # remove `partition` hint because it conflicts with `nullable` on clickhouse
+        schema.merge_hints({"partition": []}, replace=True)
+        # remove `sort` hints because it conflicts with `primary_key` on clickhouse
+        for table in schema.tables.values():
+            for column in table["columns"].values():
+                if "sort" in column:
+                    del column["sort"]
+
     # make block uncles unseen to trigger filtering loader in loader for nested tables
     if has_table_seen_data(schema.tables["blocks__uncles"]):
         del schema.tables["blocks__uncles"]["x-normalizer"]
@@ -94,15 +103,16 @@ def test_merge_on_keys_in_schema_nested_hints(
     }
 
     @dlt.source(schema=schema)
-    def ethereum(slice_: slice = None):
+    def ethereum(slice_: slice = None, duplicates: int = 0):
         @dlt.resource(**hints, nested_hints=nested_hints)  # type: ignore[call-overload]
         def blocks():
-            with open(
-                "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
-                "r",
-                encoding="utf-8",
-            ) as f:
-                yield json.load(f) if slice_ is None else json.load(f)[slice_]
+            for _ in range(duplicates + 1):
+                with open(
+                    "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    yield json.load(f) if slice_ is None else json.load(f)[slice_]
 
         return blocks()
 
@@ -1749,4 +1759,65 @@ def test_merge_arrow(
             {"id": 1, "name": "foo"},
             {"id": 2, "name": "updated bar"},
         ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_replacing_merge_key(destination_config: DestinationTestConfiguration) -> None:
+    """Test that changing merge_key properly deletes records based on the NEW key.
+    Records matching the new merge_key in incoming data should replace old ones.
+    """
+    p = destination_config.setup_pipeline("test_replacing_merge_key")
+
+    # load initial data with merge_key "time_off_date"
+    @dlt.resource(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+        },
+        merge_key=["time_off_date"],
+    )
+    def people(data):
+        yield from data
+
+    initial_data = [
+        {"email": "user_1@example.com", "time_off_date": "25.07.2025", "month_key": "2025-07"},
+        {"email": "user_2@example.com", "time_off_date": "18.08.2025", "month_key": "2025-08"},
+    ]
+
+    info = p.run(people(initial_data), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    observed = [
+        {"email": row[0], "time_off_date": row[1], "month_key": row[2]}
+        for row in select_data(p, "SELECT email, time_off_date, month_key FROM people")
+    ]
+
+    assert sorted(observed, key=lambda d: d["email"]) == initial_data
+
+    # change merge_key to "month_key"
+    people.apply_hints(merge_key=["month_key"])
+
+    # new data has month_key "2025-08" which exists in old data
+    # should delete the old 2025-08 record (18.08.2025) and insert new one (19.08.2025)
+    new_data = [
+        {"email": "user_2@example.com", "time_off_date": "19.08.2025", "month_key": "2025-08"},
+        {"email": "user_2@example.com", "time_off_date": "20.09.2025", "month_key": "2025-09"},
+    ]
+
+    info = p.run(people(new_data), **destination_config.run_kwargs)
+
+    observed = [
+        {"email": row[0], "time_off_date": row[1], "month_key": row[2]}
+        for row in select_data(p, "SELECT email, time_off_date, month_key FROM people")
+    ]
+
+    expected = [initial_data[0]] + new_data
+
+    assert sorted(observed, key=lambda d: (d["email"], d["month_key"])) == sorted(
+        expected, key=lambda d: (d["email"], d["month_key"])
     )

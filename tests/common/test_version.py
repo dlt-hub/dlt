@@ -2,8 +2,12 @@ import os
 import pytest
 from importlib.metadata import PackageNotFoundError
 from packaging.requirements import Requirement
+from unittest.mock import patch
 
 from dlt.version import get_installed_requirement_string, get_dependency_requirement
+
+
+pytestmark = pytest.mark.serial
 
 
 def test_installed_requirement_string() -> None:

@@ -25,7 +25,7 @@ from dlt.extract import DltResource
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
@@ -68,6 +68,51 @@ def test_adapter_and_hints() -> None:
     }
 
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
+
+
+def test_changing_merge_key() -> None:
+    @dlt.resource
+    def some_data():
+        yield {"id": 1, "other_id": 2, "content": "random"}
+
+    # Initially "id" is set as key
+    lancedb_adapter(
+        some_data,
+        embed=["random"],
+        merge_key="id",
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_changing_merge_key",
+        destination="lancedb",
+        dataset_name=f"test_changing_merge_key{uniq_id()}",
+    )
+    info = pipeline.run(
+        some_data(),
+    )
+    assert_load_info(info)
+
+    assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["merge_key"] is True
+    assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["nullable"] is False
+
+    # We change key to "other_id"
+    lancedb_adapter(
+        some_data,
+        embed=["random"],
+        merge_key="other_id",
+    )
+    info = pipeline.run(
+        some_data(),
+    )
+    assert_load_info(info)
+
+    # "id" should no longer be key
+    assert not pipeline.default_schema.tables["some_data"]["columns"]["id"].get("merge_key")
+    assert pipeline.default_schema.tables["some_data"]["columns"]["id"]["nullable"] is False
+    assert (
+        pipeline.default_schema.tables["some_data"]["columns"]["other_id"].get("merge_key") is True
+    )
+    assert pipeline.default_schema.tables["some_data"]["columns"]["other_id"]["nullable"] is False
 
 
 def test_basic_state_and_schema() -> None:
@@ -373,7 +418,7 @@ def test_merge_github_nested(lance_location: str) -> None:
     elif lance_location == ":external:":
         import lancedb
 
-        path = os.path.join(TEST_STORAGE_ROOT, "test.lancedb")
+        path = os.path.join(get_test_storage_root(), "test.lancedb")
         destination_ = dlt.destinations.lancedb(credentials=lancedb.connect(path))
     else:
         destination_ = "lancedb"  # type: ignore[assignment]

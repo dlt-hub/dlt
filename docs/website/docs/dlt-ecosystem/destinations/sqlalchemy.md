@@ -132,7 +132,7 @@ with engine.connect() as conn:
 ```
 
 ## Notes on other dialects
-We tested this destination on **mysql**, **sqlite** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
+We tested this destination on **mysql**, **sqlite**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
@@ -145,6 +145,9 @@ Please report issues with particular dialects. We'll try to make them work.
 * Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
+
+### Oracle limitations
+* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
 
 
 ### Adapting destination for a dialect
@@ -233,8 +236,8 @@ The following write dispositions are supported:
 
 ### Fast loading with parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql** and **sqlite**.
-MySQL driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
+The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mysql
@@ -242,22 +245,26 @@ dbc install mysql
 
 with `uv` you can run `dbc` directly:
 ```sh
-uv tool run dbc install sqlite
+uv tool run dbc install mysql
 ```
-Note that **we do not detect sqllite** driver [installed via Python package](https://arrow.apache.org/adbc/current/driver/sqlite.html)
 
-You must set have correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
+You must have the correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
 `dlt` will convert parquet into INSERT statements.
-
-Note: The following arrow data types are NOT supported by the **sqlite**:
-* decimal types
-* time type
 
 We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
 
 :::caution
-It looks like ADBC driver is based on go mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
+The ADBC driver is based on go-mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
 :::
+
+#### Why ADBC is not supported for SQLite
+
+ADBC is disabled for SQLite because Python's `sqlite3` module and `adbc_driver_sqlite` bundle different SQLite library versions.
+When both libraries operate on the same database file in WAL mode, they have conflicting memory-mapped views of the
+WAL index file (`-shm`), causing data corruption. See [TensorBoard issue #1467](https://github.com/tensorflow/tensorboard/issues/1467)
+for details on this two-library conflict.
+
+For SQLite, parquet files are loaded using batch INSERT statements instead.
 
 ### Loading with SqlAlchemy batch INSERTs
 

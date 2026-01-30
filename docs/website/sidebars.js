@@ -69,7 +69,8 @@ const sidebars = {
       items: [
         'release-notes/1.12.1',
         'release-notes/1.13-1.14',
-        'release-notes/1.15'
+        'release-notes/1.15',
+        'release-notes/1.21.2'
       ]
     },
     {
@@ -230,6 +231,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
         'dlt-ecosystem/destinations/ducklake',
+        'dlt-ecosystem/destinations/fabric',
         'dlt-ecosystem/destinations/community-destinations',
         'walkthroughs/create-new-destination'
       ]
@@ -388,11 +390,15 @@ const sidebars = {
           type: "category",
           label: "Run in Snowflake",
           link: {
-            type: "doc",
-            id: "walkthroughs/run-in-snowflake/index",
+            type: 'generated-index',
+            title: 'Run in Snowflake',
+            description: 'How to run dlt in Snowflake.',
+            slug: 'run-in-snowflake',
+            keywords: ['Snowflake'],
           },
           items: [
-            "walkthroughs/run-in-snowflake/application-architecture"
+            "walkthroughs/run-in-snowflake/run-in-snowflake",
+            "walkthroughs/run-in-snowflake/database-connector-app"
           ]
         }
       ]
