@@ -611,6 +611,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
+        if self.load_storage.normalized_packages.has_abort_flag(load_id):
+            self._abort_package(load_id, schema)
+            return
         new_jobs = self.get_new_jobs_info(load_id)
         self.init_jobs_counter(load_id)
         running_jobs = self.initialize_package(load_id, schema, new_jobs)
@@ -689,6 +692,19 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 f"Package {load_id} was not fully loaded. Load job pool is successfully drained but"
                 f" {len(remaining_jobs)} new jobs are left in the package."
             )
+
+    def _abort_package(self, load_id: str, schema: Schema) -> None:
+        """Execute the abort operation for a package."""
+        logger.info(f"Aborting package {load_id} as requested")
+        self.load_storage.normalized_packages.abort_package(load_id)
+        metrics: LoadMetrics = {
+            "started_at": None,
+            "finished_at": None,
+            "job_metrics": {},
+        }
+        self._step_info_update_metrics(load_id, metrics)
+        self.complete_package(load_id, schema, aborted=True)
+        logger.info(f"Package {load_id} aborted successfully")
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool
