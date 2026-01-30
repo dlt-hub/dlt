@@ -449,7 +449,16 @@ def destinations_configs(
             DestinationTestConfiguration(destination_type=destination)
             for destination in SQL_DESTINATIONS
             if destination
-            not in ("athena", "synapse", "dremio", "clickhouse", "sqlalchemy", "ducklake", "fabric")
+            not in (
+                "athena",
+                "synapse",
+                "dremio",
+                "clickhouse",
+                "sqlalchemy",
+                "ducklake",
+                "fabric",
+                "motherduck",
+            )
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
@@ -457,6 +466,10 @@ def destinations_configs(
                 destination_type="ducklake",
                 supports_dbt=False,
                 credentials={"ducklake_name": f"ducklake_{worker}"},
+            ),
+            DestinationTestConfiguration(
+                destination_type="motherduck",
+                credentials={"database": f"dlt_test_{worker}"},
             ),
             DestinationTestConfiguration(
                 destination_type="motherduck",

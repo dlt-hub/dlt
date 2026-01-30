@@ -236,8 +236,8 @@ The following write dispositions are supported:
 
 ### Fast loading with parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql** and **sqlite**.
-MySQL driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
+The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mysql
@@ -245,22 +245,26 @@ dbc install mysql
 
 with `uv` you can run `dbc` directly:
 ```sh
-uv tool run dbc install sqlite
+uv tool run dbc install mysql
 ```
-Note that **we do not detect sqllite** driver [installed via Python package](https://arrow.apache.org/adbc/current/driver/sqlite.html)
 
-You must set have correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
+You must have the correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
 `dlt` will convert parquet into INSERT statements.
-
-Note: The following arrow data types are NOT supported by the **sqlite**:
-* decimal types
-* time type
 
 We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
 
 :::caution
-It looks like ADBC driver is based on go mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
+The ADBC driver is based on go-mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
 :::
+
+#### Why ADBC is not supported for SQLite
+
+ADBC is disabled for SQLite because Python's `sqlite3` module and `adbc_driver_sqlite` bundle different SQLite library versions.
+When both libraries operate on the same database file in WAL mode, they have conflicting memory-mapped views of the
+WAL index file (`-shm`), causing data corruption. See [TensorBoard issue #1467](https://github.com/tensorflow/tensorboard/issues/1467)
+for details on this two-library conflict.
+
+For SQLite, parquet files are loaded using batch INSERT statements instead.
 
 ### Loading with SqlAlchemy batch INSERTs
 

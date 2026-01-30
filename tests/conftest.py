@@ -4,6 +4,8 @@ import logging
 from typing import Dict, List, Any
 from pathlib import Path
 
+import pytest
+
 # patch which providers to enable
 from dlt.common.configuration.providers import (
     ConfigProvider,
@@ -51,6 +53,39 @@ class CachedGoogleSecretsProvider(GoogleSecretsProvider):
 from dlt.common.configuration.providers import google_secrets
 
 google_secrets.GoogleSecretsProvider = CachedGoogleSecretsProvider  # type: ignore[misc]
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_xdist_setupnodes(config, specs):
+    """Called on master before workers start. Pre-install DuckDB extensions to avoid
+    race conditions during concurrent auto-install by workers.
+    """
+    try:
+        import duckdb
+    except ImportError:
+        return
+
+    extensions = [
+        "avro",
+        "azure",
+        "delta",
+        "ducklake",
+        "httpfs",
+        "iceberg",
+        "lance",
+        "motherduck",
+        "parquet",
+        "postgres_scanner",
+        "spatial",
+        "sqlite_scanner",
+    ]
+
+    with duckdb.connect() as conn:
+        for ext in extensions:
+            try:
+                conn.execute(f"INSTALL {ext}")
+            except Exception:
+                pass  # extension might not be available
 
 
 def pytest_configure(config):
