@@ -58,7 +58,6 @@ jobs:
           - os: windows-latest
             python-version: "3.12"
             shell: cmd
-            pytest_args: '-m "not forked"'
 
     defaults:
       run:
@@ -101,8 +100,9 @@ jobs:
 
       # Run workspace dashboard unit tests
       - name: Run workspace dashboard unit tests
-        run: |
-          pytest tests/workspace/helpers/dashboard
+        run: make test-workspace-dashboard
+        env:
+          PYTEST_XDIST_N: auto
 
       # Run workspace dashboard e2e tests (does not pass with python 3.9
       - name: Run dashboard e2e

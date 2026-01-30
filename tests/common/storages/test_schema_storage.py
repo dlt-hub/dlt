@@ -18,7 +18,7 @@ from dlt.common.storages import (
     FileStorage,
 )
 
-from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import autouse_test_storage, get_test_storage_root
 from tests.common.storages.utils import prepare_eth_import_folder
 from tests.common.utils import (
     load_yml_case,
@@ -43,8 +43,8 @@ def synced_storage(request) -> SchemaStorage:
     return init_storage(
         request.param,
         SchemaStorageConfiguration(
-            import_schema_path=TEST_STORAGE_ROOT + "/import",
-            export_schema_path=TEST_STORAGE_ROOT + "/import",
+            import_schema_path=get_test_storage_root() + "/import",
+            export_schema_path=get_test_storage_root() + "/import",
         ),
     )
 
@@ -55,8 +55,8 @@ def ie_storage(request) -> SchemaStorage:
     return init_storage(
         request.param,
         SchemaStorageConfiguration(
-            import_schema_path=TEST_STORAGE_ROOT + "/import",
-            export_schema_path=TEST_STORAGE_ROOT + "/export",
+            import_schema_path=get_test_storage_root() + "/import",
+            export_schema_path=get_test_storage_root() + "/export",
         ),
     )
 

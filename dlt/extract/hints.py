@@ -40,7 +40,7 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
-    merge_table,
+    remove_compound_props,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -488,20 +488,14 @@ class DltResourceHints:
                     columns = ensure_table_schema_columns(columns)
                     # this updates all columns with defaults
                     assert isinstance(t["columns"], dict)
-                    t["columns"] = merge_columns(t["columns"], columns, merge_columns=True)
+                    t["columns"] = merge_columns(t["columns"], columns)
                 else:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
             if primary_key is not None:
-                if primary_key:
-                    t["primary_key"] = primary_key
-                else:
-                    t.pop("primary_key", None)
+                t["primary_key"] = primary_key
             if merge_key is not None:
-                if merge_key:
-                    t["merge_key"] = merge_key
-                else:
-                    t.pop("merge_key", None)
+                t["merge_key"] = merge_key
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
@@ -632,6 +626,9 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
+        remove_compound_props(partial["columns"], {hint})
+        if not keys:
+            return
         if isinstance(keys, str):
             keys = [keys]
         for key in keys:
@@ -645,7 +642,7 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_keys(dict_: TResourceHints) -> None:
-        """Merges primary and merge keys into columns in place."""
+        """Applies primary_key and merge_key hints to columns. Table-level hints override column-level settings."""
 
         if "primary_key" in dict_:
             DltResourceHints._merge_key("primary_key", dict_.pop("primary_key"), dict_)  # type: ignore

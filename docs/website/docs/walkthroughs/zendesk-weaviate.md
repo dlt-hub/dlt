@@ -134,54 +134,47 @@ We can now run a vector search query on the data we loaded into Weaviate. Create
 
 ```py
 import weaviate
-client = weaviate.Client(
-    url='YOUR_WEAVIATE_URL',
-    auth_client_secret=weaviate.AuthApiKey(
-        api_key='YOUR_WEAVIATE_API_KEY'
-    ),
-    additional_headers={
+
+# Connect to Weaviate v4 (for Weaviate Cloud Services)
+# Replace 'YOUR_WEAVIATE_HOST' with your actual host (e.g., 'your-cluster.weaviate.network')
+client = weaviate.connect_to_custom(
+    http_host='YOUR_WEAVIATE_HOST',
+    http_port=443,
+    http_secure=True,
+    grpc_host='YOUR_WEAVIATE_HOST',
+    grpc_port=50051,
+    grpc_secure=True,
+    auth_credentials=weaviate.auth.AuthApiKey('YOUR_WEAVIATE_API_KEY'),
+    headers={
         "X-OpenAI-Api-Key": 'YOUR_OPENAI_API_KEY'
     }
 )
 
-response = (
-    client.query
-    .get("ZendeskData_Tickets", ["subject", "description"])
-    .with_near_text({
-        "concepts": ["problems with password"],
-    })
-    .with_additional(["distance"])
-    .do()
-)
-
-print(response)
+try:
+    # Query the collection using v4 API
+    zendesk_collection = client.collections.get("ZendeskData_Tickets")
+    response = zendesk_collection.query.near_text(
+        query="problems with password",
+        limit=2,
+        return_properties=["subject", "description"],
+        return_metadata=["distance"]
+    )
+    
+    # Print results
+    for obj in response.objects:
+        print(obj.properties)
+        print(f"Distance: {obj.metadata.distance}")
+finally:
+    client.close()
 ```
 
-The above code instantiates a Weaviate client and performs a similarity search on the data we loaded. The query searches for tickets that are similar to the text “problems with password”. The output should be similar to:
+The above code instantiates a Weaviate client and performs a similarity search on the data we loaded. The query searches for tickets that are similar to the text "problems with password". The output should be similar to:
 
-```json
-{
-   "data": {
-      "Get": {
-         "ZendeskData_Tickets": [
-            {
-               "subject": "How do I change the password for my account?",
-               "description": "I forgot my password and I can't log in.",
-                "_additional": {
-                   "distance": 0.235
-                }
-            },
-            {
-               "subject": "I can't log in to my account.",
-               "description": "The credentials I use to log in don't work.",
-               "_additional": {
-                   "distance": 0.247
-               }
-            }
-         ]
-      }
-   }
-}
+```text
+{'subject': 'How do I change the password for my account?', 'description': "I forgot my password and I can't log in."}
+Distance: 0.235
+{'subject': "I can't log in to my account.", 'description': "The credentials I use to log in don't work."}
+Distance: 0.247
 ```
 
 ## Incremental loading

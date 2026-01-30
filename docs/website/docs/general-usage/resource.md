@@ -50,6 +50,10 @@ You can modify the generation process by using the table and column hints. The r
 1. `primary_key` and `merge_key`: define the name of the columns (compound keys are allowed) that will receive those hints. Used in [incremental loading](incremental-loading.md) and [merge loading](merge-loading.md).
 1. `columns`: lets you define one or more columns, including the data types, nullability, and other hints. The column definition is a `TypedDict`: `TTableSchemaColumns`. In the example below, we tell `dlt` that the column `tags` (containing a list of tags) in the `user` table should have type `json`, which means that it will be loaded as JSON/struct and not as a separate nested table.
 
+:::tip
+When using `primary_key`, `merge_key`, or `columns`, be aware of the [precedence and replacement rules of compound hints](schema.md#compound-hints).
+:::
+
   ```py
   @dlt.resource(name="user", columns={"tags": {"data_type": "json"}})
   def get_users():
@@ -184,8 +188,40 @@ def get_users():
     ...
 ```
 
-`"skip_nested_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
-behavior of creating nested tables for these fields.
+The following `DltConfig` options are available:
+
+- `"skip_nested_types"`: Omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default behavior of creating nested tables for these fields.
+
+- `"return_validated_models"`: By default, when using a Pydantic model for validation, dlt converts the validated model instances to dictionaries before passing them downstream (e.g., to transformers). If you set this option to `True`, dlt will return the validated Pydantic model instances instead. This is useful when you want to work with Pydantic models in transformers without having to reconstruct them from dictionaries.
+
+Example with `return_validated_models`:
+
+```py
+from typing import ClassVar
+from pydantic import BaseModel
+from dlt.common.libs.pydantic import DltConfig
+import dlt
+
+class SimpleUser(BaseModel):
+    id: int
+    name: str
+    dlt_config: ClassVar[DltConfig] = {"return_validated_models": True}
+
+@dlt.resource(columns=User)
+def simple_users():
+    yield {"id": 1, "name": "Alice"}
+    yield SimpleUser(id=2, name="Bob")
+
+@dlt.transformer(data_from=simple_users)
+def process_users(user: SimpleUser):
+    # user is a Pydantic model instance, not a dict
+    print(f"Processing user: {user.name}")
+    yield user
+
+# Transformers receive User model instances directly
+pipeline = dlt.pipeline(destination="duckdb")
+pipeline.run(process_users)
+```
 
 We do not support `RootModel` that validate simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
 
@@ -860,4 +896,3 @@ You can also [fully drop the tables](pipeline.md#refresh-pipeline-data-and-state
 ```py
 p.run(merge_source(), refresh="drop_sources")
 ```
-

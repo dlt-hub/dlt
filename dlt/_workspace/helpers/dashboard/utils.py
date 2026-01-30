@@ -283,7 +283,7 @@ def create_column_list(
                 **{hint: column.get(hint, None) for hint in c.column_other_hints},
             }
 
-        # show custom hints (x-) if requesed
+        # show custom hints (x-) if requested
         if show_custom_hints:
             for key in column:
                 if key.startswith("x-"):

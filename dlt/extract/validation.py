@@ -39,19 +39,27 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
 
         from dlt.common.libs.pydantic import validate_and_filter_item, validate_and_filter_items
 
+        cfg = getattr(self.model, "dlt_config", {}) or {}
+        return_models = cfg.get("return_validated_models", False)
+
         if isinstance(item, list):
-            return [
-                model.dict(by_alias=True)
-                for model in validate_and_filter_items(
-                    self.table_name, self.list_model, item, self.column_mode, self.data_mode
-                )
-            ]
-        item = validate_and_filter_item(
+            validated_list = validate_and_filter_items(
+                self.table_name, self.list_model, item, self.column_mode, self.data_mode
+            )
+            if return_models:
+                return validated_list
+            return [m.dict(by_alias=True) for m in validated_list]
+
+        validated = validate_and_filter_item(
             self.table_name, self.model, item, self.column_mode, self.data_mode
         )
-        if item is not None:
-            item = item.dict(by_alias=True)
-        return item
+        if validated is None:
+            return None
+
+        if return_models:
+            return validated
+
+        return validated.dict(by_alias=True)
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
         return f"PydanticValidator(model={self.model.__qualname__})"

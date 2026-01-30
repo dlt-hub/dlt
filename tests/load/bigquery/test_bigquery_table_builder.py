@@ -1,6 +1,7 @@
 import os
+import re
 from copy import deepcopy
-from typing import Iterator, Dict, Any, List
+from typing import Iterator, Dict, Any, List, Union
 
 import google
 import pytest
@@ -161,6 +162,66 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col2` FLOAT64  NOT NULL" in sql
 
 
+@pytest.mark.parametrize(
+    "partition_col_index,partition_col_name",
+    [
+        (9, "col10"),  # date
+        (3, "col4"),  # timestamp
+        (0, "col1"),  # bigint
+    ],
+    ids=["date", "timestamp", "bigint"],
+)
+def test_alter_table_with_partition_skips_partition_clause(
+    gcp_client: BigQueryClient, partition_col_index: int, partition_col_name: str
+) -> None:
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[partition_col_index]["partition"] = True
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, True)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert sql.startswith("ALTER TABLE")
+    assert "PARTITION BY" not in sql
+    assert f"ADD COLUMN `{partition_col_name}`" in sql
+
+
+def test_alter_table_with_adapter_partition_skips_partition_clause() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+        }
+
+    bigquery_adapter(
+        partitioned_table,
+        partition=bigquery_partition.range_bucket(
+            column_name="user_id",
+            start=0,
+            end=1000000,
+            interval=10000,
+        ),
+    )
+
+    pipeline = dlt.pipeline(
+        "bigquery_test",
+        destination="bigquery",
+        dev_mode=True,
+    )
+
+    pipeline.extract(partitioned_table)
+    pipeline.normalize()
+
+    with pipeline.destination_client() as client:
+        sql = client._get_table_update_sql(  # type: ignore[attr-defined]
+            "partitioned_table",
+            list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
+            True,
+        )[0]
+
+    assert sql.startswith("ALTER TABLE")
+    assert "PARTITION BY" not in sql
+    assert "RANGE_BUCKET" not in sql
+
+
 def test_create_table_case_insensitive(ci_gcp_client: BigQueryClient) -> None:
     # in case insensitive mode
     assert ci_gcp_client.capabilities.has_case_sensitive_identifiers is False
@@ -290,6 +351,23 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
 
     expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
     assert expected_clause in sql_partitioned
+
+
+def test_adapter_hints_comprehensive_single_column() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+            "created_at": "2021-01-01T00:00:00Z",
+            "category": "category 1",
+            "score": 100.0,
+        }
+
+    bigquery_adapter(partitioned_table, partition="user_id", cluster="user_id")
+    assert partitioned_table.columns == {
+        "user_id": {"name": "user_id", PARTITION_HINT: True, CLUSTER_HINT: True},
+    }
 
 
 @pytest.mark.parametrize(
@@ -532,6 +610,76 @@ def test_bigquery_no_partition_by_integer(
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
             assert not has_partitions
+
+
+@pytest.mark.parametrize(
+    "description,expect_column_options",
+    [
+        ("This is a test description for column col1", True),
+        (None, False),
+        ("", False),
+    ],
+)
+def test_bigquery_column_description(
+    gcp_client: BigQueryClient, description: Union[str, None], expect_column_options: bool
+) -> None:
+    columns = deepcopy(TABLE_UPDATE)
+    columns[0]["description"] = description
+
+    sql = gcp_client._get_table_update_sql("event_test_table", columns, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert "event_test_table" in sql
+
+    if expect_column_options:
+        assert (re.search(r"OPTIONS \(description='.*'\)", sql)) is not None
+    else:
+        assert "OPTIONS" not in sql
+
+
+def test_bigquery_column_description_character_escaping(gcp_client: BigQueryClient) -> None:
+    columns = deepcopy(TABLE_UPDATE)
+    for column in columns:
+        column["description"] = "'';) DROP TABLE --"
+
+    sql = gcp_client._get_table_update_sql("event_test_table", columns, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert "event_test_table" in sql
+    assert r"OPTIONS (description='\'\';) DROP TABLE --')" in sql
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_bigquery_with_column_description_and_rounding_mode_hints(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(
+        columns=[
+            {
+                "name": "col1",
+                "data_type": "wei",
+                "description": "This is a test description for column col1",
+            }
+        ]
+    )
+    def some_data() -> Iterator[Dict[str, int]]:
+        yield from [{"col1": i} for i in range(10)]
+
+    bigquery_adapter(some_data, round_half_away_from_zero="col1")
+
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
+    pipeline.run(some_data())
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT * FROM INFORMATION_SCHEMA.COLUMN_FIELD_PATHS WHERE table_name = 'some_data' AND"
+            " column_name = 'col1'"
+        ) as cur:
+            column_info = cur.fetchone()
+            assert column_info is not None
+            assert column_info["description"] == "This is a test description for column col1"  # type: ignore[call-overload]
+            assert column_info["rounding_mode"] == "ROUND_HALF_AWAY_FROM_ZERO"  # type: ignore[call-overload]
 
 
 def test_adapter_no_hints_parsing() -> None:
@@ -999,6 +1147,36 @@ def test_adapter_hints_clustering(
 
         assert not no_hints_cluster_fields, "`no_hints` table IS clustered by `col1`."
         assert ["col1"] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_clustering_and_partitioning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
+    def data() -> Iterator[Dict[str, str]]:
+        yield from [{"col1": str(i)} for i in range(10)]
+
+    bigquery_adapter(data, partition="col1", cluster="col1")
+
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
+    pipeline.run(data)
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+        fqtn = c.make_qualified_table_name("data", quote=False)
+        table = nc.get_table(fqtn)
+
+        assert table.clustering_fields == [
+            "col1"
+        ], f"Expected clustering fields ['col1'], got {table.clustering_fields}"
+        assert (
+            table.range_partitioning is not None and table.range_partitioning.field == "col1"
+        ), f"Expected partition field 'col1', got {table.range_partitioning}"
 
 
 def test_adapter_hints_empty() -> None:
