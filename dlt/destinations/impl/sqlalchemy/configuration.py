@@ -59,19 +59,25 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
 
     def borrow_conn(self) -> "Connection":
         if getattr(self, "_conn_owner", None) is False:
+            return self.engine.connect()
+
+        if not hasattr(self, "_conn_lock"):
+            self._conn_lock = threading.Lock()
+
+        # obtain a lock because we have refcount concurrency
+        with self._conn_lock:
             engine_ = self.engine
-        else:
-            if not hasattr(self, "_conn_lock"):
-                self._conn_lock = threading.Lock()
+            # track open connections to properly close it
+            self._conn_borrows += 1
 
-            # obtain a lock because we have refcount concurrency
+        try:
+            return engine_.connect()
+        except Exception:
             with self._conn_lock:
-                engine_ = self.engine
-                # track open connections to properly close it
-                self._conn_borrows += 1
-
-        # print(f"GETTING conn refcnt {self._conn_borrows} at {id(self)}")
-        return engine_.connect()
+                self._conn_borrows -= 1
+                if self._conn_borrows == 0 and self._conn_owner:
+                    self._delete_conn()
+            raise
 
     def return_conn(self, borrowed_conn: "Connection") -> None:
         if getattr(self, "_conn_owner", None) is False:
