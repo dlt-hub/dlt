@@ -30,9 +30,7 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
         "binary": "BINARY",
         "time": "TIME",
-        "decimal": (
-            "DECIMAL"
-        ),  # this is the default, `to_db_decimal_type` might convert to DECFLOAT if configured
+        "decimal": "DECIMAL",
     }
 
     sct_to_dbt = {
@@ -52,17 +50,17 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "BINARY": "binary",
         "VARIANT": "json",
         "TIME": "time",
-        "DECFLOAT": "decimal",  # DECFLOAT is always handled as decimal internally
+        "DECFLOAT": "decimal",
         "DECIMAL": "decimal",
     }
 
     def __init__(
         self,
         capabilities: DestinationCapabilitiesContext,
-        config: Optional[SnowflakeClientConfiguration] = None,
+        use_decfloat: bool = False,
     ) -> None:
         super().__init__(capabilities)
-        self.client_config = config  # store client config for possible dynamic conversion
+        self.use_decfloat = use_decfloat
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -108,23 +106,14 @@ class SnowflakeTypeMapper(TypeMapperImpl):
     def decimal_precision(
         self, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> Optional[Tuple[int, int]]:
-        # prevent default precision fallback when unbound decimal to DECFLOAT conversion is enabled
-        if (
-            self.client_config
-            and self.client_config.unbound_decimal_to_decfloat
-            and precision is None
-            and scale is None
-        ):
+        # when use_decfloat is enabled, unbound decimals map to DECFLOAT (no precision)
+        if self.use_decfloat and precision is None and scale is None:
             return None
         return super().decimal_precision(precision, scale)
 
     def to_db_decimal_type(self, column: TColumnSchema) -> str:
         precision_tup = self.decimal_precision(column.get("precision"), column.get("scale"))
-        if (
-            self.client_config
-            and self.client_config.unbound_decimal_to_decfloat
-            and precision_tup is None
-        ):
+        if self.use_decfloat and precision_tup is None:
             return "DECFLOAT"
         return super().to_db_decimal_type(column)
 
@@ -183,6 +172,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         csv_format: Optional[CsvFormatConfiguration] = None,
         query_tag: Optional[str] = None,
         create_indexes: bool = False,
+        use_decfloat: bool = False,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -199,6 +189,9 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             csv_format (Optional[CsvFormatConfiguration]): Optional csv format configuration
             query_tag (Optional[str]): A tag with placeholders to tag sessions executing jobs
             create_indexes (bool, optional): Whether UNIQUE or PRIMARY KEY constrains should be created
+            use_decfloat (bool, optional): Whether to use DECFLOAT type for unbound decimals. DECFLOAT stores
+                exact decimal values with up to 36 significant digits and a dynamic exponent.
+                Only works with text-based staging formats (jsonl, csv) - not parquet.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any, optional): Additional arguments forwarded to the destination config
@@ -210,6 +203,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             csv_format=csv_format,
             query_tag=query_tag,
             create_indexes=create_indexes,
+            use_decfloat=use_decfloat,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
