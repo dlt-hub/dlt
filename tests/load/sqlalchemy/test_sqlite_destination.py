@@ -35,27 +35,29 @@ def test_inmemory_database_passing_engine() -> None:
         poolclass=sa.pool.StaticPool,
     )
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_pipeline_sqlite_inmemory" + uniq_id(),
-        destination=dlt_sqlalchemy(engine),
-        dataset_name="main",
-    )
+    try:
+        pipeline = dlt.pipeline(
+            pipeline_name="test_pipeline_sqlite_inmemory" + uniq_id(),
+            destination=dlt_sqlalchemy(engine),
+            dataset_name="main",
+        )
 
-    info = pipeline.run(some_data(), table_name="inmemory_table")
+        info = pipeline.run(some_data(), table_name="inmemory_table")
 
-    assert_load_info(info)
-    assert assert_engine_not_disposed(engine)
+        assert_load_info(info)
+        assert assert_engine_not_disposed(engine)
 
-    with engine.connect() as conn:
-        rows = conn.execute(
-            sa.text("SELECT content FROM inmemory_table ORDER BY content")
-        ).fetchall()
+        with engine.connect() as conn:
+            rows = conn.execute(
+                sa.text("SELECT content FROM inmemory_table ORDER BY content")
+            ).fetchall()
 
-    actual_values = [row[0] for row in rows]
-    expected_values = [row["content"] for row in output]
+        actual_values = [row[0] for row in rows]
+        expected_values = [row["content"] for row in output]
 
-    assert actual_values == expected_values
-    engine.dispose()
+        assert actual_values == expected_values
+    finally:
+        engine.dispose()
 
 
 def test_file_based_database_with_engine_kwargs() -> None:
@@ -84,3 +86,17 @@ def test_file_based_database_with_engine_kwargs() -> None:
     info = pipeline.run(some_data(), table_name="file_table")
 
     assert_load_info(info)
+
+    verify_engine = sa.create_engine(credentials)
+    try:
+        with verify_engine.connect() as conn:
+            rows = conn.execute(
+                sa.text("SELECT content FROM file_table ORDER BY content")
+            ).fetchall()
+
+        actual_values = [row[0] for row in rows]
+        expected_values = [row["content"] for row in output]
+
+        assert actual_values == expected_values
+    finally:
+        verify_engine.dispose()

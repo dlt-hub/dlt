@@ -1,8 +1,9 @@
+import logging
+import uuid
+from pathlib import Path
+
 import pytest
 import sqlalchemy as sa
-import logging
-from pathlib import Path
-import uuid
 
 from dlt.sources.sql_database import sql_database, sql_table
 
@@ -53,10 +54,13 @@ def test_engine_kwargs_sqlalchemy_echo(caplog, echo, expect_logs):
     test_dir.mkdir(parents=True, exist_ok=True)
     db_path = test_dir / "test.db"
 
-    engine = sa.create_engine(f"sqlite:///{db_path}")
-    with engine.connect() as conn:
-        conn.execute(sa.text("CREATE TABLE test_table (id INTEGER PRIMARY KEY, value TEXT)"))
-        conn.execute(sa.text("INSERT INTO test_table (value) VALUES ('x')"))
+    setup_engine = sa.create_engine(f"sqlite:///{db_path}")
+    try:
+        with setup_engine.connect() as conn:
+            conn.execute(sa.text("CREATE TABLE test_table (id INTEGER PRIMARY KEY, value TEXT)"))
+            conn.execute(sa.text("INSERT INTO test_table (value) VALUES ('x')"))
+    finally:
+        setup_engine.dispose()
 
     source = sql_database(
         credentials=f"sqlite:///{db_path}",
@@ -64,12 +68,19 @@ def test_engine_kwargs_sqlalchemy_echo(caplog, echo, expect_logs):
         engine_kwargs={"echo": echo},
     )
 
-    with caplog.at_level(logging.INFO):
+    # Do not force log level here — echo=True sets sqlalchemy.engine to INFO,
+    # echo=False leaves it at WARNING, which is exactly what we want to verify.
+    with caplog.at_level(logging.DEBUG):
         list(source.resources["test_table"])
 
-    logs = " ".join(r.message.lower() for r in caplog.records)
+    engine_logs = [
+        r.message.lower()
+        for r in caplog.records
+        if r.name.startswith("sqlalchemy.engine")
+    ]
+    logs = " ".join(engine_logs)
 
     if expect_logs:
         assert "select" in logs or "pragma" in logs or "raw sql" in logs
     else:
-        assert logs == ""
+        assert len(engine_logs) == 0
