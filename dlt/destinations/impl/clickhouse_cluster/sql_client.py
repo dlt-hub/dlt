@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, cast
 
 import clickhouse_connect
 
@@ -7,6 +7,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
+    CREATE_DISTRIBUTED_TABLES_HINT,
     SHARDING_KEY_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
 )
@@ -73,6 +74,33 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
             with self.with_alternative_database_name(self.distributed_tables_database_name):
                 self.drop_tables(*self._list_tables())
 
+    @staticmethod
+    def get_distributed_table_name(table_schema: PreparedTableSchema) -> str:
+        assert DISTRIBUTED_TABLE_SUFFIX_HINT in table_schema
+        suffix = cast(str, table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT])  # type: ignore[typeddict-item]
+        return table_schema["name"] + suffix
+
+    def get_select_table_name(
+        self, table_schema: PreparedTableSchema, qualify: bool = False, staging: bool = False
+    ) -> str:
+        table_name = (
+            self.get_distributed_table_name(table_schema)
+            if table_schema.get(CREATE_DISTRIBUTED_TABLES_HINT)
+            else table_schema["name"]
+        )
+        if qualify:
+            if staging:
+                with self.with_staging_dataset():
+                    table_name = self.make_qualified_table_name(table_name)
+            else:
+                table_name = self.make_qualified_table_name(table_name)
+        return table_name
+
+    def get_insert_table_name(
+        self, table_schema: PreparedTableSchema, qualify: bool = False
+    ) -> str:
+        return self.get_select_table_name(table_schema, qualify=qualify)
+
     def _insert_file_table(self, table_name: str, database_name: str) -> str:
         with self.with_alternative_database_name(database_name):
             return self.make_qualified_table_name(table_name)
@@ -103,7 +131,7 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         table_name = table_schema["name"]
 
         # generate CREATE TABLE sql
-        dist_table_name = table_name + table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT]  # type: ignore[typeddict-item]
+        dist_table_name = self.get_distributed_table_name(table_schema)
         with self.with_alternative_database_name(self.distributed_tables_database_name):
             qual_dist_table_name = self.make_qualified_table_name(dist_table_name)
         create_table_sql = self._make_create_table(qual_dist_table_name, or_replace=True)

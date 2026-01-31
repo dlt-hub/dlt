@@ -37,10 +37,7 @@ class ClickHouseClusterLoadJob(ClickHouseLoadJob):
 
     @property
     def load_table_name(self) -> str:
-        table_name = super().load_table_name
-        if self.load_into_distributed_table:
-            table_name += self._load_table[DISTRIBUTED_TABLE_SUFFIX_HINT]  # type: ignore[typeddict-item]
-        return table_name
+        return self._job_client.sql_client.get_insert_table_name(self._load_table)
 
     @property
     def load_database_name(self) -> str:
@@ -67,20 +64,6 @@ class ClickHouseClusterClient(ClickHouseClient):
     @property
     def load_job_class(self) -> type[ClickHouseClusterLoadJob]:
         return ClickHouseClusterLoadJob
-
-    @staticmethod
-    def get_distributed_table_name(table_schema: PreparedTableSchema) -> str:
-        assert DISTRIBUTED_TABLE_SUFFIX_HINT in table_schema
-        suffix = cast(str, table_schema[DISTRIBUTED_TABLE_SUFFIX_HINT])  # type: ignore[typeddict-item]
-        return table_schema["name"] + suffix
-
-    def get_select_table_name(self, table_name: str) -> str:
-        table_schema = self.prepare_load_table(table_name)
-        return (
-            self.get_distributed_table_name(table_schema)
-            if table_schema.get(CREATE_DISTRIBUTED_TABLES_HINT)
-            else table_name
-        )
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)

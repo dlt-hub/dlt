@@ -35,8 +35,13 @@ def _normalize_query(
             # expand named of known tables. this is currently clickhouse things where
             # we use dataset.table in queries but render those as dataset___table
             if sqlglot_schema.column_names(node):
+                select_table_name = destination_client.sql_client.get_select_table_name(
+                    destination_client.prepare_load_table(node.name)
+                )
                 expanded_path = destination_client.sql_client.make_qualified_table_name_path(
-                    destination_client.get_select_table_name(node.name), quote=False, casefold=False
+                    select_table_name,
+                    quote=False,
+                    casefold=False,
                 )
                 # set the table name
                 if node.name != expanded_path[-1]:

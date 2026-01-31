@@ -23,6 +23,7 @@ from typing import (
     ClassVar,
     Literal,
     Tuple,
+    Union,
     cast,
 )
 
@@ -144,8 +145,12 @@ class ClickHouseSqlClient(
     def _gen_insert_deduplication_token(self) -> str:
         return str(uuid.uuid4())
 
-    def _make_insert_into(self, qualified_table_name: str, columns: Optional[str] = None) -> str:
-        sql = super()._make_insert_into(qualified_table_name, columns)
+    def _make_insert_into(
+        self,
+        table: Union[str, PreparedTableSchema],
+        columns: Optional[Union[str, Sequence[str]]] = None,
+    ) -> str:
+        sql = super()._make_insert_into(table, columns)
         insert_deduplication_token = self._gen_insert_deduplication_token()
         sql += f" SETTINGS insert_deduplication_token = '{insert_deduplication_token}'"
         return sql

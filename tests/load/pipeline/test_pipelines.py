@@ -535,7 +535,7 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     client = p.destination_client()
     assert isinstance(client, WithSqlClient)
     simple_rows_table = client.sql_client.make_qualified_table_name(
-        client.get_select_table_name("simple_rows")
+        client.sql_client.get_select_table_name(client.prepare_load_table("simple_rows"))
     )
     dlt_loads_table = client.sql_client.make_qualified_table_name(schema.loads_table_name)
     assert_query_column(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)

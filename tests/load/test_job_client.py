@@ -550,8 +550,9 @@ def test_data_writer_load(
     rows, table_name = prepare_schema(client, "simple_row")
     root_table = client.schema.get_table(table_name)
     root_table["table_format"] = client.destination_config.table_format
-    select_table_name = client.get_select_table_name(table_name)
-    qual_select_table_name = client.sql_client.make_qualified_table_name(select_table_name)
+    qual_select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name), qualify=True
+    )
     # write only first row
     with io.BytesIO() as f:
         write_dataset(
@@ -608,8 +609,9 @@ def test_data_writer_string_escape(
     expect_load_file(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format
     )
-    select_table_name = client.get_select_table_name(table_name)
-    qual_select_table_name = client.sql_client.make_qualified_table_name(select_table_name)
+    qual_select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name), qualify=True
+    )
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {qual_select_table_name}")[0]
     assert list(db_row) == list(row.values())
 
@@ -636,8 +638,9 @@ def test_data_writer_string_escape_edge(
     expect_load_file(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format
     )
-    select_table_name = client.get_select_table_name(table_name)
-    qual_select_table_name = client.sql_client.make_qualified_table_name(select_table_name)
+    qual_select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name), qualify=True
+    )
     for i in range(1, len(rows) + 1):
         db_row = client.sql_client.execute_sql(
             f"SELECT str FROM {qual_select_table_name} WHERE idx = {i}"
@@ -680,7 +683,9 @@ def test_load_with_all_types(
     client.schema._bump_version()
     client.update_stored_schema()
 
-    select_table_name = client.get_select_table_name(table_name)
+    select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name)
+    )
     if isinstance(client, WithStagingDataset):
         should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)
         if should_load_to_staging:
@@ -832,8 +837,9 @@ def test_write_dispositions(
                 )
                 query = f.getvalue()
             expect_load_file(client, file_storage, query, t, file_format=prepared_root_table.get("file_format"))  # type: ignore[arg-type]
-            select_table_name = client.get_select_table_name(t)
-            qual_select_table_name = client.sql_client.make_qualified_table_name(select_table_name)
+            qual_select_table_name = client.sql_client.get_select_table_name(
+                client.prepare_load_table(t), qualify=True
+            )
             db_rows = list(
                 client.sql_client.execute_sql(
                     f"SELECT * FROM {qual_select_table_name} ORDER BY col1 ASC"
@@ -1037,8 +1043,9 @@ def test_many_schemas_single_dataset(
         expect_load_file(
             _client, file_storage, query, "event_user", file_format=destination_config.file_format
         )
-        select_table_name = _client.get_select_table_name("event_user")
-        qual_select_table_name = _client.sql_client.make_qualified_table_name(select_table_name)
+        qual_select_table_name = _client.sql_client.get_select_table_name(
+            _client.prepare_load_table("event_user"), qualify=True
+        )
         db_rows = list(_client.sql_client.execute_sql(f"SELECT * FROM {qual_select_table_name}"))
         assert len(db_rows) == expected_rows
 

@@ -17,11 +17,13 @@ from typing import (
     AnyStr,
     List,
     Generator,
+    Union,
     cast,
 )
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.typing import TFun, TypedDict, Self
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.typing import TColumnNames, TFun, TypedDict, Self
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
@@ -259,6 +261,25 @@ SELECT 1
             staging_table_name,
         )
 
+    def get_select_table_name(
+        self, table_schema: PreparedTableSchema, qualify: bool = False, staging: bool = False
+    ) -> str:
+        """Returns table name to use in SELECT SQL statements."""
+        table_name = table_schema["name"]
+        if qualify:
+            if staging:
+                with self.with_staging_dataset():
+                    table_name = self.make_qualified_table_name(table_name)
+            else:
+                table_name = self.make_qualified_table_name(table_name)
+        return table_name
+
+    def get_insert_table_name(
+        self, table_schema: PreparedTableSchema, qualify: bool = False
+    ) -> str:
+        """Returns table name to use in INSERT SQL statements."""
+        return self.get_select_table_name(table_schema, qualify)
+
     def escape_column_name(
         self, column_name: str, quote: bool = True, casefold: bool = True
     ) -> str:
@@ -349,6 +370,14 @@ SELECT 1
     def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
         return "", f"LIMIT {limit}"
 
+    def _make_escaped_column_sequence(
+        self, columns: TColumnNames, quote: bool = True, casefold: bool = True
+    ) -> str:
+        if isinstance(columns, str):
+            columns = [columns]
+        escaped_columns = [self.escape_column_name(column, quote, casefold) for column in columns]
+        return ", ".join(escaped_columns)
+
     def _make_create_table(
         self, qualified_name: str, or_replace: bool = False, if_not_exists: bool = False
     ) -> str:
@@ -359,10 +388,50 @@ SELECT 1
     def _make_alter_table(self, qualified_table_name: str) -> str:
         return f"ALTER TABLE {qualified_table_name}"
 
-    def _make_insert_into(self, qualified_table_name: str, columns: Optional[str] = None) -> str:
+    def _make_select_from(
+        self,
+        table_schema: PreparedTableSchema,
+        columns: Optional[Union[str, Sequence[str]]] = None,
+        staging: bool = False,
+    ) -> str:
+        """Returns start of SELECT FROM statement for the given table and optional columns.
+
+        Args:
+            table_schema: Schema for table to select from. Uses `get_select_table_name` to get
+                effective table name to select from.
+            columns: Optional columns to select from. If it's a string, it is used as is. If it's is
+                a sequence of strings, the column names are escaped and joined.
+            staging: If True, selects from staging table instead of main table.
+        """
+        table_name = self.get_select_table_name(table_schema, qualify=True, staging=staging)
         if columns:
-            return f"INSERT INTO {qualified_table_name} ({columns})"
-        return f"INSERT INTO {qualified_table_name}"
+            if not isinstance(columns, str):
+                columns = self._make_escaped_column_sequence(columns)
+            return f"SELECT {columns} FROM {table_name}"
+        return f"SELECT * FROM {table_name}"
+
+    def _make_insert_into(
+        self,
+        table: Union[str, PreparedTableSchema],
+        columns: Optional[Union[str, Sequence[str]]] = None,
+    ) -> str:
+        """Returns start of `INSERT INTO` statement for the given table and optional columns.
+
+        Args:
+            table: Table to insert into. If it's a `PreparedTableSchema`, table name from
+                `get_insert_table_name` is used.
+            columns: Optional columns to insert into. If it's a string, it is used as is. If it's is
+                a sequence of strings, the column names are escaped and joined.
+        """
+        table_name = (
+            table if isinstance(table, str) else self.get_insert_table_name(table, qualify=True)
+        )
+        if columns:
+            if not isinstance(columns, str):
+                columns = self._make_escaped_column_sequence(columns)
+        if columns:
+            return f"INSERT INTO {table_name} ({columns})"
+        return f"INSERT INTO {table_name}"
 
     def _make_delete_from(self, qualified_table_name: str) -> str:
         return f"DELETE FROM {qualified_table_name}"
@@ -388,10 +457,6 @@ class WithSqlClient(ABC):
     @abstractmethod
     def sql_client_class(self) -> Type[SqlClientBase[TNativeConn]]:
         pass
-
-    def get_select_table_name(self, table_name: str) -> str:
-        """Returns table name to use in SELECT SQL statements."""
-        return table_name
 
 
 class DBApiCursorImpl(DBApiCursor):

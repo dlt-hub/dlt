@@ -121,8 +121,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 ) from e
             return
 
-        qualified_table_name = client.make_qualified_table_name(self.load_table_name)
-
         if bucket_scheme in ("s3", "gs", "gcs"):
             if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
@@ -175,7 +173,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 f"ClickHouse loader does not support `{bucket_scheme}` filesystem.",
             )
 
-        sql = f"{client._make_insert_into(qualified_table_name)} SELECT * FROM {table_function}"
+        sql = f"{client._make_insert_into(self._load_table)} SELECT * FROM {table_function}"
         with client.begin_transaction():
             client.execute_sql(sql)
 

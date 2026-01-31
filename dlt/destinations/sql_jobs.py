@@ -93,19 +93,13 @@ class SqlStagingFollowupJob(SqlFollowupJob):
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
-            with sql_client.with_staging_dataset():
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            columns = ", ".join(
-                map(
-                    sql_client.escape_column_name,
-                    get_columns_names_with_prop(table, "name"),
-                )
-            )
             if truncate_first:
-                sql.append(sql_client._truncate_table_sql(table_name))
-            insert_into = sql_client._make_insert_into(table_name, columns)
-            sql.append(f"{insert_into} SELECT {columns} FROM {staging_table_name}")
+                truncate_table_name = sql_client.make_qualified_table_name(table["name"])
+                sql.append(sql_client._truncate_table_sql(truncate_table_name))
+            columns = get_columns_names_with_prop(table, "name")
+            insert_into = sql_client._make_insert_into(table, columns)
+            select_from = sql_client._make_select_from(table, columns, staging=True)
+            sql.append(f"{insert_into} {select_from}")
         return sql
 
 
@@ -572,14 +566,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         - no `merge_key`: retire all absent records
         - yes `merge_key`: retire absent records whose `merge_key` is present in staging data
         """
-
-        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
-            root_table["name"]
-        )
+        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
         retire_sql = f"""
             {cls.gen_update_table_prefix(root_table_name, sql_client)} {validity_to_column} = {boundary_literal}
             WHERE {is_active_clause}
-            AND {row_hash_column} NOT IN (SELECT {row_hash_column} FROM {staging_root_table_name});
+            AND {row_hash_column} NOT IN ({sql_client._make_select_from(root_table, row_hash_column, staging=True)});
         """
         merge_keys = cls._escape_list(
             get_columns_names_with_prop(root_table, "merge_key"),
@@ -590,9 +581,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 key = merge_keys[0]
             else:
                 key = cls.gen_concat_sql(merge_keys)  # compound key
-            key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
-            retire_sql = retire_sql.rstrip().rstrip(";")
-            retire_sql += f" AND {key_present}"
+            key_present = (
+                f"{key} IN ({sql_client._make_select_from(root_table, key, staging=True)})"
+            )
+            retire_sql = retire_sql.rstrip().rstrip(";") + f" AND {key_present}"
         return retire_sql
 
     @classmethod
@@ -619,9 +611,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         if escape_lit is None:
             escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
 
-        # get top level table full identifiers
-        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
-            root_table["name"]
+        # get top level table full identifiers for DELETE operations
+        root_delete_table_name, staging_root_delete_table_name = (
+            sql_client.get_qualified_table_names(root_table["name"])
         )
 
         # get merge and primary keys from top level
@@ -646,14 +638,25 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
             if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
                 key_table_clauses = cls.gen_key_table_clauses(
-                    root_table_name, staging_root_table_name, key_clauses, for_delete=True
+                    root_delete_table_name,
+                    staging_root_delete_table_name,
+                    key_clauses,
+                    for_delete=True,
                 )
                 # if no nested tables, just delete data from root table
                 for clause in key_table_clauses:
                     sql.append(f"DELETE {clause}")
             else:
+                root_select_table_name, staging_root_select_table_name = (
+                    sql_client.get_qualified_table_names(
+                        sql_client.get_select_table_name(root_table)
+                    )
+                )
                 key_table_clauses = cls.gen_key_table_clauses(
-                    root_table_name, staging_root_table_name, key_clauses, for_delete=False
+                    root_select_table_name,
+                    staging_root_select_table_name,
+                    key_clauses,
+                    for_delete=False,
                 )
                 # use row_key or unique hint to create temp table with all identifiers to delete
                 row_key_column = escape_column_id(
@@ -696,7 +699,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 # delete from root table now that nested tables have been processed
                 sql.append(
                     cls.gen_delete_from_sql(
-                        root_table_name,
+                        root_delete_table_name,
                         row_key_column,
                         delete_temp_table_name,
                         row_key_column,
@@ -725,7 +728,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     insert_temp_table_name,
                 ) = cls.gen_insert_temp_table_sql(
                     root_table,
-                    staging_root_table_name,
+                    sql_client.get_select_table_name(root_table, qualify=True, staging=True),
                     sql_client,
                     primary_keys,
                     row_key_column,
@@ -738,8 +741,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # insert from staging to dataset
         for table in table_chain:
-            table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
-
             insert_cond = not_deleted_cond if hard_delete_col is not None else "1 = 1"
             if (len(primary_keys) > 0 and len(table_chain) > 1) or (
                 len(primary_keys) == 0
@@ -749,21 +750,24 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 uniq_column = root_key_column if is_nested_table(table) else row_key_column
                 insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
 
-            columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
-            col_str = ", ".join(columns)
-            select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
-            if len(primary_keys) > 0 and len(table_chain) == 1:
+            columns = get_columns_names_with_prop(table, "name")
+            insert_into = sql_client._make_insert_into(table, columns)
+            select_sql = (
                 # without nested tables we deduplicate inside the query instead of using a temp table
-                select_sql = cls.gen_select_from_dedup_sql(
-                    staging_table_name,
+                cls.gen_select_from_dedup_sql(
+                    sql_client.get_select_table_name(table, qualify=True, staging=True),
                     primary_keys,
-                    columns,
+                    list(map(escape_column_id, columns)),
                     dedup_sort,
                     insert_cond,
                     skip_dedup=skip_dedup,
                 )
-
-            insert_into = sql_client._make_insert_into(table_name, col_str)
+                if len(primary_keys) > 0 and len(table_chain) == 1
+                else (
+                    f"{sql_client._make_select_from(table, columns, staging=True)} WHERE"
+                    f" {insert_cond}"
+                )
+            )
             sql.append(f"{insert_into} {select_sql};")
         return sql
 
@@ -886,9 +890,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
         sql: List[str] = []
         root_table = table_chain[0]
-        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
-            root_table["name"]
-        )
 
         # get column names
         caps = sql_client.capabilities
@@ -946,10 +947,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         columns = map(escape_column_id, list(root_table["columns"].keys()))
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
-            {sql_client._make_insert_into(root_table_name, f"{col_str}, {from_}, {to}")}
-            SELECT {col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}
-            FROM {staging_root_table_name} AS s
-            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name} WHERE {is_active});
+            {sql_client._make_insert_into(root_table, f"{col_str}, {from_}, {to}")}
+            {sql_client._make_select_from(root_table, f"{col_str}, {boundary_literal} AS {from_}, {active_record_literal} AS {to}", staging=True)} AS s
+            WHERE {hash_} NOT IN ({sql_client._make_select_from(root_table, hash_)} WHERE {is_active});
         """)
 
         # insert list elements for new active records in nested tables
@@ -968,12 +968,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                         sql_client.fully_qualified_dataset_name(staging=True),
                     )
                 )
-                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""
-                    {sql_client._make_insert_into(table_name)}
-                    SELECT *
-                    FROM {staging_table_name}
-                    WHERE {row_key_column} NOT IN (SELECT {row_key_column} FROM {table_name});
+                    {sql_client._make_insert_into(table)}
+                    {sql_client._make_select_from(table, staging=True)}
+                    WHERE {row_key_column} NOT IN ({sql_client._make_select_from(table, row_key_column)});
                 """)
 
         return sql

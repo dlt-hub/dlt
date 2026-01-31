@@ -409,9 +409,11 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         now_ts = pendulum.now()
-        insert_into = self.sql_client._make_insert_into(name, self.loads_table_schema_columns)
+        table_schema = self.prepare_load_table(self.schema.loads_table_name)
+        insert_into = self.sql_client._make_insert_into(
+            table_schema, self.loads_table_schema_columns
+        )
         self.sql_client.execute_sql(
             f"{insert_into} VALUES(%s, %s, %s, %s, %s)",
             load_id,
@@ -853,9 +855,11 @@ WHERE """
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
         now_ts = pendulum.now()
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
-        insert_into = self.sql_client._make_insert_into(name, self.version_table_schema_columns)
+        table_schema = self.prepare_load_table(self.schema.version_table_name)
+        insert_into = self.sql_client._make_insert_into(
+            table_schema, self.version_table_schema_columns
+        )
         self.sql_client.execute_sql(
             f"{insert_into} VALUES (%s, %s, %s, %s, %s, %s)",
             schema.version,
