@@ -9,6 +9,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.storages.configuration import WithLocalFiles
+from dlt.common.warnings import DltDeprecationWarning
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine, Dialect, Connection
@@ -19,13 +20,34 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
     if TYPE_CHECKING:
         _engine: Optional["Engine"] = None
 
-    engine_args: Optional[Dict[str, Any]] = None  # dataclasses.field(default_factory=dict)
-    """Additional arguments passed to `sqlalchemy.create_engine`"""
+    engine_kwargs: Optional[Dict[str, Any]] = None
+    """Additional keyword arguments passed to `sqlalchemy.create_engine`"""
+
+    engine_args: Optional[Dict[str, Any]] = None
+    """DEPRECATED: use engine_kwargs instead"""
 
     def __init__(
         self, connection_string: Optional[Union[str, Dict[str, Any], "Engine"]] = None
     ) -> None:
         super().__init__(connection_string)  # type: ignore[arg-type]
+
+    def _resolve_engine_kwargs(self) -> Dict[str, Any]:
+        if self.engine_kwargs and self.engine_args:
+            raise ValueError(
+                "Both engine_kwargs and engine_args were provided. Use engine_kwargs only."
+            )
+
+        if self.engine_args and not self.engine_kwargs:
+            warnings.warn(
+                DltDeprecationWarning(
+                    "`engine_args` is deprecated; use `engine_kwargs` instead",
+                    since="1.21.0",
+                ),
+                stacklevel=2,
+            )
+            return self.engine_args
+
+        return self.engine_kwargs or {}
 
     def parse_native_representation(self, native_value: Any) -> None:
         from sqlalchemy.engine import Engine
@@ -40,21 +62,30 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
 
     def borrow_conn(self) -> "Connection":
         if getattr(self, "_conn_owner", None) is False:
+            return self.engine.connect()
+
+        if not hasattr(self, "_conn_lock"):
+            self._conn_lock = threading.Lock()
+
+        # obtain a lock because we have refcount concurrency
+        with self._conn_lock:
             engine_ = self.engine
-        else:
-            if not hasattr(self, "_conn_lock"):
-                self._conn_lock = threading.Lock()
+            # track open connections to properly close it
+            self._conn_borrows += 1
 
-            # obtain a lock because we have refcount concurrency
+        try:
+            return engine_.connect()
+        except Exception:
             with self._conn_lock:
-                engine_ = self.engine
-                # track open connections to properly close it
-                self._conn_borrows += 1
-
-        # print(f"GETTING conn refcnt {self._conn_borrows} at {id(self)}")
-        return engine_.connect()
+                self._conn_borrows -= 1
+                if self._conn_borrows == 0 and self._conn_owner:
+                    self._delete_conn()
+            raise
 
     def return_conn(self, borrowed_conn: "Connection") -> None:
+        if getattr(self, "_conn_owner", None) is False:
+            borrowed_conn.close()
+            return
         # close the borrowed conn
         with self._conn_lock:
             borrowed_conn.close()
@@ -81,7 +112,7 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         import sqlalchemy as sa
 
         # get existing or open and set new engine
-        engine_args = self.engine_args or {}
+        engine_kwargs = self._resolve_engine_kwargs()
         self._engine = getattr(
             self,
             "_engine",
@@ -89,7 +120,7 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         )
         if self._engine is None:
             self._engine = sa.create_engine(
-                self.to_url().render_as_string(hide_password=False), **engine_args
+                self.to_url().render_as_string(hide_password=False), **engine_kwargs
             )
         # set as owner if not yet set
         self._conn_owner = getattr(self, "_conn_owner", True)
@@ -138,8 +169,11 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
     create_primary_keys: bool = False
     """Whether PRIMARY KEY constrains should be created"""
 
+    engine_kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    """Additional keyword arguments passed to `sqlalchemy.create_engine`"""
+
     engine_args: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    """Additional arguments passed to `sqlalchemy.create_engine`"""
+    """DEPRECATED: use engine_kwargs instead"""
 
     def get_dialect(self) -> Type["Dialect"]:
         return self.credentials.get_dialect()
@@ -148,8 +182,24 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
         return self.credentials.get_backend_name()
 
     def on_resolved(self) -> None:
-        if not self.credentials.engine_args and self.engine_args:
-            self.credentials.engine_args = self.engine_args
+        if self.engine_kwargs and self.engine_args:
+            raise ValueError(
+                "Both engine_kwargs and engine_args were provided. Use engine_kwargs only."
+            )
+
+        if self.engine_args and not self.engine_kwargs:
+            warnings.warn(
+                DltDeprecationWarning(
+                    "`engine_args` is deprecated; use `engine_kwargs` instead",
+                    since="1.21.0",
+                ),
+                stacklevel=2,
+            )
+            self.engine_kwargs = self.engine_args
+
+        if self.engine_kwargs and not self.credentials.engine_kwargs:
+            self.credentials.engine_kwargs = self.engine_kwargs
+
         # resolve local file path for sqlite backends
         if self.credentials.drivername == "sqlite":
             db = self.credentials.database
