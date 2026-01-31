@@ -9,6 +9,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.storages.configuration import WithLocalFiles
+from dlt.common.warnings import DltDeprecationWarning
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine, Dialect, Connection
@@ -38,8 +39,10 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
 
         if self.engine_args and not self.engine_kwargs:
             warnings.warn(
-                "`engine_args` is deprecated; use `engine_kwargs` instead.",
-                DeprecationWarning,
+                DltDeprecationWarning(
+                    "`engine_args` is deprecated; use `engine_kwargs` instead",
+                    since="1.21.0",
+                ),
                 stacklevel=2,
             )
             return self.engine_args
@@ -186,8 +189,10 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
 
         if self.engine_args and not self.engine_kwargs:
             warnings.warn(
-                "`engine_args` is deprecated; use `engine_kwargs` instead.",
-                DeprecationWarning,
+                DltDeprecationWarning(
+                    "`engine_args` is deprecated; use `engine_kwargs` instead",
+                    since="1.21.0",
+                ),
                 stacklevel=2,
             )
             self.engine_kwargs = self.engine_args

@@ -186,6 +186,26 @@ with engine.connect() as conn:
     print(result.fetchall())
 ```
 
+### Database locking with `ATTACH DATABASE` on Windows
+When `dataset_name` is not `main`, dlt uses SQLite's `ATTACH DATABASE` to store each dataset in a separate file. On Windows, a second `ATTACH` on the same connection can lock indefinitely under concurrent access (e.g. when using the default parallel loading strategy).
+
+To work around this issue, use one of the following approaches:
+
+1. **Set `dataset_name` to `main`** so that no `ATTACH` is needed:
+   ```py
+   pipeline = dlt.pipeline(
+       pipeline_name='my_pipeline',
+       destination=dlt.destinations.sqlalchemy(credentials="sqlite:///my_data.db"),
+       dataset_name='main'
+   )
+   ```
+
+2. **Use sequential loading** to avoid concurrent `ATTACH` calls:
+   ```toml
+   [load]
+   workers=1
+   ```
+
 ## Notes on other dialects
 We tested this destination on **mysql**, **sqlite**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
