@@ -25,7 +25,6 @@ jobs:
 
   run_destinations_remote:
     name: dest | remote
-
     strategy:
         fail-fast: false
         matrix:
@@ -35,14 +34,19 @@ jobs:
             - name: athena
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
-              excluded_destination_configurations: "[\"athena-parquet-iceberg-no-staging-iceberg\", \"athena-parquet-iceberg-staging-iceberg\"]"
+              excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
 
-            # Athena iceberg (NOTE: same as athene with different configs disabled)
             - name: athena iceberg
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
-              excluded_destination_configurations: "[\"athena-no-staging\", \"athena-parquet-no-staging\"]"
+              excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
+              extras: "--extra athena"
+
+            - name: athena s3 tables
+              destinations: "[\"athena\"]"
+              filesystem_drivers: "[\"memory\"]"
+              excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
 
             # BigQuery
@@ -51,14 +55,13 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra bigquery --extra parquet"
 
-            
             # Clickhouse
             - name: clickhouse
               destinations: "[\"clickhouse\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--extra clickhouse --extra parquet"
 
-              
+
             # Databricks
             - name: databricks
               destinations: "[\"databricks\"]"
@@ -78,7 +81,8 @@ jobs:
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
               extras: "--extra az --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
-              post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+              post_install_commands: | # uv run pip install due to minimum version required by `pyiceberg`
+                uv run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
             - name: filesystem_gs_gdrive
               destinations: "[\"filesystem\"]"
@@ -93,19 +97,29 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra lancedb --extra parquet"
               post_install_commands: "uv run pip install openai"
+              always_run_all_tests: true
 
             # Motherduck
             - name: motherduck
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
+              xdist_workers: 1
+
+            # Ducklake
+            - name: ducklake
+              destinations: "[\"ducklake\"]"
+              filesystem_drivers: "[\"s3\", \"gs\", \"abfss\"]"
+              extras: "--extra ducklake --extra s3 --extra gs --extra az --extra parquet"
+              always_run_all_tests: true
 
             # MSSQL
             - name: mssql
               destinations: "[\"mssql\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet"
+              extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet --group adbc"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              post_install_commands: "uv run dbc install mssql"
               always_run_all_tests: true
 
             # Synapse
@@ -113,6 +127,13 @@ jobs:
               destinations: "[\"synapse\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra synapse --extra parquet"
+              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+
+            # Fabric
+            - name: fabric
+              destinations: "[\"fabric\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "--extra fabric"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
 
             # Postgres and Redshift (used to be test_destinations.yml)
@@ -125,7 +146,9 @@ jobs:
               destinations: "[\"postgres\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb"
+              post_install_commands: "uv pip install adbc-driver-postgresql"  # use adbc driver installation
               always_run_all_tests: true
+              xdist_workers: 3
 
             # Qdrant (disabled, because we do not have a test account atm, qdrant is tested with local version)
             # - name: qdrant
@@ -142,12 +165,29 @@ jobs:
     env:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
-        EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
-
+        EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS: ${{ matrix.excluded_destination_test_configuration_ids || '[]' }}
+        PYTEST_XDIST_N: 6
     defaults:
       run:
         shell: bash
     runs-on: "ubuntu-latest"
+
+    services:
+      # we need local postgres to run ducklake tests quickly
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_DB: dlt_data
+          POSTGRES_USER: loader
+          POSTGRES_PASSWORD: loader
+        ports:
+          - 5432:5432
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
 
@@ -159,12 +199,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10"
+          python-version: "3.11"
           activate-environment: true
           enable-cache: true
 
@@ -173,7 +213,7 @@ jobs:
         if: ${{ matrix.pre_install_commands }}
 
       - name: Install dependencies
-        run: uv sync --group sentry-sdk --group pipeline --group ibis --group providers ${{ matrix.extras }}
+        run: uv sync --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}
@@ -183,13 +223,13 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       # NOTE: essential tests are always run
-      - run: |
-          pytest tests/load --ignore tests/load/sources -m "essential"
-        name: Run essential tests Linux
+      - name: Run essential tests Linux
+        run: make test-dest-remote-essential
+        env:
+          PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
 
-      # NOTE: non-essential tests are run if the full test suite is requested or if the matrix item has always_run_all_tests set to true
-      # we want to run this step even if the essential tests fail
-      - run: |
-          pytest tests/load --ignore tests/load/sources -m "not essential"
-        name: Run non-essential tests Linux
+      - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
+        run: make test-dest-remote-nonessential
+        env:
+          PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}

@@ -1,0 +1,161 @@
+
+:root {
+  --marimo-heading-font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell;
+  --marimo-monospace-font: monospace;
+
+  /* dlt colors */
+  --dlt-color-lime: #c6d300;
+  --dlt-color-aqua: #59c1d5;
+  --dlt-color-purple: #191937;
+  --dlt-color-pink: #EE746D;
+
+  /* background colors */
+  --dlt-color-lime-background: #c6d30006;
+  --dlt-color-aqua-background: #59c1d503;
+  --dlt-color-purple-background: #19193706;
+
+  /* badge colors */
+  --grey-bg: #E0E0E0;
+  --grey-text: #555555;
+  --yellow-bg: #F2D6A2;
+  --yellow-text: #AD7F37;
+  --green-bg: #a8e4ac;
+  --green-text: #468A47;
+  --red-bg: #D47672;
+  --red-text: #FBE8E8;
+}
+
+/* Make headings bold */
+.markdown h1 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.markdown h2 {
+  color: var(--dlt-color-purple);
+}
+
+.markdown h3 {
+  font-weight: 600;
+  margin-bottom: 0;
+  padding-top: 0.5rem;
+  /* border-top: 1px dashed #ccc; */
+}
+
+
+
+/* Increase paragraph font size and change color */
+.paragraph {
+  font-size: 1.2rem;
+}
+
+.prose {
+  max-width: 100%;
+}
+
+
+/* add colors to cells */
+
+/* Default: all sections that have content get purple border and background */
+#App .marimo-cell .output-area:has(.section-marker.has-content) {
+  border: 1px dashed var(--dlt-color-purple);
+  background-color: var(--dlt-color-purple-background);
+}
+
+
+/* All cells with section markers and have content get margin-top */
+#App .marimo-cell .output-area:has(.section-marker.has-content) {
+  margin-top: 0.5rem;
+}
+
+
+/* Aqua sections - identified by section name in strings.py and the availability of content */
+#App .marimo-cell .output-area:has([data-section="workspace_home"].has-content),
+#App .marimo-cell .output-area:has([data-section="home_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="schema_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="state_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="loads_section"].has-content),
+#App .marimo-cell .output-area:has([data-section="data_quality_section"].has-content) {
+  background-color: var(--dlt-color-aqua-background);
+  border: 1px dashed var(--dlt-color-aqua);
+}
+
+marimo-callout-output .border {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Pipeline execution visualization styles */
+.pipeline-execution-container {
+  padding-top: 16px;
+  padding-bottom: 10px;
+}
+
+.pipeline-execution-layout {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.pipeline-execution-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pipeline-execution-timeline {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 0 0 40%;
+}
+
+.pipeline-execution-timeline-bar {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  height: 16px;
+}
+
+/* Note: .pipeline-execution-timeline-segment uses inline styles for dynamic width, color, and border-radius */
+
+.pipeline-execution-labels {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.pipeline-execution-badges {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Status badge styles */
+.status-badge {
+  padding: 6px 16px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.status-badge-yellow {
+  background-color: var(--yellow-bg);
+  color: var(--yellow-text);
+}
+
+.status-badge-green {
+  background-color: var(--green-bg);
+  color: var(--green-text);
+}
+
+.status-badge-red {
+  background-color: var(--red-bg);
+  color: var(--red-text);
+}
+
+.status-badge-grey {
+  background-color: var(--grey-bg);
+  color: var(--grey-text);
+}

@@ -1,25 +1,27 @@
+import decimal
 from copy import deepcopy
 import os
 import pytest
+from typing import cast
 from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common import pendulum
+from dlt.common.destination import TLoaderFileFormat
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.pipeline.utils import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 
-from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.pipeline.utils import assert_load_info, assert_query_column
 from tests.load.utils import (
-    TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES, table_update_and_row
 
 
 # mark all tests as essential, do not remove
@@ -204,7 +206,7 @@ def test_char_replacement_cs_naming_convention(
     rel_ = pipeline.dataset()["AMLPerFornyelseoe"]
     results = rel_.fetchall()
     assert len(results) == 1
-    assert "AmlSistUtfoertDato" in rel_.columns_schema
+    assert "AmlSistUtfoertDato" in rel_.columns
 
 
 @pytest.mark.parametrize(
@@ -233,10 +235,10 @@ def test_snowflake_use_vectorized_scanner(
     load_job_spy = mocker.spy(snowflake, "gen_copy_sql")
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
-    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    columns_schema, _ = table_update_and_row()
     expected_rows = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
 
-    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    @dlt.resource(table_name="data_types", write_disposition="merge", columns=columns_schema)
     def my_resource():
         nonlocal data_types
         yield [data_types] * 10
@@ -308,12 +310,85 @@ def test_snowflake_use_vectorized_scanner(
         db_row = list(db_rows[0])
         # "snowflake" does not parse JSON from parquet string so double parse
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row,
             expected_row=expected_rows,
-            schema=column_schemas,
+            schema=columns_schema,
             parse_json_strings=True,
-            timestamp_precision=6,
         )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_cluster_hints(destination_config: DestinationTestConfiguration) -> None:
+    from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
+
+    def get_cluster_key(sql_client: SnowflakeSqlClient, table_name: str) -> str:
+        with sql_client:
+            _catalog_name, schema_name, table_names = sql_client._get_information_schema_components(
+                table_name
+            )
+            qry = f"""
+                SELECT CLUSTERING_KEY FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = '{schema_name}'
+                AND TABLE_NAME = '{table_names[0]}'
+            """
+            return sql_client.execute_sql(qry)[0][0]
+
+    pipeline = destination_config.setup_pipeline("test_snowflake_cluster_hints", dev_mode=True)
+    sql_client = cast(SnowflakeSqlClient, pipeline.sql_client())
+    table_name = "test_snowflake_cluster_hints"
+
+    @dlt.resource(table_name=table_name)
+    def test_data():
+        return [
+            {"c1": 1, "c2": "a"},
+            {"c1": 2, "c2": "b"},
+        ]
+
+    # create new table with clustering
+    test_data.apply_hints(columns=[{"name": "c1", "cluster": True}])
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1")'
+
+    # change cluster hints on existing table without adding new column
+    test_data.apply_hints(columns=[{"name": "c2", "cluster": True}])
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1")'  # unchanged (no new column)
+
+    # add new column to existing table with pending cluster hints from previous run
+    test_data.apply_hints(columns=[{"name": "c3", "data_type": "bool"}])
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1","C2")'  # updated
+
+    # remove clustering from existing table
+    test_data.apply_hints(
+        columns=[
+            {"name": "c1", "cluster": False},
+            {"name": "c2", "cluster": False},
+            {"name": "c4", "data_type": "bool"},  # include new column to trigger alter
+        ]
+    )
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) is None
+
+    # add clustering to existing table (and add new column to trigger alter)
+    test_data.apply_hints(
+        columns=[
+            {"name": "c1", "cluster": True},
+            {"name": "c5", "data_type": "bool"},  # include new column to trigger alter
+        ]
+    )
+    info = pipeline.run(test_data(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert get_cluster_key(sql_client, table_name) == 'LINEAR("C1")'
 
 
 @pytest.mark.skip(reason="perf test for merge")
@@ -432,3 +507,236 @@ def test_snowflake_merge_time(destination_config):
     merge_time = time.time() - start_time
     print(f"Merge operation completed in {merge_time:.2f} seconds")
     assert_load_info(merge_info)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("loader_file_format", ["jsonl", "csv", "parquet"])
+def test_snowflake_decfloat_loading_and_schema(
+    destination_config: DestinationTestConfiguration,
+    loader_file_format: TLoaderFileFormat,
+) -> None:
+    """Load decimal data using DECFLOAT type and verify across file formats.
+
+    Text-based formats (jsonl, csv) work correctly: INFORMATION_SCHEMA shows DECFLOAT
+    and values round-trip through dataset().fetchall().
+
+    Parquet does NOT work: parquet maps unbound decimals to DECIMAL(38,9) which has only
+    29 integer digits. Values requiring DECFLOAT's full 36-digit range fail at normalize
+    because they overflow the fixed parquet precision.
+    """
+    snow_ = dlt.destinations.snowflake(use_decfloat=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_decfloat_loading",
+        dataset_name="decfloat_test_" + uniq_id(),
+        destination=snow_,
+    )
+
+    # Use values that exceed 128-bit integer range (2^127-1 ≈ 1.7e38) when unscaled.
+    # "1e35" has 36 digits total and its significand exceeds 128-bit capacity, proving
+    # DECFLOAT handles what a fixed-precision 128-bit decimal cannot.
+    val_large = decimal.Decimal("123456789012345678901234567890123456")  # 36 integer digits
+    val_small = decimal.Decimal("0.123456789012345678901234567890123456")  # 36 fractional digits
+
+    @dlt.resource(
+        table_name="decfloat_data",
+        columns=[{"name": "amount", "data_type": "decimal"}],
+    )
+    def decimal_data():
+        yield [
+            {"amount": val_small},
+            {"amount": val_large},
+        ]
+
+    if loader_file_format == "parquet":
+        # Parquet uses fixed-precision DECIMAL(38,9) → 29 integer digits max.
+        # Values exceeding 128-bit range can't be represented in parquet at all, so
+        # the pipeline fails at normalize. Use jsonl or csv for DECFLOAT's full range.
+        with pytest.raises(PipelineStepFailed):
+            pipeline.run(decimal_data(), loader_file_format=loader_file_format)
+        return
+
+    info = pipeline.run(decimal_data(), loader_file_format=loader_file_format)
+    assert_load_info(info)
+
+    # verify the column type in Snowflake's INFORMATION_SCHEMA is DECFLOAT
+    with pipeline.sql_client() as client:
+        _, schema_name, table_names = client._get_information_schema_components("decfloat_data")
+        rows = client.execute_sql(
+            "SELECT data_type FROM INFORMATION_SCHEMA.COLUMNS"
+            f" WHERE table_schema = '{schema_name}'"
+            f" AND table_name = '{table_names[0]}'"
+            " AND column_name = 'AMOUNT'"
+        )
+        assert rows[0][0] == "DECFLOAT"
+
+    # verify data via dataset() fetchall with increased precision context
+    with decimal.localcontext(decimal.Context(prec=38)):
+        rows = pipeline.dataset().decfloat_data.select("amount").order_by("amount").fetchall()
+    assert len(rows) == 2
+    assert rows[0][0] == val_small
+    assert rows[1][0] == val_large
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_decfloat_arrow_reading_not_supported(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """The arrow/df path does not correctly handle DECFLOAT columns.
+    The Snowflake connector logs 'unknown snowflake data type : DECFLOAT' and returns
+    a raw dict instead of Decimal. The DB-API path (fetchall()) works correctly."""
+    snow_ = dlt.destinations.snowflake(use_decfloat=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_decfloat_arrow",
+        dataset_name="decfloat_arrow_" + uniq_id(),
+        destination=snow_,
+    )
+
+    @dlt.resource(
+        table_name="decfloat_arrow",
+        columns=[
+            {"name": "amount", "data_type": "decimal"},
+            {"name": "label", "data_type": "text"},
+        ],
+    )
+    def decimal_data():
+        yield [{"amount": decimal.Decimal("42.5"), "label": "test"}]
+
+    info = pipeline.run(decimal_data(), loader_file_format="jsonl")
+    assert_load_info(info)
+
+    # DB-API path via dataset() works correctly
+    rows = pipeline.dataset().decfloat_arrow.select("amount").fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == decimal.Decimal("42.5")
+
+    # arrow path: Snowflake connector doesn't recognize DECFLOAT and returns a raw
+    # structured dict {'exponent': ..., 'significand': ...} instead of a proper Decimal.
+    # Using .arrow() directly to surface the underlying issue without pandas wrapping.
+    table = pipeline.dataset().decfloat_arrow.arrow()
+    assert table is not None
+    val = table.column("amount").to_pylist()[0]
+    assert not isinstance(
+        val, decimal.Decimal
+    ), f"Expected raw dict from arrow path, got Decimal: {val}"
+    assert isinstance(val, dict)
+    assert "exponent" in val and "significand" in val
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_decfloat_precision_preservation(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """DECFLOAT stores up to 36 significant digits. Standard DECIMAL(38,9) has only 29 integer
+    digits and 9 fractional, so it can't store a number with 36 significant digits without
+    truncation. This test loads such numbers and verifies exact round-trip.
+
+    Python's default decimal context has prec=28, but DECFLOAT supports 36 digits.
+    We must increase Python's precision context BEFORE fetching so the Snowflake connector
+    creates Decimal objects with full precision.
+    """
+    snow_ = dlt.destinations.snowflake(use_decfloat=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_decfloat_precision",
+        dataset_name="decfloat_prec_" + uniq_id(),
+        destination=snow_,
+    )
+
+    # 36-digit significant figures: can't fit in DECIMAL(38,9) without precision loss
+    # large number: 30 integer digits + 6 fractional = 36 significant digits
+    large_val = decimal.Decimal("123456789012345678901234567890.123456")
+    # small number: 36 fractional significant digits
+    small_val = decimal.Decimal("0.123456789012345678901234567890123456")
+
+    @dlt.resource(
+        table_name="decfloat_precision",
+        columns=[{"name": "val", "data_type": "decimal"}],
+    )
+    def precision_data():
+        yield [
+            {"val": large_val},
+            {"val": small_val},
+        ]
+
+    info = pipeline.run(precision_data(), loader_file_format="jsonl")
+    assert_load_info(info)
+
+    # The Snowflake connector creates Decimal objects using the current thread-local decimal
+    # context, so we MUST set extended precision BEFORE the fetch call.
+    with decimal.localcontext() as ctx:
+        ctx.prec = 38  # enough for DECFLOAT's 36 significant digits
+
+        rows = pipeline.dataset().decfloat_precision.select("val").order_by("val").fetchall()
+        assert len(rows) == 2
+
+        retrieved_small = rows[0][0]
+        retrieved_large = rows[1][0]
+
+        # verify exact round-trip: the values should survive with full precision
+        assert (
+            retrieved_small == small_val
+        ), f"Small value precision loss: {retrieved_small} != {small_val}"
+        assert (
+            retrieved_large == large_val
+        ), f"Large value precision loss: {retrieved_large} != {large_val}"
+
+        # verify addition with extended precision works correctly
+        total = retrieved_small + retrieved_large
+        expected_total = small_val + large_val
+        assert total == expected_total
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_decfloat_python_default_precision_warning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Demonstrate that Python's default decimal precision (28) is insufficient for DECFLOAT's
+    36-digit range. The Snowflake connector creates Decimal objects using the current context
+    during fetch, so fetching with prec=28 already truncates the value."""
+    snow_ = dlt.destinations.snowflake(use_decfloat=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_decfloat_default_prec",
+        dataset_name="decfloat_defprec_" + uniq_id(),
+        destination=snow_,
+    )
+
+    # 36 significant digits: exceeds Python's default prec=28
+    val_36_digits = decimal.Decimal("123456789012345678901234567890.123456")
+
+    @dlt.resource(
+        table_name="decfloat_defprec",
+        columns=[{"name": "val", "data_type": "decimal"}],
+    )
+    def precision_data():
+        yield [{"val": val_36_digits}]
+
+    info = pipeline.run(precision_data(), loader_file_format="jsonl")
+    assert_load_info(info)
+
+    # fetch with default Python precision (28): the connector truncates during fetch
+    rows = pipeline.dataset().decfloat_defprec.select("val").fetchall()
+    retrieved_default = rows[0][0]
+    # 36-digit number is already truncated to 28 significant digits at fetch time
+    assert retrieved_default != val_36_digits
+
+    # fetch with extended precision: the connector preserves all 36 digits
+    with decimal.localcontext() as ctx:
+        ctx.prec = 38
+        rows = pipeline.dataset().decfloat_defprec.select("val").fetchall()
+        retrieved_extended = rows[0][0]
+        assert retrieved_extended == val_36_digits

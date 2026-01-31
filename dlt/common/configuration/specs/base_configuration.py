@@ -1,4 +1,3 @@
-import copy
 import contextlib
 import dataclasses
 import warnings
@@ -8,6 +7,7 @@ from typing import (
     Callable,
     List,
     Optional,
+    Sequence,
     Union,
     Any,
     Dict,
@@ -36,7 +36,9 @@ from dlt.common.typing import (
     ConfigValueSentinel,
     TAnyClass,
     Annotated,
+    Self,
     extract_inner_type,
+    get_type_globals,
     is_annotated,
     is_any_type,
     is_final_type,
@@ -45,6 +47,7 @@ from dlt.common.typing import (
     is_union_type,
     get_args,
     get_origin,
+    resolve_single_annotation,
 )
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import (
@@ -189,6 +192,7 @@ def configspec(
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
         cls.__hint_resolvers__ = {}  # type: ignore[attr-defined]
         is_context = issubclass(cls, _F_ContainerInjectableContext)
+
         # if type does not derive from BaseConfiguration then derive it
         with contextlib.suppress(NameError):
             if not issubclass(cls, BaseConfiguration):
@@ -210,6 +214,7 @@ def configspec(
                 )
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
+        globalns = get_type_globals(cls)
         for att_name, att_value in list(cls.__dict__.items()):
             # skip callables, dunder names, class variables and some special names
             if callable(att_value):
@@ -232,9 +237,7 @@ def configspec(
                 # resolve the annotation as per PEP 563
                 # NOTE: we do not use get_type_hints because at this moment cls is an unknown name
                 # (ie. used as decorator and module is being imported)
-                if isinstance(hint, str):
-                    hint = eval(hint)
-
+                hint = resolve_single_annotation(hint, globalns=globalns, raise_on_error=True)
                 # context can have any type
                 if not is_valid_hint(hint) and not is_context:
                     raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
@@ -300,8 +303,14 @@ class BaseConfiguration(MutableMapping[str, Any]):
         default=None, init=False, repr=False, compare=False
     )
     """Holds the exception that prevented the full resolution"""
+    __resolved_fields_set__: List[str] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    """Fields set to non-defaults during resolve, including explicit values"""
     __section__: ClassVar[str] = None
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
+    __recommended_sections__: ClassVar[Sequence[str]] = None
+    """Recommended sections layout"""
     __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
@@ -332,8 +341,6 @@ class BaseConfiguration(MutableMapping[str, Any]):
             self.update(init_value)
         elif init_value is not None:
             self.parse_native_representation(init_value)
-        else:
-            return
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
@@ -371,10 +378,26 @@ class BaseConfiguration(MutableMapping[str, Any]):
     @classmethod
     def get_resolvable_fields(cls) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
+        globalns = get_type_globals(cls)
         return {
-            f.name: eval(f.type) if isinstance(f.type, str) else f.type
+            f.name: resolve_single_annotation(f.type, globalns=globalns)
             for f in cls._get_resolvable_dataclass_fields()
         }
+
+    @classmethod
+    def is_field_resolved(cls, value: Any, hint: AnyType) -> bool:
+        """Checks if config field with `value` and type `hint` is resolved
+
+        Optional fields are always resolved, required fields must hold value
+        and if they are embedded configuration, they must be resolved.
+        """
+        if not is_optional_type(hint) and (
+            value is None
+            or ((not value.__is_resolved__) if isinstance(value, BaseConfiguration) else False)
+        ):
+            return False
+        else:
+            return True
 
     def is_resolved(self) -> bool:
         return self.__is_resolved__
@@ -387,16 +410,28 @@ class BaseConfiguration(MutableMapping[str, Any]):
         return any(
             field
             for field, hint in self.get_resolvable_fields().items()
-            if getattr(self, field) is None and not is_optional_type(hint)
+            if not self.is_field_resolved(getattr(self, field), hint)
         )
 
-    def resolve(self) -> None:
+    def resolve(self) -> Self:
         self.call_method_in_mro("on_resolved")
         self.__is_resolved__ = True
+        return self
 
     def copy(self: _B) -> _B:
-        """Returns a deep copy of the configuration instance"""
-        return copy.deepcopy(self)
+        """Returns recursive copy of the configuration instance. Only embedded configurations
+        are copied recursively. In all other cases references are copied.
+        """
+        new_obj = object.__new__(self.__class__)
+
+        for f in dataclasses.fields(self):
+            if not hasattr(self, f.name):
+                continue
+            v = getattr(self, f.name)
+            nv = v.copy() if isinstance(v, BaseConfiguration) else v
+            object.__setattr__(new_obj, f.name, nv)
+
+        return new_obj
 
     def as_dict_nondefault(self) -> Dict[str, Any]:
         """Gets configuration as dictionary containing only values that are non-default"""
@@ -540,6 +575,9 @@ class ContainerInjectableContext(BaseConfiguration):
 
     def before_remove(self) -> None:
         """Called each time before context is removed from container"""
+
+    # context is always resolved
+    __is_resolved__ = True
 
 
 _F_ContainerInjectableContext = ContainerInjectableContext

@@ -3,6 +3,7 @@ import os
 import tempfile  # noqa: 251
 from typing import Dict, Iterable, List
 
+from dlt.common import pendulum
 from dlt.common.json import json
 from dlt.common.destination.client import (
     HasFollowupJobs,
@@ -29,24 +30,54 @@ class FinalizedLoadJob(LoadJob):
     """
 
     def __init__(
-        self, file_path: str, status: TLoadJobState = "completed", exception: str = None
+        self,
+        file_path: str,
+        /,
+        *,
+        started_at: pendulum.DateTime = None,
+        finished_at: pendulum.DateTime = None,
+        status: TLoadJobState = "completed",
+        failed_message: str = None,
+        exception: BaseException = None,
     ) -> None:
-        self._status = status
-        self._exception = exception
-        self._file_path = file_path
-        assert self._status in ("completed", "failed", "retry")
         super().__init__(file_path)
+        self._status = status
+        self._failed_message = failed_message
+        self._exception = exception
+        self._started_at = started_at or pendulum.now()
+        self._finished_at = finished_at or (
+            pendulum.now() if self._status in ("completed", "failed") else None
+        )
+        assert self._status in ("completed", "failed", "retry")
 
     @classmethod
     def from_file_path(
-        cls, file_path: str, status: TLoadJobState = "completed", message: str = None
+        cls,
+        file_path: str,
+        /,
+        *,
+        started_at: pendulum.DateTime = None,
+        finished_at: pendulum.DateTime = None,
+        status: TLoadJobState = "completed",
+        message: str = None,
+        exception: BaseException = None,
     ) -> "FinalizedLoadJob":
-        return cls(file_path, status, exception=message)
+        return cls(
+            file_path,
+            started_at=started_at,
+            finished_at=finished_at,
+            status=status,
+            failed_message=message,
+            exception=exception,
+        )
 
     def state(self) -> TLoadJobState:
         return self._status
 
-    def exception(self) -> str:
+    def failed_message(self) -> str:
+        return self._failed_message
+
+    def exception(self) -> BaseException:
         return self._exception
 
 
@@ -79,7 +110,8 @@ class FollowupJobRequestImpl(FollowupJobRequest):
 
 class ReferenceFollowupJobRequest(FollowupJobRequestImpl):
     def __init__(self, original_file_name: str, remote_paths: List[str]) -> None:
-        file_name = os.path.splitext(original_file_name)[0] + "." + "reference"
+        job_info = ParsedLoadJobFileName.parse(original_file_name)
+        file_name = job_info.to_reference_file_name()
         self._remote_paths = remote_paths
         super().__init__(file_name)
         self._save_text_file("\n".join(remote_paths))
@@ -121,19 +153,19 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
 
     def run(self) -> None:
         # update filepath, it will be in running jobs now
-        try:
-            if self._config.batch_size == 0:
-                # on batch size zero we only call the callable with the filename
-                self.call_callable_with_items(self._file_path)
-            else:
-                current_index = self._destination_state.get(self._storage_id, 0)
-                for batch in self.get_batches(current_index):
-                    self.call_callable_with_items(batch)
-                    current_index += len(batch)
-                    self._destination_state[self._storage_id] = current_index
-        finally:
+        if self._config.batch_size == 0:
+            # on batch size zero we only call the callable with the filename
+            self.call_callable_with_items(self._file_path)
             # save progress
             commit_load_package_state()
+        else:
+            current_index = self._destination_state.get(self._storage_id, 0)
+            for batch in self.get_batches(current_index):
+                self.call_callable_with_items(batch)
+                current_index += len(batch)
+                self._destination_state[self._storage_id] = current_index
+                # save progress
+                commit_load_package_state()
 
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:

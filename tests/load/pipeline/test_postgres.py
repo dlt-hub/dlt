@@ -1,5 +1,4 @@
 import os
-import copy
 import hashlib
 import random
 from string import ascii_lowercase
@@ -12,15 +11,12 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations import filesystem, redshift
 
-
-from tests.cases import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA
-from tests.load.pipeline.utils import get_load_package_jobs
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
-from tests.utils import TestDataItemFormat
+from tests.utils import TestDataItemFormat, get_test_storage_root
 
 
 @pytest.mark.parametrize(
@@ -46,7 +42,7 @@ def test_postgres_encoded_binary(
     load_info = pipeline.run(blob_table, table_name="table", loader_file_format="csv")
     assert_load_info(load_info)
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
-    assert job.endswith("csv")
+    assert job.endswith("csv.gz")
     # assert if column inferred correctly
     assert pipeline.default_schema.get_table_columns("table")["hash"]["data_type"] == "binary"
 
@@ -127,7 +123,7 @@ def test_pipeline_explicit_destination_credentials(
     # with staging
     p = dlt.pipeline(
         pipeline_name="postgres_pipeline",
-        staging=filesystem("_storage"),
+        staging=filesystem(get_test_storage_root()),
         destination=redshift(credentials="redshift://loader:password@localhost:5432/dlt_data"),
     )
     config = p.destination_client().config
@@ -136,32 +132,6 @@ def test_pipeline_explicit_destination_credentials(
         config.credentials.to_native_representation()
         == "redshift://loader:password@localhost:5432/dlt_data?client_encoding=utf-8&connect_timeout=15"
     )
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres"]),
-    ids=lambda x: x.name,
-)
-def test_postgres_adbc_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(
-        "test_postgres_adbc_parquet_loading", dev_mode=True
-    )
-
-    table_schema = copy.copy(TABLE_UPDATE_COLUMNS_SCHEMA)
-    del table_schema["col6_precision"]  # adbc cannot process decimal(6,2)
-    del table_schema["col11_precision"]  # TIME(3) not supported
-
-    @dlt.resource(file_format="parquet", columns=table_schema, max_table_nesting=0)
-    def complex_resource():
-        yield TABLE_ROW_ALL_DATA_TYPES
-
-    info = pipeline.run(complex_resource())
-    jobs = get_load_package_jobs(
-        info.load_packages[0], "completed_jobs", "complex_resource", ".parquet"
-    )
-    # there must be a parquet job or adbc is not installed so we fall back to other job type
-    assert len(jobs) == 1
 
 
 # TODO: uncomment and finalize when we implement encoding for psycopg2

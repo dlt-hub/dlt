@@ -107,14 +107,14 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # MS Sql doesn't support DROP ... CASCADE, drop tables in the schema first
         # Drop all views
         rows = self.execute_sql(
-            "SELECT table_name FROM information_schema.views WHERE table_schema = %s;",
+            "SELECT table_name FROM INFORMATION_SCHEMA.VIEWS WHERE table_schema = %s",
             self.capabilities.casefold_identifier(self.dataset_name),
         )
         view_names = [row[0] for row in rows]
         self._drop_views(*view_names)
         # Drop all tables
         rows = self.execute_sql(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
+            "SELECT table_name FROM INFORMATION_SCHEMA.TABLES WHERE table_schema = %s",
             self.capabilities.casefold_identifier(self.dataset_name),
         )
         table_names = [row[0] for row in rows]
@@ -126,12 +126,12 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if not tables:
             return
         statements = [
-            f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
+            f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)}" for table in tables
         ]
         self.execute_many(statements)
 
     def _drop_schema(self) -> None:
-        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
+        self.execute_sql("DROP SCHEMA %s" % self.fully_qualified_dataset_name())
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any
@@ -158,7 +158,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             # unpack because empty tuple gets interpreted as a single argument
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
-            # # NOTE: firsts recordset is wrapped in a cursor
+            # NOTE: firsts recordset is wrapped in a cursor
             yield DBApiCursorImpl(curr)
             # clear all pending result sets
             try:
@@ -180,6 +180,9 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
                 pass
             raise outer
         finally:
+            # clear all pending result sets
+            while curr.nextset():
+                pass
             # always close cursor
             curr.close()
 

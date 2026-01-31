@@ -15,7 +15,7 @@ This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich envi
 To install marimo and ibis with the duckdb extras, run the following command: 
 
 ```sh
-pip install marimo ibis-framework[duckdb]
+pip install marimo "ibis-framework[duckdb]"
 ```
 
 ## Launch marimo
@@ -35,6 +35,24 @@ Here's a screenshot of the interface you should see:
 
 
 ## Features
+
+### Use custom dlt widgets
+
+Inside your marimo notebook, you can use widgets built and maintained by the dlt team.
+
+Simply import them from `dlt.helpers.marimo` and pass them to the `render()` function. Note that `render()` is asynchronous and must be awaited with `await`.
+
+```py
+#%% cell 1
+import marimo as mo
+from dlt.helpers.marimo import render, load_package_viewer
+
+#%% cell 2
+await render(load_package_viewer)
+```
+
+![Example marimo widget](https://storage.googleapis.com/dlt-blog-images/marimo-widget-screenshot.png)
+
 
 ### View dataset tables and columns
 

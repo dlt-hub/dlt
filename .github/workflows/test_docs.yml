@@ -1,0 +1,114 @@
+
+name: docs | lint and test tools, snippets and examples
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+
+  RUNTIME__LOG_LEVEL: ERROR
+
+  # detect if the workflow is executed in a repo fork
+  IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+
+  # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
+
+  # Slack hook for chess in production example
+  RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
+  # Path to local qdrant database
+  DESTINATION__QDRANT__CREDENTIALS__PATH: zendesk.qdb
+
+
+jobs:
+
+  run_lint:
+    name: docs | snippets
+    runs-on: ubuntu-latest
+
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_DB: dlt_data
+          POSTGRES_USER: loader
+          POSTGRES_PASSWORD: loader
+        ports:
+          - 5432:5432
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      # - name: Start weaviate
+      #   run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
+
+      - name: Setup node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10"
+          activate-environment: true
+          enable-cache: true
+
+      - name: Start weaviate
+        run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
+
+
+      - name: Install dependencies
+        run: cd docs && make dev
+
+      - name: Install dlthub incl alpha releases
+        run: cd docs
+
+      - name: lint docs
+        run: cd docs && make lint
+
+      - name: lint embedded snippets
+        run: cd docs && make lint-embedded-snippets
+
+      - name: Create secrets.toml for snippets
+        run: |
+          cp tests/.dlt/dev.secrets.toml docs/website/docs/.dlt/secrets.toml
+
+      - name: test snippets
+        run: cd docs && make test-snippets
+
+      - name: create secrets.toml for examples
+        run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
+
+      - name: test examples
+        run: cd docs && make test-examples
+
+      - name: run docs preprocessor
+        run: cd docs && make preprocess-docs
+
+      - name: test preprocess_to_molab
+        run: cd docs && make test-preprocess-molabs
+
+      - name: Ensure marimo notebooks are up-to-date
+        run: cd docs && make validate-molabs

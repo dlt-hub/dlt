@@ -4,13 +4,10 @@ from types import ModuleType
 from functools import update_wrapper, wraps
 from typing import (
     Any,
-    Awaitable,
     Callable,
-    ClassVar,
     Dict,
     Iterator,
     List,
-    Literal,
     Optional,
     Tuple,
     Type,
@@ -63,6 +60,7 @@ from dlt.common.utils import (
 )
 
 from dlt.extract.hints import TResourceNestedHints, make_hints
+from dlt.extract.state import get_current_pipe
 from dlt.extract.utils import dynstr
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
@@ -75,36 +73,15 @@ from dlt.extract.exceptions import (
     CurrentSourceSchemaNotAvailable,
 )
 from dlt.extract.items import TTableHintTemplate
-from dlt.extract.source import DltSource
+from dlt.extract.source import (
+    DltSource,
+    SourceSchemaInjectableContext,
+    SourceInjectableContext,
+    _DltSingleSource,
+)
 from dlt.extract.reference import SourceReference, SourceFactory, TDltSourceImpl, TSourceFunParams
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl
 from dlt.extract.incremental import TIncrementalConfig
-
-
-@configspec
-class SourceSchemaInjectableContext(ContainerInjectableContext):
-    """A context containing the source schema, present when dlt.source/resource decorated function is executed"""
-
-    schema: Schema = None
-
-    can_create_default: ClassVar[bool] = False
-
-
-@configspec
-class SourceInjectableContext(ContainerInjectableContext):
-    """A context containing the source schema, present when dlt.resource decorated function is executed"""
-
-    source: DltSource = None
-
-    can_create_default: ClassVar[bool] = False
-
-
-class _DltSingleSource(DltSource):
-    """Used to register standalone (non-inner) resources"""
-
-    @property
-    def single_resource(self) -> DltResource:
-        return list(self.resources.values())[0]
 
 
 class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
@@ -125,7 +102,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         self.name: str = None
         self.section: str = None
         self.max_table_nesting: int = None
-        self.root_key: bool = False
+        self.root_key: bool = None
         self.schema: Schema = None
         self.schema_contract: TSchemaContract = None
         self.spec: Type[BaseConfiguration] = None
@@ -373,7 +350,7 @@ def source(
     name: str = None,
     section: str = None,
     max_table_nesting: int = None,
-    root_key: bool = False,
+    root_key: bool = None,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
@@ -1030,6 +1007,25 @@ def get_source() -> DltSource:
         return Container()[SourceInjectableContext].source
     except ContextDefaultCannotBeCreated:
         raise CurrentSourceNotAvailable()
+
+
+def get_resource() -> DltResource:
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        DltResource: The resource object to which the currently executing pipe belongs
+    """
+    source = get_source()
+    return source.resources.with_pipe(get_current_pipe())
+
+
+def get_resource_metrics() -> Dict[str, Any]:
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        Dict[str, Any]: The customizable metrics dictionary
+    """
+    return get_resource().custom_metrics
 
 
 TBoundItems = TypeVar("TBoundItems", bound=TDataItems)

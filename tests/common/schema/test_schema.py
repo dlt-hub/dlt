@@ -1,29 +1,37 @@
 import os
-from typing import Dict, List, Sequence
+from typing import Dict, Any, List
 from types import MethodType
 
 import pytest
 from copy import deepcopy
 
-from dlt.common import pendulum
+import dlt
 from dlt.common.json import json
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import snake_case
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
-from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
+from dlt.common.schema import Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import (
     InvalidSchemaName,
     ParentTableNotFoundException,
+    SchemaCorruptedException,
 )
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
+    C_CHILD_PARENT_REF_LABEL,
+    C_DESCENDANT_ROOT_REF_LABEL,
+    C_ROOT_LOAD_REF_LABEL,
+    C_VERSION_SCHEMA_NAME_LABEL,
+    C_VERSION_SCHEMA_VERSION_LABEL,
     LOADS_TABLE_NAME,
     VERSION_TABLE_NAME,
     TColumnName,
     TSimpleRegex,
     COLUMN_HINTS,
+    TTableReferenceStandalone,
+    TTableSchemaColumns,
 )
 from dlt.common.storages import SchemaStorage
 
@@ -282,29 +290,6 @@ def test_clone(schema: Schema) -> None:
     assert cloned._normalizers_config["names"] == "direct"
 
 
-@pytest.mark.parametrize(
-    "columns,hint,value",
-    [
-        (
-            ["_dlt_id", "_dlt_root_id", "_dlt_load_id", "_dlt_parent_id", "_dlt_list_idx"],
-            "nullable",
-            False,
-        ),
-        (["_dlt_id"], "row_key", True),
-        (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "parent_key", True),
-    ],
-)
-def test_relational_normalizer_schema_hints(
-    columns: Sequence[str], hint: str, value: bool, schema_storage: SchemaStorage
-) -> None:
-    schema = schema_storage.load_schema("event")
-    for name in columns:
-        # infer column hints
-        c = schema._infer_column(name, "x")
-        assert c[hint] is value  # type: ignore[literal-required]
-
-
 def test_new_schema_alt_name() -> None:
     schema = Schema("model")
     assert schema.name == "model"
@@ -324,78 +309,9 @@ def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> Non
     assert_new_schema_props(schema_copy)
 
 
-def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
-    # python dicts are ordered from v3.6, add 50 column with random names
-    update: List[TColumnSchema] = [
-        schema._infer_column("t" + uniq_id(), pendulum.now().timestamp()) for _ in range(50)
-    ]
-    schema.update_table(utils.new_table("event_test_order", columns=update))
-
-    def verify_items(table, update) -> None:
-        assert [i[0] for i in table.items()] == list(table.keys()) == [u["name"] for u in update]
-        assert [i[1] for i in table.items()] == list(table.values()) == update
-
-    table = schema.get_table_columns("event_test_order")
-    verify_items(table, update)
-    # save and load
-    schema_storage.save_schema(schema)
-    loaded_schema = schema_storage.load_schema("event")
-    table = loaded_schema.get_table_columns("event_test_order")
-    verify_items(table, update)
-    # add more columns
-    update2: List[TColumnSchema] = [
-        schema._infer_column("t" + uniq_id(), pendulum.now().timestamp()) for _ in range(50)
-    ]
-    loaded_schema.update_table(utils.new_table("event_test_order", columns=update2))
-    table = loaded_schema.get_table_columns("event_test_order")
-    verify_items(table, update + update2)
-    # save and load
-    schema_storage.save_schema(loaded_schema)
-    loaded_schema = schema_storage.load_schema("event")
-    table = loaded_schema.get_table_columns("event_test_order")
-    verify_items(table, update + update2)
-
-
 def test_get_schema_new_exist(schema_storage: SchemaStorage) -> None:
     with pytest.raises(FileNotFoundError):
         schema_storage.load_schema("wrongschema")
-
-
-@pytest.mark.parametrize(
-    "columns,hint,value",
-    [
-        (
-            [
-                "timestamp",
-                "_timestamp",
-                "_dist_key",
-                "_dlt_id",
-                "_dlt_root_id",
-                "_dlt_load_id",
-                "_dlt_parent_id",
-                "_dlt_list_idx",
-                "sender_id",
-            ],
-            "nullable",
-            False,
-        ),
-        (["confidence", "_sender_id"], "nullable", True),
-        (["timestamp", "_timestamp"], "partition", True),
-        (["_dist_key", "sender_id"], "cluster", True),
-        (["_dlt_id"], "row_key", True),
-        (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "parent_key", True),
-        (["timestamp", "_timestamp"], "sort", True),
-    ],
-)
-def test_rasa_event_hints(
-    columns: Sequence[str], hint: str, value: bool, schema_storage: SchemaStorage
-) -> None:
-    schema = schema_storage.load_schema("event")
-    for name in columns:
-        # infer column hints
-        c = schema._infer_column(name, "x")
-        assert c[hint] is value  # type: ignore[literal-required]
 
 
 def test_filter_hints_table() -> None:
@@ -425,32 +341,6 @@ def test_filter_hints_table() -> None:
     bot_case["_dlt_id"] = uniq_id()
     rows = schema.filter_row_with_hint("event_bot", "primary_key", bot_case)
     assert list(rows.keys()) == ["_dlt_id"]
-
-
-def test_filter_hints_no_table(schema_storage: SchemaStorage) -> None:
-    # this is empty schema without any tables
-    schema = schema_storage.load_schema("event")
-    bot_case: StrAny = load_json_case("mod_bot_case")
-    # actually the empty `event_bot` table exists (holds exclusion filters)
-    rows = schema.filter_row_with_hint("event_bot", "not_null", bot_case)
-    assert list(rows.keys()) == []
-
-    # must be exactly in order of fields in row: timestamp is first
-    rows = schema.filter_row_with_hint("event_action", "not_null", bot_case)
-    assert list(rows.keys()) == ["timestamp", "sender_id"]
-
-    rows = schema.filter_row_with_hint("event_action", "primary_key", bot_case)
-    assert list(rows.keys()) == []
-
-    # infer table, update schema for the empty bot table
-    coerced_row, update = schema.coerce_row("event_bot", None, bot_case)
-    schema.update_table(update)
-    # not empty anymore
-    assert schema.get_table_columns("event_bot") is not None
-
-    # make sure the column order is the same when inferring from newly created table
-    rows = schema.filter_row_with_hint("event_bot", "not_null", coerced_row)
-    assert list(rows.keys()) == ["timestamp", "sender_id"]
 
 
 def test_merge_hints(schema: Schema) -> None:
@@ -879,6 +769,181 @@ def test_remove_processing_hints() -> None:
     assert no_hints.stored_version_hash == cloned.stored_version_hash
 
 
+def test_schema_tables_property() -> None:
+    schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
+
+    assert isinstance(schema.tables, dict)
+    assert schema.tables == schema._schema_tables
+    # check that keys are table names
+    assert set(schema.tables) == set(
+        [
+            "_dlt_loads",
+            "_dlt_version",
+            "blocks",
+            "blocks__transactions",
+            "blocks__transactions__logs",
+            "blocks__transactions__logs__topics",
+            "blocks__transactions__access_list",
+            "blocks__transactions__access_list__storage_keys",
+            "blocks__uncles",
+        ]
+    )
+    # check that values are TTableSchema
+    # can't do `isinstance(..., TTableSchema)` on a `TypedDict`
+    assert set(schema.tables["blocks"]) == set(
+        [
+            "description",
+            "x-annotation",
+            "write_disposition",
+            "filters",
+            "columns",
+            "schema_contract",
+            "resource",
+            "x-normalizer",
+            "name",
+        ]
+    )
+
+
+@pytest.mark.parametrize("naming", ("snake_case", "tests.common.cases.normalizers.title_case"))
+def test_schema_references_property(naming: str) -> None:
+    # change naming convention
+    os.environ["SCHEMA__NAMING"] = naming
+    os.environ["SCHEMA__ALLOW_IDENTIFIER_CHANGE_ON_TABLE_WITH_DATA"] = "True"
+    schema_dict = load_yml_case("schemas/eth/ethereum_schema_v11")
+    schema = Schema.from_dict(schema_dict)
+    schema.update_normalizers()
+
+    expected_references: List[TTableReferenceStandalone] = [
+        {
+            "label": "_dlt_load",
+            "cardinality": "many_to_one",
+            "table": "blocks",
+            "columns": ["_dlt_load_id"],
+            "referenced_table": "_dlt_loads",
+            "referenced_columns": ["load_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__logs__topics",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions__logs",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__logs__topics",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions__logs",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list__storage_keys",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks__transactions__access_list",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__transactions__access_list__storage_keys",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks__transactions",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_parent",
+            "cardinality": "many_to_one",
+            "table": "blocks__uncles",
+            "columns": ["_dlt_parent_id"],
+            "referenced_table": "blocks",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_root",
+            "cardinality": "many_to_one",
+            "table": "blocks__uncles",
+            "columns": ["_dlt_root_id"],
+            "referenced_table": "blocks",
+            "referenced_columns": ["_dlt_id"],
+        },
+        {
+            "label": "_dlt_schema_version",
+            "cardinality": "one_to_many",
+            "table": "_dlt_version",
+            "columns": ["version_hash"],
+            "referenced_table": "_dlt_loads",
+            "referenced_columns": ["schema_version_hash"],
+        },
+        {
+            "label": "_dlt_schema_name",
+            "cardinality": "many_to_many",
+            "table": "_dlt_version",
+            "columns": ["schema_name"],
+            "referenced_table": "_dlt_loads",
+            "referenced_columns": ["schema_name"],
+        },
+    ]
+
+    assert isinstance(schema.references, list)
+    assert len(schema.references) == 11
+    assert isinstance(schema.references[0], dict)
+    # check that keys are from TStandaloneTableReference
+    # can't do `isinstance(..., TStandaloneTableReference)` on a `TypedDict`
+    assert set(schema.references[0]) == set(
+        [
+            "label",
+            "table",
+            "columns",
+            "referenced_table",
+            "referenced_columns",
+            "cardinality",
+        ]
+    )
+    # `.references` should return parent-child, root-child, and load-root references
+    assert set(ref["label"] for ref in schema.references) == set(
+        [
+            C_CHILD_PARENT_REF_LABEL,
+            C_DESCENDANT_ROOT_REF_LABEL,
+            C_ROOT_LOAD_REF_LABEL,
+            C_VERSION_SCHEMA_VERSION_LABEL,
+            C_VERSION_SCHEMA_NAME_LABEL,
+        ]
+    )
+    # normalize table and column names in expected_references
+    for reference in expected_references:
+        reference["table"] = schema.naming.normalize_tables_path(reference["table"])
+        reference["referenced_table"] = schema.naming.normalize_tables_path(
+            reference["referenced_table"]
+        )
+        reference["columns"] = [schema.naming.normalize_path(c) for c in reference["columns"]]
+        reference["referenced_columns"] = [
+            schema.naming.normalize_path(c) for c in reference["referenced_columns"]
+        ]
+
+    assert schema.references == expected_references
+
+
 def test_schema_repr() -> None:
     sentinel = object()
     schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
@@ -893,3 +958,168 @@ def test_schema_repr() -> None:
     assert getattr(schema, "version_hash", sentinel) is not sentinel
     assert isinstance(getattr(schema, "data_table_names", sentinel), MethodType)
     assert isinstance(getattr(schema, "dlt_table_names", sentinel), MethodType)
+
+
+def test_get_new_columns(schema: Schema) -> None:
+    # allow for casing in names
+    os.environ["SCHEMA__NAMING"] = "direct"
+    schema.update_normalizers()
+
+    empty_table = utils.new_table("events")
+    schema.update_table(empty_table)
+    assert schema.get_new_table_columns("events", {}, case_sensitive=True) == []
+    name_column = utils.new_column("name", "text")
+    id_column = utils.new_column("ID", "text")
+    existing_columns: TTableSchemaColumns = {
+        "id": id_column,
+        "name": name_column,
+    }
+    # no new columns
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == []
+    # one new column
+    address_column = utils.new_column("address", "json")
+    schema.update_table(utils.new_table("events", columns=[address_column]))
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # name is already present
+    schema.update_table(utils.new_table("events", columns=[name_column]))
+    # so it is not detected
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # id is added with different casing
+    ID_column = utils.new_column("ID", "text")
+    schema.update_table(utils.new_table("events", columns=[ID_column]))
+    # case sensitive will detect
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column,
+        ID_column,
+    ]
+    # insensitive doesn't
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+
+    # existing columns are case sensitive
+    existing_columns["ID"] = ID_column
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    with pytest.raises(SchemaCorruptedException):
+        schema.get_new_table_columns("events", existing_columns, case_sensitive=False)
+
+
+def _setup_nested_tables(schema: Schema) -> None:
+    """helper to create a nested table chain a_events -> a_events___1 -> a_events___1___2"""
+    schema.update_table(utils.new_table("a_events", columns=[]))
+    schema.update_table(utils.new_table("a_events___1", columns=[], parent_table_name="a_events"))
+    schema.update_table(
+        utils.new_table("a_events___1___2", columns=[], parent_table_name="a_events___1")
+    )
+
+
+def test_drop_tables_full_chain(schema: Schema) -> None:
+    # create nested tables and drop the whole chain
+    _setup_nested_tables(schema)
+
+    dropped = schema.drop_tables(["a_events", "a_events___1", "a_events___1___2"])
+
+    assert set(t["name"] for t in dropped) == {"a_events", "a_events___1", "a_events___1___2"}
+    # ensure all dropped tables are gone
+    for name in ["a_events", "a_events___1", "a_events___1___2"]:
+        assert name not in schema.tables
+
+    # dlt system tables are kept
+    assert schema.version_table_name in schema.tables
+    assert schema.loads_table_name in schema.tables
+
+
+@pytest.mark.parametrize(
+    "to_drop",
+    [
+        pytest.param(["a_events"], id="missing_children_for_parent"),
+        pytest.param(["a_events___1"], id="missing_child_for_intermediate"),
+    ],
+)
+def test_drop_tables_inconsistent(schema: Schema, to_drop) -> None:
+    # dropping a table without including all its nested descendants should fail
+    _setup_nested_tables(schema)
+
+    with pytest.raises(SchemaCorruptedException):
+        schema.drop_tables(to_drop)
+
+    # nothing was dropped on failure
+    for name in ["a_events", "a_events___1", "a_events___1___2"]:
+        assert name in schema.tables
+
+
+def test_drop_tables_subtree_only(schema: Schema) -> None:
+    # dropping only a subtree is allowed if all its descendants are included
+    _setup_nested_tables(schema)
+
+    dropped = schema.drop_tables(["a_events___1", "a_events___1___2"])
+
+    assert set(t["name"] for t in dropped) == {"a_events___1", "a_events___1___2"}
+    # parent is preserved, subtree is gone
+    assert "a_events" in schema.tables
+    assert "a_events___1" not in schema.tables
+    assert "a_events___1___2" not in schema.tables
+
+
+@pytest.mark.parametrize(
+    "include_self",
+    [True, False],
+)
+@pytest.mark.parametrize("max_nesting", [0, 1, 2, 3, 4, 5])
+def test_get_nested_tables(include_self: bool, max_nesting: int) -> None:
+    # Use a schema with tables that have a nesting level higher than 1
+    eth_v3: Dict[str, Any] = load_yml_case("schemas/eth/ethereum_schema_v3")
+    schema_eth = Schema.from_dict(eth_v3)
+
+    # Ensure max table nesting and include salf args are respected
+    children = [
+        "blocks__transactions",
+        "blocks__uncles",
+    ]
+    grandchildren = [
+        "blocks__transactions__logs",
+        "blocks__transactions__access_list",
+    ]
+    grandgrandchildren = [
+        "blocks__transactions__logs__topics",
+        "blocks__transactions__access_list__storage_keys",
+    ]
+    levels = [
+        [],
+        children,
+        children + grandchildren,
+        children + grandchildren + grandgrandchildren,
+    ]
+
+    descendant_tbl_schemas = utils.get_nested_tables(
+        tables=schema_eth.tables,
+        table_name="blocks",
+        max_nesting=max_nesting,
+        include_self=include_self,
+    )
+    descendant_tbl_names = [tbl["name"] for tbl in descendant_tbl_schemas]
+
+    expected = levels[min(max_nesting, 3)]
+    if include_self:
+        expected = ["blocks"] + expected
+
+    assert set(expected) == set(descendant_tbl_names)
+
+    # Ensure non existent table doesn't return anything
+
+    assert [] == utils.get_nested_tables(
+        tables=schema_eth.tables,
+        table_name="non_existend",
+    )

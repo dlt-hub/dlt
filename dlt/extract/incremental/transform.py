@@ -1,10 +1,13 @@
 from datetime import datetime  # noqa: I251
 from typing import Any, Optional, Set, Tuple, List, Type
+from pendulum.tz import UTC
+from pendulum import DateTime  # noqa: I251
 
+from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
+from dlt.common.pendulum import create_dt, pendulum
 from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.jsonpath import find_values, compile_path, extract_simple_field_name
 from dlt.extract.incremental.exceptions import (
@@ -72,17 +75,24 @@ class IncrementalTransform:
         self.cursor_path = cursor_path
         self.initial_value = initial_value
         self.start_value = start_value
+        self.start_value_is_datetime = isinstance(start_value, datetime)
+        # self.start_value_tz = start_value.tzinfo if isinstance(start_value, datetime) else None
         self.last_value = start_value
         self.end_value = end_value
+        self.end_value_is_datetime = isinstance(end_value, datetime)
+        # self.end_value = end_value.tzinfo if isinstance(end_value, datetime) else None
         self.last_rows: List[TDataItem] = []
         self.last_value_func = last_value_func
-        self.primary_key = primary_key
         self.unique_hashes = unique_hashes
         self.start_unique_hashes = set(unique_hashes)
         self.on_cursor_value_missing = on_cursor_value_missing
         self.lag = lag
         self.range_start = range_start
         self.range_end = range_end
+        # NOTE: self.primary_key is a property
+        self.primary_key = primary_key
+        # tells if incremental instance has processed any data
+        self.seen_data = False
 
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
@@ -97,11 +107,6 @@ class IncrementalTransform:
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
     ) -> str:
         try:
-            assert not self.deduplication_disabled, (
-                f"{self.resource_name}: Attempt to compute unique values when deduplication is"
-                " disabled"
-            )
-
             if primary_key:
                 return digest128(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
             elif primary_key is None:
@@ -117,20 +122,68 @@ class IncrementalTransform:
     ) -> Tuple[bool, bool, bool]: ...
 
     @staticmethod
-    def _adapt_if_datetime(row_value: Any, last_value: Any) -> Any:
-        # For datetime cursor, ensure the value is a timezone aware datetime.
-        # The object saved in state will always be a tz aware pendulum datetime so this ensures values are comparable
+    def _adapt_timezone(
+        row_value: datetime, cursor_value: datetime, cursor_value_name: str, resource_name: str
+    ) -> Any:
+        """Adapt cursor_value tz-awareness to match row_value. This method is called only once in instance lifecycle
+        to catch incompatible initial values or adapt to change of tz-awareness in the data itself.
+        Returns: adjusted cursor_value (with TZ added or removed)
+        """
         if (
-            isinstance(row_value, datetime)
-            and row_value.tzinfo is None
-            and isinstance(last_value, datetime)
-            and last_value.tzinfo is not None
-        ):
-            row_value = pendulum.instance(row_value).in_tz("UTC")
-        return row_value
+            cursor_value.tzinfo is None or row_value.tzinfo is None
+        ) and cursor_value.tzinfo != row_value.tzinfo:
+            config_value_name = (
+                "initial_value" if cursor_value_name == "last_value" else cursor_value_name
+            )
+            last_value_source_message = ""
+            if cursor_value_name == "last_value":
+                last_value_source_message = (
+                    f"{cursor_value_name} is coming from the {config_value_name} defined on"
+                    " Incremental or from previous run state. "
+                )
+            message = (
+                f"In resource {resource_name}: {cursor_value_name} '{cursor_value}' and row value"
+                f" {row_value} have different timezone awareness. {last_value_source_message}Row"
+                f" value is the actual data. {cursor_value_name} will be corrected to match the row"
+                " value timezone. The reason for that may be: (1) you set wrong tz-awareness on"
+                f" the {config_value_name} (note that pendulum is tz-aware by default) (2) the data"
+                " has changed its tz-awareness across runs. (3) your pipeline state got upgraded"
+                " to always store last value with tz-awareness following your data."
+            )
+            logger.warning(message)
+            if row_value.tzinfo is None:
+                cursor_value = (
+                    create_dt(
+                        cursor_value.year,
+                        cursor_value.month,
+                        cursor_value.day,
+                        cursor_value.hour,
+                        cursor_value.minute,
+                        cursor_value.second,
+                        cursor_value.microsecond,
+                        tz=cursor_value.tzinfo,
+                        fold=cursor_value.fold,
+                    )
+                    .in_tz(tz=UTC)
+                    .naive()
+                )
+            else:
+                cursor_value = create_dt(
+                    cursor_value.year,
+                    cursor_value.month,
+                    cursor_value.day,
+                    cursor_value.hour,
+                    cursor_value.minute,
+                    cursor_value.second,
+                    cursor_value.microsecond,
+                    tz=cursor_value.tzinfo,
+                    fold=cursor_value.fold,
+                ).in_tz(
+                    row_value.tzinfo  # type: ignore[arg-type]
+                )
+        return cursor_value
 
-    @property
-    def deduplication_disabled(self) -> bool:
+    def compute_deduplication_disabled(self) -> bool:
         """Skip deduplication when length of the key is 0 or if lag is applied."""
         # disable deduplication if end value is set - state is not saved
         if self.range_start == "open":
@@ -141,7 +194,16 @@ class IncrementalTransform:
         if self.lag and self.last_value_func in (min, max):
             return True
         # disable deduplication if primary_key = ()
-        return isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
+        return isinstance(self._primary_key, (list, tuple)) and len(self._primary_key) == 0
+
+    @property
+    def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
+        return self._primary_key
+
+    @primary_key.setter
+    def primary_key(self, value: str) -> None:
+        self._primary_key = value
+        self.boundary_deduplication = not self.compute_deduplication_disabled()
 
 
 class JsonIncremental(IncrementalTransform):
@@ -203,11 +265,26 @@ class JsonIncremental(IncrementalTransform):
                 return row, False, False
         last_value = self.last_value
         last_value_func = self.last_value_func
-        row_value = self._adapt_if_datetime(row_value, last_value)
+        # correct tz-awareness if last_value/start_value not matching
+        if not self.seen_data and self.start_value_is_datetime and isinstance(row_value, datetime):
+            # NOTE: we are making sure that last_value == start_value here (self.seen_data)
+            assert self.last_value == self.start_value
+            self.last_value = self.start_value = last_value = self._adapt_timezone(
+                row_value, last_value, "last_value", self.resource_name
+            )
 
         # Check whether end_value has been reached
         # Filter end value ranges exclusively, so in case of "max" function we remove values >= end_value
         if self.end_value is not None:
+            # correct tz-awareness of end value
+            if (
+                not self.seen_data
+                and self.end_value_is_datetime
+                and isinstance(row_value, datetime)
+            ):
+                self.end_value = self._adapt_timezone(
+                    row_value, self.end_value, "end_value", self.resource_name
+                )
             try:
                 if last_value_func((row_value, self.end_value)) != self.end_value:
                     return None, False, True
@@ -224,7 +301,14 @@ class JsonIncremental(IncrementalTransform):
                     type(row_value).__name__,
                     str(ex),
                 ) from ex
-        check_values = (row_value,) + ((last_value,) if last_value is not None else ())
+        # row was read
+        self.seen_data = True
+
+        if last_value is None:
+            check_values: Tuple[Any, ...] = (row_value,)
+        else:
+            check_values = (row_value, last_value)
+
         try:
             new_value = last_value_func(check_values)
         except Exception as ex:
@@ -239,39 +323,43 @@ class JsonIncremental(IncrementalTransform):
             ) from ex
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
-            if self.range_start == "open":
-                # We only want greater than last_value
-                return None, False, False
             # use func to compute row_value into last_value compatible
             processed_row_value = last_value_func((row_value,))
+
+            if self.range_start == "open" and processed_row_value == self.start_value:
+                # We only want greater than start_value
+                return None, False, False
+
             # skip the record that is not a start_value or new_value: that record was already processed
-            check_values = (row_value,) + (
-                (self.start_value,) if self.start_value is not None else ()
-            )
+            if self.start_value is None:
+                check_values = (row_value,)
+            else:
+                check_values = (row_value, self.start_value)
             new_value = last_value_func(check_values)
             # Include rows == start_value but exclude "lower"
             # new_value is "less" or equal to start_value (the initial max)
             if new_value == self.start_value:
                 # if equal there's still a chance that item gets in
                 if processed_row_value == self.start_value:
-                    if not self.deduplication_disabled:
-                        unique_value = self.compute_unique_value(row, self.primary_key)
+                    if self.boundary_deduplication:
+                        unique_value = self.compute_unique_value(row, self._primary_key)
                         # if unique value exists then use it to deduplicate
                         if unique_value in self.start_unique_hashes:
                             return None, True, False
                 else:
-                    # smaller than start value: gets out
+                    # "smaller" than start value: gets out
                     return None, True, False
 
             # we store row id for all records with the current "last_value" in state and use it to deduplicate
-            if processed_row_value == last_value:
+            if processed_row_value == last_value and self.boundary_deduplication:
                 # add new hash only if the record row id is same as current last value
                 self.last_rows.append(row)
         else:
             self.last_value = new_value
-            # store rows with "max" values to compute hashes after processing full batch
-            self.last_rows = [row]
-            self.unique_hashes = set()
+            if self.boundary_deduplication:
+                # store rows with "max" values to compute hashes after processing full batch
+                self.last_rows = [row]
+                self.unique_hashes = set()
 
         return row, False, False
 
@@ -308,7 +396,7 @@ class ArrowIncremental(IncrementalTransform):
         if not unique_columns:
             return []
         rows = item.select(unique_columns).to_pylist()
-        return [self.compute_unique_value(row, self.primary_key) for row in rows]
+        return [self.compute_unique_value(row, self._primary_key) for row in rows]
 
     def compute_unique_values_with_index(
         self, item: "TAnyArrowItem", unique_columns: List[str]
@@ -318,7 +406,7 @@ class ArrowIncremental(IncrementalTransform):
         indices = item[self._dlt_index].to_pylist()
         rows = item.select(unique_columns).to_pylist()
         return [
-            (index, self.compute_unique_value(row, self.primary_key))
+            (index, self.compute_unique_value(row, self._primary_key))
             for index, row in zip(indices, rows)
         ]
 
@@ -339,7 +427,7 @@ class ArrowIncremental(IncrementalTransform):
         if is_pandas:
             tbl = pandas_to_arrow(tbl)
 
-        primary_key = self.primary_key(tbl) if callable(self.primary_key) else self.primary_key
+        primary_key = self._primary_key(tbl) if callable(self._primary_key) else self._primary_key
         if primary_key:
             # create a list of unique columns
             if isinstance(primary_key, str):
@@ -375,10 +463,15 @@ class ArrowIncremental(IncrementalTransform):
             ) from e
 
         # The new max/min value
-        row_value_scalar = self.compute(
-            tbl[cursor_path]
-        )  # to_arrow_scalar(row_value, cursor_data_type)
-        row_value = self._adapt_if_datetime(from_arrow_scalar(row_value_scalar), self.last_value)
+        row_value_scalar = self.compute(tbl[cursor_path])
+        row_value = from_arrow_scalar(row_value_scalar)
+        # correct tz-awareness
+        if not self.seen_data and self.start_value_is_datetime and isinstance(row_value, datetime):
+            # NOTE: we are making sure that last_value == start_value here (self.seen_data)
+            assert self.last_value == self.start_value
+            self.start_value = self.last_value = self._adapt_timezone(
+                row_value, self.last_value, "last_value", self.resource_name
+            )
 
         if tbl.schema.field(cursor_path).nullable:
             tbl_without_null, tbl_with_null = self._process_null_at_cursor_path(tbl)
@@ -386,6 +479,15 @@ class ArrowIncremental(IncrementalTransform):
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
+            # correct tz-awareness of end value
+            if (
+                not self.seen_data
+                and self.end_value_is_datetime
+                and isinstance(row_value, datetime)
+            ):
+                self.end_value = self._adapt_timezone(
+                    row_value, self.end_value, "end_value", self.resource_name
+                )
             try:
                 end_value_scalar = to_arrow_scalar(self.end_value, cursor_data_type)
             except Exception as ex:
@@ -398,10 +500,20 @@ class ArrowIncremental(IncrementalTransform):
                     cursor_data_type,
                     str(ex),
                 ) from ex
-            tbl = tbl.filter(self.end_compare(tbl[cursor_path], end_value_scalar))
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
             end_out_of_range = not self.end_compare(row_value_scalar, end_value_scalar).as_py()
+            if end_out_of_range:
+                tbl = tbl.filter(self.end_compare(tbl[cursor_path], end_value_scalar))
+                # NOTE: here we should recalculate row_value_scalar and row_value because it was out of range!
+                # right now we don't do that because self.last_value is not saved into state so this value will
+                # be discarded anyway. If we ever start saving state when end_value is present then we must able that
+                # row_value_scalar = self.compute(
+                #     tbl[cursor_path]
+                # )
+                # row_value = from_arrow_scalar(row_value_scalar)
+
+        self.seen_data = True
 
         if self.start_value is not None:
             try:
@@ -420,7 +532,7 @@ class ArrowIncremental(IncrementalTransform):
             keep_filter = self.last_value_compare(tbl[cursor_path], start_value_scalar)
             start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
             tbl = tbl.filter(keep_filter)
-            if not self.deduplication_disabled:
+            if self.boundary_deduplication:
                 # Deduplicate after filtering old values
                 tbl = self._add_unique_index(tbl)
                 # Remove already processed rows where the cursor is equal to the start value
@@ -446,7 +558,7 @@ class ArrowIncremental(IncrementalTransform):
             ).as_py()
         ):  # Last value has changed
             self.last_value = row_value
-            if not self.deduplication_disabled:
+            if self.boundary_deduplication:
                 # Compute unique hashes for all rows equal to row value
                 self.unique_hashes = set(
                     self.compute_unique_values(
@@ -454,7 +566,7 @@ class ArrowIncremental(IncrementalTransform):
                         unique_columns,
                     )
                 )
-        elif self.last_value == row_value and not self.deduplication_disabled:
+        elif self.last_value == row_value and self.boundary_deduplication:
             # last value is unchanged, add the hashes
             self.unique_hashes.update(
                 set(

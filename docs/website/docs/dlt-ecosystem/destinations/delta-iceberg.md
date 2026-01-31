@@ -60,7 +60,7 @@ def my_delta_resource():
 Delta uses [Hive-style partitioning](https://delta.io/blog/pros-cons-hive-style-partionining/).
 :::
 
-:::caution
+:::warning
 Partition evolution (changing partition columns after a table has been created) is not supported.
 :::
 
@@ -91,7 +91,7 @@ Note that not all authentication methods are supported when using Delta table fo
 ## Table format `merge` support (**experimental**)
 The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `delta`.
 
-:::caution
+:::warning
 The `upsert` merge strategy for the filesystem destination with Delta table format is **experimental**.
 :::
 
@@ -110,6 +110,13 @@ def my_upsert_resource():
 - Deleting records from nested tables not supported
   - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
 
+By default, dlt runs Delta table upserts in streamed mode to reduce memory pressure. To enable the use of source table statistics to derive an early pruning predicate, set:
+
+```toml
+[destination.filesystem]
+deltalake_streamed_exec = false
+```
+
 ## Delta table format storage options and configuration
 You can pass storage options and configuration by configuring both `destination.filesystem.deltalake_storage_options` and
 `destination.filesystem.deltalake_configuration`:
@@ -127,6 +134,6 @@ You don't need to specify credentials here. dlt merges the required credentials 
 >❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
 
 ## Delta table format memory usage
-:::caution
+:::warning
 Beware that when loading a large amount of data for one table, the underlying rust implementation will consume a lot of memory. This is a known issue and the maintainers are actively working on a solution. You can track the progress [here](https://github.com/delta-io/delta-rs/pull/2289). Until the issue is resolved, you can mitigate the memory consumption by doing multiple smaller incremental pipeline runs.
 :::

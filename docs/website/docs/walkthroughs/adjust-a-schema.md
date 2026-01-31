@@ -44,6 +44,17 @@ export_schema_path="schemas/export"
 import_schema_path="schemas/import"
 ```
 
+:::tip
+You can pick other import/export formats using config file:
+```toml
+external_schema_format="dbml"
+```
+will export **dbml** schema. Other supported formats are: **yaml** (default) and **json**.
+
+Note: import from **dbml** is not yet implemented.
+:::
+
+
 ## 2. Run the pipeline to see the schemas
 
 To see the schemas, you must run your pipeline again. The `schemas` and `import`/`export`
@@ -73,7 +84,7 @@ You should keep the import schema as simple as possible and let `dlt` do the res
 
 In the next steps, we'll experiment a lot; you will be warned to set `dev_mode=True` until we are done experimenting.
 
-:::caution
+:::warning
 dlt does **not modify** existing columns in a table after creation. While new columns can be added, changes to existing 
 columns (such as altering data types or adding hints) will not take effect automatically.
 
@@ -114,7 +125,7 @@ players_games:
 ```
 
 Run the pipeline script again and make sure that the change is visible in the export schema. Then,
-[launch the Streamlit app](../general-usage/dataset-access/streamlit) to see the changed data.
+[launch the dashboard app](../general-usage/dashboard) to see the changed data.
 
 :::note
 Do not rename the tables or columns in the YAML file. `dlt` infers those from the data, so the schema will be recreated.
@@ -205,6 +216,10 @@ players_games:
       nullable: false
       data_type: json
 ```
+
+:::note
+It is possible to adjust schemas in Python, [for example in @dlt.source decorated function](../general-usage/schema.md#schema-is-modified-in-the-source-function-body)
+:::
 
 ## 4. Keep your import schema
 

@@ -49,12 +49,12 @@ const config = {
   title: 'dlt Docs',
   tagline: 'data load tool',
   url: 'https://dlthub.com',
-  baseUrl: process.env.DOCUSAURUS_BASE_URL || '/docs',
+  baseUrl: '/docs',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'throw',
   onBrokenAnchors: 'throw',
   favicon: 'img/favicon.ico',
   staticDirectories: ['public', 'static'],
+  trailingSlash: false,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -68,6 +68,23 @@ const config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
+
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true, // required
+    },
+    experimental_faster: {
+      ssgWorkerThreads: true,
+    },
+  },
+
+  markdown: {
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
+  themes: ['@docusaurus/theme-mermaid'],
 
   presets: [
     [
@@ -162,6 +179,16 @@ const config = {
               {
                 label: 'Twitter',
                 href: 'https://twitter.com/dlthub',
+                className: 'footer-link'
+              }
+            ],
+          },
+          {
+            title: 'Workspace',
+            items: [
+              {
+                label: 'Scaffoldings',
+                href: 'https://dlthub.com/workspace',
                 className: 'footer-link'
               }
             ],

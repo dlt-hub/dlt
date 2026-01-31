@@ -21,7 +21,7 @@ from dlt.destinations.impl.redshift.configuration import (
 from dlt.destinations.impl.redshift.redshift import RedshiftClient, psycopg2
 
 from tests.common.utils import COMMON_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT, skipifpypy
+from tests.utils import get_test_storage_root, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 # mark all tests as essential, do not remove
@@ -30,7 +30,7 @@ pytestmark = pytest.mark.essential
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(scope="function")
@@ -164,3 +164,14 @@ def test_maximum_query_size(client: RedshiftClient, file_storage: FileStorage) -
             expect_load_file(client, file_storage, insert_sql, user_table_name)
         # psycopg2.errors.SyntaxError: Statement is too large. Statement Size: 20971754 bytes. Maximum Allowed: 16777216 bytes
         assert type(exv.value.dbapi_exception) is psycopg2.errors.SyntaxError
+
+
+def test_public_schema_has_dataset_override() -> None:
+    """Test that the has_dataset override correctly identifies public schema as existing."""
+    schema = Schema("test_schema")
+
+    config_public = RedshiftClientConfiguration(
+        credentials=RedshiftCredentials()
+    )._bind_dataset_name("public")
+    client_public = RedshiftClient(schema, config_public, redshift().capabilities())
+    assert client_public.sql_client.has_dataset() is True

@@ -3,7 +3,6 @@ name: common | common
 on:
   workflow_call:
 
-
 env:
   RUNTIME__LOG_LEVEL: ERROR
 
@@ -43,21 +42,29 @@ jobs:
             python-version: "3.13"
             shell: bash
 
+          - os: "macos-14"
+            python-version: "3.14"
+            shell: bash
+
           # linux test with minimal dependencies
           - os: ubuntu-latest
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+
+          # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--upgrade' # could also be 'direct'
           
           # windows tests
           - os: windows-latest
             python-version: "3.11"
             shell: cmd
-            pytest_args: '-m "not forked"'
           - os: windows-latest
             python-version: "3.13"
             shell: cmd
-            pytest_args: '-m "not forked"'
 
     defaults:
       run:
@@ -67,6 +74,7 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@master
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -82,67 +90,85 @@ jobs:
           copy tzdata %USERPROFILE%\Downloads\tzdata
           curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
         if: runner.os == 'Windows'
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
+          enable-cache: true
 
       - name: Install dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --group sentry-sdk
+        run: make install-common-core
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
     
       - name: Run common tests with minimum dependencies
-        run: |
-          pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
+        run: make test-common-core
+        env:
+          PYTEST_XDIST_N: auto
+
+      - name: Install min dependencies to import core source
+        run: make install-common-source
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+
+      - name: Run min dependencies source tests
+        run: make test-common-source
   
       - name: Install duckdb dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk
+        run: make install-pipeline-min
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
 
-      - name: Run pipeline smoke tests with minimum deps
-        run: |
-          pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
+      - name: Run pipeline tests with minimum deps
+        run: make test-pipeline-min
+        env:
+          PYTEST_XDIST_N: auto
 
       - name: Install pyarrow
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --group sentry-sdk
+        run: make install-pipeline-arrow
+        if: matrix.python-version != '3.14'
 
       - name: Run pipeline tests with pyarrow but no pandas installed
-        run: |
-          pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
+        run: make test-pipeline-arrow
+        if: matrix.python-version != '3.14'
+
+      - name: Install workspace dependencies
+        run: make install-workspace
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+        if: matrix.python-version != '3.14'
+
+      - name: Run workspace tests
+        run: make test-workspace
+        env:
+          PYTEST_XDIST_N: auto
+        if: matrix.python-version != '3.14'
 
       - name: Install pipeline and sources dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
+        run: make install-pipeline-full
+        env:
+          UV_SYNC_ARGS: ${{ matrix.uv_sync_args }}
+        if: matrix.python-version != '3.14'
 
       - name: Run extract and pipeline tests
-        run: |
-          pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations ${{ matrix.pytest_args }}
+        run: make test-pipeline-full
+        env:
+          PYTEST_XDIST_N: auto
+        if: matrix.python-version != '3.14'
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
-        run: uv run pip install sqlalchemy==2.0.32
+        run: make install-sqlalchemy2
+        if: matrix.python-version != '3.14'
 
-      - name: Run extract and pipeline tests 
-        run: |
-          pytest tests/sources/sql_database
+      - name: Run sql database tests and others that require sqlalchemy 2.0
+        run: make test-with-sqlalchemy-2
+        env:
+          PYTEST_XDIST_N: auto
+        if: matrix.python-version != '3.14'
 
-      # test pipeline dashboard app, does not work with python 3.13
-      - name: Install dlt with duckdb and dashboard
-        # note: this also tests the workspace extra installation
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
-      - name: Install playwright
-        run: playwright install
-
-      # Run pipeline dashboard unit tests
-      - name: Run pipeline dashboard unit tests
-        run: |
-          pytest tests/helpers/dashboard
-        if: matrix.python-version != '3.9'
-
-      # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
-      - name: Run dashboard e2e
-        run: |
-          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.9' && matrix.os != 'windows-latest'
-  
   matrix_job_required_check:
     name: common | common tests
     needs: run_common

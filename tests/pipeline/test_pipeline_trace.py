@@ -11,9 +11,10 @@ import yaml
 
 import dlt
 
-from dlt.common import json
+from dlt.common import json, pendulum
 from dlt.common.configuration.specs import CredentialsConfiguration, RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
+from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
@@ -28,18 +29,22 @@ from dlt.pipeline.trace import (
     PipelineTrace,
     SerializableResolvedValueTrace,
     load_trace,
+    save_trace,
 )
 from dlt.pipeline.track import slack_notify_load_success
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extract import describe_extract_data
 from dlt.extract.pipe import Pipe
+from dlt.extract.items_transform import ItemTransform
 
 from tests.pipeline.utils import PIPELINE_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT, start_test_telemetry, temporary_telemetry
+from tests.utils import get_test_storage_root, temporary_telemetry
 
 
 def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
     dlt.secrets["load.delete_completed_jobs"] = True
+    # delete all traces collected before test run
+    get_resolved_traces().clear()
 
     @dlt.source
     def inject_tomls(
@@ -53,15 +58,15 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
 
         return data()
 
-    p = dlt.pipeline(destination="dummy")
+    pipeline = dlt.pipeline(destination="dummy")
 
     # read from secrets and configs directly
     databricks_creds = "databricks+connector://token:<databricks_token>@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a,b,c"
     s = dlt.secrets["databricks.credentials"]
     assert s == databricks_creds
 
-    extract_info = p.extract(inject_tomls())
-    trace = p.last_trace
+    extract_info = pipeline.extract(inject_tomls())
+    trace = pipeline.last_trace
     assert trace is not None
     # assert p._trace is None
     assert len(trace.steps) == 1
@@ -72,7 +77,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert isinstance(step.step_info, ExtractInfo)
     assert step.step_info.extract_data_info == [{"name": "inject_tomls", "data_type": "source"}]
     # check infos
-    extract_info = p.last_trace.last_extract_info
+    extract_info = pipeline.last_trace.last_extract_info
     assert isinstance(extract_info, ExtractInfo)
     # should have single job and single load id
     assert len(extract_info.loads_ids) == 1
@@ -128,7 +133,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert_trace_serializable(trace)
 
     # activate pipeline because other was running in assert trace
-    p.activate()
+    pipeline.activate()
 
     # extract with exception
     @dlt.source
@@ -146,10 +151,10 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
         return data()
 
     with pytest.raises(PipelineStepFailed):
-        p.extract(async_exception())
+        pipeline.extract(async_exception())
 
-    trace = p.last_trace
-    assert p._trace is None
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 2
     step = trace.steps[1]
     assert step.step == "extract"
@@ -171,16 +176,19 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert len(extract_info.metrics[load_id]) == 1
 
     # normalize
-    norm_info = p.normalize()
-    trace = p.last_trace
-    assert p._trace is None
+    norm_info = pipeline.normalize()
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 3
     step = trace.steps[2]
     assert step.step == "normalize"
     assert step.step_info is norm_info
     assert_trace_serializable(trace)
-    assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
-    assert p.last_trace.last_normalize_info.row_counts == {"_dlt_pipeline_state": 1, "data": 3}
+    assert isinstance(pipeline.last_trace.last_normalize_info, NormalizeInfo)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "data": 3,
+    }
 
     assert len(norm_info.loads_ids) == 1
     load_id = norm_info.loads_ids[0]
@@ -201,9 +209,9 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
 
     # load
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
-    load_info = p.load()
-    trace = p.last_trace
-    assert p._trace is None
+    load_info = pipeline.load()
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 4
     step = trace.steps[3]
     assert step.step == "load"
@@ -221,13 +229,19 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
     assert_trace_serializable(trace)
-    assert isinstance(p.last_trace.last_load_info, LoadInfo)
-    p.activate()
+    assert isinstance(pipeline.last_trace.last_load_info, LoadInfo)
+    pipeline.activate()
+
+    # copy trace to well known location so it can be used as fixture
+    # NOTE: uncomment block below to generate fixture for test_trace_backward_compat
+    # trace_dir = os.path.join(get_test_storage_root(), f"dlt.{dlt.__version__}")
+    # os.makedirs(trace_dir)
+    # save_trace(trace_dir, pipeline._last_trace)
 
     # run resets the trace
     load_info = inject_tomls().run()
-    trace = p.last_trace
-    assert p._trace is None
+    trace = pipeline.last_trace
+    assert pipeline._trace is None
     assert len(trace.steps) == 4  # extract, normalize, load, run
     step = trace.steps[-1]  # the last one should be run
     assert step.step == "run"
@@ -239,11 +253,12 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     assert step.step_info is load_info  # same load info
     assert trace.steps[0].step_info is not extract_info
     assert_trace_serializable(trace)
-    assert isinstance(p.last_trace.last_load_info, LoadInfo)
-    assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
-    assert isinstance(p.last_trace.last_extract_info, ExtractInfo)
+    assert isinstance(pipeline.last_trace.last_load_info, LoadInfo)
+    assert isinstance(pipeline.last_trace.last_normalize_info, NormalizeInfo)
+    assert isinstance(pipeline.last_trace.last_extract_info, ExtractInfo)
 
 
+@pytest.mark.forked
 def test_trace_schema() -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
@@ -290,6 +305,9 @@ def test_trace_schema() -> None:
     def github():
         @dlt.resource
         def get_shuffled_events():
+            # Add a custom metric
+            custom_metrics = dlt.current.resource_metrics()
+            custom_metrics["good_old_github"] = True
             for _ in range(1):
                 with open(
                     "tests/normalize/cases/github.events.load_page_1_duck.json",
@@ -320,7 +338,9 @@ def test_trace_schema() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema",
         destination=dummy_dest,
-        staging=filesystem(os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "_remote_filesystem"))),
+        staging=filesystem(
+            os.path.abspath(os.path.join(get_test_storage_root(), "_remote_filesystem"))
+        ),
         dataset_name="various",
     )
 
@@ -388,6 +408,9 @@ def test_trace_schema() -> None:
 
 def test_save_load_trace() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"
+    # delete all traces collected before test run
+    get_resolved_traces().clear()
+
     info = dlt.pipeline().run([1, 2, 3], table_name="data", destination="dummy")
     pipeline = dlt.pipeline()
     # will get trace from working dir
@@ -639,7 +662,7 @@ def test_slack_hook(environment: DictStrStr) -> None:
     with requests_mock.mock() as m:
         m.post(hook_url, json={})
         load_info = dlt.pipeline().run([1, 2, 3], table_name="data", destination="dummy")
-        assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200  # type: ignore[attr-defined]
+        assert slack_notify_load_success(load_info.pipeline.config.runtime.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200  # type: ignore[attr-defined]
     assert m.called
     message = m.last_request.json()
     assert "rudolfix" in message["text"]
@@ -651,7 +674,7 @@ def test_broken_slack_hook(environment: DictStrStr) -> None:
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "http://localhost:22"
     load_info = dlt.pipeline().run([1, 2, 3], table_name="data", destination="dummy")
     # connection error
-    assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1  # type: ignore[attr-defined]
+    assert slack_notify_load_success(load_info.pipeline.config.runtime.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1  # type: ignore[attr-defined]
     # pipeline = dlt.pipeline()
     # assert pipeline.last_trace is not None
     # assert pipeline._trace is None
@@ -704,6 +727,10 @@ def test_last_pipeline_step_trace_returns_latest() -> None:
     assert len(p.last_trace.steps) == 7
     assert p.last_trace.last_load_info.loads_ids == second_load_info.loads_ids
 
+    # check if still 7 steps after pickle
+    unpickled_trace = load_trace(p.working_dir)
+    assert len(unpickled_trace.steps) == 7
+
     # next run should reset everything
     third_load_info = p.run([7, 8, 9], table_name="third_data")
     assert len(p.last_trace.steps) == 4
@@ -712,6 +739,100 @@ def test_last_pipeline_step_trace_returns_latest() -> None:
     assert p.last_trace.last_extract_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_normalize_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_load_info.loads_ids == third_load_info.loads_ids
+
+
+def test_trace_custom_metrics_schema() -> None:
+    """Test that custom metrics are properly included in trace data"""
+
+    @dlt.resource
+    def resource_with_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        custom_metrics["custom_count"] = 42
+        custom_metrics["random_constant"] = 1.5
+        custom_metrics["random_nested"] = {"value": 100, "unit": "items"}
+        custom_metrics["list_metric"] = [1, 2, 3]
+        yield [{"id": 1}, {"id": 2}]
+
+    resource_with_metrics.add_limit(10)
+    resource_with_metrics.add_map(lambda x: x)
+    resource_with_metrics.add_yield_map(lambda x: (yield from x))
+
+    # force metrics in transform steps
+    for step in resource_with_metrics._pipe.steps:
+        if isinstance(step, ItemTransform):
+            step.custom_metrics["transformation_type"] = "anything"
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_custom_metrics_trace", destination=dummy(completed_prob=1.0)
+    )
+
+    pipeline.run(resource_with_metrics())
+    trace = pipeline.last_trace
+
+    trace_pipeline = dlt.pipeline(
+        pipeline_name="test_custom_metrics_trace_schema", destination=dummy(completed_prob=1.0)
+    )
+    trace_pipeline.run([trace], table_name="trace")
+    inferred_schema = trace_pipeline.default_schema
+    resource_metrics_table_cols = inferred_schema.get_table(
+        "trace__steps__extract_info__resource_metrics"
+    )["columns"]
+
+    assert "custom_metrics__custom_count" in resource_metrics_table_cols
+    assert "custom_metrics__random_constant" in resource_metrics_table_cols
+    assert "custom_metrics__random_nested__value" in resource_metrics_table_cols
+    assert "custom_metrics__random_nested__unit" in resource_metrics_table_cols
+    assert (
+        "trace__steps__extract_info__resource_metrics__custom_metrics__list_metric"
+        in inferred_schema.tables
+    )
+
+
+@pytest.mark.skipif(
+    int(pendulum.__version__.split(".")[0]) < 3,
+    reason="Skipping backward compatibility test for pendulum version < 3",
+)
+def test_trace_backward_compat() -> None:
+    # this test checks if past traces can be unpickled. if this test fails - backward incompatible
+    # changes were introduced. there's no guarantee from our side that traces are backward compat
+    # but if we can easily prevent this form happening - we should.
+    # NOTE: if this test failed and you make it work again, add new trace fixture to tests/pipeline/cases/traces
+    # `test_create_trace` will create fixture for you in `_storage` folder after it is run. see end of the test code
+    # copy that fixture to cases folder above
+
+    traces_dir = os.path.join(PIPELINE_TEST_CASES_PATH, "traces")
+    traces = os.listdir(traces_dir)
+    assert len(traces) > 0  # sanity check
+    for folder in traces:
+        # skip botched traces in this test
+        if "botched" in folder:
+            continue
+        trace_dir = os.path.join(traces_dir, folder)
+        if os.path.isdir(trace_dir):
+            # use standard pickle
+            trace = load_trace(trace_dir, ignore_errors=False)
+            # trace must be found
+            assert trace is not None
+            # use trace loading which ignores all errors
+            trace = load_trace(trace_dir)
+            assert_trace_serializable(trace)
+
+
+def test_ignore_load_broken_trace() -> None:
+    traces_dir = os.path.join(PIPELINE_TEST_CASES_PATH, "traces")
+    traces = os.listdir(traces_dir)
+    assert len(traces) > 0  # sanity check
+    for folder in traces:
+        # skip botched traces in this test
+        if "botched" not in folder:
+            continue
+        trace_dir = os.path.join(traces_dir, folder)
+        # must fail
+        with pytest.raises(Exception):
+            load_trace(trace_dir, ignore_errors=False)
+
+        # can't fail but must be None
+        assert load_trace(trace_dir) is None
 
 
 def _find_resolved_value(

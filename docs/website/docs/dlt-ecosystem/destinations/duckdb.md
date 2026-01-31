@@ -12,6 +12,8 @@ keywords: [duckdb, destination, data warehouse]
 pip install "dlt[duckdb]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES duckdb-->
+
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to DuckDB by running:**
@@ -32,8 +34,10 @@ python3 chess_pipeline.py
 ## Supported version
 `dlt` supports `duckdb` versions starting from **0.9**. Below are a few notes on problems with particular versions observed
 in our tests:
-* `iceberg_scan` does not work on `duckdb` > 1.2.1 and azure blob storage (certain functions are not implemented)
-* we observed crashes (segfault) on certain tests using azure blob storage on `duckdb` version 1.3
+* `1.2.0` and `1.3.2` are verified stable versions where tests consistently pass
+* `iceberg_scan` does not work on `duckdb` > 1.2.1 < 1.3.3 and azure blob storage (certain functions are not implemented)
+* don't use `1.3.0` (decimal problem, seg faults on windows, crashes (segfault) on certain tests using azure blob storage)
+* [segfault on windows will be fixed in 1.4](https://github.com/duckdb/duckdb/issues/17971)
 
 ## Write disposition
 All write dispositions are supported.
@@ -92,7 +96,7 @@ or via the env variable `SCHEMA__NAMING` or directly in the code:
 ```py
 dlt.config["schema.naming"] = "duck_case"
 ```
-:::caution
+:::warning
 **duckdb** identifiers are **case insensitive** but display names preserve case. This may create name collisions if, for example, you load JSON with
 `{"Column": 1, "column": 2}` as it will map data to a single column.
 :::
@@ -124,7 +128,7 @@ to disable tz adjustments.
 
 ## Destination configuration
 
-By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above). After loading, it is available in **read/write** mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details. If you want to **read** data, use [pipeline.dataset()](../../general-usage/dataset-access/dataset) instead of `sql_client`.
+By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above).
 
 The `duckdb` credentials do not require any secret values. [You are free to pass the credentials and configuration explicitly](../../general-usage/destination.md#pass-explicit-credentials). For example:
 ```py
@@ -155,7 +159,7 @@ p = dlt.pipeline(
 ```
 creates database `chessdb.duckdb`.
 
-:::caution
+:::warning
 Avoid naming dataset the same as database. That will confuse `duckdb` binder as both catalog and schema are the same. For
 example:
 ```py
@@ -188,6 +192,8 @@ p = pipeline_one = dlt.pipeline(
   destination=dlt.destinations.duckdb(db),
   dataset_name="chess_data",
 )
+
+# print(p.run(chess()))
 
 print(db.sql("DESCRIBE;"))
 
@@ -230,7 +236,7 @@ destination.duckdb.credentials=":pipeline:"
 
 2. In Python code
 ```py
-p = pipeline_one = dlt.pipeline(
+p = dlt.pipeline(
   pipeline_name="my_pipeline",
   destination=dlt.destinations.duckdb(":pipeline:"),
 )
@@ -276,10 +282,13 @@ dest_ = dlt.destinations.duckdb(
     DuckDbCredentials("duck.db", extensions=["spatial"], local_config={"errors_as_json": True})
 )
 ```
-Code above install **spatial** (`dlt` only loads extension) and passes duckdb credentials to the destination constructor. Database file is **duck.db**, logging and error messages as `json` are enabled. 
+Code above install **spatial** (`dlt` only loads extension) and passes duckdb credentials to the destination constructor. Database file is **duck.db**, logging and error messages as `json` are enabled.
+
+## Data access after loading
+After loading, it is available in **read/write** mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details. If you want to **read** data, use [pipeline.dataset()](../../general-usage/dataset-access/dataset) instead of `sql_client`.
 
 
-### dbt support
+## dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. The `duckdb` database is shared with `dbt`. In rare cases, you may see information that the binary database format does not match the database format expected by `dbt-duckdb`. You can avoid this by updating the `duckdb` package in your `dlt` project with `pip install -U`.
 
 NOTE: extensions, pragmas and configs are not propagated from `dlt` configuration to the dbt profile at this moment.

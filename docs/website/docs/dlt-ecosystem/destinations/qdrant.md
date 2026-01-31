@@ -9,6 +9,9 @@ keywords: [qdrant, vector database, destination, dlt]
 [Qdrant](https://qdrant.tech/) is an open-source, high-performance vector search engine/database. It deploys as an API service, providing a search for the nearest high-dimensional vectors.
 This destination helps you load data into Qdrant from [dlt resources](../../general-usage/resource.md).
 
+
+<!--@@@DLT_DESTINATION_CAPABILITIES qdrant-->
+
 ## Setup guide
 
 1. To use Qdrant as a destination, make sure `dlt` is installed with the `qdrant` extra:
@@ -174,7 +177,7 @@ info = pipeline.run(
 
 Internally, dlt will use the `primary_key` (`document_id` in the example above) to generate a unique identifier (UUID) for each point in Qdrant. If the object with the same UUID already exists in Qdrant, it will be updated with the new data. Otherwise, a new point will be created.
 
-:::caution
+:::warning
 
 If you are using the merge write disposition, you must set it from the first run of your pipeline; otherwise, the data will be duplicated in the database on subsequent loads.
 

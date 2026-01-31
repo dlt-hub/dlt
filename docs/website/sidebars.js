@@ -27,7 +27,7 @@ function *walkSync(dir) {
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
-  tutorialSidebar: [
+  docsSidebar: [
     {
       type: 'category',
       label: 'Getting started',
@@ -37,11 +37,24 @@ const sidebars = {
       },
       items: [
         'reference/installation',
+        "dlt-ecosystem/llm-tooling/llm-native-workflow",
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/playground',
+        {
+          type: 'category',
+          label: 'Education',
+          link: {
+            type: 'doc',
+            id: 'tutorial/education',
+          },
+          items: [
+            'tutorial/fundamentals-course',
+            'tutorial/advanced-course',
+          ]
+        },
       ]
     },
     {
@@ -55,19 +68,9 @@ const sidebars = {
       },
       items: [
         'release-notes/1.12.1',
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Release highlights',
-      link: {
-        type: 'generated-index',
-        title: 'Release highlights',
-        slug: '/release-highlights',
-        keywords: ['release notes, release highlights'],
-      },
-      items: [
-        'release-notes/1.12.1',
+        'release-notes/1.13-1.14',
+        'release-notes/1.15',
+        'release-notes/1.21.2'
       ]
     },
     {
@@ -91,88 +94,9 @@ const sidebars = {
             'general-usage/schema-contracts',
             'general-usage/schema-evolution',
             'general-usage/naming-convention',
-            'walkthroughs/adjust-a-schema',
           ]
         },
         'general-usage/glossary'
-      ]
-    },
-    {
-      type: 'category',
-      label: 'dlt+',
-      link: {
-        type: 'doc',
-        id: 'plus/intro',
-      },
-      items: [
-        {
-          type: 'category',
-          label: 'Getting started',
-          items: [
-            'plus/getting-started/installation',
-            'plus/getting-started/tutorial',
-            'plus/getting-started/advanced_tutorial',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Core concepts',
-          items: [
-            'plus/core-concepts/project',
-            'plus/core-concepts/cache',
-            'plus/core-concepts/datasets',
-            'plus/core-concepts/profiles',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Sources & Destinations',
-          items: [
-            'plus/ecosystem/ms-sql',
-            'plus/ecosystem/iceberg',
-            'plus/ecosystem/delta',
-            'plus/ecosystem/snowflake_plus',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Features',
-          items: [
-            'plus/features/projects',
-            'plus/features/data-access',
-            {
-              type: 'category',
-              label: 'Local transformations',
-              link: {
-                type: 'doc',
-                id: 'plus/features/transformations/index',
-              },
-              items: [
-                'plus/features/transformations/setup',
-                'plus/features/transformations/dbt-transformations',
-                'plus/features/transformations/python-transformations',
-              ]
-            },
-            'plus/features/ai',
-            {
-              type: 'category',
-              label: 'Data quality & tests',
-              items: [
-                'plus/features/quality/tests',
-                'plus/features/quality/data-quality',
-              ]
-            },
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Going to production',
-          items: [
-            'plus/production/runners',
-            'plus/production/observability',
-          ]
-        },
-        'plus/reference',
       ]
     },
     {
@@ -205,6 +129,12 @@ const sidebars = {
                 'general-usage/http/rest-client',
                 'general-usage/http/requests',
               ]
+            },
+            {
+              type: 'link',
+              label: '5k+ REST APIs with LLMs',
+              description: 'Pick one of 5k+ REST APIs from LLM context',
+              href: 'https://dlthub.com/workspace',
             },
           ]
         },
@@ -300,6 +230,9 @@ const sidebars = {
         'dlt-ecosystem/destinations/dremio',
         'dlt-ecosystem/destinations/destination',
         'dlt-ecosystem/destinations/motherduck',
+        'dlt-ecosystem/destinations/ducklake',
+        'dlt-ecosystem/destinations/fabric',
+        'dlt-ecosystem/destinations/community-destinations',
         'walkthroughs/create-new-destination'
       ]
     },
@@ -315,7 +248,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
-        {
+        /*{
           type: "category",
           label: "Build with LLMs",
           link: {
@@ -325,10 +258,9 @@ const sidebars = {
             slug: 'dlt-ecosystem/llm-tooling',
           },
           items: [
-            "dlt-ecosystem/llm-tooling/mcp-server",
-            "dlt-ecosystem/llm-tooling/cursor-restapi",
+            "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
-        },
+        },*/
         {
           type: 'category',
           label: 'Load data incrementally',
@@ -352,11 +284,14 @@ const sidebars = {
           items: [
             'general-usage/credentials/setup',
             'general-usage/credentials/advanced',
+            'general-usage/credentials/vaults',
             'general-usage/credentials/complex_types',
             // Unsure item
             'walkthroughs/add_credentials'
           ]
         },
+        'walkthroughs/adjust-a-schema',
+        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Access loaded data',
@@ -365,12 +300,13 @@ const sidebars = {
             id: 'general-usage/dataset-access/index',
           },
           items: [
-            'general-usage/dataset-access/streamlit',
             'general-usage/dataset-access/marimo',
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
+            'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
+            'general-usage/dataset-access/streamlit',
           ]
         },
         {
@@ -450,6 +386,21 @@ const sidebars = {
             'running-in-production/tracing',
           ],
         },
+        {
+          type: "category",
+          label: "Run in Snowflake",
+          link: {
+            type: 'generated-index',
+            title: 'Run in Snowflake',
+            description: 'How to run dlt in Snowflake.',
+            slug: 'run-in-snowflake',
+            keywords: ['Snowflake'],
+          },
+          items: [
+            "walkthroughs/run-in-snowflake/run-in-snowflake",
+            "walkthroughs/run-in-snowflake/database-connector-app"
+          ]
+        }
       ]
     },
     {
@@ -463,11 +414,8 @@ const sidebars = {
       type: 'category',
       label: 'Code examples',
       link: {
-        type: 'generated-index',
-        title: 'Code examples',
-        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
-        slug: 'examples',
-        keywords: ['examples'],
+        type: 'doc',
+        id: 'examples/index',
       },
       items: [
         'walkthroughs/dispatch-to-multiple-tables',
@@ -546,25 +494,100 @@ const sidebars = {
       ]
     }
     */
-  ]
+  ],
+  hubSidebar: [
+    {
+      type: 'category',
+      label: 'Getting started',
+      items: [
+        'hub/intro',
+        'hub/getting-started/installation',
+        { type: 'ref', id: 'dlt-ecosystem/llm-tooling/llm-native-workflow' },
+        'hub/getting-started/runtime-tutorial',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Workspace',
+       link: {
+         type: 'doc',
+         id: 'hub/workspace/overview',
+       },
+      items: [
+         'hub/workspace/overview',
+        {
+          type: 'category',
+          label: 'Create pipeline',
+          items: [
+          'hub/workspace/init',
+          'hub/ecosystem/ms-sql',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Ensure data quality',
+          items: [
+            { type: 'ref', id: 'general-usage/dashboard' },
+            'hub/features/mcp-server',
+            'hub/features/quality/data-quality',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Create reports and transformations',
+          items: [
+            { type: 'ref', id: 'general-usage/dataset-access/marimo' },
+            { type: 'ref', id: 'general-usage/dataset-access/dataset' },
+            'hub/features/transformations/index',
+            'hub/features/transformations/dbt-transformations',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Deploy workspace',
+          items: [
+            'hub/core-concepts/profiles-dlthub',
+          ]
+        },
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Runtime',
+      items: [
+        'hub/runtime/overview',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Storage',
+      items: [
+        'hub/ecosystem/delta',
+        'hub/ecosystem/iceberg',
+        'hub/ecosystem/snowflake_plus',
+      ]
+    },
+    'hub/command-line-interface',
+    'hub/EULA',
+    ],
 };
 
-// insert examples
-for (const item of sidebars.tutorialSidebar) {
-  if (item.label === 'Code examples') {
-    for (let examplePath of walkSync("./docs_processed/examples")) {
-      examplePath = examplePath.replace("docs_processed/", "");
-      examplePath = examplePath.replace(".mdx", "");
-      examplePath = examplePath.replace(".md", "");
-      item.items.push(examplePath);
+ // insert examples
+for (const item of sidebars.docsSidebar) {
+    if (item.label === 'Code examples') {
+      for (let examplePath of walkSync("./docs_processed/examples")) {
+        examplePath = examplePath.replace("docs_processed/", "");
+        examplePath = examplePath.replace(".mdx", "");
+        examplePath = examplePath.replace(".md", "");
+        item.items.push(examplePath);
     }
   }
 }
 
 
-// inject api reference if it exists
+ // inject api reference if it exists
 if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
-  for (const item of sidebars.tutorialSidebar) {
+  for (const item of sidebars.docsSidebar) {
     if (item.label === 'Reference') {
       item.items.splice(0,0,require("./docs_processed/api_reference/sidebar.json"));
     }

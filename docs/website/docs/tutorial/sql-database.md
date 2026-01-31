@@ -145,10 +145,10 @@ This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project di
 
 ## 6. Explore the data
 
-dlt comes with a built-in browser application that allows you to interact with the loaded data. To enable it, run the following command:
+dlt comes with a built-in browser dashboard that allows you to interact with the loaded data. To enable it, run the following command:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
 Next, run the following command to launch the data browser app:
@@ -158,8 +158,6 @@ dlt pipeline sql_to_duckdb_pipeline show
 ```
 
 You can explore the loaded data, run queries, and see some pipeline execution details.
-
-![streamlit-screenshot](https://storage.googleapis.com/dlt-blog-images/docs-sql-database-tutorial-streamlit-screenshot.png)
 
 ## 7. Append, replace, or merge loaded data
 
@@ -268,6 +266,11 @@ In the first run of the pipeline `python sql_database_pipeline.py`, the entire t
 ## What's next?
 
 Congratulations on completing the tutorial! You learned how to set up a SQL Database source in dlt and run a data pipeline to load the data into DuckDB.
+
+With your pipeline code ready, we recommend the following next steps:
+- Inspect your pipeline and data in [workspace dashboard](../general-usage/dashboard.md)
+- [Access your data](../general-usage/dataset-access/) using `dataset` interface
+- [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
 
 Interested in learning more about dlt? Here are some suggestions:
 - Learn more about the SQL Database source configuration in [the SQL Database source reference](../dlt-ecosystem/verified-sources/sql_database)

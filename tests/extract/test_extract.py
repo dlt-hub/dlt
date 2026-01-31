@@ -12,6 +12,7 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
 )
 from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.utils import uniq_id
 
 from dlt.common.typing import TTableNames, TDataItems
 from dlt.extract import DltResource, DltSource
@@ -20,8 +21,8 @@ from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import TResourceNestedHints, make_hints
 from dlt.extract.items_transform import ValidateItem
 
-from dlt.extract.items import TableNameMeta
-from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
+from dlt.extract.items import TableNameMeta, DataItemWithMeta
+from tests.utils import MockPipeline, clean_test_storage, get_test_storage_root
 from tests.extract.utils import expect_extracted_file
 
 NESTED_DATA = [
@@ -41,7 +42,9 @@ NESTED_DATA = [
 def extract_step() -> Extract:
     clean_test_storage(init_normalize=True)
     schema_storage = SchemaStorage(
-        SchemaStorageConfiguration(schema_volume_path=os.path.join(TEST_STORAGE_ROOT, "schemas")),
+        SchemaStorageConfiguration(
+            schema_volume_path=os.path.join(get_test_storage_root(), "schemas")
+        ),
         makedirs=True,
     )
     return Extract(schema_storage, NormalizeStorageConfiguration())
@@ -131,7 +134,7 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
         assert table["columns"]["pk"]["primary_key"] is True
         assert table["columns"]["id"]["data_type"] == "bigint"
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         table = resource.compute_table_schema()
         # also there we see the hints
         assert table["columns"]["pk"]["primary_key"] is True
@@ -212,7 +215,7 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
             create_table_variant=True,
         )
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         assert "table_a" in resource._hints_variants
         # get table
         table = resource.compute_table_schema(meta=TableNameMeta("table_a"))
@@ -259,7 +262,7 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
         yield [{"id": id_, "pk": "A"} for id_ in range(1, 10)]
 
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         table = resource.compute_table_schema()
         # also there we see the hints
         assert table["columns"]["id"]["primary_key"] is True
@@ -272,7 +275,7 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
         )
 
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         assert resource.incremental.cursor_path == "created_at"  # type: ignore[attr-defined]
         assert resource.incremental.primary_key == "id"
         # we are able to add the incremental to the pipe. but it won't
@@ -582,7 +585,7 @@ def test_materialize_table_schema_with_pipe_items():
 
     class LazyValidator(ValidateItem):
         def __init__(self):
-            pass
+            super().__init__(lambda x: x)
 
         def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
             return item
@@ -609,3 +612,215 @@ def test_materialize_table_schema_with_pipe_items():
         if job.job_file_info.table_name == "empty_list":
             found_empty_list = True
     assert found_empty_list
+
+
+@pytest.mark.parametrize(
+    "with_custom_metrics", [True, False], ids=["with_custom_metrics", "without_custom_metrics"]
+)
+def test_resource_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
+    """Ensure that custom metrics from resources are collected and transform steps are available in extract info"""
+
+    if with_custom_metrics:
+        expected_custom_metrics = {
+            "resource_with_metrics": {
+                "custom_count": 42,
+                "random_constant": 1.5,
+                "random_nested": {"value": 100, "unit": "items"},
+                "items_count": 90,
+            },
+            "resource_with_other_metrics": {
+                "custom_count": 3,
+                "random_constant": 251.3,
+                "random_nested": {"value": 4, "unit": None},
+            },
+        }
+    else:
+        expected_custom_metrics = {"resource_with_metrics": {}, "resource_with_other_metrics": {}}
+
+    @dlt.resource
+    def resource_with_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        for metric, value in expected_custom_metrics["resource_with_metrics"].items():
+            custom_metrics[metric] = value
+        yield [{"id": 1}, {"id": 2}]
+
+    resource_with_metrics.add_limit(10)
+    resource_with_metrics.add_map(lambda x: x)
+    resource_with_metrics.add_yield_map(lambda x: (yield from x))
+
+    @dlt.resource
+    def resource_with_other_metrics():
+        custom_metrics = dlt.current.resource_metrics()
+        for metric, value in expected_custom_metrics["resource_with_other_metrics"].items():
+            custom_metrics[metric] = value
+        yield [{"id": 1}, {"id": 2}]
+
+    source = DltSource(
+        dlt.Schema("metrics"), "module", [resource_with_metrics(), resource_with_other_metrics()]
+    )
+    load_id = extract_step.extract(source, 20, 1)
+
+    assert (
+        expected_custom_metrics["resource_with_metrics"]
+        == source.resources["resource_with_metrics"].custom_metrics
+    )
+    assert (
+        expected_custom_metrics["resource_with_other_metrics"]
+        == source.resources["resource_with_other_metrics"].custom_metrics
+    )
+
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+
+    all_resource_metrics = step_info.metrics[load_id][0]["resource_metrics"]
+    assert "resource_with_metrics" in all_resource_metrics
+    assert "resource_with_other_metrics" in all_resource_metrics
+
+    assert (
+        expected_custom_metrics["resource_with_metrics"]
+        == all_resource_metrics["resource_with_metrics"].custom_metrics
+    )
+    assert (
+        expected_custom_metrics["resource_with_other_metrics"]
+        == all_resource_metrics["resource_with_other_metrics"].custom_metrics
+    )
+
+
+@pytest.mark.parametrize(
+    "with_custom_metrics", [True, False], ids=["with_custom_metrics", "without_custom_metrics"]
+)
+def test_resource_step_custom_metrics(extract_step: Extract, with_custom_metrics: bool) -> None:
+    """Ensure that custom metrics from both resources and their transform steps are collected and merged"""
+
+    class SimpleStep(ValidateItem):
+        def __init__(self):
+            super().__init__(lambda x: x)
+
+        def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+            if with_custom_metrics:
+                self.custom_metrics["from_step"] = "hi"
+                self.custom_metrics["overrided"] = 2
+            return item
+
+    @dlt.resource
+    def resource_with_step_metrics():
+        if with_custom_metrics:
+            custom_metrics = dlt.current.resource_metrics()
+            custom_metrics["from_resource"] = "hey"
+            # Overlapping metrics will be overrided by those in steps
+            custom_metrics["overrided"] = 1
+        yield {"id": 1}
+
+    resource = resource_with_step_metrics()
+    resource._pipe._steps.append(SimpleStep())
+
+    source = DltSource(dlt.Schema("step_metrics"), "module", [resource])
+    load_id = extract_step.extract(source, 20, 1)
+
+    step_info = extract_step.get_step_info(MockPipeline("test", first_run=False))  # type: ignore[abstract]
+    resource_metrics = step_info.metrics[load_id][0]["resource_metrics"][
+        "resource_with_step_metrics"
+    ]
+
+    if with_custom_metrics:
+        expected_metrics = {
+            "from_resource": "hey",
+            "from_step": "hi",
+            "overrided": 2,
+        }
+        assert resource_metrics.custom_metrics == expected_metrics
+    else:
+        assert resource_metrics.custom_metrics == {}
+
+
+@pytest.mark.parametrize(
+    "as_single_batch",
+    [True, False],
+    ids=["single_batch", "multiple_batches"],
+)
+def test_add_metrics(extract_step: Extract, as_single_batch: bool) -> None:
+    """Test metrics collection with add_metrics"""
+
+    # 1: Test metrics at different pipeline stages (before/after filter)
+    @dlt.resource
+    def some_data():
+        data = [1, 2, 3, 4, 5, 6]
+        if as_single_batch:
+            yield data
+        else:
+            yield from data
+
+    def early_counter(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        metrics["early_count"] = metrics.get("early_count", 0) + 1
+
+    def late_counter(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        metrics["late_count"] = metrics.get("late_count", 0) + 1
+
+    some_data.add_metrics(early_counter).add_filter(lambda x: x > 3).add_metrics(late_counter)
+
+    # 2. Test metrics with TableNameMeta
+    @dlt.resource
+    def multi_table_data():
+        yield dlt.mark.with_table_name({"id": 1, "name": "Alice"}, "users")
+        yield dlt.mark.with_table_name({"id": 2, "name": "Bob"}, "users")
+        yield dlt.mark.with_table_name({"product": "A"}, "products")
+        yield dlt.mark.with_table_name({"product": "B"}, "products")
+
+    def count_by_table(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        if isinstance(meta, TableNameMeta):
+            table_key = f"count_{meta.table_name}"
+            metrics[table_key] = metrics.get(table_key, 0) + 1
+
+    multi_table_data.add_metrics(count_by_table)
+
+    # 3. Test metrics with custom metadata
+    @dlt.resource
+    def data_with_priority():
+        yield DataItemWithMeta(meta={"priority": "high"}, data={"id": 1})
+        yield DataItemWithMeta(meta={"priority": "high"}, data={"id": 2})
+        yield DataItemWithMeta(meta={"priority": "low"}, data={"id": 3})
+        yield DataItemWithMeta(meta={"priority": "low"}, data={"id": 4})
+        yield DataItemWithMeta(meta={"priority": "low"}, data={"id": 5})
+
+    def count_by_priority(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        if isinstance(meta, dict) and "priority" in meta:
+            priority = meta["priority"]
+            key = f"{priority}_priority_count"
+            metrics[key] = metrics.get(key, 0) + 1
+
+    data_with_priority.add_metrics(count_by_priority)
+
+    source = DltSource(
+        dlt.Schema("metrics"), "module", [some_data, multi_table_data, data_with_priority]
+    )
+    load_id = extract_step.extract(source, 20, 1)
+
+    assert source.resources["some_data"].custom_metrics == {
+        "early_count": 1 if as_single_batch else 6,
+        "late_count": 1 if as_single_batch else 3,
+    }
+    assert source.resources["multi_table_data"].custom_metrics == {
+        "count_users": 2,
+        "count_products": 2,
+    }
+    assert source.resources["data_with_priority"].custom_metrics == {
+        "high_priority_count": 2,
+        "low_priority_count": 3,
+    }
+
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    all_resource_metrics = step_info.metrics[load_id][0]["resource_metrics"]
+    assert "some_data" in all_resource_metrics
+    assert "multi_table_data" in all_resource_metrics
+    assert "data_with_priority" in all_resource_metrics
+    assert all_resource_metrics["some_data"].custom_metrics == {
+        "early_count": 1 if as_single_batch else 6,
+        "late_count": 1 if as_single_batch else 3,
+    }
+    assert all_resource_metrics["multi_table_data"].custom_metrics == {
+        "count_users": 2,
+        "count_products": 2,
+    }
+    assert all_resource_metrics["data_with_priority"].custom_metrics == {
+        "high_priority_count": 2,
+        "low_priority_count": 3,
+    }

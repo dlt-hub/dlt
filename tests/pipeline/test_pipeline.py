@@ -1,5 +1,7 @@
 import asyncio
+from multiprocessing.dummy import DummyProcess
 import pathlib
+import pickle
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
@@ -8,15 +10,18 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, List, Tuple, cast
+from typing import Any, List, Tuple, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
-
+from unittest.mock import patch
 import pytest
-from dlt.common.known_env import DLT_LOCAL_DIR
-from dlt.common.storages import FileStorage
 
 import dlt
 from dlt.common import json, pendulum, Decimal
+from dlt.common.configuration import resolve
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+from dlt.common.known_env import DLT_LOCAL_DIR
+from dlt.common.storages import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
@@ -30,30 +35,30 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     UnknownDestinationModule,
 )
-from dlt.common.exceptions import PipelineStateNotAvailable
-from dlt.common.pipeline import LoadInfo, PipelineContext
-from dlt.common.runtime.collector import LogCollector
+from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
+from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
+from dlt.common.runtime import signals
+from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
-from dlt.common.schema.utils import new_column, new_table
-from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.typing import DictStrAny
+from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
+from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
-import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeBasic,
     ResourceExtractionError,
     SourceExhausted,
 )
-from dlt.extract.extract import ExtractStorage
+from dlt.extract.extract import ExtractStorage, data_to_sources
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
+from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import (
     InvalidPipelineName,
     PipelineNeverRan,
@@ -63,10 +68,11 @@ from dlt.pipeline.exceptions import (
 from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
-from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT
-from tests.pipeline.utils import assert_load_info, load_table_counts
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
+from dlt.pipeline.typing import TPipelineStep
 
+from tests.common.utils import TEST_SENTRY_DSN
+from tests.utils import get_test_storage_root, skipifwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_table_counts,
@@ -88,8 +94,9 @@ def test_default_pipeline() -> None:
     # this is a name of executing test harness or blank pipeline on windows
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
-    assert p.runtime_config.pipeline_name == p.pipeline_name
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     # default dataset name is not created until a destination that requires it is set
     assert p.dataset_name is None
     assert p.destination is None
@@ -109,6 +116,22 @@ def test_default_pipeline() -> None:
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
+def test_pipeline_runtime_configuration() -> None:
+    c = resolve.resolve_configuration(PipelineConfiguration())
+    assert c.pipeline_name.startswith("dlt_")
+    assert c.runtime.slack_incoming_hook is None
+
+    # check pipeline runtime config
+    os.environ["RUNTIME__SLACK_INCOMING_HOOK"] = "https://hooks.slack.com/services/..."
+    c = resolve.resolve_configuration(PipelineConfiguration())
+    assert c.runtime.slack_incoming_hook == os.environ["RUNTIME__SLACK_INCOMING_HOOK"]
+
+    os.environ["TEST_P__RUNTIME__SLACK_INCOMING_HOOK"] = "#test-p-slack"
+    p = dlt.pipeline("test_p")
+    assert p.config.runtime.slack_incoming_hook == "#test-p-slack"
+    assert p.config.runtime is p.runtime_config
+
+
 def test_default_pipeline_dataset_layout(environment) -> None:
     # Set dataset_name_layout to "bobby_%s"
     dataset_name_layout = "bobby_%s"
@@ -123,8 +146,9 @@ def test_default_pipeline_dataset_layout(environment) -> None:
         dataset_name_layout % "dlt_pipeline_dataset",
     ]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
-    assert p.runtime_config.pipeline_name == p.pipeline_name
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(get_test_storage_root(), ".dlt", "pipelines")
+    )
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
     assert p.default_schema_name is None
@@ -167,7 +191,7 @@ def test_default_pipeline_dataset_late_destination() -> None:
     assert p.dataset_name is None
 
     # default dataset name will be created
-    p.sync_destination(destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT))
+    p.sync_destination(destination=dlt.destinations.filesystem(get_test_storage_root()))
     assert p.dataset_name == "test_default_pipeline_dataset"
     p._wipe_working_folder()
 
@@ -213,7 +237,7 @@ def test_default_pipeline_dataset_layout_empty(environment) -> None:
 
 
 def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
-    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     # mock tmp dir
     os.environ[DLT_LOCAL_DIR] = local_dir
@@ -224,8 +248,8 @@ def test_pipeline_initial_cwd_follows_local_dir(environment) -> None:
 def test_pipeline_configuration_top_level_section(environment) -> None:
     environment["PIPELINES__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__DESTINATION_TYPE"] = "dummy"
-    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
-    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__IMPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
+    environment["PIPELINES__EXPORT_SCHEMA_PATH"] = os.path.join(get_test_storage_root(), "import")
 
     pipeline = dlt.pipeline()
     assert pipeline.dataset_name == "pipeline_dataset"
@@ -243,8 +267,12 @@ def test_pipeline_configuration_top_level_section(environment) -> None:
 def test_pipeline_configuration_named_section(environment) -> None:
     environment["PIPELINES__NAMED__DATASET_NAME"] = "pipeline_dataset"
     environment["PIPELINES__NAMED__DESTINATION_TYPE"] = "dummy"
-    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
-    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(TEST_STORAGE_ROOT, "import")
+    environment["PIPELINES__NAMED__IMPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
+    environment["PIPELINES__NAMED__EXPORT_SCHEMA_PATH"] = os.path.join(
+        get_test_storage_root(), "import"
+    )
 
     pipeline = dlt.pipeline(pipeline_name="named")
     assert pipeline.dataset_name == "pipeline_dataset"
@@ -346,8 +374,6 @@ def test_pipeline_with_non_alpha_name() -> None:
     assert p.pipeline_name == name
     # default dataset is set (we used filesystem destination that requires dataset)
     assert p.dataset_name == f"{name}_dataset"
-    # also pipeline name in runtime must be correct
-    assert p.runtime_config.pipeline_name == p.pipeline_name
 
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
@@ -575,6 +601,10 @@ def test_destination_explicit_invalid_credentials_filesystem(environment: Any) -
     )
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run([1, 2, 3], table_name="data", credentials="PR8BLEM")
+    assert pip_ex.value.step == "sync"
+    assert pip_ex.value.load_id is None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
     assert isinstance(pip_ex.value.__cause__, InvalidNativeValue)
 
 
@@ -591,26 +621,34 @@ def test_extract_source_twice() -> None:
     assert py_ex.value.exception.source_name == "source"
 
 
-def test_disable_enable_state_sync(environment: Any) -> None:
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_disable_enable_state_sync(environment: Any, use_single_dataset: bool) -> None:
     environment["RESTORE_FROM_DESTINATION"] = "False"
     p = dlt.pipeline(destination="redshift")
+    p.config.use_single_dataset = use_single_dataset
 
     def some_data():
         yield [1, 2, 3]
 
-    s = DltSource(dlt.Schema("default"), "module", [dlt.resource(some_data())])
+    s = _create_simple_source(dlt.Schema("default"), "some_data", some_data())
     dlt.pipeline().extract(s)
     storage = ExtractStorage(p._normalize_storage_config())
     assert len(storage.list_files_to_normalize_sorted()) == 1
     expect_extracted_file(storage, "default", "some_data", json.dumps([1, 2, 3]))
-    with pytest.raises(FileNotFoundError):
-        expect_extracted_file(storage, "default", s.schema.state_table_name, "")
+    _assert_extracted_file_exists(storage, "default", s.schema.state_table_name, should_exist=False)
 
     p.config.restore_from_destination = True
-    # extract to different schema, state must go to default schema
+    # extract to different schema, state must go to the corresponding schema
     s = DltSource(dlt.Schema("default_2"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
-    expect_extracted_file(storage, "default", s.schema.state_table_name, "***")
+    if use_single_dataset:
+        expect_extracted_file(storage, "default", s.schema.state_table_name, "***")
+    else:
+        expect_extracted_file(storage, "default_2", s.schema.state_table_name, "***")
 
 
 def test_extract_multiple_sources() -> None:
@@ -660,6 +698,306 @@ def test_extract_multiple_sources() -> None:
     # pipeline state is successfully rollbacked after the last extract and default_3 and 4 schemas are not present
     assert set(p.schema_names) == {"default", "default_2"}
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
+
+
+# Helper functions for state extraction tests
+def _get_state_files_count(storage: ExtractStorage, schema_name: Optional[str] = None) -> int:
+    """Get count of state files from extract storage, optionally filtered by schema."""
+    all_files = storage.list_files_to_normalize_sorted()
+    state_files = [f for f in all_files if "_dlt_pipeline_state" in f]
+
+    if schema_name:
+        state_files = [f for f in state_files if schema_name in f]
+
+    return len(state_files)
+
+
+def _assert_extracted_file_exists(
+    storage: ExtractStorage, schema_name: str, file_name: str, should_exist: bool = True
+) -> None:
+    """Assert whether a file exists in extract storage for a given schema."""
+    if should_exist:
+        expect_extracted_file(storage, schema_name, file_name, "***")
+    else:
+        with pytest.raises(FileNotFoundError):
+            expect_extracted_file(storage, schema_name, file_name, "***")
+
+
+def _create_simple_source(
+    schema: Schema, resource_name: str, data: TDataItems, use_incremental: bool = False
+) -> DltSource:
+    """Create a simple DltSource with one resource with optional incremental loading."""
+    if use_incremental:
+        resource = dlt.resource(data, name=resource_name, incremental=dlt.sources.incremental("id"))
+    else:
+        resource = dlt.resource(data, name=resource_name)
+
+    return DltSource(schema, "module", [resource])
+
+
+@pytest.mark.parametrize(
+    ("initial_order", "expected_order"),
+    [
+        (
+            ["A", "A", "B", "B", "C"],
+            ["A", "A", "B", "B", "C"],
+        ),
+        (
+            ["C", "C", "B", "B", "A"],
+            ["A", "B", "B", "C", "C"],
+        ),
+        (
+            ["B", "A", "B", "C", "A"],
+            ["A", "A", "B", "B", "C"],
+        ),
+        (
+            ["B", "A", "B", "A", "B"],
+            ["A", "A", "B", "B", "B"],
+        ),
+    ],
+)
+def test_extract_sources_ordered_by_schema_name(
+    initial_order: list[str],
+    expected_order: list[str],
+) -> None:
+    """Ensure data_to_sources returns sources ordered by schema name so that if there are
+    many instances of the same source, they will be extracted one after another, and we can attach
+    state to each schema's package without having to wait for everything to finish."""
+    sources = [
+        DltSource(
+            dlt.Schema(f"{schema_name}"), "module", [dlt.resource([1, 2, 3], name=f"resource_{i}")]
+        )
+        for i, schema_name in enumerate(initial_order)
+    ]
+
+    actual_order = data_to_sources(
+        data=sources,
+        pipeline=dlt.pipeline(destination="dummy"),
+    )
+
+    assert [source.schema.name for source in actual_order] == expected_order
+
+
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extracted_once_for_same_schema_multiple_sources(use_single_dataset: bool) -> None:
+    """Test that when multiple sources share the same schema:
+    - First extraction: state is extracted
+    - Second extraction with same data: state is not extracted (unchanged hash)
+    - Third extraction with new incremental data: State is extracted (cursor updated, hash changed)
+    """
+    schema = dlt.Schema("shared_schema")
+
+    s1 = _create_simple_source(schema, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}])
+    s2 = _create_simple_source(
+        schema, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
+
+    # First extraction: state extracted once
+    p.extract([s1, s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    # both resources in same package
+    expect_extracted_file(
+        storage, "shared_schema", "resource_1", json.dumps([{"id": 1}, {"id": 2}, {"id": 3}])
+    )
+    expect_extracted_file(
+        storage, "shared_schema", "resource_2", json.dumps([{"id": 4}, {"id": 5}, {"id": 6}])
+    )
+
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=True
+    )
+    assert _get_state_files_count(storage) == 1
+
+    p.normalize()
+
+    # Second extraction: state not extracted (unchanged hash)
+    p.extract([s1, s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=False
+    )
+
+    p.normalize()
+
+    # Third extraction: state extracted (incremental data changed)
+    new_s2 = _create_simple_source(
+        schema, "resource_2", [{"id": 7}, {"id": 8}, {"id": 9}], use_incremental=True
+    )
+    p.extract([s1, new_s2])
+    storage = ExtractStorage(p._normalize_storage_config())
+    _assert_extracted_file_exists(
+        storage, "shared_schema", schema.state_table_name, should_exist=True
+    )
+
+
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extracted_per_schema_for_multiple_schemas(use_single_dataset: bool) -> None:
+    """Test that when multiple sources have different schemas:
+    - First extraction:
+        - use_single_dataset=True: only the first schema (default) gets state
+        - use_single_dataset=False: each schema gets its own state in separate packages
+    - Second extraction with same data:
+        - state is not extracted (unchanged hash)
+    - Third extraction with incremental change in "schema_b":
+        - use_single_dataset=True: state is extracted to default schema ("schema_a")
+        - use_single_dataset=False: state is extracted to the schema that changed ("schema_b")
+    """
+    schema_a = dlt.Schema("schema_a")
+    schema_b = dlt.Schema("schema_b")
+    schema_c = dlt.Schema("schema_c")
+
+    s1 = _create_simple_source(schema_a, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}])
+    s2 = _create_simple_source(
+        schema_b, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+    s3 = _create_simple_source(schema_c, "resource_3", [{"id": 7}, {"id": 8}, {"id": 9}])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
+
+    # First extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    _assert_extracted_file_exists(
+        storage, schema_a.name, schema_a.state_table_name, should_exist=True
+    )
+
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=False
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+        assert _get_state_files_count(storage) == 1
+    else:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=True
+        )
+        assert _get_state_files_count(storage) == 3
+
+    p.normalize()
+
+    # Second extraction: no state change, no extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    for s in [schema_a, schema_b, schema_c]:
+        _assert_extracted_file_exists(storage, s.name, s.state_table_name, should_exist=False)
+
+    p.normalize()
+
+    # Third extraction: incremental data changed in schema_b
+    new_s2 = _create_simple_source(
+        schema_b, "resource_2", [{"id": 10}, {"id": 11}, {"id": 12}], use_incremental=True
+    )
+    p.extract([s1, new_s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    assert _get_state_files_count(storage) == 1
+    _assert_extracted_file_exists(
+        storage, schema_c.name, schema_c.state_table_name, should_exist=False
+    )
+
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_c.name, schema_c.state_table_name, should_exist=False
+        )
+    else:
+        _assert_extracted_file_exists(
+            storage, schema_b.name, schema_b.state_table_name, should_exist=True
+        )
+        _assert_extracted_file_exists(
+            storage, schema_a.name, schema_a.state_table_name, should_exist=False
+        )
+
+
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_state_extraction_mixed_schemas(use_single_dataset: bool) -> None:
+    """Test that when two sources share "shared" schema, one source has "unique" schema.
+    - First extraction:
+        - use_single_dataset=True: only the first schema (default) gets state
+        - use_single_dataset=False: each schema gets its own state in separate packages
+    - Second extraction with same data:
+        - state is not extracted (unchanged hash)
+    - Third extraction with incremental change in "shared":
+        - use_single_dataset=True: state is extracted to default schema ("shared")
+        - use_single_dataset=False: state is extracted to the schema that changed ("shared")
+    """
+    shared = dlt.Schema("shared")
+    unique = dlt.Schema("unique")
+
+    s1 = _create_simple_source(
+        shared, "resource_1", [{"id": 1}, {"id": 2}, {"id": 3}], use_incremental=True
+    )
+    s2 = _create_simple_source(shared, "resource_2", [{"id": 4}, {"id": 5}, {"id": 6}])
+    s3 = _create_simple_source(unique, "resource_3", [{"id": 7}, {"id": 8}, {"id": 9}])
+
+    p = dlt.pipeline(destination="dummy")
+    p.config.restore_from_destination = True
+    p.config.use_single_dataset = use_single_dataset
+
+    # First extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    _assert_extracted_file_exists(storage, shared.name, shared.state_table_name, should_exist=True)
+
+    if use_single_dataset:
+        _assert_extracted_file_exists(
+            storage, unique.name, unique.state_table_name, should_exist=False
+        )
+        assert _get_state_files_count(storage) == 1
+    else:
+        _assert_extracted_file_exists(
+            storage, unique.name, unique.state_table_name, should_exist=True
+        )
+        assert _get_state_files_count(storage) == 2
+
+    p.normalize()
+
+    # Second extraction: no state change, no extraction
+    p.extract([s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+    for s in [shared, unique]:
+        _assert_extracted_file_exists(storage, s.name, s.state_table_name, should_exist=False)
+
+    p.normalize()
+
+    # Third extraction: incremental data changed in shared schema
+    new_s1 = _create_simple_source(
+        shared, "resource_1", [{"id": 4}, {"id": 5}, {"id": 6}], use_incremental=True
+    )
+    p.extract([new_s1, s2, s3])
+    storage = ExtractStorage(p._normalize_storage_config())
+
+    _assert_extracted_file_exists(storage, shared.name, shared.state_table_name, should_exist=True)
+    _assert_extracted_file_exists(storage, unique.name, unique.state_table_name, should_exist=False)
+    assert _get_state_files_count(storage) == 1
 
 
 @pytest.mark.parametrize(
@@ -987,6 +1325,7 @@ def test_sentry_tracing() -> None:
     import sentry_sdk
 
     os.environ["RUNTIME__SENTRY_DSN"] = TEST_SENTRY_DSN
+    Container()[PluggableRunContext].reload()
 
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
@@ -1049,8 +1388,10 @@ def test_pipeline_state_on_extract_exception() -> None:
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run([data_piece_1, data_piece_2], write_disposition="replace")
-    # male sure that exception has right step info
+    # make sure that exception has right step info
     assert pip_ex.value.load_id in pip_ex.value.step_info.loads_ids
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
     # print(pip_ex.value.load_id)
     # print(pip_ex.value.step_info.asdict())
     # print(p._last_trace.last_pipeline_step_trace("extract").exception_traces)
@@ -1119,6 +1460,12 @@ def test_raise_on_failed_job() -> None:
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.run([1, 2, 3], table_name="numbers")
     assert py_ex.value.step == "load"
+    assert py_ex.value.load_id is not None
+    assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
+    # loaded
+    assert py_ex.value.has_pending_data is False
+    # all packages failed
+    assert py_ex.value.is_package_partially_loaded is False
     # get package info
     package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
     assert package_info.state == "aborted"
@@ -1282,7 +1629,7 @@ def test_set_get_local_value() -> None:
 def test_update_last_run_context() -> None:
     p = dlt.pipeline(destination="dummy", dev_mode=True)
     p._update_last_run_context()
-    assert p.last_run_context["local_dir"] == os.path.join(os.getcwd(), "_storage")
+    assert p.last_run_context["local_dir"].endswith(get_test_storage_root())
     assert p.last_run_context["settings_dir"] == os.path.join(os.getcwd(), ".dlt")
 
 
@@ -1382,7 +1729,7 @@ def test_resource_name_in_schema() -> None:
         return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
 
     source = some_source()
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination=DUMMY_COMPLETE)
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination=DUMMY_COMPLETE)
     p.run(source)
 
     schema = p.default_schema
@@ -1515,6 +1862,106 @@ def test_pipeline_log_progress() -> None:
     p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
     assert cast(LogCollector, p.collector).logger is not None
     p.extract(many_delayed(2, 10))
+
+
+def test_progress_collector_callbacks() -> None:
+    collector = dlt.progress.log()
+
+    with (
+        patch.object(collector, "on_start_trace") as mock_on_start_trace,
+        patch.object(collector, "on_start_trace_step") as mock_on_start_trace_step,
+        patch.object(collector, "on_end_trace_step") as mock_on_end_trace_step,
+        patch.object(collector, "on_end_trace") as mock_on_end_trace,
+    ):
+        pipeline = dlt.pipeline(
+            pipeline_name="test_pipeline", destination="dummy", progress=collector
+        )
+        pipeline.extract(many_delayed(2, 5))
+
+        mock_on_start_trace.assert_called()
+        mock_on_start_trace_step.assert_called()
+        mock_on_end_trace_step.assert_called()
+        mock_on_end_trace.assert_called()
+
+        # Verify on_start_trace args
+        call_args = mock_on_start_trace.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], str)
+        assert call_args[2].pipeline_name == "test_pipeline"
+
+        # Verify on_start_trace_step args
+        call_args = mock_on_start_trace_step.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], str)
+        assert call_args[2].pipeline_name == "test_pipeline"
+
+        # Verify on_end_trace_step args
+        call_args = mock_on_end_trace_step.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], PipelineStepTrace)
+        assert call_args[2].pipeline_name == "test_pipeline"
+        assert isinstance(call_args[4], bool)  # send_state
+
+        # Verify on_end_trace args
+        call_args = mock_on_end_trace.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert call_args[1].pipeline_name == "test_pipeline"
+        assert isinstance(call_args[2], bool)  # send_state
+
+
+def test_progress_subclass_receives_callbacks() -> None:
+    counters_accesible = False
+    callbacks_received = {
+        "on_start_trace": False,
+        "on_start_trace_step": False,
+        "on_end_trace_step": False,
+        "on_end_trace": False,
+    }
+
+    class MyCollector(LogCollector):
+        def on_start_trace(
+            self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_start_trace"] = True
+
+        def on_start_trace_step(
+            self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_start_trace_step"] = True
+
+        def on_end_trace_step(
+            self,
+            trace: PipelineTrace,
+            step: PipelineStepTrace,
+            pipeline: SupportsPipeline,
+            step_info: Any,
+            send_state: bool,
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_end_trace_step"] = True
+
+        def on_end_trace(
+            self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_end_trace"] = True
+
+        def on_log(self) -> None:
+            nonlocal counters_accesible
+            if self.counters.keys():
+                counters_accesible = True
+
+    collector = MyCollector()
+    pipeline = dlt.pipeline(pipeline_name="test_pipeline", destination="dummy", progress=collector)
+    pipeline.extract([1, 2, 3], table_name="test_table")
+
+    assert counters_accesible
+    assert callbacks_received["on_start_trace"]
+    assert callbacks_received["on_start_trace_step"]
+    assert callbacks_received["on_end_trace_step"]
+    assert callbacks_received["on_end_trace"]
 
 
 def test_pipeline_source_state_activation() -> None:
@@ -1729,12 +2176,9 @@ def test_invalid_data_edge_cases() -> None:
     def my_source():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    # this function will be evaluated like any other. it returns resource which in the pipe
-    # is just an iterator and it will be iterated
-    # TODO: we should probably block that behavior
     pipeline.run(my_source)
 
-    assert pipeline.last_trace.last_normalize_info.row_counts["my_source"] == 5
+    assert pipeline.last_trace.last_normalize_info.row_counts["infinity"] == 5
 
     def res_return():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
@@ -1757,7 +2201,7 @@ def test_invalid_data_edge_cases() -> None:
         yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
     pipeline.run(my_source_yield)
-    assert pipeline.last_trace.last_normalize_info.row_counts["my_source_yield"] == 5
+    assert pipeline.last_trace.last_normalize_info.row_counts["infinity"] == 5
 
     # pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
     # with pytest.raises(PipelineStepFailed) as pip_ex:
@@ -2702,18 +3146,31 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-local_paths = [os.path.abspath(TEST_STORAGE_ROOT), "."]
-if os.name == "nt":
-    local_paths += [
-        # UNC extended path
-        "\\\\?\\UNC\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
-        # UNC path
-        "\\\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
-    ]
+@pytest.mark.parametrize(
+    "local_path_kind",
+    (
+        "storage_root",
+        "dot",
+        "unc_extended",
+        "unc",
+    ),
+)
+def test_local_filesystem_destination(local_path_kind: str) -> None:
+    root = os.path.abspath(get_test_storage_root())
 
+    if local_path_kind == "storage_root":
+        local_path = root
+    elif local_path_kind == "dot":
+        local_path = "."
+    elif local_path_kind == "unc_extended":
+        pytest.skip("UNC paths only valid on Windows") if os.name != "nt" else None
+        local_path = "\\\\?\\UNC\\localhost\\" + root.replace(":", "$")
+    elif local_path_kind == "unc":
+        pytest.skip("UNC paths only valid on Windows") if os.name != "nt" else None
+        local_path = "\\\\localhost\\" + root.replace(":", "$")
+    else:
+        raise AssertionError(local_path_kind)
 
-@pytest.mark.parametrize("local_path", local_paths)
-def test_local_filesystem_destination(local_path: str) -> None:
     dataset_name = "mydata_" + uniq_id()
 
     @dlt.resource
@@ -2741,7 +3198,7 @@ def test_local_filesystem_destination(local_path: str) -> None:
 
     # check all the files, paths may get messed up in many different ways
     # and data may land anywhere especially on Windows
-    expected_dataset = pathlib.Path("_storage").joinpath(dataset_name).resolve()
+    expected_dataset = pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
     assert expected_dataset.exists()
     assert expected_dataset.is_dir()
 
@@ -2749,19 +3206,23 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert expected_dataset.joinpath(INIT_FILE_NAME).is_file()
     # one numbers table (replaced)
     assert len(list(expected_dataset.joinpath("numbers").glob("*"))) == 1
-    # two loads + init
-    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 3
+    # two loads
+    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 2
     # one schema (dedup on hash)
-    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 2
+    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 1
     # one state (not sent twice)
-    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 2
+    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 1
 
     fs_client = pipeline._fs_client()
-    # all path formats we use must lead to "_storage" relative to tests
-    expect_path_fragment = str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve())
-    expect_path_fragment = expect_path_fragment[expect_path_fragment.index(TEST_STORAGE_ROOT) :]
+    # all path formats we use must lead to test storage root relative to tests
+    expect_path_fragment = str(
+        pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()
+    )
+    expect_path_fragment = expect_path_fragment[
+        expect_path_fragment.index(get_test_storage_root()) :
+    ]
     # TODO: restore on windows
-    assert str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve()).endswith(
+    assert str(pathlib.Path(get_test_storage_root()).joinpath(dataset_name).resolve()).endswith(
         expect_path_fragment
     )
     # same for client
@@ -3032,7 +3493,12 @@ def test_run_file_format_sets_table_schema() -> None:
     assert pipeline.default_schema.get_table("_datax")["file_format"] == "jsonl"
 
 
-def test_resource_transformer_standalone() -> None:
+@pytest.mark.parametrize(
+    "use_single_dataset",
+    [True, False],
+    ids=["single_dataset", "multi_dataset"],
+)
+def test_resource_transformer_standalone(use_single_dataset: bool) -> None:
     # requires that standalone resources are executes in a single source
     page = 1
 
@@ -3056,9 +3522,10 @@ def test_resource_transformer_standalone() -> None:
         ]
 
     pipeline = dlt.pipeline("test_resource_transformer_standalone", destination="duckdb")
+    pipeline.config.use_single_dataset = use_single_dataset
     # here we must combine resources and transformers using the same instance
     info = pipeline.run([gen_pages, gen_pages | get_subpages])
-    assert_load_info(info)
+    assert_load_info(info, 1)
     # this works because we extract transformer and resource above in a single source so dlt optimizes
     # dag and extracts gen_pages only once.
     assert load_table_counts(pipeline) == {"subpages": 100, "pages": 10}
@@ -3070,9 +3537,18 @@ def test_resource_transformer_standalone() -> None:
         [DltSource(schema, "", [gen_pages]), DltSource(schema, "", [gen_pages | get_subpages])],
         dataset_name="new_dataset",
     )
-    assert_load_info(info, 2)
-    # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
-    assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    if use_single_dataset:
+        assert_load_info(info, 2)
+        # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
+        assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    else:
+        assert_load_info(info, 1)
+        with pipeline.sql_client() as sql_client:
+            with sql_client.execute_query("SELECT * FROM new_dataset_test.pages") as curr:
+                assert len(curr.fetchall()) == 10
+
+            with sql_client.execute_query("SELECT * FROM new_dataset_test.subpages") as curr:
+                assert len(curr.fetchall()) == 10
 
 
 def test_resources_same_name_in_single_source() -> None:
@@ -3224,7 +3700,7 @@ def test_exceed_job_file_name_length() -> None:
     assert isinstance(os_err.value.__cause__, OSError)
 
     # fit into 255 + 1
-    suffix_len = len(".b61d3af76c.0.insert-values")
+    suffix_len = len(".b61d3af76c.0.insert-values.gz")
     pipeline = dlt.pipeline(
         pipeline_name="test_exceed_job_file_name_length",
         destination=duckdb(
@@ -3256,10 +3732,18 @@ def assert_imported_file(
     assert len(rows[table_name]) == expected_rows
     # we should have twp files loaded
     jobs = pipeline.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
-    job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
+    job_extensions = []
+    for job in jobs:
+        parsed_file = ParsedLoadJobFileName.parse(job.job_file_info.file_name())
+        ext = (
+            f".{parsed_file.file_format}.gz"
+            if parsed_file.is_compressed
+            else f".{parsed_file.file_format}"
+        )
+        job_extensions.append(ext)
     assert ".jsonl" in job_extensions
     if expects_state:
-        assert ".insert_values" in job_extensions
+        assert ".insert_values.gz" in job_extensions
     # check extract trace if jsonl is really there
     extract_info = pipeline.last_trace.last_extract_info
     jobs = extract_info.load_packages[0].jobs["new_jobs"]
@@ -3490,7 +3974,7 @@ def test_nested_hints_file_format() -> None:
 
     p = dlt.pipeline(
         pipeline_name="test_nested_hints_file_format",
-        destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT),
+        destination=dlt.destinations.filesystem(get_test_storage_root()),
         dataset_name="local",
     )
     p.extract(nested_data())
@@ -3502,7 +3986,7 @@ def test_nested_hints_file_format() -> None:
     norm_metrics = normalize_info.metrics[load_id][0]
     for file_name, _ in norm_metrics["job_metrics"].items():
         # always jsonl
-        assert file_name.endswith("jsonl")
+        assert file_name.endswith("jsonl.gz")
 
 
 def test_nested_hints_write_disposition_append_replace() -> None:
@@ -3574,9 +4058,7 @@ def test_nested_hints_write_disposition_nested_merge() -> None:
     # nested_data__list not copied to main dataset
     assert p.dataset().row_counts().fetchall() == [("nested_data", 1), ("nested_data__list", 0)]
     # will be loading to staging and always overwritten but not merged
-    staging_dataset = dlt.destinations.dataset.dataset(
-        p.destination, "local_staging", p.default_schema
-    )
+    staging_dataset = dlt.dataset(p.destination, "local_staging", p.default_schema)
     assert staging_dataset.row_counts(table_names=["nested_data__list"]).fetchall() == [
         ("nested_data__list", 3)
     ]
@@ -3757,6 +4239,54 @@ def test_nested_hints_primary_key() -> None:
     assert p.dataset().row_counts().fetchall() == row_count
 
 
+def test_merge_without_root_key() -> None:
+    @dlt.source(root_key=False)
+    def double_nested():
+        @dlt.resource(
+            primary_key="id",
+            write_disposition="merge",
+        )
+        def customers():
+            """Load customer data from a simple python list."""
+            yield [
+                {
+                    "id": 1,
+                    "name": "simon",
+                    "city": "berlin",
+                    "purchases": [{"id": 1, "name": "apple", "price": Decimal("1.50")}],
+                },
+                {
+                    "id": 2,
+                    "name": "violet",
+                    "city": "london",
+                    "purchases": [{"id": 1, "name": "banana", "price": Decimal("1.70")}],
+                },
+                {
+                    "id": 3,
+                    "name": "tammo",
+                    "city": "new york",
+                    "purchases": [{"id": 1, "name": "pear", "price": Decimal("2.50")}],
+                },
+            ]
+
+        return customers
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_primary_key", destination="duckdb", dataset_name="local"
+    )
+    s_ = double_nested()
+    # load twice. merge should work as usual
+    p.run(s_)
+    p.run(s_)
+    # no root key
+    assert (
+        get_first_column_name_with_prop(p.default_schema.tables["customers__purchases"], "root_key")
+        is None
+    )
+    # no data duplication (merge worked)
+    assert_table_counts(p, {"customers__purchases": 3, "customers": 3})
+
+
 def test_pipeline_repr() -> None:
     sentinel = object()
     p = dlt.pipeline(pipeline_name="repr_pipeline", destination="duckdb")
@@ -3782,9 +4312,515 @@ def test_pipeline_repr() -> None:
     assert getattr(p, "working_dir", sentinel) is not sentinel
 
 
+def test_repr_after_loading_trace(tmp_path):
+    pipeline_name = "foo"
+    trace_path = tmp_path / pipeline_name / "trace.pickle"
+    pipeline = dlt.pipeline(pipeline_name, destination="duckdb", pipelines_dir=tmp_path)
+    pipeline.run([{"foo": "bar"}], table_name="temp")
+    trace = pickle.load(trace_path.open("rb"))
+
+    # ensure calling `__repr__()` shouldn't cause any error
+    trace.__repr__()
+
+
 def test_pipeline_with_null_executors(monkeypatch) -> None:
     # NOTE: emscripten forces null executor, this is tested in test_runners.py
     monkeypatch.setattr(sys, "platform", "emscripten")
     p = dlt.pipeline(pipeline_name="null_executor", destination="duckdb")
     p.run([{"id": 1}], table_name="test_table")
     assert p.dataset().row_counts().fetchall() == [("test_table", 1)]
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT, signals.signal.SIGTERM))
+@pytest.mark.forked
+def test_signal_graceful_load_step_shutdown(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    # do not create additional job for status. this creates race condition during pool drain
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    @dlt.destination
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        signals.sleep(1)
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), sig)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should end gracefully
+    load_info = pipeline.run([1, 2, 3], table_name="digits")
+    assert_load_info(load_info)
+
+
+@skipifwindows
+@pytest.mark.parametrize("start_new_jobs_on_signal", (True, False))
+@pytest.mark.forked
+def test_signal_graceful_complete_load_step(start_new_jobs_on_signal: bool) -> None:
+    # test setup makes sure that only one job at a time is started
+    # so we can send the signal after first job is in the pool and expect second one to get completed
+    os.environ["LOAD__START_NEW_JOBS_ON_SIGNAL"] = str(start_new_jobs_on_signal)
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    @dlt.destination(loader_parallelism_strategy="sequential")
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        signals.sleep(0.5)
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), signals.signal.SIGTERM)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    if start_new_jobs_on_signal:
+        # should end gracefully
+        load_info = pipeline.run(
+            [dlt.resource([1, 2, 3], name="digits"), dlt.resource(["a", "b", "c"], name="letters")]
+        )
+        assert_load_info(load_info)
+        # sanity check on load info
+        load_package = load_info.load_packages[0]
+        assert load_info.finished_at is not None
+        assert load_info.started_at is not None
+        assert load_package.completed_at is not None
+        assert load_package.state == "loaded"
+
+        metrics = load_info.metrics[load_package.load_id][0]["job_metrics"]
+        assert len(metrics) == 2
+        for metric in metrics.values():
+            assert metric.started_at is not None
+            assert metric.finished_at is not None
+            assert metric.state == "completed"
+            assert metric.retry_count == 0
+
+        # two tables completed
+        completed_job_count = 2
+        new_job_count = 0
+    else:
+        with pytest.raises(PipelineStepFailed) as pip_ex:
+            pipeline.run(
+                [
+                    dlt.resource([1, 2, 3], name="digits"),
+                    dlt.resource(["a", "b", "c"], name="letters"),
+                ]
+            )
+        assert isinstance(pip_ex.value.__cause__, SignalReceivedException)
+        assert pip_ex.value.__cause__.signal_code == 15  # SIGTERM
+        # load info in exception
+        load_info = pip_ex.value.step_info  # type: ignore
+
+        # sanity check on load info
+        load_package = load_info.load_packages[0]
+        assert load_info.finished_at is None
+        assert load_info.started_at is not None
+        assert load_package.completed_at is None
+        assert load_package.state == "normalized"
+
+        # just one job should go into job pool (read from package into ready state)
+        metrics = load_info.metrics[load_package.load_id][0]["job_metrics"]
+        # no more jobs because we drained the pool after the first
+        assert len(metrics) == 1
+        for metric in metrics.values():
+            assert metric.started_at is not None
+            assert metric.finished_at is not None
+            # completed because we drained
+            assert metric.state == "completed"
+            assert metric.retry_count == 0
+
+        # one table completed
+        completed_job_count = 1
+        new_job_count = 1
+
+    assert len(load_info.load_packages[0].jobs["completed_jobs"]) == completed_job_count
+    assert len(load_info.load_packages[0].jobs["new_jobs"]) == new_job_count
+
+
+@skipifwindows
+@pytest.mark.forked
+def test_ignore_signals_in_load() -> None:
+    os.environ["PIPELINES__SIGNAL_WAITER__RUNTIME__INTERCEPT_SIGNALS"] = "False"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    job_started = False
+
+    @dlt.destination(loader_parallelism_strategy="sequential")
+    def wait_until_signal(item, schema):
+        nonlocal job_started
+
+        signals.sleep(0.2)
+        job_started = True
+
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        # wait for job to run
+        while not job_started:
+            signals.sleep(0.1)
+
+        # sleep before signal to let pool to collect jobs and set metrics
+        signals.sleep(2)
+
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), signals.signal.SIGINT)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise on KeyboardInterrupt - delayed signals disabled
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(dlt.resource([1, 2, 3], name="digits"))
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # must have metrics and package
+    assert pip_ex.value.step == "load"
+    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
+    assert len(load_info.load_packages) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.started_at is not None
+    assert load_info.finished_at is None
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 1
+    for metric in metrics.values():
+        assert metric.started_at is not None
+        assert metric.finished_at is None
+        # killed in the middle
+        assert metric.state == "running"
+        assert metric.retry_count == 0
+    # stop destination
+    signals.set_received_signal(signals.signal.SIGINT)
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT, signals.signal.SIGTERM))
+@pytest.mark.forked
+def test_signal_graceful_load_step_shutdown_pipeline_in_thread(sig: int) -> None:
+    # NOTE: forked tests do not show any console/logs
+
+    @dlt.destination
+    def wait_until_signal(item, schema):
+        # exit if signalled
+        while not signals.was_signal_received():
+            signals.sleep(1)
+        # some more sleep to make pipeline load pool drain
+        signals.sleep(2)
+
+    pipeline = dlt.pipeline(
+        "signal_waiter",
+        destination=wait_until_signal(),
+        dataset_name="_data",
+        progress=DictCollector(),
+    )
+
+    def _thread() -> None:
+        # should end gracefully
+        load_info = pipeline.run([1, 2, 3], table_name="digits")
+        assert_load_info(load_info)
+
+    # we can nest those freely
+    with signals.intercepted_signals():
+        with signals.intercepted_signals():
+            p = threading.Thread(target=_thread)
+            p.start()
+
+            # wait until pipeline gets into load step
+            while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+                signals.sleep(0.1)
+
+            signals.sleep(1)
+            # send signal to drain pool and stop load
+            os.kill(os.getpid(), sig)
+
+        # must join in context manager
+        p.join()
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
+@pytest.mark.forked
+def test_signal_force_load_step_shutdown(sig: int) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    _done = False
+
+    @dlt.destination
+    def wait_forever(item, schema):
+        # never exit
+        from time import sleep
+
+        # this one does not wake up on signal
+        while not _done:
+            sleep(1)
+
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter", destination=wait_forever(), dataset_name="_data", progress=DictCollector()
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into load step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Load"):
+            signals.sleep(0.1)
+
+        # wait for load pool to complete at least once
+        signals.sleep(1.5)
+        # send signal to drain pool and stop load
+        os.kill(os.getpid(), sig)
+        signals.sleep(0.5)
+        # send to kill
+        os.kill(os.getpid(), sig)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise regular pipeline exception
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([1, 2, 3], table_name="digits")
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # check load info
+    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
+    assert len(load_info.load_packages) == 1
+    load_id = load_info.loads_ids[0]
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.started_at is not None
+    assert load_info.finished_at is None
+    metrics = load_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 1
+    for metric in metrics.values():
+        assert metric.started_at is not None
+        assert metric.finished_at is None
+        # killed in the middle
+        assert metric.state == "running"
+        assert metric.retry_count == 0
+
+    # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
+    _done = True
+
+
+@skipifwindows
+@pytest.mark.parametrize("sig", (signals.signal.SIGINT,))  # signals.signal.SIGTERM
+@pytest.mark.forked
+def test_signal_extract_step_shutdown(sig: int) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    _done = False
+
+    @dlt.resource
+    def wait_forever():
+        # never exit
+        from time import sleep
+
+        # this one does not wake up on signal
+        while not _done:
+            sleep(1)
+
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "signal_waiter", destination="dummy", dataset_name="_data", progress=DictCollector()
+    )
+
+    def _thread() -> None:
+        # wait until pipeline gets into extract step
+        while not pipeline.collector.step or not pipeline.collector.step.startswith("Extract"):
+            signals.sleep(0.1)
+
+        # extract step does not set signals
+        os.kill(os.getpid(), sig)
+        signals.sleep(0.5)
+
+    p = DummyProcess(target=_thread)
+    p.start()
+
+    # should raise regular pipeline exception
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(wait_forever())
+    assert pip_ex.value.step == "extract"
+    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
+    # check extract info
+    extract_info: ExtractInfo = pip_ex.value.step_info  # type: ignore
+    assert len(extract_info.load_packages) == 1
+    load_id = extract_info.loads_ids[0]
+    assert extract_info.load_packages[0].load_id == load_id
+    # package is always completed
+    assert extract_info.started_at is not None
+    assert extract_info.finished_at is not None
+    # no jobs got collected. running jobs are not included
+    metrics = extract_info.metrics[load_id][0]["job_metrics"]
+    assert len(metrics) == 0
+
+    # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
+    _done = True
+
+
+def test_uninitialized_source_factory() -> None:
+    """Test that passing an uncalled source factory preserves resource-level hints such as write_disposition"""
+    data = [
+        {"id": 1, "name": "bulbasaur", "size": {"weight": 6.9, "height": 0.7}},
+        {"id": 4, "name": "charmander", "size": {"weight": 8.5, "height": 0.6}},
+        {"id": 25, "name": "pikachu", "size": {"weight": 6, "height": 0.4}},
+    ]
+
+    @dlt.resource(
+        name="pokemon_resource",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def pokemon() -> TDataItems:
+        yield data
+
+    @dlt.source(name="pokemon_source")
+    def pokemon_source():
+        yield pokemon
+
+    pipeline = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination="duckdb",
+        dataset_name="pokemon_data",
+    )
+
+    pipeline.run(pokemon_source)
+    pipeline.run(pokemon_source)
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT * FROM pokemon_resource")
+
+    assert len(rows) == 3
+
+
+def test_pending_package_exception_warning() -> None:
+    partially = False
+    terminally = False
+
+    @dlt.destination
+    def fail_load(item, schema):
+        signals.sleep(0.1)
+
+        # fail one of the resources
+        if partially and terminally and schema["name"] == "letters":
+            raise DestinationTerminalException("load job failed")
+        if partially and schema["name"] == "emojis":
+            return
+
+        raise RuntimeError("load job retry")
+
+    @dlt.resource
+    def fail_extract():
+        # make the job fail if it gets here
+        raise KeyboardInterrupt()
+
+    pipeline = dlt.pipeline(
+        "fail_at_every_step",
+        destination=fail_load(),
+        dataset_name="_data",
+    )
+    pipeline.config.restore_from_destination = False
+
+    # fail in extract should not generate any warnings: nothing is pending in the pipeline
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(fail_extract())
+
+    assert pip_ex.value.step == "extract"
+    assert "Pending packages" not in str(pip_ex.value)
+    assert "partially loaded" not in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is False
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [
+                dlt.resource([1, 2, 3], name="digits"),
+                dlt.resource(["a", "b", "c"], name="letters"),
+                dlt.resource(["🤷", "⭐", "🐬"], name="emojis"),
+            ]
+        )
+
+    # none of the jobs passed so we have pending package but not partial
+    assert pip_ex.value.step == "load"
+    assert "Pending packages" in str(pip_ex.value)
+    assert "partially loaded" not in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.has_pending_data is True
+
+    partially = True
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run()
+
+    # some job passed some not, still not aborted
+    assert pip_ex.value.step == "load"
+    assert "Pending packages" in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is True
+    assert pip_ex.value.has_pending_data is True
+
+    terminally = True
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run()
+
+    # one of the job failed and package is aborted. sometimes the other
+    # job completed, sometimes is still pending so we disable pending test
+    assert pip_ex.value.step == "load"
+    # assert "Pending packages" not in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
+    assert pip_ex.value.load_id is not None
+    assert pip_ex.value.is_package_partially_loaded is True
+    # assert pip_ex.value.has_pending_data is False
+
+
+def test_cleanup() -> None:
+    # this must happen after all forked tests (problems with tests teardowns in other tests)
+    pass

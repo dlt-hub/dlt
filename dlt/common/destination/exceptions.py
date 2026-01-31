@@ -1,4 +1,5 @@
 from typing import Any, Iterable, List, Sequence
+import textwrap
 
 from dlt.common.exceptions import DltException, TerminalException, TransientException
 from dlt.common.reflection.exceptions import ReferenceImportError
@@ -11,17 +12,58 @@ class DestinationException(DltException):
 
 class UnknownDestinationModule(ReferenceImportError, DestinationException, KeyError):
     def __init__(
-        self, ref: str, qualified_refs: Sequence[str], traces: Sequence[ImportTrace]
+        self,
+        ref: str,
+        qualified_refs: Sequence[str],
+        traces: Sequence[ImportTrace],
+        destination_type: str = None,
+        named_dest_attempted: bool = False,
     ) -> None:
         self.ref = ref
         self.qualified_refs = qualified_refs
+        self.destination_type = destination_type
+        self.named_dest_attempted = named_dest_attempted
         super().__init__(traces=traces)
 
     def __str__(self) -> str:
+        msg = ""
         if "." in self.ref:
-            msg = f"Destination module `{self.ref}` is not registered."
+            msg += f"Destination module `{self.ref}` is not registered."
         else:
-            msg = f"Destination `{self.ref}` is not one of the standard dlt destinations."
+            if self.named_dest_attempted:
+                msg += (
+                    f"Destination '{self.ref}' was first attempted to be resolved as a named"
+                    " destination with a configured type. "
+                )
+                if self.destination_type:
+                    msg += (
+                        f"However, the configured destination type '{self.destination_type}' is not"
+                        " valid. Set a valid destination type. "
+                    )
+                else:
+                    msg += (
+                        "However, no destination type was configured. "
+                        "If your destination is a named destination, "
+                        "set a valid destination type either as an environment variable:\n\n"
+                    )
+                    msg += textwrap.indent(
+                        f"DESTINATION__{self.ref.upper()}__DESTINATION_TYPE=duckdb\n", "  "
+                    )
+                    msg += "\nor in your configuration files:\n\n"
+                    msg += textwrap.indent(
+                        f'[destination.{self.ref}]\ndestination_type="duckdb"\n\n', "  "
+                    )
+
+                msg += (
+                    f"Since no{' valid' if self.destination_type else ''} destination type was"
+                    f" found, dlt also tried to resolve '{self.ref}' as a standard destination."
+                    " However, "
+                )
+
+            msg += (
+                f"{'d' if self.named_dest_attempted else 'D'}estination `{self.ref}` is not one of"
+                " the standard dlt destinations."
+            )
 
         if len(self.qualified_refs) == 1 and self.qualified_refs[0] == self.ref:
             pass
@@ -153,6 +195,14 @@ class UnsupportedDataType(DestinationTerminalException):
         super().__init__(msg)
 
 
+class WithJobError:
+    """A mixin for exceptions raised on failed jobs"""
+
+    load_id: str
+    job_id: str
+    failed_message: str
+
+
 class DestinationHasFailedJobs(DestinationTerminalException):
     def __init__(self, destination_name: str, load_id: str, failed_jobs: List[Any]) -> None:
         self.destination_name = destination_name
@@ -217,10 +267,10 @@ class OpenTableCatalogNotSupported(DestinationTerminalException):
 
 
 class SqlClientNotAvailable(DestinationTerminalException):
-    def __init__(self, pipeline_name: str, destination_name: str) -> None:
+    def __init__(self, entity_type: str, entity_name: str, destination_name: str) -> None:
         super().__init__(
-            f"SQL Client not available for destination `{destination_name}` in pipeline"
-            f" `{pipeline_name}`",
+            f"SQL Client not available for {entity_type} `{entity_name}` in destination"
+            f" `{destination_name}`",
         )
 
 

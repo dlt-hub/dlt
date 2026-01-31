@@ -1,6 +1,7 @@
+from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
 from typing import cast, Any
 
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.destination import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase
 from dlt.common.schema import Schema
@@ -10,6 +11,7 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
+from dlt.destinations.impl.ducklake.configuration import DuckLakeClientConfiguration
 from dlt.destinations.impl.motherduck.configuration import MotherDuckClientConfiguration
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
@@ -18,10 +20,12 @@ from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfiguration
 from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
+from dlt.destinations.impl.fabric.configuration import FabricClientConfiguration
 
 try:
     import ibis
     import sqlglot
+    import sqlglot.expressions as sge
     from ibis import BaseBackend, Expr, Table
     import ibis.backends.sql.compilers as sc
     from ibis.backends.sql.compilers.base import SQLGlotCompiler
@@ -46,7 +50,7 @@ DATA_TYPE_MAP = {
 
 
 def create_ibis_backend(
-    destination: TDestinationReferenceArg, client: JobClientBase
+    destination: TDestinationReferenceArg, client: JobClientBase, read_only: bool = False
 ) -> BaseBackend:
     """Create a given ibis backend for a destination client and dataset."""
 
@@ -58,18 +62,34 @@ def create_ibis_backend(
         destination.spec, MotherDuckClientConfiguration
     ):
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
-        import duckdb
 
         assert isinstance(client, DuckDbClient)
-        # open connection, apply all settings and pragmas
-        duck_conn = client.config.credentials.borrow_conn()
-        # move main connection ownership to ibis
-        con = ibis.duckdb.from_connection(client.config.credentials.move_conn())
-        client.config.credentials.return_conn(duck_conn)
+        # do not set read_only flag on motherduck, it is managed on server side
+        if not issubclass(destination.spec, MotherDuckClientConfiguration):
+            client.config.credentials.read_only = read_only
+        # this will open connection to duckdb, take a clone and close the clone
+        with client:
+            # make sure we can access tables from current dataset without qualification
+            # also prevents empty duckdb files from being created
+            client.sql_client.use_dataset()
+            # move main connection ownership to ibis
+            con = ibis.duckdb.from_connection(client.config.credentials.conn_pool.move_conn())
+    elif issubclass(destination.spec, DuckLakeClientConfiguration):
+        from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 
-        # make sure we can access tables from current dataset without qualification
-        dataset_name = client.sql_client.fully_qualified_dataset_name()
-        con.raw_sql(f"SET search_path = '{dataset_name}';")
+        assert isinstance(client, DuckLakeClient)
+        # open connection but do not close it, ducklake always creates a separate connection
+        # and will not close it in destructor
+        conn = client.sql_client.open_connection()
+        try:
+            # make sure we can access tables from current dataset without qualification
+            # also prevents empty duckdb files from being created
+            client.sql_client.use_dataset()
+        except Exception:
+            # close explicitly, won't be done by the conn pool
+            client.sql_client.close_connection()
+            raise
+        con = ibis.duckdb.from_connection(conn)
     elif issubclass(destination.spec, PostgresClientConfiguration):
         from dlt.destinations.impl.postgres.postgres import PostgresClient
         from dlt.destinations.impl.redshift.redshift import RedshiftClient
@@ -111,8 +131,8 @@ def create_ibis_backend(
             schema=dataset_name, **sn_credentials, create_object_udfs=False
         )
     elif issubclass(destination.spec, MsSqlClientConfiguration) and not issubclass(
-        destination.spec, SynapseClientConfiguration
-    ):  # exclude synapse
+        destination.spec, (SynapseClientConfiguration, FabricClientConfiguration)
+    ):  # exclude synapse and fabric
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         assert isinstance(client, MsSqlJobClient)
@@ -143,14 +163,14 @@ def create_ibis_backend(
             secure=bool(ch_client.config.credentials.secure),
             # compression=True,
         )
-    # elif issubclass(destination.spec, DatabricksClientConfiguration):
-    #     from dlt.destinations.impl.databricks.databricks import DatabricksClient
+    elif issubclass(destination.spec, DatabricksClientConfiguration):
+        from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
-    #     bricks_client = cast(DatabricksClient, client)
-    #     con = ibis.databricks.connect(
-    #         **bricks_client.config.credentials.to_connector_params(),
-    #         schema=bricks_client.sql_client.dataset_name,
-    #     )
+        bricks_client = cast(DatabricksClient, client)
+        con = ibis.databricks.connect(
+            **bricks_client.config.credentials.to_connector_params(),
+            schema=bricks_client.sql_client.dataset_name,
+        )
     elif issubclass(destination.spec, AthenaClientConfiguration):
         from dlt.destinations.impl.athena.athena import AthenaClient
 
@@ -161,20 +181,15 @@ def create_ibis_backend(
         )
     # TODO: allow for sqlalchemy mysql and sqlite here
     elif issubclass(destination.spec, FilesystemConfiguration):
-        import duckdb
         from dlt.destinations.impl.filesystem.sql_client import (
             FilesystemClient,
             FilesystemSqlClient,
         )
-        from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
         # we create an in memory duckdb and create the ibis backend from it
         fs_client = cast(FilesystemClient, client)
-        sql_client = FilesystemSqlClient(
-            fs_client,
-            dataset_name=fs_client.dataset_name,
-            cache_db=DuckDbCredentials(duckdb.connect()),
-        )
+        sql_client = fs_client.sql_client
+        assert isinstance(sql_client, FilesystemSqlClient)
         # do not use context manager to not return and close the cloned connection
         duckdb_conn = sql_client.open_connection()
         # make all tables available here
@@ -184,16 +199,39 @@ def create_ibis_backend(
         # apply only to it. old code was setting `curl` on the internal clone of sql_client
         # now we export this clone directly to ibis to it works
         con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable destructor
+        fs_client.sql_client = None
+        sql_client.memory_db = None
+        del sql_client
+    elif issubclass(destination.spec, LanceDBClientConfiguration):
+        con = _create_ibis_backend_lancedb(client)
     else:
         # NOTE: Athena could theoretically work with trino backend, but according to
         # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
         # does not work yet.
         raise NotImplementedError(
             f"Destination type `{Destination.from_reference(destination).destination_type}` is not"
-            " supported."
+            " supported by the Ibis backend."
         )
 
     return con
+
+
+def _create_ibis_backend_lancedb(client: JobClientBase) -> BaseBackend:
+    from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+    from dlt.destinations.impl.lancedb.sql_client import (
+        get_lance_table_uri,
+        _prepare_create_view_statement,
+    )
+
+    assert isinstance(client, LanceDBClient)
+    # open connection but do not close it, ducklake always creates a separate connection
+    # and will not close it in destructor
+    for table_name in client.schema.tables:
+        client.sql_client.create_view(table_name)
+
+    native_con = client.sql_client.open_connection()
+    return ibis.duckdb.from_connection(native_con)
 
 
 def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str) -> Table:
@@ -214,28 +252,54 @@ def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str
     return unbound_table
 
 
-def get_compiler_for_dialect(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
+def _get_ibis_to_sqlglot_compiler(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
     """Get the compiler for a given dialect."""
-
-    ibis_dialect: str = dialect
-    if dialect == "tsql":
-        ibis_dialect = "mssql"
-    if dialect == "redshift":
-        ibis_dialect = "postgres"
-
-    try:
-        compiler_provider = getattr(sc, ibis_dialect)
-    except AttributeError:
-        # default is duckdb
-        compiler_provider = sc.duckdb
-
-    if (compiler := getattr(compiler_provider, "compiler", None)) is None:
-        raise NotImplementedError(f"{compiler_provider} is not a SQL backend")
+    if dialect == "athena":
+        compiler = sc.AthenaCompiler()
+    elif dialect == "bigquery":
+        compiler = sc.BigQueryCompiler()
+    elif dialect == "clickhouse":
+        compiler = sc.ClickHouseCompiler()
+    elif dialect == "databricks":
+        compiler = sc.DatabricksCompiler()
+    elif dialect == "druid":
+        compiler = sc.DruidCompiler()
+    elif dialect == "duckdb":
+        compiler = sc.DuckDBCompiler()
+    elif dialect == "fabric":
+        compiler = sc.MSSQLCompiler()
+    elif dialect == "mysql":
+        compiler = sc.MySQLCompiler()
+    elif dialect == "oracle":
+        compiler = sc.OracleCompiler()
+    elif dialect == "postgres":
+        compiler = sc.PostgresCompiler()
+    elif dialect == "presto":
+        compiler = sc.TrinoCompiler()
+    elif dialect == "redshift":
+        compiler = sc.PostgresCompiler()
+    elif dialect == "risingwave":
+        compiler = sc.RisingWaveCompiler()
+    elif dialect == "snowflake":
+        compiler = sc.SnowflakeCompiler()
+    # NOTE I'm unsure if both `spark` and `spark2` are supported by the same compiler
+    elif dialect == "spark":
+        compiler = sc.PySparkCompiler()
+    elif dialect == "spark2":
+        compiler = sc.PySparkCompiler()
+    elif dialect == "sqlite":
+        compiler = sc.SQLiteCompiler()
+    elif dialect == "trino":
+        compiler = sc.TrinoCompiler()
+    elif dialect == "tsql":
+        compiler = sc.MSSQLCompiler()
+    else:
+        compiler = sc.DuckDBCompiler()
 
     return compiler
 
 
-def compile_ibis_to_sqlglot(ibis_expr: Expr, dialect: TSqlGlotDialect) -> sqlglot.expressions.Query:
+def compile_ibis_to_sqlglot(ibis_expr: Expr, dialect: TSqlGlotDialect) -> sge.Query:
     """Compile an ibis expression to a sqlglot query."""
-    compiler = get_compiler_for_dialect(dialect)
-    return cast(sqlglot.expressions.Query, compiler.to_sqlglot(ibis_expr))
+    compiler = _get_ibis_to_sqlglot_compiler(dialect)
+    return cast(sge.Query, compiler.to_sqlglot(ibis_expr))

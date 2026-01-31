@@ -12,6 +12,7 @@ from dlt.extract import DltResource, Incremental, decorators
 
 from .helpers import (
     _execute_table_adapter,
+    default_engine_adapter_callback,
     table_rows,
     engine_from_credentials,
     remove_nullability_adapter,
@@ -63,7 +64,7 @@ def sql_database(
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
 
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
-            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
+            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields pandas DataFrames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
 
@@ -75,8 +76,9 @@ def sql_database(
             "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
-        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
-            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires `table_names` to be explicitly passed.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs. When True, schema is decided during execution,
+            which may override `query_adapter_callback` modifications or `apply_hints`.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
@@ -93,7 +95,7 @@ def sql_database(
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
 
-        engine_adapter_callback (Optional[Callable[[Engine], Engine]]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+        engine_adapter_callback (Optional[Callable[[Engine], Engine]]): Callback to configure, modify an Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
 
     Yields:
@@ -113,6 +115,7 @@ def sql_database(
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     if defer_table_reflect:
         if not table_names:
@@ -169,6 +172,7 @@ def sql_table(
     backend_kwargs: Dict[str, Any] = None,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
+    excluded_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
     engine_adapter_callback: Callable[[Engine], Engine] = None,
@@ -194,7 +198,7 @@ def sql_table(
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
 
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
-            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
+            "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields pandas DataFrames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
 
@@ -206,8 +210,9 @@ def sql_table(
             "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
-        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data.
-            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires `table_names` to be explicitly passed.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs. When True, schema is decided during execution,
+            which may override `query_adapter_callback` modifications or `apply_hints`.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
@@ -218,13 +223,15 @@ def sql_table(
 
         included_columns (Optional[List[str]]): List of column names to select from the table. If not provided, all columns are loaded.
 
+        excluded_columns (Optional[List[str]]): List of column names to exclude from select. If not provided, all columns are loaded.
+
         query_adapter_callback (Optional[TQueryAdapter]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
 
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
 
-        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify an Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
 
         write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
@@ -250,6 +257,7 @@ def sql_table(
     if engine_adapter_callback:
         engine = engine_adapter_callback(engine)
     metadata = metadata or MetaData(schema=schema)
+    default_engine_adapter_callback(engine, metadata)
 
     # Table object is only created when reflecting, we don't want empty tables in metadata
     # as it breaks foreign key resolution
@@ -259,7 +267,9 @@ def sql_table(
 
     if table_obj is not None:
         if not defer_table_reflect:
-            table_obj = _execute_table_adapter(table_obj, table_adapter_callback, included_columns)
+            table_obj = _execute_table_adapter(
+                table_obj, table_adapter_callback, included_columns, excluded_columns
+            )
         skip_nested_on_minimal = backend == "sqlalchemy"
         hints = table_to_resource_hints(
             table_obj,
@@ -293,6 +303,7 @@ def sql_table(
         backend_kwargs=backend_kwargs,
         type_adapter_callback=type_adapter_callback,
         included_columns=included_columns,
+        excluded_columns=excluded_columns,
         query_adapter_callback=query_adapter_callback,
         resolve_foreign_keys=resolve_foreign_keys,
     )

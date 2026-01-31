@@ -1,14 +1,27 @@
 from abc import abstractmethod
 import re
 import duckdb
-import semver
+from fsspec import AbstractFileSystem
+from packaging.version import Version
 from pathlib import Path
 import sqlglot
 import sqlglot.expressions as exp
 from urllib.parse import urlparse
 import math
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Dict, Iterator, List, Optional, Sequence, Generator, cast
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Generator,
+    Type,
+    cast,
+)
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -75,9 +88,14 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
         for item in self.native_cursor.fetch_record_batch(chunk_size):
             yield ArrowTable.from_batches([item])
 
+    def close(self, *args: Any, **kwargs: Any) -> None:
+        # duckdb cursor is just original connection so we cannot close it
+        pass
+
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = duckdb
+    cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckDBDBApiCursorImpl
 
     def __init__(
         self,
@@ -99,7 +117,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        self._conn = self.credentials.borrow_conn(
+        self._conn = self.credentials.conn_pool.borrow_conn(
             pragmas=self._pragmas,
             global_config=self._global_config,
             local_config={
@@ -110,7 +128,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
     def close_connection(self) -> None:
         if self._conn:
-            self.credentials.return_conn(self._conn)
+            self.credentials.conn_pool.return_conn(self._conn)
             self._conn = None
 
     @contextmanager
@@ -119,9 +137,16 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         try:
             self._conn.begin()
             yield self
-            self.commit_transaction()
         except Exception:
             # in some cases duckdb rollback the transaction automatically
+            try:
+                self.rollback_transaction()
+            except DatabaseTransientException:
+                pass
+            raise
+        try:
+            self.commit_transaction()
+        except Exception:
             try:
                 self.rollback_transaction()
             except DatabaseTransientException:
@@ -147,8 +172,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             if curr.description is None:
                 return None
             else:
-                f = curr.fetchall()
-                return f
+                return curr.fetchall()
 
     @contextmanager
     @raise_database_error
@@ -158,13 +182,20 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if db_args:
             # TODO: must provide much better refactoring of params
             query = query.replace("%s", "?")
+
+        # we can't duplicate connection because local settings (ie. search path) are lost
+        cur = self._conn
         try:
-            self._conn.execute(query, db_args)
-            yield DuckDBDBApiCursorImpl(self._conn)  # type: ignore
+            yield self.cursor_impl(cur.execute(query, db_args))  # type: ignore
         except duckdb.Error as outer:
-            self.close_connection()
-            self.open_connection()
+            try:
+                cur.rollback()
+            except Exception:
+                pass
             raise outer
+        finally:
+            # we should somehow cleanup result set if present but no suitable method on connection
+            pass
 
     def warn_if_catalog_equals_dataset_name(self) -> None:
         """
@@ -224,6 +255,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         scope: str,
         credentials: FileSystemCredentials,
         secret_name: str = None,
+        persist_secrets: bool = False,
     ) -> bool:
         #  home dir is a bad choice, it should be more explicit
         if not secret_name:
@@ -234,12 +266,9 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
             )
 
-        if self.persist_secrets and self.memory_db:
-            raise Exception("Creating persistent secrets for in memory db is not allowed.")
-
         secrets_path = Path(
             self._conn.sql(
-                "SELECT current_setting('secret_directory') AS secret_directory;"
+                "SELECT current_setting('secret_directory') AS secret_directory"
             ).fetchone()[0]
         )
 
@@ -249,7 +278,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             and secrets_path.parts[-2] == ".duckdb"
         )
 
-        if is_default_secrets_directory and self.persist_secrets:
+        if is_default_secrets_directory and persist_secrets:
             logger.warn(
                 "You are persisting duckdb secrets but are storing them in the default folder"
                 f" {secrets_path}. These secrets are saved there unencrypted, we"
@@ -257,7 +286,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             )
 
         persistent_stmt = ""
-        if self.persist_secrets:
+        if persist_secrets:
             persistent_stmt = " PERSISTENT "
 
         if "@" in scope:
@@ -281,7 +310,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             elif aws_creds.endpoint_url and "https://" in aws_creds.endpoint_url:
                 endpoint = aws_creds.endpoint_url.replace("https://", "")
 
-            s3_url_style = aws_creds.s3_url_style or "vhost"
+            s3_url_style = aws_creds.s3_url_style or "path"
             sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE S3,
@@ -293,13 +322,13 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     SCOPE '{scope}',
                     URL_STYLE '{s3_url_style}',
                     USE_SSL {use_ssl}
-                );""")
+                )""")
 
         # azure with storage account creds
         elif protocol in ["az", "abfss"]:
             # the line below solves problems with certificate path lookup on linux
             # see duckdb docs
-            sql.append("SET azure_transport_option_type = 'curl';")
+            sql.append("SET azure_transport_option_type = 'curl'")
 
             if isinstance(credentials, AzureCredentialsWithoutDefaults):
                 sql.append(f"""
@@ -307,7 +336,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     TYPE AZURE,
                     CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
                     SCOPE '{scope}'
-                );""")
+                )""")
 
             # azure with service principal creds
             elif isinstance(credentials, AzureServicePrincipalCredentialsWithoutDefaults):
@@ -320,8 +349,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     CLIENT_SECRET '{credentials.azure_client_secret}',
                     ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                     SCOPE '{scope}'
-                );""")
-        elif self.persist_secrets:
+                )""")
+        elif persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
                 f" `{protocol}`. If you are trying to use persistent secrets"
@@ -330,19 +359,38 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         else:
             # could not create secret
             return False
-        self._conn.sql("\n".join(sql))
+        self._conn.sql(";\n".join(sql))
         return True
+
+    def use_dataset(self) -> None:
+        """Makes duckdb schema corresponding to dataset_name the default"""
+        fq_name = self.fully_qualified_dataset_name()
+        self._conn.sql(f"SET search_path = '{fq_name}'")
+
+    def _register_filesystem(self, fs: AbstractFileSystem, scheme: str) -> None:
+        protocols = [fs.protocol] if isinstance(fs.protocol, str) else fs.protocol
+        for protocol in protocols:
+            if self._conn.filesystem_is_registered(protocol):
+                self._conn.unregister_filesystem(protocol)
+        self._conn.register_filesystem(fs)
+        if scheme not in protocols:
+            fs.protocol = scheme
+            if self._conn.filesystem_is_registered(fs.protocol):
+                self._conn.unregister_filesystem(fs.protocol)
+            self._conn.register_filesystem(fs)
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, (duckdb.CatalogException)):
+        if isinstance(ex, duckdb.CatalogException):
             if "already exists" in str(ex):
-                raise DatabaseTerminalException(ex)
+                return DatabaseTerminalException(ex)
             else:
-                raise DatabaseUndefinedRelation(ex)
+                return DatabaseUndefinedRelation(ex)
+        elif isinstance(ex, duckdb.BinderException) and "not found in DuckLakeCatalog" in str(ex):
+            return DatabaseUndefinedRelation(ex)
         elif isinstance(ex, duckdb.InvalidInputException):
             if "Catalog Error" in str(ex):
-                raise DatabaseUndefinedRelation(ex)
+                return DatabaseUndefinedRelation(ex)
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
         elif isinstance(ex, duckdb.IOException):
@@ -378,7 +426,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             ),
         ):
             return DatabaseTransientException(ex)
-        elif isinstance(ex, (duckdb.DataError, duckdb.ProgrammingError, duckdb.IntegrityError)):
+        elif isinstance(
+            ex,
+            (
+                duckdb.DataError,
+                duckdb.ProgrammingError,
+                duckdb.IntegrityError,
+                duckdb.NotImplementedException,
+            ),
+        ):
             return DatabaseTerminalException(ex)
         elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)
@@ -409,8 +465,13 @@ class WithTableScanners(DuckDbSqlClient):
         # if no credentials are passed from the outside
         # we know to keep an in memory instance here
         if not cache_db:
+            if persist_secrets:
+                raise Exception("Creating persistent secrets for in memory db is not allowed.")
             self.memory_db = duckdb.connect(":memory:")
             cache_db = DuckDbCredentials(self.memory_db)
+        if not cache_db.is_resolved():
+            # create connection pool
+            cache_db.resolve()
 
         from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 
@@ -431,7 +492,7 @@ class WithTableScanners(DuckDbSqlClient):
             }
         )
 
-        if semver.Version.parse(duckdb.__version__) >= semver.Version.parse("1.2.0"):
+        if Version(duckdb.__version__) >= Version("1.2.0"):
             self._global_config.update(
                 {
                     # prevents HEAD command by caching parquet metadata
@@ -439,16 +500,24 @@ class WithTableScanners(DuckDbSqlClient):
                 }
             )
 
+    @raise_database_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # we keep the in memory instance around, so if this prop is set, return it
-        first_connection = self.credentials.never_borrowed
-        super().open_connection()
+        # lock the whole process to prevent race condition on `first_connection` flag
+        # which may become invalid if second connection got opened in another thread
+        with self.credentials.conn_pool._conn_lock:
+            first_connection = self.credentials.conn_pool.never_borrowed
+            super().open_connection()
 
-        if first_connection:
-            # set up dataset
-            if not self.has_dataset():
-                self.create_dataset()
-            self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+        try:
+            # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
+            if first_connection:
+                # set up dataset
+                q_dataset_name = self.fully_qualified_dataset_name()
+                create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
+                self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
+        except Exception:
+            self.close_connection()
+            raise
 
         return self._conn
 
@@ -526,19 +595,19 @@ class WithTableScanners(DuckDbSqlClient):
 
     @staticmethod
     def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
-        if semver.Version.parse(duckdb.__version__) <= semver.Version.parse("1.1.2"):
+        if Version(duckdb.__version__) <= Version("1.1.2"):
             raise NotImplementedError(
                 f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
                 " snapshot discovery. Please install duckdb >= 1.1.3"
             )
         # needed to make persistent secrets work in new connection
         # https://github.com/duckdb/duckdb_iceberg/issues/83
-        conn.execute("FROM duckdb_secrets();")
+        conn.execute("FROM duckdb_secrets()")
 
         # `duckdb_iceberg` extension does not support autoloading
         # https://github.com/duckdb/duckdb_iceberg/issues/71
-        if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
-            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
+        if Version(duckdb.__version__) < Version("1.2.0"):
+            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg")
 
     def __del__(self) -> None:
         if self.memory_db:

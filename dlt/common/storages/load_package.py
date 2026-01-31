@@ -38,6 +38,7 @@ from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TTableS
 from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import (
     LoadPackageAlreadyCompleted,
+    LoadPackageCancelled,
     LoadPackageNotCompleted,
     LoadPackageNotFound,
     CurrentLoadPackageStateNotAvailable,
@@ -156,29 +157,47 @@ class ParsedLoadJobFileName(NamedTuple):
     file_id: str
     retry_count: int
     file_format: TJobFileFormat
+    is_compressed: bool = False
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
-        return f"{self.table_name}.{self.file_id}.{self.file_format}"
+        compression_extension = ".gz" if self.is_compressed else ""
+        return f"{self.table_name}.{self.file_id}.{self.file_format}{compression_extension}"
 
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
-        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        compression_extension = ".gz" if self.is_compressed else ""
+        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}{compression_extension}"
 
     def with_retry(self) -> "ParsedLoadJobFileName":
         """Returns a job with increased retry count"""
         return self._replace(retry_count=self.retry_count + 1)
 
+    def to_reference_file_name(self) -> str:
+        """Returns a file name for a reference job"""
+        return f"{self.table_name}.{self.file_id}.{self.retry_count}.reference"
+
+    def full_extension(self) -> str:
+        """Returns the full file extension"""
+        return f"{self.file_format}.gz" if self.is_compressed else f"{self.file_format}"
+
     @staticmethod
     def parse(file_name: str) -> "ParsedLoadJobFileName":
         p = PurePath(file_name)
         parts = p.name.split(".")
-        if len(parts) != 4:
-            raise TerminalValueError(parts)
 
-        return ParsedLoadJobFileName(
-            parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3])
-        )
+        if len(parts) == 4:
+            # No compression extension: table_name.file_id.retry_count.file_format
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), False
+            )
+        elif len(parts) == 5 and parts[4] == "gz":
+            # With compression extension: table_name.file_id.retry_count.file_format.gz
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), True
+            )
+        else:
+            raise TerminalValueError(parts)
 
     @staticmethod
     def new_file_id() -> str:
@@ -315,6 +334,7 @@ class PackageStorage:
     LOAD_PACKAGE_STATE_FILE_NAME = (  # internal state of the load package, will not be synced to the destination
         "load_package_state.json"
     )
+    CANCEL_PACKAGE_FILE_NAME = "_cancelled"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
@@ -466,7 +486,9 @@ class PackageStorage:
     # Create and drop entities
     #
 
-    def create_package(self, load_id: str, initial_state: TLoadPackageState = None) -> None:
+    def create_package(
+        self, load_id: str, initial_state: TLoadPackageState = None, schema: Schema = None
+    ) -> None:
         self.storage.create_folder(load_id)
         # create processing directories
         self.storage.create_folder(os.path.join(load_id, PackageStorage.NEW_JOBS_FOLDER))
@@ -483,6 +505,8 @@ class PackageStorage:
                 created_at = precise_time()
             state["created_at"] = pendulum.from_timestamp(created_at)
         self.save_load_package_state(load_id, state)
+        if schema:
+            self.save_schema(load_id, schema)
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
@@ -533,9 +557,25 @@ class PackageStorage:
         ) as f:
             json.dump(schema_update, f)
 
+    def cancel(self, load_id: str) -> None:
+        """Sets cancel flag currently used for inter-process signalling"""
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        self.storage.touch_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME))
+
+    def raise_if_cancelled(self, load_id: str) -> None:
+        """Raise an exception if package is cancelled"""
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        if self.storage.has_file(os.path.join(package_path, self.CANCEL_PACKAGE_FILE_NAME)):
+            raise LoadPackageCancelled(load_id)
+
     #
-    # Loadpackage state
+    # Load package state
     #
+
     def get_load_package_state(self, load_id: str) -> TLoadPackageState:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):

@@ -5,9 +5,11 @@ from dlt.destinations.job_impl import FinalizedLoadJob
 from dlt.common.destination.client import LoadJob, PreparedTableSchema, JobClientBase
 from dlt.common.typing import AnyFun
 from dlt.common.storages.load_package import destination_state
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration import create_resolved_partial
 
 from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema.utils import is_dlt_table_or_column
 from dlt.common.destination import DestinationCapabilitiesContext
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
@@ -55,18 +57,20 @@ class DestinationClient(JobClientBase):
     ) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
         if self.config.skip_dlt_columns_and_tables:
-            if table["name"].startswith(self.schema._dlt_tables_prefix):
+            if is_dlt_table_or_column(table["name"], self.schema._dlt_tables_prefix):
                 return FinalizedLoadJob(file_path)
 
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
             for column in list(self.schema.get_table(table["name"])["columns"].keys()):
-                if column.startswith(self.schema._dlt_tables_prefix):
+                if is_dlt_table_or_column(column, self.schema._dlt_tables_prefix):
                     skipped_columns.append(column)
 
         # save our state in destination name scope
         load_state = destination_state()
-        if file_path.endswith("parquet"):
+
+        parsed_file = ParsedLoadJobFileName.parse(file_path)
+        if parsed_file.file_format == "parquet":
             return DestinationParquetLoadJob(
                 file_path,
                 self.config,
@@ -74,7 +78,7 @@ class DestinationClient(JobClientBase):
                 self.destination_callable,
                 skipped_columns,
             )
-        if file_path.endswith("jsonl"):
+        if parsed_file.file_format in ["jsonl", "typed-jsonl"]:
             return DestinationJsonlLoadJob(
                 file_path,
                 self.config,
@@ -88,7 +92,7 @@ class DestinationClient(JobClientBase):
         table = super().prepare_load_table(table_name)
         if self.config.skip_dlt_columns_and_tables:
             for column in list(table["columns"].keys()):
-                if column.startswith(self.schema._dlt_tables_prefix):
+                if is_dlt_table_or_column(column, self.schema._dlt_tables_prefix):
                     table["columns"].pop(column)
         return table
 

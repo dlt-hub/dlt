@@ -171,27 +171,28 @@ def test_drop_command_resources_and_state(
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
 
-    all_tables = list(pipeline.default_schema.tables.keys())
+    schema = pipeline.default_schema
+    all_tables = list(schema.tables.keys())
     assert load_table_counts(pipeline, *all_tables) == {
-        "_dlt_version": 1,
-        "_dlt_loads": 1,
+        schema.version_table_name: 1,
+        schema.loads_table_name: 1,
+        schema.state_table_name: 1,
         "droppable_a": 2,
         "droppable_b": 1,
         "droppable_c": 1,
         "droppable_d": 2,
         "droppable_no_state": 3,
-        "_dlt_pipeline_state": 1,
         "droppable_b__items": 2,
         "droppable_c__items": 1,
         "droppable_c__items__labels": 2,
     }
 
     attached = _attach(pipeline)
-    helpers.drop(
+    helpers.pipeline_drop(
         attached,
         resources=["droppable_c", "droppable_d", "droppable_no_state"],
         state_paths="data_from_d.*.bar",
-    )
+    )()
 
     attached = _attach(pipeline)
 
@@ -213,13 +214,14 @@ def test_drop_command_resources_and_state(
     # 3 loads (one for drop)
     # droppable_no_state correctly replaced
     # all other resources stay at the same count (they are incremental so they got loaded again or not loaded at all ie droppable_a)
-    all_tables = list(pipeline.default_schema.tables.keys())
+    schema = pipeline.default_schema
+    all_tables = list(schema.tables.keys())
     assert load_table_counts(pipeline, *all_tables) == {
-        "_dlt_version": 2,
-        "_dlt_loads": 3,
+        schema.version_table_name: 2,
+        schema.loads_table_name: 3,
+        schema.state_table_name: 3,
         "droppable_a": 2,
         "droppable_b": 1,
-        "_dlt_pipeline_state": 3,
         "droppable_b__items": 2,
         "droppable_c": 1,
         "droppable_d": 2,
@@ -261,7 +263,7 @@ def test_drop_command_only_state(destination_config: DestinationTestConfiguratio
     pipeline.run(source, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
-    helpers.drop(attached, state_paths="data_from_d.*.bar", state_only=True)
+    helpers.pipeline_drop(attached, state_paths="data_from_d.*.bar", state_only=True)()
 
     attached = _attach(pipeline)
 
@@ -291,7 +293,7 @@ def test_drop_command_only_tables(destination_config: DestinationTestConfigurati
     sources_state = pipeline.state["sources"]
 
     attached = _attach(pipeline)
-    helpers.drop(attached, resources=["droppable_no_state"])
+    helpers.pipeline_drop(attached, resources=["droppable_no_state"])()
 
     attached = _attach(pipeline)
 
@@ -326,11 +328,11 @@ def test_drop_destination_tables_fails(destination_config: DestinationTestConfig
         side_effect=RuntimeError("Oh no!"),
     ):
         with pytest.raises(PipelineStepFailed) as einfo:
-            helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+            helpers.pipeline_drop(attached, resources=("droppable_a", "droppable_b"))()
         assert isinstance(einfo.value.exception, RuntimeError)
         assert "Oh no!" in str(einfo.value.exception)
 
-    helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+    helpers.pipeline_drop(attached, resources=("droppable_a", "droppable_b"))()
 
     assert_dropped_resources(attached, ["droppable_a", "droppable_b"])
     assert_destination_state_loaded(attached)
@@ -361,13 +363,13 @@ def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration
         side_effect=RuntimeError("Oh no!"),
     ):
         with pytest.raises(PipelineStepFailed) as einfo:
-            helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+            helpers.pipeline_drop(attached, resources=("droppable_a", "droppable_b"))()
 
         assert isinstance(einfo.value.exception, RuntimeError)
         assert "Oh no!" in str(einfo.value.exception)
 
     attached = _attach(pipeline)
-    helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+    helpers.pipeline_drop(attached, resources=("droppable_a", "droppable_b"))()
 
     assert_dropped_resources(attached, ["droppable_a", "droppable_b"])
     assert_destination_state_loaded(attached)
@@ -392,11 +394,11 @@ def test_load_step_fails(destination_config: DestinationTestConfiguration) -> No
 
     with mock.patch.object(Load, "run", side_effect=RuntimeError("Something went wrong")):
         with pytest.raises(PipelineStepFailed) as e:
-            helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+            helpers.pipeline_drop(attached, resources=("droppable_a", "droppable_b"))()
         assert isinstance(e.value.exception, RuntimeError)
 
     attached = _attach(pipeline)
-    helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+    helpers.pipeline_drop(attached, resources=("droppable_a", "droppable_b"))()
 
     assert_dropped_resources(attached, ["droppable_a", "droppable_b"])
     assert_destination_state_loaded(attached)
@@ -414,7 +416,7 @@ def test_resource_regex(destination_config: DestinationTestConfiguration) -> Non
 
     attached = _attach(pipeline)
 
-    helpers.drop(attached, resources=["re:.+_b", "re:.+_a"])
+    helpers.pipeline_drop(attached, resources=["re:.+_b", "re:.+_a"])()
 
     attached = _attach(pipeline)
 
@@ -440,7 +442,7 @@ def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
     attached = _attach(pipeline)
     previous_state = dict(attached.state)
 
-    helpers.drop(attached)
+    helpers.pipeline_drop(attached)()
 
     assert_dropped_resources(attached, [])
     assert previous_state == attached.state
@@ -462,7 +464,7 @@ def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None
 
     attached = _attach(pipeline)
 
-    helpers.drop(attached, drop_all=True)
+    helpers.pipeline_drop(attached, drop_all=True)()
 
     attached = _attach(pipeline)
 
@@ -490,7 +492,7 @@ def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConf
 
     attached = _attach(pipeline)
 
-    helpers.drop(attached, resources="droppable_a")
+    helpers.pipeline_drop(attached, resources="droppable_a")()
 
     attached = _attach(pipeline)
 
@@ -515,7 +517,7 @@ def test_drop_state_only(destination_config: DestinationTestConfiguration) -> No
 
     attached = _attach(pipeline)
 
-    helpers.drop(attached, resources=("droppable_a", "droppable_b"), state_only=True)
+    helpers.pipeline_drop(attached, resources=("droppable_a", "droppable_b"), state_only=True)()
 
     attached = _attach(pipeline)
 
@@ -528,12 +530,12 @@ def test_drop_first_run_and_pending_packages() -> None:
     """Attempts to drop before pipeline runs and when partial loads happen"""
     pipeline = dlt.pipeline("drop_test_" + uniq_id(), destination="duckdb")
     with pytest.raises(PipelineNeverRan):
-        helpers.drop(pipeline, "droppable_a")
+        helpers.pipeline_drop(pipeline, "droppable_a")()
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline.run(droppable_source().with_resources("droppable_a"))
     pipeline.extract(droppable_source().with_resources("droppable_b"))
     with pytest.raises(PipelineHasPendingDataException):
-        helpers.drop(pipeline, "droppable_a")
+        helpers.pipeline_drop(pipeline, "droppable_a")()
 
 
 @pytest.mark.parametrize(
@@ -555,7 +557,7 @@ def test_drop_staging_tables(destination_config: DestinationTestConfiguration) -
     pipeline.run(some_data, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
-    helpers.drop(attached, resources=["some_data"])
+    helpers.pipeline_drop(attached, resources=["some_data"])()
 
     # Make sure the "some_data" table doesn't exist anymore
     with attached.sql_client() as client:

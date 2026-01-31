@@ -2,6 +2,9 @@ import os
 import dataclasses
 import logging
 from typing import Dict, List, Any
+from pathlib import Path
+
+import pytest
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
@@ -52,15 +55,52 @@ from dlt.common.configuration.providers import google_secrets
 google_secrets.GoogleSecretsProvider = CachedGoogleSecretsProvider  # type: ignore[misc]
 
 
+@pytest.hookimpl(optionalhook=True)
+def pytest_xdist_setupnodes(config, specs):
+    """Called on master before workers start. Pre-install DuckDB extensions to avoid
+    race conditions during concurrent auto-install by workers.
+    """
+    try:
+        import duckdb
+    except ImportError:
+        return
+
+    extensions = [
+        "avro",
+        "azure",
+        "delta",
+        "ducklake",
+        "httpfs",
+        "iceberg",
+        "lance",
+        "motherduck",
+        "parquet",
+        "postgres_scanner",
+        "spatial",
+        "sqlite_scanner",
+    ]
+
+    with duckdb.connect() as conn:
+        for ext in extensions:
+            try:
+                conn.execute(f"INSTALL {ext}")
+            except Exception:
+                pass  # extension might not be available
+
+
 def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields
     # the dataclass implementation will use those patched values when creating instances (the values present
     # in the declaration are not frozen allowing patching). this is needed by common storage tests
+    from tests.utils import set_environment_test_storage_root, compute_test_storage_root
+
+    test_storage_root = compute_test_storage_root()
+    Path(test_storage_root).mkdir(exist_ok=True)
+    set_environment_test_storage_root(test_storage_root)
 
     from dlt.common.configuration.specs import runtime_configuration
     from dlt.common.storages import configuration as storage_configuration
 
-    test_storage_root = "_storage"
     runtime_configuration.RuntimeConfiguration.config_files_storage_path = os.path.join(
         test_storage_root, "config/"
     )
@@ -128,7 +168,7 @@ def pytest_configure(config):
         logging.getLogger(log).setLevel("ERROR")
 
     # disable databricks logging
-    for log in ["databricks.sql.client"]:
+    for log in ["databricks.sql.client", "databricks.sql.auth"]:
         logging.getLogger(log).setLevel("WARNING")
 
     # disable httpx request logging (too verbose when testing qdrant)
@@ -168,3 +208,10 @@ def pytest_configure(config):
 
         except Exception:
             pass
+
+
+# import faulthandler, atexit, sys
+
+# faulthandler.enable()  # makes sure the module is initialised
+
+# atexit.register(lambda: faulthandler.dump_traceback(file=sys.stderr, all_threads=True))

@@ -1,6 +1,7 @@
 import os
-from typing import Optional, Sequence, List, cast
-from urllib.parse import urlparse, urlunparse
+from typing import Dict, Optional, Sequence, List, cast, Union
+from urllib.parse import urlparse
+from pathlib import Path
 
 from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
@@ -18,7 +19,7 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.fsspec_filesystem import (
@@ -26,17 +27,29 @@ from dlt.common.storages.fsspec_filesystem import (
     S3_PROTOCOLS,
     GCS_PROTOCOLS,
 )
-from dlt.common.schema import TColumnSchema, Schema
+from dlt.destinations.impl.databricks.databricks_adapter import (
+    CLUSTER_HINT,
+    TABLE_PROPERTIES_HINT,
+    TABLE_COMMENT_HINT,
+    TABLE_TAGS_HINT,
+    COLUMN_COMMENT_HINT,
+    COLUMN_TAGS_HINT,
+)
+from dlt.common.schema import TColumnSchema, Schema, TTableSchema, TColumnHint
 from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.utils import uniq_id
+from dlt.common import logger
+from dlt.common.data_writers.escape import escape_databricks_literal
+from dlt.common.exceptions import TerminalValueError
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.utils import is_compression_disabled
+from dlt.destinations.impl.databricks.typing import TDatabricksColumnHint
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
@@ -59,10 +72,15 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         # decide if this is a local file or a staged file
         is_local_file = not ReferenceFollowupJobRequest.is_reference_job(self._file_path)
         if is_local_file:
-            # conn parameter staging_allowed_local_path must be set to use 'PUT/REMOVE volume_path' SQL statement
-            self._sql_client.native_connection.thrift_backend.staging_allowed_local_path = (
-                os.path.dirname(self._file_path)
-            )
+            # staging_allowed_local_path should be set when opening the connection but at that
+            # time we do not know this path so do it now
+            conn_ = self._sql_client.native_connection
+            file_dir = os.path.dirname(self._file_path)
+            if backend := getattr(conn_, "thrift_backend", None):
+                backend.staging_allowed_local_path = file_dir
+            else:
+                # thrift backend discontinued on newer databricks connector clients
+                conn_.staging_allowed_local_path = file_dir  # type: ignore[attr-defined,unused-ignore]
             # local file by uploading to a temporary volume on Databricks
             from_clause, file_name, volume_path, volume_file_path = self._handle_local_file_upload(
                 self._file_path
@@ -126,7 +144,10 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         volume_path = f"/Volumes/{volume_catalog}/{volume_database}/{volume_name}/{uniq_id()}"
         volume_file_path = f"{volume_path}/{volume_file_name}"
 
-        self._sql_client.execute_sql(f"PUT '{local_file_path}' INTO '{volume_file_path}' OVERWRITE")
+        posix_path = Path(
+            local_file_path
+        ).as_posix()  # backslash in Windows local path causes issues with PUT command
+        self._sql_client.execute_sql(f"PUT '{posix_path}' INTO '{volume_file_path}' OVERWRITE")
 
         from_clause = f"FROM '{volume_path}'"
 
@@ -218,26 +239,21 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        if file_name.endswith(".parquet"):
+        file_format, _ = get_file_format_and_compression(file_name)
+
+        if file_format == "parquet":
             return "PARQUET", "", False
 
-        elif file_name.endswith(".jsonl"):
-            if not is_compression_disabled():
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    "Databricks loader does not support gzip compressed JSON files. "
-                    "Please disable compression in the data writer configuration:"
-                    " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
-                )
-
+        elif file_format in ["jsonl", "typed-jsonl"]:
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
 
-            # check for an empty JSON file
-            fs, _ = fsspec_from_config(self._staging_config)
-            if orig_bucket_path is not None:
-                file_size = fs.size(orig_bucket_path)
-                if file_size == 0:
-                    return "JSON", format_options_clause, True
+            # check for an empty JSON file, unless it's a direct load
+            if self._staging_config is not None:
+                fs, _ = fsspec_from_config(self._staging_config)
+                if orig_bucket_path is not None:
+                    file_size = fs.size(orig_bucket_path)
+                    if file_size == 0:
+                        return "JSON", format_options_clause, True
 
             return "JSON", format_options_clause, False
 
@@ -271,8 +287,8 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 class DatabricksMergeJob(SqlMergeFollowupJob):
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-        return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+        return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql}"
 
     @classmethod
     def gen_delete_from_sql(
@@ -282,7 +298,7 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         return f"""MERGE INTO {table_name}
         USING {temp_table_name}
         ON {table_name}.{column_name} = {temp_table_name}.{temp_table_column}
-        WHEN MATCHED THEN DELETE;
+        WHEN MATCHED THEN DELETE
         """
 
 
@@ -293,9 +309,12 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         config: DatabricksClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
         sql_client = DatabricksSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )
@@ -303,6 +322,16 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment, unused-ignore]
         self.type_mapper = self.capabilities.get_type_mapper()
+        # PK and FK are created in SQL fragments, not inline
+
+    def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        column_def_sql = super()._get_column_def_sql(column, table)
+
+        if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
+            comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
+            escaped_comment = escape_databricks_literal(comment)
+            column_def_sql = f"{column_def_sql} COMMENT {escaped_comment}"
+        return column_def_sql
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -329,21 +358,232 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
 
-    def _get_table_update_sql(
+    def _get_constraints_sql(
         self,
         table_name: str,
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
-        separate_alters: bool = False,
-    ) -> List[str]:
-        sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+    ) -> str:
+        constraints_sql = ""
 
+        partial: TTableSchema = {
+            "name": table_name,
+            "columns": {c["name"]: c for c in new_columns},
+        }
+
+        if self.config.create_indexes:
+            # Adding primary key constraint
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+
+            if pk_columns:
+                logger.info(f"Creating PRIMARY KEY constraint for table {table_name}")
+                if generate_alter:
+                    logger.warning(
+                        f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
+                        " is ignored"
+                    )
+                else:
+                    quoted_pk_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in pk_columns
+                    )
+                    constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"
+
+            return constraints_sql
+
+        return ""
+
+    def _get_table_update_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> List[str]:
+        table = self.prepare_load_table(table_name)
+
+        # Check for AUTO clustering at table level
+        cluster_by_auto = table.get(CLUSTER_HINT) == "AUTO"
+
+        # Get cluster columns from column hints
         cluster_list = [
-            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster")
+            self.sql_client.escape_column_name(c["name"])
+            for c in new_columns
+            if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]
 
-        if cluster_list:
-            sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
+        # Get partition columns from column hints
+        partition_list = [
+            self.sql_client.escape_column_name(c["name"])
+            for c in new_columns
+            if c.get("partition", False)
+        ]
+
+        # Determine the CLUSTER BY clause
+        cluster_clause = None
+        if cluster_by_auto:
+            cluster_clause = "CLUSTER BY AUTO"
+        elif cluster_list:
+            cluster_clause = f"CLUSTER BY ({','.join(cluster_list)})"
+
+        # Determine the PARTITIONED BY clause
+        partition_clause = None
+        if partition_list:
+            partition_clause = f"PARTITIONED BY ({','.join(partition_list)})"
+
+        # Get table properties
+        table_properties = table.get(TABLE_PROPERTIES_HINT)
+        tblproperties_clause = None
+        if table_properties and isinstance(table_properties, dict):
+            props = []
+            for key, value in table_properties.items():
+                # Escape key and value properly
+                escaped_key = f"'{key}'"
+                if isinstance(value, str):
+                    escaped_value = f"'{value}'"
+                elif isinstance(value, bool):
+                    escaped_value = str(value).lower()
+                else:
+                    escaped_value = str(value)
+                props.append(f"{escaped_key}={escaped_value}")
+            tblproperties_clause = f"TBLPROPERTIES ({', '.join(props)})"
+
+        # Get table format
+        table_format = table.get("table_format", "delta")
+        using_clause = None
+        if table_format == "iceberg":
+            using_clause = "USING ICEBERG"
+
+            # Validate Iceberg-specific constraints
+            if table_properties and isinstance(table_properties, dict):
+                # Check for Delta-specific properties that are not supported in Iceberg
+                delta_only_props = [
+                    "delta.dataSkippingStatsColumns",
+                    "delta.autoOptimize.optimizeWrite",
+                    "delta.autoOptimize.autoCompact",
+                    "delta.logRetentionDuration",
+                    "delta.deletedFileRetentionDuration",
+                    "delta.enableChangeDataFeed",
+                    "delta.columnMapping.mode",
+                    "delta.appendOnly",
+                ]
+
+                for prop_key in table_properties.keys():
+                    if any(
+                        prop_key.startswith(delta_prop) or prop_key == delta_prop
+                        for delta_prop in delta_only_props
+                    ):
+                        raise TerminalValueError(
+                            f"Table property '{prop_key}' is Delta Lake specific and not supported"
+                            " with ICEBERG tables. Remove this property when using"
+                            " table_format='iceberg'."
+                        )
+        # Note: DELTA is the default format, no explicit USING clause needed
+
+        # For CREATE TABLE, we need custom generation if we have any custom clauses or non-DELTA format
+        if not generate_alter and (
+            cluster_clause or partition_clause or tblproperties_clause or using_clause
+        ):
+            # Build CREATE TABLE with all custom clauses
+            qualified_name = self.sql_client.make_qualified_table_name(table_name)
+            sql = self._make_create_table(qualified_name, table)
+
+            sql += " (\n"
+            sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
+            sql += self._get_constraints_sql(table_name, new_columns, generate_alter)
+            sql += ")"
+
+            # Add USING clause after column definitions for ICEBERG
+            if using_clause:
+                sql += f" {using_clause}"
+
+            # Add PARTITIONED BY clause (must come before CLUSTER BY)
+            if partition_clause:
+                sql += f" {partition_clause}"
+            # Add CLUSTER BY clause
+            if cluster_clause:
+                sql += f" {cluster_clause}"
+            # Add TBLPROPERTIES clause (comes after CLUSTER BY)
+            if tblproperties_clause:
+                sql += f" {tblproperties_clause}"
+            sql_result = [sql]
+        else:
+            # Use parent implementation for ALTER or non-clustered/non-partitioned tables
+            sql_result = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+
+            # For ALTER TABLE, add CLUSTER BY as a separate statement
+            # Note: PARTITIONED BY cannot be added via ALTER TABLE in Databricks
+            if generate_alter and cluster_clause:
+                qualified_name = self.sql_client.make_qualified_table_name(table_name)
+                sql_result.append(f"ALTER TABLE {qualified_name} {cluster_clause}")
+
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
+
+        if table.get(TABLE_COMMENT_HINT) or table.get("description"):
+            comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
+            escaped_comment = escape_databricks_literal(comment)
+            sql_result.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")
+
+        if table.get(TABLE_TAGS_HINT):
+            table_tags = cast(List[Union[str, Dict[str, str]]], table.get(TABLE_TAGS_HINT))
+            for tag in table_tags:
+                if isinstance(tag, str):
+                    escaped_tag = escape_databricks_literal(tag)
+                    sql_result.append(f"ALTER TABLE {qualified_name} SET TAGS ({escaped_tag})")
+                elif isinstance(tag, dict):
+                    (key, value), *rest = tag.items()
+                    escaped_key = escape_databricks_literal(key)
+                    escaped_value = escape_databricks_literal(value)
+                    sql_result.append(
+                        f"ALTER TABLE {qualified_name} SET TAGS ({escaped_key}={escaped_value})"
+                    )
+
+        column_tag_list = [
+            (self.sql_client.escape_column_name(c["name"]), c.get(COLUMN_TAGS_HINT))
+            for c in new_columns
+            if c.get(COLUMN_TAGS_HINT)
+        ]
+
+        if column_tag_list:
+            for column_name, column_tags in column_tag_list:
+                column_tags_typed = cast(List[Union[str, Dict[str, str]]], column_tags)
+                for column_tag in column_tags_typed:
+                    if isinstance(column_tag, str):
+                        escaped_tag = escape_databricks_literal(column_tag)
+                        sql_result.append(
+                            f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS"
+                            f" ({escaped_tag})"
+                        )
+                    elif isinstance(column_tag, dict):
+                        (key, value), *rest = column_tag.items()
+                        escaped_key = escape_databricks_literal(key)
+                        escaped_value = escape_databricks_literal(value)
+                        sql_result.append(
+                            f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS"
+                            f" ({escaped_key}={escaped_value})"
+                        )
+
+        return sql_result
+
+    def _get_table_post_update_sql(
+        self,
+        table: TTableSchema,
+    ) -> List[str]:
+        sql: List[str] = []
+        table_name = table["name"]
+
+        # add foreign key constraints
+        references = table.get("references")
+        if references:
+            logger.info(f"Creating FOREIGN KEY constraint for table {table_name}")
+            for reference in references:
+                quoted_fk_cols = ", ".join(
+                    self.sql_client.escape_column_name(col) for col in reference.get("columns")
+                )
+                quoted_reference_cols = ", ".join(
+                    self.sql_client.escape_column_name(col)
+                    for col in reference.get("referenced_columns")
+                )
+                sql.append(
+                    f"ALTER TABLE {self.sql_client.make_qualified_table_name(table_name)} ADD"
+                    f" FOREIGN KEY ({quoted_fk_cols}) REFERENCES"
+                    f" {self.sql_client.make_qualified_table_name(reference.get('referenced_table'))}({quoted_reference_cols})"
+                )
 
         return sql
 

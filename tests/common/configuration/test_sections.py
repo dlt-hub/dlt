@@ -1,5 +1,5 @@
 import pytest
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from dlt.common.configuration.container import Container
 
 from dlt.common.configuration import (
@@ -13,10 +13,10 @@ from dlt.common.configuration.specs import BaseConfiguration, ConfigSectionConte
 from dlt.common.configuration.exceptions import InvalidNativeValue, LookupTrace
 from dlt.common.typing import AnyType
 
-from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
     MockProvider,
     SectionedConfiguration,
+    InstrumentedConfiguration,
     environment,
     mock_provider,
     env_provider,
@@ -54,6 +54,12 @@ class EmbeddedWithIgnoredEmbeddedConfiguration(BaseConfiguration):
     ignored_embedded: EmbeddedIgnoredWithSectionedConfiguration = None
 
 
+@configspec
+class SectionedNativeValueConfiguration(SectionedConfiguration):
+    def parse_native_representation(self, native_value: Any) -> None:
+        raise ValueError(native_value)
+
+
 def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider) -> None:
     with pytest.raises(ConfigFieldMissingException) as exc_val:
         resolve.resolve_configuration(SectionedConfiguration())
@@ -81,6 +87,18 @@ def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider)
     environment["DLT_TEST__PASSWORD"] = "PASS"
     C = resolve.resolve_configuration(SectionedConfiguration())
     assert C.password == "PASS"
+
+
+def test_sectioned_configuration_ignore_native_values(environment) -> None:
+    environment["DLT_TEST"] = "invalid()"
+    environment["DLT_TEST__PASSWORD"] = "PASS"
+    resolve.resolve_configuration(SectionedConfiguration())
+
+    # same for runtime
+    from dlt.common.configuration.specs import RuntimeConfiguration
+
+    environment["RUNTIME"] = "16.0LTS"
+    resolve.resolve_configuration(RuntimeConfiguration())
 
 
 def test_explicit_sections(mock_provider: MockProvider) -> None:
@@ -265,9 +283,9 @@ def test_section_with_pipeline_name(mock_provider: MockProvider) -> None:
         # "PIPE", "DLT_TEST"
         mock_provider.return_value_on = ()
         mock_provider.reset_stats()
-        # () will return "value" which cannot be parsed by the SectionedConfiguration
+        # () will return "value" which cannot be parsed by the SectionedNativeValueConfiguration
         with pytest.raises(InvalidNativeValue):
-            resolve.resolve_configuration(SectionedConfiguration())
+            resolve.resolve_configuration(SectionedNativeValueConfiguration())
         mock_provider.return_value_on = ("DLT_TEST",)
         mock_provider.reset_stats()
         resolve.resolve_configuration(SectionedConfiguration())
@@ -319,3 +337,54 @@ def test_inject_section(mock_provider: MockProvider) -> None:
             with inject_section(ConfigSectionContext(), merge_existing=False):
                 resolve.resolve_configuration(SingleValConfiguration())
                 assert mock_provider.last_sections == [()]
+
+
+def test_configuration_with_top_level_section_propagation_to_embedded(
+    environment: Dict[str, str]
+) -> None:
+    @configspec
+    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
+        default: str = "STR"
+        instrumented: InstrumentedConfiguration = None
+
+        __section__ = "top_level"
+
+    # NOTE: top level will be stripped in less specific searches
+    environment["TOP_LEVEL__INSTRUMENTED__HEAD"] = "h"
+    environment["TOP_LEVEL__INSTRUMENTED__TUBE"] = '["t"]'
+    environment["TOP_LEVEL__INSTRUMENTED__HEELS"] = "he"
+    c_resolved = resolve.resolve_configuration(EmbeddedConfigurationWithDefaults())
+    assert c_resolved.is_resolved()
+
+
+def test_configuration_with_mid_level_section_replaced_with_embedded(
+    environment: Dict[str, str]
+) -> None:
+    @configspec
+    class SectionedInstrumentedConfiguration(InstrumentedConfiguration):
+        DLT_TEST: SectionedConfiguration = None
+        __section__ = "instrumented"
+
+    @configspec
+    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
+        default: str = "STR"
+        instrumented: SectionedInstrumentedConfiguration = None
+
+        __section__ = "top_level"
+
+    # we make sure that trace does not contain a section layout with two "instrumented" sections
+    # when descending into embedded config, config section should be replaced with field(key) name
+    # exception is top level configuration that should keep its section (tested above)
+    with pytest.raises(ConfigFieldMissingException) as cf_missing:
+        resolve.resolve_configuration(EmbeddedConfigurationWithDefaults())
+    flat_sections = set(
+        [tuple(lookup.sections) for lookup in cf_missing.value.attrs()["traces"]["instrumented"]]
+    )
+    assert ("top_level", "instrumented", "instrumented", "DLT_TEST") not in flat_sections
+    assert flat_sections == {
+        ("instrumented",),
+        ("top_level", "instrumented"),
+        ("top_level", "instrumented", "DLT_TEST"),
+        ("DLT_TEST",),
+        ("top_level", "DLT_TEST"),
+    }

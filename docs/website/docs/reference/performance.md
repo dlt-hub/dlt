@@ -126,6 +126,10 @@ Below, we set files to rotate after 100,000 items written or when the filesize e
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::compression_toml-->
 
+:::note
+**Filesystem destination**: Starting with dlt version 1.15.0, compressed `csv` and `jsonl` files automatically include a `.gz` extension to reflect their gzip-compressed format. In versions prior to 1.15.0, compressed files were saved without the `.gz` extension. If you have a dataset created with an earlier version (e.g., 1.14.0 or below), dlt will automatically detect the older format and preserve the original naming (without `.gz`) for that dataset. New datasets created with 1.15.0 or later will include the `.gz` extension by default.
+:::
+
 
 ### Freeing disk space after loading
 
@@ -182,7 +186,7 @@ You can control the number of async functions/awaitables being evaluated in para
 of callables to be evaluated in a thread pool with a size of 5. This limit will instantiate only the desired amount of workers.
 :::
 
-:::caution
+:::warning
 Generators and iterators are always evaluated in a single thread: item by item. If you have a loop that yields items that you want to evaluate
 in parallel, instead yield functions or async functions that will be evaluated in separate threads or in an async pool.
 :::
@@ -200,7 +204,7 @@ The default is to not parallelize normalization and to perform it in the main pr
 Normalization is CPU-bound and can easily saturate all your cores. Never allow `dlt` to use all cores on your local machine.
 :::
 
-:::caution
+:::warning
 The default method of spawning a process pool on Linux is **fork**. If you are using threads in your code (or libraries that use threads),
 you should switch to **spawn**. Process forking does not respawn the threads and may destroy the critical sections in your code. Even logging
 with Python loggers from multiple threads may lock the `normalize` step. Here's how you switch to **spawn**:
@@ -289,6 +293,7 @@ Please note the following:
 process start method.
 2. If you created the `Pipeline` object in the worker thread and you use it from another (i.e., the main thread),
 call `pipeline.activate()` to inject the right context into the current thread.
+3. Note how `with signals.intercepted_signals():` was used to [enable graceful shutdown](../running-in-production/running.md#allow-a-graceful-shutdown) of pipelines running in a thread pool.
 :::
 
 

@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Generator
+from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Generator, Union
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -9,7 +9,10 @@ from google.cloud.bigquery.dbapi import Connection as DbApiConnection, Cursor as
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
 
 from dlt.common import logger
-from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
+from dlt.common.configuration.specs import (
+    GcpServiceAccountCredentialsWithoutDefaults,
+    GcpOAuthCredentials,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import StrAny
 from dlt.destinations.exceptions import (
@@ -63,7 +66,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         self,
         dataset_name: str,
         staging_dataset_name: str,
-        credentials: GcpServiceAccountCredentialsWithoutDefaults,
+        credentials: Union[GcpServiceAccountCredentialsWithoutDefaults, GcpOAuthCredentials],
         capabilities: DestinationCapabilitiesContext,
         location: str = "US",
         project_id: Optional[str] = None,
@@ -71,7 +74,9 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         retry_deadline: float = 60.0,
     ) -> None:
         self._client: bigquery.Client = None
-        self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
+        self.credentials: Union[
+            GcpServiceAccountCredentialsWithoutDefaults, GcpOAuthCredentials
+        ] = credentials
         self.location = location
         self.project_id = project_id or self.credentials.project_id
         self.http_timeout = http_timeout
@@ -121,7 +126,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                     "Nested transactions not supported on BigQuery"
                 )
             job = self._client.query(
-                "BEGIN TRANSACTION;",
+                "BEGIN TRANSACTION",
                 job_config=bigquery.QueryJobConfig(
                     create_session=True,
                     default_dataset=self.fully_qualified_dataset_name(quote=False),
@@ -152,13 +157,13 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         if not self._session_query:
             # allow committing without transaction
             return
-        self.execute_sql("COMMIT TRANSACTION;CALL BQ.ABORT_SESSION();")
+        self.execute_sql("COMMIT TRANSACTION;CALL BQ.ABORT_SESSION()")
         self._session_query = None
 
     def rollback_transaction(self) -> None:
         if not self._session_query:
             raise dbapi_exceptions.ProgrammingError("Transaction was not started")
-        self.execute_sql("ROLLBACK TRANSACTION;CALL BQ.ABORT_SESSION();")
+        self.execute_sql("ROLLBACK TRANSACTION;CALL BQ.ABORT_SESSION()")
         self._session_query = None
 
     @property
@@ -278,16 +283,16 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
     def truncate_tables_if_exist(self, *tables: str) -> None:
         """NOTE: We only truncate tables that exist, for auto-detect schema we don't know which tables exist"""
-        statements: List[str] = ["DECLARE table_exists BOOL;"]
+        statements: List[str] = ["DECLARE table_exists BOOL"]
         for t in tables:
             table_name = self.make_qualified_table_name(t)
             statements.append(
                 "SET table_exists = (SELECT COUNT(*) > 0 FROM"
                 f" `{self.project_id}.{self.dataset_name}.INFORMATION_SCHEMA.TABLES` WHERE"
-                f" table_name = '{t}');"
+                f" table_name = '{t}')"
             )
-            truncate_stmt = self._truncate_table_sql(table_name).replace(";", "")
-            statements.append(f"IF table_exists THEN EXECUTE IMMEDIATE '{truncate_stmt}'; END IF;")
+            truncate_stmt = self._truncate_table_sql(table_name)
+            statements.append(f"IF table_exists THEN EXECUTE IMMEDIATE '{truncate_stmt}'; END IF")
         self.execute_many(statements)
 
     @staticmethod

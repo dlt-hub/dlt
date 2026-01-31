@@ -3,9 +3,10 @@ from copy import copy
 import os
 import pickle
 import datetime  # noqa: 251
-from typing import Any, List, NamedTuple, Optional, Protocol, Sequence, Union
+from typing import Any, List, NamedTuple, Optional, Sequence
 import humanize
 
+from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
@@ -197,27 +198,7 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return self.asstr(verbosity=0)
 
 
-class SupportsTracking(Protocol):
-    def on_start_trace(
-        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
-
-    def on_start_trace_step(
-        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
-
-    def on_end_trace_step(
-        self,
-        trace: PipelineTrace,
-        step: PipelineStepTrace,
-        pipeline: SupportsPipeline,
-        step_info: Any,
-        send_state: bool,
-    ) -> None: ...
-
-    def on_end_trace(
-        self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
-    ) -> None: ...
+from dlt.common.runtime.tracking import SupportsTracking
 
 
 # plug in your own tracking modules here
@@ -236,6 +217,11 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrac
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"on_start_trace on module {module} failed"):
             module.on_start_trace(trace, step, pipeline)
+    with suppress_and_warn(
+        f"on_start_trace on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_start_trace(trace, step, pipeline)
+
     return trace
 
 
@@ -246,6 +232,10 @@ def start_trace_step(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"start_trace_step on module {module} failed"):
             module.on_start_trace_step(trace, step, pipeline)
+    with suppress_and_warn(
+        f"on_start_trace_step on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_start_trace_step(trace, step, pipeline)
     return trace_step
 
 
@@ -268,7 +258,6 @@ def end_trace_step(
             step_exception += "caused by: " + str(step_info.__context__)
         step_info = None
     else:
-        step_info = step_info
         exception_traces = None
         step_exception = None
 
@@ -297,18 +286,22 @@ def end_trace_step(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"end_trace_step on module {module} failed"):
             module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
+    with suppress_and_warn(
+        f"on_end_trace_step on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_end_trace_step(trace, step, pipeline, step_info, send_state)
     return trace
 
 
-def end_trace(
-    trace: PipelineTrace, pipeline: SupportsPipeline, trace_path: str, send_state: bool
-) -> PipelineTrace:
+def end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> PipelineTrace:
     trace = trace._replace(finished_at=pendulum.now())
-    if trace_path:
-        save_trace(trace_path, trace)
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"end_trace on module {module} failed"):
             module.on_end_trace(trace, pipeline, send_state)
+    with suppress_and_warn(
+        f"on_end_trace on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_end_trace(trace, pipeline, send_state)
     # clear collected config resolver traces
     get_resolved_traces().clear()
     return trace
@@ -328,23 +321,35 @@ def merge_traces(last_trace: PipelineTrace, new_trace: PipelineTrace) -> Pipelin
     )
 
 
-def save_trace(trace_path: str, trace: PipelineTrace) -> None:
+def save_trace(trace_dir: str, trace: PipelineTrace) -> None:
     # remove previous file, we do not want to keep old trace even if we fail later
-    trace_dump_path = os.path.join(trace_path, TRACE_FILE_NAME)
+    trace_dump_path = os.path.join(trace_dir, TRACE_FILE_NAME)
     if os.path.isfile(trace_dump_path):
         os.unlink(trace_dump_path)
     with suppress_and_warn("Failed to create trace dump via pickle"):
         trace_dump = pickle.dumps(trace)
-        FileStorage.save_atomic(trace_path, TRACE_FILE_NAME, trace_dump, file_type="b")
+        FileStorage.save_atomic(trace_dir, TRACE_FILE_NAME, trace_dump, file_type="b")
 
 
-def load_trace(trace_path: str) -> PipelineTrace:
+def load_trace(trace_dir: str, ignore_errors: bool = True) -> PipelineTrace:
     try:
-        with open(os.path.join(trace_path, TRACE_FILE_NAME), mode="rb") as f:
+        with open(os.path.join(trace_dir, TRACE_FILE_NAME), mode="rb") as f:
             return pickle.load(f)  # type: ignore
-    except (AttributeError, FileNotFoundError):
-        # on incompatible pickling / file not found return no trace
-        return None
+    except FileNotFoundError:
+        # file not found return no trace
+        pass
+    except Exception as ex:
+        # we do not guarantee traces backward compat
+        if not ignore_errors:
+            raise
+        logger.warning(f"Error when loading trace at {trace_dir}: %s" % ex)
+
+    return None
+
+
+def get_trace_file_path(pipelines_dir: str, pipeline_name: str) -> str:
+    """Get the path to the pickle file for a pipeline"""
+    return os.path.join(pipelines_dir, pipeline_name, TRACE_FILE_NAME)
 
 
 def get_exception_traces(exc: BaseException, container: Container = None) -> List[ExceptionTrace]:

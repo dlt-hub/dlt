@@ -4,7 +4,7 @@ import pytest
 import time, threading
 import dlt
 
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, LookupTrace
 from dlt.common.configuration.inject import (
     _LAST_DLT_CONFIG,
     _ORIGINAL_ARGS,
@@ -69,7 +69,9 @@ def test_arguments_are_explicit(environment: Any) -> None:
     with pytest.raises(ConfigFieldMissingException) as cfg_ex:
         f_var_env(None, path="explicit path")
     assert "user" in cfg_ex.value.traces
-    assert cfg_ex.value.traces["user"][0].provider == "ExplicitValues"
+    lookup = cfg_ex.value.traces["user"][0]
+    assert isinstance(lookup, LookupTrace)
+    assert lookup.provider == "ExplicitValues"
 
 
 def test_explicit_none(environment: Any) -> None:
@@ -437,6 +439,7 @@ def test_base_spec() -> None:
         f_no_base(opt=False)
 
 
+@pytest.mark.serial
 @pytest.mark.parametrize("lock", [False, True])
 @pytest.mark.parametrize("same_pool", [False, True])
 def test_lock_context(lock, same_pool) -> None:
@@ -479,7 +482,7 @@ def test_lock_context(lock, same_pool) -> None:
         if lock and same_pool:
             assert elapsed > 1
         else:
-            assert elapsed < 0.7
+            assert elapsed < 0.9
 
 
 @pytest.mark.skip("not implemented")

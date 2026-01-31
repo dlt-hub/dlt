@@ -1,4 +1,3 @@
-from os import environ
 from urllib.parse import urlparse
 
 import pytest
@@ -10,6 +9,9 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
 )
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseLoadJob
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 def test_clickhouse_table_function_aws_credentials() -> None:
@@ -35,7 +37,6 @@ def test_clickhouse_table_function_aws_credentials() -> None:
     result = client._get_table_function(
         bucket_scheme="s3",
         bucket_url=urlparse("s3://bucket-name/path/to/data"),
-        ext=".parquet",
         compression="gz",
         clickhouse_format="parquet",
     )
@@ -76,7 +77,6 @@ def test_clickhouse_table_function_aws_s3_extra_credentials() -> None:
     result = client._get_table_function(
         bucket_scheme="s3",
         bucket_url=urlparse("s3://bucket-name/path/to/data"),
-        ext=".parquet",
         compression="gz",
         clickhouse_format="parquet",
     )

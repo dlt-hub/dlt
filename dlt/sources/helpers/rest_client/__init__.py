@@ -19,6 +19,8 @@ def paginate(
     paginator: Optional[BasePaginator] = None,
     data_selector: Optional[jsonpath.TJsonPath] = None,
     hooks: Optional[Hooks] = None,
+    *,
+    data: Optional[Any] = None,
 ) -> Iterator[PageData[Any]]:
     """
     Paginate over a REST API endpoint.
@@ -43,4 +45,5 @@ def paginate(
         paginator=paginator,
         data_selector=data_selector,
         hooks=hooks,
+        data=data,
     )

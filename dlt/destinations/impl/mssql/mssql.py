@@ -1,19 +1,25 @@
-from typing import Dict, Optional, Sequence, List, Any
+from typing import TYPE_CHECKING, Dict, Iterator, Optional, Sequence, List, Any
 
+from dlt.common import logger
 from dlt.common.destination.client import (
     FollowupJobRequest,
+    HasFollowupJobs,
+    LoadJob,
     PreparedTableSchema,
+    RunnableLoadJob,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.destinations._adbc_jobs import AdbcParquetCopyJob
 from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob, SqlMergeFollowupJob
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
-from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
+from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, build_odbc_dsn
 from dlt.destinations.sql_client import SqlClientBase
 
 
@@ -35,14 +41,14 @@ class MsSqlStagingReplaceJob(SqlStagingReplaceFollowupJob):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             # drop destination table
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            sql.append(f"DROP TABLE IF EXISTS {table_name}")
             # moving staging table to destination schema
             sql.append(
                 f"ALTER SCHEMA {sql_client.fully_qualified_dataset_name()} TRANSFER"
-                f" {staging_table_name};"
+                f" {staging_table_name}"
             )
             # recreate staging table
-            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0;")
+            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0")
         return sql
 
 
@@ -68,12 +74,74 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-        return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+        return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t"
 
     @classmethod
     def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
         return SqlMergeFollowupJob._new_temp_table_name("#" + table_name, op, sql_client)
+
+
+class MssqlParquetCopyJob(AdbcParquetCopyJob):
+    _config: MsSqlClientConfiguration
+
+    if TYPE_CHECKING:
+        from adbc_driver_manager.dbapi import Connection
+
+    def _connect(self) -> "Connection":
+        from adbc_driver_manager import dbapi
+
+        self._config = self._job_client.config  # type: ignore[assignment]
+        conn_dsn = self.odbc_to_go_mssql_dsn(self._config.credentials.get_odbc_dsn_dict())
+        conn_str = build_odbc_dsn(conn_dsn)
+        return dbapi.connect(driver="mssql", db_kwargs={"uri": conn_str})
+
+    @staticmethod
+    def odbc_to_go_mssql_dsn(dsn: Dict[str, Any]) -> Dict[str, Any]:
+        """Converts odbc connection string to go connection string used by ADBC"""
+        # DSN keys are already normalized to upper case
+        result: Dict[str, Any] = {}
+
+        for upper, value in dsn.items():
+            if value is None:
+                continue
+
+            v = str(value)
+
+            if upper == "ENCRYPT":
+                v = v.strip().lower()
+
+                # ODBC: yes/mandatory/true/1 → go-mssqldb: true (TLS on)
+                if v in {"yes", "true", "1", "mandatory"}:
+                    v = "true"
+
+                # ODBC: strict → go-mssqldb strict (if supported by the driver)
+                elif v in {"strict"}:
+                    v = "strict"
+
+                # ODBC: optional → go-mssqldb optional (login only)
+                elif v in {"optional"}:
+                    v = "optional"
+
+                # ODBC: no/false/0/disabled → go-mssqldb disable (no TLS at all)
+                # This mirrors your previous string hack:
+                #   .replace("=yes", "=1").replace("=no", "=disable")
+                elif v in {"no", "false", "0", "disabled", "disable"}:
+                    v = "disable"
+
+            elif upper == "TRUSTSERVERCERTIFICATE":
+                v = v.strip().lower()
+
+                # ODBC uses yes/no; go-mssqldb expects true/false (but is lenient);
+                # we normalize explicitly.
+                if v in {"yes", "true", "1"}:
+                    v = "true"
+                elif v in {"no", "false", "0"}:
+                    v = "false"
+
+            result[upper] = v
+
+        return result
 
 
 class MsSqlJobClient(InsertValuesJobClient):
@@ -83,9 +151,12 @@ class MsSqlJobClient(InsertValuesJobClient):
         config: MsSqlClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(
+            schema, config
+        )
         sql_client = PyOdbcMsSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )
@@ -94,6 +165,16 @@ class MsSqlJobClient(InsertValuesJobClient):
         self.sql_client = sql_client
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
         self.type_mapper = capabilities.get_type_mapper()
+
+    def create_load_job(
+        self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().create_load_job(table, file_path, load_id, restore)
+        if not job:
+            parsed_file = ParsedLoadJobFileName.parse(file_path)
+            if parsed_file.file_format == "parquet":
+                job = MssqlParquetCopyJob(file_path)
+        return job
 
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]

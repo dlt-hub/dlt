@@ -3,7 +3,6 @@ import pytest
 import fsspec
 import socket
 import dlt
-from dlt.common.configuration.specs import SFTPCredentials
 
 from dlt.common.json import json
 from dlt.common.configuration.inject import with_config
@@ -12,8 +11,13 @@ from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 
+
 if "sftp" not in ALL_FILESYSTEM_DRIVERS:
     pytest.skip("sftp filesystem driver not configured", allow_module_level=True)
+
+from paramiko.auth_strategy import Password
+from paramiko import RSAKey, Transport
+from paramiko.ssh_exception import SSHException
 
 
 @with_config(spec=FilesystemConfiguration, sections=("sources", "filesystem"))
@@ -126,7 +130,17 @@ def test_filesystem_sftp_pipeline(sftp_filesystem):
         assert sorted(result_states) == sorted(expected_states)
 
 
-def run_sftp_auth(user, password=None, key=None, passphrase=None, sock=None):
+def run_sftp_auth(
+    user,
+    password=None,
+    pkey=None,
+    key=None,
+    passphrase=None,
+    sock=None,
+    disabled_algorithms=None,
+    transport_factory=None,
+    auth_strategy=None,
+):
     env_vars = {
         "SOURCES__FILESYSTEM__BUCKET_URL": "sftp://localhost",
         "SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT": "2222",
@@ -144,6 +158,14 @@ def run_sftp_auth(user, password=None, key=None, passphrase=None, sock=None):
 
     config = get_config()
 
+    if disabled_algorithms:
+        config.credentials.sftp_disabled_algorithms = disabled_algorithms  # type: ignore[union-attr]
+    if transport_factory:
+        config.credentials.sftp_transport_factory = transport_factory  # type: ignore[union-attr]
+    if auth_strategy:
+        config.credentials.sftp_auth_strategy = auth_strategy  # type: ignore[union-attr]
+    if pkey:
+        config.credentials.sftp_pkey = pkey  # type: ignore[union-attr]
     if sock:
         config.credentials.sftp_sock = sock  # type: ignore[union-attr]
 
@@ -161,6 +183,17 @@ def test_filesystem_sftp_auth_private_key():
 
 def test_filesystem_sftp_auth_private_key_protected():
     run_sftp_auth("bobby", key=get_key_path("bobby"), passphrase="passphrase123")
+
+
+def test_filesystem_sftp_auth_pkey():
+    run_sftp_auth("foo", pkey=RSAKey.from_private_key_file(get_key_path("foo")))
+
+
+def test_filesystem_sftp_pkey_auth_pkey_protected():
+    run_sftp_auth(
+        "bobby",
+        pkey=RSAKey.from_private_key_file(filename=get_key_path("bobby"), password="passphrase123"),
+    )
 
 
 # Test requires - ssh_agent with user's bobby key loaded. The commands and file names required are:
@@ -190,3 +223,52 @@ def test_filesystem_sftp_with_socket():
     sock.close()
     with pytest.raises(OSError):
         run_sftp_auth("billy", key=get_key_path("billy"), sock=sock)
+
+
+class TaggedTransport(Transport):
+    """A Transport class that tags itself so we can detect it in tests."""
+
+    def __init__(self, sock, **kwargs):
+        super().__init__(sock, **kwargs)
+        # Add any custom state or markers you like:
+        self.factory_tag = "used-tagged-transport"
+
+
+def test_filesystem_sftp_with_tagged_transport():
+    created = []
+
+    def factory(sock, **kwargs):
+        t = TaggedTransport(sock, **kwargs)
+        created.append(t)
+        return t
+
+    run_sftp_auth("foo", key=get_key_path("foo"), transport_factory=factory)
+
+    # Verify it was used
+    assert len(created) == 1, "Custom transport factory never ran"
+    transport = created[0]
+    assert isinstance(transport, TaggedTransport)
+    assert transport.factory_tag == "used-tagged-transport"
+
+    # And ensure it's still functional
+    sftp = transport.open_sftp_client()
+    assert hasattr(sftp, "listdir")
+    sftp.close()
+
+
+def test_filesystem_sftp_disabled_algorithms():
+    # we know foo’s server uses rsa keys
+    with pytest.raises(SSHException):
+        run_sftp_auth(
+            "foo",
+            key=get_key_path("foo"),
+            disabled_algorithms={"pubkeys": ["ssh-rsa", "rsa-sha2-256", "rsa-sha2-512"]},
+        )
+
+
+def test_filesystem_sftp_auth_strategy():
+    # Verify that passing an alternate auth_strategy makes it through config.
+    run_sftp_auth(
+        "foo",
+        auth_strategy=Password("foo", lambda: "pass"),
+    )

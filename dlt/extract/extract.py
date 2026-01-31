@@ -34,18 +34,25 @@ from dlt.common.storages.load_package import (
     TLoadPackageState,
     commit_load_package_state,
 )
-from dlt.common.utils import get_callable_name, get_full_obj_class_name, group_dict_of_lists
+from dlt.common.utils import (
+    get_callable_name,
+    get_full_obj_class_name,
+    group_dict_of_lists,
+    update_dict_nested,
+)
 
 from dlt.extract.decorators import (
     _DltSingleSource,
     SourceInjectableContext,
     SourceSchemaInjectableContext,
 )
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
+from dlt.extract.exceptions import UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
+from dlt.extract.items_transform import ItemTransform
+from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
-from dlt.extract.reference import SourceReference
+from dlt.extract.reference import SourceReference, SourceFactory
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
@@ -84,6 +91,8 @@ def data_to_sources(
     """Creates a list of sources for data items present in `data` and applies specified hints to all resources.
 
     `data` may be a DltSource, DltResource, a list of those or any other data type accepted by pipeline.run
+
+    The returned list of sources is sorted by schema name.
     """
 
     def apply_hint_args(resource: DltResource) -> None:
@@ -118,6 +127,11 @@ def data_to_sources(
             # many resources with the same name may be present
             r_ = resources.setdefault(data_item.name, [])
             r_.append(data_item)
+        elif isinstance(data_item, SourceFactory):
+            source = data_item()
+            if schema:
+                source.schema = schema
+            sources.append(source)
         else:
             # iterator/iterable/generator
             # create resource first without table template
@@ -178,9 +192,10 @@ def data_to_sources(
     # apply hints and settings
     for source in sources:
         apply_settings(source)
-        for resource in source.selected_resources.values():
+        for resource in source.resources.extracted:
             apply_hint_args(resource)
 
+    sources.sort(key=lambda s: s.schema.name)
     return sources
 
 
@@ -249,9 +264,20 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 job_metrics.items(), lambda pair: pair[0].table_name
             )
         }
+
         # aggregate by resource name
+        def _get_all_resource_custom_metrics(resource_name: str) -> Dict[str, Any]:
+            all_custom_metrics = source.resources[resource_name].custom_metrics
+            for step in source.resources[resource_name]._pipe.steps:
+                if isinstance(step, ItemTransform):
+                    all_custom_metrics = update_dict_nested(all_custom_metrics, step.custom_metrics)
+            return all_custom_metrics
+
         resource_metrics = {
-            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            resource_name: DataWriterAndCustomMetrics(
+                *sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS),
+                custom_metrics=_get_all_resource_custom_metrics(resource_name),
+            )
             for resource_name, metrics in itertools.groupby(
                 table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
             )
@@ -382,8 +408,11 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             delta = left_gens - curr_gens
                             left_gens -= delta
                             collector.update("Resources", delta)
+
+                        # kill extraction if signalled
                         signals.raise_if_signalled()
-                        resource = source.resources[pipe_item.pipe.name]
+
+                        resource = source.resources.with_pipe(pipe_item.pipe)
                         item_format = get_data_item_format(pipe_item.item)
                         extractors[item_format].write_items(
                             resource, pipe_item.item, pipe_item.meta
@@ -411,10 +440,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             self.gather_metrics(load_id, source)
 
     def gather_metrics(self, load_id: str, source: DltSource) -> None:
-        # gather metrics
-        self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
-        # remove the metrics of files processed in this extract run
         # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+        # so metrics are immutable here and will be appended
+        self._step_info_update_metrics(
+            load_id, self._compute_metrics(load_id, source), immutable=True
+        )
+        self._step_info_complete_load_id(load_id)
+        # remove the metrics of files processed in this extract run
         self.extract_storage.remove_closed_files(load_id)
 
     def extract(
@@ -448,10 +480,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     load_package.state.update(load_package_state_update)
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
-                for resource in source.resources.extracted.values():
-                    with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                        if resource.write_disposition == "replace":
-                            reset_resource_state(resource.name)
+                for resource in source.resources.extracted:
+                    if resource.write_disposition == "replace":
+                        reset_resource_state(resource.name)
 
                 self._extract_single_source(
                     load_id,

@@ -1,3 +1,4 @@
+import re
 from typing import Any, List, Optional
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
@@ -16,8 +17,22 @@ from dlt.sources.rest_api import (
     RESTAPIConfig,
     rest_api_source,
 )
-from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
+from tests.sources.rest_api.conftest import (
+    DEFAULT_COMMENTS_COUNT,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_TOTAL_PAGES,
+)
 from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_column
+
+
+def _parse_single_valued_qs(body) -> dict[str, str]:
+    """Parse query string expecting single values per key."""
+    return {k: v[0] for k, v in parse_qs(body).items()}
+
+
+def _filter_by_path_pattern(request_history: list[Any], path_pattern: str) -> list[Any]:
+    pattern = re.compile(path_pattern)
+    return [request for request in request_history if pattern.match(request.path)]
 
 
 @pytest.mark.parametrize(
@@ -504,8 +519,9 @@ def test_dependent_resource_query_string_params(
 
     list(mock_source.with_resources("posts", "post_comments").add_limit(1))
 
-    history = mock_api_server.request_history
-    post_comments_calls = [h for h in history if "/comments" in h.url]
+    post_comments_calls = _filter_by_path_pattern(
+        mock_api_server.request_history, r"/posts/\d+/comments"
+    )
     assert len(post_comments_calls) == 50
 
     for call in post_comments_calls:
@@ -587,8 +603,7 @@ def test_interpolate_params_in_query_string(
     )
     list(mock_source.with_resources("posts", "post_details").add_limit(1))
 
-    history = mock_api_server.request_history
-    post_details_calls = [h for h in history if "/post_detail" in h.url]
+    post_details_calls = _filter_by_path_pattern(mock_api_server.request_history, "/post_detail")
     assert len(post_details_calls) == 5
 
     for index, call in enumerate(post_details_calls):
@@ -637,7 +652,9 @@ def test_request_json_body(mock_api_server, endpoint_config, expected_body) -> N
     )
     list(source.with_resources("posts", "posts_comments").add_limit(1))
 
-    post_comments_calls = [h for h in mock_api_server.request_history if "/comments" in h.url]
+    post_comments_calls = _filter_by_path_pattern(
+        mock_api_server.request_history, r"/posts/\d+/comments"
+    )
     assert len(post_comments_calls) == 50
 
     request = post_comments_calls[0]
@@ -1146,7 +1163,8 @@ def test_incremental_object_interpolation(mock_api_server) -> None:
     list(source.with_resources("posts").add_limit(1))
 
     history = mock_api_server.request_history
-    assert len(history) == 1
+    # there will be 5 requests because pages are empty and incremental will remove those
+    assert len(history) == 5
     request_call = history[0]
     qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
     assert qs == {
@@ -1230,7 +1248,7 @@ def test_incremental_convert_without_end_value(mock_api_server, config) -> None:
     list(source.with_resources("posts").add_limit(1))
 
     history = mock_api_server.request_history
-    assert len(history) == 1
+    assert len(history) == 5
     request_call = history[0]
     qs = parse_qs(urlsplit(request_call.url).query, keep_blank_values=True)
     assert qs == {"since": ["1600000000"]}
@@ -1432,9 +1450,7 @@ def test_headers_in_dependent_resource(mock_api_server):
     )
 
     list(source.with_resources("posts", "post_details").add_limit(1))
-
-    history = mock_api_server.request_history
-    post_details_calls = [h for h in history if "/post_detail" in h.url]
+    post_details_calls = _filter_by_path_pattern(mock_api_server.request_history, "/post_detail")
     assert len(post_details_calls) == 5
 
     for index, call in enumerate(post_details_calls):
@@ -1474,7 +1490,7 @@ def test_headers_with_incremental_values(mock_api_server):
     list(source.with_resources("posts").add_limit(1))
 
     history = mock_api_server.request_history
-    assert len(history) == 1
+    assert len(history) == 5
     request_call = history[0]
     assert request_call.headers["X-Initial-Value"] == "1600000000"
     assert request_call.headers["X-Start-Value"] == "1600000000"
@@ -1605,3 +1621,419 @@ def test_secret_redaction_in_http_errors(mock_api_server):
 
     assert "404" in error_str
     assert "Resource not found" not in error_str
+
+
+@pytest.mark.parametrize(
+    "endpoint_config,expected_content_type,expected_body_contains",
+    [
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+                "data": {},
+            },
+            None,
+            None,
+            id="empty_data_dict",
+        ),
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+                "data": {"key1": "value1", "key2": "value2"},
+            },
+            "application/x-www-form-urlencoded",
+            "key1=value1&key2=value2",
+            id="data_as_dict",
+        ),
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+                "data": [("key1", "value1"), ("key2", "value2"), ("key1", "another_value")],
+            },
+            "application/x-www-form-urlencoded",
+            "key1=value1&key2=value2&key1=another_value",
+            id="data_as_list_of_tuples",
+        ),
+        pytest.param(
+            {
+                "path": "post_raw_data",
+                "method": "POST",
+                "data": "raw string data",
+            },
+            None,
+            "raw string data",
+            id="data_as_string",
+        ),
+        pytest.param(
+            {
+                "path": "post_form_data",
+                "method": "POST",
+            },
+            None,
+            None,
+            id="no_data_post",
+        ),
+    ],
+)
+def test_request_data_body(
+    mock_api_server, endpoint_config, expected_content_type, expected_body_contains
+) -> None:
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "test_data",
+                    "endpoint": endpoint_config,
+                },
+            ],
+        }
+    )
+    list(source.with_resources("test_data").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) >= 1
+    request = history[0]
+
+    assert expected_content_type == request.headers.get("Content-Type")
+    assert request.body == expected_body_contains
+
+
+def test_data_and_json_mutual_exclusivity(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts/search",
+                        "method": "POST",
+                        "json": {"search_term": "test"},
+                        "data": {"should_be_ignored": "yes"},
+                    },
+                },
+            ],
+        }
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        list(source.with_resources("posts").add_limit(1))
+
+    assert "Cannot use both 'json' and 'data' parameters simultaneously" in str(exc_info.value)
+
+
+def test_dependent_resource_post_data_param(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "post_comments_via_form_data",
+                        "method": "POST",
+                        "data": {
+                            "post_id": "{resources.posts.id}",
+                            "static_value": "constant",
+                            "escaped_braces": "{{not_interpolated}}",
+                        },
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts", "post_comments").add_limit(1))
+
+    post_comments_calls = _filter_by_path_pattern(
+        mock_api_server.request_history, "/post_comments_via_form_data"
+    )
+    assert len(post_comments_calls) == 5
+
+    for index, call in enumerate(post_comments_calls):
+        assert _parse_single_valued_qs(call.body) == {
+            "post_id": str(index),
+            "static_value": "constant",
+            "escaped_braces": "{not_interpolated}",
+        }
+
+
+def test_post_data_param_with_incremental_values(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts_form_data_incremental",
+                    "endpoint": {
+                        "path": "/posts_form_data_incremental",
+                        "method": "POST",
+                        "data": {
+                            "initial_value": "{incremental.initial_value}",
+                            "start_value": "{incremental.start_value}",
+                            "end_value": "{incremental.end_value}",
+                            "escaped": "{{not_this}}",
+                        },
+                        "incremental": {
+                            "cursor_path": "id",
+                            "initial_value": 100,
+                            "end_value": 200,
+                        },
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts_form_data_incremental").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    actual_data = _parse_single_valued_qs(request_call.body)
+
+    assert actual_data == {
+        "initial_value": "100",
+        "start_value": "100",
+        "end_value": "200",
+        "escaped": "{not_this}",
+    }
+
+
+def test_post_data_param_with_raw_data(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "post_comments_via_form_data",
+                        "method": "POST",
+                        "data": "{resources.posts.id}",
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts", "post_comments").add_limit(1))
+    post_comments_calls = _filter_by_path_pattern(
+        mock_api_server.request_history, "/post_comments_via_form_data"
+    )
+
+    assert len(post_comments_calls) == 5
+    for index, call in enumerate(post_comments_calls):
+        assert call.body == str(index)
+        assert call.headers.get("Content-Type") is None, "Content-Type should be None for raw data"
+
+
+def test_post_data_param_with_list_of_tuples(mock_api_server):
+    """Test interpolation works with list of tuples data format"""
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "endpoint": {
+                        "path": "post_comments_via_form_data",
+                        "method": "POST",
+                        "data": [
+                            ("post_id", "{resources.posts.id}"),
+                            ("action", "comment"),
+                            ("post_id", "{resources.posts.id}_duplicate"),  # Test duplicate keys
+                            ("title", "{resources.posts.title}"),
+                            ("escaped", "{{literal_braces}}"),
+                        ],
+                        "paginator": "single_page",
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts", "post_comments").add_limit(1))
+
+    post_comments_calls = _filter_by_path_pattern(
+        mock_api_server.request_history, "/post_comments_via_form_data"
+    )
+    assert len(post_comments_calls) == 5
+
+    for index, call in enumerate(post_comments_calls):
+        actual_data = parse_qs(call.body)
+
+        assert actual_data == {
+            "post_id": [str(index), f"{index}_duplicate"],
+            "action": ["comment"],
+            "title": [f"Post {index}"],
+            "escaped": ["{literal_braces}"],
+        }
+
+
+def test_dependent_resource_parallelized(mock_api_server):
+    """Test that parallelized flag on dependent resources yields correct data."""
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "parallelized": True,
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments",
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+
+    assert table_counts.keys() == {"posts", "post_comments"}
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_comments"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * 50
+
+
+def test_dependent_resource_parallelized_with_include_from_parent(mock_api_server):
+    """Test that parallelized dependent resources correctly include fields from parent.
+
+    Setting include_from_parent=["id", "title"] on the post_comments resource adds
+    _posts_id and _posts_title columns to each child record, populated from the
+    corresponding parent post's data.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "parallelized": True,
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments",
+                    },
+                    "include_from_parent": ["id", "title"],
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+
+    assert table_counts.keys() == {"posts", "post_comments"}
+    assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+    assert table_counts["post_comments"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES * 50
+
+    with pipeline.sql_client() as client:
+        post_comments_table = client.make_qualified_table_name("post_comments")
+
+    # Verify _posts_id is populated from parent: first 50 comments belong to post 0
+    assert_query_column(
+        pipeline,
+        f"SELECT _posts_id FROM {post_comments_table} ORDER BY _posts_id, id LIMIT 5",
+        [0, 0, 0, 0, 0],
+    )
+    # Verify _posts_title is populated from parent
+    assert_query_column(
+        pipeline,
+        f"SELECT _posts_title FROM {post_comments_table} ORDER BY _posts_id, id LIMIT 5",
+        ["Post 0", "Post 0", "Post 0", "Post 0", "Post 0"],
+    )
+    # Verify a different parent's fields appear correctly
+    assert_query_column(
+        pipeline,
+        f"SELECT DISTINCT _posts_title FROM {post_comments_table} WHERE _posts_id = 3 LIMIT 1",
+        ["Post 3"],
+    )
+
+
+def test_dependent_resource_parallelized_with_incremental(mock_api_server):
+    """Test that parallelized dependent resources work correctly with incremental.
+
+    Sets initial_value=45 on the incremental cursor for comment id. The mock API
+    returns all 50 comments (ids 0-49) regardless, but dlt's incremental filter
+    should discard comments with id < 45, leaving only comments with id >= 45.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_mock",
+        destination="duckdb",
+        dataset_name="rest_api_mock",
+        dev_mode=True,
+    )
+
+    mock_source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "paginator": {
+                    "type": "page_number",
+                    "base_page": 1,
+                    "total_path": "total_pages",
+                },
+            },
+            "resources": [
+                "posts",
+                {
+                    "name": "post_comments",
+                    "parallelized": True,
+                    "endpoint": {
+                        "path": "posts/{resources.posts.id}/comments",
+                        "incremental": {
+                            "start_param": "since",
+                            "cursor_path": "id",
+                            "initial_value": 45,
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    load_info = pipeline.run(mock_source)
+    assert_load_info(load_info)
+    table_counts = load_table_counts(pipeline)
+    total_posts = DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+
+    assert table_counts.keys() == {"posts", "post_comments"}
+    assert table_counts["posts"] == total_posts
+    # Incremental filtered out comments with id < 45, so fewer than 50 * 25 = 1250
+    assert table_counts["post_comments"] < total_posts * DEFAULT_COMMENTS_COUNT
+
+    with pipeline.sql_client() as client:
+        post_comments_table = client.make_qualified_table_name("post_comments")
+
+    # Verify no comment with id < 45 was loaded
+    assert_query_column(
+        pipeline,
+        f"SELECT MIN(id) FROM {post_comments_table}",
+        [45],
+    )

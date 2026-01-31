@@ -2,6 +2,7 @@ import os
 import sys
 import pytest
 import yaml
+from pathlib import Path
 from typing import Any, Dict, Type
 import datetime  # noqa: I251
 from unittest.mock import Mock
@@ -34,7 +35,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import TSecretValue
 
-from tests.utils import preserve_environ, unload_modules
+from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
     ConnectionStringCompatCredentials,
     SecretCredentials,
@@ -189,7 +190,7 @@ def test_secrets_toml_embedded_credentials(
         resolve.resolve_configuration(c, sections=("middleware", "storage"))
     # so we can read partially filled configuration here
     assert c.credentials.project_id.endswith("-credentials")
-    assert set(py_ex.value.traces.keys()) == {"client_email", "private_key"}
+    assert set(py_ex.value.traces.keys()) == {"credentials"}
 
     # embed "gcp_storage" will bubble up to the very top, never reverts to "credentials"
     c2 = resolve.resolve_configuration(
@@ -262,9 +263,16 @@ def test_toml_global_config() -> None:
     secrets = providers[SECRETS_TOML]
     config = providers[CONFIG_TOML]
 
-    # in pytest should be false, no global dir appended to resolved paths
-    assert len(secrets._toml_paths) == 1  # type: ignore[attr-defined]
-    assert len(config._toml_paths) == 1  # type: ignore[attr-defined]
+    # when developing locally some ~/.dlt/*.toml could have already been discovered with parallel testing
+    assert any(
+        Path(p).as_posix().endswith("/.dlt/secrets.toml")
+        for p in secrets._toml_paths  # type: ignore[attr-defined]
+    )
+
+    assert any(
+        Path(p).as_posix().endswith("/.dlt/config.toml")
+        for p in config._toml_paths  # type: ignore[attr-defined]
+    )
 
     # set dlt data and settings dir
     global_dir = "./tests/common/cases/configuration/dlt_home"
@@ -286,18 +294,25 @@ def test_toml_global_config() -> None:
     # project overwrites
     v, _ = config.get_value("param1", bool, None, "api", "params")
     assert v == "a"
-    # verify locations
+    # verify global location
     assert os.path.join(global_dir, "config.toml") in config.locations
+    assert os.path.join(global_dir, "config.toml") in config.present_locations
+    # verify local location
     assert os.path.join(settings_dir, "config.toml") in config.locations
+    assert os.path.join(settings_dir, "config.toml") in config.present_locations
 
     secrets = SecretsTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
     assert secrets._toml_paths[1] == os.path.join(global_dir, SECRETS_TOML)
     # check if values from project exist
     secrets_project = SecretsTomlProvider(settings_dir=settings_dir)
     assert secrets._config_doc == secrets_project._config_doc
-    # verify locations
+    # verify global location (secrets not present)
     assert os.path.join(global_dir, "secrets.toml") in secrets.locations
+    assert os.path.join(global_dir, "secrets.toml") not in secrets.present_locations
+    # verify local location (secrets not present)
     assert os.path.join(settings_dir, "secrets.toml") in secrets.locations
+    # CI creates secrets.toml so actually those are sometimes present
+    # assert os.path.join(settings_dir, "secrets.toml") not in secrets.present_locations
 
 
 def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
@@ -526,7 +541,7 @@ def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
     provider = CustomLoaderDocProvider("yaml", loader, True)
     assert provider.name == "yaml"
     assert provider.supports_secrets is True
-    assert provider.to_toml().startswith("[destination]")
+    assert provider.to_toml().startswith("[destination")
     assert provider.to_yaml().startswith("destination:")
     value, _ = provider.get_value("datetime", datetime.datetime, None, "data_types")
     assert value == pendulum.parse("1979-05-27 07:32:00-08:00")

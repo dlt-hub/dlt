@@ -1,3 +1,4 @@
+import pytest
 from tests.pipeline.utils import assert_load_info
 
 
@@ -50,6 +51,7 @@ def csv_snippet() -> None:
     assert_load_info(load_info)
 
 
+@pytest.mark.rfam
 def db_snippet() -> None:
     # @@@DLT_SNIPPET_START db
     import dlt
@@ -59,7 +61,9 @@ def db_snippet() -> None:
     # MySQL instance to get data.
     # NOTE: you'll need to install pymysql with `pip install pymysql`
     # NOTE: loading data from public mysql instance may take several seconds
-    engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
+    engine = create_engine(
+        "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+    )
 
     with engine.connect() as conn:
         # Select genome table, stream data in batches of 100 elements
@@ -73,7 +77,9 @@ def db_snippet() -> None:
         )
 
         # Convert the rows into dictionaries on the fly with a map function
-        load_info = pipeline.run(map(lambda row: dict(row._mapping), rows), table_name="genome")
+        load_info = pipeline.run(
+            map(lambda row: dict(row._mapping), rows), table_name="genome"
+        )
 
     print(load_info)
     # @@@DLT_SNIPPET_END db

@@ -29,7 +29,7 @@ Internally, we use two implementations:
 * separators are commas
 * quotes are **"** and are escaped as **""**
 * `NULL` values are both empty strings and empty tokens as in the example below
-* UNIX new lines are used
+* UNIX new lines (`"\n"`) are used by default
 * dates are represented as ISO 8601
 * quoting style is "when needed"
 
@@ -51,6 +51,7 @@ with standard settings:
 
 * `delimiter`: change the delimiting character (default: ',')
 * `include_header`: include the header row (default: True)
+* `lineterminator`: specify the string used to terminate lines (default: `\n` - UNIX line endings, use `\r\n` for Windows line endings)
 * `quoting`: controls when quotes should be generated around field values. Available options:
 
     - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
@@ -72,6 +73,7 @@ with standard settings:
 delimiter="|"
 include_header=false
 quoting="quote_all"
+lineterminator="\r\n"
 ```
 
 Or using environment variables:
@@ -80,7 +82,10 @@ Or using environment variables:
 NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
+NORMALIZE__DATA_WRITER__LINETERMINATOR=$"\r\n"
 ```
+
+Note the `"$"` prefix before `"\r\n"` to escape the newline character when using environment variables.
 
 ### Destination settings
 A few additional settings are available when copying `csv` to destination tables:

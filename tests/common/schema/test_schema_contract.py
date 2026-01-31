@@ -14,6 +14,7 @@ def get_schema() -> Schema:
     columns = {
         "column_1": {"name": "column_1", "data_type": "text"},
         "column_2": {"name": "column_2", "data_type": "bigint", "is_variant": True},
+        "column_3": {"name": "column_3", "data_type": "timestamp", "timezone": False},
     }
 
     incomplete_columns = {
@@ -195,7 +196,9 @@ def test_check_adding_table(base_settings) -> None:
 def test_check_adding_new_columns(base_settings) -> None:
     schema = get_schema()
 
-    def assert_new_column(table_update: TTableSchema, column_name: str) -> None:
+    def assert_new_column(
+        table_update: TTableSchema, column_name: str, column_freeze_error: str
+    ) -> None:
         popped_table_update = copy.deepcopy(table_update)
         popped_table_update["columns"].pop(column_name)
 
@@ -233,6 +236,7 @@ def test_check_adding_new_columns(base_settings) -> None:
                 copy.deepcopy(table_update),
                 {column_name: 1},
             )
+        assert column_freeze_error in str(val_ex.value)
         assert val_ex.value.schema_name == schema.name
         assert val_ex.value.table_name == table_update["name"]
         assert val_ex.value.column_name == column_name
@@ -248,7 +252,7 @@ def test_check_adding_new_columns(base_settings) -> None:
         "name": "tables",
         "columns": {"new_column": {"name": "new_column", "data_type": "text"}},
     }
-    assert_new_column(table_update, "new_column")
+    assert_new_column(table_update, "new_column", "Can't add table column")
 
     #
     # check adding new column if target column is not complete
@@ -261,7 +265,16 @@ def test_check_adding_new_columns(base_settings) -> None:
             }
         },
     }
-    assert_new_column(table_update, "incomplete_column_1")
+    assert_new_column(table_update, "incomplete_column_1", "Can't add table column")
+
+    #
+    # check property change in existing column
+    #
+    table_update = {
+        "name": "tables",
+        "columns": {"column_3": {"name": "column_3", "data_type": "timestamp", "timezone": True}},
+    }
+    assert_new_column(table_update, "column_3", "Can't evolve table column")
 
     #
     # check x-normalize evolve_once behaving as evolve override
@@ -329,6 +342,7 @@ def test_check_adding_new_variant() -> None:
             cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
             copy.deepcopy(table_update),
         )
+    assert "Can't add variant column" in str(val_ex)
     assert val_ex.value.schema_name == schema.name
     assert val_ex.value.table_name == table_update["name"]
     assert val_ex.value.column_name == "column_2_variant"
@@ -354,3 +368,81 @@ def test_check_adding_new_variant() -> None:
             cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
             copy.deepcopy(table_update),
         )
+    assert "Can't add variant column" in str(val_ex)
+
+
+def test_data_validation_error_message_with_primary_key() -> None:
+    """Test that DataValidationError includes primary key information in the message"""
+    schema = get_schema()
+
+    table_update: TTableSchema = {
+        "name": "tables",
+        "columns": {"column_1": {"name": "column_1", "data_type": "text", "primary_key": True}},
+    }
+
+    partial_table, _ = schema.apply_schema_contract(DEFAULT_SCHEMA_CONTRACT_MODE, table_update)
+    schema.update_table(partial_table)
+
+    # Create a table update that tries to add a variant column
+    variant_table_update: TTableSchema = {
+        "name": "tables",
+        "columns": {
+            "column_2_variant": {
+                "name": "column_2_variant",
+                "data_type": "bool",
+                "variant": True,
+            }
+        },
+    }
+
+    # apply update with data_type freeze mode, providing data item as evidence
+    with pytest.raises(DataValidationError) as val_ex:
+        schema.apply_schema_contract(
+            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}},
+            variant_table_update,
+            data_item={"column_1": "test", "column_2": 123},
+        )
+
+    # data item should be included by primary key
+    assert "Offending data item: column_1: test" in str(val_ex.value)
+
+
+def test_data_validation_error_message_with_multiple_identifiers() -> None:
+    """Test that DataValidationError includes multiple identifier columns in the message"""
+    schema = get_schema()
+
+    table_update: TTableSchema = {
+        "name": "tables",
+        "columns": {
+            "column_1": {"name": "column_1", "data_type": "text", "primary_key": True},
+            "column_2": {"name": "column_2", "data_type": "bigint", "merge_key": True},
+            "column_3": {"name": "column_3", "data_type": "text", "unique": True},
+        },
+    }
+
+    partial_table, _ = schema.apply_schema_contract(DEFAULT_SCHEMA_CONTRACT_MODE, table_update)
+    schema.update_table(partial_table)
+
+    # Now create a table update that tries to add a variant column (data type evolution)
+    variant_table_update: TTableSchema = {
+        "name": "tables",
+        "columns": {
+            "column_4_variant": {"name": "column_4_variant", "data_type": "text", "variant": True}
+        },
+    }
+
+    with pytest.raises(DataValidationError) as val_ex:
+        schema.apply_schema_contract(
+            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}},
+            variant_table_update,
+            data_item={
+                "column_1": "test",
+                "column_2": 123,
+                "column_3": "unique_value",
+                "column_4": "some_text",
+            },
+        )
+
+    # Check that the message includes all identifier columns
+    error_msg = str(val_ex.value)
+    assert "Offending data item: column_1: test, column_2: 123, column_3: unique_value" in error_msg

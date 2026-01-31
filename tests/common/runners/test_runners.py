@@ -1,17 +1,20 @@
+import os
 import pytest
 import sys
 import time
 import multiprocessing
-from typing import Type
+from typing import ClassVar, Tuple, Type
 
 from dlt.common.runtime import signals
 from dlt.common.configuration import resolve_configuration, configspec
-from dlt.common.configuration.specs import RuntimeConfiguration
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import ConfigSectionContext, RuntimeConfiguration
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.exceptions import DltException, SignalReceivedException
 from dlt.common.runners import pool_runner as runner
-from dlt.common.runtime import apply_runtime_config
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
+from dlt.common.runtime.init import initialize_runtime
 from tests.common.runners.utils import (
     _TestRunnableWorkerMethod,
     _TestRunnableWorker,
@@ -36,6 +39,27 @@ class ProcessPoolConfiguration(ModPoolRunnerConfiguration):
 @configspec
 class ThreadPoolConfiguration(ModPoolRunnerConfiguration):
     pool_type: TPoolType = "thread"
+
+
+@configspec
+class SectionedTestConfig(BaseConfiguration):
+    """A test configuration that uses a specific section."""
+
+    test_value: str = "default"
+
+    __section__: ClassVar[str] = "test_section"
+
+
+def _worker_resolve_config() -> Tuple[str, Tuple[str, ...]]:
+    """Worker function that resolves a config value using ConfigSectionContext.
+
+    Returns:
+        Tuple of (resolved_value, sections_from_context)
+    """
+    section_ctx = Container()[ConfigSectionContext]
+    config = resolve_configuration(SectionedTestConfig())
+
+    return config.test_value, section_ctx.sections
 
 
 def configure(C: Type[PoolRunnerConfiguration]) -> PoolRunnerConfiguration:
@@ -140,7 +164,7 @@ def test_initialize_runtime() -> None:
     logger._delete_current_logger()
     logger.LOGGER = None
 
-    apply_runtime_config(config)
+    initialize_runtime("dlt", config)
 
     assert logger.LOGGER is not None
     logger.warning("hello")
@@ -151,8 +175,8 @@ def test_pool_runner_process_methods_forced(method) -> None:
     multiprocessing.set_start_method(method, force=True)
     r = _TestRunnableWorker(4)
     # make sure signals and logging is initialized
-    C = resolve_configuration(RuntimeConfiguration())
-    apply_runtime_config(C)
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
 
     runs_count = runner.run_pool(configure(ProcessPoolConfiguration), r)
     assert runs_count == 1
@@ -163,8 +187,8 @@ def test_pool_runner_process_methods_forced(method) -> None:
 def test_pool_runner_process_methods_configured(method) -> None:
     r = _TestRunnableWorker(4)
     # make sure signals and logging is initialized
-    C = resolve_configuration(RuntimeConfiguration())
-    apply_runtime_config(C)
+    config = resolve_configuration(RuntimeConfiguration())
+    initialize_runtime("dlt", config)
 
     runs_count = runner.run_pool(ProcessPoolConfiguration(start_method=method), r)
     assert runs_count == 1
@@ -189,7 +213,7 @@ def lock_del_task():
 
 
 def test_pool_runner_shutdown_timeout() -> None:
-    pool = runner.TimeoutThreadPoolExecutor(max_workers=4, timeout=1.01)
+    pool = runner.TimeoutThreadPoolExecutor(max_workers=4, timeout=1.1)
 
     t0 = time.perf_counter()
 
@@ -233,3 +257,87 @@ def test_use_null_executor_on_non_threading_platform(monkeypatch) -> None:
     config.pool_type = None
     pool = runner.create_pool(config)
     assert isinstance(pool, runner.NullExecutor)
+
+
+@pytest.mark.parametrize(
+    "start_method",
+    [
+        "spawn",
+        pytest.param(
+            "fork",
+            marks=pytest.mark.skipif(
+                "fork" not in multiprocessing.get_all_start_methods(),
+                reason="fork start method not available on this platform",
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "use_section_context",
+    [True, False],
+    ids=lambda x: "with_section_context" if x else "without_section_context",
+)
+def test_config_section_context_restored_in_worker(
+    start_method: str, use_section_context: bool
+) -> None:
+    """Test that ConfigSectionContext is properly restored in worker processes.
+
+    This test verifies that ConfigSectionContext is correctly serialized and restored
+    in worker processes, allowing config resolution to use the correct sections.
+    When no ConfigSectionContext is set, workers should use the default empty sections.
+    """
+    # Set up environment variables with section-specific values
+    os.environ["MY_SECTION__TEST_SECTION__TEST_VALUE"] = "sectioned_value"
+    os.environ["TEST_SECTION__TEST_VALUE"] = "non_sectioned_value"
+
+    container = Container()
+
+    if use_section_context:
+        # Set up ConfigSectionContext in main process
+        section_context = ConfigSectionContext(
+            pipeline_name=None,
+            sections=("my_section",),
+        )
+        container[ConfigSectionContext] = section_context
+    elif ConfigSectionContext in container:
+        # Ensure no ConfigSectionContext is in container
+        del container[ConfigSectionContext]
+
+    # Create process pool with multiple workers
+    # Using multiple workers ensures we're actually testing cross-process behavior
+    config = PoolRunnerConfiguration(
+        pool_type="process",
+        workers=4,
+        start_method=start_method,
+    )
+
+    with runner.create_pool(config) as pool:
+        # Submit multiple tasks to ensure we're using worker processes
+        futures = [pool.submit(_worker_resolve_config) for _ in range(4)]
+        results = [f.result() for f in futures]
+
+        # All workers should have the same ConfigSectionContext
+        result_value, result_sections = results[0]
+
+    if use_section_context:
+        # Verify that ConfigSectionContext was restored correctly
+        assert result_sections == ("my_section",), (
+            f"Expected sections ('my_section',) but got {result_sections}. "
+            "ConfigSectionContext was not properly restored in worker process."
+        )
+        # Verify that config resolution used the correct sections
+        assert result_value == "sectioned_value", (
+            f"Expected 'sectioned_value' but got '{result_value}'. "
+            "Config resolution did not use the restored ConfigSectionContext sections."
+        )
+    else:
+        # Without section context, should use default empty sections
+        assert result_sections == (), (
+            f"Expected empty sections () but got {result_sections}. "
+            "ConfigSectionContext should have default empty sections when not set."
+        )
+        # Verify that config resolution used the non-sectioned value
+        assert result_value == "non_sectioned_value", (
+            f"Expected 'non_sectioned_value' but got '{result_value}'. "
+            "Config resolution should use non-sectioned value when no ConfigSectionContext is set."
+        )

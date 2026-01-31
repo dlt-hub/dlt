@@ -26,6 +26,8 @@ pip install mysqlclient
 
 Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/en/20/dialects/) for information about client libraries required for supported databases.
 
+<!--@@@DLT_DESTINATION_CAPABILITIES sqlalchemy-->
+
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to MS SQL by running:**
@@ -130,13 +132,96 @@ with engine.connect() as conn:
 ```
 
 ## Notes on other dialects
-We tested this destination on **mysql** and **sqlite** dialects. Below are a few notes that may help enabling other dialects:
+We tested this destination on **mysql**, **sqlite**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
 3. `merge` write disposition uses only `DELETE` and `INSERT` operations to enable as many dialects as possible.
 
 Please report issues with particular dialects. We'll try to make them work.
+
+### Trino limitations
+* Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
+* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
+* We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
+* Trino does not support PRIMARY/UNIQUE constraints
+
+### Oracle limitations
+* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
+
+
+### Adapting destination for a dialect
+You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
+converts `json` data into `text` on the fly.
+```py
+from dlt.common import json
+
+import dlt
+import sqlalchemy as sa
+from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+
+class JSONString(sa.TypeDecorator):
+    """
+    A custom SQLAlchemy type that stores JSON data as a string in the database.
+    Automatically serializes Python objects to JSON strings on write and
+    deserializes JSON strings back to Python objects on read.
+    """
+
+    impl = sa.String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+
+        return json.dumps(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+
+        return json.loads(value)
+
+class TrinoTypeMapper(SqlalchemyTypeMapper):
+    """Example mapper that plugs custom string type that serialized to from/json
+
+    Note that instance of TypeMapper contains dialect and destination capabilities instance
+    for a deeper integration
+    """
+
+    def to_destination_type(self, column, table=None):
+        if column["data_type"] == "json":
+            return JSONString()
+        return super().to_destination_type(column, table)
+
+# pass dest_ in `destination` argument to dlt.pipeline
+dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
+```
+
+Custom type mapper is also useful when ie. you want to limit the length of the string. Below we are adding variant
+for `mssql` dialect:
+```py
+import sqlalchemy as sa
+from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+
+class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
+    """This is only an illustration, `sqlalchemy` destination already handles mssql types"""
+
+    def to_destination_type(self, column, table=None):
+        type_ = super().to_destination_type(column, table)
+        if column["data_type"] == "text":
+            length = precision = column.get("precision")
+            if length is None:
+                return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+            else:
+                return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
+        return type_
+```
+
+:::warning
+When extending type mapper for mssql, mysql and trino start with MssqlVariantTypeMapper, MysqlVariantTypeMapper and
+TrinoVariantTypeMapper respectively
+:::
 
 
 ## Write dispositions
@@ -148,6 +233,40 @@ The following write dispositions are supported:
 - `merge` with `delete-insert` and `scd2` merge strategies.
 
 ## Data loading
+
+### Fast loading with parquet
+
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
+The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
+```sh
+pip install adbc-driver-manager dbc
+dbc install mysql
+```
+
+with `uv` you can run `dbc` directly:
+```sh
+uv tool run dbc install mysql
+```
+
+You must have the correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
+`dlt` will convert parquet into INSERT statements.
+
+We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
+
+:::caution
+The ADBC driver is based on go-mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
+:::
+
+#### Why ADBC is not supported for SQLite
+
+ADBC is disabled for SQLite because Python's `sqlite3` module and `adbc_driver_sqlite` bundle different SQLite library versions.
+When both libraries operate on the same database file in WAL mode, they have conflicting memory-mapped views of the
+WAL index file (`-shm`), causing data corruption. See [TensorBoard issue #1467](https://github.com/tensorflow/tensorboard/issues/1467)
+for details on this two-library conflict.
+
+For SQLite, parquet files are loaded using batch INSERT statements instead.
+
+### Loading with SqlAlchemy batch INSERTs
 
 Data is loaded in a dialect-agnostic manner with an `insert` statement generated by SQLAlchemy's core API.
 Rows are inserted in batches as long as the underlying database driver supports it. By default, the batch size is 10,000 rows.

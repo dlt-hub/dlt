@@ -1,3 +1,4 @@
+import contextlib
 import io
 import sys
 import binascii
@@ -8,7 +9,14 @@ from typing import Any, Sequence
 from dlt.common.utils import digest128b
 
 
-class MissingUnpickledType:
+class _ClassMeta(type):
+    """Allows for type to have attributes that are not defined in the class."""
+
+    def __getattr__(cls, name: str) -> Any:
+        return name
+
+
+class MissingUnpickledType(object, metaclass=_ClassMeta):
     def __init__(*args: Any, **kwargs: Any) -> None:
         pass
 
@@ -17,16 +25,16 @@ class SynthesizingUnpickler(pickle.Unpickler):
     """Unpickler that synthesizes missing types instead of raising"""
 
     def find_class(self, module: str, name: str) -> Any:
-        if module not in sys.modules:
-            module_obj = sys.modules[__name__]
-        else:
-            module_obj = sys.modules[module]
+        full_name = f"{module}.{name}"
+        module_obj = sys.modules[__name__]
+        with contextlib.suppress(AttributeError):
+            return getattr(module_obj, full_name)
         try:
-            return getattr(module_obj, name)
+            return super().find_class(module, name)
         except Exception:
-            # synthesize type
+            # synthesize type if class not found or deserialization failed (ie. version mismatch)
             t = type(name, (MissingUnpickledType,), {"__module__": module})
-            setattr(module_obj, name, t)
+            setattr(module_obj, full_name, t)
             return t
 
 

@@ -3,6 +3,7 @@ import pytest
 import yaml
 from dlt.common import json
 
+from dlt.common.schema import utils
 from dlt.common.schema.normalizers import configured_normalizers
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.exceptions import (
@@ -17,7 +18,7 @@ from dlt.common.storages import (
     FileStorage,
 )
 
-from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import autouse_test_storage, get_test_storage_root
 from tests.common.storages.utils import prepare_eth_import_folder
 from tests.common.utils import (
     load_yml_case,
@@ -42,8 +43,8 @@ def synced_storage(request) -> SchemaStorage:
     return init_storage(
         request.param,
         SchemaStorageConfiguration(
-            import_schema_path=TEST_STORAGE_ROOT + "/import",
-            export_schema_path=TEST_STORAGE_ROOT + "/import",
+            import_schema_path=get_test_storage_root() + "/import",
+            export_schema_path=get_test_storage_root() + "/import",
         ),
     )
 
@@ -54,8 +55,8 @@ def ie_storage(request) -> SchemaStorage:
     return init_storage(
         request.param,
         SchemaStorageConfiguration(
-            import_schema_path=TEST_STORAGE_ROOT + "/import",
-            export_schema_path=TEST_STORAGE_ROOT + "/export",
+            import_schema_path=get_test_storage_root() + "/import",
+            export_schema_path=get_test_storage_root() + "/export",
         ),
     )
 
@@ -111,8 +112,12 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # stored_version = storage_schema.stored_version
     # stored_version_hash = storage_schema.stored_version_hash
     # evolve schema
-    row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
-    _, new_table = storage_schema.coerce_row("event_user", None, row)
+    new_columns = [
+        utils.new_column("floatX", data_type="double"),
+        utils.new_column("confidenceX", data_type="double"),
+        utils.new_column("strX", data_type="text"),
+    ]
+    new_table = utils.new_table("event_user", columns=new_columns)
     storage_schema.update_table(new_table)
     assert storage_schema.is_modified
     storage.save_schema(storage_schema)

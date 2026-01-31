@@ -1,0 +1,34 @@
+name: docs | build docs
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build_docs:
+    name: docs | build docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@master
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9.13.2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10"
+          activate-environment: true
+
+      - name: Install node dependencies
+        run: cd docs/website && npm install
+
+      - name: Install python dependencies
+        run: cd docs/website && npm run build

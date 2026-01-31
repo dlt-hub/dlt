@@ -12,6 +12,8 @@ keywords: [redshift, destination, data warehouse]
 pip install "dlt[redshift]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES redshift-->
+
 ## Setup guide
 ### 1. Initialize the dlt project
 
@@ -82,7 +84,7 @@ When staging is enabled:
 * [JSONL](../file-formats/jsonl.md) is used by default.
 * [Parquet](../file-formats/parquet.md) is supported.
 
-:::caution
+:::warning
 - **Redshift cannot load `VARBYTE` columns from JSON files**. `dlt` will fail such jobs permanently. Switch to Parquet to load binaries.
 
 - **Redshift cannot load `TIME` columns from JSON or Parquet files**. `dlt` will fail such jobs permanently. Switch to direct `insert_values` to load time columns.

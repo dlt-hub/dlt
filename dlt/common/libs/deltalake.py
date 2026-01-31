@@ -1,4 +1,4 @@
-import semver
+from packaging.version import Version
 from collections.abc import Mapping
 from typing import Optional, Dict, Union, List
 from pathlib import Path
@@ -19,7 +19,7 @@ try:
     import deltalake
     from deltalake import write_deltalake, DeltaTable
 
-    deltalake_semver = semver.Version.parse(deltalake.__version__)
+    deltalake_semver = Version(deltalake.__version__)
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt deltalake helpers",
@@ -118,6 +118,7 @@ def merge_delta_table(
     data: Union[pa.Table, pa.RecordBatchReader],
     schema: TTableSchema,
     load_table_name: str,
+    streamed_exec: bool,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Delta table."""
 
@@ -142,6 +143,7 @@ def merge_delta_table(
                 predicate=predicate,
                 source_alias="source",
                 target_alias="target",
+                streamed_exec=streamed_exec,
             )
             .when_matched_update_all()
             .when_not_matched_insert_all()

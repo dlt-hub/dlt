@@ -22,8 +22,8 @@ from dlt.common.typing import Annotated, DictStrAny, DictStrOptionalStr, get_arg
 from dlt.common.utils import digest128
 
 
-TSchemaFileFormat = Literal["json", "yaml"]
-SchemaFileExtensions = get_args(TSchemaFileFormat)
+TSchemaFileFormat = Literal["json", "yaml", "dbml", "dot", "mermaid"]
+SCHEMA_FILES_EXTENSIONS = get_args(TSchemaFileFormat)
 
 
 @configspec
@@ -137,7 +137,17 @@ def _make_file_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     return uri
 
 
-MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url, "sftp": _make_sftp_url}
+def _make_http_url(schema: str, fs_path: str, bucket_url: str) -> str:
+    parsed_http_url = urlparse(fs_path, schema)
+    return urlunparse(parsed_http_url)
+
+
+MAKE_URI_DISPATCH = {
+    "az": _make_az_url,
+    "file": _make_file_url,
+    "sftp": _make_sftp_url,
+    "https": _make_http_url,
+}
 
 MAKE_URI_DISPATCH["adl"] = MAKE_URI_DISPATCH["az"]
 MAKE_URI_DISPATCH["abfs"] = MAKE_URI_DISPATCH["az"]
@@ -166,12 +176,12 @@ class FilesystemConfiguration(BaseConfiguration):
     """A configuration defining filesystem location and access credentials.
 
     When configuration is resolved, `bucket_url` is used to extract a protocol and request corresponding credentials class.
-    * s3
-    * gs, gcs
-    * az, abfs, adl, abfss, azure
+    * s3 (AwsCredentials)
+    * gs, gcs (GcpServiceAccountCredentials, GcpOAuthCredentials)
+    * az, abfs, adl, abfss, azure (AzureCredentials, AzureServicePrincipalCredentials)
     * file, memory
-    * gdrive
-    * sftp
+    * gdrive (GcpServiceAccountCredentials, GcpOAuthCredentials)
+    * sftp (SFTPCredentials)
     """
 
     PROTOCOL_CREDENTIALS: ClassVar[Dict[str, Any]] = {
@@ -198,8 +208,11 @@ class FilesystemConfiguration(BaseConfiguration):
     """Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs"""
     client_kwargs: Optional[DictStrAny] = None
     """Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore"""
+    config_kwargs: Optional[DictStrAny] = None
+    """Additional arguments as Config in botocore"""
     deltalake_storage_options: Optional[DictStrAny] = None
     deltalake_configuration: Optional[DictStrOptionalStr] = None
+    deltalake_streamed_exec: bool = True
 
     @property
     def protocol(self) -> str:
@@ -343,12 +356,13 @@ class WithLocalFiles(BaseConfiguration):
 
     """
 
+    destination_type: Optional[str] = None
     destination_name: Optional[str] = None
 
     local_dir: Annotated[str, NotResolved()] = None
+    pipeline_name: Annotated[Optional[str], NotResolved()] = None
     # needed by duckdb
     # TODO: deprecate this in 2.0
-    pipeline_name: Annotated[Optional[str], NotResolved()] = None
     pipeline_working_dir: Annotated[Optional[str], NotResolved()] = None
     legacy_db_path: Annotated[Optional[str], NotResolved()] = None
 
@@ -360,22 +374,32 @@ class WithLocalFiles(BaseConfiguration):
             if not self.is_partial():
                 self.resolve()
 
+    def attach_from(self, other: "WithLocalFiles") -> None:
+        """Attaches to the same local files info as `other`"""
+        self.local_dir = other.local_dir
+        self.destination_name = other.destination_name
+        self.pipeline_name = other.pipeline_name
+        self.pipeline_working_dir = other.pipeline_working_dir
+        self.legacy_db_path = other.legacy_db_path
+
+    def make_default_location(self, default_location_pat: str) -> str:
+        # use destination name to create default location name
+        if self.destination_name:
+            return default_location_pat % self.destination_name
+        else:
+            return default_location_pat % (self.pipeline_name or self.destination_type)
+
     def make_location(self, configured_location: str, default_location_pat: str) -> str:
         # do not set any paths for external database / instance
         if configured_location == ":external:":
             return configured_location
 
-        def _default_location() -> str:
-            # use destination name to create default location name
-            if self.destination_name:
-                return default_location_pat % self.destination_name
-            else:
-                return default_location_pat % (self.pipeline_name or "")
-
         if configured_location == ":pipeline:":
             # try the pipeline context
             if self.pipeline_working_dir:
-                return os.path.join(self.pipeline_working_dir, _default_location())
+                return os.path.join(
+                    self.pipeline_working_dir, self.make_default_location(default_location_pat)
+                )
             raise RuntimeError(
                 "Attempting to use special location `:pipeline:` outside of pipeline context."
             )
@@ -399,12 +423,15 @@ class WithLocalFiles(BaseConfiguration):
             if self.legacy_db_path:
                 return self.legacy_db_path
             # use tmp path as root, not cwd
-            return os.path.join(self.local_dir, configured_location or _default_location())
+            return os.path.join(
+                self.local_dir,
+                configured_location or self.make_default_location(default_location_pat),
+            )
 
 
 @configspec
 class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):
-    """FilesystemConfiguration that adjust relative local filesystem bucket_url to
+    """FilesystemConfiguration subclass that adjust relative local filesystem bucket_url to
     be relative to `local_dir`.
     """
 

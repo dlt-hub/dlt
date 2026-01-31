@@ -1,12 +1,11 @@
 from typing import Any, Optional, List
-import pytest
 from itertools import zip_longest
 
 from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 from dlt.common.typing import TDataItem, TDataItems
 
 from dlt.extract.extract import ExtractStorage
-from dlt.extract.items_transform import ItemTransform
+from dlt.extract.items_transform import BaseItemTransform, ItemTransform
 
 from tests.utils import TestDataItemFormat
 
@@ -49,6 +48,7 @@ class AssertItems(ItemTransform[TDataItem]):
     placement_affinity = 2.0  # even more sticky than incremental so gathers data after it
 
     def __init__(self, expected_items: Any, item_type: TestDataItemFormat = "object") -> None:
+        BaseItemTransform.__init__(self)
         self.expected_items = expected_items
         self.item_type = item_type
 

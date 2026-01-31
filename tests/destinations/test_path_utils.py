@@ -7,7 +7,11 @@ from dlt.common import logger, pendulum
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 
-from dlt.destinations.path_utils import create_path, get_table_prefix_layout
+from dlt.destinations.path_utils import (
+    create_path,
+    get_table_prefix_layout,
+    get_file_format_and_compression,
+)
 
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
 from tests.common.storages.utils import start_loading_file, load_storage
@@ -511,7 +515,7 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     now_timestamp = now
     logger_spy = mocker.spy(logger, "info")
     ensure_pendulum_datetime_spy = mocker.spy(
-        dlt.destinations.path_utils, "ensure_pendulum_datetime"
+        dlt.destinations.path_utils, "ensure_pendulum_datetime_utc"
     )
     path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
@@ -571,3 +575,41 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
         == f"schema_name/mock_table/boo-boo/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
     )
     assert counter.count == 2
+
+
+FILE_PATHS_AND_EXPECTED = [
+    # (file_path, expected_format, expected_compression)
+    ("file.jsonl", "jsonl", False),
+    ("file.csv", "csv", False),
+    ("file.parquet", "parquet", False),
+    ("file.txt", "txt", False),
+    ("file.jsonl.gz", "jsonl", True),
+    ("file.csv.gz", "csv", True),
+    ("file.parquet.gz", "parquet", True),
+    ("file.txt.gz", "txt", True),
+    ("path/to/file.jsonl", "jsonl", False),
+    ("path/to/file.jsonl.gz", "jsonl", True),
+    ("complex_path/schema-name/table/load.file_id.jsonl", "jsonl", False),
+    ("complex_path/schema-name/table/load.file_id.jsonl.gz", "jsonl", True),
+    ("complex_path/schema-name/table/load.file_id.csv", "csv", False),
+    ("complex_path/schema-name/table/load.file_id.csv.gz", "csv", True),
+    ("complex_path/schema-name/table/load.file_id.parquet", "parquet", False),
+    ("complex_path/schema-name/table/load.file_id.parquet.gz", "parquet", True),
+    # Edge cases
+    ("file_without_extension", "", False),
+    ("file_without_extension.gz", "", True),
+    (".hidden_file.jsonl", "jsonl", False),
+    (".hidden_file.jsonl.gz", "jsonl", True),
+]
+
+
+@pytest.mark.parametrize(
+    "file_path,expected_format,expected_compression",
+    FILE_PATHS_AND_EXPECTED,
+)
+def test_get_file_format_and_compression(
+    file_path: str, expected_format: str, expected_compression: bool
+) -> None:
+    file_format, is_compressed = get_file_format_and_compression(file_path)
+    assert file_format == expected_format
+    assert is_compressed == expected_compression

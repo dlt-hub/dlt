@@ -16,7 +16,9 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir, TRefreshMode
-from dlt.common.runtime import apply_runtime_config, init_telemetry
+
+# from dlt.common.runtime import apply_runtime_config, init_telemetry
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
@@ -140,11 +142,6 @@ def pipeline(
         else:
             pass
 
-    # modifies run_context and must go first
-    runtime_config = injection_kwargs["runtime"]
-    apply_runtime_config(runtime_config)
-    init_telemetry(runtime_config)
-
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
@@ -173,7 +170,6 @@ def pipeline(
         progress,
         False,
         last_config(**injection_kwargs),
-        runtime_config,
         refresh=refresh,
     )
     # set it as current pipeline
@@ -193,16 +189,15 @@ def attach(
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
+    dataset_name: str = None,
     **injection_kwargs: Any,
 ) -> Pipeline:
-    """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder.
+    """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory.
     Pre-configured `destination` and `staging` factories may be provided. If not present, default factories are created from pipeline state.
+
+    If no local pipeline state is found, dlt will attempt to restore the pipeline from the provided destination and dataset.
     """
     ensure_correct_pipeline_kwargs(attach, **injection_kwargs)
-
-    runtime_config = injection_kwargs["runtime"]
-    apply_runtime_config(runtime_config)
-    init_telemetry(runtime_config)
 
     # if working_dir not provided use temp folder
     if not pipelines_dir:
@@ -217,24 +212,60 @@ def attach(
         destination_name=injection_kwargs.get("staging_name", None),
     )
     # create new pipeline instance
-    p = Pipeline(
-        pipeline_name,
-        pipelines_dir,
-        pipeline_salt,
-        destination,
-        staging,
-        None,
-        None,
-        None,
-        False,  # always False as dev_mode so we do not wipe the working folder
-        progress,
-        True,
-        last_config(**injection_kwargs),
-        runtime_config,
-    )
-    # set it as current pipeline
-    p.activate()
-    return p
+    try:
+        p = Pipeline(
+            pipeline_name,
+            pipelines_dir,
+            pipeline_salt,
+            destination,
+            staging,
+            dataset_name,
+            None,
+            None,
+            False,  # always False as dev_mode so we do not wipe the working folder
+            progress,
+            True,
+            last_config(**injection_kwargs),
+        )
+        # set it as current pipeline
+        p.activate()
+        return p
+    except CannotRestorePipelineException:
+        if not pipeline_name:
+            raise
+
+        # we can try to sync a pipeline with the given name
+        p = pipeline(
+            pipeline_name,
+            pipelines_dir,
+            destination=destination,
+            staging=staging,
+            dataset_name=dataset_name,
+        )
+
+        # we cannot restore the pipeline if the destination is not provided
+        # or found in the env, wipe the working folder and re-raise
+        if not p.destination:
+            p._wipe_working_folder()
+            raise CannotRestorePipelineException(
+                pipeline_name,
+                p.working_dir,
+                f"the pipeline was not found in {p.working_dir} found and no destination was"
+                " provided to restore from.",
+            )
+        p.sync_destination()
+
+        # if remote state was not found,
+        # wipe the working folder and re-raise
+        if p.first_run:
+            p._wipe_working_folder()
+            raise CannotRestorePipelineException(
+                pipeline_name,
+                p.working_dir,
+                f"the pipeline was not found in {p.working_dir} found and provided destination and"
+                " dataset do not contain state for this pipeline.",
+            )
+        return p
 
 
 def run(

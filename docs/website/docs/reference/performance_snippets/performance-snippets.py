@@ -1,4 +1,6 @@
-from utils import parse_toml_file
+from website.docs.utils import parse_toml_file
+
+# mypy: disable-error-code="no-untyped-def,arg-type"
 
 
 def parallel_config_snippet() -> None:
@@ -14,7 +16,11 @@ def parallel_config_snippet() -> None:
         while item_slice := list(islice(rows, 1000)):
             now = pendulum.now().isoformat()
             yield [
-                {"row": _id, "description": "this is row with id {_id}", "timestamp": now}
+                {
+                    "row": _id,
+                    "description": "this is row with id {_id}",
+                    "timestamp": now,
+                }
                 for _id in item_slice
             ]
 
@@ -145,9 +151,10 @@ def performance_chunking_snippet() -> None:
 def parallel_pipelines_asyncio_snippet() -> None:
     # @@@DLT_SNIPPET_START parallel_pipelines
     import asyncio
-    import dlt
     from time import sleep
     from concurrent.futures import ThreadPoolExecutor
+    import dlt
+    from dlt.common.runtime import signals
 
     # create both asyncio and thread parallel resources
     @dlt.resource
@@ -183,8 +190,11 @@ def parallel_pipelines_asyncio_snippet() -> None:
         print("pipeline_1", results[0])
         print("pipeline_2", results[1])
 
-    # load data
-    asyncio.run(_run_async())
+    # enable signal handling for graceful shutdowns - it is disabled for pipelines running
+    # in threads
+    with signals.intercepted_signals():
+        # load data
+        asyncio.run(_run_async())
     # activate pipelines before they are used
     pipeline_1.activate()
     assert pipeline_1.last_trace.last_normalize_info.row_counts["async_table"] == 10

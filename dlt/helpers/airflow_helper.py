@@ -16,10 +16,10 @@ from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnow
 
 try:
     from airflow.configuration import conf
-    from airflow.models import TaskInstance
+    from airflow.models import TaskInstance, BaseOperator
     from airflow.utils.task_group import TaskGroup
     from airflow.operators.empty import EmptyOperator
-    from airflow.operators.python import BaseOperator, PythonOperator, get_current_context
+    from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
 
@@ -94,7 +94,7 @@ class PipelineTasksGroup(TaskGroup):
             buffer_max_items (int, optional): Maximum number of buffered items. Use 0 to keep dlt built-in limit. Defaults to 1000.
             retry_policy (_type_, optional): Tenacity retry policy. Defaults to no retry.
             retry_pipeline_steps (Sequence[TPipelineStep], optional): Which pipeline steps are eligible for retry. Defaults to ("load", ).
-            wipe_local_data (bool, optional): Will wipe all the data created by pipeline, also in case of exception. Defaults to False.
+            wipe_local_data (bool, optional): Will wipe all the data created by pipeline, also in case of exception. Defaults to True.
             save_load_info (bool, optional): Will save extensive load info to the destination. Defaults to False.
             save_trace_info (bool, optional): Will save trace info to the destination. Defaults to False.
         """

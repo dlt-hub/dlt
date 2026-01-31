@@ -1,7 +1,8 @@
-from typing import Sequence, Tuple, Optional, List, Union
+from typing import Sequence, Tuple, Optional, List, Union, cast
 import operator
 import sqlalchemy as sa
 
+from dlt.common.typing import TAnyDateTime
 from dlt.common.utils import uniq_id
 from dlt.common.destination import PreparedTableSchema, DestinationCapabilitiesContext
 from dlt.common.schema.utils import (
@@ -12,7 +13,7 @@ from dlt.common.schema.utils import (
     get_validity_column_names,
     get_active_record_timestamp,
 )
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.storages.load_package import load_package_state as current_load_package
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
@@ -277,11 +278,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             sqla_statements.append(insert_statement)
 
         return [
-            x + ";" if not x.endswith(";") else x
-            for x in (
-                str(stmt.compile(sql_client.engine, compile_kwargs={"literal_binds": True}))
-                for stmt in sqla_statements
-            )
+            str(stmt.compile(sql_client.engine, compile_kwargs={"literal_binds": True}))
+            for stmt in sqla_statements
         ]
 
     @classmethod
@@ -300,10 +298,11 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         else:
             cond = col.isnot(None)
         if table["columns"][col_name]["data_type"] == "bool":
+            # do not use is below
             if invert:
-                cond = sa.or_(cond, col.is_(False))
+                cond = sa.or_(cond, col == False)  # noqa
             else:
-                cond = col.is_(True)
+                cond = col == True  # noqa
         return col_name, cond
 
     @classmethod
@@ -376,10 +375,13 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             format_datetime_literal = (
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
-
-        boundary_ts = ensure_pendulum_datetime(
-            root_table.get("x-boundary-timestamp", current_load_package()["state"]["created_at"])  # type: ignore[arg-type]
+        _boundary_ts = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
+        boundary_ts: TAnyDateTime = (
+            _boundary_ts
+            if _boundary_ts is not None
+            else current_load_package()["state"]["created_at"]
         )
+        boundary_ts = ensure_pendulum_datetime_utc(boundary_ts)
 
         boundary_literal = format_datetime_literal(boundary_ts, caps.timestamp_precision)
 
@@ -433,7 +435,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         nested_tables = table_chain[1:]
         for table in nested_tables:
-            row_key_column = cls.get_root_key_col(
+            row_key_column = cls.get_row_key_col(
                 table_chain,
                 table,
                 sql_client.fully_qualified_dataset_name(),
@@ -456,9 +458,6 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             sqla_statements.append(insert_statement)
 
         return [
-            x + ";" if not x.endswith(";") else x
-            for x in (
-                str(stmt.compile(sql_client.engine, compile_kwargs={"literal_binds": True}))
-                for stmt in sqla_statements
-            )
+            str(stmt.compile(sql_client.engine, compile_kwargs={"literal_binds": True}))
+            for stmt in sqla_statements
         ]

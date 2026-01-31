@@ -1,6 +1,6 @@
 import abc
 import csv
-import semver
+from packaging.version import Version
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -14,6 +14,7 @@ from typing import (
     Type,
     NamedTuple,
     TypeVar,
+    cast,
 )
 
 from dlt.common.json import json
@@ -38,9 +39,7 @@ from dlt.common.destination import (
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.typing import StrAny, TDataItem
-
-import sqlglot
+from dlt.common.typing import StrAny, TDataItem, TDataItems
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -190,7 +189,7 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.query_dialect()
+            dialect = item.query_dialect
             query = item.to_sql()
             self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
 
@@ -381,7 +380,7 @@ class ParquetDataWriter(DataWriter):
 
         table = pyarrow.Table.from_pylist(items, schema=self.schema)
         # detect non-null columns receiving nulls. above v.19 it is checked in `write_table`
-        if semver.Version.parse(pyarrow.__version__).major < 19:
+        if Version(pyarrow.__version__).major < 19:
             table = table.cast(self.schema)
         # Write
         self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
@@ -414,12 +413,14 @@ class CsvWriter(DataWriter):
         delimiter: str = ",",
         include_header: bool = True,
         quoting: CsvQuoting = "quote_needed",
+        lineterminator: str = "\n",
         bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
         self.include_header = include_header
         self.delimiter = delimiter
         self.quoting: CsvQuoting = quoting
+        self.lineterminator = lineterminator
         self.writer: csv.DictWriter[str] = None
         self.bytes_encoding = bytes_encoding
 
@@ -443,6 +444,7 @@ class CsvWriter(DataWriter):
             dialect=csv.unix_dialect,
             delimiter=self.delimiter,
             quoting=quoting,
+            lineterminator=self.lineterminator,
         )
         if self.include_header:
             self.writer.writeheader()
@@ -513,6 +515,12 @@ class ArrowToParquetWriter(ParquetDataWriter):
         # it also converts batches into tables internally. by creating a single table
         # we allow the user rudimentary control over row group size via max buffered items
         table = concat_batches_and_tables_in_order(items)
+        # release batch references - concat is zero-copy so table shares the
+        # underlying buffers via Arrow refcounting. clearing the input list
+        # drops the Python-level RecordBatch/Table references so only the
+        # concatenated table keeps the buffers alive
+        if isinstance(items, list):
+            items.clear()
         self.items_count += table.num_rows
         if not self.writer:
             self.writer = self._create_writer(table.schema)
@@ -568,24 +576,21 @@ class ArrowToCsvWriter(DataWriter):
         for item in items:
             if isinstance(item, (pyarrow.Table, pyarrow.RecordBatch)):
                 if not self.writer:
-                    if self.quoting == "quote_needed":
-                        quoting = "needed"
-                    elif self.quoting == "quote_all":
-                        quoting = "all_valid"
-                    elif self.quoting == "quote_none":
-                        quoting = "none"
-                    else:
-                        raise ValueError(self.quoting)
                     try:
                         self.writer = pyarrow.csv.CSVWriter(
                             self._f,
                             item.schema,
                             write_options=pyarrow.csv.WriteOptions(
-                                include_header=self.include_header,
+                                # set include_header to False to handle header separately until
+                                # https://github.com/apache/arrow/issues/47575 is released
+                                # see _make_csv_header() for details
+                                include_header=False,
                                 delimiter=self._delimiter_b,
-                                quoting_style=quoting,
+                                quoting_style=self._get_arrow_quoting_style(),
                             ),
                         )
+                        if self.include_header:
+                            self._f.write(self._make_csv_header())
                         self._first_schema = item.schema
                     except pyarrow.ArrowInvalid as inv_ex:
                         if "Unsupported Type" in str(inv_ex):
@@ -635,16 +640,10 @@ class ArrowToCsvWriter(DataWriter):
             self.items_count += item.num_rows
 
     def write_footer(self) -> None:
+        default_arrow_line_terminator = b"\n"
         if self.writer is None and self.include_header:
-            # write empty file
-            self._f.write(
-                self._delimiter_b.join(
-                    [
-                        b'"' + col["name"].encode("utf-8") + b'"'
-                        for col in self._columns_schema.values()
-                    ]
-                )
-            )
+            # empty file: emit only the header line (no data rows)
+            self._f.write(self._make_csv_header().rstrip(default_arrow_line_terminator))
 
     def close(self) -> None:
         if self.writer:
@@ -663,6 +662,44 @@ class ArrowToCsvWriter(DataWriter):
             requires_destination_capabilities=False,
             supports_compression=True,
         )
+
+    def _get_arrow_quoting_style(self) -> str:
+        if self.quoting == "quote_needed":
+            return "needed"
+        elif self.quoting == "quote_all":
+            return "all_valid"
+        elif self.quoting == "quote_none":
+            return "none"
+        else:
+            raise ValueError(self.quoting)
+
+    def _make_csv_header(self) -> bytes:
+        # In pyarrow 21.0.0, the CSVWriter does not support specifying the header quote style.
+        # This is a workaround to create a header which respects the quote style.
+        # See https://github.com/apache/arrow/issues/47575 for details.
+        # This needs to be removed once https://github.com/apache/arrow/issues/47575 is released.
+        from dlt.common.libs.pyarrow import pyarrow
+        import pyarrow.csv
+
+        names = [col["name"] for col in self._columns_schema.values()]
+        arrays = [pyarrow.array([n]) for n in names]
+        schema = pyarrow.schema([pyarrow.field(n, pyarrow.string()) for n in names])
+        table = pyarrow.Table.from_arrays(arrays, schema=schema)
+
+        # Write into an in-memory Arrow sink so schema doesn't affect the real writer
+        sink = pyarrow.BufferOutputStream()
+        header_writer = pyarrow.csv.CSVWriter(
+            sink,
+            schema,
+            write_options=pyarrow.csv.WriteOptions(
+                include_header=False,
+                delimiter=self._delimiter_b,
+                quoting_style=self._get_arrow_quoting_style(),
+            ),
+        )
+        header_writer.write(table)
+        header_writer.close()
+        return cast(bytes, sink.getvalue().to_pybytes())
 
 
 class ArrowToObjectAdapter:
@@ -821,3 +858,24 @@ def create_import_spec(
 
     spec = DataWriter.class_factory(item_file_format, "object", ALL_WRITERS).writer_spec()
     return spec._replace(data_item_format="file")
+
+
+def count_rows_in_items(item: TDataItems) -> int:
+    """Count total number of rows of `items` which may be
+    * single item
+    * list of single items
+    * list of tables like data frames or arrow
+    """
+
+    if isinstance(item, list):
+        # if item supports "shape" it will be used to count items
+        if len(item) > 0 and hasattr(item[0], "shape"):
+            return sum(len(tbl) for tbl in item)
+        else:
+            return len(item)
+    else:
+        # update row count, if item supports "num_rows" it will be used to count items
+        if hasattr(item, "shape"):
+            return len(item)
+        else:
+            return 1

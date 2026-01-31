@@ -16,25 +16,69 @@ To load unstructured data (PDF, plain text, e-mail), please refer to the [unstru
 The Filesystem source doesn't just give you an easy way to load data from both remote and local files — it also comes with a powerful set of tools that let you customize the loading process to fit your specific needs.
 
 Filesystem source loads data in two steps:
-1. It [accesses the files](#1-initialize-a-filesystem-resource) in your remote or local file storage without actually reading the content yet. At this point, you can [filter files by metadata or name](#6-filter-files). You can also set up [incremental loading](#5-incremental-loading) to load only new files.
-2. [The transformer](#2-choose-the-right-transformer-resource) reads the files' content and yields the records. At this step, you can filter out the actual data, enrich records with metadata from files, or [perform incremental loading](#load-new-records-based-on-a-specific-column) based on the file content.
+1. It [accesses the files](#1-initialize-a-filesystem-resource) in your remote or local file storage without actually reading the content yet. At this point, you can [filter files by metadata or name](#7-filter-files). You can also set up [incremental loading](#5-incremental-loading) to load only new files.
+2. [The reader](#2-choose-the-right-reader) reads the files' content and yields the records. At this step, you can filter out the actual data, enrich records with metadata from files, or [perform incremental loading](#load-new-records-based-on-a-specific-column) based on the file content.
+
+For the most common cases we provide `readers` source that does the above in a single step.
 
 ## Quick example
+
+Let's see how to load a parquet file from a public website. The following example downloads a single file of yellow taxi trip records from the [NYC Taxi & Limousine Commission](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) website and loads it into DuckDB.
+
+```py
+import datetime as dt
+
+import dlt
+from dlt.sources.filesystem import filesystem, read_parquet
+
+filesystem_resource = filesystem(
+  bucket_url="https://d37ci6vzurychx.cloudfront.net/trip-data",
+  file_glob=f"yellow_tripdata_{(dt.datetime.now() - dt.timedelta(days=90)).strftime('%Y-%m')}.parquet",
+)
+filesystem_pipe = filesystem_resource | read_parquet()
+
+# We load the data into the table_name table
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+load_info = pipeline.run(filesystem_pipe.with_name("yellow_tripdata"))
+print(load_info)
+print(pipeline.last_trace.last_normalize_info)
+```
+
+This section illustrates how to perform an efficient incremental load of Parquet files from a remote source, specifically an S3 bucket.
 
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_parquet
 
 filesystem_resource = filesystem(
-  bucket_url="file://Users/admin/Documents/parquet_files",
-  file_glob="**/*.parquet"
+  bucket_url="s3://my-bucket/files",
+  file_glob="**/*.parquet",
+  incremental=dlt.sources.incremental("modification_date")
 )
 filesystem_pipe = filesystem_resource | read_parquet()
-filesystem_pipe.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 
 # We load the data into the table_name table
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(filesystem_pipe.with_name("table_name"))
+print(load_info)
+print(pipeline.last_trace.last_normalize_info)
+```
+
+With `readers` source:
+
+```py
+import dlt
+from dlt.sources.filesystem import readers
+
+parquet_files = readers(
+  bucket_url="s3://my-bucket/files",
+  file_glob="**/*.parquet",
+  incremental=dlt.sources.incremental("modification_date")
+).read_parquet()
+
+# We load the data into the table_name table
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+load_info = pipeline.run(parquet_files.with_name("table_name"))
 print(load_info)
 print(pipeline.last_trace.last_normalize_info)
 ```
@@ -66,8 +110,6 @@ To get started with your data pipeline, follow these steps:
    configuration settings to get started.
 
 ## Configuration
-
-
 
 ### Get credentials
 
@@ -106,6 +148,7 @@ To get GCS/GDrive access:
 4. In IAM & Admin > Service Accounts, find your account, click the three-dot menu > "Manage Keys" >
    "ADD KEY" > "CREATE" to get a JSON credential file.
 5. Grant the service account appropriate permissions for cloud storage access.
+6. In the case of GDrive, share the respective folders/files with the service account.
 
 For more info, see how to
 [create a service account](https://support.google.com/a/answer/7378726?hl=en).
@@ -183,7 +226,7 @@ azure_storage_account_name="Please set me up!"
 azure_storage_account_key="Please set me up!"
 
 # config.toml
-[sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+[sources.filesystem]
 bucket_url="az://<container_name>/<path_to_files>/"
 ```
 </TabItem>
@@ -200,7 +243,7 @@ project_id="Please set me up!"
 # config.toml
 # gdrive
 [gdrive_pipeline_name.sources.filesystem]
-bucket_url="gdrive://<folder_name>/<subfolder_or_file_path>/"
+bucket_url="gdrive://<folder_name>/<subfolder_or_file_path>/" # set file_glob="" if file path
 
 # config.toml
 # Google storage
@@ -222,7 +265,7 @@ sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your privat
 sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
 
 # config.toml
-[sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+[sources.filesystem]
 bucket_url = "sftp://[hostname]/[path]"
 ```
 </TabItem>
@@ -304,14 +347,19 @@ Full list of `filesystem` resource parameters:
 
 * `bucket_url` - full URL of the bucket (could be a relative path in the case of the local filesystem).
 * `credentials` - cloud storage credentials of `AbstractFilesystem` instance (should be empty for the local filesystem). We recommend not specifying this parameter in the code, but putting it in a secrets file instead.
-* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL.
+* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL. 
+
+  :::info
+  If the `bucket_url` is a specific file path, set `file_glob=""`.
+  :::
+
 * `files_per_page` - number of files processed at once. The default value is `100`.
 * `extract_content` - if true, the content of the file will be read and returned in the resource. The default value is `False`.
 
-### 2. Choose the right transformer resource
+### 2. Choose the right reader
 
 The current implementation of the filesystem source natively supports three file types: CSV, Parquet, and JSONL.
-You can apply any of the above or [create your own transformer](advanced#create-your-own-transformer). To apply the selected transformer resource, use pipe notation `|`:
+You can apply any of the above or [create your own readers](advanced#create-your-own-readers). To apply the selected transformer resource, use pipe notation `|`:
 
 ```py
 from dlt.sources.filesystem import filesystem, read_csv
@@ -322,12 +370,12 @@ filesystem_pipe = filesystem(
 ) | read_csv()
 ```
 
-#### Available transformers
+#### Available readers
 
-- `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/)
-- `read_jsonl()` - processes JSONL files chunk by chunk
-- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/)
-- `read_csv_duckdb()` - this transformer processes CSV files using DuckDB, which usually shows better performance than pandas.
+- `read_csv()` - processes CSV files using [Pandas](https://pandas.pydata.org/). Control batch size with `chunksize` (defaults to 10000 rows). Accepts additional `**pandas_kwargs` passed to `pd.read_csv()`.
+- `read_jsonl()` - processes JSONL files chunk by chunk. Control batch size with `chunksize` (defaults to 1000 lines per batch).
+- `read_parquet()` - processes Parquet files using [PyArrow](https://arrow.apache.org/docs/python/). Control memory usage with `chunksize` (defaults to 1000 rows per batch). Set `use_pyarrow=True` to yield native `pyarrow.RecordBatch` objects instead of Python dictionaries for zero-copy operations.
+- `read_csv_duckdb()` - processes CSV files using DuckDB, which usually shows better performance than Pandas. Control batch size with `chunk_size` (defaults to 5000 rows). Set `use_pyarrow=True` to yield Arrow format instead of JSON. Accepts additional `**duckdb_kwargs` passed to DuckDB's `read_csv()`.
 
 :::tip
 We advise that you give each resource a [specific name](../../../general-usage/resource#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state#read-and-write-pipeline-state-in-a-resource)
@@ -379,9 +427,11 @@ import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
 # This configuration will only consider new CSV files
-new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
-# Add incremental on modification time
-new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+new_files = filesystem(
+  bucket_url="s3://bucket_name",
+  file_glob="directory/*.csv",
+  incremental=dlt.sources.incremental("modification_date")
+)
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run((new_files | read_csv()).with_name("csv_files"))
@@ -415,8 +465,10 @@ import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
 # This configuration will only consider modified CSV files
-new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
-new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+new_files = filesystem(
+  bucket_url="s3://bucket_name",
+  file_glob="directory/*.csv", incremental=dlt.sources.incremental("modification_date")
+)
 
 # And in each modified file, we filter out only updated records
 filesystem_pipe = (new_files | read_csv())
@@ -426,7 +478,90 @@ load_info = pipeline.run(filesystem_pipe)
 print(load_info)
 ```
 
-### 6. Filter files
+### 6. Split large incremental loads
+If you have many files to process or they are large you may choose to split pipeline runs into smaller chunks (where single file is the smallest). There are
+two methods to do that:
+* **Partitioning** where you split source data in several ranges, load them (possibly in parallel) and then continue to load data incrementally.
+* **Split** where you load data sequentially in small chunks
+
+**Partitioning works as follows:**
+
+1. Obtain a list of files ie. by just listing your resource `files = list(filesystem(...))`
+2. Order your list by `modification_date` or `file_url` and split it into equal chunks.
+3. For each chunk find min and max of the range
+4. Use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
+5. You can load each partition in a loop or in parallel (ie. in separate process).
+6. Continue regular incremental loading with `initial_value` set to the value at the end of the range (`modification_date` or `file_url`)
+and make the start range open to avoid duplicates.
+```py
+import dlt
+from dlt.sources.filesystem import filesystem
+
+# list and sort all csv files for deterministic partitioning
+fs_ = filesystem(bucket_url=bucket_url, file_glob="**/*.csv")
+# we assume that file paths are named so files added later in time come at the end when sorted
+file_urls = sorted([file["file_url"] for file in fs_])
+
+pipeline = dlt.pipeline("test_partitioned_load", destination="duckdb")
+
+# load each partition using initial_value and end_value
+for i in range(len(file_urls) // 4 + 1):
+    files_range = file_urls[i * 4 : (i + 1) * 4]
+    if not files_range:
+        continue
+
+    # close both ranges to load inclusively
+    file_name_incremental = dlt.sources.incremental(
+        "file_url",
+        initial_value=files_range[0],
+        end_value=files_range[-1],
+        range_start="closed",
+        range_end="closed",
+    )
+    file_resource = filesystem(
+        bucket_url=bucket_url, file_glob="**/*.csv", incremental=file_name_incremental
+    ).with_name("files")
+    load_info = pipeline.run(file_resource)
+    print(load_info)
+
+# note we could also extract max modification_time and use it for subsequent incremental loading
+file_name_incremental = dlt.sources.incremental(
+    "file_url",
+    initial_value=file_urls[-1],
+    range_start="open",
+)
+file_resource = filesystem(
+    bucket_url=bucket_url, file_glob="**/*.csv", incremental=file_name_incremental
+).with_name("files")
+# will write initial incremental state
+pipeline.run(file_resource)
+```
+
+Please read [notes on parallelism](../../../general-usage/incremental/cursor.md#partition-large-backfills)
+
+**Split loading works as follows:**
+
+1. Use `incremental` property with **row_order** set. 
+2. Limit number of files returned per page when creating `filesystem` instance to get manageable chunks
+3. Limit the resource by number of pages or time
+4. Run pipeline in a loop as long as it is not empty
+
+```py
+import dlt
+from dlt.sources.filesystem import filesystem
+
+# return files in order of modification_date
+incremental_ = dlt.sources.incremental("modification_date", row_order="asc")  # type: ignore
+# each page contains only one file
+fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=incremental_, files_per_page=1)
+
+# process one file in each run, you could also use max_time to process files ie. for an hour
+while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
+    print(pipeline.last_trace.last_load_info)
+```
+**Note that you must set row_order on incremental to not miss a file**:
+
+### 7. Filter files
 
 If you need to filter out files based on their metadata, you can easily do this using the `add_filter` method.
 Within your filtering function, you'll have access to [any field](advanced#fileitem-fields) of the `FileItem` representation.

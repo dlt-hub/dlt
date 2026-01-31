@@ -1,10 +1,13 @@
+from importlib import import_module
+import pytest
+import os
+from concurrent.futures import ThreadPoolExecutor
+import sqlglot
 from typing import Iterator, List, Tuple, NamedTuple, Union, Optional
 from packaging.version import Version
 
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
-from dlt.normalize import Normalize
-from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.common.storages import (
     NormalizeStorage,
     FileStorage,
@@ -14,24 +17,17 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema import utils
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.libs.sqlglot import TSqlGlotDialect
-from dlt.extract.extract import ExtractStorage
-from dlt.extract.hints import SqlModel
 
-from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER, preserve_environ
-from tests.load.transformations.test_model_item_format import (
+from dlt.normalize import Normalize
+from dlt.normalize.exceptions import NormalizeJobFailed
+from dlt.normalize.items_normalizers import SqlModel
+from dlt.extract.extract import ExtractStorage
+
+from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
+from tests.load.test_model_item_format import (
     destination_configs,
     DESTINATIONS_SUPPORTING_MODEL,
 )
-
-from importlib import import_module
-import pytest
-import os
-from concurrent.futures import ThreadPoolExecutor
-import sqlglot
-
-
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
 
 
 def get_caps(dest_name: str):
@@ -299,7 +295,7 @@ LIMIT 5
     parsed_norm_select_query = sqlglot.parse_one(normalized_select_query, read=dialect)
 
     # Ensure the normalized model query contains a subquery in the FROM clause
-    from_clause = parsed_norm_select_query.args.get("from")
+    from_clause = parsed_norm_select_query.find(sqlglot.exp.From)
     assert isinstance(from_clause, sqlglot.exp.From)
     assert isinstance(from_clause.this, sqlglot.exp.Subquery)
     assert isinstance(from_clause.this.this, sqlglot.exp.Select)
@@ -328,6 +324,7 @@ LIMIT 5
     assert parsed_norm_select_query.expressions[2].alias == caps.casefold_identifier("_dlt_id")
 
 
+@pytest.mark.serial
 @pytest.mark.parametrize(
     "columns",
     [

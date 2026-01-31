@@ -4,7 +4,7 @@ import pytest
 import os
 from pytest_mock import MockerFixture
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -30,7 +30,7 @@ def test_secrets_management(
     os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "secret_key"
     os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = "key"
 
-    warning_mesage = "You are persisting duckdb secrets but are storing them in the default folder"
+    warning_message = "You are persisting duckdb secrets but are storing them in the default folder"
 
     logger_spy = mocker.spy(logger, "warn")
 
@@ -46,8 +46,8 @@ def test_secrets_management(
         DuckDbCredentials,
     )
 
-    duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
-    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    duck_db_location = get_test_storage_root() + "/" + uniq_id()
+    secrets_dir = f"{get_test_storage_root()}/duck_secrets_{uniq_id()}"
 
     def _external_duckdb_connection() -> duckdb.DuckDBPyConnection:
         external_db = duckdb.connect(duck_db_location)
@@ -91,25 +91,23 @@ def test_secrets_management(
     external_db.close()
 
     # prevent creating persistent secrets on in mem databases
-    fs_sql_client = FilesystemSqlClient(
-        dataset_name="second",
-        remote_client=pipeline.destination_client(),  #  type: ignore
-        persist_secrets=True,
-    )
     with pytest.raises(Exception):
-        with fs_sql_client as sql_client:
-            pass
+        FilesystemSqlClient(
+            dataset_name="second",
+            remote_client=pipeline.destination_client(),  #  type: ignore
+            persist_secrets=True,
+        )
 
     # check that no warning was logged
     logger_spy.assert_not_called()
 
     # check that warning is logged when secrets are persisted in the default folder
-    duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
-    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    duck_db_location = get_test_storage_root() + "/" + uniq_id()
+    secrets_dir = f"{get_test_storage_root()}/duck_secrets_{uniq_id()}"
     duck_db = duckdb.connect(duck_db_location)
     fs_sql_client = _fs_sql_client_for_external_db(duck_db, persist_secrets=True)
     with fs_sql_client as sql_client:
         pass
     logger_spy.assert_called_once()
-    assert warning_mesage in logger_spy.call_args_list[0][0][0]
+    assert warning_message in logger_spy.call_args_list[0][0][0]
     duck_db.close()

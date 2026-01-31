@@ -2,8 +2,9 @@ from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence, Callab
 from datetime import datetime, date  # noqa: I251
 import inspect
 import os
+import sys
 from re import Pattern as _REPattern
-from types import FunctionType
+from types import FunctionType, ModuleType
 from typing import (
     Callable,
     ClassVar,
@@ -489,6 +490,19 @@ def copy_sig(
     return decorator
 
 
+def copy_sig_ret(
+    wrapper: Callable[TInputArgs, Any],
+    ret: Type[TReturnVal],
+) -> Callable[[Callable[TInputArgs, Any]], Callable[TInputArgs, TReturnVal]]:
+    """Copies docstring and signature from wrapper to func and replaces return type with `ret`"""
+
+    def decorator(func: Callable[TInputArgs, Any]) -> Callable[TInputArgs, TReturnVal]:
+        func.__doc__ = wrapper.__doc__
+        return func
+
+    return decorator
+
+
 def copy_sig_any(
     wrapper: Callable[Concatenate[TDataItem, TInputArgs], Any],
 ) -> Callable[
@@ -522,3 +536,72 @@ def add_value_to_literal(literal: Any, value: Any) -> None:
     if value not in type_args:
         type_args += (value,)
         literal.__args__ = type_args
+
+
+def get_type_globals(obj: Any) -> Dict[str, Any]:
+    """
+    Best-effort extraction of globals() associated with a type. If object is passed,
+    we get its __class__
+
+    Handles:
+      - functions
+      - classes (including TypedDict, dataclasses, Pydantic models, etc.)
+      - modules (returns their __dict__)
+    """
+
+    # 1. Module: just return its dict
+    if isinstance(obj, ModuleType):
+        return obj.__dict__
+
+    # 2. Function or bound/unbound method
+    if inspect.isfunction(obj):
+        return obj.__globals__
+
+    # 3. Class (includes TypedDict, dataclasses, normal classes, etc.)
+    if not inspect.isclass(obj):
+        obj = obj.__class__
+
+    if mod := sys.modules.get(obj.__module__):
+        return mod.__dict__
+    return {}
+
+
+def resolve_single_annotation(
+    ann: Any,
+    *,
+    globalns: Optional[Dict[str, Any]] = None,
+    localns: Optional[Dict[str, Any]] = None,
+    raise_on_error: bool = False,
+) -> Any:
+    """
+    Resolves annotation `ann` if it is a str and/or ForwardRef.
+    - If `ann` is not a str or ForwardRef, it's returned unchanged.
+    - If it *is* a str/ForwardRef, we eval it in an appropriate namespace.
+    """
+
+    # fast path: already a real type
+    if not isinstance(ann, (str, ForwardRef)):
+        return ann
+
+    # extract the expression and module from ForwardRef if needed
+    expr: str
+    if isinstance(ann, ForwardRef):
+        expr = ann.__forward_arg__
+        if (
+            module := sys.modules.get(getattr(ann, "__forward_module__", None))
+        ) and globalns is None:
+            globalns = module.__dict__
+    else:
+        expr = ann
+
+    try:
+        ann = eval(expr, globalns, localns)
+        if isinstance(ann, ForwardRef):
+            ann = resolve_single_annotation(
+                ann, globalns=globalns, localns=localns, raise_on_error=raise_on_error
+            )
+    except Exception:
+        if raise_on_error:
+            raise
+
+    return ann

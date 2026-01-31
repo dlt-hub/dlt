@@ -1,11 +1,9 @@
-import os
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Optional, List, Sequence, cast
+from typing import Any, Literal, Optional, List, Sequence, cast
 from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
-from clickhouse_connect.driver.tools import insert_file
 
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
@@ -16,18 +14,15 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
     SupportsStagingDestination,
-    TLoadJobState,
     HasFollowupJobs,
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.typing import (
-    TTableFormat,
-    TColumnType,
-)
-from dlt.common.schema.utils import is_nullable_column
+from dlt.common.schema.exceptions import SchemaCorruptedException
+from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.utils import get_columns_names_with_prop, is_nullable_column
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
@@ -37,8 +32,14 @@ from dlt.destinations.impl.clickhouse.configuration import (
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
+    CODEC_HINT,
     HINT_TO_CLICKHOUSE_ATTR,
+    PARTITION_HINT,
+    SETTINGS_HINT,
+    SORT_HINT,
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
+    TMergeTreeSettings,
+    TMergeTreeSettingsValue,
 )
 from dlt.destinations.impl.clickhouse.typing import (
     TTableEngineType,
@@ -53,10 +54,11 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStagingDataset,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.utils import get_deterministic_temp_table_name, is_compression_disabled
+from dlt.destinations.utils import get_deterministic_temp_table_name
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -76,32 +78,24 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         *,
         bucket_scheme: str,
         bucket_url: ParseResult,
-        ext: str,
         compression: str,
         clickhouse_format: str,
     ) -> str:
-        """
-        Creates the ClickHouse table function for loading data from cloud storage used with a staging destination.
+        """Creates the ClickHouse table function for loading from cloud storage.
 
         Args:
-            bucket_scheme (str): The scheme of the bucket URL (e.g., 's3', 'gs', 'azure').
-            bucket_url (ParseResult): The parsed URL of the bucket.
-            ext (str): The file extension of the file being loaded.
-            compression (str): The compression type to use ('auto', 'gz', 'none').
-            clickhouse_format (str): The ClickHouse format to use for loading data.
+            bucket_scheme: The scheme of the bucket URL (e.g., 's3', 'gs', 'azure').
+            bucket_url: The parsed URL of the bucket.
+            compression: The compression type to use ('auto', 'gz', 'none').
+            clickhouse_format: The ClickHouse format to use for loading data.
 
         Returns:
-            str: The ClickHouse table function string for loading data from the specified bucket.
+            The ClickHouse table function string.
 
         Raises:
-            LoadJobTerminalException: If the bucket scheme is not supported or if credentials are missing.
+            LoadJobTerminalException: If the bucket scheme is not supported or if
+                credentials are missing.
         """
-        # Auto does not work for jsonl, get info from config for buckets
-        # NOTE: we should not really be accessing the config this way, but for
-        # now it is ok...
-        if ext == "jsonl":
-            compression = "none" if is_compression_disabled() else "gz"
-
         if bucket_scheme in ("s3", "gs", "gcs"):
             if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
@@ -124,22 +118,16 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             secret_access_key = self._staging_credentials.aws_secret_access_key
             auth = "NOSIGN"
             if self._config.credentials.s3_extra_credentials:
-                """
-                Use extra credentials for S3 compatible storage.
-                Refer to https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud
-                """
+                # use extra credentials for S3 compatible storage
+                # https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud
                 extra_credential_args = [
                     f"{k} = '{v}'" for k, v in self._config.credentials.s3_extra_credentials.items()
                 ]
                 auth = f"extra_credentials({', '.join(extra_credential_args)})"
-
             elif access_key_id and secret_access_key:
                 auth = f"'{access_key_id}','{secret_access_key}'"
 
-            table_function = (
-                f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
-            )
-            return table_function
+            return f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
 
         elif bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
             if not isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults):
@@ -158,8 +146,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             account_key = self._staging_credentials.azure_storage_account_key
 
             # build table func
-            table_function = f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
-            return table_function
+            return f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
 
         else:
             raise LoadJobTerminalException(
@@ -181,10 +168,16 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
 
-        ext = cast(SUPPORTED_FILE_FORMATS, os.path.splitext(file_name)[1][1:].lower())
-        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[ext]
-
         compression = "auto"
+
+        file_format, is_compressed = get_file_format_and_compression(file_name)
+        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[
+            cast(SUPPORTED_FILE_FORMATS, file_format)
+        ]
+
+        if file_format == "jsonl":
+            # Auto does not work for jsonl. So we set it to 'none' if not compressed
+            compression = "gz" if is_compressed else "none"
 
         # Don't use the DBAPI driver for local files.
         if not bucket_path or bucket_scheme == "file":
@@ -193,9 +186,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 if not bucket_path
                 else FilesystemConfiguration.make_local_path(bucket_path)
             )
-            # Local filesystem.
-            if ext == "jsonl":
-                compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
             try:
                 client.insert_file(file_path, self.load_table_name, clickhouse_format, compression)
             except clickhouse_connect.driver.exceptions.Error as e:
@@ -215,7 +205,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         table_function = self._get_table_function(
             bucket_scheme=bucket_scheme,
             bucket_url=bucket_url,
-            ext=ext,
             compression=compression,
             clickhouse_format=clickhouse_format,
         )
@@ -228,7 +217,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
-        # reproducible name so we know which table to drop
+        # Deterministic name for crash recovery - orphaned temp tables can be identified and cleaned up
         with sql_client.with_staging_dataset():
             return sql_client.make_qualified_table_name(
                 cls._shorten_table_name(
@@ -237,10 +226,14 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+        # Use CREATE OR REPLACE to avoid slow DROP TABLE ... SYNC on replicated ClickHouse clusters.
+        # The Atomic database engine (default since ClickHouse 20.5) handles this via atomic swap
+        # using renameat2(), which is nearly instant. The old table is cleaned up asynchronously.
+        # See: https://github.com/dlt-hub/dlt/issues/3562
         return (
-            f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
-            f" Memory AS {select_sql};"
+            f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE ="
+            f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
         )
 
     @classmethod
@@ -272,9 +265,12 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         config: ClickHouseClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
         self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             list(schema.tables.keys()),
             config.credentials,
             capabilities,
@@ -284,6 +280,17 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.config: ClickHouseClientConfiguration = config
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = self.capabilities.get_type_mapper()
+
+    def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
+        table = super().prepare_load_table(table_name)
+
+        if SORT_HINT not in table:
+            table[SORT_HINT] = get_columns_names_with_prop(table, "sort")  # type: ignore[typeddict-unknown-key]
+
+        if PARTITION_HINT not in table:
+            table[PARTITION_HINT] = get_columns_names_with_prop(table, "partition")  # type: ignore[typeddict-unknown-key]
+
+        return table
 
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
@@ -298,6 +305,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             for hint in self.active_hints.keys()
             if c.get(cast(str, hint), False) is True and hint not in ("primary_key", "sort")
         )
+
+        if codec := c.get(CODEC_HINT):
+            hints_ += f"CODEC({codec}) "
 
         # Alter table statements only accept `Nullable` modifiers.
         # JSON type isn't nullable in ClickHouse.
@@ -323,11 +333,42 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             ),
         )
 
-    def _get_table_update_sql(
+    def _get_key(
         self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
+        table_schema: PreparedTableSchema,
+        key_type: Literal["sort", "partition"],
+    ) -> Optional[str]:
+        """Returns sort or partition key based on hint."""
+
+        hint = table_schema.get(SORT_HINT if key_type == "sort" else PARTITION_HINT)
+        if not hint:
+            return None
+
+        assert isinstance(hint, (str, list, tuple))
+
+        if isinstance(hint, str):
+            # it's a SQL expression; return as is
+            return hint
+        elif isinstance(hint, (list, tuple)):
+            # it's a sequence of column names; generate expression
+            norm_hint_columns = [self.schema.naming.normalize_identifier(col) for col in hint]
+            return "(" + ", ".join(norm_hint_columns) + ")"
+
+    def _get_settings_clause(self, settings_hint: TMergeTreeSettings) -> str:
+        def to_clickhouse_literal(val: TMergeTreeSettingsValue) -> str:
+            if isinstance(val, str):
+                escaped_str = self.capabilities.escape_literal(val)
+                return cast(str, escaped_str)
+            elif isinstance(val, bool):
+                return "true" if val else "false"
+            return str(val)
+
+        clauses = [f"{key} = {to_clickhouse_literal(val)}" for key, val in settings_hint.items()]
+
+        return ", ".join(clauses)
+
+    def _get_table_update_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
         sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
@@ -347,6 +388,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         )
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
+        # PRIMARY KEY
         if primary_key_list := [
             self.sql_client.escape_column_name(c["name"])
             for c in new_columns
@@ -355,6 +397,20 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
         else:
             sql[0] += "\nPRIMARY KEY tuple()"
+
+        # ORDER BY
+        if sort_key := self._get_key(table, "sort"):
+            sql[0] += f"\nORDER BY {sort_key}"
+
+        # PARTITION BY
+        if part_key := self._get_key(table, "partition"):
+            sql[0] += f"\nPARTITION BY {part_key}"
+
+        # SETTNGS
+        if settings_hint := table.get(SETTINGS_HINT):
+            settings_hint = cast(TMergeTreeSettings, settings_hint)
+            settings_clause = self._get_settings_clause(settings_hint)
+            sql[0] += f"\nSETTINGS {settings_clause}"
 
         return sql
 

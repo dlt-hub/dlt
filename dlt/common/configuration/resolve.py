@@ -1,7 +1,7 @@
 import itertools
 from collections.abc import Mapping as C_Mapping
 import os
-from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
+from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from dlt.common import logger
 from dlt.common.configuration.providers.provider import (
@@ -36,9 +36,12 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.utils import log_traces, deserialize_value
 from dlt.common.configuration.exceptions import (
+    FieldLookupTraces,
     LookupTrace,
     ConfigFieldMissingException,
     ConfigurationWrongTypeException,
+    LookupTraces,
+    NestedLookupTraces,
     ValueNotSecretException,
     InvalidNativeValue,
     UnmatchedConfigHintResolversException,
@@ -155,8 +158,10 @@ def _maybe_parse_native_value(
                 .as_dict_nondefault()
                 .items()
             }
-        except (ValueError, NotImplementedError) as v_err:
+        except ValueError as v_err:
             raise InvalidNativeValue(type(config), type(native_value), embedded_sections, v_err)
+        except NotImplementedError:
+            pass
 
     return native_value  # type: ignore[no-any-return]
 
@@ -207,29 +212,40 @@ def _resolve_config_fields(
     accept_partial: bool,
 ) -> None:
     fields = config.get_resolvable_fields()
-    unresolved_fields: Dict[str, Sequence[LookupTrace]] = {}
+    unresolved_fields: FieldLookupTraces = {}
+    config.__resolved_fields_set__ = []
 
     for key, hint in fields.items():
         if key in config.__hint_resolvers__:
             # Type hint for this field is created dynamically
             hint = config.__hint_resolvers__[key](config)
-        # check if hint optional
-        is_optional = is_optional_type(hint)
         # get default and explicit values
         default_value = getattr(config, key, None)
         explicit_none = False
         explicit_value = None
         current_value = None
-        traces: List[LookupTrace] = []
+        # traces collected for this field
+        traces: NestedLookupTraces = []
 
-        def _set_field() -> None:
-            # collect unresolved fields
+        def _set_field(is_resolvable: bool = True) -> None:
             # NOTE: we hide B023 here because the function is called only within a loop
-            if not is_optional and current_value is None:  # noqa
+            # collect unresolved fields
+            is_resolved = config.is_field_resolved(current_value, hint)  # noqa
+            if not is_resolved:
                 unresolved_fields[key] = traces  # noqa
-            # set resolved value in config
-            if default_value != current_value:  # noqa
-                setattr(config, key, current_value)  # noqa
+            # set value in config
+            setattr(config, key, current_value)  # noqa
+            # store which values were actually resolved from config providers, includes explicit values
+            if (
+                is_resolved
+                and is_resolvable
+                and (
+                    default_value != current_value  # noqa
+                    or explicit_value is not None  # noqa
+                    or explicit_none  # noqa
+                )
+            ):
+                config.__resolved_fields_set__.append(key)  # noqa
 
         if explicit_values:
             if key in explicit_values:
@@ -245,10 +261,10 @@ def _resolve_config_fields(
             # do not resolve not resolvable, but allow for explicit values to be passed
             if not explicit_none:
                 current_value = default_value if explicit_value is None else explicit_value
-            traces = [
+            traces.append(
                 LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, current_value)
-            ]
-            _set_field()
+            )
+            _set_field(is_resolvable=False)
             continue
 
         # explicit none skips resolution
@@ -265,7 +281,7 @@ def _resolve_config_fields(
                         hint, type(explicit_value), with_superclass=True
                     )
                 ):
-                    current_value, traces = explicit_value, []
+                    current_value = explicit_value
                 else:
                     # TODO: use default_value and explicit_value to filter the right specs from union, they constrain
                     #   base configuration
@@ -273,12 +289,16 @@ def _resolve_config_fields(
                     #     if type(default_value) != type(explicit_value):
                     #         raise ConfigurationValueError()
                     specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
+                    if len(specs_in_union) == 1:
+                        is_optional = is_optional_type(hint)
+                        hint = Optional[specs_in_union[0]] if is_optional else specs_in_union[0]  # type: ignore[assignment]
             if not current_value:
                 if len(specs_in_union) > 1:
+                    is_optional = is_optional_type(hint)
                     for idx, alt_spec in enumerate(specs_in_union):
                         # return first resolved config from an union
                         try:
-                            current_value, traces = _resolve_config_field(
+                            current_value, _ = _resolve_config_field(
                                 key,
                                 alt_spec,
                                 default_value,
@@ -292,24 +312,47 @@ def _resolve_config_fields(
                             break
                         except ConfigFieldMissingException as cfm_ex:
                             # add traces from unresolved union spec
-                            # TODO: we should group traces per hint - currently user will see all options tried without the key info
-                            traces.extend(list(itertools.chain(*cfm_ex.traces.values())))
+                            traces.append(
+                                LookupTraces(
+                                    alt_spec.__name__,
+                                    cfm_ex.config.__resolved_fields_set__,
+                                    idx + 1,
+                                    len(specs_in_union),
+                                    cfm_ex.traces,
+                                )
+                            )
                         except InvalidNativeValue:
                             # if none of specs in union parsed
                             if idx == len(specs_in_union) - 1:
                                 raise
                 else:
-                    current_value, traces = _resolve_config_field(
-                        key,
-                        hint,
-                        default_value,
-                        explicit_value,
-                        config,
-                        config.__section__,
-                        explicit_sections,
-                        embedded_sections,
-                        accept_partial,
-                    )
+                    try:
+                        current_value, field_traces = _resolve_config_field(
+                            key,
+                            hint,
+                            default_value,
+                            explicit_value,
+                            config,
+                            config.__section__,
+                            explicit_sections,
+                            embedded_sections,
+                            accept_partial,
+                        )
+                        traces.extend(field_traces)
+                    except ConfigFieldMissingException as cfm_ex:
+                        # if `hint` was a configuration it may not resolved
+                        # collect exception traces
+                        traces.append(
+                            LookupTraces(
+                                hint.__name__,
+                                cfm_ex.config.__resolved_fields_set__,
+                                0,
+                                0,
+                                cfm_ex.traces,
+                            )
+                        )
+                        # keep default value
+                        current_value = default_value
         else:
             # set the trace for explicit none
             traces = [LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, None)]
@@ -326,7 +369,7 @@ def _resolve_config_fields(
         raise UnmatchedConfigHintResolversException(type(config).__name__, unmatched_hint_resolvers)
 
     if unresolved_fields:
-        raise ConfigFieldMissingException(type(config).__name__, unresolved_fields)
+        raise ConfigFieldMissingException(config, unresolved_fields)
 
 
 def _resolve_config_field(
@@ -406,16 +449,16 @@ def _resolve_config_field(
 
             # check if hint optional
             is_optional = is_optional_type(hint)
-            # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
+            # accept partial becomes True if type is optional so we do not fail on optional configs that do not resolve fully
             accept_partial = accept_partial or is_optional
             # create new instance and pass value from the provider as initial, add key to sections
-            # if current config has section, propagate it
-            sec_ = (config_section,) if config_section else ()
+            # propagate top level config section, any other sections should be replaced with keys
+            top_level_section = () if embedded_sections or not config_section else (config_section,)
 
             value = _resolve_configuration(
                 embedded_config,
                 explicit_sections,
-                embedded_sections + sec_ + (key,),
+                embedded_sections + top_level_section + (key,),
                 explicit_value,
                 accept_partial,
             )
@@ -564,8 +607,8 @@ def _emit_placeholder_warning(
         "Most likely, this comes from `init`-command, which creates basic templates for "
         f"non-complex configs and secrets. The provider to adjust is {provider.name}"
     )
-    if bool(provider.locations):
-        locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
+    if bool(provider.present_locations):
+        locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.present_locations])
         msg += f" at one of these locations:\n{locations}"
     logger.warning(msg=msg)
 

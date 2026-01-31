@@ -13,7 +13,7 @@ from typing import (
     NewType,
     Union,
 )
-from typing_extensions import Never
+from typing_extensions import Never, NotRequired, Required
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
@@ -51,6 +51,16 @@ C_DLT_LOAD_ID = "_dlt_load_id"
 # TODO add schema migration to use `_dlt_load_id` in `_dlt_loads` table
 C_DLT_LOADS_TABLE_LOAD_ID = "load_id"
 """load id column in the table {LOADS_TABLE_NAME}. Meant to be joined with {C_DLT_LOAD_ID} of data tables"""
+C_CHILD_PARENT_REF_LABEL = "_dlt_parent"
+"""Label of the implicit `TTableReference` between a child table and its parent table"""
+C_DESCENDANT_ROOT_REF_LABEL = "_dlt_root"
+"""Label of the implicit `TTableReference` between a descendant table and its root table"""
+C_ROOT_LOAD_REF_LABEL = "_dlt_load"
+"""Label of the implicit `TTableReference` between a root table and the _dlt_loads table"""
+C_VERSION_SCHEMA_VERSION_LABEL = "_dlt_schema_version"
+"""Label of the implicit TTableReference between {LOAD_TABLE_NAME} and {VERSION_TABLE_NAME} for schema version."""
+C_VERSION_SCHEMA_NAME_LABEL = "_dlt_schema_name"
+"""Label of the implicit TTableReference between {LOAD_TABLE_NAME} and {VERSION_TABLE_NAME} for schema name."""
 
 TColumnProp = Literal[
     "name",
@@ -99,6 +109,7 @@ class TColumnPropInfo(NamedTuple):
     name: Union[TColumnProp, str]
     defaults: Tuple[Any, ...] = (None,)
     is_hint: bool = False
+    compound: bool = False
 
 
 _ColumnPropInfos = [
@@ -109,12 +120,12 @@ _ColumnPropInfos = [
     TColumnPropInfo("timezone", (True, None)),
     TColumnPropInfo("nullable", (True, None)),
     TColumnPropInfo("variant", (False, None)),
-    TColumnPropInfo("partition", (False, None)),
-    TColumnPropInfo("cluster", (False, None)),
-    TColumnPropInfo("primary_key", (False, None)),
+    TColumnPropInfo("partition", (False, None), False, True),
+    TColumnPropInfo("cluster", (False, None), False, True),
+    TColumnPropInfo("primary_key", (False, None), False, True),
     TColumnPropInfo("sort", (False, None)),
     TColumnPropInfo("unique", (False, None)),
-    TColumnPropInfo("merge_key", (False, None)),
+    TColumnPropInfo("merge_key", (False, None), False, True),
     TColumnPropInfo("row_key", (False, None)),
     TColumnPropInfo("parent_key", (False, None)),
     TColumnPropInfo("root_key", (False, None)),
@@ -240,9 +251,9 @@ TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
-WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
-MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
-REPLACE_STRATEGIES: Set[TLoaderReplaceStrategy] = set(get_args(TLoaderReplaceStrategy))
+WRITE_DISPOSITIONS: Sequence[TWriteDisposition] = sorted(get_args(TWriteDisposition))
+MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = sorted(get_args(TLoaderMergeStrategy))
+REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
 """Default values for validity column names used in `scd2` merge strategy."""
@@ -276,14 +287,69 @@ TWriteDispositionConfig = Union[
 ]
 
 
-class TTableReference(TypedDict):
+TReferenceCardinality = Literal[
+    "zero_to_one",
+    "one_to_zero",
+    "zero_to_many",
+    "many_to_zero",
+    "one_to_many",
+    "many_to_one",
+    "one_to_one",
+    "many_to_many",
+]
+"""Represents cardinality between `column` (left) and `referenced_column` (right)
+
+Note that cardinality is not symmetric. For example:
+- `Author, 0 to many, Book` an author can have 0 to many book
+- `Book, 1 to 1, Author` a book must have exactly 1 author
+
+The statement (Author, 0 to many, Book) doesn't imply (Book, many to 0, Author).
+"""
+
+
+class _TTableReferenceBase(TypedDict, total=False):
     """Describes a reference to another table's columns.
     `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
     """
 
+    label: Optional[str]
+    """Text providing semantic information about the reference.
+
+    For example, the label "liked" describe the relationship between `user` and `post` (user.id, "liked", post.id)
+    """
+
+    cardinality: Optional[TReferenceCardinality]
+    """Cardinality of the relationship between `table.column` (left) and `referenced_table.referenced_column` (right)."""
+
     columns: Sequence[str]
+    """Name of the column(s) from `table`"""
+
     referenced_table: str
+    """Name of the referenced table"""
+
     referenced_columns: Sequence[str]
+    """Name of the columns(s) from `referenced_table`"""
+
+
+class TTableReferenceInline(_TTableReferenceBase, TypedDict, total=False):
+    table: Optional[str]
+    """Name of the table.
+    When `TTableReference` is defined on a `TTableSchema` (i.e., "inline reference"), the `table`
+    value is determined by `TTableSchema["name"]`
+    """
+
+
+# Keep for backwards compatibility
+TTableReference = TTableReferenceInline
+
+
+# Compared to `TTableReference` or `TInlineTableReference`, `table` is required
+class TTableReferenceStandalone(_TTableReferenceBase, TypedDict, total=False):
+    table: str
+    """Name of the table.
+    When `TTableReference` is defined on a `TTableSchema` (i.e., "inline reference"), the `table`
+    value is determined by `TTableSchema["name"]`
+    """
 
 
 TTableReferenceParam = Sequence[TTableReference]

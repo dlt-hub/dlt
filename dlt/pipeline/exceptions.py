@@ -1,6 +1,9 @@
 from typing import Any, Dict, Union, Literal
+
 from dlt.common.exceptions import PipelineException
-from dlt.common.pipeline import StepInfo, StepMetrics, SupportsPipeline
+from dlt.common.pipeline import LoadInfo, NormalizeInfo, StepInfo, StepMetrics, SupportsPipeline
+
+from dlt.common.storages.load_package import PackageStorage
 from dlt.pipeline.typing import TPipelineStep
 
 
@@ -58,13 +61,46 @@ class PipelineStepFailed(PipelineException):
         self.load_id = load_id
         self.exception = exception
         self.step_info = step_info
+        self.has_pending_data = pipeline.has_pending_data
+        self.is_package_partially_loaded = False
 
         package_str = f" when processing package with `{load_id=:}`" if load_id else ""
-        super().__init__(
-            pipeline.pipeline_name,
+        msg = (
             f"Pipeline execution failed at `{step=:}`{package_str} with"
-            f" exception:\n\n{type(exception)}\n{exception}",
+            f" exception:\n\n{type(exception)}\n{exception}"
         )
+        if isinstance(step_info, (NormalizeInfo, LoadInfo)):
+            if self.has_pending_data:
+                msg += (
+                    "\n\nPending packages are left in the pipeline and will be re-tried on the"
+                    " next pipeline run."
+                    " If you pass new data to extract to next run, it will be ignored. Run "
+                    f"`dlt pipeline {pipeline.pipeline_name} info` for more information or `dlt"
+                    f" pipeline {pipeline.pipeline_name} drop-pending-packages` to drop pending"
+                    " packages."
+                )
+            if load_id and step_info and load_id in step_info.loads_ids and step == "load":
+                # get package info
+                package_info = next(
+                    (p for p in step_info.load_packages if p.load_id == load_id), None
+                )
+                if package_info:
+                    self.is_package_partially_loaded = PackageStorage.is_package_partially_loaded(
+                        package_info
+                    )
+                    if self.is_package_partially_loaded:
+                        msg += (
+                            f"\nWARNING: package `{load_id}` is partially loaded. Data in"
+                            " destination could be modified by one of completed load jobs while"
+                            " others were not yet executed or were retried. Data in the"
+                            " destination may be in inconsistent state. We recommend that you"
+                            " retry the load or  review the incident before dropping pending"
+                            " packages. See"
+                            " https://dlthub.com/docs/running-in-production/running#partially-loaded-packages"
+                            " for details"
+                        )
+
+        super().__init__(pipeline.pipeline_name, msg)
 
     def attrs(self) -> Dict[str, Any]:
         # remove attr that should not be published

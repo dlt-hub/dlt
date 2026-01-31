@@ -14,7 +14,6 @@ from dlt.common.destination.client import (
     PreparedTableSchema,
     FollowupJobRequest,
 )
-from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlLoadJob
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
 from dlt.common.schema.typing import (
@@ -29,11 +28,16 @@ from dlt.common.schema.utils import (
     is_complete_column,
     get_columns_names_with_prop,
 )
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
+
+from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
+from dlt.destinations._adbc_jobs import has_adbc_driver as adbc_has_driver
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
 from dlt.destinations.impl.sqlalchemy.load_jobs import (
     SqlalchemyJsonLInsertJob,
+    SqlalchemyParquetADBCJob,
     SqlalchemyParquetInsertJob,
     SqlalchemyReplaceJob,
     SqlalchemyMergeFollowupJob,
@@ -49,9 +53,12 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         config: SqlalchemyClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
         self.sql_client = SqlalchemyClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )
@@ -128,12 +135,21 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         job = super().create_load_job(table, file_path, load_id, restore)
         if job is not None:
             return job
-        if file_path.endswith(".typed-jsonl"):
+        parsed_file = ParsedLoadJobFileName.parse(file_path)
+        if parsed_file.file_format == "typed-jsonl":
             table_obj = self._to_table_object(table)
             return SqlalchemyJsonLInsertJob(file_path, table_obj)
-        elif file_path.endswith(".parquet"):
+        elif parsed_file.file_format == "parquet":
             table_obj = self._to_table_object(table)
-            return SqlalchemyParquetInsertJob(file_path, table_obj)
+            dialect_name = self.config.credentials.engine.dialect.name
+            # Skip ADBC for SQLite: Python's sqlite3 and adbc_driver_sqlite bundle different
+            # SQLite versions. In WAL mode, both libraries mmap the same -shm index file but
+            # have separate internal state, causing page-level corruption when writing.
+            # See: https://github.com/tensorflow/tensorboard/issues/1467
+            if dialect_name != "sqlite" and adbc_has_driver(dialect_name)[0]:
+                return SqlalchemyParquetADBCJob(file_path, table_obj)
+            else:
+                return SqlalchemyParquetInsertJob(file_path, table_obj)
         return None
 
     def complete_load(self, load_id: str) -> None:
@@ -246,7 +262,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
         schema_mapping = StorageSchemaInfo(
             version=schema.version,
-            engine_version=str(schema.ENGINE_VERSION),
+            engine_version=schema.ENGINE_VERSION,
             schema_name=schema.name,
             version_hash=schema.stored_version_hash,
             schema=schema_str,

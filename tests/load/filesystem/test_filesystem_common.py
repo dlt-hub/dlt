@@ -34,6 +34,7 @@ from tests.common.configuration.utils import environment
 from tests.common.storages.utils import TEST_SAMPLE_FILES, assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET, WITH_GDRIVE_BUCKETS
 from tests.load.filesystem.utils import self_signed_cert
+from tests.utils import get_test_storage_root
 
 
 # mark all tests as essential, do not remove
@@ -55,9 +56,11 @@ def test_filesystem_configuration() -> None:
         "bucket_url": "az://root",
         "credentials": None,
         "client_kwargs": None,
+        "config_kwargs": None,
         "kwargs": None,
         "deltalake_storage_options": None,
         "deltalake_configuration": None,
+        "deltalake_streamed_exec": True,
     }
 
 
@@ -233,6 +236,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
             "delta.minWriterVersion": "7",
             "delta.enableChangeDataFeed": "true",
         },
+        deltalake_streamed_exec=False,
     )
     assert dict(config) == {
         "read_only": False,
@@ -240,11 +244,13 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "credentials": None,
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
+        "config_kwargs": None,
         "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
         "deltalake_configuration": {
             "delta.minWriterVersion": "7",
             "delta.enableChangeDataFeed": "true",
         },
+        "deltalake_streamed_exec": False,
     }
 
 
@@ -372,7 +378,7 @@ def glob_test_setup(
             filesystem.mkdirs(mem_path)
             filesystem.upload(TEST_SAMPLE_FILES, mem_path, recursive=True)
     if config.protocol == "file":
-        file_path = os.path.join("_storage", "data", "standard_source")
+        file_path = os.path.join(get_test_storage_root(), "data", "standard_source")
         if not filesystem.isdir(file_path):
             filesystem.mkdirs(file_path)
             filesystem.upload(TEST_SAMPLE_FILES, file_path, recursive=True)

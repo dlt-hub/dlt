@@ -300,6 +300,9 @@ tables:
       resource_name:
         data_type: text
         nullable: true
+      custom_metrics__good_old_github:
+        data_type: bool
+        nullable: true
       _dlt_parent_id:
         data_type: text
         nullable: false
@@ -465,6 +468,9 @@ tables:
       file_format:
         data_type: text
         nullable: true
+      is_compressed:
+        data_type: bool
+        nullable: true
       job_id:
         data_type: text
         nullable: true
@@ -602,6 +608,9 @@ tables:
         nullable: true
       remote_url:
         data_type: text
+        nullable: true
+      retry_count:
+        data_type: bigint
         nullable: true
     parent: trace__steps
   trace__steps__step_info__load_packages__tables:

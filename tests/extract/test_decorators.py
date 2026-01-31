@@ -4,7 +4,6 @@ import os
 from typing import Awaitable, Callable, List, Optional, Dict, Iterator, Any, cast
 
 import pytest
-from pydantic import BaseModel
 
 import dlt
 from dlt.common.configuration import known_sections
@@ -22,7 +21,7 @@ from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.typing import TDataItem, TFun, TTableNames
 
-from dlt.cli.source_detection import detect_source_configs
+from dlt._workspace.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
 from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper, defer
 from dlt.extract.hints import TResourceNestedHints
@@ -47,7 +46,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
-from tests.utils import unload_modules
+from tests.utils import auto_unload_modules
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -386,6 +385,8 @@ def test_nested_hints_decorator() -> None:
 
 
 def test_columns_from_pydantic() -> None:
+    from pydantic import BaseModel
+
     class Columns(BaseModel):
         tags: List[str]
         name: Optional[str]
@@ -812,18 +813,15 @@ def test_source_reference() -> None:
     with pytest.raises(UnknownSourceReference) as ref_ex:
         SourceReference.from_reference("$ref")
     assert ref_ex.value.ref == "$ref"
-    # NOTE: 'dlt.sources.$ref.$ref' twice because top module of run context is dlt.
     assert ref_ex.value.qualified_refs == [
         "$ref",
         "dlt.sources.$ref.$ref",
         "tests.extract.cases.sources.$ref.$ref",
-        "dlt.sources.$ref.$ref",
     ]
     # tried to auto import the following refs
     assert [t.ref for t in ref_ex.value.traces] == [
         "dlt.sources.$ref.$ref",
         "tests.extract.cases.sources.$ref.$ref",
-        "dlt.sources.$ref.$ref",
     ]
     with pytest.raises(UnknownSourceReference):
         SourceReference.find("$ref")

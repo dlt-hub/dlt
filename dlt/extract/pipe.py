@@ -12,11 +12,12 @@ from typing import (
     Iterator,
     List,
     Tuple,
+    Dict,
 )
 
 from dlt.common.reflection.inspect import isasyncgenfunction, isgeneratorfunction
-from dlt.common.typing import AnyFun, AnyType, TDataItems
-from dlt.common.utils import get_callable_name
+from dlt.common.typing import AnyFun, AnyType, TDataItems, resolve_single_annotation
+from dlt.common.utils import get_callable_name, uniq_id
 
 from dlt.extract.exceptions import (
     CreatePipeException,
@@ -42,7 +43,7 @@ from dlt.extract.utils import (
 )
 
 
-class ForkPipe(ItemTransform[ResolvablePipeItem]):
+class ForkPipe(ItemTransform[ResolvablePipeItem, Dict[str, Any]]):
     placement_affinity: ClassVar[float] = 2
 
     def __init__(self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False) -> None:
@@ -76,6 +77,7 @@ class Pipe(SupportsPipe):
         self._gen_idx = 0
         self._steps: List[TPipeStep] = []
         self.parent = parent
+        self.instance_id = uniq_id()
         # add the steps, this will check and mod transformations
         if steps:
             for index, step in enumerate(steps):
@@ -346,10 +348,13 @@ class Pipe(SupportsPipe):
             #  below we import DltResource but Pipe class should not be dependent on it
             from dlt.extract.resource import DltResource
 
-            if sig.return_annotation != inspect.Signature.empty and inspect.isclass(
-                sig.return_annotation
-            ):
-                return issubclass(sig.return_annotation, DltResource)
+            if sig.return_annotation != inspect.Signature.empty:
+                # globals will contain DltResource which we want to resolve
+                return_annotation = resolve_single_annotation(
+                    sig.return_annotation, globalns=globals()
+                )
+                if inspect.isclass(return_annotation):
+                    return issubclass(return_annotation, DltResource)
 
         return False
 
@@ -443,20 +448,12 @@ class Pipe(SupportsPipe):
             else:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
 
-    def _clone(self, new_name: str = None, with_parent: bool = False) -> "Pipe":
+    def _clone(self, new_name: str = None) -> "Pipe":
         """Clones the pipe steps, optionally renaming the pipe. Used internally to clone a list of connected pipes."""
         new_parent = self.parent
-        if with_parent and self.parent and not self.parent.is_empty:
-            parent_new_name = new_name
-            if new_name:
-                # if we are renaming the pipe, then also rename the parent
-                if self.name in self.parent.name:
-                    parent_new_name = self.parent.name.replace(self.name, new_name)
-                else:
-                    parent_new_name = f"{self.parent.name}_{new_name}"
-            new_parent = self.parent._clone(parent_new_name, with_parent)
-
         p = Pipe(new_name or self.name, [], new_parent)
+        # keep instance id
+        p.instance_id = self.instance_id
         p._steps = self._steps.copy()
         return p
 

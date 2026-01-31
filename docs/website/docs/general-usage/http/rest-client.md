@@ -46,12 +46,43 @@ client = RESTClient(base_url="https://api.example.com")
 response = client.get("/posts/1")
 ```
 
+### POST requests with data
+
+The `post()` method supports both JSON payloads and form-encoded/raw data through separate parameters:
+
+```py
+# JSON payload (sets Content-Type: application/json)
+response = client.post("/posts", json={"title": "New post", "content": "Post content"})
+
+# Form-encoded data (sets Content-Type: application/x-www-form-urlencoded)
+response = client.post("/posts", data={"field1": "value1", "field2": "value2"})
+
+# Raw string or bytes data
+response = client.post("/posts", data="raw text data")
+```
+
+:::note
+The `json` and `data` parameters are mutually exclusive. You cannot use both in the same request. Use `json` for JSON payloads or `data` for form-encoded/raw data.
+:::
+
 ## Paginating API responses
 
 The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` instances for each page:
 
 ```py
 for page in client.paginate("/posts"):
+    print(page)
+```
+
+The `paginate()` method supports the same request parameters as regular requests:
+
+```py
+# Paginating with JSON payload
+for page in client.paginate("/search", method="POST", json={"query": "python"}):
+    print(page)
+
+# Paginating with form-encoded data
+for page in client.paginate("/search", method="POST", data={"q": "python", "limit": 10}):
     print(page)
 ```
 
@@ -179,10 +210,13 @@ Note: Normally, you don't need to specify this paginator explicitly, as it is us
 - `limit`: The maximum number of items to retrieve in each request.
 - `offset`: The initial offset for the first request. Defaults to `0`.
 - `offset_param`: The name of the query parameter used to specify the offset. Defaults to `"offset"`.
+- `offset_body_path`: A JSONPath expression specifying where to place the offset in the request JSON body. If provided, the paginator will use this instead of `offset_param` to send the offset in the request body. Defaults to `None`.
 - `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
+- `limit_body_path`: A JSONPath expression specifying where to place the limit in the request JSON body. If provided, the paginator will use this instead of `limit_param` to send the limit in the request body. Defaults to `None`.
 - `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`.
 - `maximum_offset`: Optional maximum offset value. Limits pagination even without a total count.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
+- `has_more_path`: A JSONPath expression for a boolean indicator of whether additional pages exist. Defaults to `None`.
 
 **Example:**
 
@@ -234,7 +268,20 @@ client = RESTClient(
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_offset` to guarantee that the paginator terminates.
+If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=OffsetPaginator(
+        limit=10,
+        total_path=None,
+        has_more_path="has_more",
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path`, `maximum_offset`, or `has_more_path` to guarantee that the paginator terminates.
 
 #### PageNumberPaginator
 
@@ -245,9 +292,11 @@ You can disable automatic stoppage of pagination by setting `stop_after_empty_pa
 - `base_page`: The index of the initial page from the API perspective. Normally, it's 0-based or 1-based (e.g., 1, 2, 3, ...) indexing for the pages. Defaults to 0.
 - `page`: The page number for the first request. If not provided, the initial value will be set to `base_page`.
 - `page_param`: The query parameter name for the page number. Defaults to `"page"`.
+- `page_body_path`: A JSONPath expression specifying where to place the page number in the request JSON body. Use this instead of `page_param` when sending the page number in the request body. Defaults to `None`.
 - `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
+- `has_more_path`: A JSONPath expression for a boolean indicator of whether additional pages exist. Defaults to `None`.
 
 **Example:**
 
@@ -295,7 +344,19 @@ client = RESTClient(
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_page` to guarantee that the paginator terminates.
+If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=PageNumberPaginator(
+        total_path=None,
+        has_more_path="has_more",
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide `total_path`, `has_more_path`, or `maximum_page` to guarantee that the paginator terminates.
 
 #### JSONResponseCursorPaginator
 
@@ -590,14 +651,17 @@ Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to s
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
 - `access_token_request_data`: A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`.
 - `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
+- `session`: Custom `requests` session where you can configure default timeouts and retry strategies
 
 **Example:**
 
 ```py
 from base64 import b64encode
+from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import OAuth2ClientCredentials
 
+@configspec
 class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
     """Used e.g. by Zoom Video Communications, Inc."""
     def build_access_token_request(self) -> Dict[str, Any]:
@@ -633,8 +697,10 @@ response = client.get("/users")
 You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
 ```py
+from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
+@configspec
 class CustomAuth(AuthConfigBase):
     def __init__(self, token):
         self.token = token
@@ -694,6 +760,30 @@ request_backoff_factor = 1.5  # Multiplier applied to the exponential delays. De
 request_timeout = 120  # Timeout in seconds
 request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 ```
+
+:::note
+`RESTClient` retries by default:
+
+```toml
+[runtime]
+request_timeout=60
+request_max_attempts = 5
+request_backoff_factor = 1
+request_max_retry_delay = 300
+```
+:::
+
+### Use custom session
+You can pass custom `requests` `Session` to `RESTClient`. `dlt` [provides own implementation](requests.md#customizing-retry-settings) where you can easily configure
+retry strategies, timeouts and other factors. For example:
+```py
+from dlt.sources.helpers import requests
+client = RESTClient(
+    base_url="https://api.example.com",
+    session=requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0).session
+)
+```
+will set-up the client for a short connect and read timeouts with no retries.
 
 ### URL sanitization and secret protection
 

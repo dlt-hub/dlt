@@ -132,6 +132,21 @@ class TestRESTClient:
 
         assert_pagination(pages)
 
+    def test_paginator_with_null_data_in_final_page(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_cursor_null_terminated",
+            paginator=JSONResponseCursorPaginator(cursor_path="next_token", cursor_param="cursor"),
+            data_selector="users",
+        )
+
+        pages = list(pages_iter)
+        assert len(pages) == 3
+        assert len(pages[0]) == 10
+        assert len(pages[1]) == 4
+        # The third page is expected to be an empty list because the paginator
+        # converts null data in the final page to an empty list.
+        assert pages[2] == []
+
     def test_paginate_with_hooks(self, rest_client: RESTClient):
         def response_hook(response: Response, *args: Any, **kwargs: Any) -> None:
             if response.status_code == 404:
@@ -544,6 +559,44 @@ class TestRESTClient:
         )
         response = rest_client.get("https://my.url", headers={"Accept": "my/mimetype"})
         assert response.json() == expected
+
+    def test_post_with_data_dict(self, rest_client) -> None:
+        result = rest_client.post(
+            path="/post_form_data",
+            data={"key1": "value1", "key2": "value2"},
+        )
+        assert result.json()["data"] == {"key1": ["value1"], "key2": ["value2"]}
+
+    def test_post_with_list_of_tuples(self, rest_client) -> None:
+        result = rest_client.post(
+            path="/post_form_data",
+            data=[("key1", "value1"), ("key1", "value2")],
+        )
+        assert result.json()["data"] == {"key1": ["value1", "value2"]}
+
+    def test_post_with_data_string(self, rest_client) -> None:
+        raw_data = "raw string data"
+        result = rest_client.post(
+            path="/post_raw_data",
+            data=raw_data,
+        )
+        assert result.json()["data"] == raw_data
+
+    def test_json_and_data_mutual_exclusivity(self, rest_client) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            rest_client.post(path="/posts", json={"key": "value"}, data={"other": "data"})
+
+        assert "Cannot use both 'json' and 'data' parameters simultaneously" in str(exc_info.value)
+
+    def test_paginate_json_and_data_mutual_exclusivity(self, rest_client) -> None:
+        with pytest.raises(ValueError) as exc_info:
+            list(
+                rest_client.paginate(
+                    path="/posts", method="POST", json={"key": "value"}, data={"other": "data"}
+                )
+            )
+
+        assert "Cannot use both 'json' and 'data' parameters simultaneously" in str(exc_info.value)
 
 
 class TestSecretRedaction:

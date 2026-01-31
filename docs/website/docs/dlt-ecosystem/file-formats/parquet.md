@@ -33,7 +33,8 @@ pip install "dlt[parquet]"
 ## Destination autoconfig
 `dlt` uses [destination capabilities](../../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) to configure the parquet writer:
 * It uses decimal and wei precision to pick the right **decimal type** and sets precision and scale.
-* It uses timestamp precision to pick the right **timestamp type** resolution (seconds, micro, or nano).
+* It uses timestamp precision to pick the right **timestamp type** resolution (seconds, microseconds, or nanoseconds).
+* It uses `supports_dictionary_encoding` to control whether constant columns (like `_dlt_load_id`) use dictionary-encoded Arrow arrays. Dictionary encoding is memory-efficient for repeated values but not supported by all destinations. Defaults to `true`.
 
 ## Writer settings
 
@@ -49,7 +50,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 
 :::tip
 The default parquet version used by `dlt` is 2.4. It coerces timestamps to microseconds and truncates nanoseconds silently. Such a setting
-provides the best interoperability with database systems, including loading panda frames which have nanosecond resolution by default.
+provides the best interoperability with database systems, including loading pandas DataFrames which have nanosecond resolution by default.
 :::
 
 Read the [pyarrow parquet docs](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html) to learn more about these settings.
@@ -78,7 +79,7 @@ DATA_WRITER__TIMESTAMP_TIMEZONE
 You can apply data writer settings to parquet created in normalize stage only:
 `NORMALIZE__DATA_WRITER__FLAVOR=spark`
 
-or when your source/resource yields arrow tables / panda frames, you can control settings per source
+or when your source/resource yields arrow tables / pandas DataFrames, you can control settings per source
 `SOURCES__<SOURCE_MODULE>__<SOURCE_NAME>__DATA_WRITER__FLAVOR=spark`
 
 Find more similar examples [here](../../reference/performance.md#extract)
@@ -107,7 +108,7 @@ The `pyarrow` parquet writer writes each item, i.e., table or record batch, in a
 buffer_max_items=10e6
 ```
 
-Keep in mind that `dlt` holds the tables in memory. Thus, 1,000,000 rows in the example above may consume a significant amount of RAM.
+Keep in mind that `dlt` holds the tables in memory. Thus, 10,000,000 rows in the example above may consume a significant amount of RAM.
 
 The `row_group_size` configuration setting has limited utility with the `pyarrow` writer. It may be useful when you write single very large pyarrow tables or when your in-memory buffer is really large.
 

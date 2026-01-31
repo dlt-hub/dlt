@@ -1,11 +1,28 @@
-from typing import Any, Dict, Optional, Annotated
-
-from dlt.common.typing import TSecretStrValue, DictStrAny, SocketLike
+from typing import Any, Dict, Optional, Annotated, TYPE_CHECKING, List
+from typing_extensions import TypeAlias, Callable
+import socket
+from dlt.common.typing import TSecretStrValue, SocketLike
 from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     configspec,
     NotResolved,
 )
+
+if TYPE_CHECKING:
+    try:
+        from paramiko import PKey
+        from paramiko.auth_strategy import AuthStrategy
+        from paramiko import Transport
+    except ImportError:
+        PKey = Any  # type: ignore[misc, assignment]
+        AuthStrategy = Any  # type: ignore[misc, assignment]
+        Transport = Any  # type: ignore[misc, assignment]
+else:
+    PKey = Any
+    AuthStrategy = Any
+    Transport = Any
+
+SFTPTransportFactory: TypeAlias = Callable[[socket.socket], Transport]
 
 
 @configspec
@@ -32,6 +49,8 @@ class SFTPCredentials(CredentialsConfiguration):
     sftp_port: Optional[int] = 22
     sftp_username: Optional[str] = None
     sftp_password: Optional[TSecretStrValue] = None
+    # Runtime-only pkey; cannot be loaded from env var, skip configspec.
+    sftp_pkey: Annotated[Optional[PKey], NotResolved()] = None
     sftp_key_filename: Optional[str] = None
     sftp_key_passphrase: Optional[TSecretStrValue] = None
     sftp_timeout: Optional[float] = None
@@ -48,6 +67,10 @@ class SFTPCredentials(CredentialsConfiguration):
     sftp_gss_deleg_creds: Optional[bool] = True
     sftp_gss_host: Optional[str] = None
     sftp_gss_trust_dns: Optional[bool] = True
+    # Runtime-only vars below; cannot be loaded from env var, skip configspec.
+    sftp_disabled_algorithms: Annotated[Optional[Dict[str, List[str]]], NotResolved()] = None
+    sftp_transport_factory: Annotated[Optional[SFTPTransportFactory], NotResolved()] = None
+    sftp_auth_strategy: Annotated[Optional[AuthStrategy], NotResolved()] = None
 
     def to_fsspec_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed to fsspec SFTP/SSHClient.connect method."""
@@ -56,6 +79,7 @@ class SFTPCredentials(CredentialsConfiguration):
             "port": self.sftp_port,
             "username": self.sftp_username,
             "password": self.sftp_password,
+            "pkey": self.sftp_pkey,
             "key_filename": self.sftp_key_filename,
             "passphrase": self.sftp_key_passphrase,
             "timeout": self.sftp_timeout,
@@ -71,6 +95,9 @@ class SFTPCredentials(CredentialsConfiguration):
             "gss_deleg_creds": self.sftp_gss_deleg_creds,
             "gss_host": self.sftp_gss_host,
             "gss_trust_dns": self.sftp_gss_trust_dns,
+            "disabled_algorithms": self.sftp_disabled_algorithms,
+            "transport_factory": self.sftp_transport_factory,
+            "auth_strategy": self.sftp_auth_strategy,
         }
 
         return credentials

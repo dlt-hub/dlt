@@ -80,7 +80,7 @@ def rest_api_source(
     name: str = None,
     section: str = None,
     max_table_nesting: int = None,
-    root_key: bool = False,
+    root_key: bool = None,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
     parallelized: bool = False,
@@ -243,6 +243,7 @@ def create_resources(
         endpoint_config = cast(Endpoint, endpoint_resource["endpoint"])
         request_params = endpoint_config.get("params", {})
         request_json = endpoint_config.get("json")
+        request_data = endpoint_config.get("data")
         request_headers = endpoint_config.get("headers")
         paginator = create_paginator(endpoint_config.get("paginator"))
         processing_steps = endpoint_resource.pop("processing_steps", [])
@@ -283,6 +284,8 @@ def create_resources(
                     resource.add_filter(step["filter"])
                 if "map" in step:
                     resource.add_map(step["map"])
+                if "yield_map" in step:
+                    resource.add_yield_map(step["yield_map"])
             return resource
 
         if resolved_params is None:
@@ -295,6 +298,7 @@ def create_resources(
                 headers=request_headers,
                 params=request_params,
                 json=request_json,
+                data=request_data,
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,
@@ -312,6 +316,8 @@ def create_resources(
 
             base_params = exclude_keys(request_params, {x.param_name for x in resolved_params})
 
+            parallelized = resource_kwargs.pop("parallelized", False)
+
             resources[resource_name] = dlt.resource(  # type: ignore[call-overload]
                 paginate_dependent_resource,
                 data_from=predecessor,
@@ -322,6 +328,7 @@ def create_resources(
                 headers=request_headers,
                 params=base_params,
                 json=request_json,
+                data=request_data,
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),
                 hooks=hooks,
@@ -331,6 +338,7 @@ def create_resources(
                 incremental_object=incremental_object,
                 incremental_param=incremental_param,
                 incremental_cursor_transform=incremental_cursor_transform,
+                parallelized=parallelized,
             )
 
             resources[resource_name] = process(resources[resource_name], processing_steps)

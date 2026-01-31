@@ -38,8 +38,11 @@ jobs:
           activate-environment: true
           enable-cache: true
 
+      - name: Check lockfile
+        run: uv lock --check
+
       - name: Install dependencies
-        run: uv sync --all-extras --group airflow --group providers --group pipeline --group sentry-sdk --group dbt --group streamlit
+        run: uv sync --all-extras --no-extra hub --group airflow --group providers --group pipeline --group sources --group sentry-sdk --group dbt --group streamlit
 
       - name: Run make lint
         run: |
@@ -58,6 +61,9 @@ jobs:
             **/*.py
             **/*.lock
             **/*.md
+            **/*.ipynb
+            **/package-lock.json
+
 
   matrix_job_required_check:
     name: lint | code & tests

@@ -33,11 +33,10 @@ def test_version_extract(environment: DictStrStr) -> None:
     assert version == {"dlt_version": lib_version, "pipeline_name": "logger"}
     # mock image info available in container
     mock_image_env(environment)
-    version = exec_info.dlt_version_info("logger")
+    version = exec_info.dlt_version_info(None)
     assert version == {
         "dlt_version": lib_version,
         "commit_sha": "192891",
-        "pipeline_name": "logger",
         "image_version": "scale/v:112",
     }
 
@@ -156,6 +155,20 @@ def test_double_log_init(environment: DictStrStr, mocker: MockerFixture) -> None
         in handler_spy.call_args_list[3][0][0]
     )
     assert logger.LOGGER.name == "dlt"
+
+
+@pytest.mark.forked
+def test_logger_isEnabledFor(environment: DictStrStr) -> None:
+    import logging
+
+    c = PureBasicConfiguration()
+    c.log_level = "INFO"
+    init_test_logging(c)
+
+    # Test that isEnabledFor properly proxied in dlt.common.logger
+    # and not raises TypeError
+    assert logger.isEnabledFor(logging.INFO)
+    assert logger.isEnabledFor(logging.DEBUG) is False
 
 
 def test_cleanup(environment: DictStrStr) -> None:

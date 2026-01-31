@@ -8,6 +8,8 @@ keywords: [aws, athena, glue catalog]
 
 The Athena destination stores data as Parquet files in S3 buckets and creates [external tables in AWS Athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with Athena SQL commands, which will scan the entire folder of Parquet files and return the results. This destination works very similarly to other SQL-based destinations, with the exception that the merge write disposition is not supported at this time. The `dlt` metadata will be stored in the same bucket as the Parquet files, but as iceberg tables. Athena also supports writing individual data tables as Iceberg tables, so they may be manipulated later. A common use case would be to strip GDPR data from them.
 
+<!--@@@DLT_DESTINATION_CAPABILITIES athena-->
+
 ## Install dlt with Athena
 **To install the dlt library with Athena dependencies:**
 ```sh
@@ -32,7 +34,7 @@ pip install -r requirements.txt
 ```
 or with `pip install "dlt[athena]"`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
 
-:::caution
+:::warning
 
 You may also install the dependencies independently. Try
 ```sh
@@ -110,6 +112,12 @@ You can change the default catalog name
 aws_data_catalog="awsdatacatalog"
 ```
 
+By default, `dlt` uses the same catalog for both the staging and production (non-staging) tables. You can explicitly set the staging catalog to use separate catalogs:
+```toml
+[destination.athena]
+staging_aws_data_catalog="my-staging-catalog"
+```
+
 and provide any other `PyAthena` connection setting
 ```toml
 [destination.athena.conn_properties]
@@ -128,8 +136,28 @@ info_tables_query_threshold=90
 You can specify the database location using db_location:
 ```toml
 [destination.athena]
-db_location="s3://[your_bucket_name]" # replace with your bucket name,
+db_location="s3://[your_bucket_name]" # replace with your bucket name
 ```
+
+## S3 Tables
+The `athena` destination supports storing data in an [S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables.html) bucket by setting an S3 Tables Catalog:
+```toml
+[destination.athena]
+aws_data_catalog="s3tablescatalog/[your_table_bucket_name]"  # replace with your table bucket name
+```
+
+`dlt` assumes you already have a table bucket that's integrated with AWS analytics services. If that's not the case, look at these [instructions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-getting-started.html#s1-tables-tutorial-create-bucket).
+
+Using S3 Tables with Athena implies that:
+- data is stored in Iceberg tables
+- table locations are managed by the S3 Tables Catalog 
+- the `table_location_layout` setting is ignored
+- the `s3_tables` [naming convention](../../general-usage/naming-convention.md#available-naming-conventions) is used
+- **production (non-staging)** and **staging tables** are registered in separate catalogs:
+    - *production:* S3 Tables Catalog
+    - *staging:* regular catalog
+
+When `staging_aws_data_catalog` is not specified, `dlt` normally uses the same catalog for both staging and production tables. However, when using an S3 Tables Catalog, the staging catalog defaults to `awsdatacatalog` because staging tables are not Iceberg tables and cannot be registered in the S3 Tables Catalog.
 
 
 ## Write disposition
@@ -150,7 +178,7 @@ Athena tables store timestamps with millisecond precision, and with that precisi
 
 Athena does not support JSON fields, so JSON is stored as a string.
 
-:::caution
+:::warning
 **Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
 :::
 
