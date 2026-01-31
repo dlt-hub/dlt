@@ -11,9 +11,9 @@ from dlt.destinations.impl.clickhouse.clickhouse import (
     ClickHouseLoadJob,
 )
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
-    CONFIG_HINT_MAP,
     CREATE_DISTRIBUTED_TABLES_HINT,
     DISTRIBUTED_TABLE_SUFFIX_HINT,
+    DISTRIBUTED_TABLES_CONFIG_HINT_MAP,
 )
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     ClickHouseClusterClientConfiguration,
@@ -86,9 +86,11 @@ class ClickHouseClusterClient(ClickHouseClient):
                 allow_none=True,
             )
 
-        # fall back to default values from config if hints are still not set
-        for config_key, hint_key in CONFIG_HINT_MAP.items():
-            if table.get(hint_key) is None:
+        # for hints related to distributed tables, fall back to default values from config if they
+        # are still not set; we exclude dlt tables, because they are small and we don't want to
+        # create distributed tables for them
+        for config_key, hint_key in DISTRIBUTED_TABLES_CONFIG_HINT_MAP.items():
+            if not self.schema.is_dlt_table(table["name"]) and table.get(hint_key) is None:
                 table[hint_key] = self.config.get(config_key)  # type: ignore[literal-required]
 
         return table
