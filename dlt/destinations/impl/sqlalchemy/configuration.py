@@ -30,6 +30,7 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         self, connection_string: Optional[Union[str, Dict[str, Any], "Engine"]] = None
     ) -> None:
         super().__init__(connection_string)  # type: ignore[arg-type]
+        self._conn_lock = threading.RLock()
 
     def _resolve_engine_kwargs(self) -> Dict[str, Any]:
         if self.engine_kwargs and self.engine_args:
@@ -61,11 +62,6 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
             super().parse_native_representation(native_value)
 
     def borrow_conn(self) -> "Connection":
-        if getattr(self, "_conn_owner", None) is False:
-            return self.engine.connect()
-
-        if not hasattr(self, "_conn_lock"):
-            self._conn_lock = threading.Lock()
 
         # obtain a lock because we have refcount concurrency
         with self._conn_lock:
@@ -83,9 +79,6 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
             raise
 
     def return_conn(self, borrowed_conn: "Connection") -> None:
-        if getattr(self, "_conn_owner", None) is False:
-            borrowed_conn.close()
-            return
         # close the borrowed conn
         with self._conn_lock:
             borrowed_conn.close()
@@ -112,13 +105,13 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         import sqlalchemy as sa
 
         # get existing or open and set new engine
-        engine_kwargs = self._resolve_engine_kwargs()
         self._engine = getattr(
             self,
             "_engine",
             None,
         )
         if self._engine is None:
+            engine_kwargs = self._resolve_engine_kwargs()
             self._engine = sa.create_engine(
                 self.to_url().render_as_string(hide_password=False), **engine_kwargs
             )
@@ -146,6 +139,31 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
         if not self.drivername:
             return None
         return self.to_url().get_backend_name()
+
+    @staticmethod
+    def is_memory_database(database: Optional[str], query: Optional[Dict[str, Any]] = None) -> bool:
+        """Detect if the given database/query represent an in-memory SQLite database.
+
+        Handles the following forms:
+        - Classic: ``:memory:``
+        - URI: ``file:<name>?mode=memory&cache=shared&uri=true``
+
+        NOTE: empty/None database is NOT considered in-memory here because dlt's
+        configuration system resolves it to a default file path.
+        """
+        if database == ":memory:":
+            return True
+        # URI format: file:<name> with mode=memory and uri=true in query params
+        # uri=true is required for pysqlite to interpret the database as a URI
+        if (
+            database
+            and database.startswith("file:")
+            and query
+            and query.get("mode") == "memory"
+            and str(query.get("uri", "")).lower() == "true"
+        ):
+            return True
+        return False
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "database",
@@ -202,10 +220,11 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
 
         # resolve local file path for sqlite backends
         if self.credentials.drivername == "sqlite":
-            db = self.credentials.database
-            if db == ":memory:":
-                pass
-            elif not db or not os.path.isabs(db):
-                self.credentials.database = os.path.normpath(
-                    self.make_location(db or None, SQLITE_DB_NAME_PAT)
-                )
+            if not SqlalchemyCredentials.is_memory_database(
+                self.credentials.database, self.credentials.query
+            ):
+                db = self.credentials.database
+                if not db or not os.path.isabs(db):
+                    self.credentials.database = os.path.normpath(
+                        self.make_location(db or None, SQLITE_DB_NAME_PAT)
+                    )

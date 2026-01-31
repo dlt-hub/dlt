@@ -160,31 +160,83 @@ is stored in `/home/me/data/chess_data__games.db`
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
 To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
-Additionally, `check_same_thread` must be set to `False` in `connect_args`, and the pool class must be configured as `sa.pool.StaticPool`.
-This engine is not disposed of automatically by `dlt`. Example:
+This engine is not disposed of automatically by `dlt`.
+
+#### Shared-cache URI mode (recommended)
+
+The recommended approach uses SQLite's [shared-cache URI](https://www.sqlite.org/inmemorydb.html) format.
+This creates a named in-memory database that can be safely accessed by multiple connections across threads
+via `SingletonThreadPool` (one connection per thread):
 
 ```py
 import dlt
 import sqlalchemy as sa
 
-# Create the SQLite engine
+engine = sa.create_engine(
+    "sqlite:///file:shared?mode=memory&cache=shared&uri=true",
+    connect_args={"check_same_thread": False},
+    poolclass=sa.pool.SingletonThreadPool,
+)
+
+pipeline = dlt.pipeline(
+    "my_pipeline",
+    destination=dlt.destinations.sqlalchemy(engine),
+    dataset_name="main",
+)
+
+pipeline.run([1, 2, 3], table_name="my_table")
+
+with engine.connect() as conn:
+    result = conn.execute(sa.text("SELECT * FROM my_table"))
+    print(result.fetchall())
+
+engine.dispose()
+```
+
+- `mode=memory&cache=shared` creates a named in-memory database shared across all connections in the process.
+- `uri=true` is required for `pysqlite` to interpret the database path as a URI.
+- `SingletonThreadPool` gives each thread its own connection while all threads see the same data.
+
+#### StaticPool with single worker
+
+Alternatively, you can use `StaticPool` (single shared connection) with `workers=1` to avoid concurrent
+access on the same connection:
+
+```py
+import dlt
+import sqlalchemy as sa
+
 engine = sa.create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
-    poolclass=sa.pool.StaticPool
+    poolclass=sa.pool.StaticPool,
 )
 
-# Configure the destination instance and create pipeline
-pipeline = dlt.pipeline('my_pipeline', destination=dlt.destinations.sqlalchemy(engine), dataset_name='main')
+pipeline = dlt.pipeline(
+    "my_pipeline",
+    destination=dlt.destinations.sqlalchemy(engine),
+    dataset_name="main",
+)
 
-# Run the pipeline with some data
-pipeline.run([1,2,3], table_name='my_table')
+pipeline.run([1, 2, 3], table_name="my_table", loader_file_format="typed-jsonl")
 
-# The engine is still open and you can query the database
 with engine.connect() as conn:
-    result = conn.execute(sa.text('SELECT * FROM my_table'))
+    result = conn.execute(sa.text("SELECT * FROM my_table"))
     print(result.fetchall())
+
+engine.dispose()
 ```
+
+```toml
+[load]
+workers=1
+```
+
+:::caution
+With `StaticPool`, all threads share a single underlying database connection.
+Using the default parallel loader (`workers > 1`) can cause race conditions where
+committed data appears missing. Always set `workers=1` when using `StaticPool`.
+:::
 
 ### Database locking with `ATTACH DATABASE` on Windows
 When `dataset_name` is not `main`, dlt uses SQLite's `ATTACH DATABASE` to store each dataset in a separate file. On Windows, a second `ATTACH` on the same connection can lock indefinitely under concurrent access (e.g. when using the default parallel loading strategy).

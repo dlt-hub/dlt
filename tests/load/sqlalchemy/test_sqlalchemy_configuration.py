@@ -1,5 +1,6 @@
 import os
 import warnings
+from typing import Any, Dict, Optional
 
 import pytest
 
@@ -16,6 +17,72 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
 )
 
 from tests.utils import get_test_storage_root
+
+
+@pytest.mark.parametrize(
+    "database,query,expected",
+    [
+        # classic :memory: form
+        (":memory:", None, True),
+        (":memory:", {}, True),
+        # URI shared-cache in-memory form (requires uri=true)
+        ("file:shared", {"mode": "memory", "cache": "shared", "uri": "true"}, True),
+        ("file:mydb", {"mode": "memory", "uri": "true"}, True),
+        # uri=true missing — pysqlite treats file: as literal path, not in-memory
+        ("file:shared", {"mode": "memory", "cache": "shared"}, False),
+        ("file:mydb", {"mode": "memory"}, False),
+        # empty / None database is NOT in-memory (dlt resolves to a file path)
+        ("", None, False),
+        ("", {}, False),
+        (None, None, False),
+        # file-based databases are NOT in-memory
+        ("test.db", None, False),
+        ("/absolute/path/test.db", None, False),
+        ("./relative.db", {}, False),
+        # file: URI without mode=memory is NOT in-memory
+        ("file:test.db", None, False),
+        ("file:test.db", {"cache": "shared", "uri": "true"}, False),
+        ("file:test.db", {"mode": "rw", "uri": "true"}, False),
+    ],
+    ids=[
+        "memory-no-query",
+        "memory-empty-query",
+        "uri-shared-cache",
+        "uri-mode-memory-only",
+        "uri-no-uri-flag",
+        "uri-no-uri-flag-minimal",
+        "empty-no-query",
+        "empty-empty-query",
+        "none-no-query",
+        "relative-file",
+        "absolute-file",
+        "relative-dotslash",
+        "file-uri-no-query",
+        "file-uri-cache-only",
+        "file-uri-mode-rw",
+    ],
+)
+def test_is_memory_database(
+    database: Optional[str], query: Optional[Dict[str, Any]], expected: bool
+) -> None:
+    """is_memory_database detects all in-memory SQLite database forms."""
+    assert SqlalchemyCredentials.is_memory_database(database, query) is expected
+
+
+def test_uri_memory_database_preserved_on_resolve() -> None:
+    """URI shared-cache in-memory database path should not be rewritten by on_resolved."""
+    c = resolve_configuration(
+        SqlalchemyClientConfiguration(
+            credentials=SqlalchemyCredentials(
+                "sqlite+pysqlite:///file:shared?mode=memory&cache=shared&uri=true"
+            ),
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    # database should be preserved, not rewritten to a local file path
+    assert c.credentials.database == "file:shared"
+    assert c.credentials.query["mode"] == "memory"
+    assert c.credentials.query["cache"] == "shared"
+    assert c.credentials.query["uri"] == "true"
 
 
 def test_sqlalchemy_credentials_from_engine() -> None:
@@ -217,7 +284,15 @@ def test_owned_engine_connect_failure_does_not_leak_refcount(mocker) -> None:
 
 def test_external_engine_ref_counting_does_not_dispose(mocker) -> None:
     """External engine should not be disposed when connections are returned."""
-    engine = sa.create_engine("sqlite:///:memory:")
+    engine = sa.create_engine(
+        "sqlite:///:memory:",
+        poolclass=sa.pool.StaticPool,
+    )
+
+    # seed a table so we can verify data survives borrow/return cycle
+    with engine.begin() as conn:
+        conn.execute(sa.text("CREATE TABLE test_alive (id INTEGER)"))
+        conn.execute(sa.text("INSERT INTO test_alive VALUES (1)"))
 
     try:
         c = resolve_configuration(
@@ -232,14 +307,16 @@ def test_external_engine_ref_counting_does_not_dispose(mocker) -> None:
         assert c.credentials._conn_borrows == 0
 
         conn = c.credentials.borrow_conn()
-        assert c.credentials._conn_borrows == 0
+        assert c.credentials._conn_borrows == 1
 
         c.credentials.return_conn(conn)
         assert c.credentials._conn_borrows == 0
 
         dispose_spy.assert_not_called()
 
+        # engine still usable — query the table created before borrow/return
         with engine.connect() as conn:
-            conn.execute(sa.text("SELECT 1"))
+            rows = conn.execute(sa.text("SELECT id FROM test_alive")).fetchall()
+            assert rows == [(1,)]
     finally:
         engine.dispose()
