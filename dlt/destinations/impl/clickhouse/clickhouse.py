@@ -50,6 +50,7 @@ from dlt.destinations.impl.clickhouse.typing import (
 from dlt.destinations.impl.clickhouse.utils import (
     convert_storage_to_http_scheme,
 )
+from dlt.common.data_writers.escape import escape_clickhouse_literal
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStagingDataset,
@@ -121,7 +122,8 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 # use extra credentials for S3 compatible storage
                 # https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud
                 extra_credential_args = [
-                    f"{k} = '{v}'" for k, v in self._config.credentials.s3_extra_credentials.items()
+                    f"{k} = {escape_clickhouse_literal(v)}"
+                    for k, v in self._config.credentials.s3_extra_credentials.items()
                 ]
                 auth = f"extra_credentials({', '.join(extra_credential_args)})"
             elif access_key_id and secret_access_key:
