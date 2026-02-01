@@ -28,7 +28,7 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.exceptions import DatabaseTerminalException
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
@@ -59,7 +59,8 @@ class RedshiftSqlClient(Psycopg2SqlClient):
         try:
             rows = self.execute_sql(query, *db_params)
             return len(rows) > 0
-        except psycopg2.Error:
+        except DatabaseException:
+            # fallback to INFORMATION_SCHEMA.SCHEMATA if svv_redshift_schemas is not available
             return super().has_dataset()
 
     @staticmethod
@@ -138,16 +139,14 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY
-            self._sql_client.execute_sql(
-                f"""
+            self._sql_client.execute_sql(f"""
                 COPY {self._sql_client.make_qualified_table_name(self.load_table_name)}
                 FROM '{self._bucket_path}'
                 {file_type}
                 {dateformat}
                 {compression}
                 {credentials}
-                {region} MAXERROR 0;"""
-            )
+                {region} MAXERROR 0;""")
 
 
 class RedshiftMergeJob(SqlMergeFollowupJob):
