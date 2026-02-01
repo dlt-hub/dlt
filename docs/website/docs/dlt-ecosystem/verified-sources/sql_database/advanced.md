@@ -414,7 +414,7 @@ class MyArrowLoader(BaseTableLoader):
 register_table_loader_backend("my_arrow", MyArrowLoader)
 
 # now use it as a backend name
-table = sql_table(table="my_table", backend="my_arrow")
+table = sql_table(table="my_table", backend="my_arrow")  # type: ignore[arg-type]
 ```
 
 ### Example: paginated loading
