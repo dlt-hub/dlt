@@ -253,17 +253,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             if use_staging_client
             else self.get_destination_client(schema)
         )
-        # NOTE: we pass None for done_event here and release it manually after the with block
-        # exits. This ensures the client is fully closed before the main thread can wake up
-        # and try to open a new client. This is critical for destinations like Qdrant local mode
-        # that use exclusive file locking and don't support concurrent client access.
         with active_job_client as client:
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job.run_managed(active_job_client, None)
-        # Release the done_event after the client is closed
-        if self._done_event:
-            with contextlib.suppress(ValueError):
-                self._done_event.release()
+                job.run_managed(active_job_client, self._done_event)
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
