@@ -62,7 +62,6 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
             super().parse_native_representation(native_value)
 
     def borrow_conn(self) -> "Connection":
-
         # obtain a lock because we have refcount concurrency
         with self._conn_lock:
             engine_ = self.engine
