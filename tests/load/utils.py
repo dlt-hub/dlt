@@ -554,12 +554,18 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
-                credentials=dict(path=str(Path(FILE_BUCKET) / f"qdrant_data_{worker}")),
+                credentials=dict(path="qdrant_data"),
+                env_vars={
+                    "HF_TOKEN": dlt.secrets.get("destination.qdrant.hf_token"),
+                },
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(location="http://localhost:6333"),
+                env_vars={
+                    "HF_TOKEN": dlt.secrets.get("destination.qdrant.hf_token"),
+                },
                 extra_info="server",
             ),
         ]
