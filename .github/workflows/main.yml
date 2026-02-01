@@ -44,15 +44,9 @@ jobs:
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
   test_common:
-    # name: run common tests on all python versions and OSes
-    # needs: [lint]
-    # uses: ./.github/workflows/test_common.yml
-    name: run common tests on all python versions and OSes (TEMP BYPASS)
-    runs-on: ubuntu-latest
+    name: run common tests on all python versions and OSes
     needs: [lint]
-    steps:
-      - name: Bypass common tests
-        run: echo "test_common temporarily bypassed"
+    uses: ./.github/workflows/test_common.yml
 
   test_dashboard:
     name: run dashboard tests
@@ -65,7 +59,7 @@ jobs:
   #
   test_destinations_local:
     name: run local destination tests without secrets
-    # needs: test_common
+    needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
 
   test_sources_local:
@@ -115,6 +109,3 @@ jobs:
   #   needs: [test_common, authorize_run_from_fork]
   #   uses: ./.github/workflows/test_tools_dbt_cloud.yml
   #   secrets: inherit
-
-
-
