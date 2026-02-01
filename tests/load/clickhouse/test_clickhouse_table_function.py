@@ -65,9 +65,7 @@ def test_clickhouse_s3_table_function(
         creds_dict["s3_extra_credentials"] = s3_extra_credentials
 
     config = resolve_configuration(
-        ClickHouseClientConfiguration(
-            credentials=ClickHouseCredentials(creds_dict)
-        )
+        ClickHouseClientConfiguration(credentials=ClickHouseCredentials(creds_dict))
     )
     staging_credentials = AwsCredentials(
         aws_access_key_id=aws_access_key_id,
@@ -87,7 +85,7 @@ def test_clickhouse_s3_table_function(
     )
 
     expected = (
-        f"s3('https://bucket-name.s3.amazonaws.com/path/to/data'"
+        "s3('https://bucket-name.s3.amazonaws.com/path/to/data'"
         f",{expected_auth},'parquet','auto','gz')"
     )
     assert result == expected
