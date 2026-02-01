@@ -83,7 +83,6 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         temp_table_name: str,
         unique_column: str,
         sql_client: SqlClientBase[Any],
-        table_schema: PreparedTableSchema,
     ) -> str:
         # regular table because Athena does not support temporary tables
         return f"CREATE TABLE {temp_table_name} AS {select_sql}"
@@ -91,7 +90,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_insert_temp_table_sql(
         cls,
-        table_schema: PreparedTableSchema,
+        table_name: str,
         staging_root_table_name: str,
         sql_client: SqlClientBase[Any],
         primary_keys: Sequence[str],
@@ -102,7 +101,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         skip_dedup: bool = False,
     ) -> Tuple[List[str], str]:
         sql, temp_table_name = super().gen_insert_temp_table_sql(
-            table_schema,
+            table_name,
             staging_root_table_name,
             sql_client,
             primary_keys,
@@ -119,13 +118,13 @@ class AthenaMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_delete_temp_table_sql(
         cls,
-        table_schema: PreparedTableSchema,
+        table_name: str,
         unique_column: str,
         key_table_clauses: Sequence[str],
         sql_client: SqlClientBase[Any],
     ) -> Tuple[List[str], str]:
         sql, temp_table_name = super().gen_delete_temp_table_sql(
-            table_schema, unique_column, key_table_clauses, sql_client
+            table_name, unique_column, key_table_clauses, sql_client
         )
         # DROP needs backtick as escape identifier
         sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')}""")

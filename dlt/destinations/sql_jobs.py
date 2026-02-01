@@ -224,7 +224,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def gen_delete_temp_table_sql(
         cls,
-        table_schema: PreparedTableSchema,
+        table_name: str,
         unique_column: str,
         key_table_clauses: Sequence[str],
         sql_client: SqlClientBase[Any],
@@ -234,13 +234,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         Returns temp table name for cases where special names are required like SQLServer.
         """
         sql: List[str] = []
-        temp_table_name = cls._new_temp_table_name(table_schema["name"], "delete", sql_client)
+        temp_table_name = cls._new_temp_table_name(table_name, "delete", sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
-        sql.append(
-            cls._to_temp_table(
-                select_statement, temp_table_name, unique_column, sql_client, table_schema
-            )
-        )
+        sql.append(cls._to_temp_table(select_statement, temp_table_name, unique_column, sql_client))
         for clause in key_table_clauses[1:]:
             insert_into = sql_client._make_insert_into(temp_table_name)
             sql.append(f"{insert_into} SELECT {unique_column} {clause}")
@@ -322,7 +318,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def gen_insert_temp_table_sql(
         cls,
-        table_schema: PreparedTableSchema,
+        table_name: str,
         staging_root_table_name: str,
         sql_client: SqlClientBase[Any],
         primary_keys: Sequence[str],
@@ -332,7 +328,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         condition_columns: Sequence[str] = None,
         skip_dedup: bool = False,
     ) -> Tuple[List[str], str]:
-        temp_table_name = cls._new_temp_table_name(table_schema["name"], "insert", sql_client)
+        temp_table_name = cls._new_temp_table_name(table_name, "insert", sql_client)
         if len(primary_keys) > 0:
             # deduplicate
             select_sql = cls.gen_select_from_dedup_sql(
@@ -347,9 +343,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         else:
             # don't deduplicate
             select_sql = f"SELECT {unique_column} FROM {staging_root_table_name} WHERE {condition}"
-        temp_table_sql = cls._to_temp_table(
-            select_sql, temp_table_name, unique_column, sql_client, table_schema
-        )
+        temp_table_sql = cls._to_temp_table(select_sql, temp_table_name, unique_column, sql_client)
         return [temp_table_sql], temp_table_name
 
     @classmethod
@@ -392,7 +386,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         temp_table_name: str,
         unique_column: str,
         sql_client: SqlClientBase[Any],
-        table_schema: PreparedTableSchema,
     ) -> str:
         """Generate sql that creates temp table from select statement. May return several statements.
 
@@ -669,7 +662,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
-                        root_table, row_key_column, key_table_clauses, sql_client
+                        root_table["name"], row_key_column, key_table_clauses, sql_client
                     )
                 )
                 sql.extend(create_delete_temp_table_sql)
@@ -727,7 +720,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     create_insert_temp_table_sql,
                     insert_temp_table_name,
                 ) = cls.gen_insert_temp_table_sql(
-                    root_table,
+                    root_table["name"],
                     sql_client.get_select_table_name(root_table, qualify=True, staging=True),
                     sql_client,
                     primary_keys,
