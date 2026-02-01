@@ -1,3 +1,4 @@
+.DEFAULT_GOAL := help
 .PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
@@ -13,30 +14,12 @@ PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_i
 # VERSION := ${AUTV}${VERSION_SUFFIX}
 # VERSION_MM := ${AUTVMINMAJ}${VERSION_SUFFIX}
 
-help:
-	@echo "make"
-	@echo "		install-uv"
-	@echo "			installs newest uv version"
-	@echo "		dev"
-	@echo "			prepares development env"
-	@echo "		lint"
-	@echo "			runs flake and mypy"
-	@echo "		test"
-	@echo "			tests all the components including destinations"
-	@echo "		test-load-local"
-	@echo "			tests all components using local destinations: duckdb and postgres"
-	@echo "		test-common"
-	@echo "			tests common components"
-	@echo "		test-common-p"
-	@echo "			tests common components using multiple processes in parallel"
-	@echo "		lint-and-test-snippets"
-	@echo "			tests and lints snippets and examples in docs"
-	@echo "		build-library"
-	@echo "			makes dev and then builds dlt package for distribution"
-	@echo "		publish-library"
-	@echo "			builds library and then publishes it to pypi"
+# Add " ## description" after any target name to include it in `make help` output.
+# Example:  my-target: ## Does something useful
+help: ## Shows this help message
+	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-32s %s\n", $$1, $$2}'
 
-install-uv:
+install-uv: ## Installs newest uv version
 ifneq ($(VIRTUAL_ENV),)
 	$(error you cannot be under virtual environment $(VIRTUAL_ENV))
 endif
@@ -45,22 +28,22 @@ endif
 has-uv:
 	uv --version
 
-dev: has-uv
+dev: has-uv ## Prepares development environment
 	uv sync --all-extras --no-extra hub --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-dev-airflow: has-uv
+dev-airflow: has-uv ## Prepares development environment with airflow support
 	uv sync --all-extras --no-extra hub --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 
-dev-hub: has-uv
+dev-hub: has-uv ## Prepares development environment with hub support
 	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-lint: lint-core lint-security lint-docstrings lint-lock
+lint: lint-core lint-security lint-docstrings lint-lock ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile)
 
-lint-lock:
+lint-lock: ## Checks uv lockfile and hub extras are in sync
 	uv lock --check
 	uv run python tools/check_hub_extras.py
 
-lint-core:
+lint-core: ## Runs core linting (mypy, ruff, flake8)
 	uv run mypy --config-file mypy.ini dlt tests tools
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
@@ -70,19 +53,18 @@ lint-core:
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 
-format:
+format: ## Formats code with black
 	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
 
-format-check:
+format-check: ## Formats and verifies no files changed (CI)
 	$(MAKE) format
 	git diff --exit-code
 
-lint-security:
+lint-security: ## Runs security linting with bandit
 	# go for ll by cleaning up eval and SQL warnings.
 	uv run bandit -r dlt/ -n 3 -lll
 
-# check docstrings for all important public classes and functions
-lint-docstrings:
+lint-docstrings: ## Checks docstrings for public API classes and functions
 	uv run flake8 --count \
 		dlt/common/pipeline.py \
 		dlt/extract/decorators.py \
@@ -152,7 +134,7 @@ endef
 # LOCAL / DEV TESTING
 # ======================================================================
 
-test:
+test: ## Tests all components including destinations
 	$(PYTEST_BASE) tests
 
 TEST_COMMON_PATHS = \
@@ -167,10 +149,10 @@ TEST_COMMON_PATHS = \
 	tests/libs \
 	tests/destinations
 
-test-common:
+test-common: ## Tests common components without external resources
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_PATHS))
 
-test-common-p:
+test-common-p: ## Tests common components in parallel
 	$(MAKE) test-common PYTEST_XDIST_N=auto
 
 # ----------------------------------------------------------------------
@@ -179,37 +161,37 @@ test-common-p:
 
 TEST_LOAD_PATHS = tests/load
 
-test-load-local:
+test-load-local: ## Tests load with local destinations (duckdb + filesystem)
 	ACTIVE_DESTINATIONS='["duckdb", "filesystem"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory", "file"]' \
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
 
-test-load-local-p:
+test-load-local-p: ## Tests load with local destinations in parallel
 	$(MAKE) test-load-local PYTEST_XDIST_N=auto
 
-test-load-local-postgres:
+test-load-local-postgres: ## Tests load with local postgres (requires start-test-containers)
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data \
 	ACTIVE_DESTINATIONS='["postgres"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory"]' \
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_LOAD_PATHS))
 
-test-load-local-postgres-p:
+test-load-local-postgres-p: ## Tests load with local postgres in parallel
 	$(MAKE) test-load-local-postgres PYTEST_XDIST_N=auto
 
 # ----------------------------------------------------------------------
 # Local remote-destination smoke (not used by CI)
 # ----------------------------------------------------------------------
 
-install-snowflake-extras:
+install-snowflake-extras: ## Installs extras needed for snowflake testing
 	uv sync --group pipeline --group ibis --group providers \
 		--extra snowflake --extra s3 --extra gs --extra az --extra parquet
 
-test-remote-snowflake:
+test-remote-snowflake: ## Tests essential load tests against snowflake
 	ACTIVE_DESTINATIONS='["snowflake"]' \
 	ALL_FILESYSTEM_DRIVERS='["memory"]' \
 	$(MAKE) test-dest-remote-essential
 
-test-remote-snowflake-p:
+test-remote-snowflake-p: ## Tests essential load tests against snowflake in parallel
 	$(MAKE) test-remote-snowflake PYTEST_XDIST_N=auto
 
 # ======================================================================
@@ -381,19 +363,19 @@ test-sources-sql-database:
 
 ###################### END CI
 
-build-library: dev lint-lock
+build-library: dev lint-lock ## Builds dlt package for distribution
 	uv version
 	uv build
 
-clean-dist:
+clean-dist: ## Removes dist/ directory
 	-@rm -r dist/
 
-publish-library: clean-dist build-library
+publish-library: clean-dist build-library ## Builds and publishes dlt to PyPI
 	ls -l dist/
 	@bash -c 'read -s -p "Enter PyPI API token: " PYPI_API_TOKEN; echo; \
 	uv publish --token "$$PYPI_API_TOKEN"'
 
-test-build-images: build-library
+test-build-images: build-library ## Builds Docker images for testing
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
 	# uv sync --extra gcp --extra redshift --extra duckdb
 	# uv pip freeze > _gen_requirements.txt
@@ -402,7 +384,7 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 	docker build -f deploy/dlt/Dockerfile.minimal --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 
-start-test-containers:
+start-test-containers: ## Starts docker containers for local testing (postgres, clickhouse, etc.)
 	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
 	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
@@ -410,21 +392,17 @@ start-test-containers:
 	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d
 	docker compose -f "tests/load/clickhouse/docker-compose.yml" up -d
 
-update-cli-docs:
+update-cli-docs: ## Regenerates CLI reference docs
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md
 
-check-cli-docs:
+check-cli-docs: ## Checks CLI reference docs are up to date (CI)
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
 
-# Commands for running dashboard e2e tests
-# To run these tests locally, run `make start-dlt-dashboard-e2e` in one terminal and `make test-e2e-dashboard-headed` in another terminal
-
-test-e2e-dashboard:
+test-e2e-dashboard: ## Runs dashboard e2e tests with headless chromium
 	uv run pytest --browser chromium tests/e2e
 
-test-e2e-dashboard-headed:
+test-e2e-dashboard-headed: ## Runs dashboard e2e tests with visible browser
 	uv run pytest --headed --browser chromium tests/e2e
 
-# creates the dashboard test pipelines globally for manual testing of the dashboard app and cli
-create-test-pipelines:
+create-test-pipelines: ## Creates test pipelines for manual dashboard testing
 	uv run python tests/workspace/helpers/dashboard/example_pipelines.py

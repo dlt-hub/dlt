@@ -32,22 +32,7 @@ cd website && npm install
 
 ## Makefile targets
 
-The `Makefile` in this folder is the main entrypoint for docs tasks. Key targets:
-
-| Target | Description |
-|---|---|
-| `make dev` | Install Python environment with `uv sync` |
-| `make lint` | Lint docs tooling code (ruff, mypy, flake8, black) |
-| `make lint-embedded-snippets` | Lint all embedded code snippets in the docs |
-| `make lint-notebooks` | Lint education notebooks with nbqa |
-| `make format` | Format Python code in docs_tools, website, examples, and notebooks |
-| `make test-snippets` | Run pytest on snippet files under `website/docs/` |
-| `make test-examples` | Prepare and run pytest on `examples/` |
-| `make preprocess-docs` | Preprocess markdown + generate API reference |
-| `make preprocess-docs-watch` | Same as above but watches for file changes |
-| `make generate-api-ref` | Generate API reference with pydoc-markdown |
-| `make build-molabs` | Regenerate marimo `.py` files from `.ipynb` notebooks |
-| `make validate-molabs` | Build molabs and check nothing changed (CI) |
+The `Makefile` in this folder is the main entrypoint for docs tasks. Run `make help` (or just `make`) to see all available targets with descriptions.
 
 ## Tools
 
