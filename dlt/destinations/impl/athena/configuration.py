@@ -36,6 +36,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     db_location: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = [
+        "query_result_bucket",
         "athena_work_group",
         "aws_data_catalog",
         "info_tables_query_threshold",
