@@ -125,6 +125,11 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
     def _make_truncate_table(self, qualified_table_name: str) -> str:
         return f"TRUNCATE TABLE {qualified_table_name} ON CLUSTER {self.config.cluster} SYNC"
 
+    def _make_distributed_engine_clause(self, table_name: str, sharding_key: str) -> str:
+        cluster = self.config.cluster
+        database, table = self.make_qualified_table_name(table_name, quote=False).split(".")
+        return f"ENGINE = Distributed('{cluster}', '{database}', '{table}', {sharding_key})"
+
     def _make_create_or_replace_distributed_table(self, table_schema: PreparedTableSchema) -> str:
         # NOTE: we simply REPLACE instead of ALTER distributed tables (https://stackoverflow.com/a/77215211)
 
@@ -140,15 +145,7 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         as_sql = "AS " + self.make_qualified_table_name(table_name)
 
         # generate ENGINE clause
-        cluster = self.config.cluster
-        database, table = self.make_qualified_table_name(table_name, quote=False).split(".")
         sharding_key = table_schema[SHARDING_KEY_HINT]  # type: ignore[typeddict-item]
-        engine_sql = self._make_distributed_engine_clause(cluster, database, table, sharding_key)
+        engine_sql = self._make_distributed_engine_clause(table_name, sharding_key)
 
         return f"{create_table_sql} {as_sql} {engine_sql};"
-
-    @staticmethod
-    def _make_distributed_engine_clause(
-        cluster: str, database: str, table: str, sharding_key: str
-    ) -> str:
-        return f"ENGINE = Distributed('{cluster}', '{database}', '{table}', {sharding_key})"
