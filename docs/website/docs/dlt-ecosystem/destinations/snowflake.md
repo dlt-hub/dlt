@@ -169,6 +169,23 @@ All write dispositions are supported.
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables.
 
+#### Atomic swap replacement
+
+Snowflake supports atomic table swapping as an optional optimization when using the `staging-optimized` replace strategy. When enabled via the `enable_atomic_swap` configuration option, destination and staging tables are swapped using Snowflake's `ALTER TABLE ... SWAP WITH ...` functionality instead of the default clone operation.
+
+Each table retains its original permissions after swapping, so you must ensure any `FUTURE GRANT`s configured on the staging schema are appropriate for your use case. Additionally, dlt does not automatically drop staging tables, which means the previous production table (with all its permissions) becomes the staging table for the next load.
+
+To enable atomic swap, add the following to your configuration:
+
+```toml
+[destination.snowflake]
+enable_atomic_swap = true
+```
+
+Or via environment variable:
+```
+DESTINATION__SNOWFLAKE__ENABLE_ATOMIC_SWAP=true
+```
 ### Data loading
 
 The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are kept by default, unless specified otherwise via the `keep_staged_files` parameter:

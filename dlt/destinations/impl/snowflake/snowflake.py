@@ -188,7 +188,10 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         root_table = table_chain[0]
-        if root_table["x-replace-strategy"] == "staging-atomic-swap":  # type: ignore[typeddict-item]
+        if (
+            root_table["x-replace-strategy"] == "staging-optimized"  # type: ignore[typeddict-item]
+            and self.config.enable_atomic_swap
+        ):
             return [SnowflakeStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)
 

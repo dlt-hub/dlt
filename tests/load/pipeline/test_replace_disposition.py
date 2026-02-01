@@ -446,3 +446,44 @@ def test_replace_sql_queries(
         else:
             assert clone_sql_generator_spy.call_count == 1
             assert insert_sql_generator_spy.call_count == 0
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        default_staging_configs=True,
+        subset=["snowflake"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_snowflake_atomic_swap_replace(
+    destination_config: DestinationTestConfiguration,
+    mocker: MockerFixture,
+) -> None:
+    """Test that Snowflake atomic swap works when enabled via configuration."""
+    from dlt.destinations.sql_jobs import SqlStagingFollowupJob, SqlStagingReplaceFollowupJob
+    from dlt.destinations.impl.snowflake.snowflake import SnowflakeStagingReplaceJob
+
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "staging-optimized"
+    os.environ["DESTINATION__SNOWFLAKE__ENABLE_ATOMIC_SWAP"] = "true"
+
+    clone_sql_generator_spy = mocker.spy(SqlStagingReplaceFollowupJob, "_generate_clone_sql")
+    insert_sql_generator_spy = mocker.spy(SqlStagingFollowupJob, "_generate_insert_sql")
+    snowflake_swap_spy = mocker.spy(SnowflakeStagingReplaceJob, "generate_sql")
+
+    pipeline = destination_config.setup_pipeline("snowflake_atomic_swap_test", dev_mode=True)
+    load_info = pipeline.run(
+        [{"id": 1}],
+        table_name="my_table",
+        write_disposition="replace",
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(load_info)
+
+    assert len(pipeline.dataset().my_table.fetchall()) == 1
+
+    assert snowflake_swap_spy.call_count == 1
+    assert clone_sql_generator_spy.call_count == 0
+    assert insert_sql_generator_spy.call_count == 0
