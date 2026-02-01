@@ -65,7 +65,7 @@ jobs:
   #
   test_destinations_local:
     name: run local destination tests without secrets
-    needs: test_common
+    # needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
 
   test_sources_local:
