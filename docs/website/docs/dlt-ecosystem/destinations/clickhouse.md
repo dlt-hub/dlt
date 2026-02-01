@@ -418,10 +418,10 @@ from dlt.destinations import clickhouse
 
 destination = clickhouse(
   credentials={
-    "host": "your.clickhouse.host",  # Other credentials you need
+    # Other credentials you need
     "s3_extra_credentials": {
-      "role_arn": "arn:your:role",  # The AWS Role assumed by ClickHouse
-    },
+      'role_arn': 'arn:your:role' # The AWS Role assumed by ClickHouse
+    }
   }
 )
 
