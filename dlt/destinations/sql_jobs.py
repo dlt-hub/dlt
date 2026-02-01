@@ -1,10 +1,10 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
-from dlt.common.typing import TypedDict
+from dlt.common.typing import TAnyDateTime, TypedDict
 
 from dlt.common.schema.typing import (
     TSortOrder,
@@ -499,16 +499,34 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         Raises `MergeDispositionException` if no such column exists.
         """
-        return cls._get_prop_col_or_raise(
-            table,
-            "root_key",
-            MergeDispositionException(
-                dataset_name,
-                staging_dataset_name,
-                [t["name"] for t in table_chain],
-                f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
-            ),
-        )
+        try:
+            return cls._get_prop_col_or_raise(
+                table,
+                "root_key",
+                MergeDispositionException(
+                    dataset_name,
+                    staging_dataset_name,
+                    [t["name"] for t in table_chain],
+                    f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
+                ),
+            )
+        except MergeDispositionException as merge_ex:
+            # fallback to _dlt_parent_id is available if this is second nesting level
+            if table["parent"] == table_chain[0]["name"]:
+                return cls._get_prop_col_or_raise(
+                    table,
+                    "parent_key",
+                    MergeDispositionException(
+                        merge_ex.dataset_name,
+                        merge_ex.staging_dataset_name,
+                        merge_ex.tables,
+                        merge_ex.reason
+                        + "No `parent_key` column (e.g. `_dlt_parent_id`) in table"
+                        f" `{table['name']}`.",
+                    ),
+                )
+            else:
+                raise
 
     @classmethod
     def _get_prop_col_or_raise(
@@ -688,6 +706,39 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return sql
 
     @classmethod
+    def gen_upsert_merge_sql(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        root_table_column_names: Sequence[str],
+        hard_delete_col: Optional[str],
+        deleted_cond: Optional[str],
+    ) -> List[str]:
+        """Generate MERGE statement for upsert on root table.
+
+        Override for backends that don't support DELETE in MERGE (e.g., DuckLake).
+        """
+        sql: List[str] = []
+        on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
+        update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
+        col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
+        delete_str = (
+            "" if hard_delete_col is None else f"WHEN MATCHED AND s.{deleted_cond} THEN DELETE"
+        )
+
+        sql.append(f"""
+            MERGE INTO {root_table_name} d USING {staging_root_table_name} s
+            ON {on_str}
+            {delete_str}
+            WHEN MATCHED
+                THEN UPDATE SET {update_str}
+            WHEN NOT MATCHED
+                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+        """)
+        return sql
+
+    @classmethod
     def gen_upsert_sql(
         cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
@@ -713,23 +764,17 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )
 
         # generate merge statement for root table
-        on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
-        update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
-        col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
-        delete_str = (
-            "" if hard_delete_col is None else f"WHEN MATCHED AND s.{deleted_cond} THEN DELETE"
+        sql.extend(
+            cls.gen_upsert_merge_sql(
+                root_table_name,
+                staging_root_table_name,
+                primary_keys,
+                root_table_column_names,
+                hard_delete_col,
+                deleted_cond,
+            )
         )
-
-        sql.append(f"""
-            MERGE INTO {root_table_name} d USING {staging_root_table_name} s
-            ON {on_str}
-            {delete_str}
-            WHEN MATCHED
-                THEN UPDATE SET {update_str}
-            WHEN NOT MATCHED
-                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
-        """)
 
         # generate statements for nested tables if they exist
         nested_tables = table_chain[1:]
@@ -827,12 +872,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
 
-        boundary_ts = ensure_pendulum_datetime(
-            root_table.get(  # type: ignore[arg-type]
-                "x-boundary-timestamp",
-                current_load_package()["state"]["created_at"],
-            )
+        _boundary_ts = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
+        boundary_ts: TAnyDateTime = (
+            _boundary_ts
+            if _boundary_ts is not None
+            else current_load_package()["state"]["created_at"]
         )
+        boundary_ts = ensure_pendulum_datetime_utc(boundary_ts)
+
         boundary_literal = format_datetime_literal(
             boundary_ts,
             caps.timestamp_precision,

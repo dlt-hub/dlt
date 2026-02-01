@@ -1,7 +1,7 @@
 import contextlib
 from typing import List
 from packaging.requirements import Requirement
-import semver
+from packaging.version import Version
 
 from dlt.common.runners import Venv
 from dlt.common.destination.client import DestinationClientDwhConfiguration
@@ -40,7 +40,7 @@ def _create_dbt_deps(
     if dbt_version:
         # if parses as version use "==" operator
         with contextlib.suppress(ValueError):
-            semver.parse(dbt_version)
+            Version(dbt_version)
             dbt_version = "==" + dbt_version
     else:
         dbt_version = ""

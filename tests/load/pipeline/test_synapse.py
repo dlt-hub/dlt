@@ -38,6 +38,7 @@ def test_copy_file_load_job_credentials(credentials_type: str) -> None:
         destination=synapse(
             staging_use_msi=(True if credentials_type == "managed_identity" else False)
         ),
+        dev_mode=True,
     )
 
     info = pipeline.run([{"foo": "bar"}], table_name="abstract")

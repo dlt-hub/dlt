@@ -62,6 +62,8 @@ if __name__ == "__main__":
     )
 
     # Run the pipeline
-    load_info = pipeline.run(data_source().add_map(add_parent_id), primary_key="parent_id")
+    load_info = pipeline.run(
+        data_source().add_map(add_parent_id), primary_key="parent_id"
+    )
     # Output the load information after pipeline execution
     print(load_info)

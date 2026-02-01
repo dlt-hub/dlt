@@ -12,6 +12,8 @@ keywords: [dremio, iceberg, aws, glue catalog]
 pip install "dlt[dremio,s3]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES dremio-->
+
 ## Setup guide
 ### 1. Initialize the dlt project
 
@@ -82,7 +84,7 @@ The `merge` write disposition uses the default DELETE/UPDATE/INSERT strategy to 
 
 Data loading happens by copying staged parquet files from an object storage bucket to the destination table in Dremio using [COPY INTO](https://docs.dremio.com/cloud/reference/sql/commands/copy-into-table/) statements. The destination table format is specified by the storage format for the data source in Dremio. Typically, this will be Apache Iceberg.
 
-:::caution
+:::warning
 Dremio cannot load `fixed_len_byte_array` columns from Parquet files.
 :::
 

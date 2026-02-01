@@ -11,32 +11,44 @@ from dlt.destinations.impl.databricks.typing import TDatabricksTableSchemaColumn
 CLUSTER_HINT: Literal["x-databricks-cluster"] = "x-databricks-cluster"
 TABLE_COMMENT_HINT: Literal["x-databricks-table-comment"] = "x-databricks-table-comment"
 TABLE_TAGS_HINT: Literal["x-databricks-table-tags"] = "x-databricks-table-tags"
+TABLE_PROPERTIES_HINT: Literal["x-databricks-table-properties"] = "x-databricks-table-properties"
 COLUMN_COMMENT_HINT: Literal["x-databricks-column-comment"] = "x-databricks-column-comment"
 COLUMN_TAGS_HINT: Literal["x-databricks-column-tags"] = "x-databricks-column-tags"
 
 
 def databricks_adapter(
     data: Any,
-    cluster: TColumnNames = None,
+    cluster: Union[TColumnNames, Literal["AUTO"]] = None,
+    partition: TColumnNames = None,
+    table_format: Literal["DELTA", "ICEBERG"] = "DELTA",
     table_comment: Optional[str] = None,
     table_tags: Optional[List[Union[str, Dict[str, str]]]] = None,
+    table_properties: Optional[Dict[str, Union[str, int, bool, float]]] = None,
     column_hints: Optional[TDatabricksTableSchemaColumns] = None,
 ) -> DltResource:
     """
     Prepares data for loading into Databricks.
 
     This function takes data, which can be raw or already wrapped in a DltResource object,
-    and prepares it for Databricks by optionally specifying clustering and table description.
+    and prepares it for Databricks by optionally specifying clustering, partitioning, and table description.
 
     Args:
         data (Any): The data to be transformed.
             This can be raw data or an instance of DltResource.
             If raw data is provided, the function will wrap it into a `DltResource` object.
-        cluster (TColumnNames, optional): A column name or list of column names to cluster the Databricks table by.
+        cluster (Union[TColumnNames, Literal["AUTO"]], optional): A column name, list of column names, or "AUTO" to cluster the Databricks table by.
+            Use "AUTO" to let Databricks automatically determine the best clustering.
+        partition (TColumnNames, optional): A column name or list of column names to partition the Databricks table by.
+            Partitioning divides the table into separate files based on the partition column values.
+        table_format (Literal["DELTA", "ICEBERG"], optional): The table format to use. Defaults to "DELTA".
+            Use "ICEBERG" to create Apache Iceberg tables for better schema evolution and time travel capabilities.
         table_comment (str, optional): A description for the Databricks table.
         table_tags (List[Union[str, Dict[str, str]]], optional): A list of tags for the Databricks table.
             Can contain a mix of strings and key-value pairs as dictionaries.
             Example: ["production", {"environment": "prod"}, "employees"]
+        table_properties (Dict[str, Union[str, int, bool, float]], optional): A dictionary of table properties
+            to be added to the Databricks table using TBLPROPERTIES. These are key-value pairs for metadata
+            and Delta Lake optimization settings. Example: {"delta.appendOnly": True, "delta.logRetentionDuration": "30 days"}
         column_hints (TTableSchemaColumns, optional): A dictionary of column hints.
             Each key is a column name, and the value is a dictionary of hints.
             The supported hints are:
@@ -53,21 +65,52 @@ def databricks_adapter(
         >>> data = [{"name": "Marcel", "description": "Raccoon Engineer", "date_hired": 1700784000}]
         >>> databricks_adapter(data, cluster="date_hired", table_comment="Employee Data",
         ...     table_tags=["production", {"environment": "prod"}, "employees"])
+        >>> # Use AUTO clustering
+        >>> databricks_adapter(data, cluster="AUTO", table_comment="Auto-clustered table")
+        >>> # Use partitioning
+        >>> databricks_adapter(data, partition=["year", "month"], cluster="customer_id")
+        >>> # Create Iceberg table
+        >>> databricks_adapter(data, table_format="ICEBERG", cluster="customer_id")
     """
     resource = get_resource_for_adapter(data)
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
     additional_column_hints: TDatabricksTableSchemaColumns = {}
 
+    # Handle table format
+    if table_format not in ["DELTA", "ICEBERG"]:
+        raise ValueError("`table_format` must be either 'DELTA' or 'ICEBERG'.")
+
+    # Store table format at table level (lowercase to match destination format)
+    additional_table_hints["table_format"] = table_format.lower()
+
     if cluster:
-        if isinstance(cluster, str):
-            cluster = [cluster]
-        if not isinstance(cluster, list):
+        if cluster == "AUTO":
+            # Handle AUTO clustering at table level
+            additional_table_hints[CLUSTER_HINT] = "AUTO"
+        else:
+            # Handle specific column clustering
+            if isinstance(cluster, str):
+                cluster = [cluster]
+            if not isinstance(cluster, list):
+                raise ValueError(
+                    "`cluster` must be a list of column names, a single column name as a string, or"
+                    " 'AUTO'."
+                )
+            for column_name in cluster:
+                additional_column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
+
+    if partition:
+        if isinstance(partition, str):
+            partition = [partition]
+        if not isinstance(partition, list):
             raise ValueError(
-                "`cluster` must be a list of column names or a single column name as a string."
+                "`partition` must be a list of column names or a single column name as a string."
             )
-        for column_name in cluster:
-            additional_column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
+        for column_name in partition:
+            if column_name not in additional_column_hints:
+                additional_column_hints[column_name] = {"name": column_name}
+            additional_column_hints[column_name]["partition"] = True
 
     if column_hints:
         for column_name, hints in column_hints.items():
@@ -120,6 +163,39 @@ def databricks_adapter(
                 )
 
         additional_table_hints[TABLE_TAGS_HINT] = table_tags
+
+    if table_properties:
+        if not isinstance(table_properties, dict):
+            raise ValueError("`table_properties` must be a dictionary of key-value pairs.")
+
+        # Reserved keys that should not be used in TBLPROPERTIES
+        reserved_keys = {"external", "location", "owner", "provider"}
+
+        for key, value in table_properties.items():
+            if not isinstance(key, str):
+                raise ValueError("Table property keys must be strings.")
+
+            # Check for reserved keys
+            if key.lower() in reserved_keys:
+                raise ValueError(
+                    f"Table property key '{key}' is reserved and cannot be used. "
+                    f"Reserved keys are: {', '.join(reserved_keys)}"
+                )
+
+            # Check for keys starting with 'option.'
+            if key.startswith("option."):
+                raise ValueError(
+                    f"Table property key '{key}' starts with 'option.' which is reserved."
+                )
+
+            # Validate value types
+            if not isinstance(value, (str, int, bool, float)):
+                raise ValueError(
+                    f"Table property value for key '{key}' must be a string, integer, boolean, or"
+                    f" float. Got {type(value).__name__}."
+                )
+
+        additional_table_hints[TABLE_PROPERTIES_HINT] = table_properties
 
     resource.apply_hints(
         columns=cast(TTableSchemaColumns, additional_column_hints),

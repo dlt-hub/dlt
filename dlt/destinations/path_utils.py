@@ -6,7 +6,7 @@ from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.time import (
-    ensure_pendulum_datetime,
+    ensure_pendulum_datetime_utc,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
 )
@@ -104,7 +104,7 @@ def prepare_datetime_params(
     params: Dict[str, str] = {}
     current_timestamp: pendulum.DateTime = None
     if load_package_timestamp:
-        current_timestamp = ensure_pendulum_datetime(load_package_timestamp)
+        current_timestamp = ensure_pendulum_datetime_utc(load_package_timestamp)
         params["load_package_timestamp"] = str(datetime_to_timestamp(current_timestamp))
         params["load_package_timestamp_ms"] = str(datetime_to_timestamp_ms(current_timestamp))
 

@@ -41,7 +41,7 @@ Run the example:
 python postgres_to_postgres.py --replace
 ```
 
-:::warn
+:::warning
 Attention: There were problems with data type TIME that includes nano seconds. More details in
 [Slack](https://dlthub-community.slack.com/archives/C04DQA7JJN6/p1711579390028279?thread_ts=1711477727.553279&cid=C04DQA7JJN60)
 
@@ -133,7 +133,9 @@ def table_desc(table_name, pk, schema_name, order_date, columns="*"):
 
 if __name__ == "__main__":
     # Input Handling
-    parser = argparse.ArgumentParser(description="Run specific functions in the script.")
+    parser = argparse.ArgumentParser(
+        description="Run specific functions in the script."
+    )
     parser.add_argument("--replace", action="store_true", help="Run initial load")
     parser.add_argument("--merge", action="store_true", help="Run delta load")
     args = parser.parse_args()
@@ -217,7 +219,9 @@ if __name__ == "__main__":
         # 4. Load DuckDB local database into Postgres
         print("##################################### START DUCKDB LOAD ########")
         # connect to local duckdb dump
-        conn = duckdb.connect(f"{load_info.destination_displayable_credentials}".split(":///")[1])
+        conn = duckdb.connect(
+            f"{load_info.destination_displayable_credentials}".split(":///")[1]
+        )
         conn.sql("INSTALL postgres;")
         conn.sql("LOAD postgres;")
         # select generated timestamp schema
@@ -264,7 +268,9 @@ if __name__ == "__main__":
         assert int(rows) == 13 if table["table_name"] == "customers" else 3
 
         # 5. Cleanup and rename Schema
-        print("##################################### RENAME Schema and CLEANUP ########")
+        print(
+            "##################################### RENAME Schema and CLEANUP ########"
+        )
         try:
             con_hd = psycopg2.connect(
                 dbname=target_credentials.database,
@@ -288,7 +294,11 @@ if __name__ == "__main__":
             print(f"Drop existing {target_schema_name}")
             cur.execute(f"DROP SCHEMA IF EXISTS {target_schema_name} CASCADE;")
             # Rename timestamped-target_schema_name to target_schema_name
-            print(f"Going to rename schema {timestamped_schema} to {target_schema_name}")
-            cur.execute(f"ALTER SCHEMA {timestamped_schema} RENAME TO {target_schema_name};")
+            print(
+                f"Going to rename schema {timestamped_schema} to {target_schema_name}"
+            )
+            cur.execute(
+                f"ALTER SCHEMA {timestamped_schema} RENAME TO {target_schema_name};"
+            )
 
         con_hd.close()

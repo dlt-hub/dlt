@@ -10,6 +10,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableSchema
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.wei import EVM_DECIMAL_PRECISION
+from dlt.destinations._adbc_jobs import make_adbc_parquet_file_format_selector
 from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
     PostgresClientConfiguration,
@@ -92,7 +93,7 @@ class PostgresTypeMapper(TypeMapperImpl):
 
         # append precision if specified and valid
         if precision is not None:
-            if 0 <= precision <= 6:
+            if 0 <= precision <= self.capabilities.timestamp_precision:
                 timestamp += f" ({precision})"
             else:
                 raise TerminalValueError(
@@ -128,29 +129,18 @@ class PostgresTypeMapper(TypeMapperImpl):
         return super().to_destination_type(column, table)
 
 
-def postgres_loader_file_format_selector(
-    preferred_loader_file_format: TLoaderFileFormat,
-    supported_loader_file_formats: Sequence[TLoaderFileFormat],
-    /,
-    *,
-    table_schema: TTableSchema,
-) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
+def get_adbc_driver_location() -> str:
+    """Detects driver location if PyPI driver package is installed, otherwise falls back to dbc
+    driver name.
+    """
+    # TODO: move to the (future) ADBC helper module
     try:
-        # supports adbc for direct parquet loading
-        import adbc_driver_postgresql.dbapi
-    except ImportError:
-        supported_loader_file_formats = list(supported_loader_file_formats)
-        supported_loader_file_formats.remove("parquet")
+        from adbc_driver_postgresql import _driver_path
 
-        if table_schema.get("file_format") == "parquet":
-            logger.warning(
-                f"parquet file format was requested for table {table_schema['name']} but ADBC"
-                " driver "
-                "for postgres was not installed. Read more:"
-                " https://dlthub.com/docs/dlt-ecosystem/destinations/postgres#fast-loading-with-arrow-tables-and-parquet"
-            )
-
-    return (preferred_loader_file_format, supported_loader_file_formats)
+        # use driver from installed dependency
+        return _driver_path()  # type: ignore[no-any-return]
+    except Exception:
+        return "postgresql"
 
 
 class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
@@ -161,7 +151,11 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
-        caps.loader_file_format_selector = postgres_loader_file_format_selector
+        caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(
+            get_adbc_driver_location(),
+            "https://dlthub.com/docs/dlt-ecosystem/destinations/postgres#fast-loading-with-arrow-tables-and-parquet",
+            prefer_parquet=False,
+        )
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.type_mapper = PostgresTypeMapper

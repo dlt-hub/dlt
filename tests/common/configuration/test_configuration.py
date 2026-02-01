@@ -48,6 +48,7 @@ from dlt.common.configuration.exceptions import (
     ConfigFieldTypeHintNotSupported,
     InvalidNativeValue,
     LookupTrace,
+    LookupTraces,
     ValueNotSecretException,
     UnmatchedConfigHintResolversException,
     get_run_context_warning,
@@ -77,11 +78,12 @@ from dlt.common.configuration.utils import (
     add_config_to_env,
 )
 from dlt.common.pipeline import TRefreshMode, PipelineContext
-from dlt.cli.config_toml_writer import TYPE_EXAMPLES
+from dlt._workspace.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
-from tests.utils import preserve_environ, TEST_STORAGE_ROOT
+from tests.utils import preserve_environ, get_test_storage_root
 from tests.common.configuration.utils import (
+    InstrumentedConfiguration,
     MockProvider,
     CoercionTestConfiguration,
     COERCIONS,
@@ -94,7 +96,7 @@ from tests.common.configuration.utils import (
     toml_providers,
     mock_provider,
     env_provider,
-    reset_resolved_traces,
+    auto_reset_resolved_traces,
 )
 import dlt
 
@@ -157,28 +159,6 @@ class MockProdConfiguration(RuntimeConfiguration):
 @configspec
 class FieldWithNoDefaultConfiguration(RuntimeConfiguration):
     no_default: str = None
-
-
-@configspec
-class InstrumentedConfiguration(BaseConfiguration):
-    head: str = None
-    tube: List[str] = None
-    heels: str = None
-
-    def to_native_representation(self) -> Any:
-        return self.head + ">" + ">".join(self.tube) + ">" + self.heels
-
-    def parse_native_representation(self, native_value: Any) -> None:
-        if not isinstance(native_value, str):
-            raise ValueError(native_value)
-        parts = native_value.split(">")
-        self.head = parts[0]
-        self.heels = parts[-1]
-        self.tube = parts[1:-1]
-
-    def on_resolved(self) -> None:
-        if self.head > self.heels:
-            raise RuntimeError("Head over heels")
 
 
 @configspec
@@ -281,6 +261,8 @@ def test_initial_config_state() -> None:
     assert BaseConfiguration.__is_resolved__ is False
     assert BaseConfiguration.__section__ is None
     c = BaseConfiguration()
+    assert c.__exception__ is None
+    assert c.__resolved_fields_set__ is None
     assert c.__is_resolved__ is False
     assert c.is_resolved() is False
     # base configuration has no resolvable fields so is never partial
@@ -293,16 +275,20 @@ def test_set_default_config_value(environment: Any) -> None:
         InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he")
     )
     assert c.to_native_representation() == "h>a>b>he"
+    # default fields are not resolved
+    assert c.__resolved_fields_set__ == []
     # set from native form
     c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value="h>a>b>he")
     assert c.head == "h"
     assert c.tube == ["a", "b"]
     assert c.heels == "he"
+    assert c.__resolved_fields_set__ == ["head", "tube", "heels"]
     # set from dictionary
     c = resolve.resolve_configuration(
         InstrumentedConfiguration(),
         explicit_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"},
     )
+    assert c.__resolved_fields_set__ == ["head", "tube", "heels"]
     assert c.to_native_representation() == "h>tu>be>xhe"
 
 
@@ -358,6 +344,8 @@ def test_explicit_embedded_config(environment: Any) -> None:
     assert c.instrumented.head == "h"
     # configuration will add missing field
     assert c.instrumented.heels == "xh"
+    assert c.__resolved_fields_set__ == ["instrumented"]
+    assert c.instrumented.__resolved_fields_set__ == ["head", "tube", "heels"]
 
     # the same but with resolved
     instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
@@ -370,6 +358,9 @@ def test_explicit_embedded_config(environment: Any) -> None:
     assert c.instrumented is instr_explicit
     # but configuration is not injected
     assert c.instrumented.head == "h"
+    assert c.__resolved_fields_set__ == ["instrumented"]
+    # not resolved
+    assert c.instrumented.__resolved_fields_set__ is None
 
 
 def test_explicit_and_default_embedded_config() -> None:
@@ -470,6 +461,9 @@ def test_not_resolved_ignores_value_change(environment: Any) -> None:
         NotResolvedConfiguration(), explicit_value={"pipeline_name": "exp"}
     )
     assert c.pipeline_name == "exp"
+    # not resolved not present in resolved fields
+    assert c.__resolved_fields_set__ == []
+
     with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(
             NotResolvedConfiguration(), explicit_value={"pipeline_name": None}
@@ -537,8 +531,11 @@ def test_skip_lookup_native_config_value_if_no_config_section(environment: Any) 
                 EmbeddedConfiguration(),
                 explicit_value={"default": "set", "sectioned": {"password": "pwd"}},
             )
-        assert py_ex.value.spec_name == "InstrumentedConfiguration"
-        assert py_ex.value.fields == ["head", "tube", "heels"]
+        assert py_ex.value.spec_name == "EmbeddedConfiguration"
+        assert py_ex.value.fields == ["instrumented"]
+        lookups = py_ex.value.traces["instrumented"][0]
+        assert isinstance(lookups, LookupTraces)
+        assert set(lookups.traces.keys()) == {"head", "tube", "heels"}
 
     # also non embedded InstrumentedConfiguration will not be resolved - there's no way to infer initial key
 
@@ -720,12 +717,10 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
             assert not c.instrumented.is_partial()
 
 
-def test_run_configuration_gen_name(environment: Any) -> None:
-    C = resolve.resolve_configuration(RuntimeConfiguration())
-    assert C.pipeline_name.startswith("dlt_")
-
-
-def test_runtime_configuration_telemetry_disabled_on_non_threading_platform(monkeypatch) -> None:
+def test_runtime_configuration_telemetry_disabled_on_non_threading_platform(
+    monkeypatch, toml_providers: ConfigProvidersContainer
+) -> None:
+    # inject toml_providers - the default context is disabling telemetry
     c = resolve.resolve_configuration(RuntimeConfiguration())
     assert c.dlthub_telemetry
 
@@ -758,6 +753,7 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         "request_max_retry_delay": 300,
         "config_files_storage_path": "storage",
         "dlthub_dsn": None,
+        "run_id": None,
         "http_show_error_body": False,
         "http_max_error_body_length": 8192,
         "secret_value": None,
@@ -850,13 +846,13 @@ def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvid
         resolve.resolve_configuration(WrongConfiguration())
     assert cf_missing_exc.value.spec_name == "WrongConfiguration"
     assert "NoneConfigVar" in cf_missing_exc.value.traces
+    assert isinstance(cf_missing_exc.value.config, WrongConfiguration)
+    assert cf_missing_exc.value.resolved_fields_set == []
     # has only one trace
     trace = cf_missing_exc.value.traces["NoneConfigVar"]
     assert len(trace) == 1
     assert trace[0] == LookupTrace("Environment Variables", [], "NONECONFIGVAR", None)
-    # toml providers were empty and are not returned in trace
-    # assert trace[1] == LookupTrace("secrets.toml", [], "NoneConfigVar", None)
-    # assert trace[2] == LookupTrace("config.toml", [], "NoneConfigVar", None)
+
     # check the exception trace
     exception_traces = get_exception_trace_chain(cf_missing_exc.value)
     assert len(exception_traces) == 1
@@ -866,19 +862,31 @@ def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvid
     assert "NoneConfigVar" in exception_trace["exception_attrs"]["traces"]
     assert exception_trace["exception_attrs"]["spec_name"] == "WrongConfiguration"
     assert exception_trace["exception_attrs"]["fields"] == ["NoneConfigVar"]
+    assert "config" not in exception_trace["exception_attrs"]
 
 
-def test_raises_on_many_unresolved_fields(environment: Any, env_provider: ConfigProvider) -> None:
+@pytest.mark.parametrize(
+    "set_fields", ({}, {"str_val": "val_str", "int_val": 2137}), ids=("all_unset", "some_set")
+)
+def test_raises_on_many_unresolved_fields(
+    environment: Any, env_provider: ConfigProvider, set_fields: Dict[str, Any]
+) -> None:
+    # set fields
+    for k, v in set_fields.items():
+        environment[k.upper()] = str(v)
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
+    assert cf_missing_exc.value.resolved_fields_set == list(set_fields.keys())
     # check the exception trace
     exception_trace = get_exception_trace(cf_missing_exc.value)
 
     assert cf_missing_exc.value.spec_name == "CoercionTestConfiguration"
     # get all fields that must be set
     val_fields = [
-        f for f in CoercionTestConfiguration().get_resolvable_fields() if f.lower().endswith("_val")
+        f
+        for f in CoercionTestConfiguration().get_resolvable_fields()
+        if f.lower().endswith("_val") and f not in set_fields
     ]
     traces = cf_missing_exc.value.traces
     assert len(traces) == len(val_fields)
@@ -893,8 +901,6 @@ def test_raises_on_many_unresolved_fields(environment: Any, env_provider: Config
         # field must be in exception trace
         assert tr_field in exception_trace["exception_attrs"]["fields"]
         assert tr_field in exception_trace["exception_attrs"]["traces"]
-        # assert traces[tr_field][1] == LookupTrace("secrets.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
-        # assert traces[tr_field][2] == LookupTrace("config.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
 
 
 def test_removes_trace_value_from_exception_trace_attrs(
@@ -902,11 +908,84 @@ def test_removes_trace_value_from_exception_trace_attrs(
 ) -> None:
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
-    cf_missing_exc.value.traces["str_val"][0] = cf_missing_exc.value.traces["str_val"][0]._replace(value="SECRET")  # type: ignore[index]
-    assert cf_missing_exc.value.traces["str_val"][0].value == "SECRET"
+    cf_missing_exc.value.traces["str_val"][0] = cf_missing_exc.value.traces["str_val"][0]._replace(value="SECRET")  # type: ignore[call-arg]
+    assert cf_missing_exc.value.traces["str_val"][0].value == "SECRET"  # type: ignore[union-attr]
     attrs_ = cf_missing_exc.value.attrs()
     # values got cleared up
     assert attrs_["traces"]["str_val"][0].value is None
+
+
+def test_raises_on_unresolved_embedded_configuration(
+    environment: Any, env_provider: ConfigProvider
+) -> None:
+    with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
+        resolve.resolve_configuration(EmbeddedSecretConfiguration())
+    assert cf_missing_exc.value.resolved_fields_set == []
+    assert cf_missing_exc.value.spec_name == "EmbeddedSecretConfiguration"
+    traces = cf_missing_exc.value.traces
+    assert "secret" in traces
+    assert len(traces) == 1
+    # check if instrumented partially resolved
+    assert cf_missing_exc.value.was_partially_resolved("secret") is False
+    # trace contains a lookup set for the embedded config
+    nested_traces = traces["secret"]
+    assert len(nested_traces) == 1
+    assert isinstance(nested_traces[0], LookupTraces)
+    assert nested_traces[0].spec_name == "SecretConfiguration"
+    assert nested_traces[0].union_pos == 0
+    assert nested_traces[0].union_count == 0
+    assert nested_traces[0].resolved_fields_set == []
+    # contain lookup traces for regular fields
+    assert "secret_value" in nested_traces[0].traces
+    trace = nested_traces[0].traces["secret_value"]
+    assert len(trace) == 1
+    assert trace[0] == LookupTrace(
+        "Environment Variables", ["secret"], "SECRET__SECRET_VALUE", None
+    )
+
+    # check the exception trace
+    exception_traces = get_exception_trace_chain(cf_missing_exc.value)
+    flat_traces = exception_traces[0]["exception_attrs"]["traces"]
+    assert set(flat_traces.keys()) == {"secret"}
+
+    # drop secrets trace from exceptions
+    cf_missing_exc.value.drop_traces_for_field("secret")
+    exception_traces = get_exception_trace_chain(cf_missing_exc.value)
+    assert "secret" not in exception_traces[0]["exception_attrs"]["traces"]
+
+
+def test_raises_on_many_unresolved_embedded_configurations(
+    environment: Any, env_provider: ConfigProvider
+) -> None:
+    # test a case when second embedded config in order of resolution is not present
+    # it should still be resolved.
+    environment["SECTIONED__PASSWORD"] = "paw"
+    # partially resolved
+    environment["INSTRUMENTED__HEAD"] = "h"
+
+    with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
+        resolve.resolve_configuration(EmbeddedConfiguration())
+
+    assert cf_missing_exc.value.resolved_fields_set == ["sectioned"]
+    assert cf_missing_exc.value.config.sectioned is not None
+    # partially resolved not present
+    assert cf_missing_exc.value.config.instrumented is None
+    # but marked as such in exception
+    assert cf_missing_exc.value.was_partially_resolved("instrumented") is True
+    # must be present in trace
+    with pytest.raises(KeyError):
+        cf_missing_exc.value.was_partially_resolved("sectioned")
+    # simple field never partially resolved
+    assert cf_missing_exc.value.was_partially_resolved("default") is False
+    # nested trace for instrumented contains only missing fields
+    traces = cf_missing_exc.value.traces
+    instr_traces = traces["instrumented"][0].traces  # type: ignore[union-attr]
+    assert set(instr_traces.keys()) == {"tube", "heels"}
+
+    exception_traces = get_exception_trace_chain(cf_missing_exc.value)
+    flat_traces = exception_traces[0]["exception_attrs"]["traces"]
+    assert set(flat_traces.keys()) == {"instrumented", "default"}
+    assert len(flat_traces["instrumented"]) == 2
 
 
 def test_accepts_optional_missing_fields(environment: Any) -> None:
@@ -1114,6 +1193,7 @@ def test_coercion_rules() -> None:
 
 
 def test_is_valid_hint() -> None:
+    assert is_valid_hint(bool) is True
     assert is_valid_hint(Any) is True  # type: ignore[arg-type]
     assert is_valid_hint(Optional[Any]) is True  # type: ignore[arg-type]
     assert is_valid_hint(RuntimeConfiguration) is True
@@ -1345,36 +1425,39 @@ def test_resolved_trace(environment: Any) -> None:
 @pytest.mark.parametrize("enable_logging", (True, False))
 def test_unresolved_trace(environment: Any, enable_logging: bool) -> None:
     tracer = get_resolved_traces()
-    tracer.logging_enabled = enable_logging
+    try:
+        tracer.logging_enabled = enable_logging
 
-    @configspec
-    class OptEmbeddedConfiguration(BaseConfiguration):
-        default: Optional[str] = None
-        instrumented: InstrumentedConfiguration = None
-        sectioned: SectionedConfiguration = None
+        @configspec
+        class OptEmbeddedConfiguration(BaseConfiguration):
+            default: Optional[str] = None
+            instrumented: InstrumentedConfiguration = None
+            sectioned: SectionedConfiguration = None
 
-    with custom_environ(
-        {
-            "INSTRUMENTED__HEAD": "h",
-            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
-            "INSTRUMENTED__HEELS": "xhe",
-        }
-    ):
-        resolve.resolve_configuration(
-            OptEmbeddedConfiguration(default="_DEFF"),
-            sections=("wrapper", "spec"),
-            explicit_value={"default": None, "sectioned": {"password": "$pwd"}},
-        )
+        with custom_environ(
+            {
+                "INSTRUMENTED__HEAD": "h",
+                "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+                "INSTRUMENTED__HEELS": "xhe",
+            }
+        ):
+            resolve.resolve_configuration(
+                OptEmbeddedConfiguration(default="_DEFF"),
+                sections=("wrapper", "spec"),
+                explicit_value={"default": None, "sectioned": {"password": "$pwd"}},
+            )
 
-    if enable_logging:
-        # we try in ("wrapper", "spec") so there are 3 read attempts per resolved value
-        assert len(tracer.all_traces) == 3 * len(tracer.resolved_traces)
-        # there are 3 resolved values, explicit values are not included
-        assert len(tracer.resolved_traces) == 3
-        # first resolved value sections are full depth
-        assert tracer.all_traces[0].sections == ["wrapper", "spec", "instrumented"]
-    else:
-        assert len(tracer.all_traces) == len(tracer.resolved_traces) == 0
+        if enable_logging:
+            # we try in ("wrapper", "spec") so there are 3 read attempts per resolved value
+            assert len(tracer.all_traces) == 3 * len(tracer.resolved_traces)
+            # there are 3 resolved values, explicit values are not included
+            assert len(tracer.resolved_traces) == 3
+            # first resolved value sections are full depth
+            assert tracer.all_traces[0].sections == ["wrapper", "spec", "instrumented"]
+        else:
+            assert len(tracer.all_traces) == len(tracer.resolved_traces) == 0
+    finally:
+        tracer.logging_enabled = True
 
 
 def test_extract_inner_hint() -> None:
@@ -1589,22 +1672,6 @@ def test_configuration_with_configuration_as_default() -> None:
     assert c_resolved.conn_str.is_resolved()
 
 
-def test_configuration_with_section_propagation_to_embedded(environment: Dict[str, str]) -> None:
-    @configspec
-    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
-        default: str = "STR"
-        instrumented: InstrumentedConfiguration = None
-
-        __section__ = "top_level"
-
-    # NOTE: top level will be stripped in less specific searches
-    environment["TOP_LEVEL__INSTRUMENTED__HEAD"] = "h"
-    environment["TOP_LEVEL__INSTRUMENTED__TUBE"] = '["t"]'
-    environment["TOP_LEVEL__INSTRUMENTED__HEELS"] = "he"
-    c_resolved = resolve.resolve_configuration(EmbeddedConfigurationWithDefaults())
-    assert c_resolved.is_resolved()
-
-
 def test_configuration_with_generic(environment: Dict[str, str]) -> None:
     TColumn = TypeVar("TColumn", bound=str)
 
@@ -1754,7 +1821,7 @@ def test_get_run_context_warning_cli() -> None:
 
     # Case 3: CLI command with active pipeline - different location than pipeline last ran
     # Expected: Shows both CLI warning AND pipeline location mismatch warning (2 WARNINGS total)
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         assert initial_settings_dir == p.last_run_context.get("settings_dir")
         assert initial_settings_dir != os.path.abspath(run_context.active().settings_dir)
         result = get_run_context_warning("/dlt")
@@ -1806,7 +1873,7 @@ def test_get_run_context_warning_script() -> None:
 
     # Case 4: Python script with active pipeline - different location than pipeline last ran
     # Expected: Shows pipeline-specific location mismatch warning (1 WARNING)
-    with set_working_dir(TEST_STORAGE_ROOT):
+    with set_working_dir(get_test_storage_root()):
         assert initial_settings_dir == p.last_run_context.get("settings_dir")
         assert initial_settings_dir != os.path.abspath(run_context.active().settings_dir)
         result = get_run_context_warning(os.path.join(initial_run_dir, "pipeline_script.py"))

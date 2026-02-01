@@ -13,7 +13,7 @@ from dlt.destinations.impl.lancedb.configuration import (
 )
 
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 
 
 # Mark all tests as essential, do not remove.
@@ -33,7 +33,7 @@ def test_lancedb_configuration() -> None:
 
 
 def test_lancedb_follows_local_dir() -> None:
-    local_dir = os.path.join(TEST_STORAGE_ROOT, uniq_id())
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     # mock tmp dir
     os.environ[DLT_LOCAL_DIR] = local_dir
@@ -41,7 +41,7 @@ def test_lancedb_follows_local_dir() -> None:
     c = resolve_configuration(
         LanceDBClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    db_path = os.path.join(local_dir, ".lancedb")
+    db_path = os.path.join(local_dir, "lancedb.lancedb")
     # db path is relative
     assert c.lance_uri.endswith(db_path)
     assert c.lance_uri == os.path.abspath(db_path)

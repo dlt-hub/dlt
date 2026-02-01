@@ -3,11 +3,12 @@ import base64
 import hashlib
 import warnings
 import yaml
+from argparse import Namespace
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_types import TDataType
@@ -20,7 +21,13 @@ from dlt.common.schema import detections
 from dlt.common.schema.typing import (
     C_DLT_ID,
     C_DLT_LOAD_ID,
+    DLT_NAME_PREFIX,
     C_DLT_LOADS_TABLE_LOAD_ID,
+    C_CHILD_PARENT_REF_LABEL,
+    C_DESCENDANT_ROOT_REF_LABEL,
+    C_ROOT_LOAD_REF_LABEL,
+    C_VERSION_SCHEMA_NAME_LABEL,
+    C_VERSION_SCHEMA_VERSION_LABEL,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
@@ -148,6 +155,35 @@ def has_default_column_prop_value(prop: str, value: Any) -> bool:
         return value in ColumnPropInfos[prop].defaults
     # for any unknown hint ie. "x-" the defaults are
     return value in (None, False)
+
+
+def is_compound_prop(prop: str) -> bool:
+    """Checks if a column property is compound."""
+    if prop in ColumnPropInfos:
+        return ColumnPropInfos[prop].compound is True
+    # for any unknown property
+    return False
+
+
+def remove_compound_props(
+    columns: TTableSchemaColumns, compound_props: set[str]
+) -> TTableSchemaColumns:
+    """Removes compound properties from all columns in place.
+
+    Args:
+        columns: Table columns to modify.
+        compound_props: Set of property names to remove.
+
+    Returns:
+        The modified columns dict (same object that was passed in).
+
+    Note: This is a generic property remover, but the name reflects its intended use.
+    It removes properties even if their value is False.
+    """
+    for column in columns.values():
+        for prop in compound_props:
+            column.pop(prop, None)  # type: ignore[misc]
+    return columns
 
 
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
@@ -418,9 +454,18 @@ def diff_table_references(
 def merge_column(
     col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = True
 ) -> TColumnSchema:
-    """Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
+    """Merges properties from `col_b` into `col_a`, modifying `col_a` in place.
 
-    Modifies col_a in place and returns it
+    All properties from `col_b` are copied into `col_a`, potentially overwriting existing values.
+
+    Args:
+        col_a: Target column schema that will be modified
+        col_b: Source column schema with properties to merge in
+        merge_defaults: If False, removes properties with default values from `col_b` before merging.
+            This prevents unnecessary default values from being explicitly set in `col_a`.
+
+    Returns:
+        The modified col_a (same object that was passed in)
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
     for n, v in col_b_clean.items():
@@ -429,23 +474,54 @@ def merge_column(
     return col_a
 
 
+def _collect_and_remove_compound_props(
+    source_columns: TTableSchemaColumns,
+    target_columns: TTableSchemaColumns,
+) -> None:
+    """Finds all non-default compound properties in source columns and removes
+    those properties from all target columns.
+
+    Args:
+        source_columns: Columns to collect compound properties from
+        target_columns: Columns to remove compound properties from
+    """
+    compound_props: set[str] = set()
+    for column in source_columns.values():
+        compound_props.update(
+            prop
+            for prop in column
+            if is_compound_prop(prop) and not has_default_column_prop_value(prop, column[prop])  # type: ignore[literal-required]
+        )
+    if compound_props:
+        remove_compound_props(columns=target_columns, compound_props=compound_props)
+
+
 def merge_columns(
     columns_a: TTableSchemaColumns,
     columns_b: TTableSchemaColumns,
-    merge_columns: bool = False,
-    columns_partial: bool = True,
+    merge_compound_props: bool = True,
 ) -> TTableSchemaColumns:
-    """Merges `columns_a` with `columns_b`. `columns_a` is modified in place.
+    """Merges columns from `columns_b` into `columns_a`, modifying `columns_a` in place.
 
-    * new columns are added
-    * if `merge_columns` is False, updated columns are replaced from `columns_b`
-    * if `merge_columns` is True, updated columns are merged with `merge_column`
-    * if `columns_partial` is True, both columns sets are considered incomplete. In that case hints like `primary_key` or `merge_key` are merged
-    * if `columns_partial` is False, hints like `primary_key` and `merge_key` are dropped from `columns_a` and replaced from `columns_b`
-    * incomplete columns in `columns_a` that got completed in `columns_b` are removed to preserve order
+    For each column in `columns_b`:
+    - If column doesn't exist in `columns_a`, it's added
+    - If column exists in `columns_a`, properties from `columns_b` are merged into it
+
+    Args:
+        columns_a: Target columns dict that will be modified
+        columns_b: Source columns dict with columns/properties to merge in
+        merge_compound_props: If set to True, compound properties from `columns_b` are merged to `columns_a`,
+            If False, compound properties like primary_key and merge_key are replaced entirely
+            rather than merged, so `columns_b`'s non-default values fully override `columns_a`'s.
+
+    Returns:
+        The modified `columns_a` (same object that was passed in)
+
+    NOTE: Incomplete columns in `columns_a` that become complete in `columns_b` are removed and
+    re-added to preserve order.
     """
-    if columns_partial is False:
-        raise NotImplementedError("Using `merge_columns()` requires `columns_partial=False`")
+    if not merge_compound_props:
+        _collect_and_remove_compound_props(columns_b, columns_a)
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
@@ -453,7 +529,7 @@ def merge_columns(
         if is_complete_column(column_b):
             if column_a and not is_complete_column(column_a):
                 columns_a.pop(col_name)
-        if column_a and merge_columns:
+        if column_a:
             column_b = merge_column(column_a, column_b)
         # set new or updated column
         columns_a[col_name] = column_b
@@ -461,27 +537,56 @@ def merge_columns(
 
 
 def diff_table(
-    schema_name: str, tab_a: TTableSchema, tab_b: TPartialTableSchema
+    schema_name: str,
+    tab_a: TTableSchema,
+    tab_b: TPartialTableSchema,
+    additive_compound_props: bool = True,
 ) -> TPartialTableSchema:
-    """Creates a partial table that contains properties found in `tab_b` that are not present or different in `tab_a`.
-    The name is always present in returned partial.
-    It returns new columns (not present in tab_a) and merges columns from tab_b into tab_a (overriding non-default hint values).
-    If any columns are returned they contain full data (not diffs of columns)
+    """Computes the difference between `tab_a` and `tab_b`, returning what's new or changed in `tab_b`.
 
-    Raises SchemaException if tables cannot be merged
-    * when columns with the same name have different data types
-    * when table links to different parent tables
+    The returned partial table contains:
+    - New columns from `tab_b` that don't exist in `tab_a`
+    - Modified columns that exist in both but have different properties in `tab_b`
+    - Changed table properties (write_disposition, resource, etc.)
+
+    Args:
+        schema_name: Name of the schema for error messages
+        tab_a: Original table schema to compare against
+        tab_b: New/updated table schema with potential changes
+        additive_compound_props: Controls how the diff handles compound properties:
+            - True: Compound properties from `tab_b` are additions
+            to `tab_a`. Only new compound property assignments are included in the diff.
+            - False: Compound properties in `tab_b` represent
+            the complete/authoritative set. All compound property assignments from `tab_b`
+            are included in the diff, even if they already exist in `tab_a` with the same
+            values.
+
+    Returns:
+        Partial table schema containing only what's new or changed in `tab_b`.
+        Columns in the result are complete column schemas, not property-level diffs.
+
+    Raises:
+        SchemaException: When tables are incompatible (different names, different parents,
+            or columns with incompatible data types).
+
+    NOTE: This function does not validate data type compatibility. It computes differences permissively.
+    Validation happens later during normalization via `ensure_compatible_tables` with ensure_columns=True.
     """
     # allow for columns to differ
     ensure_compatible_tables(schema_name, tab_a, tab_b, ensure_columns=False)
 
-    # get new columns, changes in the column data type or other properties are not allowed
-    tab_a_columns = tab_a["columns"]
+    tab_a_copy = deepcopy(tab_a)
+
+    if not additive_compound_props:
+        _collect_and_remove_compound_props(tab_b["columns"], tab_a_copy["columns"])
+
+    # get new columns that are new or have changed properties
+    tab_a_columns = tab_a_copy["columns"]
     new_columns: List[TColumnSchema] = []
     for col_b_name, col_b in tab_b["columns"].items():
         if col_b_name in tab_a_columns:
             col_a = tab_a_columns[col_b_name]
-            # all other properties can change
+            # merge col_b properties into a copy of col_a
             merged_column = merge_column(copy(col_a), col_b)
             if merged_column != col_a:
                 new_columns.append(merged_column)
@@ -489,28 +594,30 @@ def diff_table(
             new_columns.append(col_b)
 
     # return partial table containing only name and properties that differ (column, filters etc.)
-    table_name = tab_a["name"]
+    table_name = tab_a_copy["name"]
 
     partial_table: TPartialTableSchema = {
         "name": table_name,
         "columns": {} if new_columns is None else {c["name"]: c for c in new_columns},
     }
 
-    new_references = diff_table_references(tab_a.get("references", []), tab_b.get("references", []))
+    new_references = diff_table_references(
+        tab_a_copy.get("references", []), tab_b.get("references", [])
+    )
     if new_references:
         partial_table["references"] = new_references
 
     for k, v in tab_b.items():
         if k in ["columns", None]:
             continue
-        existing_v = tab_a.get(k)
+        existing_v = tab_a_copy.get(k)
         if existing_v != v:
             partial_table[k] = v  # type: ignore
 
-    # this should not really happen
-    if is_nested_table(tab_a) and (resource := tab_b.get("resource")):
+    # nested tables with the resource property set - this should not really happen
+    if is_nested_table(tab_a_copy) and (resource := tab_b.get("resource")):
         raise TablePropertiesConflictException(
-            schema_name, table_name, "resource", resource, tab_a.get("parent")
+            schema_name, table_name, "resource", resource, tab_a_copy.get("parent")
         )
 
     return partial_table
@@ -573,22 +680,39 @@ def ensure_compatible_tables(
 
 
 def merge_table(
-    schema_name: str, table: TTableSchema, partial_table: TPartialTableSchema
+    schema_name: str,
+    table: TTableSchema,
+    partial_table: TPartialTableSchema,
+    merge_compound_props: bool = True,
 ) -> TPartialTableSchema:
-    """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
-    `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`
+    """Merges `partial_table` into `table` in place. Returns the diff partial table.
+
+    `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`.
+
+    Args:
+        merge_compound_props: If False, compound properties (see `is_compound_prop()`)
+            in partial_table replace rather than merge with those in table.
     """
-    return merge_diff(table, diff_table(schema_name, table, partial_table))
+    return merge_diff(table, diff_table(schema_name, table, partial_table), merge_compound_props)
 
 
-def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartialTableSchema:
-    """Merges a table diff `table_diff` into `table`. `table` is merged in place. Returns the diff.
+def merge_diff(
+    table: TTableSchema, table_diff: TPartialTableSchema, merge_compound_props: bool = True
+) -> TPartialTableSchema:
+    """Merges a table diff `table_diff` into `table` in place. Returns the diff.
+
     * new columns are added, updated columns are replaced from diff
     * incomplete columns in `table` that got completed in `partial_table` are removed to preserve order
     * table hints are added or replaced from diff
     * nothing gets deleted
+
+    Args:
+        merge_compound_props: If False, compound properties (see `is_compound_prop()`)
+            in partial_table replace rather than merge with those in table.
     """
 
+    # TODO: add prop merging strategy to ColumnPropInfo: incremental is a single prop and replaces old one
+    #   so this exception is no longer needed
     incremental_a_col = get_first_column_name_with_prop(
         table, "incremental", include_incomplete=True
     )
@@ -600,7 +724,7 @@ def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartial
             table["columns"][incremental_a_col].pop("incremental")
 
     # add new columns when all checks passed
-    updated_columns = merge_columns(table["columns"], table_diff["columns"])
+    updated_columns = merge_columns(table["columns"], table_diff["columns"], merge_compound_props)
     table.update(table_diff)
     table["columns"] = updated_columns
 
@@ -688,6 +812,23 @@ def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
                 tables[table_name]["columns"][col_name].pop(hint, None)  # type: ignore[misc]
 
     return tables
+
+
+def has_seen_null_first_hint(column_schema: TColumnSchema) -> bool:
+    """Checks if `column_schema` has seen seen-null-first hint set to True in the x-normalizer hints."""
+    return bool(column_schema.get("x-normalizer", {}).get("seen-null-first"))
+
+
+def remove_seen_null_first_hint(column_schema: TColumnSchema) -> TColumnSchema:
+    """Removes seen-null-first hint from the x-normalizer hints in `column_schema` in place,
+    if the x-normalizer section becomes empty after removing the hint, it is also removed, returns the modified input
+    """
+    x_normalizer = column_schema.setdefault("x-normalizer", {})
+    if x_normalizer.get("seen-null-first"):
+        x_normalizer.pop("seen-null-first", None)
+    if not x_normalizer:
+        column_schema.pop("x-normalizer", None)
+    return column_schema
 
 
 def get_processing_hints(
@@ -781,7 +922,7 @@ def get_active_record_timestamp(table: TTableSchema) -> Optional[pendulum.DateTi
     # method assumes a column with "x-active-record-timestamp" property exists
     cname = get_first_column_name_with_prop(table, "x-active-record-timestamp")
     hint_val = table["columns"][cname]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
-    return None if hint_val is None else ensure_pendulum_datetime(hint_val)
+    return None if hint_val is None else ensure_pendulum_datetime_utc(hint_val)
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
@@ -890,6 +1031,93 @@ def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], 
     return data_tables, dlt_tables
 
 
+def get_dlt_prefix_by_naming_convetion(naming: NamingConvention) -> str:
+    """The dlt prefix, used for tables and columns,normalized according to the naming convention"""
+    return naming.normalize_table_identifier(DLT_NAME_PREFIX)
+
+
+def is_dlt_table_or_column(name: str, normalized_dlt_prefix: str) -> bool:
+    """
+    Check if a table or column name is a dlt internal name by checking if it starts with dlt prefix.
+
+    Args:
+        name: The table or column name to check
+        normalized_dlt_prefix: The dlt prefix to check against, normalized by the naming convention
+    """
+    return name.startswith(normalized_dlt_prefix)
+
+
+def remove_dlt_columns_from_table(
+    table_schema: TTableSchema,
+    normalized_dlt_prefix: str,
+    exclude_dlt_columns: bool = True,
+) -> TTableSchema:
+    """
+    Remove dlt columns from a single table schema.
+
+    Args:
+        table_schema: The table schema to filter
+        normalized_dlt_prefix: The dlt prefix to filter by, normalized by the naming convention
+        exclude_dlt_columns: If True, remove columns whose name starts with the given prefix
+
+    Returns:
+        A new table schema with dlt columns optionally filtered out
+    """
+    # Create a copy of the table schema, preserving all fields except columns
+    new_table_schema = cast(TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"})
+
+    if "columns" in table_schema:
+        if exclude_dlt_columns:
+            new_table_schema["columns"] = {
+                col: col_def
+                for col, col_def in table_schema["columns"].items()
+                if not is_dlt_table_or_column(col, normalized_dlt_prefix)
+            }
+        else:
+            new_table_schema["columns"] = table_schema["columns"]
+
+    return new_table_schema
+
+
+def exclude_dlt_entities(
+    table_schemas: Iterable[TTableSchema],
+    normalized_dlt_prefix: str,
+    exclude_dlt_tables: bool = True,
+    exclude_dlt_columns: bool = True,
+) -> List[TTableSchema]:
+    """
+    Filter out dlt tables and/or dlt columns from a collection of table schemas.
+
+    Args:
+        table_schemas: An iterable of table schemas to filter
+        normalized_dlt_prefix: The normalized name of the prefix used to denote internal dlt
+            columns and tables, according to the used naming convention
+        exclude_dlt_tables: If True, remove tables whose name starts with the given prefix
+        exclude_dlt_columns: If True, remove columns whose name starts with the given prefix
+    Returns:
+        List of filtered table schemas.
+
+    Note: dlt supports changing the default prefix, see schema._dlt_tables_prefix attribute to get
+        the source of truth for your schema
+    """
+    filtered_tables: List[TTableSchema] = []
+
+    for table_schema in table_schemas:
+        table_name = table_schema["name"]
+
+        # Skip dlt tables if requested
+        if exclude_dlt_tables and is_dlt_table_or_column(table_name, normalized_dlt_prefix):
+            continue
+
+        # Remove dlt columns if requested
+        filtered_table = remove_dlt_columns_from_table(
+            table_schema, normalized_dlt_prefix, exclude_dlt_columns
+        )
+        filtered_tables.append(filtered_table)
+
+    return filtered_tables
+
+
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]
@@ -898,19 +1126,44 @@ def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     return table
 
 
-def get_nested_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
+def get_nested_tables(
+    tables: TSchemaTables,
+    table_name: str,
+    max_nesting: Optional[int] = None,
+    include_self: Optional[bool] = True,
+) -> List[TTableSchema]:
     """Get nested tables for table name and return a list of tables ordered by ancestry so the nested tables are always after their parents
 
     Note that this function follows only NESTED TABLE reference typically expressed on _dlt_parent_id (PARENT_KEY) to _dlt_id (ROW_KEY).
+
+    Args:
+        tables (TSchemaTables): A mapping of table names to their table schema definitions. This is used to look up the root table
+            and to recursively find its nested child tables by following their "parent" references.
+        table_name (str): The name of the root table from which to collect nested tables.
+        max_nesting (Optional[int]): If specified, limits the depth of nesting. 0 = only the root table, 1 = root + direct children, etc.
+        include_self (Optional[bool]): If False, the root table itself is excluded from the returned list.
+
+    Returns:
+        List[TTableSchema]: A list of nested tables.
     """
+    if table_name not in tables:
+        return []
+
     chain: List[TTableSchema] = []
 
-    def _child(t: TTableSchema) -> None:
+    def _child(t: TTableSchema, current_level: int = 0) -> None:
         name = t["name"]
-        chain.append(t)
+
+        if include_self or current_level > 0:
+            chain.append(t)
+
+        # Stop recursion if we've reached max nesting level
+        if max_nesting is not None and current_level >= max_nesting:
+            return
+
         for candidate in tables.values():
             if is_nested_table(candidate) and candidate.get("parent") == name:
-                _child(candidate)
+                _child(candidate, current_level + 1)
 
     _child(tables[table_name])
     return chain
@@ -953,10 +1206,33 @@ def create_root_child_reference(tables: TSchemaTables, table_name: str) -> TTabl
     root_row_key: str = get_first_column_name_with_prop(root_table, "row_key")
 
     return TTableReference(
+        label=C_DESCENDANT_ROOT_REF_LABEL,
+        cardinality="many_to_one",
+        table=table_name,
         columns=[child_root_key],
         referenced_table=root_table["name"],
         referenced_columns=[root_row_key],
     )
+
+
+def get_all_root_child_references_from_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    root_table = tables.get(table_name)
+    if is_nested_table(root_table) is True:
+        raise ValueError(f"Table `{table_name}` is not a root table.")
+
+    children_refs = []
+    # skip the first table in chain, which is the root; i.e., the current one
+    for child_table in get_nested_tables(tables, table_name)[1:]:
+        # try/except because a root table may or may not have child with `root_key` enabled
+        try:
+            child_ref = create_root_child_reference(tables, child_table["name"])
+            children_refs.append(child_ref)
+        except ValueError:
+            pass
+
+    return children_refs
 
 
 def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTableReference:
@@ -969,62 +1245,115 @@ def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTa
 
     parent_table_name = child_table.get("parent")
     if parent_table_name is None:
-        raise ValueError(f"No parent table found for `{table_name=:}`")
+        raise ValueError(f"Table `{table_name}` is a root table and has no parent.")
     parent_table = tables.get(parent_table_name)
 
     child_parent_key: str = get_first_column_name_with_prop(child_table, "parent_key")
     parent_row_key: str = get_first_column_name_with_prop(parent_table, "row_key")
 
     return TTableReference(
+        label=C_CHILD_PARENT_REF_LABEL,
+        cardinality="many_to_one",
+        table=table_name,
         columns=[child_parent_key],
         referenced_table=parent_table_name,
         referenced_columns=[parent_row_key],
     )
 
 
-def create_load_table_reference(table: TTableSchema) -> TTableReference:
-    """Create a Reference between `{table}._dlt_oad_id` and `_dlt_loads.load_id`"""
-    if table["columns"].get(C_DLT_LOAD_ID) is None:
-        raise ValueError(f"Column `{C_DLT_LOAD_ID}` not found for `table_name={table['name']}`")
+def get_all_parent_child_references_from_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    root_table = tables.get(table_name)
+    if is_nested_table(root_table) is True:
+        raise ValueError(f"Table `{table_name}` is not a root table.")
 
-    return TTableReference(
-        columns=[C_DLT_LOAD_ID],
-        referenced_table=LOADS_TABLE_NAME,
-        referenced_columns=[C_DLT_LOADS_TABLE_LOAD_ID],
-    )
+    children_refs = []
+    # skip the first table in chain, which is the root; i.e., the current one
+    for child_table in get_nested_tables(tables, table_name)[1:]:
+        # try/except because a root table may or may not have child with `root_key` enabled
+        try:
+            child_ref = create_parent_child_reference(tables, child_table["name"])
+            children_refs.append(child_ref)
+        except ValueError:
+            pass
+
+    return children_refs
 
 
-def create_version_and_loads_hash_reference(tables: TSchemaTables) -> TTableReference:
-    if VERSION_TABLE_NAME not in tables:
+def create_load_table_reference(
+    table: TTableSchema, *, naming: NamingConvention = None
+) -> TTableReference:
+    """Create a Reference between `{table}._dlt_load_id` and `_dlt_loads.load_id`"""
+    # TODO temporary solution; refactor caller to always explicitly pass `naming`
+    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
+
+    load_id_column = naming.normalize_identifier(C_DLT_LOAD_ID)
+    if table["columns"].get(load_id_column) is None:
         raise ValueError(
-            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+            f"Table `{table['name']}` is not a root table and has no `{load_id_column}` column."
         )
 
-    if LOADS_TABLE_NAME not in tables:
-        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
-
     return TTableReference(
-        columns=["version_hash"],
-        referenced_table=LOADS_TABLE_NAME,
-        referenced_columns=["schema_version_hash"],
+        label=C_ROOT_LOAD_REF_LABEL,
+        cardinality="many_to_one",
+        table=table["name"],
+        columns=[load_id_column],
+        referenced_table=naming.normalize_identifier(LOADS_TABLE_NAME),
+        referenced_columns=[naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)],
     )
 
 
-def create_version_and_loads_schema_name_reference(tables: TSchemaTables) -> TTableReference:
-    if VERSION_TABLE_NAME not in tables:
+def create_version_and_loads_hash_reference(
+    tables: TSchemaTables, *, naming: NamingConvention = None
+) -> TTableReference:
+    # TODO temporary solution; refactor caller to always explicitly pass `naming`
+    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
+
+    version_table_name = naming.normalize_identifier(VERSION_TABLE_NAME)
+    if version_table_name not in tables:
         raise ValueError(
-            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+            f"Table `{version_table_name}` not found in tables: `{list(tables.keys())}`"
         )
 
-    if LOADS_TABLE_NAME not in tables:
-        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
+    load_table_name = naming.normalize_identifier(LOADS_TABLE_NAME)
+    if load_table_name not in tables:
+        raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
 
-    loads_and_version_hash_schema_name_ref = TTableReference(
-        columns=["schema_name"],
-        referenced_table=LOADS_TABLE_NAME,
-        referenced_columns=["schema_name"],
+    return TTableReference(
+        label=C_VERSION_SCHEMA_VERSION_LABEL,
+        cardinality="one_to_many",
+        table=version_table_name,
+        columns=[naming.normalize_identifier("version_hash")],
+        referenced_table=load_table_name,
+        referenced_columns=[naming.normalize_identifier("schema_version_hash")],
     )
-    return loads_and_version_hash_schema_name_ref
+
+
+def create_version_and_loads_schema_name_reference(
+    tables: TSchemaTables, *, naming: NamingConvention = None
+) -> TTableReference:
+    # TODO temporary solution; refactor caller to always explicitly pass `naming`
+    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
+
+    version_table_name = naming.normalize_identifier(VERSION_TABLE_NAME)
+    if version_table_name not in tables:
+        raise ValueError(
+            f"Table `{version_table_name}` not found in tables: `{list(tables.keys())}`"
+        )
+
+    load_table_name = naming.normalize_identifier(LOADS_TABLE_NAME)
+    if load_table_name not in tables:
+        raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
+
+    return TTableReference(
+        label=C_VERSION_SCHEMA_NAME_LABEL,
+        cardinality="many_to_many",
+        table=version_table_name,
+        columns=[naming.normalize_identifier("schema_name")],
+        referenced_table=load_table_name,
+        referenced_columns=[naming.normalize_identifier("schema_name")],
+    )
 
 
 def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:

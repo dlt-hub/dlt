@@ -4,7 +4,7 @@ import pytest
 
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.libs.sql_alchemy_compat import make_url
-from dlt.common.utils import digest128
+from dlt.common.utils import custom_environ, digest128
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
@@ -44,6 +44,27 @@ def test_clickhouse_connection_string_with_all_params() -> None:
 
     # Test URL components regardless of query param order.
     assert make_url(creds.to_native_representation()) == expected
+
+
+def test_clickhouse_credentials_resolved() -> None:
+    with custom_environ(
+        {
+            "CREDENTIALS__HOST": "localhost",
+            "CREDENTIALS__PORT": "9000",
+            "CREDENTIALS__USERNAME": "user",
+            "CREDENTIALS__PASSWORD": "pass",
+            "CREDENTIALS__DATABASE": "test_db",
+            "CREDENTIALS__S3_EXTRA_CREDENTIALS": '{"role_arn": "my_arn"}',
+        }
+    ):
+        config = resolve_configuration(ClickHouseCredentials())
+
+        assert config.host == "localhost"
+        assert config.port == 9000
+        assert config.username == "user"
+        assert config.password == "pass"
+        assert config.s3_extra_credentials
+        assert config.s3_extra_credentials["role_arn"] == "my_arn"
 
 
 def test_clickhouse_configuration() -> None:

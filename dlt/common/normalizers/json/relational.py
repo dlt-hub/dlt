@@ -25,9 +25,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import (
     column_name_validator,
-    is_nested_table,
-    get_nested_tables,
-    has_column_with_prop,
+    get_root_table,
     get_first_column_name_with_prop,
 )
 from dlt.common.utils import update_dict_nested
@@ -45,6 +43,7 @@ from dlt.common.normalizers.json.helpers import (
     get_nested_row_hash,
     get_propagation_mapping,
     get_row_hash,
+    requires_root_key,
 )
 from dlt.common.validation import validate_dict
 
@@ -247,7 +246,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 wrap_v = wrap_in_dict(self.c_value, v)
                 DataItemNormalizer._extend_row(extend, wrap_v)
                 self._add_row_id(table, wrap_v, wrap_v, parent_row_id, idx, is_root)
-                yield (table, self._shorten_fragments(*parent_path)), wrap_v
+                yield (table, parent_path, ident_path), wrap_v
 
     def _normalize_row(
         self,
@@ -279,10 +278,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         extend.update(self._get_propagated_values(table, flattened_row, is_root))
 
         # yield parent table first
-        should_descend = yield (
-            (table, self._shorten_fragments(*parent_path)),
-            flattened_row,
-        )
+        should_descend = yield (table, parent_path, ident_path), flattened_row
         if should_descend is False:
             return
 
@@ -297,7 +293,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 _r_lvl - 1,
             )
 
-    def extend_schema(self) -> None:
+    def extend_schema(self, extend_tables: bool = True) -> None:
         """Extends Schema with normalizer-specific hints and settings.
 
         This method is called by Schema when instance is created or restored from storage.
@@ -326,8 +322,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             normalize_identifiers=False,  # already normalized
         )
 
-        for table_name in self.schema.tables.keys():
-            self.extend_table(table_name)
+        if extend_tables:
+            for table_name in self.schema.tables.keys():
+                self.extend_table(table_name)
 
     def extend_table(self, table_name: str) -> None:
         """If the table has a merge write disposition, add propagation info to normalizer
@@ -335,23 +332,23 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         Called by Schema when new table is added to schema or table is updated with partial table.
         Table name should be normalized.
         """
-        table = self.schema.tables.get(table_name)
+        # find root table
+        root_table = get_root_table(self.schema.tables, table_name)
+        root_table_name = root_table["name"]
         # add root key prop when merge disposition is used or any of nested tables needs row_key
-        if not is_nested_table(table) and (
-            table.get("write_disposition") == "merge"
-            or any(
-                has_column_with_prop(t, "root_key", include_incomplete=True)
-                for t in get_nested_tables(self.schema.tables, table_name)
-            )
+        if requires_root_key(
+            self.schema, root_table, self.normalizer_config.get("root_key_propagation")
         ):
             # get row id column from table, assume that we propagate it into c_dlt_root_id always
-            c_dlt_id = get_first_column_name_with_prop(table, "row_key", include_incomplete=True)
+            c_dlt_id = get_first_column_name_with_prop(
+                root_table, "row_key", include_incomplete=True
+            )
             self.update_normalizer_config(
                 self.schema,
                 {
                     "propagation": {
                         "tables": {
-                            table_name: {
+                            root_table_name: {
                                 TColumnName(c_dlt_id or self.c_dlt_id): TColumnName(
                                     self.c_dlt_root_id
                                 )

@@ -25,6 +25,7 @@ from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_
 from dlt.common.storages.load_package import destination_state
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
+from dlt.common.data_writers.escape import escape_bigquery_literal
 from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
@@ -128,7 +129,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                     )
                 )
 
-    def exception(self) -> str:
+    def failed_message(self) -> str:
         if self._bq_load_job:
             return json.dumps(
                 {
@@ -139,6 +140,11 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                     "job_id": self._bq_load_job.job_id,
                 }
             )
+        return super().failed_message()
+
+    def exception(self) -> BaseException:
+        if self._bq_load_job:
+            return self._bq_load_job.exception()  # type: ignore[no-any-return]
         return super().exception()
 
     @staticmethod
@@ -182,9 +188,12 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         config: BigQueryClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
         sql_client = BigQuerySqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
             config.get_location(),
@@ -285,44 +294,49 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
-        # handle partitioning when user passes a string to the `partition` param in bigquery_adapter
-        if partition_list := [
-            c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
-        ]:
-            if len(partition_list) > 1:
-                col_names = [self.sql_client.escape_column_name(c["name"]) for c in partition_list]
+        # partition and cluster clauses are only valid for CREATE TABLE, not ALTER TABLE
+        if not generate_alter:
+            # handle partitioning when user passes a string to the `partition` param in bigquery_adapter
+            if partition_list := [
+                c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
+            ]:
+                if len(partition_list) > 1:
+                    col_names = [
+                        self.sql_client.escape_column_name(c["name"]) for c in partition_list
+                    ]
+                    raise DestinationSchemaWillNotUpdate(
+                        canonical_name, col_names, "Partition requested for more than one column"
+                    )
+                elif (c := partition_list[0])["data_type"] == "date":
+                    sql[0] += f"\nPARTITION BY {self.sql_client.escape_column_name(c['name'])}"
+                elif (c := partition_list[0])["data_type"] == "timestamp":
+                    sql[0] = (
+                        f"{sql[0]}\nPARTITION BY"
+                        f" DATE({self.sql_client.escape_column_name(c['name'])})"
+                    )
+                # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
+                # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
+                # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
+                # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
+                # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
+                elif (c := partition_list[0])["data_type"] == "bigint":
+                    sql[0] += (
+                        "\nPARTITION BY"
+                        f" RANGE_BUCKET({self.sql_client.escape_column_name(c['name'])},"
+                        " GENERATE_ARRAY(-172800000, 691200000, 86400))"
+                    )
+            # handle partitioning when user passes a PartitionTransformation to the `partition` param in bigquery_adapter
+            partition_hint = table.get(PARTITION_HINT)
+            if isinstance(partition_hint, dict) and len(partition_hint) > 1:
+                col_names = [
+                    self.sql_client.escape_column_name(col) for col, v in partition_hint.items()
+                ]
                 raise DestinationSchemaWillNotUpdate(
                     canonical_name, col_names, "Partition requested for more than one column"
                 )
-            elif (c := partition_list[0])["data_type"] == "date":
-                sql[0] += f"\nPARTITION BY {self.sql_client.escape_column_name(c['name'])}"
-            elif (c := partition_list[0])["data_type"] == "timestamp":
-                sql[0] = (
-                    f"{sql[0]}\nPARTITION BY DATE({self.sql_client.escape_column_name(c['name'])})"
-                )
-            # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
-            # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
-            # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
-            # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
-            # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
-            elif (c := partition_list[0])["data_type"] == "bigint":
-                sql[0] += (
-                    f"\nPARTITION BY RANGE_BUCKET({self.sql_client.escape_column_name(c['name'])},"
-                    " GENERATE_ARRAY(-172800000, 691200000, 86400))"
-                )
-        # handle partitioning when user passes a PartitionTransformation to the `partition` param in bigquery_adapter
-        partition_hint = table.get(PARTITION_HINT)
-        if isinstance(partition_hint, dict) and len(partition_hint) > 1:
-            col_names = [
-                self.sql_client.escape_column_name(col) for col, v in partition_hint.items()
-            ]
-            raise DestinationSchemaWillNotUpdate(
-                canonical_name, col_names, "Partition requested for more than one column"
+            sql[0] += self._bigquery_partition_clause(
+                partition_hint if isinstance(partition_hint, dict) else None
             )
-
-        sql[0] += self._bigquery_partition_clause(
-            partition_hint if isinstance(partition_hint, dict) else None
-        )
 
         # Collect cluster columns from table-level and per-column hints
         cluster_columns_from_table_hint = list(
@@ -343,7 +357,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             else cluster_columns_from_column_hints
         )
 
-        if cluster_columns_final:
+        if cluster_columns_final and not generate_alter:
             cluster_list = [
                 self.sql_client.escape_column_name(col) for col in cluster_columns_final
             ]
@@ -457,10 +471,22 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)
+
+        # generate additional column options clause
+        # see: https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#alter_column_set_options_statement
+        options = []
         if column.get(ROUND_HALF_EVEN_HINT, False):
-            column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
+            options.append("rounding_mode='ROUND_HALF_EVEN'")
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):
-            column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_AWAY_FROM_ZERO')"
+            options.append("rounding_mode='ROUND_HALF_AWAY_FROM_ZERO'")
+        if column.get("description", False):
+            escaped_description = escape_bigquery_literal(column.get("description"))
+            options.append(f"description={escaped_description}")
+
+        if options:
+            option_arguments = ", ".join(options)
+            option_str = f" OPTIONS ({option_arguments})"
+            column_def_sql += option_str
         return column_def_sql
 
     def _create_load_job(self, table: PreparedTableSchema, file_path: str) -> bigquery.LoadJob:

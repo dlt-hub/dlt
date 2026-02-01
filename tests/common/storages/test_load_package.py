@@ -27,7 +27,7 @@ from tests.common.storages.utils import (
     load_storage,
     start_loading_files,
 )
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
+from tests.utils import get_test_storage_root, autouse_test_storage
 
 
 def test_is_partially_loaded(load_storage: LoadStorage) -> None:
@@ -92,18 +92,19 @@ def test_save_load_schema(load_storage: LoadStorage) -> None:
     schema = Schema("event")
     schema._stored_version = 762171
 
-    load_storage.new_packages.create_package("copy")
+    load_storage.new_packages.create_package("copy", schema=schema)
+    assert load_storage.new_packages.storage.has_file(
+        os.path.join("copy", PackageStorage.SCHEMA_FILE_NAME)
+    )
+    schema_copy = load_storage.new_packages.load_schema("copy")
+    assert schema.stored_version == schema_copy.stored_version
+    # also check file name
     saved_file_name = load_storage.new_packages.save_schema("copy", schema)
     assert saved_file_name.endswith(
         os.path.join(
             load_storage.new_packages.storage.storage_path, "copy", PackageStorage.SCHEMA_FILE_NAME
         )
     )
-    assert load_storage.new_packages.storage.has_file(
-        os.path.join("copy", PackageStorage.SCHEMA_FILE_NAME)
-    )
-    schema_copy = load_storage.new_packages.load_schema("copy")
-    assert schema.stored_version == schema_copy.stored_version
 
 
 def test_create_package(load_storage: LoadStorage) -> None:
@@ -434,8 +435,7 @@ def create_load_package(
 ) -> str:
     schema = Schema("test")
     load_id = create_load_id()
-    package_storage.create_package(load_id)
-    package_storage.save_schema(load_id, schema)
+    package_storage.create_package(load_id, schema=schema)
     add_new_jobs(package_storage, load_id, new_jobs, table_name)
     return load_id
 
@@ -447,7 +447,7 @@ def add_new_jobs(
         file_name = PackageStorage.build_job_file_name(
             table_name, ParsedLoadJobFileName.new_file_id(), 0, False, "csv"
         )
-        file_path = os.path.join(TEST_STORAGE_ROOT, file_name)
+        file_path = os.path.join(get_test_storage_root(), file_name)
         with open(file_path, "wt", encoding="utf-8") as f:
             f.write("a|b|c")
         package_storage.import_job(load_id, file_path)
@@ -461,7 +461,7 @@ def test_migrate_to_load_package_state() -> None:
     """
     from dlt.destinations import dummy
 
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination=dummy(completed_prob=1))
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination=dummy(completed_prob=1))
 
     p.extract([{"id": 1, "name": "dave"}], table_name="person")
     p.normalize()

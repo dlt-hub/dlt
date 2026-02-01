@@ -32,7 +32,7 @@ source = sql_database(
 ).with_resources("orders")
 ```
 
-## Write custom SQL custom queries
+## Write custom SQL queries
 We recommend that you create a SQL VIEW in your source database and extract data from it. In that case `dlt` will infer all column types and read data in
 shape you define in a view without any further customization.
 
@@ -72,7 +72,7 @@ def add_new_columns(table) -> None:
     ]
     for col_name, col_type, col_kwargs in required_columns:
         if col_name not in table.c:
-            table.append_column(sa.Column(col_name, col_type, **col_kwargs))
+            table.append_column(sa.Column(col_name, col_type, **col_kwargs)) # type: ignore[arg-type]
 ```
 Otherwise `dlt` will attempt to infer the types from the extracted data.
 

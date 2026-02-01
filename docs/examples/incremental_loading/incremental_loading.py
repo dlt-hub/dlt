@@ -24,7 +24,7 @@ from typing import Optional, Dict, Any, Tuple, Iterable, List
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TAnyDateTime
 from dlt.sources.helpers import requests
 from dlt.extract import DltResource
@@ -33,7 +33,9 @@ from dlt.extract import DltResource
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
+    start_date: Optional[TAnyDateTime] = pendulum.datetime(
+        year=2000, month=1, day=1
+    ),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
 ) -> DltResource:
     """
@@ -50,8 +52,8 @@ def zendesk_support(
         DltResource: a resource with ticket events
     """
     # Convert start_date and end_date to Pendulum datetime objects
-    start_date_obj = ensure_pendulum_datetime(start_date)
-    end_date_obj = ensure_pendulum_datetime(end_date) if end_date else None
+    start_date_obj = ensure_pendulum_datetime_utc(start_date)
+    end_date_obj = ensure_pendulum_datetime_utc(end_date) if end_date else None
 
     # Convert Pendulum datetime objects to Unix timestamps
     start_date_ts = start_date_obj.int_timestamp
@@ -150,12 +152,14 @@ if __name__ == "__main__":
     assert row_counts["ticket_events"] > 0, "No ticket events were loaded"
 
     with pipeline.sql_client() as client:
-        results = client.execute("""
+        results = client.execute(
+            """
             SELECT
                 COUNT(DISTINCT ticket_id) as unique_tickets,
                 COUNT(DISTINCT event_type) as event_types,
             FROM ticket_events
-        """).fetchone()
+        """
+        ).fetchone()
 
         unique_tickets, event_types = results
         assert unique_tickets > 0, "No unique tickets were loaded"

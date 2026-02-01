@@ -1,20 +1,18 @@
 import binascii
-from os.path import isfile, join, abspath
-from pathlib import Path
+from os.path import isfile, join
 from typing import Any, ClassVar, Optional, IO
-import warnings
 
 from dlt.common.typing import TSecretStrValue
-from dlt.common.utils import encoding_for_mode, main_module_file_path, reveal_pseudo_secret
+from dlt.common.utils import encoding_for_mode, reveal_pseudo_secret
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
-from dlt.common.warnings import Dlt100DeprecationWarning
 from dlt.common.runtime.exec_info import platform_supports_threading
 
 
 @configspec
 class RuntimeConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
+    """Pipeline name used as component in logging, must be explicitly set"""
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[TSecretStrValue] = None
     dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
@@ -35,6 +33,7 @@ class RuntimeConfiguration(BaseConfiguration):
     config_files_storage_path: str = "/run/config/"
     """Platform connection"""
     dlthub_dsn: Optional[TSecretStrValue] = None
+    run_id: Optional[str] = None
     http_show_error_body: bool = False
     """Include HTTP response body in raised exceptions/logs. Default is False"""
     http_max_error_body_length: int = 8192
@@ -43,19 +42,6 @@ class RuntimeConfiguration(BaseConfiguration):
     __section__: ClassVar[str] = "runtime"
 
     def on_resolved(self) -> None:
-        # generate pipeline name from the entry point script name
-        if not self.pipeline_name:
-            self.pipeline_name = get_default_pipeline_name(main_module_file_path())
-        else:
-            warnings.warn(
-                "pipeline_name in RuntimeConfiguration is deprecated. Use `pipeline_name` in"
-                " PipelineConfiguration config",
-                Dlt100DeprecationWarning,
-                stacklevel=1,
-            )
-        # always use abs path for data_dir
-        # if self.data_dir:
-        #     self.data_dir = abspath(self.data_dir)
         if self.slack_incoming_hook:
             # it may be obfuscated base64 value
             # TODO: that needs to be removed ASAP
@@ -82,12 +68,6 @@ class RuntimeConfiguration(BaseConfiguration):
 
     def get_configuration_file_path(self, name: str) -> str:
         return join(self.config_files_storage_path, name)
-
-
-def get_default_pipeline_name(entry_point_file: str) -> str:
-    if entry_point_file:
-        entry_point_file = Path(entry_point_file).stem
-    return "dlt_" + (entry_point_file or "pipeline")
 
 
 # backward compatibility

@@ -1,6 +1,6 @@
 """Implements SupportsTracking"""
 import contextlib
-from typing import Any, List
+from typing import Any, Union, Dict, Optional
 import humanize
 
 from dlt.common import logger
@@ -60,7 +60,7 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
 
 
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
-    if pipeline.runtime_config.sentry_dsn:
+    if pipeline.run_context.runtime_config.sentry_dsn:
         # print(f"START SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}"
         transaction = Scope.get_current_scope().start_transaction(name=step, op=step)
         if isinstance(transaction, Transaction):
@@ -71,11 +71,40 @@ def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: Supports
 def on_start_trace_step(
     trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
 ) -> None:
-    if pipeline.runtime_config.sentry_dsn:
+    if pipeline.run_context.runtime_config.sentry_dsn:
         # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
         span = Scope.get_current_scope().start_span(description=step, op=step)
         _add_sentry_tags(span, pipeline)
         span.__enter__()
+
+
+def _build_base_props(
+    pipeline: SupportsPipeline,
+) -> Dict[str, Union[str, None]]:
+    return {
+        "destination_name": pipeline.destination.destination_name if pipeline.destination else None,
+        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
+        "pipeline_name_hash": digest128(pipeline.pipeline_name),
+        "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
+        "default_schema_name_hash": (
+            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
+        ),
+    }
+
+
+def on_first_dataset_access(
+    pipeline: SupportsPipeline,
+    success: bool,
+    schema_name: Optional[str] = None,
+) -> None:
+    """Track the first dataset access telemetry event for the given pipeline instance."""
+    props = {
+        "success": success,
+        **_build_base_props(pipeline=pipeline),
+        # The schema may differ from the default pipeline schema
+        "requested_schema_name_hash": digest128(schema_name) if schema_name else None,
+    }
+    dlthub_telemetry_track("pipeline", "access_dataset", props)
 
 
 def on_end_trace_step(
@@ -85,8 +114,7 @@ def on_end_trace_step(
     step_info: Any,
     send_state: bool,
 ) -> None:
-    if pipeline.runtime_config.sentry_dsn:
-        # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
+    if pipeline.run_context.runtime_config.sentry_dsn:
         Scope.get_current_scope().span.__exit__(None, None, None)
     # disable automatic slack messaging until we can configure messages themselves
     # if step.step == "load":
@@ -95,13 +123,7 @@ def on_end_trace_step(
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": pipeline.destination.destination_name if pipeline.destination else None,
-        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
-        "pipeline_name_hash": digest128(pipeline.pipeline_name),
-        "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
-        "default_schema_name_hash": (
-            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
-        ),
+        **_build_base_props(pipeline=pipeline),
         "transaction_id": trace.transaction_id,
     }
     if step.step == "extract" and step_info:
@@ -114,6 +136,6 @@ def on_end_trace_step(
 
 
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
-    if pipeline.runtime_config.sentry_dsn:
+    if pipeline.run_context.runtime_config.sentry_dsn:
         # print(f"---END SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
         Scope.get_current_scope().transaction.__exit__(None, None, None)

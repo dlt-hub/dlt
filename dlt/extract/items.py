@@ -101,6 +101,8 @@ class SupportsPipe(Protocol):
     """Pipe name which is inherited by a resource"""
     parent: "SupportsPipe"
     """A parent of the current pipe"""
+    instance_id: str
+    """Unique id of the pipe assigned when instance is created and preserved when cloning"""
 
     @property
     def gen(self) -> TPipeStep:

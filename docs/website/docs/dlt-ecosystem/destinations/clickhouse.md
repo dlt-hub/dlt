@@ -14,6 +14,8 @@ keywords: [ clickhouse, destination, data warehouse ]
 pip install "dlt[clickhouse]"
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES clickhouse-->
+
 ## Setup guide
 
 ### 1. Initialize the dlt project
@@ -189,6 +191,166 @@ Supported values for `table_engine_type` are:
 
 For local development and testing with ClickHouse running locally, the `MergeTree` engine is recommended.
 
+## Sorting and partitioning
+You can use the `clickhouse_adapter` to specify a [sorting](https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree#order_by) and/or [partition](https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key) key:
+
+```py
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource
+def my_resource():
+    ...
+
+clickhouse_adapter(
+   my_resource,
+   sort = sorting_key,
+   partition = partition_key
+)
+```
+
+`sort` and `partition` are used to generate the `ORDER BY` and `PARTITION BY` clauses of the table creation statement, and they accept either a **sequence of column names** or a **SQL expression**:
+1. **sequence of column names:** recommended if column transformations are not required
+2. **SQL expression:** use if column transformations are required
+
+The two examples below show both approaches to adapt `my_resource`:
+
+```py
+@dlt.resource(
+   columns={
+      "timestamp": {"nullable": False},
+      "town": {"nullable": False},
+      "street": {"nullable": False}
+   }
+)
+def my_resource():
+    ...
+```
+
+### Example 1: sequence of column names
+
+```py
+clickhouse_adapter(
+   my_resource,
+   sort=["timestamp", "street"],
+   partition=["town"]
+)
+```
+
+Corresponding SQL:
+
+```sql
+CREATE TABLE ...
+...
+ORDER BY (timestamp, street)
+PARTITION by town
+```
+
+### Example 2: SQL expression
+
+```py
+clickhouse_adapter(
+   my_resource,
+   sort="(upper(town), street)",
+   partition="toYYYYMMDD(timestamp)"
+)
+```
+
+Corresponding SQL:
+
+```sql
+CREATE TABLE ...
+...
+ORDER BY (upper(town), street)
+PARTITION BY toYYYYMMDD(timestamp)
+```
+
+### Usage notes
+
+SQL expressions are used **as is** to generate the SQL clauses. Hence, when providing a SQL expression, use normalized column names:
+
+```py
+@dlt.resource(columns={"TIMESTAMP": {"nullable": False}})  # non-normalized column name (upper case)
+def my_resource():
+    ...
+
+clickhouse_adapter(my_resource, partition="toYYYYMMDD(timestamp)")  # RIGHT: normalized column name (lower case)
+
+clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non-normalized column name (lower case)
+```
+
+:::note
+- The sorting/partitioning key can only be set when the table is first created. The value for `sort`/`partition` is ignored for existing tables.
+- We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `True` in your [table settings](#mergetree-table-settings) if you insist on nullable key columns.
+:::
+
+### `sort` and `partition` column hints
+`dlt` automatically creates `sort`/`partition` [column hints](../../general-usage/schema.md#tables-and-columns) for columns present in the `sort`/`partition` value provided to `clickhouse_adapter` (when this value is a SQL expression, we parse it to extract the column names).
+
+Although it's possible to set `sort`/`partition` column hints directly, we recommend using `clickhouse_adapter` instead.
+
+If you still choose to set `sort`/`partition` column hints yourself, know that:
+- columns are added to the `ORDER BY`/`PARTITION BY` clause in order of appearance in the schema
+- they may be overridden/removed if you also use `clickhouse_adapter`: the adapter takes precedence, and it will set column hints in accordance with the values provided to its `sort`/`partition` parameters
+
+## MergeTree table settings
+Use the `settings` parameter of the `clickhouse_adapter` to specify [MergeTree settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) for the table:
+
+```py
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource
+def my_resource():
+    ...
+
+clickhouse_adapter(
+   my_resource,
+   settings = {
+      "allow_nullable_key": True,
+      "max_suspicious_broken_parts": 500,
+      "deduplicate_merge_projection_mode": "ignore"
+   }
+)
+```
+
+The `settings` parameter is used to generate the `SETTINGS` clause of the table creation statement:
+
+```sql
+CREATE TABLE ...
+...
+SETTINGS allow_nullable_key = true, max_suspicious_broken_parts = 500, deduplicate_merge_projection_mode = 'ignore'
+```
+
+## Column codecs
+Use the `codecs` parameter of the `clickhouse_adapter` to specify [codecs](https://clickhouse.com/docs/sql-reference/statements/create/table#column_compression_codec) for the table's columns:
+
+```py
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource
+def my_resource():
+    ...
+
+clickhouse_adapter(
+   my_resource,
+   codecs = {
+      "town": "ZSTD(3)",
+      "number": "Delta, ZSTD(2)"
+   }
+)
+```
+
+The codecs are used in the table creation statement as follows:
+
+```sql
+CREATE TABLE my_resource
+(
+   `town` String CODEC(ZSTD(3)),
+   `street` String, -- no codec specified
+   `number` Int64 CODEC(Delta, ZSTD(2))
+)
+...
+```
+
 ## Staging support
 
 ClickHouse supports Amazon S3, Google Cloud Storage, and Azure Blob Storage as file staging destinations.
@@ -242,11 +404,33 @@ project_id = "my-awesome-project"
 endpoint_url = "https://storage.googleapis.com"
 ```
 
-:::caution
+:::warning
 When configuring the `bucket_url` for S3-compatible storage services like Google Cloud Storage (GCS) with ClickHouse in dlt, ensure that the URL is prepended with `s3://` instead of `gs://`. This is
 because the ClickHouse GCS table function requires the use of HMAC credentials, which are compatible with the S3 API. Prepending with `s3://` allows the HMAC credentials to integrate properly with
 dlt's staging mechanisms for ClickHouse.
 :::
+
+When using S3 for a staging area you can alternatively have ClickHouse authenticate using Role-based access with the
+[supported](https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud) `extra_credentials` argument by setting this with the destination credentials:
+```py
+from dlt.destinations import clickhouse
+
+destination = clickhouse(
+  credentials={
+    ... # Other credentials you need
+    s3_extra_credentials={
+      'role_arn': 'arn:your:role' # The AWS Role assumed by ClickHouse
+    }
+  }
+)
+
+pipeline = dlt.pipeline(
+  pipeline_name='chess_pipeline',
+  destination=destination,
+  staging='filesystem',  # add this to activate staging
+  dataset_name='chess_data'
+)
+```
 
 ### dbt support
 
@@ -258,4 +442,3 @@ we support datasets by prefixing the table names. You should take it into accoun
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA clickhouse-->
-

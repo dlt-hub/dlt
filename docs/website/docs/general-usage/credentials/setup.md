@@ -10,17 +10,13 @@ files or secure vaults. It understands both simple and verbose layouts of [confi
 
 ## Choose where to store configuration
 
-:::tip dlt+
-To define your configuration (including sources, destinations, pipeline and parameters) in a declarative way using YAML files, check out [dlt+](../../plus/features/projects.md).
-:::
-
 `dlt` looks for configuration and secrets in various locations (environment variables, toml files or secure vaults) through **config providers** that are queried when your pipeline runs. You can pick a single location or combine them - for example, define secret `api_key` in environment variables and `api_url` in a TOML file. Providers are queried in the following order:
 
 1. [Environment Variables](#environment-variables): If a value is found in an environment variable, `dlt` uses it and doesn't check lower-priority providers.
 
 2. [secrets.toml and config.toml files](#secretstoml-and-configtoml): These files store configuration values and secrets. `secrets.toml` contains sensitive information, while `config.toml` holds non-sensitive configuration.
 
-3. [Vaults](#vaults): Credentials stored in secure vaults like Google Secrets Manager, Azure Key Vault, or AWS Secrets Manager.
+3. [Vaults](#vaults): Credentials stored in secure vaults like Google Secrets Manager, Azure Key Vault, or AWS Secrets Manager. Airflow Variables are also included here.
 
 4. [Custom Providers](#custom-providers) added with `register_provider`: These are custom implementations you can create to use your own configuration formats or perform specialized preprocessing.
 
@@ -261,9 +257,11 @@ Only values marked as secrets (with `dlt.secrets.value` or using types like `TSe
 
 `dlt` may read configuration from secure vaults - specialized services for storing credentials.
 
-* For Google Cloud Secrets Manager, see our [example walkthrough](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager).
+* For Google Cloud Secrets Manager, see our [example walkthrough](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager) and [reference](vaults.md#configure-google-secret-provider)
 
-* For other vault integrations like AWS Secrets Manager or Azure Key Vault, [contact our sales team](https://dlthub.com/contact-sales) to learn about our [secure building blocks for data platform teams](https://dlthub.com/product/data-platform-teams#secure).
+* For Airflow Variable see the [reference and examples](vaults.md#configure-airflow-variables-as-provider)
+
+* For other vault integrations like AWS Secrets Manager or Azure Key Vault we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
 
 ## secrets.toml and config.toml
 
@@ -469,7 +467,7 @@ dlt.secrets["destination.filesystem.credentials"] = credentials
 
 </Tabs>
 
-:::caution
+:::warning
 While you can put all configuration and credentials in `secrets.toml` for convenience, sensitive information should never be placed in `config.toml` or other non-secure locations. `dlt` will raise an exception if it detects secrets in inappropriate locations.
 :::
 
@@ -749,7 +747,7 @@ You have additional options for using multiple instances of the same source:
 
 1. Use the `clone()` method as explained in the [sql_database documentation](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#configure-many-sources-side-by-side-with-custom-sections).
 
-2. Create [named destinations](../destination.md#configure-multiple-destinations-in-a-pipeline) to use the same destination type with different configurations.
+2. Create [named destinations](../destination.md#configure-multiple-destinations-of-the-same-type) to use the same destination type with different configurations.
 :::
 
 ## Troubleshoot configuration errors

@@ -16,7 +16,7 @@ Here's a full example of how to retrieve data from a pipeline and load it into a
 
 ## Getting started
 
-Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain a `Dataset` which is contains the crendentials and schema to your destination dataset. You can run construct a query and execute it on the dataset to retrieve a `Relation` which you may use to retrieve data from the `Dataset`.
+Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain a `Dataset` which is contains the credentials and schema to your destination dataset. You can construct a query and execute it on the dataset to retrieve a `Relation` which you may use to retrieve data from the `Dataset`.
 
 **Note:** The `Dataset` and `Relation` objects are **lazy-loading**. They will only query and retrieve data when you perform an action that requires it, such as fetching data into a DataFrame or iterating over the data. This means that simply creating these objects does not load data into memory, making your code more efficient.
 
@@ -41,7 +41,7 @@ Once you have a `Relation`, you can read data in various formats and sizes.
 
 ### Fetch the entire table
 
-:::caution
+:::warning
 Loading full tables into memory without limiting or iterating over them can consume a large amount of memory and may cause your program to crash if the table is too large. It's recommended to use chunked iteration or apply limits when dealing with large datasets. 
 :::
 
@@ -133,7 +133,7 @@ If you install the amazing [ibis](https://ibis-project.org/) library, you can us
 pip install ibis-framework
 ```
 
-dlt will then allow you to get an `ibis.UnboundTable` for each table which you can use to build a query with ibis expressions, which you can then execute on your dataset.
+dlt will then allow you to get an `ibis.Table` for each table which you can use to build a query with ibis expressions, which you can then execute on your dataset.
 
 :::warning
 A previous version of dlt allowed to use ibis expressions in a slightly different way, allowing users to directly execute and retrieve data on ibis Unbound tables. This method does not work anymore. See the migration guide below for instructions on how to update your code.
@@ -146,7 +146,7 @@ You can learn more about the available expressions on the [ibis for sql users](h
 
 ### Migrating from the previous dlt / ibis implementation
 
-As describe above, the new way to use ibis expressions is to first get one or many `UnboundTable` objects, construct your expression and then bind it to your data via the `Dataset` to get a `Relation` object which you may execute to retrieve your data.
+As describe above, the new way to use ibis expressions is to first get one or many `Table` objects and construct your expression. Then, you can pass it `Dataset` to get a `Relation` to execute the full query and retrieve data.
 
 An example from our previous docs for joining a customers and a purchase table was this:
 
@@ -169,9 +169,9 @@ df = joined_relation.df()
 The migrated version looks like this:
 
 ```py
-# we need to explicitely select table type ibis here
-customers_expression = dataset.table("customers", table_type="ibis")
-purchases_expression = dataset.table("purchases", table_type="ibis")
+# we convert the dlt.Relation an Ibis Table object
+customers_expression = dataset.table("customers").to_ibis()
+purchases_expression = dataset.table("purchases").to_ibis()
 
 # join them using an ibis expression, same code as above
 joined_epxression = customers_expression.join(

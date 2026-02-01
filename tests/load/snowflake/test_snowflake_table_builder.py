@@ -3,18 +3,28 @@ from tests.utils import skip_if_not_active
 skip_if_not_active("snowflake")
 
 from copy import deepcopy
+from typing import cast
 
 import pytest
 import sqlfluff
 
 from dlt.common.utils import uniq_id
-from dlt.common.schema import Schema, utils
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.destinations import snowflake
-from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient, SUPPORTED_HINTS
+from dlt.destinations.impl.snowflake.snowflake import (
+    SnowflakeClient,
+    SUPPORTED_HINTS,
+    COLUMN_COMMENT_HINT,
+)
 from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
+
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.schema.typing import TColumnSchema
+from dlt.destinations.impl.snowflake.factory import SnowflakeTypeMapper
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
@@ -36,14 +46,14 @@ def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
     return create_client(empty_schema)
 
 
-def create_client(schema: Schema) -> SnowflakeClient:
+def create_client(schema: Schema, use_decfloat: bool = False) -> SnowflakeClient:
     # return client without opening connection
     creds = SnowflakeCredentials()
-    return snowflake().client(
+    return snowflake(use_decfloat=use_decfloat).client(
         schema,
-        SnowflakeClientConfiguration(credentials=creds)._bind_dataset_name(
-            dataset_name="test_" + uniq_id()
-        ),
+        SnowflakeClientConfiguration(
+            credentials=creds, use_decfloat=use_decfloat
+        )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
 
 
@@ -119,46 +129,103 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     assert 'CONSTRAINT "PK_EVENT_TEST_TABLE_' in sql
     assert 'PRIMARY KEY ("COL1", "COL6")' in sql
 
-    # generate alter
-    mod_update = deepcopy(TABLE_UPDATE[11:])
-    mod_update[0]["primary_key"] = True
-    mod_update[1]["unique"] = True
-
-    sql = ";".join(snowflake_client._get_table_update_sql("event_test_table", mod_update, True))
-    # PK constraint ignored for alter
-    assert "PRIMARY KEY" not in sql
-    assert '"COL2_NULL" FLOAT UNIQUE' in sql
-
 
 def test_alter_table(snowflake_client: SnowflakeClient) -> None:
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
-    assert len(statements) == 1
-    sql = statements[0]
+    new_columns = deepcopy(TABLE_UPDATE[1:10])
+    statements = snowflake_client._get_table_update_sql("event_test_table", new_columns, True)
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one DROP CLUSTERING KEY statement"
+    add_column_sql = statements[0]
 
     # TODO: sqlfluff doesn't parse snowflake multi ADD COLUMN clause correctly
-    # sqlfluff.parse(sql, dialect='snowflake')
+    # sqlfluff.parse(add_column_sql, dialect='snowflake')
 
-    assert sql.startswith("ALTER TABLE")
-    assert sql.count("ALTER TABLE") == 1
-    assert sql.count("ADD COLUMN") == 1
-    assert '"EVENT_TEST_TABLE"' in sql
-    assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
-    assert '"COL3" BOOLEAN  NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
-    assert '"COL5" VARCHAR' in sql
-    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
-    assert '"COL7" BINARY' in sql
-    assert '"COL8" NUMBER(38,0)' in sql
-    assert '"COL9" VARIANT  NOT NULL' in sql
-    assert '"COL10" DATE' in sql
+    assert add_column_sql.startswith("ALTER TABLE")
+    assert add_column_sql.count("ALTER TABLE") == 1
+    assert add_column_sql.count("ADD COLUMN") == 1
+    assert '"EVENT_TEST_TABLE"' in add_column_sql
+    assert '"COL1"' not in add_column_sql
+    assert '"COL2" FLOAT  NOT NULL' in add_column_sql
+    assert '"COL3" BOOLEAN  NOT NULL' in add_column_sql
+    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in add_column_sql
+    assert '"COL5" VARCHAR' in add_column_sql
+    assert '"COL6" NUMBER(38,9)  NOT NULL' in add_column_sql
+    assert '"COL7" BINARY' in add_column_sql
+    assert '"COL8" NUMBER(38,0)' in add_column_sql
+    assert '"COL9" VARIANT  NOT NULL' in add_column_sql
+    assert '"COL10" DATE' in add_column_sql
 
-    mod_table = deepcopy(TABLE_UPDATE)
-    mod_table.pop(0)
-    sql = snowflake_client._get_table_update_sql("event_test_table", mod_table, True)[0]
 
-    assert '"COL1"' not in sql
-    assert '"COL2" FLOAT  NOT NULL' in sql
+def test_alter_table_with_hints(snowflake_client: SnowflakeClient) -> None:
+    table_name = "event_test_table"
+
+    # mock hints
+    snowflake_client.active_hints = SUPPORTED_HINTS
+
+    # test primary key and unique hints
+    new_columns = deepcopy(TABLE_UPDATE[11:])
+    new_columns[0]["primary_key"] = True
+    new_columns[1]["unique"] = True
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one DROP CLUSTERING KEY statement"
+    add_column_sql = statements[0]
+    assert "PRIMARY KEY" not in add_column_sql  # PK constraint ignored for alter
+    assert '"COL2_NULL" FLOAT UNIQUE' in add_column_sql
+
+    # test cluster hint
+
+    # case: drop clustering (always run if no cluster hints present in table schema)
+    cluster_by_sql = statements[1]
+
+    assert cluster_by_sql.startswith("ALTER TABLE")
+    assert f'"{table_name.upper()}"' in cluster_by_sql
+    assert cluster_by_sql.endswith("DROP CLUSTERING KEY")
+
+    # case: add clustering (without clustering -> with clustering)
+    old_columns = deepcopy(TABLE_UPDATE[:1])
+    new_columns = deepcopy(TABLE_UPDATE[1:2])
+    new_columns[0]["cluster"] = True  # COL2
+    all_columns = deepcopy(old_columns + new_columns)
+    snowflake_client.schema.update_table(new_table(table_name, columns=deepcopy(all_columns)))
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
+    cluster_by_sql = statements[1]
+    assert cluster_by_sql.startswith("ALTER TABLE")
+    assert f'"{table_name.upper()}"' in cluster_by_sql
+    assert 'CLUSTER BY ("COL2")' in cluster_by_sql
+
+    # case: modify clustering (extend cluster columns)
+    old_columns = deepcopy(TABLE_UPDATE[:2])
+    old_columns[1]["cluster"] = True  # COL2
+    new_columns = deepcopy(TABLE_UPDATE[2:5])
+    new_columns[2]["cluster"] = True  # COL5
+    all_columns = deepcopy(old_columns + new_columns)
+    snowflake_client.schema.update_table(new_table(table_name, columns=all_columns))
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
+    cluster_by_sql = statements[1]
+    assert cluster_by_sql.count("ALTER TABLE") == 1
+    assert cluster_by_sql.count("CLUSTER BY") == 1
+    assert 'CLUSTER BY ("COL2","COL5")' in cluster_by_sql
+
+    # case: modify clustering (reorder cluster columns)
+    old_columns = deepcopy(TABLE_UPDATE[:5])
+    old_columns[1]["cluster"] = True  # COL2
+    old_columns[4]["cluster"] = True  # COL5
+    old_columns[1], old_columns[4] = old_columns[4], old_columns[1]  # swap order
+    new_columns = deepcopy(TABLE_UPDATE[5:6])
+    all_columns = deepcopy(old_columns + new_columns)
+    # cannot change column order in existing table schema, so we drop and recreate
+    snowflake_client.schema.drop_tables([table_name])
+    snowflake_client.schema.update_table(new_table(table_name, columns=all_columns))
+    statements = snowflake_client._get_table_update_sql(table_name, new_columns, True)
+
+    assert len(statements) == 2, "Should have one ADD COLUMN and one CLUSTER BY statement"
+    cluster_by_sql = statements[1]
+    assert 'CLUSTER BY ("COL5","COL2")' in cluster_by_sql  # reordered (COL5 first)
 
 
 def test_create_table_case_sensitive(cs_client: SnowflakeClient) -> None:
@@ -170,9 +237,7 @@ def test_create_table_case_sensitive(cs_client: SnowflakeClient) -> None:
         assert cs_client.sql_client.dataset_name.endswith("staginG")
     assert cs_client.sql_client.staging_dataset_name.endswith("staginG")
     # check tables
-    cs_client.schema.update_table(
-        utils.new_table("event_test_table", columns=deepcopy(TABLE_UPDATE))
-    )
+    cs_client.schema.update_table(new_table("event_test_table", columns=deepcopy(TABLE_UPDATE)))
     sql = cs_client._get_table_update_sql(
         "Event_test_tablE",
         list(cs_client.schema.get_table_columns("Event_test_tablE").values()),
@@ -192,7 +257,9 @@ def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClie
     mod_update[3]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
-    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    table_name = "event_test_table"
+    snowflake_client.schema.update_table(new_table(table_name, columns=deepcopy(mod_update)))
+    statements = snowflake_client._get_table_update_sql(table_name, mod_update, False)
     assert len(statements) == 1
     sql = statements[0]
 
@@ -201,3 +268,122 @@ def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClie
 
     # clustering must be the last
     assert sql.endswith('CLUSTER BY ("COL2","COL5")')
+
+
+def test_create_table_with_column_comments(snowflake_client: SnowflakeClient) -> None:
+    """Test that column comments are added to CREATE TABLE SQL."""
+    mod_update = deepcopy(TABLE_UPDATE[:3])
+
+    # Add description (generic field) to first column
+    mod_update[0]["description"] = "This is the first column"
+
+    # Add snowflake-specific column comment hint to second column
+    mod_update[1][COLUMN_COMMENT_HINT] = "Snowflake specific comment"  # type: ignore[typeddict-unknown-key]
+
+    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    assert len(statements) == 1
+    sql = statements[0]
+
+    # Verify column comments are in the SQL
+    assert "COMMENT 'This is the first column'" in sql
+    assert "COMMENT 'Snowflake specific comment'" in sql
+
+    # Third column should not have a comment
+    assert '"COL3" BOOLEAN  NOT NULL' in sql
+    assert sql.count("COMMENT") == 2
+
+
+def test_column_comment_escaping(snowflake_client: SnowflakeClient) -> None:
+    """Test that special characters in column comments are properly escaped."""
+    mod_update = deepcopy(TABLE_UPDATE[:1])
+
+    # Add comment with special characters that need escaping
+    mod_update[0]["description"] = "User's \"data\" with 'quotes'"
+
+    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    sql = statements[0]
+
+    # Snowflake escapes single quotes by doubling them
+    assert "COMMENT 'User''s \"data\" with ''quotes'''" in sql
+
+
+def test_alter_table_with_column_comments(snowflake_client: SnowflakeClient) -> None:
+    """Test that column comments work with ALTER TABLE."""
+    new_columns = deepcopy(TABLE_UPDATE[1:3])
+    new_columns[0]["description"] = "Added column with comment"
+
+    statements = snowflake_client._get_table_update_sql("event_test_table", new_columns, True)
+
+    # First statement should be ADD COLUMN
+    add_column_sql = statements[0]
+    assert add_column_sql.startswith("ALTER TABLE")
+    assert "ADD COLUMN" in add_column_sql
+    assert "COMMENT 'Added column with comment'" in add_column_sql
+
+
+def test_create_table_decfloat(empty_schema: Schema) -> None:
+    """When use_decfloat is enabled, unbound decimal columns use DECFLOAT type."""
+    client = create_client(empty_schema, use_decfloat=True)
+    statements = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    sql = statements[0]
+
+    # unbound decimal (col6) should be DECFLOAT
+    assert '"COL6" DECFLOAT  NOT NULL' in sql
+    # decimal with explicit precision (col6_precision) should still be NUMBER
+    assert '"COL6_PRECISION" NUMBER(6,2)  NOT NULL' in sql
+    # wei should remain NUMBER
+    assert '"COL8" NUMBER(38,0)' in sql
+
+
+def test_create_table_no_decfloat(snowflake_client: SnowflakeClient) -> None:
+    """When use_decfloat is disabled (default), unbound decimal columns use NUMBER with default precision."""
+    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    sql = statements[0]
+    # unbound decimal should be NUMBER(38,9), the Snowflake default
+    assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
+
+
+def test_alter_table_decfloat(empty_schema: Schema) -> None:
+    """DECFLOAT is used in ALTER TABLE when use_decfloat is enabled."""
+    client = create_client(empty_schema, use_decfloat=True)
+    new_columns = deepcopy(TABLE_UPDATE[5:7])  # col6 (decimal) and col7 (binary)
+    statements = client._get_table_update_sql("event_test_table", new_columns, True)
+    add_column_sql = statements[0]
+    assert '"COL6" DECFLOAT  NOT NULL' in add_column_sql
+    assert '"COL7" BINARY  NOT NULL' in add_column_sql
+
+
+def test_decfloat_type_mapper_to_destination() -> None:
+    """Test SnowflakeTypeMapper with use_decfloat produces DECFLOAT for unbound decimals."""
+    caps = snowflake()._raw_capabilities()
+    mapper = SnowflakeTypeMapper(caps, use_decfloat=True)
+
+    # unbound decimal -> DECFLOAT
+    col = cast(TColumnSchema, {"name": "test_col", "data_type": "decimal"})
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {"test_col": col}})
+    assert mapper.to_destination_type(col, table) == "DECFLOAT"
+
+    # decimal with precision -> NUMBER(p,s)
+    col_prec = cast(
+        TColumnSchema, {"name": "test_col", "data_type": "decimal", "precision": 10, "scale": 3}
+    )
+    assert mapper.to_destination_type(col_prec, table) == "NUMBER(10,3)"
+
+
+def test_decfloat_type_mapper_disabled() -> None:
+    """Test SnowflakeTypeMapper without use_decfloat uses NUMBER for unbound decimals."""
+    caps = snowflake()._raw_capabilities()
+    mapper = SnowflakeTypeMapper(caps, use_decfloat=False)
+
+    col = cast(TColumnSchema, {"name": "test_col", "data_type": "decimal"})
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {"test_col": col}})
+    assert mapper.to_destination_type(col, table) == "NUMBER(38,9)"
+
+
+def test_decfloat_type_mapper_from_destination() -> None:
+    """Test SnowflakeTypeMapper maps DECFLOAT back to decimal."""
+    caps = snowflake()._raw_capabilities()
+    mapper = SnowflakeTypeMapper(caps, use_decfloat=True)
+
+    result = mapper.from_destination_type("DECFLOAT")
+    assert result == {"data_type": "decimal"}

@@ -7,7 +7,7 @@ from time import sleep
 
 from dlt.common import pendulum, Decimal
 from dlt.common.destination.exceptions import IdentifierTooLongException
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
+from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
@@ -17,18 +17,18 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
-from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.typing import TNativeConn
-from dlt.common.time import ensure_pendulum_datetime, to_py_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.load.utils import (
-    yield_client_with_storage,
+    SqlJobClientBaseWithDestinationTestConfiguration,
     prepare_table,
     AWS_BUCKET,
     destinations_configs,
-    DestinationTestConfiguration,
+    destinations_configs_with_naming_convention,
+    sql_job_client_from_destination_config as client,
 )
 
 # mark all tests as essential, do not remove
@@ -42,23 +42,7 @@ TEST_NAMING_CONVENTIONS = (
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
-
-
-@pytest.fixture(scope="function")
-def client(request, naming) -> Iterator[SqlJobClientBase]:
-    param: DestinationTestConfiguration = request.param
-    yield from yield_client_with_storage(param.destination_factory())
-
-
-@pytest.fixture(scope="function")
-def naming(request) -> str:
-    # NOTE: this fixture is forced by `client` fixture which requires it goes first
-    # so sometimes there's no request available
-    if hasattr(request, "param"):
-        os.environ["SCHEMA__NAMING"] = request.param
-        return request.param
-    return None
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.mark.parametrize(
@@ -66,26 +50,34 @@ def naming(request) -> str:
     destinations_configs(
         # Only databases that support search path or equivalent
         default_sql_configs=True,
-        exclude=["mssql", "synapse", "dremio", "clickhouse", "sqlalchemy"],
+        exclude=["mssql", "synapse", "fabric", "dremio", "clickhouse", "sqlalchemy"],
+        aws_data_catalog=None,  # exclude non-default catalogs, because they require qualification
     ),
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> None:
+def test_sql_client_default_dataset_unqualified(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
     client.update_stored_schema()
     load_id = "182879721.182912"
     client.complete_load(load_id)
+
+    # client should reopen the connection to set search paths. dataset was created
+    client.sql_client.close_connection()
+    client.sql_client.open_connection()
+
     curr: DBApiCursor
     # get data from unqualified name
     with client.sql_client.execute_query(
-        f"SELECT * FROM {LOADS_TABLE_NAME} ORDER BY inserted_at"
+        f"SELECT * FROM {client.schema.loads_table_name} ORDER BY inserted_at"
     ) as curr:
         columns = [c[0] for c in curr.description]
         data = curr.fetchall()
     assert len(data) > 0
 
     # get data from qualified name
-    load_table = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
+    load_table = client.sql_client.make_qualified_table_name(client.schema.loads_table_name)
     with client.sql_client.execute_query(
         f"SELECT * FROM {load_table} ORDER BY inserted_at"
     ) as curr:
@@ -96,9 +88,11 @@ def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> Non
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
+def test_malformed_query_parameters(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
     client.update_stored_schema()
-    loads_table_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
+    loads_table_name = client.sql_client.make_qualified_table_name(client.schema.loads_table_name)
 
     paramstyle = client.sql_client.dbapi.paramstyle
     is_positional = paramstyle in ("qmark", "format")
@@ -132,39 +126,48 @@ def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 
 
-@pytest.mark.parametrize("naming", TEST_NAMING_CONVENTIONS, indirect=True)
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs_with_naming_convention(
+        naming_conventions=TEST_NAMING_CONVENTIONS, default_sql_configs=True
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
 )
-def test_has_dataset(naming: str, client: SqlJobClientBase) -> None:
+def test_has_dataset(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     with client.sql_client.with_alternative_dataset_name("not_existing"):
         assert not client.sql_client.has_dataset()
     client.update_stored_schema()
     assert client.sql_client.has_dataset()
 
 
-@pytest.mark.parametrize("naming", TEST_NAMING_CONVENTIONS, indirect=True)
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs_with_naming_convention(
+        naming_conventions=TEST_NAMING_CONVENTIONS, default_sql_configs=True
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
 )
-def test_create_drop_dataset(naming: str, client: SqlJobClientBase) -> None:
+def test_create_drop_dataset(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     # client.sql_client.create_dataset()
     # Dataset is already create in fixture, so next time it fails
+    assert client.is_storage_initialized()
     with pytest.raises(DatabaseException):
         client.sql_client.create_dataset()
     assert client.is_storage_initialized() is True
     client.sql_client.drop_dataset()
     assert client.is_storage_initialized() is False
-    with pytest.raises(DatabaseUndefinedRelation):
-        client.sql_client.drop_dataset()
 
 
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
+def test_malformed_execute_parameters(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
     client.update_stored_schema()
-    loads_table_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
+    loads_table_name = client.sql_client.make_qualified_table_name(client.schema.loads_table_name)
 
     paramstyle = client.sql_client.dbapi.paramstyle
     is_positional = paramstyle in ("qmark", "format")
@@ -198,12 +201,14 @@ def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_execute_sql(client: SqlJobClientBase) -> None:
+def test_execute_sql(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     client.update_stored_schema()
     # ask with datetime
     # no_rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", pendulum.now().add(seconds=1))
     # assert len(no_rows) == 0
-    version_table_name = client.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+    version_table_name = client.sql_client.make_qualified_table_name(
+        client.schema.version_table_name
+    )
     rows = client.sql_client.execute_sql(
         f"SELECT schema_name, inserted_at FROM {version_table_name}"
     )
@@ -215,12 +220,12 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
     assert len(rows) == 1
     # print(rows)
     assert rows[0][0] == "event"
-    assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
     assert rows[0][0] == "event"
     # print(rows[0][1])
     # print(type(rows[0][1]))
     # ensure datetime obj to make sure it is supported by dbapi
-    inserted_at = to_py_datetime(ensure_pendulum_datetime(rows[0][1]))
+    inserted_at = to_py_datetime(ensure_pendulum_datetime_utc(rows[0][1]))
     if client.config.destination_name == "sqlalchemy_sqlite":
         # timezone aware datetime is not supported by sqlite
         inserted_at = inserted_at.replace(tzinfo=None)
@@ -250,7 +255,7 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_execute_ddl(client: SqlJobClientBase) -> None:
+def test_execute_ddl(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     uniq_suffix = uniq_id()
     client.update_stored_schema()
     table_name, py_type = prepare_temp_table(client)
@@ -258,6 +263,11 @@ def test_execute_ddl(client: SqlJobClientBase) -> None:
     client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (1.0)")
     rows = client.sql_client.execute_sql(f"SELECT * FROM {f_q_table_name}")
     assert rows[0][0] == py_type("1.0")
+    if client.destination_config.is_athena_s3_tables:
+        # CREATE VIEW is currently (as of 2025-12-02) not supported when using an S3 Tables
+        # Catalog with Athena
+        # https://docs.aws.amazon.com//athena/latest/ug/gdc-register-s3-table-bucket-cat.html#gdc-register-s3-table-consideration
+        return
     if client.config.destination_type == "dremio":
         username = client.config.credentials["username"]
         view_name = f'"@{username}"."view_tmp_{uniq_suffix}"'
@@ -272,9 +282,11 @@ def test_execute_ddl(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_execute_query(client: SqlJobClientBase) -> None:
+def test_execute_query(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     client.update_stored_schema()
-    version_table_name = client.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+    version_table_name = client.sql_client.make_qualified_table_name(
+        client.schema.version_table_name
+    )
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name}"
     ) as curr:
@@ -287,7 +299,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
         rows = curr.fetchall()
         assert len(rows) == 1
         assert rows[0][0] == "event"
-        assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
+        assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
         rows[0][1],
@@ -314,11 +326,11 @@ def test_execute_query(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_execute_df(client: SqlJobClientBase) -> None:
+def test_execute_df(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     if client.config.destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
-    elif client.config.destination_type == "mssql":
+    elif client.config.destination_type in ("mssql", "ducklake"):
         chunk_size = 700
         total_records = 1000
     else:
@@ -356,7 +368,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         except StopIteration:
             df_2 = None
             # NOTE: snowflake chunks are unpredictable in size, so allow stop after two iterations
-            if client.config.destination_type != "snowflake":
+            if client.config.destination_type not in ("snowflake", "ducklake"):
                 raise
         try:
             df_3 = next(iterator)
@@ -367,7 +379,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
             if df is not None:
                 df.columns = [dfcol.lower() for dfcol in df.columns]
 
-    if client.config.destination_type != "snowflake":
+    if client.config.destination_type not in ("snowflake", "ducklake"):
         assert list(df_1["col"]) == list(range(0, chunk_size))
         assert list(df_2["col"]) == list(range(chunk_size, total_records))
     else:
@@ -378,7 +390,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_database_exceptions(client: SqlJobClientBase) -> None:
+def test_database_exceptions(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     client.update_stored_schema()
     term_ex: Any
     # invalid table
@@ -414,7 +426,9 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
     assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
     # invalid column
     with pytest.raises(DatabaseTerminalException) as term_ex:
-        loads_table_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
+        loads_table_name = client.sql_client.make_qualified_table_name(
+            client.schema.loads_table_name
+        )
         with client.sql_client.execute_query(
             f"SELECT * FROM {loads_table_name} ORDER BY column_XXX"
         ):
@@ -427,7 +441,7 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
     # assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
     # invalid schema/dataset
     with client.sql_client.with_alternative_dataset_name("UNKNOWN"):
-        qualified_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
+        qualified_name = client.sql_client.make_qualified_table_name(client.schema.loads_table_name)
         with pytest.raises(DatabaseUndefinedRelation) as term_ex:
             with client.sql_client.execute_query(
                 f"SELECT * FROM {qualified_name} ORDER BY inserted_at"
@@ -438,10 +452,17 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
             with client.sql_client.execute_query(f"DELETE FROM {qualified_name} WHERE 1=1"):
                 pass
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
-        if client.config.destination_type not in ["dremio", "clickhouse"]:
-            with pytest.raises(DatabaseUndefinedRelation) as term_ex:
-                client.sql_client.drop_dataset()
-            assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+        expected_exception = (
+            # when using an S3 Tables Catalog, Athena throws `OperationalError` with generic "Error
+            # occurred when dropping tables during cascade" message, which we can't safely map to
+            # `DatabaseUndefinedRelation`
+            DatabaseTerminalException
+            if client.destination_config.is_athena_s3_tables
+            else DatabaseUndefinedRelation
+        )
+        with pytest.raises(expected_exception) as term_ex:
+            client.sql_client.drop_dataset()
+        assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 
 
 @pytest.mark.parametrize(
@@ -450,7 +471,7 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_commit_transaction(client: SqlJobClientBase) -> None:
+def test_commit_transaction(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     table_name, py_type = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     with client.sql_client.begin_transaction():
@@ -484,7 +505,7 @@ def test_commit_transaction(client: SqlJobClientBase) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_rollback_transaction(client: SqlJobClientBase) -> None:
+def test_rollback_transaction(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
     table_name, py_type = prepare_temp_table(client)
@@ -545,7 +566,7 @@ def test_rollback_transaction(client: SqlJobClientBase) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_transaction_isolation(client: SqlJobClientBase) -> None:
+def test_transaction_isolation(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
     if client.config.destination_name == "sqlalchemy_sqlite":
@@ -600,7 +621,9 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
+def test_max_table_identifier_length(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
     if client.capabilities.max_identifier_length >= 9000:
         pytest.skip(
             f"destination {client.config.destination_type} has no table name length restriction"
@@ -635,7 +658,9 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
+def test_max_column_identifier_length(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
     if client.capabilities.max_column_identifier_length >= 9000:
         pytest.skip(
             f"destination {client.config.destination_type} has no column name length restriction"
@@ -664,7 +689,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
+def test_recover_on_explicit_tx(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
 
@@ -722,6 +747,30 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     assert_load_id(client.sql_client, "LMN")
 
 
+def test_raise_database_error_no_circular_dependency():
+    """Test that raise_database_error decorator doesn't create circular __cause__ dependencies"""
+
+    class MockSqlClient:
+        @staticmethod
+        def _make_database_exception(ex):
+            # simulate problematic destinations that return original exception
+            return ex
+
+        @raise_database_error
+        def execute_query(self):
+            raise ValueError("Database connection failed because it failed.")
+
+    client = MockSqlClient()
+
+    with pytest.raises(Exception) as exc_info:
+        client.execute_query()
+
+    exception = exc_info.value
+
+    # exception should not cause itself
+    assert exception is not exception.__cause__
+
+
 def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None:
     # and data is actually committed when connection reopened
     sql_client.close_connection()
@@ -731,7 +780,9 @@ def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None
     assert len(rows) == 1
 
 
-def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decimal, float]]]:
+def prepare_temp_table(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> Tuple[str, Type[Union[Decimal, float]]]:
     """Return the table name and py type of value to insert"""
     uniq_suffix = uniq_id()
     table_name = f"tmp_{uniq_suffix}"
@@ -739,12 +790,13 @@ def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decima
     coltype = "numeric"
     py_type: Union[Type[Decimal], Type[float]] = Decimal
     if client.config.destination_type == "athena":
-        ddl_suffix = (
-            f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
-            " 'format'='parquet')"
-        )
+        if not client.destination_config.is_athena_s3_tables:
+            ddl_suffix = (
+                f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
+                " 'format'='parquet')"
+            )
         coltype = "bigint"
-        qualified_table_name = table_name
+        qualified_table_name = client.sql_client.make_qualified_ddl_table_name(table_name)
     elif client.config.destination_name == "sqlalchemy_sqlite":
         coltype = "float"
         py_type = float

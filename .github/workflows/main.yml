@@ -2,7 +2,7 @@ name: dlt
 
 on:
   pull_request:
-    branches: [ master, devel ]
+    branches: [ master, devel, runtime ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -20,27 +20,38 @@ jobs:
   authorize_run_from_fork:
     name: check if fork and if so wether secrets are available
     # run when label is assigned OR when we are not a fork
-    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'ci from fork') || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
     runs-on: ubuntu-latest
     steps:
       - run: true
 
   # testing and linting of docs snippets is always run to catch problems in the docs
   # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
-  test_docs_snippets:
-    name: test snippets in docs
-    uses: ./.github/workflows/test_docs_snippets.yml
+  test_docs:
+    name: lint and test snippets, examples and notebooks in docs, lints tools
+    uses: ./.github/workflows/test_docs.yml
+    secrets: inherit
+
+  # NOTE: we build docs the same way as on cloudflare, so we can catch problems early
+  build_docs:
+    name: build docs
+    uses: ./.github/workflows/build_docs.yml
   
   lint:
     name: lint on all python versions
     needs: get_docs_changes
     uses: ./.github/workflows/lint.yml
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
 
   test_common:
     name: run common tests on all python versions and OSes
-    needs: [lint, get_docs_changes]
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    needs: [lint]
     uses: ./.github/workflows/test_common.yml
+
+  test_dashboard:
+    name: run dashboard tests
+    needs: [lint]
+    uses: ./.github/workflows/test_tools_dashboard.yml
 
   #
   # Destination and Sources local tests, do not provide secrets
@@ -56,10 +67,10 @@ jobs:
     needs: test_common
     uses: ./.github/workflows/test_sources_local.yml
 
-  test_plus:
-    name: test dlt+ connection
+  test_hub:
+    name: test dlthub features
     needs: lint
-    uses: ./.github/workflows/test_plus.yml
+    uses: ./.github/workflows/test_hub.yml
 
   test_tools_airflow:
     name: test airflow helpers
@@ -75,12 +86,6 @@ jobs:
   # Remote destination tests and docs examples, needs secrets, 
   # so we depend on authorize and forward secrets
   #
-
-  test_examples:
-    name: test examples
-    needs: [lint, authorize_run_from_fork]
-    uses: ./.github/workflows/test_examples.yml
-    secrets: inherit
 
   test_destinations_remote:
     name: test remote destinations with secrets

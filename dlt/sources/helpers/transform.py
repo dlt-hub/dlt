@@ -113,7 +113,7 @@ def pivot(
 
 
 def add_row_hash_to_table(row_hash_column_name: str) -> TDataItem:
-    """Computes content hash for each row of panda frame, arrow table or batch and adds it as `row_hash_column_name` column.
+    """Computes content hash for each row of pandas DataFrame, arrow table or batch and adds it as `row_hash_column_name` column.
 
     Internally arrow tables and batches are converted to pandas DataFrame and then `hash_pandas_object` is used to
     generate a series with row hashes. Hashes are converted to signed int64 and added to original table. Data may be modified.

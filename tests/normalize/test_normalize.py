@@ -3,11 +3,14 @@ from copy import deepcopy
 import pytest
 from fnmatch import fnmatch
 from typing import Dict, Iterator, List, Sequence, Tuple
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import datetime
 
 from dlt.common import logger
 from dlt.common import json
 from dlt.common.destination.capabilities import TLoaderFileFormat
+from dlt.common.metrics import DataWriterMetrics
+from dlt.common.runners.configuration import PoolRunnerConfiguration
+from dlt.common.runners.pool_runner import NullExecutor, create_pool
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.utils import new_table
@@ -42,8 +45,10 @@ from tests.normalize.utils import (
 
 from pytest_mock import MockerFixture
 
+pytestmark = pytest.mark.serial
 
-@pytest.fixture(scope="module", autouse=True)
+
+@pytest.fixture(autouse=True)
 def default_caps() -> Iterator[DestinationCapabilitiesContext]:
     # set the postgres caps as default for the whole module
     with Container().injectable_context(DEFAULT_CAPS()) as caps:
@@ -290,12 +295,14 @@ def test_multiprocessing_row_counting(
 ) -> None:
     extract_cases(raw_normalize, ["github.events.load_page_1_duck"])
     # use real process pool in tests
-    with ProcessPoolExecutor(max_workers=4) as p:
+    with create_pool(PoolRunnerConfiguration(pool_type="process", workers=4)) as p:
         # test if we get correct number of workers
         assert getattr(p, "_max_workers", None) == 4
         raw_normalize.run(p)
     # get step info
     step_info = raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
+    # current load id reset after successful normalize
+    assert raw_normalize.current_load_id is None
     assert step_info.row_counts["events"] == 100
     assert step_info.row_counts["events__payload__pull_request__requested_reviewers"] == 24
     # check if single load id
@@ -325,7 +332,7 @@ def test_normalize_many_packages(
         ],
     )
     # use real process pool in tests
-    with ProcessPoolExecutor(max_workers=4) as p:
+    with create_pool(PoolRunnerConfiguration(pool_type="process", workers=4)) as p:
         rasa_normalize.run(p)
     # must have two loading groups with model and event schemas
     loads = rasa_normalize.load_storage.list_normalized_packages()
@@ -360,7 +367,7 @@ def test_normalize_typed_json(
     caps: DestinationCapabilitiesContext, raw_normalize: Normalize
 ) -> None:
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], Schema("special"), "special")
-    with ThreadPoolExecutor(max_workers=1) as pool:
+    with create_pool(PoolRunnerConfiguration(pool_type="thread", workers=1)) as pool:
         raw_normalize.run(pool)
     loads = raw_normalize.load_storage.list_normalized_packages()
     assert len(loads) == 1
@@ -478,14 +485,29 @@ def test_normalize_twice_with_flatten(
     assert_schema(schema)
 
 
-def test_normalize_retry(raw_normalize: Normalize) -> None:
-    load_id = extract_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+@pytest.mark.parametrize("pool_workers", (1, 2))
+def test_normalize_retry(raw_normalize: Normalize, pool_workers: int) -> None:
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "10"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "10"
+    if pool_workers > 1:
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
+    else:
+        executor = NullExecutor()
+    load_id = extract_cases(
+        raw_normalize, ["github.issues.load_page_5_duck", "github.issues.load_page_5_duck"]
+    )
     schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_id)
     schema.set_schema_contract("freeze")
     raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
     # will fail on contract violation
-    with pytest.raises(NormalizeJobFailed):
-        raw_normalize.run(None)
+    with executor:
+        with pytest.raises(NormalizeJobFailed):
+            raw_normalize.run(executor)
+        # load id still available
+        assert raw_normalize.current_load_id == load_id
+        # raw_normalize.get_step_info()
+
+    executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
 
     # drop the contract requirements
     schema.set_schema_contract("evolve")
@@ -493,28 +515,145 @@ def test_normalize_retry(raw_normalize: Normalize) -> None:
     raw_normalize.schema_storage.save_schema(schema)
     # raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
     # subsequent run must succeed
-    raw_normalize.run(None)
+    with executor:
+        raw_normalize.run(executor)
     _, table_files = expect_load_package(
         raw_normalize.load_storage,
         raw_normalize.config.destination_capabilities.preferred_loader_file_format,
         load_id,
         ["issues", "issues__labels", "issues__assignees"],
     )
-    assert len(table_files["issues"]) == 1
+    assert len(table_files["issues"]) == 20
 
 
-def test_collect_metrics_on_exception(raw_normalize: Normalize) -> None:
+@pytest.mark.parametrize("pool_workers", (1, 2))
+def test_collect_empty_metrics_on_exception(raw_normalize: Normalize, pool_workers: int) -> None:
+    if pool_workers > 1:
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
+    else:
+        executor = NullExecutor()
     load_id = extract_cases(raw_normalize, ["github.issues.load_page_5_duck"])
     schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_id)
     schema.set_schema_contract("freeze")
     raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
     # will fail on contract violation
-    with pytest.raises(NormalizeJobFailed) as job_ex:
-        raw_normalize.run(None)
+    with executor:
+        with pytest.raises(NormalizeJobFailed) as job_ex:
+            raw_normalize.run(executor)
     # we excepted on a first row so nothing was written
-    # TODO: improve this test to write some rows in buffered writer
     assert len(job_ex.value.writer_metrics) == 0
-    raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
+    assert "issues" in job_ex.value.job_id
+    assert job_ex.value.load_id == load_id
+    # package still processing
+    assert raw_normalize.current_load_id == load_id
+    step_info = raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
+    assert len(step_info.metrics) == 1
+    # no jobs
+    metrics = step_info.metrics[load_id][0]
+    assert len(metrics["job_metrics"]) == 0
+    assert len(metrics["table_metrics"]) == 0
+    assert isinstance(metrics["started_at"], datetime.datetime)
+    assert metrics["finished_at"] is None
+    assert step_info.load_packages[0].state == "extracted"
+    assert len(step_info.load_packages[0].jobs["new_jobs"]) == 1
+
+
+@pytest.mark.parametrize("pool_workers", (1, 2))
+def test_collect_metrics_on_exception(raw_normalize: Normalize, pool_workers: int) -> None:
+    # files below have 3 elements and we want to split them as such
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "3"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "3"
+
+    # reload schema so we fail only second file on freeze, but allow the firstone
+    with open(json_case_path("schemas/event_user.schema"), "rb") as f:
+        schema = Schema.from_dict(json.load(f))
+
+    if pool_workers > 1:
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
+    else:
+        executor = NullExecutor()
+    load_id = extract_cases(
+        raw_normalize, ["event_user.event_user.user_load", "event_user.event_user.user_load_extra"]
+    )
+    # load schema from package
+    schema.set_schema_contract("freeze")
+    # save to schema storage because it has precedence over package schema in normalize and we modified it
+    raw_normalize.schema_storage.save_schema(schema)
+    # will fail on contract violation
+    with executor:
+        with pytest.raises(NormalizeJobFailed) as job_ex:
+            raw_normalize.run(executor)
+    assert job_ex.value.load_id == load_id
+    # one file passed, user_load_extra failed
+    metrics = job_ex.value.writer_metrics
+    assert len(metrics) == 1
+    assert metrics[0].items_count == 3
+    # completed job is from packaged in "normalized" state (data normalized)
+    completed_job = ParsedLoadJobFileName.parse(metrics[0].file_path)
+    # failed job is from failed_state
+    failed_job = ParsedLoadJobFileName.parse(
+        job_ex.value.job_id.replace(".typed-jsonl", ".0.typed-jsonl")
+    )
+    assert completed_job.table_name == failed_job.table_name
+    # not the same job
+    assert completed_job.file_id != failed_job.file_id
+    # package still processing
+    assert raw_normalize.current_load_id == load_id
+    assert "event_user" in job_ex.value.job_id
+    # no jobs
+    step_info = raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
+    # metrics for completed jobs
+    assert step_info.metrics[load_id][0]["job_metrics"][completed_job.job_id()].items_count == 3
+    package_jobs = step_info.load_packages[0].jobs
+    assert step_info.load_packages[0].state == "extracted"
+    assert len(package_jobs["new_jobs"]) == 1
+    # new jobs - files before normalization
+    assert package_jobs["new_jobs"][0].file_path.endswith(".typed-jsonl.gz")
+    # completed jobs - after normalization
+    assert len(package_jobs["completed_jobs"]) == 1
+    assert package_jobs["completed_jobs"][0].file_path.endswith(".insert_values.gz")
+
+
+@pytest.mark.parametrize("pool_workers", (1, 2))
+def test_schema_update_conflict(
+    mocker: MockerFixture, raw_normalize: Normalize, pool_workers: int
+) -> None:
+    # files below have 10 elements and we want to split them as such
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "3"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "3"
+    if pool_workers > 1:
+        executor = create_pool(PoolRunnerConfiguration(pool_type="process", workers=2))
+    else:
+        executor = NullExecutor()
+    load_id = extract_cases(
+        raw_normalize,
+        ["event_user.event_user.user_load_extra", "event_user.event_user.user_load_extra_conflict"],
+        batch_size=3,
+    )
+
+    # when there's a schema conflict all files from a victim worker must be deleted
+    from dlt.normalize import normalize
+
+    spy_mock = mocker.spy(normalize, "remove_files_from_metrics")
+    with executor:
+        raw_normalize.run(executor)
+
+    if pool_workers > 1:
+        # make sure just one file got deleted
+        assert len(spy_mock.call_args[0][0]) == 1
+        file_metrics: DataWriterMetrics = spy_mock.call_args[0][0][0]
+        assert file_metrics.items_count == 3
+        assert file_metrics.file_path.endswith(".insert_values.gz")
+
+    # otherwise stats should be normal
+    step_info = raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
+    assert step_info.row_counts["event_user"] == 6
+    assert len(step_info.metrics[load_id][0]["job_metrics"]) == 2
+    # this is normalized state
+    assert step_info.load_packages[0].state == "normalized"
+    package_jobs = step_info.load_packages[0].jobs
+    assert len(package_jobs["new_jobs"]) == 2
+    assert package_jobs["new_jobs"][0].file_path.endswith(".insert_values.gz")
 
 
 def test_group_worker_files() -> None:
@@ -584,11 +723,25 @@ EXPECTED_USER_TABLES = [
 
 
 def extract_items(
-    normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema: Schema, table_name: str
+    normalize_storage: NormalizeStorage,
+    items: Sequence[StrAny],
+    schema: Schema,
+    table_name: str,
+    batch_size: int = 10,
 ) -> str:
     extractor = ExtractStorage(normalize_storage.config)
     load_id = extractor.create_load_package(schema)
-    extractor.item_storages["object"].write_data_item(load_id, schema.name, table_name, items, None)
+    # chunk when writing so possibly many files will be generated
+    import itertools
+
+    it_ = iter(items)
+    for chunk in [
+        list(itertools.islice(it_, batch_size))
+        for _ in range((len(items) + batch_size - 1) // batch_size)
+    ]:
+        extractor.item_storages["object"].write_data_item(
+            load_id, schema.name, table_name, chunk, None
+        )
     extractor.close_writers(load_id)
     extractor.commit_new_load_package(load_id, schema)
     return load_id
@@ -608,7 +761,7 @@ def normalize_event_user(
 
 
 def extract_and_normalize_cases(normalize: Normalize, cases: Sequence[str]) -> str:
-    extract_cases(normalize, cases)
+    extract_cases(normalize, cases, batch_size=100000)
     return normalize_pending(normalize)
 
 
@@ -629,7 +782,7 @@ def normalize_pending(normalize: Normalize, schema: Schema = None) -> str:
     return load_id
 
 
-def extract_cases(normalize: Normalize, cases: Sequence[str]) -> str:
+def extract_cases(normalize: Normalize, cases: Sequence[str], batch_size: int = 10) -> str:
     items: List[StrAny] = []
     for case in cases:
         # our cases have schema and table name encoded in file name
@@ -646,6 +799,7 @@ def extract_cases(normalize: Normalize, cases: Sequence[str]) -> str:
         items,
         load_or_create_schema(normalize, schema_name),
         table_name,
+        batch_size=batch_size,
     )
 
 
@@ -736,7 +890,7 @@ def test_update_schema_column_conflict(rasa_normalize: Normalize) -> None:
         ],
     )
     # use real process pool in tests
-    with ProcessPoolExecutor(max_workers=4) as p:
+    with create_pool(PoolRunnerConfiguration(pool_type="process", workers=4)) as p:
         rasa_normalize.run(p)
 
     schema = rasa_normalize.schema_storage.load_schema("event")
@@ -853,7 +1007,7 @@ def test_warning_from_json_normalizer_on_null_column(
         load_or_create_schema(raw_normalize, "test_schema"),
         "nested_table",
     )
-    with ThreadPoolExecutor(max_workers=1) as pool:
+    with create_pool(PoolRunnerConfiguration(pool_type="thread", workers=1)) as pool:
         raw_normalize.run(pool)
 
     if is_none:

@@ -16,7 +16,9 @@ from typing import (
 from typing_extensions import TypeAlias
 import inspect
 
+import dlt
 from dlt.common import logger
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.configuration import resolve_configuration, known_sections
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -109,6 +111,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 credentials.__is_resolved__ = True
             else:
                 credentials = init_config.credentials
+                if isinstance(credentials, BaseConfiguration):
+                    credentials = credentials.copy()
             config = self.spec(credentials=credentials)
             try:
                 config = self.configuration(config, accept_partial=True)
@@ -166,7 +170,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         config = resolve_configuration(
             initial_config or self.spec(),
             sections=(known_sections.DESTINATION, self.destination_name),
-            # Already populated values will supersede resolved env config
+            # already populated values will supersede resolved env config
             explicit_value=self.config_params,
             accept_partial=accept_partial,
         )
@@ -264,9 +268,36 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 )
             return ref
 
-        return DestinationReference.from_reference(
-            ref, credentials, destination_name, environment, **kwargs
-        )
+        # If destination name is provided or ref is a module ref
+        # don't attempt to resolve as named destination
+        if destination_name or "." in ref:
+            return DestinationReference.from_reference(
+                ref, credentials, destination_name, environment, **kwargs
+            )
+
+        # First, try to resolve as a named destination with configured type
+        destination_type: str = dlt.config.get(f"destination.{ref}.destination_type")
+        if destination_type:
+            try:
+                return DestinationReference.from_reference(
+                    ref=destination_type,
+                    destination_name=ref,
+                    credentials=credentials,
+                    environment=environment,
+                    **kwargs,
+                )
+            except Exception:
+                pass
+
+        # Then, try to resolve as a shorthand destination ref
+        try:
+            return DestinationReference.from_reference(
+                ref, credentials, destination_name, environment, **kwargs
+            )
+        except UnknownDestinationModule as e:
+            e.destination_type = destination_type
+            e.named_dest_attempted = True
+            raise e
 
 
 class DestinationReference:
@@ -274,17 +305,6 @@ class DestinationReference:
 
     DESTINATIONS: ClassVar[Dict[str, Type[AnyDestination]]] = {}
     """A registry of all the destination factories"""
-
-    @staticmethod
-    def normalize_type(destination_type: str) -> str:
-        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to built in destinations."""
-        if "." not in destination_type:
-            destination_type = "dlt.destinations." + destination_type
-        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
-        pattern = r"\.destinations\.impl\.[a-zA-Z_][.a-zA-Z0-9_]*\."
-        replacement = ".destinations."
-        destination_type = re.sub(pattern, replacement, destination_type)
-        return destination_type
 
     @classmethod
     def register(cls, factory: Type[AnyDestination_CO], ref: str) -> None:
@@ -295,28 +315,6 @@ class DestinationReference:
                 f"A destination with ref {ref} is already registered and will be overwritten"
             )
         cls.DESTINATIONS[ref] = factory
-
-    @staticmethod
-    def to_fully_qualified_refs(ref: str) -> List[str]:
-        """Converts ref into fully qualified form, return one or more alternatives for shorthand notations.
-        Run context is injected if needed. Following formats are recognized
-        - name
-        NOTE: the last component of destination type serves as destination name if not explicitly specified
-        """
-        ref_split = ref.split(".")
-        ref_parts = len(ref_split)
-        if ref_parts < 2:
-            # context name is needed
-            refs = []
-            for ref_prefix in get_plugin_modules():
-                if ref_prefix:
-                    ref_prefix = f"{ref_prefix}.{known_sections.DESTINATIONS}"
-                else:
-                    ref_prefix = f"{known_sections.DESTINATIONS}"
-                refs.append(f"{ref_prefix}.{ref}")
-            return refs
-
-        return []
 
     @classmethod
     def find(
@@ -408,3 +406,36 @@ class DestinationReference:
         if environment:
             kwargs["environment"] = environment
         return factory(**kwargs)
+
+    @staticmethod
+    def normalize_type(destination_type: str) -> str:
+        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to built in destinations."""
+        if "." not in destination_type:
+            destination_type = "dlt.destinations." + destination_type
+        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
+        pattern = r"\.destinations\.impl\.[a-zA-Z_][.a-zA-Z0-9_]*\."
+        replacement = ".destinations."
+        destination_type = re.sub(pattern, replacement, destination_type)
+        return destination_type
+
+    @staticmethod
+    def to_fully_qualified_refs(ref: str) -> List[str]:
+        """Converts ref into fully qualified form, return one or more alternatives for shorthand notations.
+        Run context is injected if needed. Following formats are recognized
+        - name
+        NOTE: the last component of destination type serves as destination name if not explicitly specified
+        """
+        ref_split = ref.split(".")
+        ref_parts = len(ref_split)
+        if ref_parts < 2:
+            # context name is needed
+            refs = []
+            for ref_prefix in get_plugin_modules():
+                if ref_prefix:
+                    ref_prefix = f"{ref_prefix}.{known_sections.DESTINATIONS}"
+                else:
+                    ref_prefix = f"{known_sections.DESTINATIONS}"
+                refs.append(f"{ref_prefix}.{ref}")
+            return refs
+
+        return []

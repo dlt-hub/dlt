@@ -19,7 +19,7 @@ class ColumnNamingConvention(SnakeCaseNamingConvention):
 
 
 class DataItemNormalizer(RelationalNormalizer):
-    def extend_schema(self) -> None:
+    def extend_schema(self, extend_tables: bool = False) -> None:
         json_config = self.schema._normalizers_config["json"]["config"]
         d_h = self.schema._settings.setdefault("default_hints", {})
         d_h["not_null"] = json_config["not_null"]
@@ -27,4 +27,4 @@ class DataItemNormalizer(RelationalNormalizer):
     def normalize_data_item(
         self, source_event: TDataItem, load_id: str, table_name
     ) -> TNormalizedRowIterator:
-        yield (table_name, None), source_event
+        yield (table_name, (), ()), source_event

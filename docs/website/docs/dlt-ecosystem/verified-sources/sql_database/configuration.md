@@ -117,8 +117,39 @@ will create `sql_database` folder with the source code that you can import and u
         print(info)
 
     ```
+4. **Prefix table names using `apply_hints`**
 
-4. **Configuring table and column selection in `config.toml`**
+   You can rename tables before loading them into the destination by applying the `apply_hints` method to each resource. This is useful for avoiding naming collisions or organizing data.
+
+   ```py
+   import dlt
+   from dlt.sources.sql_database import sql_database
+   
+   def load_prefixed_tables_from_database() -> None:
+       
+       # Define the pipeline
+       pipeline = dlt.pipeline(
+           pipeline_name="rfam",
+           destination="duckdb",
+           dataset_name="rfam_data",
+       )
+       
+       # Fetch specific tables from the database
+       source = sql_database(table_names=["family", "clan"])
+       
+       # Prefix tables before loading to avoid collisions
+       source_system = "prefix"  # Your desired prefix
+       for _resource_name, resource in source.resources.items():
+           resource.apply_hints(table_name=f"{source_system}__{resource.name}")
+       
+       # Run the pipeline
+       load_info = pipeline.run(source)
+       print(load_info)
+
+   ```
+   This renames the tables before insertion. For example, the table "family" will be loaded as "prefix__family".
+   
+5. **Configuring table and column selection in `config.toml`**
 
    To manage table and column selections outside of your Python scripts, you can configure them directly in the `config.toml` file. This approach is especially beneficial when dealing with multiple tables or when you prefer to keep configuration separate from code.
 
@@ -144,21 +175,30 @@ will create `sql_database` folder with the source code that you can import and u
    :::
 
 ## Incremental loading
+Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only new or updated data. In essence, arguments that you pass
+to [dlt.sources.incremental](../../../general-usage/incremental/cursor) are used by `dlt` to generate SQL query that will select the rows that you need. 
 
-Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
-
-Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use. Read [here](../../../walkthroughs/sql-incremental-configuration) for more details on incremental loading with `dlt`.
+Read [step by step guide on how to use incremental with sql_database](../../../walkthroughs/sql-incremental-configuration).
 
 ### How to configure
 1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
-1. **Set an initial value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
-1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
-1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from a certain range.
-1. **Order returned rows**: Set `row_order` to `asc` or `desc` to order returned rows.
+2. **Set an initial value(optional)**: Choose an initial value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading. After first run it will be replaced with the maximum cursor value from the selected rows.
+3. **Set the comparison direction in the query**. By default greater than or equal op (**>=**) is used to compare initial/previous value with row column value. You can change it with `last_value_func` argument (**max**/**min**).
+4. **Set if the comparison is inclusive or exclusive**. By default the range is closed (equal values are included). [Look here for explanation and examples](advanced.md#inclusive-and-exclusive-filtering). Note that for closed ranges `dlt` will use [internal deduplication](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges) which adds some processing cost.
+4. **Configure backfill options(optional)**. You can use `end_value` with `range_end` to read data from specified range. You can also control **order returned rows**
+to split long incremental loading into many chunks by time and row count. [Look here for details and examples]
 
 :::info Special characters in the cursor column name
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
 :::
+
+### Configure timezone-aware and naive timestamp cursors
+If your cursor is on a timestamp/datetime column, make sure you set up your initial and end values correctly. This will help you avoid implicit type conversions, invalid datetime literals, or column comparisons in database queries. Note that implicit conversions may result in data loss, for example if a naive datetime has a different local timezone on the machine where Python is executing versus your DBMS.
+
+* If your datetime column is naive, use naive Python datetime. Note that `pendulum` datetime is timezone-aware by default while standard `datetime` is naive.
+* Use `full` reflection level or above to reflect the `timezone` (awareness hint) on datetime columns.
+* Read about [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
+
 
 ### Examples
 
@@ -186,6 +226,9 @@ If your cursor column name contains special characters (e.g., `$`) you need to e
   ```
 
   Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+  ```sql
+  SELECT * FROM family WHERE last_modified >= '2024-01-01T00:00:00Z'
+  ```
   In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
 
 2. **Incremental loading with the source `sql_database`**.
@@ -197,19 +240,31 @@ If your cursor column name contains special characters (e.g., `$`) you need to e
   from dlt.sources.sql_database import sql_database
 
   source = sql_database().with_resources("family")
-  # Using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024
-  source.family.apply_hints(incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0)))
+  # Using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024 and exclusive comparison
+  source.family.apply_hints(
+    incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0), range_start="open")
+    )
 
   # Running the pipeline
   pipeline = dlt.pipeline(destination="duckdb")
   load_info = pipeline.run(source, write_disposition="merge")
   print(load_info)
   ```
+Which generates the following query:
+  ```sql
+  -- mind the exclusive comparison with > due to range being open
+  SELECT * FROM family WHERE last_modified > '2024-01-01T00:00:00Z'
+  ```
 
   :::info
     * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up.
     * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
   :::
+
+## Limit number of items returned by the query
+If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded 
+to the query. Note that limit works in the multiples of `chunk_size`. For example if the `chunk_size` is 1000 and you set `max_items` in `add_limit` to
+2, your query will return 2000 rows.
 
 ## Configuring the connection
 
@@ -275,6 +330,28 @@ table = sql_table(engine, table="chat_message", schema="data")
 ```
 
 This engine is used by `dlt` to open database connections and can work across multiple threads, so it is compatible with the `parallelize` setting of dlt sources and resources.
+
+### Passing SQLAlchemy Engine Options: `engine_kwargs`
+
+`engine_kwargs` allows you to configure SQLAlchemy engine options when using `sql_database` or `sql_table`.
+These settings are passed directly to `sqlalchemy.create_engine` and affect:
+
+- Table reflection (always)
+- Data extraction, if SQLAlchemy backend chosen (default)
+
+Example that waits maximum 5 seconds for acquiring a lock:
+```py
+from dlt.sources.sql_database import sql_database
+
+source = sql_database(
+    credentials="sqlite:///example.db",
+    engine_kwargs={
+        "connect_args": {"timeout": 5},
+    },
+)
+```
+
+If you are using a backend different from SQLAlchemy, remember that `engine_kwargs` still apply to reflection, but they do not affect the backend’s extraction behavior. Backend-specific tuning must be placed in `backend_kwargs`, as explained [here](#configuring-the-backend).
 
 ### Connecting to a remote database over SSH
 
@@ -439,7 +516,7 @@ print(info)
 The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend completely skips `SQLALchemy` when reading table rows, in favor of doing that in Rust. This is claimed to be significantly faster than any other method (validated only on PostgreSQL). With the default settings, it will emit `PyArrow` tables, but you can configure this by specifying the `return_type` in `backend_kwargs`. (See the [`ConnectorX` docs](https://sfu-db.github.io/connector-x/api.html) for a full list of configurable parameters.)
 
 There are certain limitations when using this backend:
-* It will ignore `chunk_size`. `ConnectorX` cannot yield data in batches.
+* Unless `return_type` is set to `arrow_stream` in `backend_kwargs`, it will ignore `chunk_size`. Please note that certain data types such as arrays and high-precision time types are not supported in streaming mode by `ConnectorX`. We also observer that timestamps are not properly returned: tz-aware timestamps are passed without timezone, naive timestamps are passed as date64 which we internally cast back to naive timestamps.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
 * For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
     * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.

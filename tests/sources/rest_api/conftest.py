@@ -18,6 +18,8 @@ MOCK_BASE_URL = "https://api.example.com"
 DEFAULT_PAGE_SIZE = 5
 DEFAULT_TOTAL_PAGES = 5
 DEFAULT_LIMIT = 10
+DEFAULT_REACTIONS_COUNT = 5
+DEFAULT_COMMENTS_COUNT = 50
 
 
 router = APIRouter(MOCK_BASE_URL)
@@ -27,7 +29,22 @@ def generate_posts(count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES):
     return [{"id": i, "title": f"Post {i}"} for i in range(count)]
 
 
-def generate_comments(post_id, count=50):
+def generate_posts_with_reactions(
+    count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES, count_reactions=DEFAULT_REACTIONS_COUNT
+):
+    return [
+        {
+            "id": i,
+            "title": f"Post {i}",
+            "reactions": [
+                {"id": j, "title": f"Reaction {j} for post {i}"} for j in range(count_reactions)
+            ],
+        }
+        for i in range(count)
+    ]
+
+
+def generate_comments(post_id, count=DEFAULT_COMMENTS_COUNT):
     return [
         {"id": i, "post_id": post_id, "body": f"Comment {i} for post {post_id}"}
         for i in range(count)
@@ -166,6 +183,21 @@ def mock_api_server():
         def post_comments_via_json_param(request, context):
             body = request.json()
             post_id = int(body.get("post_id", 0))
+            return paginate_by_page_number(request, generate_comments(post_id))
+
+        @router.post(r"/post_comments_via_form_data(\?.*)?$")
+        def post_comments_via_form_data(request, context):
+            content_type = request.headers.get("Content-Type")
+            if content_type and content_type.lower() == "application/x-www-form-urlencoded":
+                body = parse_qs(request.text) if request.text else {}
+                post_id = int(body.get("post_id", [0])[0])
+            elif not content_type:
+                raw_body = request.text
+                # this is just to test the raw "data" param case
+                post_id = int(raw_body)
+            else:
+                raise ValueError(f"Unsupported content type: {content_type}")
+
             return paginate_by_page_number(request, generate_comments(post_id))
 
         @router.get(r"/posts/\d+$")
@@ -356,6 +388,27 @@ def mock_api_server():
             elif cursor_param == "cursor_final":
                 # Final page - return null data and null cursor
                 return {"users": None, "next_token": None}
+
+        @router.post(r"/post_form_data$")
+        def posts_form_data(request, context):
+            content_type = request.headers.get("Content-Type")
+            if content_type == "application/x-www-form-urlencoded":
+                data = parse_qs(request.text)
+                return {"data": data}
+            else:
+                return {"error": f"Unsupported content type: {content_type}", "data": request.text}
+
+        @router.post(r"/post_raw_data$")
+        def posts_raw_data(request, context):
+            return {"data": request.text}
+
+        @router.post(r"/posts_form_data_incremental$")
+        def posts(request, context):
+            return paginate_by_page_number(request, generate_posts())
+
+        @router.get(r"/posts_with_reactions(\?.*)?$")
+        def posts_with_reactions(request, context):
+            return paginate_by_page_number(request, generate_posts_with_reactions())
 
         router.register_routes(m)
 

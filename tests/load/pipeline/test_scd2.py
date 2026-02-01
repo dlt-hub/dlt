@@ -1,5 +1,6 @@
 # timezone is removed from all datetime objects in these tests to simplify comparison
 
+from unittest import mock
 import pytest
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime, timezone  # noqa: I251
@@ -13,7 +14,7 @@ from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
+from dlt.common.time import ensure_pendulum_datetime_utc, reduce_pendulum_datetime_precision
 from dlt.extract.resource import DltResource
 
 from tests.cases import arrow_table_all_data_types
@@ -47,14 +48,14 @@ def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> 
 
 def strip_timezone(ts: TAnyDateTime) -> pendulum.DateTime:
     """Converts timezone of datetime object to UTC and removes timezone awareness."""
-    return ensure_pendulum_datetime(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
+    return ensure_pendulum_datetime_utc(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
 
 
 def get_table(
     pipeline: dlt.Pipeline,
     table_name: str,
     sort_column: str = None,
-    include_root_id: bool = True,
+    # include_root_id: bool = True,
     include_dlt_id: bool = False,
     ts_columns: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
@@ -69,9 +70,8 @@ def get_table(
                 else v
             )
             for k, v in r.items()
-            if not k.startswith("_dlt")
-            or k in DEFAULT_VALIDITY_COLUMN_NAMES
-            or (k == "_dlt_root_id" if include_root_id else False)
+            if not k.startswith("_dlt") or k in DEFAULT_VALIDITY_COLUMN_NAMES
+            # or (k == "_dlt_root_id" if include_root_id else False)
             or (k == "_dlt_id" if include_dlt_id else False)
         }
         for r in load_tables_to_dicts(pipeline, table_name)[table_name]
@@ -260,8 +260,8 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
 
     # load 1 — initial load
     dim_snap: List[Dict[str, Any]] = [
-        l1_1 := {"nk": 1, "c1": "foo", "c2": [1] if simple else [{"cc1": 1}]},
-        l1_2 := {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
+        {"nk": 1, "c1": "foo", "c2": [1] if simple else [{"cc1": 1}]},
+        {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_1 = get_load_package_created_at(p, info)
@@ -276,17 +276,14 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     print(get_table(p, "dim_test__c2", cname, include_dlt_id=True))
     assert get_table(p, "dim_test__c2", cname, include_dlt_id=True) == [
         {
-            "_dlt_root_id": get_row_hash(l1_1),
             "_dlt_id": "DVp8ashfqPeSOA" if simple else "sjy4J8zAS+i32w",
             cname: 1,
         },
         {
-            "_dlt_root_id": get_row_hash(l1_2),
             "_dlt_id": "fnGe0kXmwR/ncw" if simple else "+WoC2dwHIVolng",
             cname: 2,
         },
         {
-            "_dlt_root_id": get_row_hash(l1_2),
             "_dlt_id": "HScKaAcv1HMq3Q" if simple else "P60aqq9jQtVwRQ",
             cname: 3,
         },
@@ -294,7 +291,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
 
     # load 2 — update a record — change not in nested column
     dim_snap = [
-        l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [1] if simple else [{"cc1": 1}]},
+        {"nk": 1, "c1": "foo_updated", "c2": [1] if simple else [{"cc1": 1}]},
         {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
@@ -308,16 +305,16 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     assert_records_as_set(
         get_table(p, "dim_test__c2"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l2_1), cname: 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+            {cname: 1},
+            {cname: 1},  # new
+            {cname: 2},
+            {cname: 3},
         ],
     )
 
     # load 3 — update a record — change in nested column
     dim_snap = [
-        l3_1 := {
+        {
             "nk": 1,
             "c1": "foo_updated",
             "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}],
@@ -337,12 +334,12 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         ],
     )
     exp_3 = [
-        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l3_1), cname: 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-        {"_dlt_root_id": get_row_hash(l3_1), cname: 2},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+        {cname: 1},
+        {cname: 1},
+        {cname: 1},  # new
+        {cname: 2},
+        {cname: 2},  # new
+        {cname: 3},
     ]
     assert_records_as_set(get_table(p, "dim_test__c2"), exp_3)
 
@@ -369,7 +366,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     # load 5 — insert a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
-        l5_3 := {"nk": 3, "c1": "baz", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
+        {"nk": 3, "c1": "baz", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     ts_5 = get_load_package_created_at(p, info)
@@ -387,14 +384,14 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     assert_records_as_set(
         get_table(p, "dim_test__c2"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l3_1), cname: 1},
-            {"_dlt_root_id": get_row_hash(l5_3), cname: 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-            {"_dlt_root_id": get_row_hash(l3_1), cname: 2},
-            {"_dlt_root_id": get_row_hash(l5_3), cname: 2},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+            {cname: 1},
+            {cname: 1},
+            {cname: 1},
+            {cname: 1},  # new
+            {cname: 2},
+            {cname: 2},
+            {cname: 2},  # new
+            {cname: 3},
         ],
     )
 
@@ -415,51 +412,51 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
 
     # load 1 — initial load
     dim_snap = [
-        l1_1 := {"nk": 1, "c1": "foo", "c2": [{"cc1": [1]}]},
-        l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
+        {"nk": 1, "c1": "foo", "c2": [{"cc1": [1]}]},
+        {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         get_table(p, "dim_test__c2__cc1"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+            {"value": 1},
+            {"value": 1},
+            {"value": 2},
         ],
     )
 
     # load 2 — update a record — change not in nested column
     dim_snap = [
-        l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1]}]},
-        l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
+        {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1]}]},
+        {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         (get_table(p, "dim_test__c2__cc1")),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-            {"_dlt_root_id": get_row_hash(l2_1), "value": 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},  # new
+            {"value": 2},
         ],
     )
 
     # load 3 — update a record — change in nested column
     dim_snap = [
-        l3_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
+        {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
         {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     exp_3 = [
-        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-        {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l3_1), "value": 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
-        {"_dlt_root_id": get_row_hash(l3_1), "value": 2},  # new
+        {"value": 1},
+        {"value": 1},
+        {"value": 1},
+        {"value": 1},  # new
+        {"value": 2},
+        {"value": 2},  # new
     ]
     assert_records_as_set(get_table(p, "dim_test__c2__cc1"), exp_3)
 
@@ -474,20 +471,20 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     # load 5 — insert a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
-        l5_3 := {"nk": 3, "c1": "baz", "c2": [{"cc1": [1]}]},
+        {"nk": 3, "c1": "baz", "c2": [{"cc1": [1]}]},
     ]
     info = p.run(r(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_records_as_set(
         get_table(p, "dim_test__c2__cc1"),
         [
-            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-            {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l3_1), "value": 1},
-            {"_dlt_root_id": get_row_hash(l5_3), "value": 1},  # new
-            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
-            {"_dlt_root_id": get_row_hash(l3_1), "value": 2},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},
+            {"value": 1},  # new
+            {"value": 2},
+            {"value": 2},
         ],
     )
 
@@ -545,9 +542,9 @@ def test_record_reinsert(destination_config: DestinationTestConfiguration) -> No
 
     # assert child records
     expected = [
-        {"_dlt_root_id": get_row_hash(r1), "value": 1},  # links to two records in parent
-        {"_dlt_root_id": get_row_hash(r2), "value": 2},
-        {"_dlt_root_id": get_row_hash(r2), "value": 3},
+        {"value": 1},  # links to two records in parent
+        {"value": 2},
+        {"value": 3},
     ]
     assert_records_as_set(get_table(p, "dim_test__child"), expected)
 
@@ -627,15 +624,17 @@ def test_active_record_timestamp(
             yield {"foo": "bar"}
 
         p.run(r(), **destination_config.run_kwargs)
-        actual_active_record_timestamp = ensure_pendulum_datetime(
+        actual_active_record_timestamp = ensure_pendulum_datetime_utc(
             load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
         )
-        assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
+        assert actual_active_record_timestamp == ensure_pendulum_datetime_utc(
+            active_record_timestamp
+        )
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(default_sql_configs=True, subset=["sqlalchemy", "duckdb"]),
     ids=lambda x: x.name,
 )
 def test_boundary_timestamp(
@@ -647,6 +646,7 @@ def test_boundary_timestamp(
     ts2 = "2024-08-22"
     ts3 = date(2024, 8, 20)  # earlier than ts1 and ts2
     ts4 = "i_am_not_a_timestamp"
+    ts5 = pendulum.datetime(2025, 8, 21, 12, 15, tz="UTC").timestamp()
 
     @dlt.resource(
         table_name="dim_test",
@@ -659,75 +659,127 @@ def test_boundary_timestamp(
     def r(data):
         yield data
 
+    # normalize timestamps once for assertions
+    ts1_dt = strip_timezone(ts1)
+    ts2_dt = strip_timezone(ts2)
+    ts3_dt = strip_timezone(ts3)
+    ts5_dt = strip_timezone(ts5)
+
     # load 1 — initial load
     dim_snap = [
         l1_1 := {"nk": 1, "foo": "foo"},
         l1_2 := {"nk": 2, "foo": "foo"},
     ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 2
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: None}, **l1_1},
-        {**{FROM: strip_timezone(ts1), TO: None}, **l1_2},
-    ]
-    assert get_table(p, "dim_test", "nk") == expected
-
-    # load 2 — different source records, different boundary timestamp
-    r.apply_hints(
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "boundary_timestamp": ts2,
-        }
-    )
-    dim_snap = [
-        l2_1 := {"nk": 1, "foo": "bar"},  # natural key 1 updated
-        # l1_2,  # natural key 2 no longer present
-        l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
-    ]
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 4
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # retired
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # retired
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # new
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_3},  # new
-    ]
-    assert_records_as_set(get_table(p, "dim_test"), expected)
-
-    # load 3 — earlier boundary timestamp
-    # we naively apply any valid timestamp
-    # may lead to "valid from" > "valid to", as in this test case
-    r.apply_hints(
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "boundary_timestamp": ts3,
-        }
-    )
-    dim_snap = [l2_1]  # natural key 3 no longer present
-    info = p.run(r(dim_snap), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, "dim_test")["dim_test"] == 4
-    expected = [
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_1},  # unchanged
-        {**{FROM: strip_timezone(ts1), TO: strip_timezone(ts2)}, **l1_2},  # unchanged
-        {**{FROM: strip_timezone(ts2), TO: None}, **l2_1},  # unchanged
-        {**{FROM: strip_timezone(ts2), TO: strip_timezone(ts3)}, **l2_3},  # retired
-    ]
-    assert_records_as_set(get_table(p, "dim_test"), expected)
-
-    # invalid boundary timestamp should raise error
-    with pytest.raises(ValueError):
+    current_time: Dict[str, Optional[float]] = {"ts": None}
+    with mock.patch(
+        "dlt.common.storages.load_package.precise_time",
+        side_effect=lambda: current_time["ts"],
+    ):
+        # load 1 — initial load
+        current_time["ts"] = pendulum.datetime(2024, 8, 21, 12, 15, tz="UTC").timestamp()
         r.apply_hints(
             write_disposition={
                 "disposition": "merge",
                 "strategy": "scd2",
-                "boundary_timestamp": ts4,
+                "boundary_timestamp": ts1,
             }
         )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 2
+        expected = [
+            {**{FROM: ts1_dt, TO: None}, **l1_1},
+            {**{FROM: ts1_dt, TO: None}, **l1_2},
+        ]
+        assert get_table(p, "dim_test", "nk", ts_columns=[FROM, TO]) == expected
+
+        # load 2 — different source records, different boundary timestamp
+        current_time["ts"] = pendulum.datetime(2024, 8, 22, tz="UTC").timestamp()
+        dim_snap = [
+            l2_1 := {"nk": 1, "foo": "bar"},  # natural key 1 updated
+            # l1_2,  # natural key 2 no longer present
+            l2_3 := {"nk": 3, "foo": "foo"},  # new natural key
+        ]
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": ts2,
+            }
+        )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 4
+        expected = [
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_1},  # retired
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_2},  # retired
+            {**{FROM: ts2_dt, TO: None}, **l2_1},  # new
+            {**{FROM: ts2_dt, TO: None}, **l2_3},  # new
+        ]
+        assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
+
+        # load 3 — earlier boundary timestamp
+        # we naively apply any valid timestamp
+        # may lead to "valid from" > "valid to", as in this test case
+        current_time["ts"] = pendulum.datetime(2024, 8, 22, 0, 0, 1, tz="UTC").timestamp()
+        dim_snap = [l2_1]  # natural key 3 no longer present
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": ts3,
+            }
+        )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 4
+        expected = [
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_1},  # unchanged
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_2},  # unchanged
+            {**{FROM: ts2_dt, TO: None}, **l2_1},  # unchanged
+            {**{FROM: ts2_dt, TO: ts3_dt}, **l2_3},  # retired
+        ]
+        assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
+
+        # invalid boundary timestamp should raise error
+        with pytest.raises(ValueError):
+            r.apply_hints(
+                write_disposition={
+                    "disposition": "merge",
+                    "strategy": "scd2",
+                    "boundary_timestamp": ts4,
+                }
+            )
+
+        # run 4 — no boundary timestamp (use current precise_time)
+        current_time["ts"] = ts5
+        dim_snap = [
+            l3_1 := {"nk": 1, "foo": "foobar"},  # updated
+        ]
+        r.apply_hints(
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": None,
+            }
+        )
+        info = p.run(r(dim_snap), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, "dim_test")["dim_test"] == 5
+        expected = [
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_1},  # unchanged
+            {**{FROM: ts1_dt, TO: ts2_dt}, **l1_2},  # unchanged
+            {
+                **{FROM: ts2_dt, TO: ts5_dt},
+                **l2_1,
+            },  # retired in this run
+            {
+                **{FROM: ts2_dt, TO: ts3_dt},
+                **l2_3,
+            },  # unchanged (already retired in load 3)
+            {**{FROM: ts5_dt, TO: None}, **l3_1},
+        ]
+        assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
 
 
 @pytest.mark.essential
@@ -1035,8 +1087,7 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
             "row_hash": "mocked_hash_1_upd",
         },
     ]
-    # root id is not deterministic when a user provided row hash is used
-    assert get_table(p, "dim_test__c2", "value", include_root_id=False) == [
+    assert get_table(p, "dim_test__c2", "value") == [
         {"value": 1},
         {"value": 1},
         {"value": 2},

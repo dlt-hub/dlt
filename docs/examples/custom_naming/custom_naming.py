@@ -18,7 +18,7 @@ There are two naming conventions in this example:
 
 With this example you will learn to:
 * Create a naming convention module with a recommended layout
-* Use naming convention by explicitly passing it to `duckdb` destination factory
+* Use naming convention by explicitly passing module name to `postgres` destination factory
 * Use naming convention by configuring it config.toml
 * Changing the declared case sensitivity by overriding `is_case_sensitive` property
 * Providing custom normalization logic by overriding `normalize_identifier` method
@@ -28,12 +28,12 @@ With this example you will learn to:
 import dlt
 
 if __name__ == "__main__":
-    # sql_cs_latin2 module
-    import sql_cs_latin2  # type: ignore[import-not-found]
-
-    # create postgres destination with a custom naming convention. pass sql_cs_latin2 as module
     # NOTE: ql_cs_latin2 is case sensitive and postgres accepts UNICODE letters in identifiers
-    dest_ = dlt.destinations.postgres(naming_convention=sql_cs_latin2)
+    # create postgres destination with a custom naming convention. sql_cs_latin2 is an importable
+    # module
+    # import sql_cs_latin2  # is resolving in this context
+
+    dest_ = dlt.destinations.postgres(naming_convention="sql_cs_latin2")
 
     # run a pipeline
     pipeline = dlt.pipeline(
@@ -73,11 +73,15 @@ if __name__ == "__main__":
 
         conn: DuckDBPyConnection = client.native_connection
         # tags are deterministic so we can just use the naming convention to get table names to select
-        first_table = pipeline.default_schema.naming.normalize_table_identifier("BigData")
+        first_table = pipeline.default_schema.naming.normalize_table_identifier(
+            "BigData"
+        )
         sql = f"DESCRIBE TABLE {first_table}"
         print(sql)
         print(conn.sql(sql))
-        second_table = pipeline.default_schema.naming.normalize_table_identifier("bigdata")
+        second_table = pipeline.default_schema.naming.normalize_table_identifier(
+            "bigdata"
+        )
         sql = f"DESCRIBE TABLE {second_table}"
         print(sql)
         print(conn.sql(sql))

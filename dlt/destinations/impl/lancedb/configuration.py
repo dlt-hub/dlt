@@ -113,7 +113,7 @@ TEmbeddingProvider = Literal[
 @configspec
 class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
-        default="LanceDB", init=False, repr=False, compare=False
+        default="lancedb", init=False, repr=False, compare=False
     )
     lance_uri: Optional[str] = None
     """LanceDB database URI. Defaults to local, on-disk instance.

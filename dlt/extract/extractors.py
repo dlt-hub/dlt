@@ -5,7 +5,10 @@ from typing import Set, Dict, Any, Optional, List, Union
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
 from dlt.common.configuration.specs import BaseConfiguration, configspec
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import (
+    DestinationCapabilitiesContext,
+    adjust_schema_to_capabilities,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -270,8 +273,12 @@ class Extractor:
                 computed_table["x-normalizer"] = {"evolve-columns-once": True}
             existing_table = self.schema.tables.get(table_name, None)
             if existing_table:
-                # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
-                diff_table = utils.diff_table(self.schema.name, existing_table, computed_table)
+                diff_table = utils.diff_table(
+                    self.schema.name,
+                    existing_table,
+                    computed_table,
+                    additive_compound_props=False,
+                )
             else:
                 diff_table = computed_table
 
@@ -284,7 +291,10 @@ class Extractor:
             if diff_table:
                 # diff table identifiers already normalized
                 self.schema.update_table(
-                    diff_table, normalize_identifiers=False, from_diff=bool(existing_table)
+                    diff_table,
+                    normalize_identifiers=False,
+                    from_diff=bool(existing_table),
+                    merge_compound_props=False,
                 )
 
             # process filters
@@ -440,7 +450,6 @@ class ArrowExtractor(Extractor):
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TPartialTableSchema]:
-        # arrow_table: TTableSchema = None
         arrow_tables: Dict[str, TTableSchema] = {}
 
         if isinstance(items, list):
@@ -461,8 +470,11 @@ class ArrowExtractor(Extractor):
                 else:
                     arrow_table = copy(computed_table)
                 try:
-                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(
-                        item.schema, self._caps
+                    # generate dlt schema from arrow schema and adjust to capabilities
+                    # drop timezones and honor only explicit settings like the regular normalizer
+                    arrow_table["columns"] = adjust_schema_to_capabilities(
+                        pyarrow.py_arrow_to_table_schema_columns(item.schema),
+                        self._caps,
                     )
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))
@@ -505,9 +517,7 @@ class ArrowExtractor(Extractor):
                         " schema and data were unmodified. It is up to destination to coerce the"
                         " differences when loading. Change log level to INFO for more details."
                     )
-                utils.merge_columns(
-                    arrow_table["columns"], computed_table["columns"], merge_columns=True
-                )
+                utils.merge_columns(arrow_table["columns"], computed_table["columns"])
                 arrow_tables[computed_table["name"]] = arrow_table
 
         return list(arrow_tables.values())

@@ -6,6 +6,8 @@ import pyarrow as pa
 
 import dlt
 from dlt.common import json, Decimal
+from dlt.common.data_writers.writers import count_rows_in_items
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import uniq_id
 from dlt.common.libs.pyarrow import (
     NameNormalizationCollision,
@@ -154,6 +156,10 @@ def test_normalize_jsonl(item_type: TPythonTableFormat, is_list: bool):
     for res_item, exp_item in zip(result, expected):
         res_item["decimal"] = Decimal(res_item["decimal"])
         exp_item["decimal"] = Decimal(exp_item["decimal"])
+        # we normalize timestamps to UTC
+        exp_item["datetime"] = (
+            ensure_pendulum_datetime_utc(exp_item["datetime"]).isoformat().replace("+00:00", "Z")
+        )
         assert res_item == exp_item
 
 
@@ -359,6 +365,16 @@ def test_normalize_reorder_columns_separate_packages(item_type: TPythonTableForm
         actual_tbl_no_binary = pa.parquet.read_table(f)
         # schema must be same
         assert actual_tbl_no_binary.schema.names == shuffled_removed_column.schema.names
+        # Europe/Berlin converted to utc
+        dt_idx = shuffled_removed_column.schema.get_field_index("datetime")
+        dt_field = shuffled_removed_column.schema.field(dt_idx)
+        # cast only if the column is a timestamp
+
+        unit = dt_field.type.unit
+        utc_col = pa.compute.cast(shuffled_removed_column["datetime"], pa.timestamp(unit, "UTC"))
+        shuffled_removed_column = shuffled_removed_column.set_column(
+            dt_idx, dt_field.with_type(pa.timestamp(unit, "UTC")), utc_col
+        )
         assert actual_tbl_no_binary.schema.equals(shuffled_removed_column.schema)
     # print(pipeline.default_schema.to_pretty_yaml())
 
@@ -692,3 +708,50 @@ def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load
 
         # Assert the other columns remain unchanged, just in case
         assert normalized_table["column1"].to_pylist() == [f"value_{i}" for i in range(num_rows)]
+
+
+@pytest.mark.parametrize(
+    "item_factory, expected_rows",
+    [
+        pytest.param(lambda: 42, 1, id="single_scalar"),
+        pytest.param(lambda: [1, 2, 3], 3, id="list_of_scalars"),
+        pytest.param(lambda: pd.DataFrame({"a": range(4)}), 4, id="single_dataframe"),
+        pytest.param(
+            lambda: [pd.DataFrame({"a": [1]}), pd.DataFrame({"a": [2, 3]})],
+            3,
+            id="list_of_dataframes",
+        ),
+        pytest.param(
+            lambda: pa.table({"a": [1, 2, 3]}),
+            3,
+            id="single_arrow_table",
+        ),
+        pytest.param(
+            lambda: [
+                pa.table({"a": [1]}),
+                pa.table({"a": [1, 2, 3]}),
+            ],
+            4,
+            id="list_of_arrow_tables",
+        ),
+        # edge cases
+        pytest.param(lambda: [], 0, id="empty_list"),
+        pytest.param(
+            lambda: [1, pd.DataFrame({"a": [0, 1]})],
+            2,  # falls back to len(list) because first item has no .shape
+            id="mixed_first_scalar",
+        ),
+        pytest.param(
+            lambda: [pd.DataFrame({"a": [0, 1]}), 1],
+            None,  # this is error case, len() fails on scalar
+            id="mixed_last_scalar",
+        ),
+    ],
+)
+def test_count_rows_in_items(item_factory, expected_rows):
+    item = item_factory()  # fresh object(s) each time
+    if expected_rows is None:
+        with pytest.raises(TypeError):
+            count_rows_in_items(item)
+    else:
+        assert count_rows_in_items(item) == expected_rows

@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
 import dataclasses
-
+import contextlib
+from threading import BoundedSemaphore
 from types import TracebackType
 from typing import (
+    ClassVar,
     Optional,
     NamedTuple,
     Literal,
@@ -22,7 +24,11 @@ import datetime  # noqa: 251
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.configuration import configspec, NotResolved
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+    known_sections,
+)
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
     resolve_replace_strategy,
@@ -38,6 +44,7 @@ from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
     TTableFormat,
+    TTableSchema,
 )
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
@@ -150,6 +157,8 @@ class DestinationClientConfiguration(BaseConfiguration):
     credentials: Optional[CredentialsConfiguration] = None
     destination_name: Optional[str] = None  # name of the destination
     environment: Optional[str] = None
+
+    __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
@@ -328,7 +337,12 @@ class LoadJob(ABC):
         pass
 
     @abstractmethod
-    def exception(self) -> str:
+    def failed_message(self) -> str:
+        """The error message in failed or retry states"""
+        pass
+
+    @abstractmethod
+    def exception(self) -> BaseException:
         """The exception associated with failed or retry states"""
         pass
 
@@ -342,6 +356,7 @@ class LoadJob(ABC):
             self._finished_at,
             self.state(),
             None,
+            self._parsed_file_name.retry_count,
         )
 
 
@@ -364,13 +379,16 @@ class RunnableLoadJob(LoadJob, ABC):
         # ensure file name
         super().__init__(file_path)
         self._state: TLoadJobState = "ready"
+        self._started_at = pendulum.now()
         self._exception: BaseException = None
 
         # variables needed by most jobs, set by the loader in set_run_vars
         self._schema: Schema = None
         self._load_table: PreparedTableSchema = None
         self._load_id: str = None
+        # set by run_managed method
         self._job_client: "JobClientBase" = None
+        self._done_event: BoundedSemaphore = None
 
     def set_run_vars(self, load_id: str, schema: Schema, load_table: PreparedTableSchema) -> None:
         """
@@ -387,21 +405,21 @@ class RunnableLoadJob(LoadJob, ABC):
     def run_managed(
         self,
         job_client: "JobClientBase",
+        done_event: BoundedSemaphore,
+        /,
     ) -> None:
         """
         wrapper around the user implemented run method
         """
-        from dlt.common.runtime import signals
-
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
         self._job_client = job_client
+        self._done_event = done_event
 
         # filepath is now moved to running
         try:
             self._state = "running"
-            self._started_at = pendulum.now()
             self._job_client.prepare_load_job_execution(self)
             self.run()
             self._state = "completed"
@@ -416,12 +434,14 @@ class RunnableLoadJob(LoadJob, ABC):
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            self._finished_at = pendulum.now()
             # sanity check
             assert self._state in ("completed", "retry", "failed")
             if self._state != "retry":
+                self._finished_at = pendulum.now()
                 # wake up waiting threads
-                signals.wake_all()
+                if self._done_event:
+                    with contextlib.suppress(ValueError):
+                        self._done_event.release()
 
     @abstractmethod
     def run(self) -> None:
@@ -435,9 +455,11 @@ class RunnableLoadJob(LoadJob, ABC):
         """Returns current state. Should poll external resource if necessary."""
         return self._state
 
-    def exception(self) -> str:
-        """The exception associated with failed or retry states"""
+    def failed_message(self) -> str:
         return str(self._exception)
+
+    def exception(self) -> BaseException:
+        return self._exception
 
 
 class FollowupJobRequest:
@@ -620,6 +642,36 @@ class WithStagingDataset(ABC):
         """Executes job client methods on staging dataset"""
         return self  # type: ignore
 
+    @staticmethod
+    def create_dataset_names(
+        schema: Schema, config: DestinationClientDwhConfiguration
+    ) -> Tuple[str, str]:
+        """
+        Creates regular and staging dataset names for given schema and config.
+        Raises a value error if the staging name is same as final dataset name.
+        returns (dataset_name, staging_dataset_name)
+
+        """
+        dataset_name = config.normalize_dataset_name(schema)
+        staging_dataset_name = config.normalize_staging_dataset_name(schema)
+
+        if dataset_name == staging_dataset_name:
+            logger.error(
+                f"Staging dataset name '{staging_dataset_name}' is the same as final dataset name"
+                f" '{dataset_name}'."
+            )
+
+            raise ValueError(
+                f"The staging dataset name '{staging_dataset_name}' is identical to the final"
+                f" dataset name '{dataset_name}'. This configuration will cause data loss because"
+                " setup commands will truncate the final dataset when they should only truncate"
+                " the staging dataset.\nTo fix this, modify the `staging_dataset_name_layout`"
+                " setting in your destination configuration. For more information, see:"
+                " https://dlthub.com/docs/dlt-ecosystem/staging#staging-dataset"
+            )
+
+        return (dataset_name, staging_dataset_name)
+
 
 class SupportsStagingDestination(ABC):
     """Adds capability to support a staging destination for the load"""
@@ -642,6 +694,14 @@ class SupportsStagingDestination(ABC):
         """
         pass
 
+    def should_drop_table_on_staging_destination(self, dropped_table: TTableSchema) -> bool:
+        """Tells if `dropped_table` should be dropped on staging destination (regular dataset) in addition to dropping the table on
+        final destination. This stays False for all the destinations except Athena, non-iceberg where staging destination
+        holds actual data which needs to be deleted.
+        Note that `dropped_table` may not longer be present in schema. It is present only if it got recreated.
+        """
+        return False
+
 
 class SupportsOpenTables(ABC):
     """Provides access to data stored in one of open table formats (iceberg or delta) and intended to
@@ -650,7 +710,9 @@ class SupportsOpenTables(ABC):
     """
 
     @abstractmethod
-    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
+    def get_open_table_catalog(
+        self, table_format: TTableFormat, catalog_name: Optional[str] = None
+    ) -> Any:
         """Gets the catalog that keeps tables' metadata. Currently only pyiceberg Catalog is supported"""
 
     @abstractmethod

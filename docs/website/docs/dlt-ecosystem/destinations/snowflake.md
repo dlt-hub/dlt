@@ -6,11 +6,14 @@ keywords: [Snowflake, destination, data warehouse]
 
 # Snowflake
 
+
 ## Install `dlt` with Snowflake
 **To install the `dlt` library with Snowflake dependencies, run:**
 ```sh
 pip install "dlt[snowflake]"
 ```
+
+<!--@@@DLT_DESTINATION_CAPABILITIES snowflake-->
 
 ## Setup guide
 
@@ -71,10 +74,11 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 
 ### Authentication types
 
-Snowflake destination accepts three authentication types:
+Snowflake destination accepts these authentication types:
 - Password authentication
 - [Key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
 - OAuth authentication
+- Snowflake-provided OAuth token authentication (Snowpark Container Services)
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
@@ -128,6 +132,18 @@ token="..."
 or in the connection string as query parameters.
 
 In the case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+**Snowflake-provided OAuth token authentication** is the recommended way to authenticate when running `dlt` in Snowpark Container Services. If `authenticator` is set to `oauth` and `host` or `token` is **not** passed, `dlt` will look for the [Snowflake-provided OAuth token](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs#connecting-with-a-snowflake-provided-oauth-token):
+ ```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+authenticator = "oauth"
+# host and token not specified
+```
+or
+```toml
+destination.snowflake.credentials="snowflake:///dlt_data?authenticator=oauth"  # host and token not specified
+```
 
 ### Additional connection options
 
@@ -187,6 +203,53 @@ pipeline = dlt.pipeline(destination="snowflake")
 pipeline.run(events())
 ```
 
+### DECFLOAT type
+
+Snowflake's [DECFLOAT](https://docs.snowflake.com/en/sql-reference/data-types-numeric#decfloat) type stores exact decimal values with up to 36 significant digits and a dynamic base-10 exponent. Unlike the standard `DECIMAL(38,9)` type (which fixes the scale at 9), DECFLOAT preserves the exact number of significant digits regardless of where the decimal point falls.
+
+Enable DECFLOAT for unbound decimal columns:
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    destination=dlt.destinations.snowflake(use_decfloat=True),
+    pipeline_name="my_pipeline",
+)
+```
+
+Or via configuration:
+
+```toml
+[destination.snowflake]
+use_decfloat=true
+```
+
+When `use_decfloat` is enabled, decimal columns **without** explicit precision/scale are stored as `DECFLOAT`. Decimal columns **with** explicit precision/scale (e.g. `precision=10, scale=2`) continue to use `NUMBER(p,s)`.
+
+#### Retrieving DECFLOAT data without precision loss
+
+The Snowflake Python connector converts DECFLOAT values to Python `decimal.Decimal` objects during fetch. **Crucially**, it uses the current thread-local decimal context to create these objects. Python's default precision is 28 digits, but DECFLOAT supports up to 36. You **must** increase the decimal context precision before fetching to avoid silent truncation:
+
+```py
+import decimal
+
+# Set precision BEFORE fetching — the connector uses the active context
+with decimal.localcontext() as ctx:
+    ctx.prec = 38  # enough for DECFLOAT's 36 significant digits
+
+    rows = pipeline.dataset().my_table.select("amount").fetchall()
+    # rows[0][0] is a Decimal with full 36-digit precision
+```
+
+Without this, values with more than 28 significant digits are silently rounded at fetch time.
+
+#### Limitations
+
+- **Text-based formats only**: DECFLOAT works with `jsonl` and `csv` loader formats. Parquet staging does not work because Parquet's decimal type uses fixed precision/scale and cannot represent DECFLOAT's dynamic range. Values exceeding `DECIMAL(38,9)` will fail at the normalize step.
+- **No Arrow/DataFrame support**: The Snowflake connector does not recognize DECFLOAT when fetching via Arrow (`pipeline.dataset().table.df()` or `.arrow()`). The DECFLOAT column is returned as a raw dict `{'exponent': ..., 'significand': ...}` instead of a proper value. Use `fetchall()` or `fetchone()` instead.
+- **Python decimal context**: Always set `decimal.getcontext().prec` (or use `decimal.localcontext()`) to at least 38 before fetching DECFLOAT data with more than 28 significant digits.
+
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
 * [Parquet](../file-formats/parquet.md) is supported.
@@ -198,7 +261,7 @@ When staging is enabled:
 * [Parquet](../file-formats/parquet.md) is supported.
 * [CSV](../file-formats/csv.md) is supported.
 
-:::caution
+:::warning
 When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
@@ -229,7 +292,7 @@ Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and
 
 ## Supported column hints
 Snowflake supports the following [column hints](../../general-usage/schema#tables-and-columns):
-* `cluster` - Creates a cluster column(s). Many columns per table are supported and only when a new table is created.
+* `cluster` - Makes column part of [cluster key](https://docs.snowflake.com/en/user-guide/tables-clustering-keys), can be added to many columns. The `cluster` columns are added to the cluster key in order of appearance in the table schema. Changing `cluster` hints after table creation is supported, but the changes will only be applied if/when a new column is added.
 * `unique` - Creates UNIQUE hint on a Snowflake column, can be added to many columns. ([optional](#additional-destination-options))
 * `primary_key` - Creates PRIMARY KEY on selected column(s), may be compound. ([optional](#additional-destination-options))
 
@@ -253,7 +316,7 @@ Alternatively to Parquet files, you can also specify jsonl as the staging file f
 
 ### Snowflake and Amazon S3
 
-Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For S3, the `dlt` Redshift loader will use the AWS credentials provided for S3 to access the S3 bucket if not specified otherwise (see config options below). Alternatively, you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
+Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For S3, the `dlt` loader will use the AWS credentials provided for S3 to access the S3 bucket if not specified otherwise (see config options below). Alternatively, you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
 The basic steps are as follows:
 
 * Create a storage integration linked to GCS and the right bucket.
@@ -268,6 +331,16 @@ To prevent `dlt` from forwarding the S3 bucket credentials on every command, and
 [destination]
 stage_name="PUBLIC.my_s3_stage"
 ```
+
+:::important Stage URL Path Matching
+When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+- Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
+- If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
+
+For example:
+- If your `bucket_url` is `s3://bucket` your Snowflake stage must also point to `s3://bucket`.
+- If your `bucket_url` is `s3://bucket/my_dlt_staging/` your Snowflake stage should be the same path exactly: `s3://bucket/my_dlt_staging/`.
+:::
 
 To run Snowflake with S3 as the staging destination:
 
@@ -298,6 +371,16 @@ Please refer to the [Google Storage filesystem documentation](./filesystem.md#go
 stage_name="PUBLIC.my_gcs_stage"
 ```
 
+:::important Stage URL Path Matching
+When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+- Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
+- If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
+
+For example:
+- If your `bucket_url` is `gs://bucket` your Snowflake stage must also point to `gs://bucket`.
+- If your `bucket_url` is `gs://bucket/my_dlt_staging/` your Snowflake stage should be the same path exactly: `gs://bucket/my_dlt_staging/`.
+:::
+
 To run Snowflake with GCS as the staging destination:
 
 ```py
@@ -326,6 +409,17 @@ Please refer to the [Azure Blob Storage filesystem documentation](./filesystem.m
 [destination]
 stage_name="PUBLIC.my_azure_stage"
 ```
+
+:::important Stage URL Path Matching
+When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+- Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
+- If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
+- Snowflake does not normalize paths, so exact matching is required
+
+For example:
+- If your `bucket_url` is `az://container` your Snowflake stage must also point to `az://container`.
+- If your `bucket_url` is `az://container/my_dlt_staging/` your Snowflake stage should be the same path exactly: `az://container/my_dlt_staging/`.
+:::
 
 To run Snowflake with Azure as the staging destination:
 

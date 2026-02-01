@@ -46,12 +46,43 @@ client = RESTClient(base_url="https://api.example.com")
 response = client.get("/posts/1")
 ```
 
+### POST requests with data
+
+The `post()` method supports both JSON payloads and form-encoded/raw data through separate parameters:
+
+```py
+# JSON payload (sets Content-Type: application/json)
+response = client.post("/posts", json={"title": "New post", "content": "Post content"})
+
+# Form-encoded data (sets Content-Type: application/x-www-form-urlencoded)
+response = client.post("/posts", data={"field1": "value1", "field2": "value2"})
+
+# Raw string or bytes data
+response = client.post("/posts", data="raw text data")
+```
+
+:::note
+The `json` and `data` parameters are mutually exclusive. You cannot use both in the same request. Use `json` for JSON payloads or `data` for form-encoded/raw data.
+:::
+
 ## Paginating API responses
 
 The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` instances for each page:
 
 ```py
 for page in client.paginate("/posts"):
+    print(page)
+```
+
+The `paginate()` method supports the same request parameters as regular requests:
+
+```py
+# Paginating with JSON payload
+for page in client.paginate("/search", method="POST", json={"query": "python"}):
+    print(page)
+
+# Paginating with form-encoded data
+for page in client.paginate("/search", method="POST", data={"q": "python", "limit": 10}):
     print(page)
 ```
 
@@ -620,6 +651,7 @@ Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to s
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
 - `access_token_request_data`: A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`.
 - `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
+- `session`: Custom `requests` session where you can configure default timeouts and retry strategies
 
 **Example:**
 
@@ -728,6 +760,30 @@ request_backoff_factor = 1.5  # Multiplier applied to the exponential delays. De
 request_timeout = 120  # Timeout in seconds
 request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 ```
+
+:::note
+`RESTClient` retries by default:
+
+```toml
+[runtime]
+request_timeout=60
+request_max_attempts = 5
+request_backoff_factor = 1
+request_max_retry_delay = 300
+```
+:::
+
+### Use custom session
+You can pass custom `requests` `Session` to `RESTClient`. `dlt` [provides own implementation](requests.md#customizing-retry-settings) where you can easily configure
+retry strategies, timeouts and other factors. For example:
+```py
+from dlt.sources.helpers import requests
+client = RESTClient(
+    base_url="https://api.example.com",
+    session=requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0).session
+)
+```
+will set-up the client for a short connect and read timeouts with no retries.
 
 ### URL sanitization and secret protection
 

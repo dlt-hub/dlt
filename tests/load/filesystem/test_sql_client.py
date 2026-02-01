@@ -8,6 +8,7 @@ import dlt
 import os
 import shutil
 
+import pyarrow
 
 from dlt import Pipeline
 from dlt.common.utils import uniq_id
@@ -21,14 +22,14 @@ from tests.load.utils import (
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.cases import arrow_table_all_data_types
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
 @pytest.fixture(scope="function", autouse=True)
 def secret_directory():
-    secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
+    secrets_dir = f"{get_test_storage_root()}/duck_secrets_{uniq_id()}"
     yield secrets_dir
     shutil.rmtree(secrets_dir, ignore_errors=True)
 
@@ -135,7 +136,7 @@ def _run_dataset_checks(
     # tests with external duckdb instance
     #
 
-    duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
+    duck_db_location = get_test_storage_root() + "/" + uniq_id()
     # duckdb will store secrets lower case, that's why we could not delete it
     TEST_SECRET_NAME = "second_" + uniq_id()
 
@@ -181,7 +182,16 @@ def _run_dataset_checks(
     # `iceberg` table format
     with fs_sql_client as sql_client:
         sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
-    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == total_records
+
+    # duckdb changed the return type of `.arrow()` from pyarrow.Table to pyarrow.RecordBatchReader
+    # between 1.3.2 and 1.4.3. We need to catch this explicitly
+    data = external_db.sql("FROM second.arrow_all_types;").arrow()
+    if isinstance(data, pyarrow.Table):
+        row_count = data.num_rows
+    elif isinstance(data, pyarrow.RecordBatchReader):
+        row_count = data.read_all().num_rows
+
+    assert row_count == total_records
 
     pipeline.run(  # run pipeline again to add rows to source table
         source().with_resources("arrow_all_types"),
@@ -192,7 +202,15 @@ def _run_dataset_checks(
         sql_client.create_view(
             "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")  # type: ignore
         )
-    assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == (2 * total_records)
+
+    # duckdb changed the return type of `.arrow()` from pyarrow.Table to pyarrow.RecordBatchReader
+    # between 1.3.2 and 1.4.3. We need to catch this explicitly
+    data = external_db.sql("FROM second.arrow_all_types;").arrow()
+    if isinstance(data, pyarrow.Table):
+        row_count = data.num_rows
+    elif isinstance(data, pyarrow.RecordBatchReader):
+        row_count = data.read_all().num_rows
+    assert row_count == (2 * total_records)
 
     external_db.close()
 
@@ -233,6 +251,7 @@ def _run_dataset_checks(
                 fs_sql_client.remote_client.config.bucket_url,
                 fs_sql_client.remote_client.config.credentials,
                 secret_name=TEST_SECRET_NAME,
+                persist_secrets=True,
             )
         external_db.close()
 

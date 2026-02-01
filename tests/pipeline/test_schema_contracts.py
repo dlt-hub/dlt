@@ -5,13 +5,14 @@ from typing import Any, Callable, Iterator, Union, Optional, Type
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import uniq_id
 from dlt.common.schema.exceptions import DataValidationError
+from dlt.common.typing import TDataItems
 
 from dlt.extract import DltResource
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.extract.exceptions import ResourceExtractionError
 
-from tests.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts, assert_load_info
 from tests.utils import (
     TestDataItemFormat,
     skip_if_not_active,
@@ -43,11 +44,13 @@ def raises_step_exception(check_raise: bool = True, expected_nested_error: Type[
     with pytest.raises(PipelineStepFailed) as py_exc:
         yield
     if py_exc.value.step == "extract":
-        print(type(py_exc.value.__context__))
         assert isinstance(py_exc.value.__context__, expected_nested_error)
+        assert py_exc.value.has_pending_data is False
     else:
         # normalize
         assert isinstance(py_exc.value.__context__.__context__, expected_nested_error)
+        assert py_exc.value.has_pending_data is True
+    assert py_exc.value.is_package_partially_loaded is False
 
 
 def items(settings: TSchemaContract) -> Any:
@@ -829,3 +832,113 @@ def test_write_to_existing_database_tables_frozen() -> None:
             table_name="test_items",
             schema_contract={"tables": "freeze", "columns": "freeze", "data_type": "freeze"},
         )
+
+
+@pytest.mark.parametrize(
+    "nested_item",
+    [
+        [1, 2],
+        [
+            {
+                "timestamp": 82178.1298812,
+            }
+        ],
+    ],
+    ids=["nested_item_list", "nested_item_dict"],
+)
+def test_coerce_null_value_in_nested_table(nested_item: TDataItems) -> None:
+    """Ensure that a column previously loaded as a child table
+    does not create new columns in a subsequent run when it has no values."""
+    pipeline = get_pipeline()
+
+    @dlt.resource
+    def nested(data: TDataItems):
+        yield data
+
+    # create parent and child tables
+    data = [
+        {
+            "timestamp": 82178.1298812,
+            "a": [
+                {
+                    "timestamp": 82178.1298812,
+                    "b": nested_item,
+                }
+            ],
+        },
+    ]
+    pipeline.run(nested(data), schema_contract={"columns": "freeze"})
+
+    assert "nested" in pipeline.default_schema.tables
+    assert "nested__a" in pipeline.default_schema.tables
+    assert "nested__a__b" in pipeline.default_schema.tables
+
+    # verify that empty child table columns don't create new columns,
+    # i.e. violate the freeze contract on columns
+    data = [
+        {
+            "timestamp": 82178.1298812,
+            "a": [
+                {
+                    "timestamp": 82178.1298812,
+                    "b": None,
+                }
+            ],
+        },
+    ]
+    pipeline.run(nested(data), schema_contract={"columns": "freeze"})
+
+    data = [
+        {
+            "timestamp": 82178.1298812,
+            "a": None,
+        },
+    ]
+    pipeline.run(nested(data), schema_contract={"columns": "freeze"})
+
+
+def test_coerce_null_value_in_column_created_as_compound_columns() -> None:
+    """Ensure that a column previously loaded as compound columns in tha same table
+    does not create new column in a subsequent run when it has no values."""
+    pipeline = get_pipeline()
+
+    @dlt.resource
+    def nested(data: TDataItems):
+        yield data
+
+    data = [
+        # uncomment this to get "a" column generated and associated warning
+        # this is acceptable for now
+        # {
+        #     "timestamp": 82178.1298812,
+        #     "a": None,
+        # },
+        {
+            "timestamp": 82178.1298812,
+            "a": {
+                "timestamp": 82178.1298812,
+                "d": 82178.1298812,
+            },
+        },
+        {
+            "timestamp": 82178.1298812,
+            "a": None,
+        },
+    ]
+    pipeline.run(nested(data), schema_contract={"columns": "freeze"})
+
+    assert "nested" in pipeline.default_schema.tables
+    assert "a__timestamp" in pipeline.default_schema.tables["nested"]["columns"]
+    assert "a__d" in pipeline.default_schema.tables["nested"]["columns"]
+    # assert "a" not in pipeline.default_schema.tables["nested"]["columns"]
+
+    # verify that empty column that was previously flattened
+    # doesn't create new column, i.e. violate the freeze contract on columns
+    data = [
+        {
+            "timestamp": 82178.1298812,
+            "a": None,
+        },
+    ]
+    pipeline.run(nested(data), schema_contract={"columns": "freeze"})
+    assert "a" not in pipeline.default_schema.tables["nested"]["columns"]

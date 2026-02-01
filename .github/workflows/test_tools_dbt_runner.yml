@@ -39,19 +39,20 @@ jobs:
 
       - name: Install dependencies
         # install dlt with postgres support
-        run: uv sync --extra postgres --extra postgis --group sentry-sdk --group dbt --group providers
+        run: uv sync --extra postgres --extra postgis --group dbt --group providers
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
-      - run: |
-          pytest tests/helpers/dbt_tests -k '(not venv)'
-        name: Run dbt tests
+      - name: Run dbt tests
+        run: make test-dbt-no-venv
+        env:
+          PYTEST_XDIST_N: 3
 
       - name: Remove dbt-core
-        # install dlt with postgres support
         run: uv run pip uninstall dbt-core -y
 
-      - run: |
-          pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
-        name: Run dbt runner with venv - Linux/MAC
+      - name: Run dbt runner with venv - Linux/MAC
+        run: make test-dbt-runner-venv
+        env:
+          PYTEST_XDIST_N: 3

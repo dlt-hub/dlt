@@ -15,12 +15,20 @@ from dlt.common.configuration.plugins import PluginContext
 from dlt.common.runtime import run_context
 
 from dlt.sources import SourceReference
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from pytest_console_scripts import ScriptRunner
+
+pytestmark = pytest.mark.serial
 
 
 @pytest.fixture(scope="module", autouse=True)
 def plugin_install():
+    # CLEAN NON-IDEMPOTENT BUILD ARTIFACTS
+    shutil.rmtree("tests/plugins/dlt_example_plugin/build", ignore_errors=True)
+    shutil.rmtree(
+        "tests/plugins/dlt_example_plugin/dlt_example_plugin.egg-info", ignore_errors=True
+    )
+
     # install plugin into temp dir
     temp_dir = tempfile.mkdtemp()
     venv = Venv.restore_current()
@@ -65,14 +73,14 @@ def test_example_plugin() -> None:
     assert context.name == "dlt-test"
     # run_dir is the module file path and we have profile == dev as runtime kwargs
     assert context.uri.endswith("/dlt_example_plugin?profile=dev")
-    assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
+    assert context.data_dir == os.path.abspath(get_test_storage_root())
     # top level module info should be present
     assert context.module.__name__ == "dlt_example_plugin"
     # plugin manager should contain the plugin module
     plugin_context = Container()[PluginContext]
-    assert plugin_context.plugin_modules == [context.module.__name__]
+    assert plugin_context.plugin_modules == [context.module.__name__, "dlt"]
     # reference prefixes we probe when resolving
-    assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt_example_plugin", "dlt"]
+    assert run_context.get_plugin_modules() == ["dlt_example_plugin", "dlt"]
     assert context.local_dir.startswith(context.data_dir)
     assert context.local_dir.endswith("tmp")
 

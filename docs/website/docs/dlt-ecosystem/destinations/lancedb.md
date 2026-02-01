@@ -1,19 +1,22 @@
 ---
 title: LanceDB
-description: LanceDB is an open source vector database that can be used as a destination in dlt.
+description: LanceDB is a multimodal lakehouse for AI that can be used as a destination in dlt.
 keywords: [ lancedb, vector database, destination, dlt ]
 ---
 
 # LanceDB
 
-[LanceDB](https://lancedb.com/) is an open-source, high-performance vector database. It allows you to store data objects and perform similarity searches over them.
+[LanceDB](https://lancedb.com/) is a multimodal lakehouse for AI, built on top of [Lance](https://lance.org), an open-source lakehouse format. It allows you to store data objects and perform similarity searches over them.
 This destination helps you load data into LanceDB from [dlt resources](../../general-usage/resource.md).
+
+
+<!--@@@DLT_DESTINATION_CAPABILITIES lancedb-->
 
 ## Setup guide
 
 ### Choose a model provider
 
-First, you need to decide which embedding model provider to use. You can find all supported providers by visiting the official [LanceDB docs](https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/).
+First, you need to decide which embedding model provider to use. You can find all supported providers by visiting the official [LanceDB docs](https://docs.lancedb.com/embedding/index#embedding-model-providers).
 
 ### Install dlt with LanceDB
 
@@ -25,7 +28,7 @@ pip install "dlt[lancedb]"
 
 The lancedb extra only installs `dlt` and `lancedb`. You will need to install your model provider's SDK.
 
-You can find which libraries you need by also referring to the [LanceDB docs](https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/).
+You can find which libraries you need by also referring to the [LanceDB docs](https://docs.lancedb.com/embedding/index#embedding-model-providers).
 
 ### Configure the destination
 
@@ -88,7 +91,7 @@ read_consistency_interval=2.5
 `read_consistency_interval` is None by default (no read consistency, `dlt` assumes that it is a single writer to particular table.)
 
 :::tip
-You can pass `storage_options` in the credentials collection that allows to [store lancedb data on a bucket](https://lancedb.github.io/lancedb/guides/storage/). You can try this out but we didn't test that.
+You can pass `storage_options` in the credentials collection that allows to [store lancedb data on a bucket](https://docs.lancedb.com/storage). You can try this out but we didn't test that.
 :::
 
 ### Define your data source
@@ -209,7 +212,7 @@ If you plan to use `merge` write disposition, remember to [enable load ids](../v
 
 ## Access loaded data
 
-You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline 
+You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
 for loading and then use it for querying:
 ```py
 import dlt

@@ -224,7 +224,6 @@ def test_airflow_secrets_toml_provider_invalid_content():
     dag = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
 
     def test_task():
-        import tomlkit
         from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
         Variable.set(SECRETS_TOML_KEY, "invalid_content")
@@ -259,3 +258,42 @@ def test_airflow_secrets_toml_provider_invalid_content():
 
     assert ti.state == State.SUCCESS
     assert result["exception_raised"]
+
+
+def test_airflow_pipeline_scoped_secrets_toml():
+    dag = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
+
+    def test_task():
+        import dlt
+
+        fragment = """
+[pipelines.my_pipeline]
+dataset_name="test_dataset_scoped"
+"""
+
+        Variable.set("my_pipeline." + SECRETS_TOML_KEY, fragment)
+
+        # this should access pipeline-scoped secrets.toml
+        pipeline = dlt.pipeline("my_pipeline")
+        # dataset name was configured
+        return {
+            "dataset_name": pipeline.dataset_name,
+        }
+
+    task = PythonOperator(task_id="test_task", python_callable=test_task, dag=dag)
+
+    dag.create_dagrun(
+        state=DagRunState.RUNNING,
+        execution_date=DEFAULT_DATE,
+        start_date=DEFAULT_DATE,
+        run_type=DagRunType.MANUAL,
+    )
+
+    ti = TaskInstance(task=task, execution_date=DEFAULT_DATE)
+
+    ti.run()
+
+    result = ti.xcom_pull(task_ids="test_task")
+
+    assert ti.state == State.SUCCESS
+    assert result["dataset_name"] == "test_dataset_scoped"

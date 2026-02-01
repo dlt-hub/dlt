@@ -28,13 +28,12 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.exceptions import DatabaseTerminalException
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.path_utils import get_file_format_and_compression
-
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     "cluster": "DISTKEY",
@@ -48,10 +47,21 @@ class RedshiftSqlClient(Psycopg2SqlClient):
     def has_dataset(self) -> bool:
         # In Redshift, the 'public' schema always exists but may not be
         # returned by INFORMATION_SCHEMA.SCHEMATA query, so we handle it as a special case
-        if self.dataset_name == "public":
+        if self.dataset_name.lower() == "public":
             return True
 
-        return super().has_dataset()
+        all_schemas_view_name = "svv_redshift_schemas"
+
+        db_params = []
+        _, schema_name, _ = self._get_information_schema_components()
+        query = f"SELECT 1 FROM {all_schemas_view_name} WHERE schema_name = %s"
+        db_params.append(schema_name)
+        try:
+            rows = self.execute_sql(query, *db_params)
+            return len(rows) > 0
+        except DatabaseException:
+            # fallback to INFORMATION_SCHEMA.SCHEMATA if svv_redshift_schemas is not available
+            return super().has_dataset()
 
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
@@ -93,10 +103,13 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         ):
             aws_access_key = self._staging_credentials.aws_access_key_id
             aws_secret_key = self._staging_credentials.aws_secret_access_key
+            aws_session_token = self._staging_credentials.aws_session_token
             credentials = (
                 "CREDENTIALS"
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
+            if aws_session_token:
+                credentials = credentials[:-1] + f";token={aws_session_token}'"
         # get format
         file_format, is_compressed = get_file_format_and_compression(self._bucket_path)
         file_type = ""
@@ -167,9 +180,12 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         config: RedshiftClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        dataset_name, staging_dataset_name = InsertValuesJobClient.create_dataset_names(
+            schema, config
+        )
         sql_client = RedshiftSqlClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config.credentials,
             capabilities,
         )

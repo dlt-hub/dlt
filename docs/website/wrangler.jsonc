@@ -1,0 +1,30 @@
+{
+    "name": "docs",
+    "compatibility_date": "2025-09-19",
+    "main": "worker.ts",
+    "preview_urls": true,
+  	"compatibility_flags": [
+		"nodejs_compat_v2"
+	],
+    "assets": {
+        "directory": "./build",
+        "run_worker_first": ["/*"],
+        "html_handling": "drop-trailing-slash",
+        "binding": "ASSETS" // <-- creates env.ASSETS variable
+    },
+    "observability": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+  	"vars": {
+      "AXIOM_DATASET": "vibes",
+      "AXIOM_URL": "https://api.axiom.co/v1/traces",
+    },
+    "routes": [
+        {
+          "pattern": "dlthub.com/docs*",
+          "zone_name": "dlthub.com"
+        }
+      ]
+  }
+  

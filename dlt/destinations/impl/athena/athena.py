@@ -11,6 +11,8 @@ from typing import (
     TYPE_CHECKING,
 )
 
+from dlt.common.schema.exceptions import TableNotFound
+
 if TYPE_CHECKING:
     from mypy_boto3_lakeformation import LakeFormationClient
     from mypy_boto3_lakeformation.type_defs import (
@@ -35,6 +37,7 @@ from dlt.common.schema.typing import (
     TColumnType,
     TSchemaTables,
     TSortOrder,
+    TTableSchema,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
@@ -49,10 +52,14 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.utils import get_deterministic_temp_table_name
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
-from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
+from dlt.destinations.impl.athena.configuration import (
+    DEFAULT_TABLE_LOCATION_LAYOUT,
+    AthenaClientConfiguration,
+)
 from dlt.destinations.impl.athena.athena_adapter import PARTITION_HINT
 from dlt.destinations.impl.athena.configuration import LakeformationConfig
 from dlt.destinations.impl.athena.sql_client import AthenaSQLClient
+from dlt.destinations.impl.athena.utils import is_s3_tables_catalog
 
 
 boto3_client_lock = Lock()
@@ -139,10 +146,12 @@ class LfTagsManager:
         self,
         lf_client: LakeFormationClient,
         lf_config: LakeformationConfig,
+        catalog: str,
         dataset: str,
         table: Optional[str] = None,
     ):
         self.lf_client = lf_client
+        self.catalog = catalog
         self.database = dataset
         self.table = table
         self.enabled = lf_config.enabled
@@ -150,10 +159,10 @@ class LfTagsManager:
 
     def process_lf_tags_database(self) -> None:
         """Add or remove lf tags from athena database."""
-        database_resource: ResourceTypeDef = {"Database": {"Name": self.database}}
+        database_resource = self._database_resource
         if self.enabled and self.lf_tags:
             add_response = self.lf_client.add_lf_tags_to_resource(
-                Resource={"Database": {"Name": self.database}},
+                Resource=database_resource,
                 LFTags=[{"TagKey": k, "TagValues": [v]} for k, v in self.lf_tags.items()],
             )
             self._parse_and_log_lf_response(add_response, None, self.lf_tags)
@@ -168,6 +177,21 @@ class LfTagsManager:
 
         else:
             logger.debug("Lakeformation is enabled but no tags are set")
+
+    @property
+    def _database_resource(self) -> ResourceTypeDef:
+        return self._get_database_resource(self.database, self.catalog)
+
+    @staticmethod
+    def _get_database_resource(database_name: str, catalog_id: str) -> ResourceTypeDef:
+        database_dict = {"Name": database_name}
+        # NOTE: LakeFormation's default catalog is the AWS account ID, while Athena's default
+        # catalog is "awsdatacatalog"; hence, setting CatalogId to "awsdatacatalog" will error.
+        # Luckily, we only need to set CatalogId if not using LakeFormation's default catalog.
+        if is_s3_tables_catalog(catalog_id):
+            database_dict["CatalogId"] = catalog_id
+        database_resource = {"Database": database_dict}
+        return cast(ResourceTypeDef, database_resource)
 
     def _parse_and_log_lf_response(
         self,
@@ -208,9 +232,13 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                 table_needs_own_folder=True,
             )
 
+        dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
+            schema, config
+        )
+
         sql_client = AthenaSQLClient(
-            config.normalize_dataset_name(schema),
-            config.normalize_staging_dataset_name(schema),
+            dataset_name,
+            staging_dataset_name,
             config,
             capabilities,
         )
@@ -223,6 +251,12 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         # only truncate tables in iceberg mode
         truncate_tables = []
         super().initialize_storage(truncate_tables)
+
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        load_table = super().prepare_load_table(table_name)
+        if self._is_s3_table():
+            load_table["table_format"] = "iceberg"
+        return load_table
 
     def _from_db_type(
         self, hive_t: str, precision: Optional[int], scale: Optional[int]
@@ -264,6 +298,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         manager = LfTagsManager(
             lf_client,
             lf_config=lf_config,
+            catalog=self.sql_client.catalog_name(quote=False),
             dataset=self.sql_client.dataset_name,
             table=None,
         )
@@ -285,7 +320,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         # or if we are in iceberg mode, we create iceberg tables for all tables
         table = self.prepare_load_table(table_name)
         # do not create iceberg tables on staging dataset
-        create_iceberg = self._is_iceberg_table(table, self.in_staging_dataset_mode)
+        is_iceberg_table = self._is_iceberg_table(table, self.in_staging_dataset_mode)
         columns = ", ".join([self._get_column_def_sql(c, table) for c in new_columns])
 
         # use qualified table names
@@ -295,31 +330,40 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns})""")
         else:
             table_prefix = self.table_prefix_layout.format(table_name=table_name)
-            if create_iceberg:
+            if is_iceberg_table:
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
-                # create unique tag for iceberg table so it is never recreated in the same folder
-                # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
-                # iceberg tables without it, by default tag is not added
-                location = f"{bucket}/" + self.config.table_location_layout.format(
-                    dataset_name=dataset,
-                    table_name=table_prefix.rstrip("/"),
-                    location_tag=uniq_id(6),
-                )
-                table_properties = self._iceberg_table_properties()
-                logger.info(f"Will create ICEBERG table {table_name} in {location}")
-                # this will fail if the table prefix is not properly defined
-                sql.append(f"""{self._make_create_table(qualified_table_name, table)}
+                stmt = f"""{self._make_create_table(qualified_table_name, table)}
                         ({columns})
-                        {partition_clause}
-                        LOCATION '{location.rstrip('/')}'
-                        TBLPROPERTIES ({table_properties})""")
-            # elif table_format == "jsonl":
-            #     sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
-            #             ({columns})
-            #             ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-            #             LOCATION '{location}'""")
+                        {partition_clause}"""
+
+                table_location_layout = self.config.table_location_layout
+                is_s3_table = self._is_s3_table(self.in_staging_dataset_mode)
+                if is_s3_table:
+                    logger.info(
+                        f"Will create S3 table {table_name} in {self.config.aws_data_catalog}"
+                    )
+                    if table_location_layout != DEFAULT_TABLE_LOCATION_LAYOUT:
+                        logger.info(
+                            f"Custom table location layout '{table_location_layout}' is ignored"
+                            " because the S3 Tables Catalog manages the table location"
+                        )
+                else:
+                    # create unique tag for iceberg table so it is never recreated in the same folder
+                    # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
+                    # iceberg tables without it, by default tag is not added
+                    location = f"{bucket}/" + table_location_layout.format(
+                        dataset_name=dataset,
+                        table_name=table_prefix.rstrip("/"),
+                        location_tag=uniq_id(6),
+                    )
+                    table_properties = self._iceberg_table_properties()
+                    logger.info(f"Will create ICEBERG table {table_name} in {location}")
+                    stmt += f"""LOCATION '{location.rstrip('/')}'
+                        TBLPROPERTIES ({table_properties})"""
+
+                sql.append(stmt)
             else:
                 # external tables always here
                 location = f"{bucket}/{dataset}/{table_prefix}"
@@ -338,7 +382,11 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         applied_update = super().update_stored_schema(only_tables, expected_update=expected_update)
         # here we could apply tags only if any migration happened, right now we do it on each run
         # NOTE: tags are applied before any data is loaded
-        if self.config.lakeformation_config is not None:
+        if (
+            self.config.lakeformation_config is not None
+            and self.config.lakeformation_config.enabled
+            is not None  # both True and False are actionable
+        ):
             self.manage_lf_tags()
         return applied_update
 
@@ -385,6 +433,9 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             "write_disposition"
         ] == "skip"
 
+    def _is_s3_table(self, is_staging_dataset: bool = False) -> bool:
+        return self.config._is_s3_tables_catalog() and not is_staging_dataset
+
     def should_load_data_to_staging_dataset(self, table_name: str) -> bool:
         # all iceberg tables need staging
         table = self.prepare_load_table(table_name)
@@ -398,6 +449,16 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         if table["write_disposition"] == "replace" and not self._is_iceberg_table(table):
             return True
         return False
+
+    def should_drop_table_on_staging_destination(self, dropped_table: TTableSchema) -> bool:
+        # in Athena we must drop table in glue and then we must drop data in staging if table is not iceberg
+        try:
+            existing_table = self.prepare_load_table(dropped_table["name"])
+            # do not drop data if new iceberg table got created - storage is handled by Athena
+            return not self._is_iceberg_table(existing_table)
+        except TableNotFound:
+            # table got dropped and is not recreated - drop staging destination
+            return True
 
     def should_load_data_to_staging_dataset_on_staging_destination(self, table_name: str) -> bool:
         """iceberg table data goes into staging on staging destination"""

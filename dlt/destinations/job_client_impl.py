@@ -104,16 +104,19 @@ class SqlLoadJob(RunnableLoadJob):
     @contextlib.contextmanager
     def maybe_transaction(self, sql: str) -> Iterator[None]:
         """Begins a transaction if sql client supports it, otherwise works in auto commit."""
+        is_ddl_statement = self._string_contains_ddl_statements(sql)
         if (
             self._job_client.capabilities.supports_ddl_transactions
-            or not self._string_contains_ddl_queries(sql)
+            and is_ddl_statement
+            or self._job_client.capabilities.supports_transactions
+            and not is_ddl_statement
         ) and not self._has_out_of_transaction_commands(sql):
             with self._sql_client.begin_transaction():
                 yield
         else:
             yield
 
-    def _string_contains_ddl_queries(self, sql: str) -> bool:
+    def _string_contains_ddl_statements(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
@@ -595,7 +598,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         """
         query = f"""
 SELECT {",".join(self._get_storage_table_query_columns())}
-    FROM INFORMATION_SCHEMA.COLUMNS
+    FROM {self.sql_client._qualify_info_schema_table_name("COLUMNS")}
 WHERE """
 
         db_params = []
@@ -692,6 +695,11 @@ WHERE """
             not_exists_clause = " IF NOT EXISTS "
         return f"CREATE TABLE{not_exists_clause}{qualified_name}"
 
+    @staticmethod
+    def _make_alter_table(qualified_name: str) -> str:
+        """Begins ALTER TABLE statement"""
+        return f"ALTER TABLE {qualified_name}\n"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -709,7 +717,7 @@ WHERE """
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = f"ALTER TABLE {qualified_name}\n"
+            sql_base = self._make_alter_table(qualified_name)
             add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"

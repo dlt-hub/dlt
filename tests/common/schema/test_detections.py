@@ -1,5 +1,4 @@
-from hexbytes import HexBytes
-
+from dlt.common.libs.hexbytes import HexBytes
 from dlt.common import pendulum, Decimal, Wei
 from dlt.common.schema.utils import autodetect_sc_type
 from dlt.common.schema.detections import (

@@ -1,11 +1,12 @@
 from collections.abc import MutableMapping
+import pickle
 from typing import Dict
 
 import pytest
 
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination import Destination, DestinationReference
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import DestinationClientDwhConfiguration, WithStagingDataset
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import UnknownDestinationModule
 from dlt.common.schema import Schema
@@ -13,7 +14,7 @@ from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
 
 from tests.common.configuration.utils import environment
-from tests.utils import ACTIVE_DESTINATIONS
+from tests.utils import IMPLEMENTED_DESTINATIONS, get_test_storage_root
 
 
 def test_import_unknown_destination() -> None:
@@ -24,10 +25,9 @@ def test_import_unknown_destination() -> None:
     assert unk_ex.value.qualified_refs == [
         "meltdb",
         "dlt.destinations.meltdb",
-        "dlt.destinations.meltdb",
     ]
     traces = unk_ex.value.traces
-    assert len(traces) == 2 and traces[0].reason == "AttrNotFound"
+    assert len(traces) == 1 and traces[0].reason == "AttrNotFound"
 
     # custom module
     with pytest.raises(UnknownDestinationModule) as unk_ex:
@@ -138,11 +138,12 @@ def test_factory_config_injection(environment: Dict[str, str]) -> None:
     )
 
     filesystem_ = filesystem(destination_name="local")
-    abs_path = os.path.abspath("_storage")
+    test_root_storage = get_test_storage_root()
+    abs_path = os.path.abspath(test_root_storage)
     environment["DESTINATION__LOCAL__BUCKET_URL"] = abs_path
     init_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(dataset_name="test")
     configured_bucket_url = filesystem_.client(Schema("test"), init_config).config.bucket_url
-    assert configured_bucket_url.endswith("_storage")
+    assert configured_bucket_url.endswith(test_root_storage)
 
 
 def test_import_module_by_path() -> None:
@@ -166,7 +167,7 @@ def test_import_module_by_path() -> None:
 
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
-    for dest_type in ACTIVE_DESTINATIONS:
+    for dest_type in IMPLEMENTED_DESTINATIONS:
         dest = DestinationReference.from_reference(
             dest_type, None, dest_type + "_name", "production"
         )
@@ -175,7 +176,12 @@ def test_import_all_destinations() -> None:
         assert dest.config_params["environment"] == "production"
         assert dest.config_params["destination_name"] == dest_type + "_name"
         dest.spec()
-        assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
+        caps = dest.capabilities()
+        assert isinstance(caps, DestinationCapabilitiesContext)
+        # make sure caps are pickable
+        pickled_caps = pickle.dumps(caps)
+        unpickled_caps = pickle.loads(pickled_caps)
+        assert caps.supported_loader_file_formats == unpickled_caps.supported_loader_file_formats
         # every destination is in the registry
         assert dest.destination_type in DestinationReference.DESTINATIONS
         assert DestinationReference.find(dest_type) is DestinationReference.find(
@@ -305,6 +311,81 @@ def test_import_destination_config() -> None:
     # incorrect name will fail with correct error
     with pytest.raises(UnknownDestinationModule):
         Destination.from_reference(ref=None, destination_name="balh")
+
+
+@pytest.mark.parametrize(
+    "destination_type",
+    ["duckdb", "wrong_type"],
+    ids=["destination_type_duckdb", "destination_type_invalid"],
+)
+def test_import_destination_type_config(
+    environment: Dict[str, str],
+    destination_type: str,
+) -> None:
+    """Test destination resolution behavior with both valid and invalid destination types.
+
+    This test covers the resolution strategy where dlt first tries to resolve
+    a destination as a named destination with configured type, and if that fails,
+    falls back to resolving it as a direct destination type reference.
+    """
+    environment["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = destination_type
+
+    if destination_type == "wrong_type":
+        # Case 1: Fully qualified ref with dots
+        # Skips named destination resolution and only attempts direct type resolution
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref=f"dlt.destinations.{destination_type}")
+        assert "`dlt.destinations.wrong_type` is not registered" in str(py_exc.value)
+        assert not py_exc.value.named_dest_attempted
+        assert not py_exc.value.destination_type
+
+        # Case 2: Explicit destination_name provided
+        # Same as Case 1
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref=destination_type, destination_name="my_destination")
+        assert "`wrong_type` is not one of the standard dlt destinations" in str(py_exc.value)
+        assert not py_exc.value.named_dest_attempted
+        assert not py_exc.value.destination_type
+
+        # Case 3: Named destination with invalid configured type
+        # First tries named destination "my_destination" with configured type "wrong_type"
+        # Then tries "my_destination" as destination type
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref="my_destination")
+        assert f"destination type '{destination_type}' is not valid" in str(py_exc.value)
+        assert "dlt also tried to resolve 'my_destination' as a standard destination" in str(
+            py_exc.value
+        )
+        assert py_exc.value.named_dest_attempted is True
+        assert py_exc.value.destination_type == "wrong_type"
+
+        # Case 4: Named destination with missing type configuration
+        # First tries named destination "my_destination" but no type configured (config error)
+        # Then tries "my_destination" as direct destination type
+        environment.clear()
+        with pytest.raises(UnknownDestinationModule) as py_exc:
+            Destination.from_reference(ref="my_destination")
+        assert "no destination type was configured" in str(py_exc.value)
+        assert "dlt also tried to resolve 'my_destination' as a standard destination" in str(
+            py_exc.value
+        )
+        assert py_exc.value.named_dest_attempted is True
+        assert not py_exc.value.destination_type
+
+    else:
+        dest = Destination.from_reference(ref="my_destination")
+        assert dest.destination_type == "dlt.destinations.duckdb"
+        assert dest.destination_name == "my_destination"
+
+        dest = Destination.from_reference(
+            ref=f"dlt.destinations.{destination_type}", destination_name="my_destination"
+        )
+        assert dest.destination_type == "dlt.destinations.duckdb"
+        assert dest.destination_name == "my_destination"
+
+        dest = Destination.from_reference(ref=f"dlt.destinations.{destination_type}")
+        assert dest.destination_type == "dlt.destinations.duckdb"
+        assert dest.destination_name == "duckdb"
 
 
 def test_destination_config_explicit_credentials() -> None:
@@ -476,6 +557,27 @@ def test_normalize_dataset_name_none_default_schema() -> None:
         .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )
+
+
+def test_create_dataset_names() -> None:
+    result = WithStagingDataset.create_dataset_names(
+        Schema("banana"),
+        DestinationClientDwhConfiguration()._bind_dataset_name(
+            dataset_name="test", default_schema_name=""
+        ),
+    )
+    assert result == ("test_banana", "test_banana_staging")
+
+    with pytest.raises(ValueError) as exc_info:
+        WithStagingDataset.create_dataset_names(
+            Schema("staging"),
+            DestinationClientDwhConfiguration(staging_dataset_name_layout="%s")._bind_dataset_name(
+                dataset_name="test", default_schema_name=None
+            ),
+        )
+    assert exc_info.type is ValueError
+    assert "staging dataset name" in str(exc_info.value)
+    assert "final dataset name" in str(exc_info.value)
 
 
 def test_destination_repr() -> None:

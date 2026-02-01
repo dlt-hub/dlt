@@ -14,19 +14,22 @@ from typing import (
     MutableMapping,
     Optional,
     Sequence,
-    TYPE_CHECKING,
 )
 
 from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import ConfigProvider, EnvironProvider
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.typing import TSecretValue, StrAny
-from tests.utils import _inject_providers, _reset_providers, inject_providers
+from tests.utils import (
+    _reset_providers,
+    inject_providers,
+    DLT_TEST_STORAGE_ROOT,
+    PYTEST_XDIST_WORKER,
+)
 
 
 @configspec
@@ -80,23 +83,51 @@ class SectionedConfiguration(BaseConfiguration):
     password: str = None
 
 
-@configspec
+@configspec(init=False)
 class ConnectionStringCompatCredentials(ConnectionStringCredentials):
     database: str = None
     username: str = None
 
 
+@configspec
+class InstrumentedConfiguration(BaseConfiguration):
+    head: str = None
+    tube: List[str] = None
+    heels: str = None
+
+    def to_native_representation(self) -> Any:
+        return self.head + ">" + ">".join(self.tube) + ">" + self.heels
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        if not isinstance(native_value, str):
+            raise ValueError(native_value)
+        parts = native_value.split(">")
+        self.head = parts[0]
+        self.heels = parts[-1]
+        self.tube = parts[1:-1]
+
+    def on_resolved(self) -> None:
+        if self.head > self.heels:
+            raise RuntimeError("Head over heels")
+
+
 @pytest.fixture(scope="function")
 def environment() -> Any:
     saved_environ = environ.copy()
+    # preserve these explicitly
+    preserved = {
+        DLT_TEST_STORAGE_ROOT: saved_environ.get(DLT_TEST_STORAGE_ROOT),
+        PYTEST_XDIST_WORKER: saved_environ.get(PYTEST_XDIST_WORKER),
+    }
     environ.clear()
+    environ.update({k: v for k, v in preserved.items() if v is not None})
     yield environ
     environ.clear()
     environ.update(saved_environ)
 
 
 @pytest.fixture(autouse=True)
-def reset_resolved_traces() -> Iterator[None]:
+def auto_reset_resolved_traces() -> Iterator[None]:
     log = get_resolved_traces()
     try:
         log.clear()

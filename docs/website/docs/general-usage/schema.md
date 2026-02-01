@@ -70,7 +70,7 @@ To retain the original naming convention (like keeping `"createdAt"` as it is in
 [schema]
 naming="direct"
 ```
-:::caution
+:::warning
 Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
 :::
 
@@ -173,7 +173,65 @@ On the other hand, if the `id` field was already a string, then introducing new 
 
 Now go ahead and try to add a new record where `id` is a float number; you should see a new field `id__v_double` in the schema.
 
-### Data types
+### Compound hints
+
+Compound hints are column-level properties that you can apply to multiple columns to define a composite (compound) value. Supported compound hints are:
+
+- `primary_key`
+- `merge_key`
+- `cluster`
+- `partition`
+
+When passing these hints to a resource, keep in mind that:
+
+#### 1. Direct `primary_key` and `merge_key` hints override column-level hints when both are set
+
+In the example below, the `primary_key="col_1"` argument takes precedence over any `primary_key` hints defined in `columns`. As a result, only `col_1` will be treated as the primary key.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::compound_hints_direct_key_precedence-->
+
+Note that direct `primary_key` and `merge_key` hints are always authoritative within a single resource definition, even if they are set to an empty value (e.g. `""` or `[]`). In that case, the empty direct hint forces any column-level key hints to be ignored. In the following example, `col_2` will not receive a primary key hint.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_empty_direct_key_precedence-->
+
+The same precedence rule applies to `merge_key`. It also applies when direct key and column-level hints are both provided via `apply_hints`. In the example below, only `col_1` will be treated as the merge key.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_direct_key_precedence_apply_hints-->
+
+#### 2. Redefining hints on an already extracted resource replaces previous configuration
+
+If you redefine a compound hint for a resource that has already been extracted, the new hint configuration overwrites the previous one. This means that old and new compound hints are not merged.
+
+In the example below, the resource is first defined with `partition` on `col_2`. After the first run, we update the resource hints and set `partition` on `col_1` instead. On the next run, only `col_1` will remain partitioned, and `col_2` will no longer have the `partition` property.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_replace_previous_compound_props-->
+
+:::warning
+Note that direct `primary_key` and `merge_key` hints automatically set `nullable=False` for the respective columns, unless you explicitly set `nullable=True`. If you later redefine the key hints, columns that were previously part of the key will keep their existing nullability and will not be reset to `nullable=True` automatically.
+:::
+
+Be aware that redefining `primary_key` or `merge_key` to an empty value on an extracted resource does not clear any key properties in the schema. In the example below, `col_1` will remain the primary key.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_empty_value_key_hints_do_not_replace_previous_hints-->
+
+#### 3. Column-level compound hints via `apply_hints` are merged
+
+When you call `apply_hints` with column-level compound hints on a resource that has already been extracted, the new column hints are merged into the existing schema. In the example below, the first run defines `col_2` as a primary key. After the run, we add a `primary_key` hint for `col_1` via the `columns` argument of `apply_hints`. On the next run, both `col_1` and `col_2` are treated as primary keys.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_column_level_compound_prop_hints_via_apply_hints_merged-->
+
+:::note
+This merging behavior applies to all column-level hints passed via `apply_hints`, not only to 
+compound hints.
+:::
+
+#### 4. Direct key hints via `apply_hints` replace existing key properties
+
+Unlike column-level hints, direct key hints provided through `apply_hints` are treated as authoritative. As a result, they replace any existing key configuration instead of being merged. In the example below, setting `primary_key="col_1"` via `apply_hints` replaces the previously defined primary key on `col_2`.
+
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_direct_key_hint_via_apply_hints_replaces-->
+
+## Data types
 
 | dlt Data Type | Source Value Example                                | Precision and Scale                                     |
 | ------------- | --------------------------------------------------- | ------------------------------------------------------- |
@@ -193,16 +251,60 @@ Now go ahead and try to add a new record where `id` is a float number; you shoul
 
 `json` data type tells `dlt` to load that element as JSON or string and not attempt to flatten or create a nested table out of it. Note that structured types like arrays or maps are not supported by `dlt` at this point.
 
-`time` data type is saved in the destination without timezone info; if timezone is included, it is stripped. E.g., `'14:01:02+02:00` -> `'14:01:02'`.
+`time` data type is saved in the destination **without timezone info**; if timezone is included, time is converted to UTC and then to naive.
 
-:::tip
-The precision and scale are interpreted by the particular destination and are validated when a column is created. Destinations that do not support precision for a given data type will ignore it.
 
-The precision for **timestamp** is useful when creating **parquet** files. Use 3 for milliseconds, 6 for microseconds, and 9 for nanoseconds.
+### Handling of timestamp and time zones
+By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set 
+explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas) and Python objects:
 
-The precision for **bigint** is mapped to available integer types, i.e., TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT).
+| input timestamp | `timezone` hint | normalized timestamp  |
+| --------------- | --------------- | --------------------- |
+| naive           | `None`, `True`  | tz-aware in UTC       |
+| naive           | `False`         | naive (pass-through)  |
+| tz-aware        | `None`, `True`  | tz-aware in UTC       |
+| tz-aware        | `False`         | to UTC and then naive |
+|                 |                 |                       |
+
+:::warning
+naive timestamps will **always be considered as UTC**, system timezone settings are ignored by `dlt`
 :::
 
+Ultimately, the destination will interpret the timestamp values. Some destinations:
+- do not support naive timestamps (i.e. BigQuery) and will interpret them as naive UTC by attaching UTC timezone
+- do not support tz-aware timestamps (i.e. Dremio, Athena) and will strip timezones from timestamps being loaded
+- do not store timezone at all and all timestamps are converted to UTC
+- store timezone as column level property and internally convert timestamps to UTC (i.e. postgres)
+- store timezone and offset (i.e. MSSQL). However, we could not find any destination that can read back the original timezones
+
+`dlt` sets sessions to UTC timezone to minimize chances of erroneous conversion.
+
+### Handling precision
+The precision and scale are interpreted by the particular destination and are validated when a column is created. Destinations that do not support precision for a given data type will ignore it.
+
+The precision for **bigint** is mapped to available integer types, i.e., TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT).
+
+Selected destinations honor precision hint on **timestamp**. Precision is a numeric value in range of 0 (seconds) to 9 (nanoseconds) and sets the fractional
+number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow setting precision. Additionally, `duckdb` and `filesystem` (via parquet) allow for nanosecond precision if:
+* you configure [parquet version](../dlt-ecosystem/file-formats/parquet.md#writer-settings) to **2.6**
+* you yield tabular data (arrow tables/pandas). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
+
+### Handling nulls
+In general, destinations are responsible for NULL enforcement. `dlt` does not verify nullability of data in arrow tables and Python objects. Note that:
+
+* there's an exception to that rule if a Python object (`dict`) contains explicit `None` for a non-nullable key. This check will be eliminated. Note that if a value
+for a key is not present at all, nullability check is not done
+* nullability is checked by Arrow when saving parquet files. This is a new behavior and `dlt` normalizes it for older arrow versions.
+
+### Structured types
+`dlt` has experimental support for structured types that currently piggyback on `json` data type and may be set only by yielding arrow tables. `dlt` does not
+evolve nested types and will not migrate destination schemas to match. Nested types are enabled for `filesystem`, `iceberg`, `delta` and `lancedb` destinations.
+
+
+:::info
+You can materialize a schema in the destination without loading data.
+See [Materialize schema without loading data](resource.md#materialize-schema-without-loading-data).
+:::
 ## Table references
 `dlt` tables refer to other tables. It supports two types of such references:
 1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](merge-loading.md).
@@ -488,7 +590,7 @@ all the settings to default.
 
 ### Automatically load schema file stored with source python module
 
-If no schema instance is passed, and a file with a name `{source name}_schema.yml` exists in the
+If no schema instance is passed, and a file with a name `{source name}.schema.yaml` exists in the
 same folder as the module with the decorated function, it will be automatically loaded and used as
 the schema.
 

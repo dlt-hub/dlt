@@ -130,7 +130,8 @@ def test_table_format_core(
     # row should match expected values
     rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
-    assert_all_data_types_row(rows[0], schema=column_schemas)
+    with pipeline._maybe_destination_capabilities() as caps:
+        assert_all_data_types_row(caps, rows[0], schema=column_schemas)
 
     # make sure remote_url is in metrics
     metrics = info.metrics[info.loads_ids[0]][0]
@@ -518,7 +519,7 @@ def test_table_format_partitioning(
         with pytest.raises(PipelineStepFailed) as pip_ex:
             pipeline.run(zero_part())
         assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
-        assert "partitioning" in pip_ex.value.__context__.retry_message
+        assert "partitioning" in pip_ex.value.__context__.failed_message
     elif destination_config.table_format == "iceberg":
         # while Iceberg supports partition evolution, we don't apply it
         pipeline.run(zero_part())
@@ -1050,3 +1051,294 @@ def test_parquet_to_delta_upgrade(destination_config: DestinationTestConfigurati
     # optimize all delta tables to make sure storage is there
     for table in delta_tables.values():
         table.vacuum()
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_adapter_partitioning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+    from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+    from pyiceberg.transforms import (
+        YearTransform,
+        BucketTransform,
+        TruncateTransform,
+        IdentityTransform,
+    )
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    # Test identity partitioning
+    @dlt.resource(table_format="iceberg")
+    def identity_partitioned():
+        yield [
+            {"id": 1, "category": "electronics"},
+            {"id": 2, "category": "clothing"},
+        ]
+
+    resource = iceberg_adapter(
+        identity_partitioned, partition=iceberg_partition.identity("category")
+    )
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "identity_partitioned")["identity_partitioned"]
+    assert it.metadata.specs_struct().fields[0].name == "category"
+    assert isinstance(it.spec().fields[0].transform, IdentityTransform)
+    assert load_table_counts(pipeline, "identity_partitioned")["identity_partitioned"] == 2
+
+    # Test year partitioning
+    @dlt.resource(table_format="iceberg")
+    def year_partitioned():
+        yield [
+            {"id": 1, "timestamp": pendulum.datetime(2023, 6, 15, 10, 30)},
+            {"id": 2, "timestamp": pendulum.datetime(2024, 1, 20, 14, 45)},
+        ]
+
+    resource = iceberg_adapter(year_partitioned, partition=iceberg_partition.year("timestamp"))
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "year_partitioned")["year_partitioned"]
+    partition_spec = it.metadata.specs_struct()
+    assert len(partition_spec.fields) == 1
+    assert partition_spec.fields[0].name == "timestamp_year"
+    assert isinstance(it.spec().fields[0].transform, YearTransform)
+    assert load_table_counts(pipeline, "year_partitioned")["year_partitioned"] == 2
+
+    # Test bucket partitioning
+    @dlt.resource(table_format="iceberg")
+    def bucket_partitioned():
+        yield [
+            {"user_id": 1001, "name": "Alice"},
+            {"user_id": 2002, "name": "Bob"},
+            {"user_id": 3003, "name": "Charlie"},
+        ]
+
+    resource = iceberg_adapter(
+        bucket_partitioned, partition=iceberg_partition.bucket(16, "user_id")
+    )
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "bucket_partitioned")["bucket_partitioned"]
+    assert it.metadata.specs_struct().fields[0].name == "user_id_bucket_16"
+    assert isinstance(it.spec().fields[0].transform, BucketTransform)
+    assert load_table_counts(pipeline, "bucket_partitioned")["bucket_partitioned"] == 3
+
+    # Test truncate partitioning
+    @dlt.resource(table_format="iceberg")
+    def truncate_partitioned():
+        yield [
+            {"category": "electronics", "value": 100},
+            {"category": "clothing", "value": 200},
+            {"category": "electronics_accessories", "value": 50},
+        ]
+
+    resource = iceberg_adapter(
+        truncate_partitioned, partition=iceberg_partition.truncate(4, "category")
+    )
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "truncate_partitioned")["truncate_partitioned"]
+    assert it.metadata.specs_struct().fields[0].name == "category_trunc_4"
+    assert isinstance(it.spec().fields[0].transform, TruncateTransform)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_adapter_data_verification(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+    from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+    from pyiceberg.expressions import EqualTo
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    @dlt.resource(table_format="iceberg")
+    def sales_data():
+        yield [
+            {"id": 1, "region": "US", "amount": 100, "sale_date": pendulum.datetime(2024, 1, 15)},
+            {"id": 2, "region": "EU", "amount": 200, "sale_date": pendulum.datetime(2024, 2, 20)},
+            {"id": 3, "region": "US", "amount": 150, "sale_date": pendulum.datetime(2024, 3, 10)},
+            {"id": 4, "region": "APAC", "amount": 300, "sale_date": pendulum.datetime(2024, 1, 25)},
+            {"id": 5, "region": "EU", "amount": 250, "sale_date": pendulum.datetime(2024, 2, 28)},
+        ]
+
+    resource = iceberg_adapter(
+        sales_data,
+        partition=[
+            iceberg_partition.month("sale_date", "sale_month"),
+            "region",
+        ],
+    )
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "sales_data")["sales_data"]
+
+    partition_spec = it.metadata.specs_struct()
+    assert len(partition_spec.fields) == 2
+    assert partition_spec.fields[0].name == "sale_month"
+    assert partition_spec.fields[1].name == "region"
+
+    # Check if all data is present
+    all_data = it.scan().to_arrow()
+    assert all_data.num_rows == 5
+
+    # Check if partition pruning works by scanning with filter
+    us_data = it.scan(row_filter=EqualTo("region", "US")).to_arrow()
+    assert us_data.num_rows == 2
+
+    us_amounts = sorted([row["amount"] for row in us_data.to_pylist()])
+    assert us_amounts == [100, 150]
+
+    eu_data = it.scan(row_filter=EqualTo("region", "EU")).to_arrow()
+    assert eu_data.num_rows == 2
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_adapter_merge_write_disposition(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+    from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    @dlt.resource(
+        table_format="iceberg",
+        write_disposition="merge",
+        primary_key="user_id",
+    )
+    def users():
+        yield [
+            {"user_id": 1, "name": "Alice", "region": "US", "score": 100},
+            {"user_id": 2, "name": "Bob", "region": "EU", "score": 200},
+            {"user_id": 3, "name": "Charlie", "region": "US", "score": 150},
+        ]
+
+    resource = iceberg_adapter(
+        users,
+        partition=[iceberg_partition.bucket(8, "user_id"), "region"],
+    )
+
+    # Initial load
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "users")["users"]
+    assert it.scan().to_arrow().num_rows == 3
+
+    partition_spec = it.metadata.specs_struct()
+    assert len(partition_spec.fields) == 2
+    assert partition_spec.fields[0].name == "user_id_bucket_8"
+    assert partition_spec.fields[1].name == "region"
+
+    @dlt.resource(
+        table_format="iceberg",
+        write_disposition="merge",
+        primary_key="user_id",
+    )
+    def users_update():
+        yield [
+            {"user_id": 1, "name": "Alice Updated", "region": "US", "score": 110},  # Update
+            {"user_id": 4, "name": "Diana", "region": "APAC", "score": 250},  # New
+        ]
+
+    resource_update = iceberg_adapter(
+        users_update.with_name("users"),
+        partition=[iceberg_partition.bucket(8, "user_id"), "region"],
+    )
+    info = pipeline.run(resource_update)
+    assert_load_info(info)
+
+    # Verify final state
+    it = get_iceberg_tables(pipeline, "users")["users"]
+    data = it.scan().to_arrow()
+    assert data.num_rows == 4
+
+    data_list = data.to_pylist()
+    alice = next(row for row in data_list if row["user_id"] == 1)
+    assert alice["name"] == "Alice Updated"
+    assert alice["score"] == 110
+    diana = next(row for row in data_list if row["user_id"] == 4)
+    assert diana["name"] == "Diana"
+    assert diana["region"] == "APAC"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        table_format_local_configs=True,
+        with_table_format="iceberg",
+    ),
+    ids=lambda x: x.name,
+)
+def test_iceberg_adapter_and_partition_column_coexistence(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Tests that legacy partition columns (columns={"col": {"partition": True}})
+    can coexist with advanced partition hints from iceberg_adapter.
+    """
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+    from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+    from pyiceberg.transforms import IdentityTransform, YearTransform
+
+    pipeline = destination_config.setup_pipeline("fs_pipe", dev_mode=True)
+
+    @dlt.resource(
+        table_format="iceberg",
+        columns={"region": {"partition": True}},  # Old way of partitioning
+    )
+    def events():
+        yield [
+            {"id": 1, "region": "US", "timestamp": pendulum.datetime(2024, 3, 15)},
+            {"id": 2, "region": "EU", "timestamp": pendulum.datetime(2024, 6, 20)},
+            {"id": 3, "region": "US", "timestamp": pendulum.datetime(2023, 12, 1)},
+        ]
+
+    # Add year partition via adapter
+    resource = iceberg_adapter(
+        events,
+        partition=iceberg_partition.year("timestamp"),
+    )
+
+    info = pipeline.run(resource)
+    assert_load_info(info)
+
+    it = get_iceberg_tables(pipeline, "events")["events"]
+
+    partition_spec = it.metadata.specs_struct()
+    assert len(partition_spec.fields) == 2
+
+    assert partition_spec.fields[0].name == "region"
+    assert isinstance(it.spec().fields[0].transform, IdentityTransform)
+
+    assert partition_spec.fields[1].name == "timestamp_year"
+    assert isinstance(it.spec().fields[1].transform, YearTransform)
+
+    assert load_table_counts(pipeline, "events")["events"] == 3

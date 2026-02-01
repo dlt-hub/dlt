@@ -29,9 +29,10 @@ class TPipelineSyncPayload(TypedDict):
 def init_platform_tracker() -> None:
     # lazily import requests to avoid binding config before initialization
     global requests
-    from dlt.sources.helpers import requests as r_
+    from dlt.sources.helpers.requests import Client
 
-    requests = r_  # type: ignore[assignment]
+    # fail fast, don't block user
+    requests = Client(request_timeout=(2, 10), request_max_attempts=0)  # type: ignore[assignment]
 
     global _THREAD_POOL
     if _THREAD_POOL is None:
@@ -52,13 +53,13 @@ def _send_trace_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) ->
     Send the full trace after a run operation to the platform
     TODO: Migrate this to open telemetry in the next iteration
     """
-    if not pipeline.runtime_config.dlthub_dsn:
+    if not pipeline.run_context.runtime_config.dlthub_dsn:
         return
 
     def _future_send() -> None:
         try:
             trace_dump = json.dumps(trace.asdict())
-            url = pipeline.runtime_config.dlthub_dsn + TRACE_URL_SUFFIX
+            url = pipeline.run_context.runtime_config.dlthub_dsn + TRACE_URL_SUFFIX
             response = requests.put(url, data=trace_dump)
             if response.status_code != 200:
                 logger.debug(
@@ -75,7 +76,7 @@ def _send_trace_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) ->
 
 
 def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
-    if not pipeline.runtime_config.dlthub_dsn:
+    if not pipeline.run_context.runtime_config.dlthub_dsn:
         return
 
     # sync only if load step was processed
@@ -103,7 +104,7 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
 
     def _future_send() -> None:
         try:
-            url = pipeline.runtime_config.dlthub_dsn + STATE_URL_SUFFIX
+            url = pipeline.run_context.runtime_config.dlthub_dsn + STATE_URL_SUFFIX
             response = requests.put(url, data=json.dumps(payload))
             if response.status_code != 200:
                 logger.debug(

@@ -57,7 +57,7 @@ Identifiers are translated from source to destination form in the **normalize** 
 * Schemas preserve the naming convention when saved. Your running pipelines will maintain existing naming conventions if not requested otherwise.
 * `dlt` applies the final naming convention in the `normalize` step. Jobs (files) in the load package now have destination identifiers. The pipeline schema is duplicated, locked, and saved in the load package and will be used by the destination.
 
-:::caution
+:::warning
 If you change the naming convention and `dlt` detects a change in the destination identifiers for tables/collections/files that already exist and store data, the normalize process will fail. This prevents an unwanted schema migration. New columns and tables will be created for identifiers that changed.
 :::
 
@@ -88,7 +88,7 @@ Combined identifier is also a valid single identifier. Starting from
 `column__value` will be still `column__value`.
 :::
 
-:::caution
+:::warning
 Previously double underscores were contracted into single underscore. That
 prevented using data loaded by `dlt` as a data source without identifier modifications. `dlt` maintains backward compatibility for version >1.4.0 as follows:
 
@@ -134,13 +134,16 @@ password="pass"
 ```
 The snippet above demonstrates how to apply a certain naming for an example `zendesk` source.
 
-You can use naming conventions that you created yourself or got from other users. In that case, you should pass a full Python import path to the [module that contains the naming convention](#write-your-own-naming-convention):
-```toml
-[schema]
-naming="tests.common.cases.normalizers.sql_upper"
-```
-`dlt` will import `tests.common.cases.normalizers.sql_upper` and use the `NamingConvention` class found in it as the naming convention.
+You can set the naming convention in your code via destination factory. This will overwrite destination's preferred convention and make it
+a default one for the whole pipeline:
 
+```py
+import dlt
+
+dest_ = dlt.destinations.postgres(naming_convention="sql_cs_v1")
+```
+
+You can use naming conventions that you created yourself or got from other users. In that case, you should pass a full Python import path to the [module that contains the naming convention](#write-your-own-naming-convention):
 
 ### Available naming conventions
 You can pick from a few built-in naming conventions.
@@ -150,7 +153,11 @@ You can pick from a few built-in naming conventions.
 * `direct` - case-sensitive, allows all Unicode characters, does not contract underscores.
 * `sql_cs_v1` - case-sensitive, generates SQL-safe identifiers.
 * `sql_ci_v1` - case-insensitive, generates SQL-safe lowercase identifiers.
+* `s3_tables` - extends `snake_case` to comply with S3 Tables [naming rules](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-buckets-naming.html#naming-rules-table).
 
+:::note
+When using the `s3_tables` naming convention, any leading underscores are removed from dataset and table names. Hence, `dlt` tables will be prefixed with `dlt_` instead of the usual `_dlt_`. For example, `_dlt_loads` will be `dlt_loads`.
+:::
 
 ### Ignore naming convention for `dataset_name`
 You control the dataset naming normalization separately. Set `enable_dataset_name_normalization` to `false` to ignore the naming convention for `dataset_name`:
@@ -172,7 +179,7 @@ The default value for the `enable_dataset_name_normalization` configuration opti
 The same setting would be applied to [staging dataset](../dlt-ecosystem/staging#staging-dataset). Thus, if you set `enable_dataset_name_normalization` to `false`, the staging dataset name would also **not** be normalized.
 :::
 
-:::caution
+:::warning
 Depending on the destination, certain names may not be allowed. To ensure your dataset can be successfully created, use the default normalization option.
 :::
 
@@ -191,7 +198,32 @@ Custom naming conventions are classes that derive from `NamingConvention`, which
 1. Each naming convention resides in a separate Python module (file).
 2. The class is always named `NamingConvention`.
 
-In that case, you can use a fully qualified module name in [schema configuration](#configure-naming-convention) or pass the module [explicitly](#configure-naming-convention).
+In that case, you can use a fully qualified module name in [schema configuration](#configure-naming-convention) or pass the module fully qualified name [explicitly](#configure-naming-convention).
+
+```toml
+[schema]
+naming="tests.common.cases.normalizers.sql_upper"
+```
+`dlt` will import `tests.common.cases.normalizers.sql_upper` and use the `NamingConvention` class found in it as the naming convention.
+
+:::tip
+Do not pass custom naming convention as modules if you do it explicitly. We recommend pattern below:
+```py
+import dlt
+
+dest_ = dlt.destinations.postgres(naming_convention="my_package.sql_cs_latin2")
+```
+
+⛔ avoid this or you may get pickle errors ie. when using parallel normalization:
+```py
+import dlt
+
+import my_package.sql_cs_latin2  # type: ignore[import-not-found]
+
+dest_ = dlt.destinations.postgres(naming_convention=my_package.sql_cs_latin2)
+```
+:::
+
 
 We include [two examples](../examples/custom_naming) of naming conventions that you may find useful:
 

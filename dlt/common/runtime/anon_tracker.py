@@ -1,9 +1,10 @@
 """dltHub telemetry using using anonymous tracker"""
 
 # several code fragments come from https://github.com/RasaHQ/rasa/blob/main/rasa/telemetry.py
+import contextlib
 import os
 import base64
-from typing import Literal, Optional
+from typing import Iterator, Literal, Optional
 from requests import Session
 
 from dlt.common import logger
@@ -37,9 +38,10 @@ def init_anon_tracker(config: RuntimeConfiguration) -> None:
 
     # lazily import requests to avoid binding config before initialization
     global requests
-    from dlt.sources.helpers import requests as r_
+    from dlt.sources.helpers.requests import Client
 
-    requests = r_  # type: ignore[assignment]
+    # fail fast, don't block user
+    requests = Client(request_timeout=_REQUEST_TIMEOUT, request_max_attempts=0)  # type: ignore[assignment]
 
     global _WRITE_KEY, _ANON_TRACKER_ENDPOINT, _THREAD_POOL
     # start the pool
@@ -97,6 +99,22 @@ def track(event_category: TEventCategory, event_name: str, properties: DictStrAn
 def before_send(event: DictStrAny) -> Optional[DictStrAny]:
     """Called before sending event. Does nothing, patch this function in the module for custom behavior"""
     return event
+
+
+@contextlib.contextmanager
+def always_track() -> Iterator[None]:
+    # if anon tracker was disabled
+    disable_after = _ANON_TRACKER_ENDPOINT is None
+    if disable_after:
+        from dlt.common.configuration.container import Container
+        from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+
+        init_anon_tracker(Container()[PluggableRunContext].context.runtime_config)
+    try:
+        yield
+    finally:
+        if disable_after:
+            disable_anon_tracker()
 
 
 def _tracker_request_header(write_key: str) -> StrAny:
@@ -191,20 +209,25 @@ def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
     headers = _tracker_request_header(_WRITE_KEY)
 
     def _future_send() -> None:
-        # import time
-        # start_ts = time.time_ns()
+        import time
+
+        start_ts = time.time_ns()
         resp = requests.post(
             _ANON_TRACKER_ENDPOINT, headers=headers, json=payload, timeout=_REQUEST_TIMEOUT
         )
-        # end_ts = time.time_ns()
-        # elapsed_time = (end_ts - start_ts) / 10e6
+        end_ts = time.time_ns()
+        elapsed_time = (end_ts - start_ts) / 10e6
         # print(f"SENDING TO TRACKER done: {elapsed_time}ms Status: {resp.status_code}")
         # handle different failure cases
         if resp.status_code not in [200, 204]:
             logger.debug(
-                f"Tracker request returned a {resp.status_code} response. Body: {resp.text}"
+                f"Tracker request returned a {resp.status_code} response in {elapsed_time}ms. Body:"
+                f" {resp.text}"
             )
         else:
+            logger.debug(
+                f"Tracker request returned a {resp.status_code} response in {elapsed_time}ms.s"
+            )
             if resp.status_code == 200:
                 # parse the response if available
                 data = resp.json()

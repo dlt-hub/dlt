@@ -1,4 +1,4 @@
-from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional
+from typing import Any, Dict, Tuple, Type, Union, TYPE_CHECKING, Optional
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -30,6 +30,7 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
         "binary": "BINARY",
         "time": "TIME",
+        "decimal": "DECIMAL",
     }
 
     sct_to_dbt = {
@@ -49,7 +50,17 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "BINARY": "binary",
         "VARIANT": "json",
         "TIME": "time",
+        "DECFLOAT": "decimal",
+        "DECIMAL": "decimal",
     }
+
+    def __init__(
+        self,
+        capabilities: DestinationCapabilitiesContext,
+        use_decfloat: bool = False,
+    ) -> None:
+        super().__init__(capabilities)
+        self.use_decfloat = use_decfloat
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -73,13 +84,14 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         precision = column.get("precision")
 
         if timezone and precision is None:
+            # use lookup table for non-precision types
             return None
 
         timestamp = "TIMESTAMP_TZ" if timezone else "TIMESTAMP_NTZ"
 
         # append precision if specified and valid
         if precision is not None:
-            if 0 <= precision <= 9:
+            if 0 <= precision <= self.capabilities.max_timestamp_precision:
                 timestamp += f"({precision})"
             else:
                 column_name = column["name"]
@@ -90,6 +102,20 @@ class SnowflakeTypeMapper(TypeMapperImpl):
                 )
 
         return timestamp
+
+    def decimal_precision(
+        self, precision: Optional[int] = None, scale: Optional[int] = None
+    ) -> Optional[Tuple[int, int]]:
+        # when use_decfloat is enabled, unbound decimals map to DECFLOAT (no precision)
+        if self.use_decfloat and precision is None and scale is None:
+            return None
+        return super().decimal_precision(precision, scale)
+
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
+        precision_tup = self.decimal_precision(column.get("precision"), column.get("scale"))
+        if self.use_decfloat and precision_tup is None:
+            return "DECFLOAT"
+        return super().to_db_decimal_type(column)
 
 
 class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
@@ -126,6 +152,8 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             "insert-from-staging",
             "staging-optimized",
         ]
+        caps.timestamp_precision = 6
+        caps.max_timestamp_precision = 9
         caps.sqlglot_dialect = "snowflake"
 
         return caps
@@ -144,6 +172,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         csv_format: Optional[CsvFormatConfiguration] = None,
         query_tag: Optional[str] = None,
         create_indexes: bool = False,
+        use_decfloat: bool = False,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -160,6 +189,9 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             csv_format (Optional[CsvFormatConfiguration]): Optional csv format configuration
             query_tag (Optional[str]): A tag with placeholders to tag sessions executing jobs
             create_indexes (bool, optional): Whether UNIQUE or PRIMARY KEY constrains should be created
+            use_decfloat (bool, optional): Whether to use DECFLOAT type for unbound decimals. DECFLOAT stores
+                exact decimal values with up to 36 significant digits and a dynamic exponent.
+                Only works with text-based staging formats (jsonl, csv) - not parquet.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any, optional): Additional arguments forwarded to the destination config
@@ -171,6 +203,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             csv_format=csv_format,
             query_tag=query_tag,
             create_indexes=create_indexes,
+            use_decfloat=use_decfloat,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

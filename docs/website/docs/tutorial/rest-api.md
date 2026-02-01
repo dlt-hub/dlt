@@ -90,7 +90,7 @@ Load package 1692364844.9254808 is LOADED and contains no failed jobs
 Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. dlt comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
 Next, run the following command to start the data browser:
@@ -100,9 +100,8 @@ dlt pipeline rest_api_pokemon show
 ```
 
 The command opens a new browser window with the data browser application. `rest_api_pokemon` is the name of the pipeline defined in the `rest_api_pipeline.py` file.
-You can explore the loaded data, run queries, and see some pipeline execution details:
 
-![Explore rest_api data in Streamlit App](https://dlt-static.s3.eu-central-1.amazonaws.com/images/docs-rest-api-tutorial-streamlit-screenshot.png)
+You can explore the loaded data, run queries, and see some pipeline execution details.
 
 ## Configuring the REST API source
 
@@ -321,6 +320,11 @@ Read more about [incremental loading](../dlt-ecosystem/verified-sources/rest_api
 ## What's next?
 
 Congratulations on completing the tutorial! You've learned how to set up a REST API source in dlt and run a data pipeline to load the data into DuckDB.
+
+With your pipeline code ready, we recommend the following next steps:
+- Inspect your pipeline and data in [workspace dashboard](../general-usage/dashboard.md)
+- [Access your data](../general-usage/dataset-access/) using `dataset` interface
+- [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
 
 Interested in learning more about dlt? Here are some suggestions:
 

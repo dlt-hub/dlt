@@ -19,6 +19,8 @@ To install `dlt` without additional dependencies:
 pip install dlt
 ```
 
+<!--@@@DLT_DESTINATION_CAPABILITIES destination-->
+
 ## Set up a destination function for your pipeline
 
 The custom destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function that gets called for all items loaded during a pipeline run or load operation. With the `@dlt.destination`, you can convert any function that takes two arguments into a `dlt` destination.
@@ -68,7 +70,7 @@ def my_destination(items: TDataItems, table: TTableSchema) -> None:
 * The `loader_file_format` parameter on the destination decorator defines the format in which files are stored in the load package before being sent to the destination function. This can be `jsonl` or `parquet`.
 * The `name` parameter on the destination decorator defines the name of the destination that gets created by the destination decorator.
 * The `naming_convention` parameter on the destination decorator defines the name of the destination that gets created by the destination decorator. This controls how table and column names are normalized. The default is `direct`, which will keep all names the same.
-* The `max_nesting_level` parameter on the destination decorator defines how deep the normalizer will go to normalize nested fields in your data to create subtables. This overwrites any settings on your `source` and is set to zero to not create any nested tables by default.
+* The `max_table_nesting` parameter on the destination decorator defines how deep the normalizer will go to normalize nested fields in your data to create subtables. This overwrites any settings on your `source` and is set to zero to not create any nested tables by default.
 * The `skip_dlt_columns_and_tables` parameter on the destination decorator defines whether internal tables and columns will be fed into the custom destination function. This is set to `True` by default.
 * The `max_parallel_load_jobs` parameter will define how many load jobs will run in parallel in threads. If you have a destination that only allows five connections at a time, you can set this value to 5, for example.
 * The `loader_parallelism_strategy` parameter will control how load jobs are parallelized. Set to `parallel`, the default, jobs will be parallelized no matter which table is being loaded to. `table-sequential` will parallelize loading but only ever have one load job per table at a time, `sequential` will run all load jobs sequentially on the main thread.
@@ -76,7 +78,7 @@ def my_destination(items: TDataItems, table: TTableSchema) -> None:
 :::note
 Settings above ensure that the shape of the data you receive in the destination function is as close as possible to what you see in the data source.
 
-* The custom destination sets the `max_nesting_level` to 0 by default, which means no sub-tables will be generated during the normalization phase.
+* The custom destination sets the `max_table_nesting` to 0 by default, which means no sub-tables will be generated during the normalization phase.
 * The custom destination also skips all internal tables and columns by default. If you need these, set `skip_dlt_columns_and_tables` to False.
 :::
 
@@ -127,21 +129,19 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   p = dlt.pipeline("my_pipe", destination=my_destination(api_key=os.getenv("API_KEY"))) # type: ignore[call-arg]
   ```
 
-- Directly via destination reference. In this case, don't use the decorator for the destination function.
+- Via the `dlt.destination()` function that initializes the destination. In this case, don't use the decorator for the destination function.
   ```py
   # File my_destination.py
-
-  from dlt.common.destination import Destination
 
   # Don't use the decorator
   def local_destination_func(items: TDataItems, table: TTableSchema) -> None:
       ...
 
-  # Via destination reference
+  # Via dlt.destination() that initializes the destination
   p = dlt.pipeline(
       "my_pipe",
-      destination=Destination.from_reference(
-          "destination", destination_callable=local_destination_func
+      destination=dlt.destination(
+          "my_destination", destination_callable=local_destination_func
       )
   )
   ```
@@ -149,13 +149,11 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   ```py
   # File my_pipeline.py
 
-  from dlt.common.destination import Destination
-
   # Fully qualified string to function location
   p = dlt.pipeline(
       "my_pipe",
-      destination=Destination.from_reference(
-          "destination", destination_callable="my_destination.local_destination_func"
+      destination=dlt.destination(
+          "my_destination", destination_callable="my_destination.local_destination_func"
       )
   )
   ```
@@ -170,7 +168,7 @@ Destination functions that raise exceptions are retried 5 times before giving up
 
 If your exception derives from `DestinationTerminalException`, the whole load job will be marked as failed and not retried again.
 
-:::caution
+:::warning
 If you wipe out the pipeline folder (where job files and destination state are saved), you will not be able to restart from the last failed batch.
 However, it is fairly easy to back up and restore the pipeline directory, [see details below](#manage-pipeline-state-for-incremental-loading).
 :::

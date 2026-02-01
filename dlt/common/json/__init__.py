@@ -4,7 +4,6 @@ import dataclasses
 from datetime import date, datetime, time  # noqa: I251
 from typing import Any, Callable, List, Protocol, IO, Union, Dict
 from uuid import UUID
-from hexbytes import HexBytes
 from enum import Enum
 
 try:
@@ -17,8 +16,8 @@ from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
-from dlt.common.utils import map_nested_in_place
-
+from dlt.common.utils import map_nested_values_in_place
+from dlt.common.libs.hexbytes import HexBytes
 
 TPuaDecoders = List[Callable[[Any], Any]]
 
@@ -184,7 +183,7 @@ def custom_pua_decode_nested(obj: Any, decoders: TPuaDecoders = DECODERS) -> Any
     if isinstance(obj, str):
         return custom_pua_decode(obj, decoders)
     elif isinstance(obj, (list, dict)):
-        return map_nested_in_place(custom_pua_decode, obj, decoders=decoders)
+        return map_nested_values_in_place(custom_pua_decode, obj, decoders=decoders)
     return obj
 
 

@@ -584,18 +584,19 @@ def test_clone_single_pipe() -> None:
     assert cloned_p != parent
     assert id(cloned_p.steps) != id(parent.steps)
     assert cloned_p.gen == parent.gen
-    cloned_p = parent._clone(with_parent=True)
-    assert cloned_p != parent
+
     # with rename
     cloned_p = parent._clone(new_name="new_name")
     assert cloned_p.name == "new_name"
     assert id(cloned_p.steps) != id(parent.steps)
+    # same for rename
+    assert cloned_p.instance_id == parent.instance_id
 
     # add child
     child1 = Pipe("tr1", [lambda x: x], parent=parent)
     child2 = Pipe("tr2", [lambda x: x], parent=child1)
 
-    # clone child without parent
+    # clone child
     cloned_ch2 = child2._clone()
     assert cloned_ch2.parent == child1
     cloned_ch2 = child2._clone(new_name="new_child_2")
@@ -603,16 +604,19 @@ def test_clone_single_pipe() -> None:
     assert cloned_ch2.parent == child1
     assert cloned_ch2.parent.name == child1.name
 
-    # clone child with parent
-    cloned_ch2 = child2._clone(with_parent=True, new_name="new_child_2")
-    assert cloned_ch2.parent != child1
-    assert cloned_ch2.parent.name == "tr1_new_child_2"
-    assert cloned_ch2.parent.parent != parent
-    assert cloned_ch2.parent.parent.name == "data_tr1_new_child_2"
+    # clone child with rename
+    cloned_ch2 = child2._clone(new_name="new_child_2")
+    assert cloned_ch2.parent is child1
+    # parent is not cloned
+    assert cloned_ch2.parent.name == "tr1"
+    assert cloned_ch2.parent.parent is parent
+    assert cloned_ch2.parent.parent.instance_id == parent.instance_id
+    assert cloned_ch2.parent.parent.name == "data"
     # rename again
-    cloned_ch2_2 = cloned_ch2._clone(with_parent=True, new_name="a_new_name")
-    assert cloned_ch2_2.parent.name == "tr1_a_new_name"
-    assert cloned_ch2_2.parent.parent.name == "data_tr1_a_new_name"
+    cloned_ch2_2 = cloned_ch2._clone(new_name="a_new_name")
+    assert cloned_ch2_2.parent.name == "tr1"
+    assert cloned_ch2_2.parent.parent.name == "data"
+    assert cloned_ch2.parent.parent is parent
 
 
 def test_clone_pipes() -> None:

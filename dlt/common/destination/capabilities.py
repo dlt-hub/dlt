@@ -3,6 +3,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    List,
     Literal,
     Optional,
     Sequence,
@@ -12,7 +13,6 @@ from typing import (
     Type,
 )
 from dlt.common.libs.sqlglot import TSqlGlotDialect
-from dlt.common.data_types import TDataType
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.typing import TNamingConventionReferenceArg
@@ -34,6 +34,7 @@ from dlt.common.schema.typing import (
     TLoaderMergeStrategy,
     TTableFormat,
     TLoaderReplaceStrategy,
+    TTableSchemaColumns,
 )
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
@@ -128,6 +129,9 @@ class UnsupportedTypeMapper(DataTypeMapper):
         )
 
 
+TCasefoldIdentifier = Callable[[str], str]
+
+
 @configspec
 class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
@@ -151,7 +155,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     "Escapes table name, column name and other identifiers"
     escape_literal: Callable[[Any], Any] = None
     "Escapes string literal"
-    casefold_identifier: Callable[[str], str] = str
+    casefold_identifier: TCasefoldIdentifier = str
     """Casing function applied by destination to represent case insensitive identifiers."""
     has_case_sensitive_identifiers: bool = None
     """Tells if destination supports case sensitive identifiers"""
@@ -172,6 +176,10 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
     timestamp_precision: int = 6
+    """Default precision of the timestamp type"""
+    max_timestamp_precision: int = 6
+    """Maximum supported timestamp precision"""
+
     max_rows_per_insert: Optional[int] = None
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
@@ -208,6 +216,12 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     parquet_format: Optional[ParquetFormatConfiguration] = None
     """Parquet format preferred by this destination"""
+
+    supports_tz_aware_datetime: bool = True
+    """The destination can store datetime with timezone"""
+
+    supports_naive_datetime: bool = True
+    """The destination can store datetime without timezone"""
 
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
@@ -288,3 +302,55 @@ def merge_caps_file_formats(
     else:
         requested_file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
     return requested_file_format, possible_file_formats
+
+
+def adjust_column_schema_to_capabilities(
+    column: TColumnSchema, caps: DestinationCapabilitiesContext
+) -> TColumnSchema:
+    """Modify column schema in place according to destination capabilities.
+    * timestamp and time precision are limited by min(destination max, parquet writer max)
+    * timezone is always removed (enables default behavior)
+    * default timestamp precision for destination is removed
+    """
+    data_type = column.get("data_type")
+    if data_type in ("timestamp", "time"):
+        precision = column.get("precision", caps.timestamp_precision)
+        # limit precision according to caps: min of parquet writer and destination max
+        precision = min(
+            precision,
+            caps.max_timestamp_precision,
+            (
+                caps.parquet_format.max_timestamp_precision()
+                if caps.parquet_format
+                else ParquetFormatConfiguration().max_timestamp_precision()
+            ),
+        )
+
+        # remove timezone flag to fallback to default tz-aware and let normalizer to correct the data
+        column.pop("timezone", None)
+
+        # do not write default precision
+        if precision == caps.timestamp_precision:
+            column.pop("precision", None)
+        elif column.get("precision") != precision:
+            column["precision"] = precision
+
+    if data_type == "json" and not caps.supports_nested_types:
+        column.pop("x-nested-type", None)  # type: ignore[typeddict-item]
+
+    return column
+
+
+def adjust_schema_to_capabilities(
+    columns: TTableSchemaColumns, caps: DestinationCapabilitiesContext
+) -> TTableSchemaColumns:
+    """Modifies `columns` schema in place according to destination `caps`. See `adjust_column_schema_to_capabilities`
+    for a list of adjustments.
+    NOTE: that function is intended to be used on schemas inferred from the data,
+    before user explicit hints are applied as it overrides ie. timezone and precision hints.
+
+    Returns modified columns schema
+    """
+    for col in columns.values():
+        adjust_column_schema_to_capabilities(col, caps)
+    return columns

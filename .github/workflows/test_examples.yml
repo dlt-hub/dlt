@@ -44,11 +44,11 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      - name: Install dlt-plus nightly devel build without cache
-        run: uv run pip install --upgrade --force-reinstall --no-cache-dir --pre dlt-plus
-
       - name: Install dependencies
-        run: uv sync --extra duckdb --extra weaviate --extra parquet --extra qdrant --extra bigquery --extra postgres --extra lancedb  --extra s3 --extra workspace --group docs --group sentry-sdk --group ibis --group providers
+        run: uv sync --extra duckdb --extra weaviate --extra parquet --extra qdrant --extra bigquery --extra postgres --extra lancedb  --extra s3 --extra workspace --group docs --group ibis --group providers
+
+      # - name: Install dlthub incl alpha releases
+      #   run: uv run pip install --pre dlthub
 
       - name: create secrets.toml for examples
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml

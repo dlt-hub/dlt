@@ -20,6 +20,7 @@ from typing import (
     cast,
 )
 
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.typing import TFun, TypedDict, Self
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -108,9 +109,9 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         pass
 
     def has_dataset(self) -> bool:
-        query = """
+        query = f"""
 SELECT 1
-    FROM INFORMATION_SCHEMA.SCHEMATA
+    FROM {self._qualify_info_schema_table_name("SCHEMATA")}
     WHERE """
         catalog_name, schema_name, _ = self._get_information_schema_components()
         db_params: List[str] = []
@@ -126,6 +127,7 @@ SELECT 1
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
     def drop_dataset(self) -> None:
+        # assert self.fully_qualified_dataset_name() != "None"
         self.execute_sql("DROP SCHEMA %s CASCADE" % self.fully_qualified_dataset_name())
 
     def truncate_tables(self, *tables: str) -> None:
@@ -195,11 +197,13 @@ SELECT 1
                     ret.append(result)
         return ret
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
         # default is no catalogue component of the name, which typically means that
         # connection is scoped to a current database
         return None
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def fully_qualified_dataset_name(
         self, quote: bool = True, staging: bool = False, casefold: bool = True
     ) -> str:
@@ -210,6 +214,7 @@ SELECT 1
             path = self.make_qualified_table_name_path(None, quote=quote, casefold=casefold)
         return ".".join(path)
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def make_qualified_table_name(
         self, table_name: str, quote: bool = True, casefold: bool = True
     ) -> str:
@@ -217,6 +222,7 @@ SELECT 1
             self.make_qualified_table_name_path(table_name, quote=quote, casefold=casefold)
         )
 
+    # TODO make it a staticmethod to avoid passing SQLClient instances all around
     def make_qualified_table_name_path(
         self, table_name: Optional[str], quote: bool = True, casefold: bool = True
     ) -> List[str]:
@@ -302,6 +308,9 @@ SELECT 1
         # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
         mro = type.mro(type(ex))
         return any(t.__name__ in ("DatabaseError", "DataError") for t in mro)
+
+    def _qualify_info_schema_table_name(self, table_name: str) -> str:
+        return f"INFORMATION_SCHEMA.{table_name}"
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
         """Gets catalog name, schema name and name of the tables in format that can be directly
@@ -442,7 +451,10 @@ def raise_database_error(f: TFun) -> TFun:
             return (yield from f(self, *args, **kwargs))
         except Exception as ex:
             db_ex = self._make_database_exception(ex)
-            raise db_ex.with_traceback(ex.__traceback__) from ex
+            if db_ex is ex:
+                raise db_ex.with_traceback(ex.__traceback__)
+            else:
+                raise db_ex.with_traceback(ex.__traceback__) from ex
 
     @wraps(f)
     def _wrap(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
@@ -450,7 +462,10 @@ def raise_database_error(f: TFun) -> TFun:
             return f(self, *args, **kwargs)
         except Exception as ex:
             db_ex = self._make_database_exception(ex)
-            raise db_ex.with_traceback(ex.__traceback__) from ex
+            if db_ex is ex:
+                raise db_ex.with_traceback(ex.__traceback__)
+            else:
+                raise db_ex.with_traceback(ex.__traceback__) from ex
 
     if inspect.isgeneratorfunction(f):
         return _wrap_gen  # type: ignore[return-value]
@@ -463,6 +478,12 @@ def raise_open_connection_error(f: TFun) -> TFun:
         try:
             return f(self, *args, **kwargs)
         except Exception as ex:
+            db_ex = self._make_database_exception(ex)
+            if isinstance(db_ex, DestinationUndefinedEntity):
+                if db_ex is ex:
+                    raise db_ex.with_traceback(ex.__traceback__)
+                else:
+                    raise db_ex.with_traceback(ex.__traceback__) from ex
             raise DestinationConnectionError(type(self).__name__, self.dataset_name, str(ex), ex)
 
     return _wrap  # type: ignore

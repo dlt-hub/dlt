@@ -192,7 +192,9 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         )
 
     def _sqlite_is_memory_db(self) -> bool:
-        return self.database_name in (":memory:", "")
+        return SqlalchemyCredentials.is_memory_database(
+            self.credentials.database, self.credentials.query
+        )
 
     def _sqlite_reattach_dataset_if_exists(self, dataset_name: str) -> None:
         """Re-attach previously created databases for a new sqlite connection"""
@@ -206,9 +208,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         """Mimic multiple schemas in sqlite using ATTACH DATABASE to
         attach a new database file to the current connection.
         """
-        if self._sqlite_is_memory_db():
-            new_db_fn = ":memory:"
-        else:
+        if not self._sqlite_is_memory_db():
             new_db_fn = self._sqlite_dataset_filename(dataset_name)
 
             if dataset_name != "main":  # main is the current file, it is always attached
@@ -216,6 +216,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                 self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
             # WAL mode is applied to all currently attached databases
             self.execute_sql("PRAGMA journal_mode=WAL")
+            self.execute_sql("PRAGMA synchronous=NORMAL;")
         self._sqlite_attached_datasets.add(dataset_name)
 
     def _sqlite_drop_dataset(self, dataset_name: str) -> None:
@@ -452,6 +453,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.IntegrityError):
             return DatabaseTerminalException(e)
+        elif isinstance(e, sa.exc.DatabaseError):
+            if "oracle" in msg:
+                if "00942" in msg and "does not exist" in msg:  # ORA-00942
+                    return DatabaseUndefinedRelation(e)
+            return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.SQLAlchemyError):
             return DatabaseTransientException(e)
         else:

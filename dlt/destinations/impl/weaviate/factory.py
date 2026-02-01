@@ -6,6 +6,7 @@ from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.weaviate.configuration import (
     WeaviateCredentials,
     WeaviateClientConfiguration,
+    TWeaviateConnectionType,
 )
 
 if t.TYPE_CHECKING:
@@ -62,6 +63,7 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
         caps.supports_ddl_transactions = False
         caps.naming_convention = "dlt.destinations.impl.weaviate.naming"
         caps.supported_replace_strategies = ["truncate-and-insert"]
+        caps.supports_naive_datetime = False
 
         return caps
 
@@ -76,6 +78,7 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
         credentials: t.Union[WeaviateCredentials, t.Dict[str, t.Any]] = None,
         vectorizer: str = None,
         module_config: t.Dict[str, t.Dict[str, str]] = None,
+        connection_type: TWeaviateConnectionType = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: t.Any,
@@ -88,6 +91,8 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
             credentials (t.Union[WeaviateCredentials, t.Dict[str, t.Any]], optional): Weaviate credentials containing URL, API key and optional headers
             vectorizer (str, optional): The name of the Weaviate vectorizer to use
             module_config (t.Dict[str, t.Dict[str, str]], optional): The configuration for the Weaviate modules
+            connection_type (TWeaviateConnectionType, optional): Connection type - "cloud" for Weaviate Cloud,
+                "local" for Docker instances, "custom" for self-hosted. If None, auto-detected from URL.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
             **kwargs (t.Any, optional): Additional arguments forwarded to the destination config
@@ -96,6 +101,7 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
             credentials=credentials,
             vectorizer=vectorizer,
             module_config=module_config,
+            connection_type=connection_type,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
