@@ -1495,33 +1495,40 @@ def test_pg_uuid_data_type(
     backend: TableBackend,
     uuid_type: sa.types.TypeEngine,
 ) -> None:
-    """UUID columns must have consistent casing across full and incremental loads.
+    """UUID as primary key must not create duplicates during merge due to casing mismatch.
 
-    Reproduces the user case: initial load followed by incremental merge must not create
-    duplicate rows due to UUID casing mismatch.
+    Reproduces the user case from #3299: initial load followed by incremental merge with
+    both inserts and updates must not create duplicate rows.
     Tests both postgresql.UUID and generic sa.Uuid (SA 2.0).
     """
     import uuid as uuid_mod
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
-    # create a temp table with a UUID column in the test schema
     temp_table_name = "test_uuid_" + uniq_id()
     temp_table = sa.Table(
         temp_table_name,
         postgres_db.metadata,
-        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("guid", uuid_type),
+        # UUID is the primary key — reproduces the #3299 merge scenario
+        sa.Column("guid", uuid_type, primary_key=True),
+        sa.Column("name", sa.Text),
         sa.Column("updated_at", sa.DateTime, server_default=sa.func.now()),
     )
     temp_table.create(bind=postgres_db.engine)
     try:
-        # insert initial rows
-        initial_uuids = {i: str(uuid_mod.uuid4()) for i in range(5)}
+        # insert initial rows with explicit timestamps
+        base_ts = datetime(2024, 1, 1)
+        initial_guids = [str(uuid_mod.uuid4()) for _ in range(5)]
         with postgres_db.engine.begin() as conn:
-            for i, u in initial_uuids.items():
-                conn.execute(temp_table.insert().values(id=i, guid=u))
+            for i, guid in enumerate(initial_guids):
+                conn.execute(
+                    temp_table.insert().values(
+                        guid=guid,
+                        name=f"user_{i}",
+                        updated_at=base_ts + timedelta(seconds=i),
+                    )
+                )
 
-        # 1. initial full load with merge disposition
+        # reuse sql_table resource for both loads
         # use a datetime object for initial_value so pyarrow can coerce it to timestamp
         table = sql_table(
             credentials=postgres_db.credentials,
@@ -1530,55 +1537,56 @@ def test_pg_uuid_data_type(
             backend=backend,
             reflection_level="full",
             write_disposition="merge",
-            primary_key="id",
-            incremental=dlt.sources.incremental(
-                "updated_at",
-                initial_value=datetime(1999, 1, 1),
-            ),
+            primary_key="guid",
+            incremental=dlt.sources.incremental("updated_at", initial_value=datetime(1999, 1, 1)),
         )
+
+        # 1. initial full load with merge on UUID primary key
         pipeline = make_pipeline("duckdb")
         info = pipeline.run(table, loader_file_format="parquet")
         assert_load_info(info)
 
-        # schema must have data_type="text" for the UUID column
+        # schema must map UUID to text
         guid_col = pipeline.default_schema.tables[temp_table_name]["columns"]["guid"]
         assert guid_col["data_type"] == "text"
 
         rows_after_initial = load_tables_to_dicts(pipeline, temp_table_name)[temp_table_name]
         assert len(rows_after_initial) == 5
-        loaded_uuids = {row["id"]: row["guid"] for row in rows_after_initial}
-        for val in loaded_uuids.values():
-            uuid_mod.UUID(val)  # validates well-formed
+        for row in rows_after_initial:
+            uuid_mod.UUID(row["guid"])
 
-        # 2. insert more rows, then incremental merge
+        # 2. update 2 existing rows AND insert 5 new rows, then incremental merge
+        # updated rows get new updated_at so they enter the incremental window
+        update_ts = base_ts + timedelta(hours=1)
         with postgres_db.engine.begin() as conn:
-            for i in range(5, 10):
-                conn.execute(temp_table.insert().values(id=i, guid=str(uuid_mod.uuid4())))
+            for i, guid in enumerate(initial_guids[:2]):
+                conn.execute(
+                    temp_table.update()
+                    .where(temp_table.c.guid == guid)
+                    .values(name=f"updated_user_{i}", updated_at=update_ts + timedelta(seconds=i))
+                )
+            for i in range(5):
+                conn.execute(
+                    temp_table.insert().values(
+                        guid=str(uuid_mod.uuid4()),
+                        name=f"new_user_{i}",
+                        updated_at=update_ts + timedelta(seconds=10 + i),
+                    )
+                )
 
-        table = sql_table(
-            credentials=postgres_db.credentials,
-            table=temp_table_name,
-            schema=postgres_db.schema,
-            backend=backend,
-            reflection_level="full",
-            write_disposition="merge",
-            primary_key="id",
-            incremental=dlt.sources.incremental(
-                "updated_at",
-                initial_value=datetime(1999, 1, 1),
-            ),
-        )
         info = pipeline.run(table, loader_file_format="parquet")
         assert_load_info(info)
 
-        rows_after_incremental = load_tables_to_dicts(pipeline, temp_table_name)[temp_table_name]
-        # merge must not create duplicates
-        assert len(rows_after_incremental) == 10
+        rows_after_merge = load_tables_to_dicts(pipeline, temp_table_name)[temp_table_name]
+        # 5 initial + 5 new = 10 (updated rows merged, not duplicated)
+        assert len(rows_after_merge) == 10
 
-        # UUID casing must be consistent across loads
-        for row in rows_after_incremental:
-            if row["id"] in loaded_uuids:
-                assert row["guid"] == loaded_uuids[row["id"]]
+        # verify updated rows were merged correctly
+        merged = {row["guid"]: row for row in rows_after_merge}
+        for guid in initial_guids[:2]:
+            matches = [g for g in merged if g.lower() == guid.lower()]
+            assert len(matches) == 1, f"Expected 1 row for guid {guid}, got {len(matches)}"
+            assert merged[matches[0]]["name"].startswith("updated_user_")
     finally:
         temp_table.drop(bind=postgres_db.engine)
 

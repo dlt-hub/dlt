@@ -203,17 +203,17 @@ def test_uniqueidentifier_data_type(
     mssql_db: MSSQLSourceDB,
     backend: TableBackend,
 ) -> None:
-    """UNIQUEIDENTIFIER values must have consistent casing across full and incremental loads.
+    """UNIQUEIDENTIFIER as merge key must not create duplicates due to casing mismatch.
 
-    Reproduces the user case from #3299: initial load followed by incremental merge must not
-    create duplicate rows due to UUID casing mismatch.
+    Reproduces the user case from #3299: initial load followed by incremental merge with
+    both updates and inserts must not create duplicate rows.
     """
     import uuid
 
     pipeline = make_pipeline("duckdb")
     rc = mssql_db.table_infos["app_user"]["row_count"]
 
-    # 1. initial full load
+    # reuse sql_table resource for both loads
     table = sql_table(
         credentials=mssql_db.credentials,
         table="app_user",
@@ -221,12 +221,14 @@ def test_uniqueidentifier_data_type(
         backend=backend,
         reflection_level="full",
         write_disposition="merge",
-        primary_key="id",
+        primary_key="some_uniqueidentifier",
         incremental=dlt.sources.incremental(
-            "created_at",
+            "updated_at",
             initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
         ),
     )
+
+    # 1. initial full load with UUID as merge primary key
     info = pipeline.run(table, loader_file_format="parquet")
     assert_load_info(info)
 
@@ -236,38 +238,25 @@ def test_uniqueidentifier_data_type(
 
     rows_after_initial = load_tables_to_dicts(pipeline, "app_user")["app_user"]
     assert len(rows_after_initial) == rc
-    # collect UUID casing from initial load
-    initial_uuids = {row["id"]: row["some_uniqueidentifier"] for row in rows_after_initial}
-    for val in initial_uuids.values():
+    for val in (row["some_uniqueidentifier"] for row in rows_after_initial):
         uuid.UUID(val)  # validates well-formed
 
-    # 2. insert more rows in source, then incremental merge load
+    # 2. update 3 existing rows' updated_at AND insert 10 new rows, then merge
+    # updated_at set far in the future so updated rows enter the incremental window
+    future_ts = ensure_pendulum_datetime_utc("2030-01-01T00:00:00+00:00")
+    for i, row in enumerate(rows_after_initial[:3]):
+        mssql_db.update_row(
+            {"updated_at": future_ts.add(seconds=i)},
+            f"id = {row['id']}",
+        )
     mssql_db.generate_users(n=10)
 
-    table = sql_table(
-        credentials=mssql_db.credentials,
-        table="app_user",
-        schema=mssql_db.schema,
-        backend=backend,
-        reflection_level="full",
-        write_disposition="merge",
-        primary_key="id",
-        incremental=dlt.sources.incremental(
-            "created_at",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
-        ),
-    )
     info = pipeline.run(table, loader_file_format="parquet")
     assert_load_info(info)
 
-    rows_after_incremental = load_tables_to_dicts(pipeline, "app_user")["app_user"]
-    # merge must not create duplicates — total should be initial + 10 new rows
-    assert len(rows_after_incremental) == rc + 10
-
-    # UUID casing must be consistent: rows present in both loads must have identical values
-    for row in rows_after_incremental:
-        if row["id"] in initial_uuids:
-            assert row["some_uniqueidentifier"] == initial_uuids[row["id"]]
+    rows_after_merge = load_tables_to_dicts(pipeline, "app_user")["app_user"]
+    # merge must not create duplicates: rc initial + 10 new
+    assert len(rows_after_merge) == rc + 10
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
