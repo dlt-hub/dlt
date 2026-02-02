@@ -89,6 +89,7 @@ from tests.pipeline.utils import (
 )
 
 from dlt.destinations.dataset import get_destination_client_initial_config
+from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
@@ -1578,12 +1579,8 @@ def test_abort_package() -> None:
 
     # package is now aborted
     assert load_info is not None
-    package_info = p.get_load_package_info(load_id)
-    assert package_info.state == "aborted"
-
-    # jobs are in failed_jobs
-    assert len(package_info.jobs["failed_jobs"]) > 0
-    assert len(package_info.jobs["new_jobs"]) == 0
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.load_packages[0].state == "aborted"
 
     # next run does nothing (no pending packages)
     load_info = p.run()
@@ -1635,9 +1632,10 @@ def test_abort_package_wipes_other_packages() -> None:
 
     load_info = abort_action()
 
-    # aborted package is in aborted state
-    package_info = p.get_load_package_info(failed_load_id)
-    assert package_info.state == "aborted"
+    # package is now aborted
+    assert load_info is not None
+    assert load_info.load_packages[0].load_id == failed_load_id
+    assert load_info.load_packages[0].state == "aborted"
 
     # second package should have been deleted (no longer exists in normalized)
     normalized_packages_after = p.list_normalized_load_packages()
@@ -1650,6 +1648,96 @@ def test_abort_package_wipes_other_packages() -> None:
     load_info = p.run([4, 5, 6], table_name="new_numbers")
     assert load_info is not None
     assert load_info.has_failed_jobs is False
+
+
+def test_abort_package_restores_state_from_destination() -> None:
+    """Test that aborting a package properly restores local state from destination."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def numbers(data):
+        yield data
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def letters(data):
+        yield data
+
+    load_info = p.run(
+        [
+            numbers([{"id": 1}, {"id": 2}, {"id": 3}]),
+            letters([{"id": 4, "val": "a"}, {"id": 5, "val": "b"}, {"id": 6, "val": "c"}]),
+        ]
+    )
+    assert_load_info(load_info)
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]["id"]["last_value"]
+        == 3
+    )
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["letters"]["incremental"]["id"]["last_value"]
+        == 6
+    )
+
+    baseline_version = p.state["_state_version"]
+    baseline_hash = p.state["_version_hash"]
+
+    original_execute_sql = DuckDbSqlClient.execute_sql
+
+    def mock_execute_sql(self, sql, *args, **kwargs):
+        if "letters" in sql.lower():
+            raise DestinationTerminalException("Mocked SQL failure for letters")
+        return original_execute_sql(self, sql, *args, **kwargs)
+
+    with patch.object(DuckDbSqlClient, "execute_sql", mock_execute_sql):
+        with pytest.raises(PipelineStepFailed) as exc_info:
+            p.run(
+                [
+                    numbers([{"id": 4}, {"id": 5}, {"id": 6}]),
+                    letters([{"id": 7, "val": "a"}, {"id": 8, "val": "b"}, {"id": 9, "val": "c"}]),
+                ]
+            )
+    assert exc_info.value.is_package_partially_loaded is True
+    assert isinstance(exc_info.value.exception, LoadClientJobRetryPending)
+
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]["id"]["last_value"]
+        == 6
+    )
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["letters"]["incremental"]["id"]["last_value"]
+        == 9
+    )
+
+    pending_packages = p.list_normalized_load_packages()
+    assert len(pending_packages) == 1
+    pending_load_id = pending_packages[0]
+
+    abort_action = pipeline_abort(p)
+    load_info = abort_action()
+    assert load_info is not None
+    assert load_info.load_packages[0].load_id == pending_load_id
+    assert load_info.load_packages[0].state == "aborted"
+
+    restored_version = p.state["_state_version"]
+    restored_hash = p.state["_version_hash"]
+
+    assert restored_version == baseline_version
+    assert restored_hash == baseline_hash
+
+    assert len(p.list_normalized_load_packages()) == 0
+    assert len(p.list_extracted_load_packages()) == 0
+
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]["id"]["last_value"]
+        == 3
+    )
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["letters"]["incremental"]["id"]["last_value"]
+        == 6
+    )
 
 
 def test_load_info_raise_on_failed_jobs() -> None:

@@ -696,6 +696,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def _abort_package(self, load_id: str, schema: Schema) -> None:
         """Execute the abort operation for a package."""
         logger.info(f"Aborting package {load_id} as requested")
+        # Move pending jobs to failed_jobs and mark package as aborted
         self.load_storage.normalized_packages.abort_package(load_id)
         metrics: LoadMetrics = {
             "started_at": None,
