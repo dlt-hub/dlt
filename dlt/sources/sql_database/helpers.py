@@ -10,9 +10,11 @@ from typing import (
     Literal,
     Optional,
     Iterator,
+    Type,
     Union,
 )
 import operator
+from abc import ABC, abstractmethod
 
 import dlt
 from dlt.common import logger
@@ -21,11 +23,15 @@ from dlt.common.configuration.specs import (
     ConnectionStringCredentials,
     configspec,
 )
-from dlt.common.exceptions import DltException, MissingDependencyException
+from dlt.common.exceptions import (
+    DltException,
+    MissingDependencyException,
+    ValueErrorWithKnownValues,
+)
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
 from dlt.common.schema.utils import merge_columns
-from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
+from dlt.common.typing import TColumnNames, TDataItem, TSortOrder, add_value_to_literal
 from dlt.common.jsonpath import extract_simple_field_name
 from dlt.common.utils import is_typeerror_due_to_wrong_call
 
@@ -61,8 +67,44 @@ TQueryAdapter = Union[
 ]
 TTableAdapter = Callable[[Table], Optional[Union[SelectAny, Table]]]
 
+TABLE_LOADER_REGISTRY: Dict[str, Type["BaseTableLoader"]] = {}
+"""Maps backend name to the table loader class that handles it."""
 
-class TableLoader:
+
+def _maybe_fix_0000_timezone(df: Any) -> Any:
+    """Optionally convert +00:00 timezone to UTC on Arrow tables."""
+    try:
+        from dlt.common.libs.pyarrow import set_plus0000_timezone_to_utc, pyarrow
+
+        # TODO: skip when Arrow releases timezone fix
+        if isinstance(df, pyarrow.Table):
+            return set_plus0000_timezone_to_utc(df)
+    except MissingDependencyException:
+        pass
+    return df
+
+
+class BaseTableLoader(ABC):
+    """Base class for SQL table loaders.
+
+    Provides query building infrastructure including incremental loading support.
+    Subclasses must implement ``load_rows`` to handle the actual data retrieval.
+    For loaders that use a SQLAlchemy connection, subclass ``TableLoader`` instead
+    to reuse the result-conversion helpers.
+
+    Args:
+        engine: SQLAlchemy ``Engine`` used for query compilation and (optionally)
+            execution.
+        backend: Requested output format (``"sqlalchemy"``, ``"pyarrow"``,
+            ``"pandas"``, ``"connectorx"``).
+        table: Reflected SQLAlchemy ``Table`` object.
+        columns: dlt column schema hints for the table.
+        chunk_size: Number of rows per batch.
+        incremental: Optional incremental loading state.
+        query_adapter_callback: Optional callback to modify the generated query.
+        limit: Optional row/time limit from the resource.
+    """
+
     def __init__(
         self,
         engine: Engine,
@@ -184,43 +226,120 @@ class TableLoader:
 
         return self._make_query()
 
+    def compile_query(self, query: SelectClause) -> str:
+        """Compile a SQLAlchemy query into a SQL string with literal binds.
+
+        Useful for backends that execute raw SQL strings (ConnectorX, ADBC, etc.).
+
+        Raises:
+            NotImplementedError: When the query cannot be compiled to a string.
+        """
+        try:
+            return str(query.compile(self.engine, compile_kwargs={"literal_binds": True}))
+        except CompileError as ex:
+            raise NotImplementedError(
+                f"Query for table `{self.table.name}` could not be compiled to string."
+                f" If you are on SQLAlchemy 1.4.x, upgrade to 2.x: `{ex}`"
+            ) from ex
+
+    def get_connection_url(self) -> str:
+        """Return a plain database connection URL derived from the engine.
+
+        Strips the SQLAlchemy driver portion (e.g. ``+psycopg2``) so the URL
+        is suitable for non-SQLAlchemy backends such as ConnectorX or ADBC.
+        Override this method when a backend requires a different connection
+        string format (e.g. MSSQL ODBC → go-mssqldb conversion).
+        """
+        return self.engine.url._replace(
+            drivername=self.engine.url.get_backend_name()
+        ).render_as_string(hide_password=False)
+
+    @abstractmethod
+    def load_rows(self, backend_kwargs: Dict[str, Any] = None) -> Iterator[TDataItem]:
+        """Load rows from the table and yield them as data items.
+
+        Args:
+            backend_kwargs: Backend-specific keyword arguments passed through
+                from the resource configuration.
+
+        Yields:
+            Data items in the format determined by the loader implementation
+            (dicts, Arrow tables, DataFrames, etc.).
+        """
+        ...
+
+
+class TableLoader(BaseTableLoader):
+    """Default table loader using a SQLAlchemy connection.
+
+    Supports ``"sqlalchemy"``, ``"pyarrow"`` and ``"pandas"`` backends.
+    Override ``_load_rows`` to customise query execution (e.g. pagination)
+    while reusing ``_convert_result`` for backend format conversion.
+    """
+
     def load_rows(self, backend_kwargs: Dict[str, Any] = None) -> Iterator[TDataItem]:
         # make copy of kwargs
         backend_kwargs = dict(backend_kwargs or {})
         query = self.make_query()
-        if self.backend == "connectorx":
-            yield from self._load_rows_connectorx(query, backend_kwargs)
-        else:
-            yield from self._load_rows(query, backend_kwargs)
+        yield from self._load_rows(query, backend_kwargs)
 
-    def _load_rows(self, query: SelectClause, backend_kwargs: Dict[str, Any]) -> TDataItem:
+    def _load_rows(
+        self, query: SelectClause, backend_kwargs: Dict[str, Any]
+    ) -> Iterator[TDataItem]:
+        """Execute *query* over a SQLAlchemy connection and yield converted results.
+
+        Override this method to change the execution strategy (e.g. to add
+        pagination or custom retry logic).  Use ``_convert_result`` to convert
+        each ``CursorResult`` into the appropriate backend format.
+        """
         with self.engine.connect() as conn:
             result = conn.execution_options(yield_per=self.chunk_size).execute(query)
             try:
-                # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect
-                # that normalizes columns
-                # columns = [c[0] for c in result.cursor.description]
-                columns = list(result.keys())
-                for partition in result.partitions(size=self.chunk_size):
-                    if self.backend == "sqlalchemy":
-                        yield [dict(row._mapping) for row in partition]
-                    elif self.backend == "pandas":
-                        from dlt.common.libs.pandas_sql import _wrap_result
-
-                        df = _wrap_result(
-                            partition,
-                            columns,
-                            **{"dtype_backend": "pyarrow", **backend_kwargs},
-                        )
-                        yield df
-                    elif self.backend == "pyarrow":
-                        yield row_tuples_to_arrow(
-                            partition,
-                            columns=_add_missing_columns(self.columns, columns),
-                            tz=backend_kwargs.get("tz", "UTC"),
-                        )
+                yield from self._convert_result(result, backend_kwargs)
             finally:
                 result.close()
+
+    def _convert_result(self, result: Any, backend_kwargs: Dict[str, Any]) -> Iterator[TDataItem]:
+        """Convert a ``CursorResult`` into data items for the configured backend.
+
+        Partitions *result* into chunks of ``chunk_size`` and converts each
+        partition according to ``self.backend``:
+
+        * ``"sqlalchemy"`` -- list of dicts
+        * ``"pandas"`` -- pandas ``DataFrame``
+        * ``"pyarrow"`` -- Arrow table
+        """
+        # NOTE: cursor returns not normalized column names! may be quite useful
+        # in case of Oracle dialect that normalizes columns
+        columns = list(result.keys())
+        for partition in result.partitions(size=self.chunk_size):
+            if self.backend == "sqlalchemy":
+                yield [dict(row._mapping) for row in partition]
+            elif self.backend == "pandas":
+                from dlt.common.libs.pandas_sql import _wrap_result
+
+                df = _wrap_result(
+                    partition,
+                    columns,
+                    **{"dtype_backend": "pyarrow", **backend_kwargs},
+                )
+                yield df
+            elif self.backend == "pyarrow":
+                yield row_tuples_to_arrow(
+                    partition,
+                    columns=_add_missing_columns(self.columns, columns),
+                    tz=backend_kwargs.get("tz", "UTC"),
+                )
+
+
+class ConnectorXTableLoader(BaseTableLoader):
+    """Table loader using ConnectorX for data retrieval. Yields Arrow tables."""
+
+    def load_rows(self, backend_kwargs: Dict[str, Any] = None) -> Iterator[TDataItem]:
+        # make copy of kwargs
+        backend_kwargs = dict(backend_kwargs or {})
+        query = self.make_query()
+        yield from self._load_rows_connectorx(query, backend_kwargs)
 
     def _load_rows_connectorx(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
@@ -247,48 +366,66 @@ class TableLoader:
         else:
             backend_kwargs["return_type"] = "arrow"
 
-        conn = backend_kwargs.pop(
-            "conn",
-            self.engine.url._replace(
-                drivername=self.engine.url.get_backend_name()
-            ).render_as_string(hide_password=False),
-        )
-        try:
-            query_str = str(query.compile(self.engine, compile_kwargs={"literal_binds": True}))
-        except CompileError as ex:
-            raise NotImplementedError(
-                f"Query for table `{self.table.name}` could not be compiled to string to execute it"
-                " on ConnectorX. If you are on SQLAlchemy 1.4.x the causing exception is due to"
-                f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
-            ) from ex
+        conn = backend_kwargs.pop("conn", self.get_connection_url())
+        query_str = self.compile_query(query)
         logger.info(f"Executing query on ConnectorX: {query_str}")
 
         if is_streaming:
             record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
             for record_batch in record_reader:
                 table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
-                yield cast_date64_columns_to_timestamp(self._maybe_fix_0000_timezone(table))
+                yield cast_date64_columns_to_timestamp(_maybe_fix_0000_timezone(table))
         else:
             df = cx.read_sql(conn, query_str, **backend_kwargs)
             if len(df) > self.chunk_size:
                 logger.info(
-                    f"The size of the dataset being loaded is more than {self.chunk_size}, consider"
-                    " using streaming mode (see"
-                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database/configuration#connectorx)"
+                    f"The size of the dataset being loaded is more than {self.chunk_size},"
+                    " consider using streaming mode (see"
+                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database"
+                    "/configuration#connectorx)"
                 )
-            yield self._maybe_fix_0000_timezone(df)
+            yield _maybe_fix_0000_timezone(df)
 
-    def _maybe_fix_0000_timezone(self, df: Any) -> Any:
-        """Optionally convert +00:00 timezone to UTC"""
-        try:
-            from dlt.common.libs.pyarrow import set_plus0000_timezone_to_utc, pyarrow
 
-            # TODO: skip when Arrow releases timezone fix
-            if isinstance(df, pyarrow.Table):
-                return set_plus0000_timezone_to_utc(df)
-        except MissingDependencyException:
-            pass
-        return df
+# populate built-in backends
+TABLE_LOADER_REGISTRY.update(
+    {
+        "sqlalchemy": TableLoader,
+        "pyarrow": TableLoader,
+        "pandas": TableLoader,
+        "connectorx": ConnectorXTableLoader,
+    }
+)
+
+
+def register_table_loader_backend(
+    backend_name: str,
+    loader_class: Type[BaseTableLoader],
+) -> None:
+    """Register a custom table loader backend.
+
+    After registration the *backend_name* can be used as the ``backend``
+    argument of ``sql_table`` / ``sql_database``.
+
+    Args:
+        backend_name: Name for the backend (used in ``backend`` parameter).
+        loader_class: A subclass of ``BaseTableLoader`` that handles data loading.
+    """
+    if not issubclass(loader_class, BaseTableLoader):
+        raise ValueError(
+            f"Invalid table loader: `{loader_class.__name__}`. "
+            "Must be a subclass of `BaseTableLoader`."
+        )
+    TABLE_LOADER_REGISTRY[backend_name] = loader_class
+    add_value_to_literal(TableBackend, backend_name)
+
+
+def get_table_loader_class(backend_name: str) -> Type[BaseTableLoader]:
+    """Look up the table loader class for the given backend name."""
+    try:
+        return TABLE_LOADER_REGISTRY[backend_name]
+    except KeyError:
+        raise ValueErrorWithKnownValues("backend", backend_name, list(TABLE_LOADER_REGISTRY.keys()))
 
 
 def table_rows(
@@ -306,6 +443,7 @@ def table_rows(
     excluded_columns: Optional[List[str]],
     query_adapter_callback: Optional[TQueryAdapter],
     resolve_foreign_keys: bool,
+    table_loader_class: Optional[Type[BaseTableLoader]] = None,
 ) -> Iterator[TDataItem]:
     resource = None
     limit = None
@@ -380,7 +518,11 @@ def table_rows(
             # Handle callable columns hint (can't resolve without data item)
             columns_hints = resource.columns
 
-    loader = TableLoader(
+    # determine loader class from registry
+    if table_loader_class is None:
+        table_loader_class = get_table_loader_class(backend)
+
+    loader = table_loader_class(
         engine,
         backend,
         table,

@@ -14,7 +14,7 @@ from dlt.common.libs.git import (
 )
 
 from tests.utils import test_storage, skipifwindows
-from tests.libs.test_utils import decode_b64b64
+from tests.libs.utils import decode_b64b64
 from tests.common.utils import load_secret, modify_and_commit_file, restore_secret_storage_path
 
 
