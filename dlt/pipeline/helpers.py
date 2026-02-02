@@ -198,11 +198,21 @@ def prepare_refresh_source(
 class pipeline_abort:
     def __init__(self, pipeline: "Pipeline", load_ids: Sequence[str] = ()) -> None:
         """
-        Prepares pipeline abort for a load package. You can inspect what will be aborted
+        Prepares pipeline abort for load packages. You can inspect what will be aborted
         by inspecting the `info` property before calling.
+
+        Abort:
+        - Moves all pending retry jobs to failed_jobs
+        - Marks packages as aborted
+        - Deletes all other pending packages (extracted and normalized)
+        - Re-syncs pipeline state from destination
+
+        Args:
+            pipeline: Pipeline to abort packages from
+            load_ids: Specific load package IDs to abort. If empty, all normalized packages are aborted.
         """
         self.pipeline = pipeline
-        self.load_ids = (
+        self.load_ids = list(
             load_ids
             if load_ids
             else pipeline._get_load_storage().normalized_packages.list_packages()
@@ -211,27 +221,66 @@ class pipeline_abort:
 
     def _collect_abort_info(self) -> Dict[str, Any]:
         """Collect information about what will be aborted (dry-run)."""
-
-        info: Dict[str, Dict[str, Any]] = {}
+        info: Dict[str, Any] = {
+            "packages_to_abort": {},
+            "packages_to_delete": [],
+            "extracted_packages_to_delete": [],
+        }
 
         load_storage = self.pipeline._get_load_storage()
+        normalize_storage = self.pipeline._get_normalize_storage()
+
         for load_id in self.load_ids:
             terminal_jobs = load_storage.normalized_packages.list_pending_jobs(load_id, "terminal")
             transient_jobs = load_storage.normalized_packages.list_pending_jobs(
                 load_id, "transient"
             )
-            info[load_id] = {
+            info["packages_to_abort"][load_id] = {
                 "terminal_jobs": terminal_jobs,
                 "transient_jobs": transient_jobs,
             }
+
+        for load_id in load_storage.normalized_packages.list_packages():
+            if load_id not in self.load_ids:
+                info["packages_to_delete"].append(load_id)
+
+        info["extracted_packages_to_delete"] = list(
+            normalize_storage.extracted_packages.list_packages()
+        )
 
         return info
 
     @property
     def is_empty(self) -> bool:
-        return self.info == {}
+        return not self.load_ids
 
     def __call__(self) -> LoadInfo:
+        """Execute the abort operation.
+
+        This will:
+        - Delete all extracted packages (they may contain state built on invalid assumptions)
+        - Delete all normalized packages that are NOT being aborted
+        - Set abort flag on packages to abort and run load
+        - Re-sync pipeline state from destination to restore consistency
+
+        Returns:
+            LoadInfo from the abort operation
+        """
+        load_storage = self.pipeline._get_load_storage()
+        normalize_storage = self.pipeline._get_normalize_storage()
+
+        for load_id in normalize_storage.extracted_packages.list_packages():
+            normalize_storage.extracted_packages.delete_package(load_id)
+
+        for load_id in load_storage.normalized_packages.list_packages():
+            if load_id not in self.load_ids:
+                load_storage.normalized_packages.delete_package(load_id)
+
         for load_id in self.load_ids:
-            self.pipeline._get_load_storage().normalized_packages.set_abort_flag(load_id)
-        return self.pipeline.load()
+            load_storage.normalized_packages.set_abort_flag(load_id)
+
+        load_info = self.pipeline.load()
+
+        self.pipeline.sync_destination()
+
+        return load_info

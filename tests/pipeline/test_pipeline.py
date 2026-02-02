@@ -1590,6 +1590,68 @@ def test_abort_package() -> None:
     assert load_info is None
 
 
+def test_abort_package_wipes_other_packages() -> None:
+    """Test that aborting a package also deletes other pending packages and re-syncs state."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s1 = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    # first run fails with terminal error, package stays pending
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run(s1)
+    assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+    failed_load_id = py_ex.value.step_info.loads_ids[0]
+
+    # extract and normalize another package (this one will also be pending)
+    s2 = DltSource(
+        Schema("source"),
+        "module",
+        [dlt.resource(["x", "y", "z"], table_name="letters2", name="letters2")],
+    )
+    p.extract(s2)
+    p.normalize()
+
+    # ensure we have 2 normalized packages
+    normalized_packages = p.list_normalized_load_packages()
+    assert len(normalized_packages) == 2
+    assert failed_load_id in normalized_packages
+
+    second_load_id = [lid for lid in normalized_packages if lid != failed_load_id][0]
+
+    # check the abort action info
+    abort_action = pipeline_abort(p, load_ids=[failed_load_id])
+    assert failed_load_id in abort_action.info["packages_to_abort"]
+    assert second_load_id in abort_action.info["packages_to_delete"]
+
+    load_info = abort_action()
+
+    # aborted package is in aborted state
+    package_info = p.get_load_package_info(failed_load_id)
+    assert package_info.state == "aborted"
+
+    # second package should have been deleted (no longer exists in normalized)
+    normalized_packages_after = p.list_normalized_load_packages()
+    assert len(normalized_packages_after) == 0
+    assert second_load_id not in normalized_packages_after
+
+    # next run should work normally
+    os.environ.pop("DESTINATION__DUMMY__FAIL_TABLE_NAMES", None)
+    os.environ["COMPLETED_PROB"] = "1.0"
+    load_info = p.run([4, 5, 6], table_name="new_numbers")
+    assert load_info is not None
+    assert load_info.has_failed_jobs is False
+
+
 def test_load_info_raise_on_failed_jobs() -> None:
     # By default, raises terminal error on a failed job and aborts load. This pipeline does not fail
     os.environ["COMPLETED_PROB"] = "1.0"
