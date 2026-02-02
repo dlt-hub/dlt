@@ -1,6 +1,5 @@
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional
 
-from dlt.common import pendulum
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -10,21 +9,12 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
     SqlalchemyCredentials,
     SqlalchemyClientConfiguration,
 )
-from dlt.common.data_writers.escape import format_datetime_literal
 
 if TYPE_CHECKING:
-    # from dlt.destinations.impl.sqlalchemy.sqlalchemy_client import SqlalchemyJobClient
     from dlt.destinations.impl.sqlalchemy.sqlalchemy_job_client import SqlalchemyJobClient
     from sqlalchemy.engine import Engine
 else:
     Engine = Any
-
-
-def _format_mysql_datetime_literal(
-    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
-) -> str:
-    # Format without timezone to prevent tz conversion in SELECT
-    return format_datetime_literal(v, precision, no_tz=True)
 
 
 class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient"]):
@@ -75,76 +65,35 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         config: SqlalchemyClientConfiguration,
         naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
-        # lazy import to avoid sqlalchemy dep
-        MssqlVariantTypeMapper: Type[DataTypeMapper]
-        MysqlVariantTypeMapper: Type[DataTypeMapper]
-        TrinoVariantTypeMapper: Type[DataTypeMapper]
-
-        try:
-            from dlt.destinations.impl.sqlalchemy.type_mapper import (
-                MssqlVariantTypeMapper,
-                MysqlVariantTypeMapper,
-                TrinoVariantTypeMapper,
-            )
-        except ModuleNotFoundError:
-            # assign mock type mapper if no sqlalchemy
-            from dlt.common.destination.capabilities import (
-                UnsupportedTypeMapper as MssqlVariantTypeMapper,
-                UnsupportedTypeMapper as MysqlVariantTypeMapper,
-                UnsupportedTypeMapper as TrinoVariantTypeMapper,
-            )
-
-        dialect = config.get_dialect()
-        if dialect is not None:
+        dialect_type = config.get_dialect()
+        if dialect_type is not None:
+            # instantiate dialect to access properties and pass to capabilities
+            dialect = dialect_type()
             backend_name = config.get_backend_name()
 
+            # generic dialect properties
             caps.max_identifier_length = dialect.max_identifier_length
             caps.max_column_identifier_length = dialect.max_identifier_length
             caps.supports_native_boolean = dialect.supports_native_boolean
 
-            if dialect.name == "mysql" or backend_name in ("mysql", "mariadb"):
-                # correct max identifier length
-                # dialect uses 255 (max length for aliases) instead of 64 (max length of identifiers)
-                caps.max_identifier_length = 64
-                caps.max_column_identifier_length = 64
-                caps.format_datetime_literal = _format_mysql_datetime_literal
-                caps.enforces_nulls_on_alter = False
-                caps.sqlglot_dialect = "mysql"
-                caps.type_mapper = MysqlVariantTypeMapper
-            elif dialect.name == "trino":
-                caps.sqlglot_dialect = "trino"
-                caps.timestamp_precision = 3
-                caps.max_timestamp_precision = 3
-                caps.type_mapper = TrinoVariantTypeMapper
+            # look up registered dialect capabilities
+            from dlt.destinations.impl.sqlalchemy.dialect import (
+                get_dialect_capabilities,
+                DialectCapabilities,
+            )
 
-            elif backend_name in [
-                "oracle",
-                "redshift",
-                "drill",
-                "druid",
-                "presto",
-                "hive",
-                "trino",
-                "clickhouse",
-                "databricks",
-                "bigquery",
-                "snowflake",
-                "doris",
-                "risingwave",
-                "starrocks",
-                "sqlite",
-            ]:
-                caps.sqlglot_dialect = backend_name  #  type: ignore
+            # try backend_name first, then dialect.name (they may differ)
+            dialect_caps = (
+                get_dialect_capabilities(backend_name)
+                or get_dialect_capabilities(dialect.name)
+                or DialectCapabilities(backend_name)
+            )
 
-            elif backend_name == "postgresql":
-                caps.sqlglot_dialect = "postgres"
-            elif backend_name == "awsathena":
-                caps.sqlglot_dialect = "athena"
-            elif backend_name == "mssql":
-                caps.sqlglot_dialect = "tsql"
-                caps.type_mapper = MssqlVariantTypeMapper
-            elif backend_name == "teradatasql":
-                caps.sqlglot_dialect = "teradata"
+            # set sqlglot dialect from the property (driven by backend name)
+            caps.sqlglot_dialect = dialect_caps.sqlglot_dialect  # type: ignore[assignment]
+            caps.type_mapper = dialect_caps.type_mapper_class()
+            caps.dialect_capabilities = dialect_caps
+            dialect_caps.adjust_capabilities(caps, dialect)
 
             if dialect.requires_name_normalize:  # type: ignore[attr-defined]
                 caps.has_case_sensitive_identifiers = False

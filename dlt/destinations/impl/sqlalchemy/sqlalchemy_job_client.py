@@ -30,6 +30,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
+from dlt.destinations.impl.sqlalchemy.dialect import DialectCapabilities
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations._adbc_jobs import has_adbc_driver as adbc_has_driver
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -56,11 +57,13 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
+        self._dialect_caps: DialectCapabilities = capabilities.dialect_capabilities
         self.sql_client = SqlalchemyClient(
             dataset_name,
             staging_dataset_name,
             config.credentials,
             capabilities,
+            dialect_caps=self._dialect_caps,
         )
 
         self.schema = schema
@@ -90,13 +93,14 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             if pk_columns:
                 table_columns.append(sa.PrimaryKeyConstraint(*pk_columns))  # type: ignore[arg-type]
 
-        return sa.Table(
+        table = sa.Table(
             schema_table["name"],
             self.sql_client.metadata,
             *table_columns,
             extend_existing=True,
             schema=self.sql_client.dataset_name,
         )
+        return self._dialect_caps.adapt_table(table, schema_table)
 
     def _to_column_object(
         self, schema_column: TColumnSchema, table: PreparedTableSchema

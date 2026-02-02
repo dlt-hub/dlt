@@ -278,6 +278,8 @@ Please report issues with particular dialects. We'll try to make them work.
 
 
 ### Adapting destination for a dialect
+
+#### Quick approach: pass `type_mapper` directly
 You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
 converts `json` data into `text` on the fly.
 ```py
@@ -316,16 +318,16 @@ class TrinoTypeMapper(SqlalchemyTypeMapper):
     for a deeper integration
     """
 
-    def to_destination_type(self, column, table=None):
-        if column["data_type"] == "json":
-            return JSONString()
-        return super().to_destination_type(column, table)
+    def _db_type_from_json_type(self, column, table=None):
+        return JSONString()
 
 # pass dest_ in `destination` argument to dlt.pipeline
 dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
 ```
 
-Custom type mapper is also useful when ie. you want to limit the length of the string. Below we are adding variant
+The `SqlalchemyTypeMapper` dispatches to per-type visitor methods (`_db_type_from_text_type`, `_db_type_from_json_type`, `_db_type_from_bool_type`, etc.), so you only need to override the type(s) you want to customize. You can also override `to_destination_type()` directly for full control.
+
+Custom type mapper is also useful when you want to limit the length of the string. Below we are adding variant
 for `mssql` dialect:
 ```py
 import sqlalchemy as sa
@@ -334,20 +336,105 @@ from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
 class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
     """This is only an illustration, `sqlalchemy` destination already handles mssql types"""
 
-    def to_destination_type(self, column, table=None):
-        type_ = super().to_destination_type(column, table)
-        if column["data_type"] == "text":
-            length = precision = column.get("precision")
-            if length is None:
-                return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
-            else:
-                return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
-        return type_
+    def _db_type_from_text_type(self, column, table=None):
+        type_ = super()._db_type_from_text_type(column, table)
+        length = column.get("precision")
+        if length is None:
+            return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+        else:
+            return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
 ```
 
 :::warning
 When extending type mapper for mssql, mysql and trino start with MssqlVariantTypeMapper, MysqlVariantTypeMapper and
 TrinoVariantTypeMapper respectively
+:::
+
+#### Full approach: register custom dialect capabilities
+
+For a more comprehensive integration, you can register a `DialectCapabilities` class for your database backend. This allows you to customize type mapping, destination capabilities, table structure, and error handling — all in one place. Registered capabilities are automatically applied when the SQLAlchemy destination connects to a matching database.
+
+```py
+from typing import Optional, Type
+
+import sqlalchemy as sa
+from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.destinations.impl.sqlalchemy.dialect import (
+    DialectCapabilities,
+    register_dialect_capabilities,
+)
+from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+
+
+class MyTypeMapper(SqlalchemyTypeMapper):
+    """Override only the types you need to customize."""
+
+    def _db_type_from_json_type(self, column, table=None):
+        # store JSON as VARCHAR instead of native JSON
+        return sa.String(length=4000)
+
+
+class MyDialectCapabilities(DialectCapabilities):
+    def adjust_capabilities(
+        self, caps: DestinationCapabilitiesContext, dialect: sa.engine.interfaces.Dialect
+    ) -> None:
+        caps.max_identifier_length = 128
+        caps.max_column_identifier_length = 128
+        caps.sqlglot_dialect = "oracle"  # type: ignore[assignment]
+
+    def type_mapper_class(self) -> Optional[Type[DataTypeMapper]]:
+        return MyTypeMapper
+
+    def adapt_table(
+        self, table: sa.Table, table_schema: PreparedTableSchema
+    ) -> sa.Table:
+        # Example: reorder columns so primary key columns come first.
+        # Some databases (e.g. StarRocks) require this ordering.
+        pk_col_names = [c.name for c in table.primary_key.columns]
+        if not pk_col_names:
+            return table
+        pk_cols = [c for c in table.columns if c.name in pk_col_names]
+        other_cols = [c for c in table.columns if c.name not in pk_col_names]
+        if [c.name for c in table.columns] == [c.name for c in pk_cols + other_cols]:
+            return table  # already in order
+        schema = table.schema
+        name = table.name
+        metadata = table.metadata
+        metadata.remove(table)
+        return sa.Table(
+            name, metadata,
+            *[c.copy() for c in pk_cols + other_cols],
+            sa.PrimaryKeyConstraint(*pk_col_names),
+            schema=schema,
+        )
+
+    def is_undefined_relation(self, e: Exception) -> Optional[bool]:
+        # return True if the exception means table/schema doesn't exist
+        # return False to prevent default pattern matching
+        # return None to fall through to built-in patterns
+        if "MY_CUSTOM_MISSING_TABLE_CODE" in str(e):
+            return True
+        return None
+
+
+# register for your backend name (as shown in the SQLAlchemy connection URL)
+register_dialect_capabilities("my_dialect", MyDialectCapabilities)
+```
+
+After registration, any pipeline using a `my_dialect://` connection URL will automatically use the custom capabilities. No additional configuration is needed.
+
+The `DialectCapabilities` class supports four extension points:
+
+| Method | Description |
+| --- | --- |
+| `adjust_capabilities` | Modify destination capabilities (identifier lengths, timestamp precision, sqlglot dialect, etc.) |
+| `type_mapper_class` | Return a custom `DataTypeMapper` subclass for the dialect |
+| `adapt_table` | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
+| `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect |
+
+:::tip
+Passing `type_mapper=` directly to `dlt.destinations.sqlalchemy()` always takes precedence over the registered dialect capabilities. Use direct passing for one-off overrides and registration for reusable dialect support.
 :::
 
 

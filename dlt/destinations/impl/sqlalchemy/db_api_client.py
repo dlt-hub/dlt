@@ -1,4 +1,17 @@
-from typing import Optional, Iterator, Any, Sequence, AnyStr, Union, Tuple, List, Dict, Set, cast
+from typing import (
+    Optional,
+    Iterator,
+    Any,
+    Sequence,
+    AnyStr,
+    Union,
+    Tuple,
+    List,
+    Dict,
+    Set,
+    cast,
+    TYPE_CHECKING,
+)
 from contextlib import contextmanager
 from functools import wraps
 import inspect
@@ -24,6 +37,9 @@ from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.destinations.sql_client import DBApiCursorImpl
+
+if TYPE_CHECKING:
+    from dlt.destinations.impl.sqlalchemy.dialect import DialectCapabilities
 
 
 class SqlaTransactionWrapper(DBTransaction):
@@ -78,9 +94,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         staging_dataset_name: str,
         credentials: SqlalchemyCredentials,
         capabilities: DestinationCapabilitiesContext,
+        dialect_caps: "DialectCapabilities",
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self.credentials = credentials
+        self._dialect_caps = dialect_caps
         self._current_connection: Optional[Connection] = None
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
@@ -405,58 +423,27 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             missing_columns = [c for c in all_columns if c.name not in reflected.columns]
         return existing, missing_columns, reflected is not None
 
-    @staticmethod
-    def _make_database_exception(e: Exception) -> Exception:
+    def _make_database_exception(self, e: Exception) -> Exception:  # type: ignore[override]
+        from dlt.destinations.impl.sqlalchemy.dialect import GENERIC_TERMINAL_PATTERNS
+
+        # NoSuchTableError is always an undefined relation
         if isinstance(e, sa.exc.NoSuchTableError):
             return DatabaseUndefinedRelation(e)
-        msg = str(e).lower()
+
         if isinstance(e, (sa.exc.ProgrammingError, sa.exc.OperationalError)):
-            patterns = [
-                # MySQL / MariaDB
-                r"unknown database",  # Missing schema
-                r"doesn't exist",  # Missing table
-                r"unknown table",  # Missing table
-                # SQLite
-                r"no such table",  # Missing table
-                r"no such database",  # Missing table
-                # PostgreSQL / Trino / Vertica / Exasol (database)
-                r"does not exist",  # Missing schema, relation
-                # r"does not exist",  # Missing table
-                # MSSQL
-                r"invalid object name",  # Missing schema or table
-                # Oracle
-                r"ora-00942: table or view does not exist",  # Missing schema or table
-                # SAP HANA
-                r"invalid schema name",  # Missing schema
-                r"invalid table name",  # Missing table
-                # DB2
-                r"is an undefined name",  # SQL0204N... Missing schema or table
-                # Apache Hive
-                r"table not found",  # Missing table
-                r"database does not exist",
-                # Exasol
-                r" not found",
-            ]
-            # entity not found
-            for pat_ in patterns:
-                if pat_ in msg:
-                    return DatabaseUndefinedRelation(e)
-            terminal_patterns = [
-                "no such",
-                "not found",
-                "not exist",
-                "unknown",
-            ]
-            for pat_ in terminal_patterns:
-                if pat_ in msg:
+            # delegate undefined-relation detection to dialect capabilities
+            undef = self._dialect_caps.is_undefined_relation(e)
+            if undef is True:
+                return DatabaseUndefinedRelation(e)
+            # if the dialect didn't claim this as undefined, check generic terminal patterns
+            msg = str(e).lower()
+            for pat in GENERIC_TERMINAL_PATTERNS:
+                if pat in msg:
                     return DatabaseTerminalException(e)
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.IntegrityError):
             return DatabaseTerminalException(e)
         elif isinstance(e, sa.exc.DatabaseError):
-            if "oracle" in msg:
-                if "00942" in msg and "does not exist" in msg:  # ORA-00942
-                    return DatabaseUndefinedRelation(e)
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.SQLAlchemyError):
             return DatabaseTransientException(e)
