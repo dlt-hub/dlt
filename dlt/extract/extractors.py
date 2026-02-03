@@ -1,8 +1,6 @@
 from copy import copy
 from functools import lru_cache, partial
-from typing import Set, Dict, Any, Optional, List, Union
-
-from pydantic import ValidationError
+from typing import Set, Dict, Any, Optional, List, Tuple, Union
 
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
@@ -25,12 +23,12 @@ from dlt.common.schema.typing import (
     TPartialTableSchema,
 )
 from dlt.common.normalizers.json import helpers as normalize_helpers
+from dlt.common.utils import clone_dict_nested
 
 from dlt.extract.hints import HintsMeta, TResourceHints
 from dlt.extract.resource import DltResource
 from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
-from dlt.extract.validation import PydanticValidator
 from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 try:
@@ -241,8 +239,21 @@ class Extractor:
 
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
-    ) -> List[TTableSchema]:
-        """Computes a schema for a new or dynamic table and normalizes identifiers"""
+    ) -> Tuple[List[TPartialTableSchema], List[TPartialTableSchema]]:
+        """Computes table schemas and returns (hint_tables, data_tables).
+
+        Returns tuple of hint and data table schemas:
+
+        hint_tables: tables from resource definition (columns=, Pydantic model, etc.)
+            These are always merged into the schema without contract checks.
+        data_tables: tables from data inference (e.g. arrow schema).
+            These are subject to schema contract enforcement.
+
+        data_tables must be a subset of hint_tables (by table name) so that schema
+        contracts are always resolved from hint tables first.
+
+        For ObjectExtractor all columns come from resource hints so data_tables is empty.
+        """
         root_table_schema = resource.compute_table_schema(items, meta)
         nested_tables_schema = resource.compute_nested_table_schemas(
             root_table_schema["name"], self.naming, items, meta
@@ -251,49 +262,57 @@ class Extractor:
         # drop in next major version
         # TODO: drop in 2.0 also drop SCHEMA__USE_BREAK_PATH_ON_NORMALIZE
         root_table_schema["name"] = self._normalize_table_identifier(root_table_schema["name"])
-        return [
+        hint_tables = [
             utils.normalize_table_identifiers(table_schema, self.naming)
             for table_schema in (root_table_schema, *nested_tables_schema)
         ]
+        # no data-inferred tables for python objects (inference happens in normalizer)
+        return hint_tables, []
 
     def _compute_and_update_tables(
         self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
+        """Computes new table and does contract checks, if false is returned, the table
+        may not be created and no items should be written.
         """
-        Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
-        """
-        computed_tables = self._compute_tables(resource, items, meta)
-        for computed_table in computed_tables:
-            table_name = computed_table["name"]
-            # get or compute contract
+        hint_tables, data_tables = self._compute_tables(resource, items, meta)
+
+        # resource hint tables are the user's explicit schema definition:
+        # merge directly into the schema without column contract checks
+        for hint_table in hint_tables:
+            table_name = hint_table["name"]
             schema_contract = self._table_contracts.setdefault(
                 table_name,
-                self.schema.resolve_contract_settings_for_table(table_name, computed_table),
+                self.schema.resolve_contract_settings_for_table(table_name, hint_table),
             )
-
             # this is a new table so allow evolve once
             if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
-                computed_table["x-normalizer"] = {"evolve-columns-once": True}
+                hint_table["x-normalizer"] = {"evolve-columns-once": True}
 
-            elif schema_contract["columns"] != "evolve" and isinstance(
-                resource.validator, PydanticValidator
-            ):
-                try:
-                    resource.validator.model.model_validate(items)
-                    computed_table["x-normalizer"] = {"evolve-columns-once": True}
-                except ValidationError:
-                    pass
+            existing_table = self.schema.tables.get(table_name, None)
+            self.schema.update_table(
+                hint_table,
+                normalize_identifiers=False,
+                from_diff=bool(existing_table),
+                merge_compound_props=False,
+            )
+
+        # data-inferred tables are subject to contract enforcement
+        # contract was already resolved from the hint table above
+        for data_table in data_tables:
+            table_name = data_table["name"]
+            schema_contract = self._table_contracts[table_name]
 
             existing_table = self.schema.tables.get(table_name, None)
             if existing_table:
                 diff_table = utils.diff_table(
                     self.schema.name,
                     existing_table,
-                    computed_table,
+                    data_table,
                     additive_compound_props=False,
                 )
             else:
-                diff_table = computed_table
+                diff_table = data_table
 
             # apply contracts
             diff_table, filters = self.schema.apply_schema_contract(
@@ -302,7 +321,6 @@ class Extractor:
 
             # merge with schema table
             if diff_table:
-                # diff table identifiers already normalized
                 self.schema.update_table(
                     diff_table,
                     normalize_identifiers=False,
@@ -462,26 +480,44 @@ class ArrowExtractor(Extractor):
 
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
-    ) -> List[TPartialTableSchema]:
+    ) -> Tuple[List[TPartialTableSchema], List[TPartialTableSchema]]:
+        """Returns (hint_tables, data_tables) where data_tables have arrow-inferred columns.
+
+        hint_tables come from resource definition and bypass contract checks.
+        data_tables have columns inferred from arrow schema and are subject to contracts.
+
+        hint_tables are computed once from resource hints.
+        data_tables share the same table names as hint_tables so data_tables
+        is always a subset of hint_tables by table name.
+        """
         arrow_tables: Dict[str, TTableSchema] = {}
 
         if isinstance(items, list):
-            items = reversed(items)
+            items = list(reversed(items))
         else:
             items = [items]
+
+        hint_tables, _ = super()._compute_tables(resource, items[0], meta)
 
         # several arrow tables will update the pipeline schema and we want that earlier
         # arrow tables override the latter so the resultant schema is the same as if
         # they are sent separately
         for item in items:
-            computed_tables = super()._compute_tables(resource, item, Any)
-            for computed_table in computed_tables:
-                arrow_table = arrow_tables.get(computed_table["name"])
-                # Merge the columns to include primary_key and other hints that may be set on the resource
+            for hint_table in hint_tables:
+                table_name = hint_table["name"]
+                # per-iteration copy with independent columns to avoid mutating
+                # hint_table across iterations. serves as accumulator: hint columns +
+                # previously seen arrow columns are preserved here and merged back
+                # after arrow_table["columns"] is replaced with the current arrow schema.
+                computed = clone_dict_nested(hint_table)  # type: ignore[type-var]
+
+                arrow_table = arrow_tables.get(table_name)
                 if arrow_table:
-                    utils.merge_table(self.schema.name, computed_table, arrow_table)
+                    # merge prev arrow INTO computed (so computed = hint + prev)
+                    utils.merge_table(self.schema.name, computed, arrow_table)
                 else:
-                    arrow_table = copy(computed_table)
+                    arrow_table = computed
+
                 try:
                     # generate dlt schema from arrow schema and adjust to capabilities
                     # drop timezones and honor only explicit settings like the regular normalizer
@@ -502,17 +538,16 @@ class ArrowExtractor(Extractor):
                     self._normalize_config.add_dlt_load_id
                     and dlt_load_id not in arrow_table["columns"]
                 ):
-                    # will be normalized line below
                     logger.debug(
                         f"Arrow Extractor added `{dlt_load_id}` to table `{arrow_table['name']}`"
                         " due to parquet normalizer config"
                     )
                     arrow_table["columns"][dlt_load_id] = utils.dlt_load_id_column()
 
-                # issue warnings when overriding computed with arrow
+                # issue warnings when resource hints override arrow-inferred values
                 override_warn: bool = False
                 for col_name, column in arrow_table["columns"].items():
-                    if src_column := computed_table["columns"].get(col_name):
+                    if src_column := hint_table["columns"].get(col_name):
                         for hint_name, hint in column.items():
                             if (src_hint := src_column.get(hint_name)) is not None:
                                 if src_hint != hint:
@@ -530,10 +565,12 @@ class ArrowExtractor(Extractor):
                         " schema and data were unmodified. It is up to destination to coerce the"
                         " differences when loading. Change log level to INFO for more details."
                     )
-                utils.merge_columns(arrow_table["columns"], computed_table["columns"])
-                arrow_tables[computed_table["name"]] = arrow_table
+                # hint and previously accumulated columns win over arrow-inferred columns
+                utils.merge_columns(arrow_table["columns"], computed["columns"])
+                arrow_tables[table_name] = arrow_table
 
-        return list(arrow_tables.values())
+        # arrow_tables shares the same table names as hint_tables
+        return hint_tables, list(arrow_tables.values())
 
     def _compute_and_update_tables(
         self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
