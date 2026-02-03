@@ -1,4 +1,5 @@
 import sys
+import warnings
 from copy import copy
 from dataclasses import dataclass, field
 import uuid
@@ -6,12 +7,15 @@ import pytest
 from typing import (
     ClassVar,
     Final,
+    FrozenSet,
     Generic,
     Sequence,
+    Set,
     Mapping,
     Dict,
     MutableMapping,
     MutableSequence,
+    Tuple,
     TypeVar,
     Union,
     Optional,
@@ -33,8 +37,22 @@ from dlt.common.libs.pydantic import (
     validate_and_filter_item,
     validate_and_filter_items,
     create_list_model,
+    column_mode_to_extra,
+    extra_to_column_mode,
+    get_extra_from_model,
 )
-from pydantic import UUID4, BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
+from dlt.common.warnings import Dlt100DeprecationWarning
+from pydantic import (
+    UUID4,
+    BaseModel,
+    Field,
+    Json,
+    AnyHttpUrl,
+    ConfigDict,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from dlt.common.schema.exceptions import DataValidationError
 
@@ -755,3 +773,682 @@ def test_parent_nullable_means_children_nullable():
 
     assert schema["optional_child__child_attribute"]["nullable"]
     assert schema["non_optional_child__child_attribute"]["nullable"] is False
+
+
+# --- Group 1: Helper function unit tests ---
+
+
+def test_column_mode_to_extra() -> None:
+    """All TSchemaEvolutionMode values map to the correct pydantic extra setting."""
+    assert column_mode_to_extra("evolve") == "allow"
+    assert column_mode_to_extra("discard_value") == "ignore"
+    assert column_mode_to_extra("freeze") == "forbid"
+    # discard_row falls through to the default "forbid"
+    assert column_mode_to_extra("discard_row") == "forbid"
+
+
+def test_extra_to_column_mode() -> None:
+    """Reverse mapping from pydantic extra setting to TSchemaEvolutionMode."""
+    assert extra_to_column_mode("forbid") == "freeze"
+    assert extra_to_column_mode("allow") == "evolve"
+    assert extra_to_column_mode("ignore") == "discard_value"
+    # any other value also maps to discard_value
+    assert extra_to_column_mode("something_else") == "discard_value"
+
+
+def test_get_extra_from_model() -> None:
+    """get_extra_from_model returns the correct extra config for various models."""
+    # ModelWithConfig has explicit extra="allow"
+    assert get_extra_from_model(ModelWithConfig) == "allow"
+    # Model has no explicit extra — defaults to "ignore" in pydantic 2
+    assert get_extra_from_model(Model) == "ignore"
+
+    # model with extra="forbid"
+    class ForbidModel(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        x: int = 0
+
+    assert get_extra_from_model(ForbidModel) == "forbid"
+
+
+# --- Group 2: Synthesized model structure ---
+
+
+def test_synthesized_any_model_has_any_types() -> None:
+    """When data_mode='evolve', a lenient model is created with Any types."""
+
+    class StrictModel(BaseModel):
+        b: bool
+        n: int
+        s: str
+
+    result = apply_schema_contract_to_model(StrictModel, "freeze", "evolve")
+    # model name ends with "Any" (then "ExtraForbid" for the column mode)
+    assert "Any" in result.__name__
+    # all original field names are preserved
+    assert set(result.model_fields.keys()) == {"b", "n", "s"}
+    # model accepts wrong types because all fields are Any
+    instance = result.model_validate({"b": "not_bool", "n": "not_int", "s": 999})
+    assert instance.b == "not_bool"
+    assert instance.n == "not_int"
+    assert instance.s == 999
+
+
+def test_apply_schema_contract_early_return_identity() -> None:
+    """When the model already has the desired extra, it is returned as-is."""
+    # ModelWithConfig has extra="allow" which maps to column_mode="evolve"
+    result = apply_schema_contract_to_model(ModelWithConfig, "evolve")
+    assert result is ModelWithConfig
+
+    # Model has extra="ignore" which maps to column_mode="discard_value"
+    result2 = apply_schema_contract_to_model(Model, "discard_value")
+    assert result2 is Model
+
+
+def test_dlt_config_preserved_on_synthesized_model() -> None:
+    """dlt_config attribute is carried over to the synthesized model."""
+
+    class ConfiguredModel(BaseModel):
+        x: int = 0
+        dlt_config: ClassVar[DltConfig] = {
+            "skip_nested_types": True,
+            "return_validated_models": True,
+        }
+
+    # column mode change triggers model synthesis
+    result = apply_schema_contract_to_model(ConfiguredModel, "freeze")
+    assert hasattr(result, "dlt_config")
+    assert result.dlt_config["skip_nested_types"] is True
+    assert result.dlt_config["return_validated_models"] is True
+
+    # data_mode="evolve" creates an intermediate "Any" model, but dlt_config is
+    # preserved from the original model via original_dlt_config save/restore
+    result2 = apply_schema_contract_to_model(ConfiguredModel, "evolve", "evolve")
+    assert hasattr(result2, "dlt_config")
+    assert result2.dlt_config == ConfiguredModel.dlt_config
+
+    # evolve + discard_value triggers the early return path (the "Any" model's
+    # default extra="ignore" matches discard_value) — dlt_config must still survive
+    result3 = apply_schema_contract_to_model(ConfiguredModel, "discard_value", "evolve")
+    assert hasattr(result3, "dlt_config")
+    assert result3.dlt_config == ConfiguredModel.dlt_config
+
+
+def test_synthesized_model_is_subclass_of_original() -> None:
+    """Synthesized model inherits from the original via __base__, so isinstance works."""
+
+    class Original(BaseModel):
+        x: int = 0
+
+    synthesized = apply_schema_contract_to_model(Original, "evolve", "freeze")
+    assert synthesized is not Original
+    assert issubclass(synthesized, Original)
+
+    # instances of the synthesized model pass isinstance checks against the original
+    instance = synthesized.model_validate({"x": 1, "extra": "allowed"})
+    assert isinstance(instance, Original)
+    assert instance.x == 1
+
+    # the evolve path (data_mode="evolve") creates an "Any" model without __base__,
+    # then wraps it — so the final model is NOT a subclass of the original
+    any_model = apply_schema_contract_to_model(Original, "freeze", "evolve")
+    assert not issubclass(any_model, Original)
+
+
+# --- Group 3: Nested model transformation ---
+
+
+def test_nested_model_config_propagation_validates_data() -> None:
+    """Synthesized User model with evolve column mode actually validates data."""
+    model_evolve = apply_schema_contract_to_model(User, "evolve", "freeze")
+
+    # add extra fields at root and nested levels
+    data = copy(USER_INSTANCE_DATA)
+    data["extra_root"] = "extra_value"
+    data["address"] = copy(data["address"])
+    data["address"]["extra_nested"] = "nested_extra"  # type: ignore[index]
+
+    # should parse without errors because column_mode=evolve allows extra fields
+    instance = model_evolve.model_validate(data)
+    assert instance.user_id == 1
+    assert instance.extra_root == "extra_value"  # type: ignore[attr-defined]
+    # nested model also accepts extra fields
+    assert instance.address.extra_nested == "nested_extra"  # type: ignore[attr-defined]
+
+
+def test_nested_model_transformation_in_containers() -> None:
+    """Inner BaseModel types inside List, Dict, Union, Mapping etc. are replaced."""
+    model = apply_schema_contract_to_model(User, "evolve", "freeze")
+
+    # helper: extract the inner model name from a field annotation
+    def get_inner_model_names(annotation: Any) -> List[str]:
+        """Collect all BaseModel subclass names found in the annotation."""
+        names: List[str] = []
+        args = get_args(annotation)
+        for arg in args:
+            if isinstance(arg, type) and issubclass(arg, BaseModel):
+                names.append(arg.__name__)
+            else:
+                names.extend(get_inner_model_names(arg))
+        return names
+
+    # user_labels: List[UserLabel] — inner model should be transformed
+    user_labels_ann = model.model_fields["user_labels"].annotation
+    inner_names = get_inner_model_names(user_labels_ann)
+    assert any(
+        "ExtraAllow" in n for n in inner_names
+    ), f"UserLabel in List not transformed: {inner_names}"
+
+    # unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
+    unity_ann = model.model_fields["unity"].annotation
+    inner_names = get_inner_model_names(unity_ann)
+    # should have transformed versions of UserAddress and UserLabel
+    assert any(
+        "UserAddress" in n and "ExtraAllow" in n for n in inner_names
+    ), f"UserAddress in Union not transformed: {inner_names}"
+    assert any(
+        "UserLabel" in n and "ExtraAllow" in n for n in inner_names
+    ), f"UserLabel in Union not transformed: {inner_names}"
+
+    # address field itself is Annotated[UserAddress, ...] — check the inner type
+    address_ann = model.model_fields["address"].annotation
+    assert "ExtraAllow" in address_ann.__name__
+
+    # inside transformed UserAddress, check ro_labels: Mapping[str, UserLabel]
+    addr_model = address_ann
+    ro_labels_ann = addr_model.model_fields["ro_labels"].annotation
+    inner_names = get_inner_model_names(ro_labels_ann)
+    assert any(
+        "ExtraAllow" in n for n in inner_names
+    ), f"UserLabel in Mapping not transformed: {inner_names}"
+
+
+def test_child_model_cache_shared_across_nesting_levels() -> None:
+    """_child_models cache is shared across the whole nested tree, so the same
+    original type always produces the same synthesized class regardless of
+    nesting depth.
+    """
+    model = apply_schema_contract_to_model(User, "evolve", "freeze")
+
+    # UserLabel at User level: user_label and user_labels use the same synthesized class
+    user_label_type = model.model_fields["user_label"].annotation
+    user_labels_inner = get_args(model.model_fields["user_labels"].annotation)[0]
+    assert user_label_type is user_labels_inner, "same-level references must be identical"
+
+    # UserLabel also appears in unity: Union[UserAddress, UserLabel, ...]
+    unity_args = get_args(model.model_fields["unity"].annotation)
+    unity_user_label = next(
+        a for a in unity_args if isinstance(a, type) and issubclass(a, UserLabel)
+    )
+    assert unity_user_label is user_label_type, "same-level Union member must be identical"
+
+    # UserAddress at User level: address and unity use the same synthesized class
+    address_type = model.model_fields["address"].annotation
+    unity_user_address = next(
+        a for a in unity_args if isinstance(a, type) and issubclass(a, UserAddress)
+    )
+    assert address_type is unity_user_address, "same-level references must be identical"
+
+    # UserLabel inside UserAddress (nested level) is the SAME class as at User level
+    addr_model = address_type
+    addr_label_type = addr_model.model_fields["label"].annotation
+    # Optional[UserLabel] → extract UserLabel from the union
+    addr_label_inner = next(
+        a for a in get_args(addr_label_type) if isinstance(a, type) and issubclass(a, UserLabel)
+    )
+    assert addr_label_inner is user_label_type, "cross-level references must be identical"
+    assert issubclass(user_label_type, UserLabel)
+
+
+def test_nested_model_discard_row_on_nested_violation() -> None:
+    """When a nested model field has invalid data, the whole item is discarded."""
+
+    class Inner(BaseModel):
+        value: int
+
+    class Outer(BaseModel):
+        name: str
+        inner: Inner
+
+    # discard_row for both columns and data
+    model = apply_schema_contract_to_model(Outer, "discard_row", "discard_row")
+
+    # valid item works
+    result = validate_and_filter_item(
+        "test", model, {"name": "ok", "inner": {"value": 1}}, "discard_row", "discard_row"
+    )
+    assert result is not None
+    assert result.name == "ok"
+
+    # invalid nested data — value should be int, not a string
+    result = validate_and_filter_item(
+        "test",
+        model,
+        {"name": "bad", "inner": {"value": "not_int"}},
+        "discard_row",
+        "discard_row",
+    )
+    # whole item discarded because nested model fails validation
+    assert result is None
+
+    # extra field in nested model
+    result = validate_and_filter_item(
+        "test",
+        model,
+        {"name": "extra", "inner": {"value": 1, "extra": "x"}},
+        "discard_row",
+        "discard_row",
+    )
+    assert result is None
+
+
+# --- Group 4: Validation happy paths and edge cases ---
+
+
+def test_validate_item_happy_path() -> None:
+    """Valid single item returns a proper model instance."""
+
+    class ItemModel(BaseModel):
+        a: int
+        b: str
+
+    model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+    result = validate_and_filter_item(
+        "test_table", model, {"a": 42, "b": "hello"}, "freeze", "freeze"
+    )
+    assert result is not None
+    assert isinstance(result, BaseModel)
+    assert result.a == 42
+    assert result.b == "hello"
+
+
+def test_validate_items_happy_path() -> None:
+    """All-valid list returns all items as model instances."""
+
+    class ItemModel(BaseModel):
+        x: int
+
+    model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+    list_model = create_list_model(model)
+    items = [{"x": 1}, {"x": 2}, {"x": 3}]
+    result = validate_and_filter_items("test_table", list_model, items, "freeze", "freeze")
+    assert len(result) == 3
+    assert all(isinstance(r, BaseModel) for r in result)
+    assert [r.x for r in result] == [1, 2, 3]
+
+
+def test_validate_items_empty_list() -> None:
+    """Empty input list returns empty output."""
+
+    class ItemModel(BaseModel):
+        x: int
+
+    model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+    list_model = create_list_model(model)
+    result = validate_and_filter_items("test_table", list_model, [], "freeze", "freeze")
+    assert result == []
+
+
+def test_validate_item_unsupported_modes() -> None:
+    """NotImplementedError for unsupported mode combinations in single-item validation."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    # model with forbid extra — will raise extra_forbidden on extra fields
+    freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+
+    # extra_forbidden error with unsupported column_mode="evolve" passed to validate
+    # (the model itself forbids extra, but we tell validate to treat it as "evolve")
+    with pytest.raises(NotImplementedError, match="column_mode"):
+        validate_and_filter_item("test", freeze_model, {"b": True, "extra": 1}, "evolve", "freeze")
+
+    # data type error with unsupported data_mode="evolve" passed to validate
+    # (the model is strict but we tell validate to treat it as "evolve")
+    with pytest.raises(NotImplementedError, match="data_mode"):
+        validate_and_filter_item("test", freeze_model, {"b": 2}, "freeze", "evolve")
+
+
+def test_validate_items_unsupported_modes() -> None:
+    """NotImplementedError for unsupported mode combinations in list validation."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+    list_model = create_list_model(freeze_model)
+
+    # extra_forbidden error with unsupported column_mode
+    with pytest.raises(NotImplementedError, match="column_mode"):
+        validate_and_filter_items(
+            "test",
+            list_model,
+            [{"b": True}, {"b": False, "extra": 1}],
+            "evolve",
+            "freeze",
+        )
+
+    # data type error with unsupported data_mode
+    with pytest.raises(NotImplementedError, match="data_mode"):
+        validate_and_filter_items(
+            "test",
+            list_model,
+            [{"b": True}, {"b": 2}],
+            "freeze",
+            "evolve",
+        )
+
+
+# --- Group 5: Schema generation edge cases ---
+
+
+def test_model_with_field_aliases() -> None:
+    """Field aliases are used as column names in schema generation."""
+
+    class AliasModel(BaseModel):
+        model_config = ConfigDict(populate_by_name=True)
+        full_name: str = Field(alias="fullName")
+        age: int
+
+    result = pydantic_to_table_schema_columns(AliasModel)
+    # alias "fullName" should be used as the column name
+    assert "fullName" in result
+    assert result["fullName"]["data_type"] == "text"
+    assert result["fullName"]["name"] == "fullName"
+    # non-aliased field uses its own name
+    assert "age" in result
+
+
+def test_unknown_type_fallback_to_text() -> None:
+    """Custom class that is not a BaseModel falls back to data_type='text'."""
+
+    class CustomType:
+        pass
+
+    class ModelWithCustomType(BaseModel):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+        custom: CustomType
+        normal: int
+
+    result = pydantic_to_table_schema_columns(ModelWithCustomType)
+    # unknown type falls back to text
+    assert result["custom"]["data_type"] == "text"
+    assert result["normal"]["data_type"] == "bigint"
+
+
+def test_deeply_nested_model_flattening_respects_per_model_config() -> None:
+    """skip_nested_types is per-model — it is NOT propagated to nested models.
+
+    Parent(skip_nested_types=True) flattens its own Child field into separate
+    columns. But Child has no dlt_config, so when recursing into Child,
+    GrandChild is treated as json (the default, no flattening).
+    """
+
+    class GrandChild(BaseModel):
+        gc_field: str
+
+    class ChildDeep(BaseModel):
+        gc: GrandChild
+        c_field: int
+
+    class ParentDeep(BaseModel):
+        child: ChildDeep
+        p_field: float
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
+
+    result = pydantic_to_table_schema_columns(ParentDeep)
+    # top-level scalar
+    assert "p_field" in result
+    assert result["p_field"]["data_type"] == "double"
+    # child scalar is flattened one level (Parent's skip_nested_types applies)
+    assert "child__c_field" in result
+    assert result["child__c_field"]["data_type"] == "bigint"
+    # grandchild is NOT flattened further — Child has no dlt_config so
+    # GrandChild appears as json in the recursive call
+    assert "child__gc" in result
+    assert result["child__gc"]["data_type"] == "json"
+
+
+def test_deeply_nested_model_flattening_with_explicit_child_config() -> None:
+    """When the nested model ALSO has skip_nested_types=True, it flattens its own children."""
+
+    class GrandChild(BaseModel):
+        gc_field: str
+
+    class ChildDeep(BaseModel):
+        gc: GrandChild
+        c_field: int
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
+
+    class ParentDeep(BaseModel):
+        child: ChildDeep
+        p_field: float
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
+
+    result = pydantic_to_table_schema_columns(ParentDeep)
+    assert result["p_field"]["data_type"] == "double"
+    assert result["child__c_field"]["data_type"] == "bigint"
+    # both Parent and Child have skip_nested_types=True, so full flattening
+    assert "child__gc__gc_field" in result
+    assert result["child__gc__gc_field"]["data_type"] == "text"
+
+
+def test_skip_complex_types_emits_deprecation_warning() -> None:
+    """Using skip_complex_types triggers Dlt100DeprecationWarning."""
+
+    class DepModel(BaseModel):
+        x: int = 0
+        nested: Dict[str, Any] = {}
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        pydantic_to_table_schema_columns(DepModel)
+
+    dep_warnings = [w for w in caught if issubclass(w.category, Dlt100DeprecationWarning)]
+    assert len(dep_warnings) >= 1
+    assert "skip_complex_types" in str(dep_warnings[0].message)
+
+
+# --- Group 6: create_list_model gaps ---
+
+
+def test_create_list_model_naming() -> None:
+    """create_list_model produces a model name derived from the module __name__.
+
+    NOTE: the current implementation uses 'List' + __name__ of the pydantic module,
+    which produces 'Listdlt.common.libs.pydantic'. This test documents the current
+    behavior which is likely a bug — it should probably use the model class name.
+    """
+
+    class MyItem(BaseModel):
+        x: int
+
+    list_model = create_list_model(MyItem)
+    # current (buggy) behavior: name is module-based, not model-based
+    assert list_model.__name__ == "Listdlt.common.libs.pydantic"
+
+
+# --- Group 7: DataValidationError schema_contract field ---
+
+
+def test_validation_error_schema_contract_field() -> None:
+    """DataValidationError.schema_contract contains a partial dict per entity.
+
+    NOTE: the docs claim schema_contract is 'the full, expanded schema contract'
+    but the implementation passes only the violated entity. This test documents
+    the current behavior.
+    """
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+
+    # data_type violation — schema_contract should reference data_type
+    with pytest.raises(DataValidationError) as exc_info:
+        validate_and_filter_item("test", freeze_model, {"b": 2}, "freeze", "freeze")
+    assert exc_info.value.schema_contract == {"data_type": "freeze"}
+    assert exc_info.value.schema_entity == "data_type"
+
+    # columns violation (extra field) — schema_contract should reference columns
+    with pytest.raises(DataValidationError) as exc_info:
+        validate_and_filter_item("test", freeze_model, {"b": True, "extra": 1}, "freeze", "freeze")
+    assert exc_info.value.schema_contract == {"columns": "freeze"}
+    assert exc_info.value.schema_entity == "columns"
+
+    # same for list validation
+    list_model = create_list_model(freeze_model)
+    with pytest.raises(DataValidationError) as exc_info:
+        validate_and_filter_items("test", list_model, [{"b": 2}], "freeze", "freeze")
+    assert exc_info.value.schema_contract == {"data_type": "freeze"}
+
+    with pytest.raises(DataValidationError) as exc_info:
+        validate_and_filter_items("test", list_model, [{"b": True, "extra": 1}], "freeze", "freeze")
+    assert exc_info.value.schema_contract == {"columns": "freeze"}
+
+
+# --- Group 8: Bidirectional mapping ---
+
+
+def test_default_contract_from_model_extra_setting() -> None:
+    """Unit test for the bidirectional column mode ↔ model extra mapping.
+
+    This is used in validation.py to derive the default schema contract from a
+    model's existing extra setting.
+    """
+    # default model (no explicit extra) → "ignore" → "discard_value"
+    assert extra_to_column_mode(get_extra_from_model(Model)) == "discard_value"
+    # model with extra="allow" → "evolve"
+    assert extra_to_column_mode(get_extra_from_model(ModelWithConfig)) == "evolve"
+
+    # model with extra="forbid" → "freeze"
+    class ForbidModel(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        x: int = 0
+
+    assert extra_to_column_mode(get_extra_from_model(ForbidModel)) == "freeze"
+
+
+# --- Group 9: _process_annotation edge cases ---
+
+
+def test_set_inner_model_transformed() -> None:
+    """_process_annotation recurses into Set[BaseModel] and transforms the inner model."""
+
+    class Inner(BaseModel):
+        model_config = ConfigDict(frozen=True)
+        x: int
+
+    class WithSet(BaseModel):
+        items: Set[Inner]
+
+    evolved = apply_schema_contract_to_model(WithSet, "evolve", "freeze")
+    # the inner model should have been transformed to accept extra fields
+    ann = evolved.model_fields["items"].annotation
+    inner_args = get_args(ann)
+    assert len(inner_args) == 1
+    # inner model should have "ExtraAllow" in name if transformed
+    inner_name = getattr(inner_args[0], "__name__", "")
+    assert "ExtraAllow" in inner_name, f"Inner model in Set not transformed: {inner_name}"
+
+
+def test_frozenset_inner_model_transformed() -> None:
+    """_process_annotation recurses into FrozenSet[BaseModel] and transforms the inner model."""
+
+    class Inner(BaseModel):
+        model_config = ConfigDict(frozen=True)
+        x: int
+
+    class WithFrozenSet(BaseModel):
+        items: FrozenSet[Inner]
+
+    evolved = apply_schema_contract_to_model(WithFrozenSet, "evolve", "freeze")
+    ann = evolved.model_fields["items"].annotation
+    inner_args = get_args(ann)
+    assert len(inner_args) == 1
+    inner_name = getattr(inner_args[0], "__name__", "")
+    assert "ExtraAllow" in inner_name, f"Inner model in FrozenSet not transformed: {inner_name}"
+
+
+def test_variable_length_tuple_preserved() -> None:
+    """_process_annotation preserves Tuple[Model, ...] variable-length semantics."""
+
+    class Inner(BaseModel):
+        x: int
+
+    class WithVarTuple(BaseModel):
+        items: Tuple[Inner, ...]
+
+    evolved = apply_schema_contract_to_model(WithVarTuple, "evolve", "freeze")
+    # should still accept variable-length tuples after transformation
+    inst = evolved.model_validate({"items": [{"x": 1}, {"x": 2}, {"x": 3}]})
+    assert len(inst.items) == 3
+
+
+def test_heterogeneous_tuple_preserved() -> None:
+    """_process_annotation processes all elements of Tuple[T1, T2, T3]."""
+
+    class Inner(BaseModel):
+        x: int
+
+    class WithHetTuple(BaseModel):
+        items: Tuple[Inner, int, Inner]
+
+    evolved = apply_schema_contract_to_model(WithHetTuple, "evolve", "freeze")
+    # should accept a 3-element heterogeneous tuple
+    inst = evolved.model_validate({"items": [{"x": 1}, 42, {"x": 2}]})
+    assert len(inst.items) == 3
+    assert inst.items[1] == 42
+
+
+def test_field_validator_preserved_on_synthesis() -> None:
+    """@field_validator decorators are preserved when synthesizing models.
+
+    create_model uses __base__=model to inherit validators from the original.
+    """
+
+    class WithFieldValidator(BaseModel):
+        value: int
+
+        @field_validator("value")
+        @classmethod
+        def check_positive(cls, v: int) -> int:
+            if v < 0:
+                raise ValueError("must be positive")
+            return v
+
+    # original model rejects negative values
+    with pytest.raises(ValidationError):
+        WithFieldValidator(value=-1)
+
+    # synthesized model should also reject negative values
+    evolved = apply_schema_contract_to_model(WithFieldValidator, "evolve", "freeze")
+    with pytest.raises(ValidationError):
+        evolved.model_validate({"value": -1})
+
+
+def test_model_validator_preserved_on_synthesis() -> None:
+    """@model_validator decorators are preserved when synthesizing models.
+
+    create_model uses __base__=model to inherit validators from the original.
+    """
+
+    class WithModelValidator(BaseModel):
+        a: int
+        b: int
+
+        @model_validator(mode="after")
+        def check_sum(self) -> "WithModelValidator":
+            if self.a + self.b > 10:
+                raise ValueError("sum too large")
+            return self
+
+    # original model rejects sum > 10
+    with pytest.raises(ValidationError):
+        WithModelValidator(a=6, b=6)
+
+    # synthesized model should also reject
+    evolved = apply_schema_contract_to_model(WithModelValidator, "evolve", "freeze")
+    with pytest.raises(ValidationError):
+        evolved.model_validate({"a": 6, "b": 6})
