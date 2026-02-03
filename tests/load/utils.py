@@ -447,7 +447,7 @@ def destinations_configs(
     if default_sql_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type=destination)
-            for destination in SQL_DESTINATIONS
+            for destination in sorted(SQL_DESTINATIONS)
             if destination
             not in (
                 "athena",
