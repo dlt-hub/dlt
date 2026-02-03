@@ -57,14 +57,13 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
-        self._dialect_caps: DialectCapabilities = capabilities.dialect_capabilities
         self.sql_client = SqlalchemyClient(
             dataset_name,
             staging_dataset_name,
             config.credentials,
             capabilities,
-            dialect_caps=self._dialect_caps,
         )
+        self._dialect_caps: DialectCapabilities = self.sql_client._dialect_caps
 
         self.schema = schema
         self.capabilities = capabilities

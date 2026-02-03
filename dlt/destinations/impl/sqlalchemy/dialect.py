@@ -192,7 +192,7 @@ class MysqlDialectCapabilities(DialectCapabilities):
         caps.format_datetime_literal = _format_mysql_datetime_literal
         caps.enforces_nulls_on_alter = False
 
-    def type_mapper_class(self) -> Optional[Type[DataTypeMapper]]:
+    def type_mapper_class(self) -> Type[DataTypeMapper]:
         from dlt.destinations.impl.sqlalchemy.type_mapper import MysqlVariantTypeMapper
 
         return MysqlVariantTypeMapper
@@ -209,7 +209,7 @@ class TrinoDialectCapabilities(DialectCapabilities):
         caps.timestamp_precision = 3
         caps.max_timestamp_precision = 3
 
-    def type_mapper_class(self) -> Optional[Type[DataTypeMapper]]:
+    def type_mapper_class(self) -> Type[DataTypeMapper]:
         from dlt.destinations.impl.sqlalchemy.type_mapper import TrinoVariantTypeMapper
 
         return TrinoVariantTypeMapper
@@ -218,7 +218,7 @@ class TrinoDialectCapabilities(DialectCapabilities):
 class MssqlDialectCapabilities(DialectCapabilities):
     """Capabilities for Microsoft SQL Server."""
 
-    def type_mapper_class(self) -> Optional[Type[DataTypeMapper]]:
+    def type_mapper_class(self) -> Type[DataTypeMapper]:
         from dlt.destinations.impl.sqlalchemy.type_mapper import MssqlVariantTypeMapper
 
         return MssqlVariantTypeMapper

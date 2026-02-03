@@ -372,7 +372,9 @@ def _make_client_with_dialect_caps(
         },
     )
     caps = DestinationCapabilitiesContext.generic_capabilities()
-    client = SqlalchemyClient("main", "main_staging", creds_cls(), caps, dialect_caps)
+    # pass dialect capabilities through the capabilities object
+    caps.dialect_capabilities = dialect_caps
+    client = SqlalchemyClient("main", "main_staging", creds_cls(), caps)
     return client, engine
 
 

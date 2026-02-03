@@ -94,11 +94,10 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         staging_dataset_name: str,
         credentials: SqlalchemyCredentials,
         capabilities: DestinationCapabilitiesContext,
-        dialect_caps: "DialectCapabilities",
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self.credentials = credentials
-        self._dialect_caps = dialect_caps
+        self._dialect_caps: "DialectCapabilities" = capabilities.dialect_capabilities
         self._current_connection: Optional[Connection] = None
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
@@ -444,6 +443,9 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         elif isinstance(e, sa.exc.IntegrityError):
             return DatabaseTerminalException(e)
         elif isinstance(e, sa.exc.DatabaseError):
+            # check dialect-specific undefined relation (e.g. Oracle ORA-00942 as DatabaseError)
+            if self._dialect_caps.is_undefined_relation(e) is True:
+                return DatabaseUndefinedRelation(e)
             return DatabaseTransientException(e)
         elif isinstance(e, sa.exc.SQLAlchemyError):
             return DatabaseTransientException(e)
