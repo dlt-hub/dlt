@@ -510,6 +510,11 @@ class ArrowExtractor(Extractor):
                 # previously seen arrow columns are preserved here and merged back
                 # after arrow_table["columns"] is replaced with the current arrow schema.
                 computed = clone_dict_nested(hint_table)  # type: ignore[type-var]
+                # save normalized accumulated columns before arrow_table["columns"]
+                # is replaced below. when arrow_table aliases computed (else branch),
+                # the replacement would also overwrite computed["columns"] with
+                # non-normalized arrow-derived columns, corrupting the later merge
+                computed_columns = computed["columns"]
 
                 arrow_table = arrow_tables.get(table_name)
                 if arrow_table:
@@ -566,7 +571,7 @@ class ArrowExtractor(Extractor):
                         " differences when loading. Change log level to INFO for more details."
                     )
                 # hint and previously accumulated columns win over arrow-inferred columns
-                utils.merge_columns(arrow_table["columns"], computed["columns"])
+                utils.merge_columns(arrow_table["columns"], computed_columns)
                 arrow_tables[table_name] = arrow_table
 
         # arrow_tables shares the same table names as hint_tables
