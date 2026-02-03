@@ -203,6 +203,53 @@ pipeline = dlt.pipeline(destination="snowflake")
 pipeline.run(events())
 ```
 
+### DECFLOAT type
+
+Snowflake's [DECFLOAT](https://docs.snowflake.com/en/sql-reference/data-types-numeric#decfloat) type stores exact decimal values with up to 36 significant digits and a dynamic base-10 exponent. Unlike the standard `DECIMAL(38,9)` type (which fixes the scale at 9), DECFLOAT preserves the exact number of significant digits regardless of where the decimal point falls.
+
+Enable DECFLOAT for unbound decimal columns:
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    destination=dlt.destinations.snowflake(use_decfloat=True),
+    pipeline_name="my_pipeline",
+)
+```
+
+Or via configuration:
+
+```toml
+[destination.snowflake]
+use_decfloat=true
+```
+
+When `use_decfloat` is enabled, decimal columns **without** explicit precision/scale are stored as `DECFLOAT`. Decimal columns **with** explicit precision/scale (e.g. `precision=10, scale=2`) continue to use `NUMBER(p,s)`.
+
+#### Retrieving DECFLOAT data without precision loss
+
+The Snowflake Python connector converts DECFLOAT values to Python `decimal.Decimal` objects during fetch. **Crucially**, it uses the current thread-local decimal context to create these objects. Python's default precision is 28 digits, but DECFLOAT supports up to 36. You **must** increase the decimal context precision before fetching to avoid silent truncation:
+
+```py
+import decimal
+
+# Set precision BEFORE fetching — the connector uses the active context
+with decimal.localcontext() as ctx:
+    ctx.prec = 38  # enough for DECFLOAT's 36 significant digits
+
+    rows = pipeline.dataset().my_table.select("amount").fetchall()
+    # rows[0][0] is a Decimal with full 36-digit precision
+```
+
+Without this, values with more than 28 significant digits are silently rounded at fetch time.
+
+#### Limitations
+
+- **Text-based formats only**: DECFLOAT works with `jsonl` and `csv` loader formats. Parquet staging does not work because Parquet's decimal type uses fixed precision/scale and cannot represent DECFLOAT's dynamic range. Values exceeding `DECIMAL(38,9)` will fail at the normalize step.
+- **No Arrow/DataFrame support**: The Snowflake connector does not recognize DECFLOAT when fetching via Arrow (`pipeline.dataset().table.df()` or `.arrow()`). The DECFLOAT column is returned as a raw dict `{'exponent': ..., 'significand': ...}` instead of a proper value. Use `fetchall()` or `fetchone()` instead.
+- **Python decimal context**: Always set `decimal.getcontext().prec` (or use `decimal.localcontext()`) to at least 38 before fetching DECFLOAT data with more than 28 significant digits.
+
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
 * [Parquet](../file-formats/parquet.md) is supported.

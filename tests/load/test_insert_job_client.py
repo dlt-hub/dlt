@@ -10,7 +10,7 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
-from tests.utils import TEST_STORAGE_ROOT, skipifpypy
+from tests.utils import get_test_storage_root, skipifpypy
 from tests.load.utils import (
     expect_load_file,
     prepare_table,
@@ -23,7 +23,7 @@ DEFAULT_SUBSET = ["duckdb", "redshift", "postgres", "mssql", "synapse", "motherd
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(scope="function")

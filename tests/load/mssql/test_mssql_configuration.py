@@ -22,6 +22,10 @@ def test_mssql_factory() -> None:
     assert client.capabilities.has_case_sensitive_identifiers is False
     assert client.capabilities.casefold_identifier is str
 
+    # MSSQL uses ADBC for parquet loading which doesn't support dictionary-encoded arrays
+    assert client.capabilities.parquet_format is not None
+    assert client.capabilities.parquet_format.supports_dictionary_encoding is False
+
     # set args explicitly
     dest = mssql(has_case_sensitive_identifiers=True, create_indexes=True)
     client = dest.client(schema, MsSqlClientConfiguration()._bind_dataset_name("dataset"))

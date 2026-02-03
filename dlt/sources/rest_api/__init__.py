@@ -316,6 +316,8 @@ def create_resources(
 
             base_params = exclude_keys(request_params, {x.param_name for x in resolved_params})
 
+            parallelized = resource_kwargs.pop("parallelized", False)
+
             resources[resource_name] = dlt.resource(  # type: ignore[call-overload]
                 paginate_dependent_resource,
                 data_from=predecessor,
@@ -336,6 +338,7 @@ def create_resources(
                 incremental_object=incremental_object,
                 incremental_param=incremental_param,
                 incremental_cursor_transform=incremental_cursor_transform,
+                parallelized=parallelized,
             )
 
             resources[resource_name] = process(resources[resource_name], processing_steps)

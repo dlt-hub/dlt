@@ -79,16 +79,22 @@ jobs:
           cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       # run sources tests in load against configured destinations
-      - run: pytest tests/load/sources -m "${{ matrix.pytest_mark }}"
-        name: Run tests Linux
+      - name: Run tests linux
+        run: make test-sources-load
+        env:
+          PYTEST_XDIST_N: auto
+          PYTEST_MARKERS: ${{ matrix.pytest_mark }}
         if: ${{ matrix.allows_sqlalchemy_1_4 }}
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
-        run: uv run pip install sqlalchemy==2.0.32
+        run: make install-sqlalchemy2
 
-      - run: pytest tests/load/sources/sql_database -m "${{ matrix.pytest_mark }}"
-        name: Run tests Linux
+      - name: Run tests Linux
+        run: make test-sources-sql-database
+        env:
+          PYTEST_XDIST_N: auto
+          PYTEST_MARKERS: ${{ matrix.pytest_mark }}
 
       - name: Stop databases
         run: docker compose -f "tests/load/sources/sql_database/docker-compose.yml" down -v

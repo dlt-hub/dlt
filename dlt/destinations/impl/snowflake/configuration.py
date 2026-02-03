@@ -173,6 +173,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     use_vectorized_scanner: bool = False
     """Whether to use or not use the vectorized scanner in COPY INTO"""
 
+    use_decfloat: bool = False
+    """Whether to use DECFLOAT type for unbound decimals instead of DECIMAL"""
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""
         if self.credentials and self.credentials.host:

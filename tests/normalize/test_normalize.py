@@ -45,8 +45,10 @@ from tests.normalize.utils import (
 
 from pytest_mock import MockerFixture
 
+pytestmark = pytest.mark.serial
 
-@pytest.fixture(scope="module", autouse=True)
+
+@pytest.fixture(autouse=True)
 def default_caps() -> Iterator[DestinationCapabilitiesContext]:
     # set the postgres caps as default for the whole module
     with Container().injectable_context(DEFAULT_CAPS()) as caps:

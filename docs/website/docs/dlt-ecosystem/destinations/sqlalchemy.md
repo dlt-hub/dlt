@@ -93,6 +93,56 @@ pipeline = dlt.pipeline(
 )
 ```
 
+### Passing SQLAlchemy Engine Options: `engine_kwargs`
+
+The SQLAlchemy destination accepts an optional `engine_kwargs` parameter, which is forwarded directly to `sqlalchemy.create_engine`.
+The equivalent `engine_args` parameter is maintained for backward compatibility, but will be removed in a future release.
+
+Example enabling SQLAlchemy verbose logging:
+#### In `.dlt/secrets.toml`
+```toml
+[destination.sqlalchemy]
+credentials = "sqlite:///logger.db"
+```
+
+#### In `.dlt/config.toml`
+```toml
+[destination.sqlalchemy.engine_kwargs]
+echo = true
+```
+
+Or, directly in code:
+
+```py
+import logging
+import dlt
+from dlt.destinations import sqlalchemy
+
+logging.basicConfig(level=logging.INFO)
+
+dest = sqlalchemy(
+    credentials="sqlite:///logger.db",
+    engine_kwargs={"echo": True},
+)
+
+pipeline = dlt.pipeline(
+    pipeline_name='logger',
+    destination=dest,
+    dataset_name='main'
+)
+
+pipeline.run(
+    [
+        {'id': 1},
+        {'id': 2},
+        {'id': 3},
+    ],
+    table_name="logger"
+)
+```
+
+Here, `engine_kwargs` configures only the engine used by SQLAlchemy as a **destination**. It does not affect resource extraction (use `engine_kwargs` for sql sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
+
 ## Notes on SQLite
 
 ### Dataset files
@@ -110,26 +160,103 @@ is stored in `/home/me/data/chess_data__games.db`
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
 To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
-This engine is not disposed of automatically by `dlt`. Example:
+This engine is not disposed of automatically by `dlt`.
+
+#### Shared-cache URI mode (recommended)
+
+The recommended approach uses SQLite's [shared-cache URI](https://www.sqlite.org/inmemorydb.html) format.
+This creates a named in-memory database that can be safely accessed by multiple connections across threads
+via `SingletonThreadPool` (one connection per thread):
 
 ```py
 import dlt
 import sqlalchemy as sa
 
-# Create the SQLite engine
-engine = sa.create_engine('sqlite:///:memory:')
+engine = sa.create_engine(
+    "sqlite:///file:shared?mode=memory&cache=shared&uri=true",
+    connect_args={"check_same_thread": False},
+    poolclass=sa.pool.SingletonThreadPool,
+)
 
-# Configure the destination instance and create pipeline
-pipeline = dlt.pipeline('my_pipeline', destination=dlt.destinations.sqlalchemy(engine), dataset_name='main')
+pipeline = dlt.pipeline(
+    "my_pipeline",
+    destination=dlt.destinations.sqlalchemy(engine),
+    dataset_name="main",
+)
 
-# Run the pipeline with some data
-pipeline.run([1,2,3], table_name='my_table')
+pipeline.run([1, 2, 3], table_name="my_table")
 
-# The engine is still open and you can query the database
 with engine.connect() as conn:
-    result = conn.execute(sa.text('SELECT * FROM my_table'))
+    result = conn.execute(sa.text("SELECT * FROM my_table"))
     print(result.fetchall())
+
+engine.dispose()
 ```
+
+- `mode=memory&cache=shared` creates a named in-memory database shared across all connections in the process.
+- `uri=true` is required for `pysqlite` to interpret the database path as a URI.
+- `SingletonThreadPool` gives each thread its own connection while all threads see the same data.
+
+#### StaticPool with single worker
+
+Alternatively, you can use `StaticPool` (single shared connection) with `workers=1` to avoid concurrent
+access on the same connection:
+
+```py
+import dlt
+import sqlalchemy as sa
+
+engine = sa.create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=sa.pool.StaticPool,
+)
+
+pipeline = dlt.pipeline(
+    "my_pipeline",
+    destination=dlt.destinations.sqlalchemy(engine),
+    dataset_name="main",
+)
+
+pipeline.run([1, 2, 3], table_name="my_table", loader_file_format="typed-jsonl")
+
+with engine.connect() as conn:
+    result = conn.execute(sa.text("SELECT * FROM my_table"))
+    print(result.fetchall())
+
+engine.dispose()
+```
+
+```toml
+[load]
+workers=1
+```
+
+:::caution
+With `StaticPool`, all threads share a single underlying database connection.
+Using the default parallel loader (`workers > 1`) can cause race conditions where
+committed data appears missing. Always set `workers=1` when using `StaticPool`.
+:::
+
+### Database locking with `ATTACH DATABASE` on Windows
+When `dataset_name` is not `main`, dlt uses SQLite's `ATTACH DATABASE` to store each dataset in a separate file. On Windows, a second `ATTACH` on the same connection can lock indefinitely under concurrent access (e.g. when using the default parallel loading strategy).
+
+To work around this issue, use one of the following approaches:
+
+1. **Set `dataset_name` to `main`** so that no `ATTACH` is needed:
+   ```py
+   pipeline = dlt.pipeline(
+       pipeline_name='my_pipeline',
+       destination=dlt.destinations.sqlalchemy(credentials="sqlite:///my_data.db"),
+       dataset_name='main'
+   )
+   ```
+
+2. **Use sequential loading** to avoid concurrent `ATTACH` calls:
+   ```toml
+   [load]
+   workers=1
+   ```
 
 ## Notes on other dialects
 We tested this destination on **mysql**, **sqlite**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
@@ -236,8 +363,8 @@ The following write dispositions are supported:
 
 ### Fast loading with parquet
 
-[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql** and **sqlite**.
-MySQL driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manager ADBC drivers:
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
+The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mysql
@@ -245,22 +372,26 @@ dbc install mysql
 
 with `uv` you can run `dbc` directly:
 ```sh
-uv tool run dbc install sqlite
+uv tool run dbc install mysql
 ```
-Note that **we do not detect sqllite** driver [installed via Python package](https://arrow.apache.org/adbc/current/driver/sqlite.html)
 
-You must set have correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
+You must have the correct driver installed and `loader_file_format` set to `parquet` in order to use ADBC. If driver is not found,
 `dlt` will convert parquet into INSERT statements.
-
-Note: The following arrow data types are NOT supported by the **sqlite**:
-* decimal types
-* time type
 
 We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
 
 :::caution
-It looks like ADBC driver is based on go mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
+The ADBC driver is based on go-mysql. We do minimal conversion of connection strings from SQLAlchemy (ssl cert settings for mysql).
 :::
+
+#### Why ADBC is not supported for SQLite
+
+ADBC is disabled for SQLite because Python's `sqlite3` module and `adbc_driver_sqlite` bundle different SQLite library versions.
+When both libraries operate on the same database file in WAL mode, they have conflicting memory-mapped views of the
+WAL index file (`-shm`), causing data corruption. See [TensorBoard issue #1467](https://github.com/tensorflow/tensorboard/issues/1467)
+for details on this two-library conflict.
+
+For SQLite, parquet files are loaded using batch INSERT statements instead.
 
 ### Loading with SqlAlchemy batch INSERTs
 

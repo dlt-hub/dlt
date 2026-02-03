@@ -331,6 +331,28 @@ table = sql_table(engine, table="chat_message", schema="data")
 
 This engine is used by `dlt` to open database connections and can work across multiple threads, so it is compatible with the `parallelize` setting of dlt sources and resources.
 
+### Passing SQLAlchemy Engine Options: `engine_kwargs`
+
+`engine_kwargs` allows you to configure SQLAlchemy engine options when using `sql_database` or `sql_table`.
+These settings are passed directly to `sqlalchemy.create_engine` and affect:
+
+- Table reflection (always)
+- Data extraction, if SQLAlchemy backend chosen (default)
+
+Example that waits maximum 5 seconds for acquiring a lock:
+```py
+from dlt.sources.sql_database import sql_database
+
+source = sql_database(
+    credentials="sqlite:///example.db",
+    engine_kwargs={
+        "connect_args": {"timeout": 5},
+    },
+)
+```
+
+If you are using a backend different from SQLAlchemy, remember that `engine_kwargs` still apply to reflection, but they do not affect the backend’s extraction behavior. Backend-specific tuning must be placed in `backend_kwargs`, as explained [here](#configuring-the-backend).
+
 ### Connecting to a remote database over SSH
 
 To access a remote database securely through an SSH tunnel, you can use the `sshtunnel` library to create a connection and a SQLAlchemy engine. This approach is useful when the database is behind a firewall or requires secure SSH access.
@@ -546,3 +568,9 @@ info = pipeline.run(
 print(info)
 ```
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
+
+### Custom backends
+
+You can write your own table loader backend by subclassing `BaseTableLoader` (for an entirely different data access method) or `TableLoader` (to customize row loading within SQLAlchemy). Pass your class via the `table_loader_class` parameter or register it as a named backend with `register_table_loader_backend`.
+
+See [Custom table loaders](advanced.md#custom-table-loaders) in the advanced guide for the full class hierarchy, examples (including an ADBC Arrow backend), and details on the backend registry.

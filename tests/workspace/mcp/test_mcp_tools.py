@@ -69,14 +69,14 @@ def test_mcp_pipeline_tools(pokemon_pipeline_context: RunContextBase) -> None:
     # Check first row with regex patterns for dynamic values
     first_row = head[1].split("|")
     assert first_row[0] == '"bulbasaur"'
-    assert first_row[1] == '"https://pokeapi.co/api/v2/pokemon/1/"'
+    assert first_row[1] == '"https://pokeapi.apps.dlthub.com/api/v2/pokemon/1/"'
     assert_valid_load_id(first_row[2].strip('"'))
     assert_valid_dlt_id(first_row[3].strip('"'))
 
     # Check last row with the same patterns
     last_row = head[10].split("|")
     assert last_row[0] == '"caterpie"'
-    assert last_row[1] == '"https://pokeapi.co/api/v2/pokemon/10/"'
+    assert last_row[1] == '"https://pokeapi.apps.dlthub.com/api/v2/pokemon/10/"'
     assert_valid_load_id(last_row[2].strip('"'))
     assert_valid_dlt_id(last_row[3].strip('"'))
 

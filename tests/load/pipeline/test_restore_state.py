@@ -21,7 +21,7 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V10, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
@@ -543,8 +543,8 @@ def test_restore_schemas_while_import_schemas_exist(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     # restored schema should attach itself to imported schema and it should not get overwritten
-    import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
-    export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
+    import_schema_path = os.path.join(get_test_storage_root(), "schemas", "import")
+    export_schema_path = os.path.join(get_test_storage_root(), "schemas", "export")
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
     p = destination_config.setup_pipeline(
@@ -655,7 +655,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     orig_state = p.state
 
     # create a production pipeline in separate pipelines_dir
-    production_p = dlt.pipeline(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
+    production_p = dlt.pipeline(pipeline_name=pipeline_name, pipelines_dir=get_test_storage_root())
     production_p.run(
         destination=destination_config.destination_factory(),
         staging=destination_config.staging,
@@ -713,7 +713,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     assert p.state["_state_version"] == prod_state["_state_version"] - 1
     # re-attach production and sync
     ra_production_p = destination_config.attach_pipeline(
-        pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT
+        pipeline_name=pipeline_name, pipelines_dir=get_test_storage_root()
     )
     ra_production_p.sync_destination()
     # state didn't change because production is ahead of local with its version

@@ -26,7 +26,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
     should_autodetect_schema,
 )
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
+from tests.utils import get_test_storage_root, delete_test_storage
 from tests.common.utils import json_case_path as common_json_case_path
 from tests.common.configuration.utils import environment
 from tests.load.utils import (
@@ -48,7 +48,7 @@ def client() -> Iterator[BigQueryClient]:
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.fixture(autouse=True)
