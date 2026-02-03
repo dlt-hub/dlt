@@ -221,58 +221,6 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     def requires_temp_table_for_delete(cls) -> bool:
         return True
 
-    @classmethod
-    def gen_delete_from_sql(
-        cls,
-        table_name: str,
-        unique_column: str,
-        delete_temp_table_name: str,
-        temp_table_column: str,
-        sql_client: SqlClientBase[Any],
-    ) -> str:
-        sql = super().gen_delete_from_sql(
-            table_name, unique_column, delete_temp_table_name, temp_table_column, sql_client
-        )
-        return cls._allow_non_deterministic_mutation(sql)
-
-    @classmethod
-    def gen_scd2_retire_sql(
-        cls,
-        root_table: PreparedTableSchema,
-        sql_client: SqlClientBase[Any],
-        validity_to_column: str,
-        row_hash_column: str,
-        boundary_literal: str,
-        is_active_clause: str,
-    ) -> str:
-        sql = super().gen_scd2_retire_sql(
-            root_table,
-            sql_client,
-            validity_to_column,
-            row_hash_column,
-            boundary_literal,
-            is_active_clause,
-        )
-        return cls._allow_non_deterministic_mutation(sql)
-
-    @classmethod
-    def _allow_non_deterministic_mutation(cls, sql: str) -> str:
-        """Adds `SETTINGS allow_nondeterministic_mutations = 1` clause to `sql`.
-
-        Avoid using this function if you can.
-
-        Function can be used to allow mutation with subquery, which is considered non-deterministic
-        when using `ReplicatedMergeTree` tables.
-        """
-        # NOTE: while other settings are applied globally in `ClickHouseCredentials.get_query()`,
-        # we apply `allow_nondeterministic_mutations` at the query level to highlight potentially
-        # problematic statements
-        # NOTE: there may be better ways to do UPDATES/DELETES than our current approach, which
-        # may let us avoid this setting: https://clickhouse.com/blog/handling-updates-and-deletes-in-clickhouse#updating-an-entire-table
-
-        settings_clause = " SETTINGS allow_nondeterministic_mutations = 1;"
-        return sql.rstrip().rstrip(";") + settings_clause
-
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(

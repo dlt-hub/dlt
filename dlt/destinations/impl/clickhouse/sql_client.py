@@ -250,6 +250,11 @@ class ClickHouseSqlClient(
                 db_args[key] = str(value.replace(microsecond=0, tzinfo=None))
         return db_args
 
+    def _prepare_query(
+        self, query: str, db_args: DictStrAny, client: clickhouse_driver.Client
+    ) -> str:
+        return self.escape_pct(query.strip())
+
     @contextmanager
     @raise_database_error
     def execute_query(
@@ -266,12 +271,13 @@ class ClickHouseSqlClient(
         db_args = self._sanitise_dbargs(db_args)
 
         with self._conn.cursor() as cursor:
+            client = cursor._client
             for query_line in query.split(";"):
-                if query_line := self.escape_pct(query_line.strip()):
-                    try:
+                try:
+                    if query_line := self._prepare_query(query_line, db_args, client):
                         cursor.execute(query_line, db_args)
-                    except KeyError as e:
-                        raise DatabaseTransientException(OperationalError()) from e
+                except KeyError as e:
+                    raise DatabaseTransientException(OperationalError()) from e
 
             yield ClickHouseDBApiCursorImpl(cursor)
 

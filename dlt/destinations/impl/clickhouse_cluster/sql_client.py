@@ -1,10 +1,14 @@
 from typing import List, Optional, cast
 
 import clickhouse_connect
+import clickhouse_driver  # type: ignore[import-untyped]
+import sqlglot
+import sqlglot.expressions as sge
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
     CREATE_DISTRIBUTED_TABLES_HINT,
@@ -149,3 +153,34 @@ class ClickHouseClusterSqlClient(ClickHouseSqlClient):
         engine_sql = self._make_distributed_engine_clause(table_name, sharding_key)
 
         return f"{create_table_sql} {as_sql} {engine_sql};"
+
+    def _prepare_query(
+        self, query: str, db_args: DictStrAny, client: clickhouse_driver.Client
+    ) -> str:
+        query = client.substitute_params(query, db_args, client.connection.context)
+        # technically, `_ensure_global` is only needed for statements with distributed subqueries,
+        # but applying it unconditionally is simpler and should have little overhead
+        query = self._ensure_global(query)
+        return super()._prepare_query(query, db_args, client)
+
+    @staticmethod
+    def _ensure_global(sql: str) -> str:
+        """Makes any JOIN or IN expression in `sql` GLOBAL.
+
+        `sql` should not contain parameter placeholders, as SQLGlot cannot parse them. Hence,
+        substitute any placeholders before calling this method.
+
+        Reference: https://clickhouse.com/docs/sql-reference/operators/in#distributed-subqueries
+        """
+        # first do string check to:
+        # 1) avoid queries that SQLGlot cannot parse (e.g. those with SYNC keyword)
+        # 2) avoid unnecessarily parsing queries
+        if " JOIN " in sql.upper() or " IN " in sql.upper():
+            expr = sqlglot.parse_one(sql, read="clickhouse")
+            for node in expr.walk():
+                if isinstance(node, sge.Join):
+                    node.set("global_", True)
+                elif isinstance(node, sge.In):
+                    node.set("is_global", True)
+            return expr.sql("clickhouse")
+        return sql
