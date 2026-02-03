@@ -220,17 +220,18 @@ def test_owned_engine_ref_counting_disposes_on_last_return(mocker) -> None:
     )
 
     engine = c.credentials.engine
+    managed = c.credentials.managed_engine
     dispose_spy = mocker.spy(engine, "dispose")
 
-    assert c.credentials._conn_borrows == 0
-    assert c.credentials._conn_owner is True
+    assert managed._conn_borrows == 0
+    assert managed._conn_owner is True
 
-    conn = c.credentials.borrow_conn()
-    assert c.credentials._conn_borrows == 1
+    conn = managed.borrow_conn()
+    assert managed._conn_borrows == 1
 
-    c.credentials.return_conn(conn)
+    managed.return_conn(conn)
 
-    assert c.credentials._conn_borrows == 0
+    assert managed._conn_borrows == 0
     dispose_spy.assert_called_once()
 
 
@@ -243,20 +244,21 @@ def test_owned_engine_multiple_borrows(mocker) -> None:
     )
 
     engine = c.credentials.engine
+    managed = c.credentials.managed_engine
     dispose_spy = mocker.spy(engine, "dispose")
 
-    conn1 = c.credentials.borrow_conn()
-    assert c.credentials._conn_borrows == 1
+    conn1 = managed.borrow_conn()
+    assert managed._conn_borrows == 1
 
-    conn2 = c.credentials.borrow_conn()
-    assert c.credentials._conn_borrows == 2
+    conn2 = managed.borrow_conn()
+    assert managed._conn_borrows == 2
 
-    c.credentials.return_conn(conn1)
-    assert c.credentials._conn_borrows == 1
+    managed.return_conn(conn1)
+    assert managed._conn_borrows == 1
     dispose_spy.assert_not_called()
 
-    c.credentials.return_conn(conn2)
-    assert c.credentials._conn_borrows == 0
+    managed.return_conn(conn2)
+    assert managed._conn_borrows == 0
     dispose_spy.assert_called_once()
 
 
@@ -268,18 +270,19 @@ def test_owned_engine_connect_failure_does_not_leak_refcount(mocker) -> None:
         )._bind_dataset_name(dataset_name="test_dataset")
     )
 
-    # Force engine creation so we can spy on it
+    # force engine creation so we can spy on it
     engine = c.credentials.engine
-    assert c.credentials._conn_borrows == 0
+    managed = c.credentials.managed_engine
+    assert managed._conn_borrows == 0
 
-    # Make connect() raise
+    # make connect() raise
     mocker.patch.object(engine, "connect", side_effect=sa.exc.OperationalError("fail", {}, None))
 
     with pytest.raises(sa.exc.OperationalError):
-        c.credentials.borrow_conn()
+        managed.borrow_conn()
 
-    # Refcount must be back to 0, not stuck at 1
-    assert c.credentials._conn_borrows == 0
+    # refcount must be back to 0, not stuck at 1
+    assert managed._conn_borrows == 0
 
 
 def test_external_engine_ref_counting_does_not_dispose(mocker) -> None:
@@ -301,16 +304,17 @@ def test_external_engine_ref_counting_does_not_dispose(mocker) -> None:
             )._bind_dataset_name(dataset_name="test_dataset")
         )
 
+        managed = c.credentials.managed_engine
         dispose_spy = mocker.spy(engine, "dispose")
 
-        assert c.credentials._conn_owner is False
-        assert c.credentials._conn_borrows == 0
+        assert managed._conn_owner is False
+        assert managed._conn_borrows == 0
 
-        conn = c.credentials.borrow_conn()
-        assert c.credentials._conn_borrows == 1
+        conn = managed.borrow_conn()
+        assert managed._conn_borrows == 1
 
-        c.credentials.return_conn(conn)
-        assert c.credentials._conn_borrows == 0
+        managed.return_conn(conn)
+        assert managed._conn_borrows == 0
 
         dispose_spy.assert_not_called()
 
@@ -320,3 +324,64 @@ def test_external_engine_ref_counting_does_not_dispose(mocker) -> None:
             assert rows == [(1,)]
     finally:
         engine.dispose()
+
+
+def test_copy_external_engine_gets_unmanaged_engine() -> None:
+    """Copy of credentials with external engine gets a new ManagedEngine holding the same engine."""
+    engine = sa.create_engine("sqlite:///:memory:", poolclass=sa.pool.StaticPool)
+    try:
+        creds = SqlalchemyCredentials(engine)
+        copied = creds.copy()
+
+        # copy has its own ManagedEngine instance
+        assert copied.managed_engine is not creds.managed_engine
+        # but holds the same external engine reference (unmanaged)
+        assert copied.engine is engine
+        assert copied.managed_engine._conn_owner is False
+
+        # borrow/return must work on the copy
+        conn = copied.managed_engine.borrow_conn()
+        copied.managed_engine.return_conn(conn)
+    finally:
+        engine.dispose()
+
+
+def test_copy_owned_engine_gets_unmanaged_engine() -> None:
+    """Copy of credentials with owned engine gets an unmanaged reference to the same engine."""
+    creds = SqlalchemyCredentials("sqlite:///:memory:")
+    # force engine creation
+    original_engine = creds.engine
+    assert creds.managed_engine._conn_owner is True
+
+    copied = creds.copy()
+
+    # copy has its own ManagedEngine wrapping the original engine as unmanaged
+    assert copied.managed_engine is not creds.managed_engine
+    assert copied.engine is original_engine
+    assert copied.managed_engine._conn_owner is False
+
+    # borrow/return works on the copy without affecting original's refcount
+    conn = copied.managed_engine.borrow_conn()
+    assert copied.managed_engine._conn_borrows == 1
+    assert creds.managed_engine._conn_borrows == 0
+    copied.managed_engine.return_conn(conn)
+
+    # cleanup — only the original owner disposes
+    original_engine.dispose()
+
+
+def test_copy_before_engine_access_gets_lazy_managed_engine() -> None:
+    """Copy before engine is accessed gets managed_engine=None (lazy creation)."""
+    creds = SqlalchemyCredentials("sqlite:///:memory:")
+    # do NOT access creds.engine — managed_engine should be None
+    assert creds.managed_engine is None
+
+    copied = creds.copy()
+    assert copied.managed_engine is None
+
+    # accessing engine on the copy creates its own owned ManagedEngine
+    engine = copied.engine
+    assert copied.managed_engine is not None
+    assert copied.managed_engine._conn_owner is True
+
+    engine.dispose()
