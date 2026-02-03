@@ -118,7 +118,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def open_connection(self) -> Connection:
         if self._current_connection is None:
-            self._current_connection = self.credentials.borrow_conn()
+            self._current_connection = self.credentials.managed_engine.borrow_conn()
             if self.dialect_name == "sqlite":
                 self._sqlite_reattach_dataset_if_exists(self.dataset_name)
         return self._current_connection
@@ -143,7 +143,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
         try:
             if self._current_connection is not None:
-                self.credentials.return_conn(self._current_connection)
+                self.credentials.managed_engine.return_conn(self._current_connection)
         finally:
             self._current_connection = None
 
