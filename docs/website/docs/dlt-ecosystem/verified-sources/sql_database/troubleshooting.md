@@ -119,8 +119,14 @@ No issues were found for these databases. Postgres is the only backend where we 
 
 In the `SQLAlchemy` backend, the JSON data type is represented as a Python object, and in the `PyArrow` backend, it is represented as a JSON string. At present, it does not work correctly with `pandas` and `ConnectorX`, which cast Python objects to `str`, generating invalid JSON strings that cannot be loaded into the destination.
 
-#### UUID  
-UUIDs are represented as strings by default. You can switch this behavior by using `table_adapter_callback` to modify properties of the UUID type for a particular column. (See the code example [here](./configuration#pyarrow) for how to modify the data type properties of a particular column.)
+#### UUID
+UUID columns (PostgreSQL `UUID`, MSSQL `UNIQUEIDENTIFIER`, and SQLAlchemy 2.0 generic `Uuid`) are
+mapped to `dlt` data type `text` and always yielded as strings. This ensures consistent
+casing across initial and incremental loads regardless of the backend used.
+
+You can switch this behavior by using `table_adapter_callback` to modify properties of the UUID type
+for a particular column. (See the code example [here](./configuration#pyarrow) for how to modify the
+data type properties of a particular column.)
 
 ### Notes on data loading
 
