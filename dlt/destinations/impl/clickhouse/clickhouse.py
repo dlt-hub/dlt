@@ -296,6 +296,10 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def load_job_class(self) -> type[ClickHouseLoadJob]:
         return ClickHouseLoadJob
 
+    @property
+    def merge_job_class(self) -> type[ClickHouseMergeJob]:
+        return ClickHouseMergeJob
+
     def _create_sql_client(
         self,
         schema: Schema,
@@ -335,7 +339,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+        return [self.merge_job_class.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Build column definition.

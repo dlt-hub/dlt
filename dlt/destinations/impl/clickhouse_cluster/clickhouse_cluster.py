@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence, cast
+from typing import Any, List, Optional, Sequence, cast
 
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -9,6 +9,7 @@ from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.destinations.impl.clickhouse.clickhouse import (
     ClickHouseClient,
     ClickHouseLoadJob,
+    ClickHouseMergeJob,
 )
 from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
     CREATE_DISTRIBUTED_TABLES_HINT,
@@ -19,6 +20,7 @@ from dlt.destinations.impl.clickhouse_cluster.configuration import (
     ClickHouseClusterClientConfiguration,
 )
 from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class ClickHouseClusterLoadJob(ClickHouseLoadJob):
@@ -46,6 +48,37 @@ class ClickHouseClusterLoadJob(ClickHouseLoadJob):
         return super().load_database_name
 
 
+class ClickHouseClusterMergeJob(ClickHouseMergeJob):
+    @classmethod
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
+        if cls.DEDUP_NUMBERED_ALIAS in select_sql:
+            # "CREATE TABLE AS SELECT" throws error when SELECT contains a window function applied
+            # over a distributed table; to work around this, we create the temp table in two steps:
+            # first create empty table, then insert into it
+            create_sql = (
+                sql_client._make_create_table(temp_table_name, or_replace=True)
+                + f" ({unique_column} String) ENGINE = MergeTree PRIMARY KEY {unique_column}"
+            )
+            insert_sql = sql_client._make_insert_into(temp_table_name) + select_sql
+            return f"{create_sql}; {insert_sql}"
+        return super()._to_temp_table(select_sql, temp_table_name, unique_column, sql_client)
+
+    @classmethod
+    def _to_temp_table_select_name(
+        cls, temp_table_name: str, sql_client: SqlClientBase[Any]
+    ) -> str:
+        # because temp tables are local to the node (ENGINE = MergeTree), we need to use
+        # `cluster(...)` to query across cluster
+        assert isinstance(sql_client, ClickHouseClusterSqlClient)
+        return f"cluster({sql_client.config.cluster}, {temp_table_name})"
+
+
 class ClickHouseClusterClient(ClickHouseClient):
     def __init__(
         self,
@@ -64,6 +97,10 @@ class ClickHouseClusterClient(ClickHouseClient):
     @property
     def load_job_class(self) -> type[ClickHouseClusterLoadJob]:
         return ClickHouseClusterLoadJob
+
+    @property
+    def merge_job_class(self) -> type[ClickHouseClusterMergeJob]:
+        return ClickHouseClusterMergeJob
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)

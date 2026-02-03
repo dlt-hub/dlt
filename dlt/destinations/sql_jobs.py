@@ -157,6 +157,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     If no merge keys are discovered, falls back to append.
     """
 
+    DEDUP_NUMBERED_ALIAS = "_dlt_dedup_numbered"
+
     @classmethod
     def generate_sql(
         cls,
@@ -307,7 +309,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     FROM (
                         SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {order_by}) AS _dlt_dedup_rn, {inner_col_str}
                         FROM {table_name}
-                    ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND ({condition})
+                    ) AS {cls.DEDUP_NUMBERED_ALIAS} WHERE _dlt_dedup_rn = 1 AND ({condition})
 
         """
 
@@ -358,7 +360,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """Generate DELETE FROM statement deleting the records found in the deletes temp table."""
         return f"""{sql_client._make_delete_from(table_name)}
             WHERE {unique_column} IN (
-                SELECT * FROM {delete_temp_table_name}
+                SELECT * FROM {cls._to_temp_table_select_name(delete_temp_table_name, sql_client)}
             );
         """
 
@@ -398,6 +400,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             sql statement that inserts data from selects into temp table
         """
         return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql}"
+
+    @classmethod
+    def _to_temp_table_select_name(
+        cls, temp_table_name: str, sql_client: SqlClientBase[Any]
+    ) -> str:
+        """Returns name to use to SELECT from temp table."""
+        return temp_table_name
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
@@ -741,7 +750,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 and hard_delete_col is not None
             ):
                 uniq_column = root_key_column if is_nested_table(table) else row_key_column
-                insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
+                insert_cond = (
+                    f"{uniq_column} IN (SELECT * FROM"
+                    f" {cls._to_temp_table_select_name(insert_temp_table_name, sql_client)})"
+                )
 
             columns = get_columns_names_with_prop(table, "name")
             insert_into = sql_client._make_insert_into(table, columns)
