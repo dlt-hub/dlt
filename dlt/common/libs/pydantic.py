@@ -209,13 +209,15 @@ def extra_to_column_mode(extra: str) -> TSchemaEvolutionMode:
     return "discard_value"
 
 
-def get_extra_from_model(model: Type[BaseModel]) -> str:
-    default_extra = "ignore"
+def get_extra_from_model(model: Type[BaseModel]) -> Optional[str]:
+    """Returns the extra setting from the model or None if not explicitly set."""
     if _PYDANTIC_2:
-        default_extra = model.model_config.get("extra", default_extra)
+        return model.model_config.get("extra")
     else:
-        default_extra = str(model.Config.extra) or default_extra  # type: ignore[attr-defined]
-    return default_extra
+        # in pydantic v1 we can't distinguish explicit "ignore" from default,
+        # so return None for the default value
+        extra = str(model.Config.extra)  # type: ignore[attr-defined]
+        return None if extra == "ignore" else extra
 
 
 def apply_schema_contract_to_model(
@@ -241,7 +243,7 @@ def apply_schema_contract_to_model(
 
     extra = column_mode_to_extra(column_mode)
 
-    if extra == get_extra_from_model(model):
+    if extra == (get_extra_from_model(model) or "ignore"):
         # no need to change the model
         return model
 

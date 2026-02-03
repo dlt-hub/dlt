@@ -1,4 +1,6 @@
 from typing import Optional, Tuple, TypeVar, Generic, Type, Union, Any, List
+
+from dlt.common import logger
 from dlt.common.schema.schema import Schema
 
 try:
@@ -83,7 +85,33 @@ def create_item_validator(
             schema_contract
         ), "schema_contract cannot be dynamic for Pydantic item validator"
 
-        from dlt.common.libs.pydantic import extra_to_column_mode, get_extra_from_model
+        from dlt.common.libs.pydantic import (
+            column_mode_to_extra,
+            extra_to_column_mode,
+            get_extra_from_model,
+        )
+
+        model_extra = get_extra_from_model(columns)
+        model_column_mode = extra_to_column_mode(model_extra or "ignore")
+
+        # warn when model explicitly sets extra and schema_contract contradicts it.
+        # schema_contract can be a string (applies to all entities) or a dict
+        if model_extra and schema_contract:
+            if isinstance(schema_contract, str):
+                explicit_columns = schema_contract
+            elif isinstance(schema_contract, dict):
+                explicit_columns = schema_contract.get("columns")
+            if explicit_columns != model_column_mode:
+                new_extra = column_mode_to_extra(explicit_columns)
+                logger.warning(
+                    f"Pydantic model {columns.__name__} has extra='{model_extra}' but the"
+                    f" explicit schema_contract sets columns='{explicit_columns}'."
+                    " The model's extra setting will be overridden to"
+                    f" extra='{new_extra}' for data validation."
+                    " Note that it is sufficient to just set the extra on the model "
+                    "or columns on schema contract. dlt translates one setting into "
+                    "another, refer to schema contract documentation."
+                )
 
         # freeze the columns if we have a fully defined table and no other explicit contract
         expanded_schema_contract = Schema.expand_schema_contract_settings(
@@ -91,7 +119,7 @@ def create_item_validator(
             # corresponds to default Pydantic behavior
             default={
                 "tables": "evolve",
-                "columns": extra_to_column_mode(get_extra_from_model(columns)),
+                "columns": model_column_mode,
                 "data_type": "freeze",
             },
         )
