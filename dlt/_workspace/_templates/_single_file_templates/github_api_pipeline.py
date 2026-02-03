@@ -1,7 +1,8 @@
 """The Github API templates provides a starting point to read data from REST APIs with REST Client"""
 
-from typing import Optional
+# mypy: disable-error-code="no-untyped-def,arg-type"
 
+from typing import Optional
 import dlt
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
