@@ -123,7 +123,7 @@ test-build-images: build-library
 	docker build -f deploy/dlt/Dockerfile.minimal --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 
 start-clickhouse-cluster:
-	cd tests/load/clickhouse_cluster/test_cluster && docker compose --project-name clickhouse_cluster up -d
+	cd tests/load/clickhouse_cluster/test_cluster && docker compose --project-name clickhouse_cluster up -d && sleep 5
 
 start-test-containers: start-clickhouse-cluster
 	docker compose -f "tests/load/dremio/docker-compose.yml" up -d

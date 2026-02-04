@@ -214,7 +214,7 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
     destinations_configs(
         default_sql_configs=True,
         default_staging_configs=True,
-        cid=("clickhouse-cluster-default", "clickhouse-cluster-default-s3-staging"),
+        cid=("clickhouse-cluster-default", "clickhouse-cluster-s3-staging"),
     ),
     ids=lambda x: x.name,
 )

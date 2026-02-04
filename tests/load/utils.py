@@ -623,7 +623,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="clickhouse_cluster",
-                cid="clickhouse-cluster-default-s3-staging",
+                cid="clickhouse-cluster-s3-staging",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,

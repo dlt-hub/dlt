@@ -154,6 +154,17 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra snowflake --extra s3 --extra gs --extra az --extra parquet"
 
+            # ClickHouse Cluster (cid: clickhouse-cluster-s3-staging)
+            # NOTE: although the clickhouse cluster is local, we can't include this cid in
+            # `test_destinations_local.yml`, because it uses s3 staging
+            - name: clickhouse cluster s3 staging
+              destinations: "[\"clickhouse_cluster\"]"
+              filesystem_drivers: "[\"memory\", \"file\"]"
+              extras: "--extra clickhouse --extra parquet"
+              needs_clickhouse_cluster: true            
+              excluded_destination_test_configuration_ids: "[\"clickhouse-cluster-default\", \"clickhouse-cluster-replicated-distributed\"]"
+
+
     env:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
@@ -187,6 +198,18 @@ jobs:
         uses: actions/checkout@master
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      #
+      # Start required services
+      #
+
+      - name: Start clickhouse cluster
+        run: make start-clickhouse-cluster
+        if: ${{ matrix.needs_clickhouse_cluster }}
+
+      #
+      # Setup python and run tests
+      #
 
       - name: Setup Python
         uses: actions/setup-python@v5
