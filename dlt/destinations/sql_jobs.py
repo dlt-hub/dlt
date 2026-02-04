@@ -352,6 +352,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     def gen_delete_from_sql(
         cls,
         table_name: str,
+        table_schema: PreparedTableSchema,
         unique_column: str,
         delete_temp_table_name: str,
         temp_table_column: str,
@@ -360,7 +361,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """Generate DELETE FROM statement deleting the records found in the deletes temp table."""
         return f"""{sql_client._make_delete_from(table_name)}
             WHERE {unique_column} IN (
-                SELECT * FROM {cls._to_temp_table_select_name(delete_temp_table_name, sql_client)}
+                SELECT * FROM {cls._to_temp_table_select_name(delete_temp_table_name, table_schema, sql_client, for_delete=True)}
             );
         """
 
@@ -403,7 +404,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def _to_temp_table_select_name(
-        cls, temp_table_name: str, sql_client: SqlClientBase[Any]
+        cls,
+        temp_table_name: str,
+        table_schema: PreparedTableSchema,
+        sql_client: SqlClientBase[Any],
+        for_delete: bool,
     ) -> str:
         """Returns name to use to SELECT from temp table."""
         return temp_table_name
@@ -691,6 +696,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     sql.append(
                         cls.gen_delete_from_sql(
                             table_name,
+                            table,
                             root_key_column,
                             delete_temp_table_name,
                             row_key_column,
@@ -702,6 +708,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 sql.append(
                     cls.gen_delete_from_sql(
                         root_delete_table_name,
+                        root_table,
                         row_key_column,
                         delete_temp_table_name,
                         row_key_column,
@@ -752,7 +759,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 uniq_column = root_key_column if is_nested_table(table) else row_key_column
                 insert_cond = (
                     f"{uniq_column} IN (SELECT * FROM"
-                    f" {cls._to_temp_table_select_name(insert_temp_table_name, sql_client)})"
+                    f" {cls._to_temp_table_select_name(insert_temp_table_name, table, sql_client, for_delete=False)})"
                 )
 
             columns = get_columns_names_with_prop(table, "name")

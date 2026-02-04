@@ -81,6 +81,11 @@ def is_valid_schema_name(name: str) -> bool:
     )
 
 
+def is_root_table(table: TTableSchema) -> bool:
+    """Checks if table is a dlt root table (i.e. not a nested table)"""
+    return not is_nested_table(table)
+
+
 def is_nested_table(table: TTableSchema) -> bool:
     """Checks if table is a dlt nested table: connected to parent table via row_key - parent_key reference"""
     # "parent" table hint indicates NESTED table.

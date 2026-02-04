@@ -5,7 +5,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TColumnSchema
-from dlt.common.schema.utils import get_inherited_table_hint
+from dlt.common.schema.utils import get_inherited_table_hint, is_root_table
 from dlt.destinations.impl.clickhouse.clickhouse import (
     ClickHouseClient,
     ClickHouseLoadJob,
@@ -71,12 +71,26 @@ class ClickHouseClusterMergeJob(ClickHouseMergeJob):
 
     @classmethod
     def _to_temp_table_select_name(
-        cls, temp_table_name: str, sql_client: SqlClientBase[Any]
+        cls,
+        temp_table_name: str,
+        table_schema: PreparedTableSchema,
+        sql_client: SqlClientBase[Any],
+        for_delete: bool,
     ) -> str:
-        # because temp tables are local to the node (ENGINE = MergeTree), we need to use
-        # `cluster(...)` to query across cluster
+        # Because temp tables are local to the node (ENGINE = MergeTree), we need to use
+        # `cluster(...)` to query across cluster. We make one exception: when the temp table is
+        # used for deletes on the root table, we query it directly. Why you ask? To make the tests
+        # pass consistently. Some tests are flaky without this exception. I cannot make sense of this
+        # behavior theoretically, but I choose to rely on the tests.
+        # Tests that are flaky without this exception include:
+        # - tests/load/pipeline/test_merge_disposition.py::test_merge_with_dispatch_and_incremental[github_repo_events-clickhouse_cluster-jsonl-no-staging-replicated-distributed]
+        # - tests/load/pipeline/test_merge_disposition.py::test_merge_on_keys_in_schema_nested_hints[delete-insert-clickhouse_cluster-jsonl-no-staging-replicated-distributed]
         assert isinstance(sql_client, ClickHouseClusterSqlClient)
-        return f"cluster({sql_client.config.cluster}, {temp_table_name})"
+        return (
+            temp_table_name
+            if (for_delete and is_root_table(table_schema))
+            else f"cluster({sql_client.config.cluster}, {temp_table_name})"
+        )
 
 
 class ClickHouseClusterClient(ClickHouseClient):

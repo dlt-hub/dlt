@@ -301,6 +301,7 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
     def gen_delete_from_sql(
         cls,
         table_name: str,
+        table_schema: PreparedTableSchema,
         column_name: str,
         temp_table_name: str,
         temp_table_column: str,
