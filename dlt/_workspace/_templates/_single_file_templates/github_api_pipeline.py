@@ -53,12 +53,12 @@ def github_source(access_token: Optional[str] = dlt.secrets.value):
     return [repos, issues]
 
 
-if __name__ == "__main__":
+def run_source() -> None:
     # Define pipeline
     pipeline = dlt.pipeline(
         pipeline_name="github_api_pipeline",
         destination="duckdb",
-        dataset_name="github_api_pipeline",
+        dataset_name="github_api_data",
         progress="log",
     )
 
@@ -67,3 +67,7 @@ if __name__ == "__main__":
 
     # pretty print the information on data that was loaded
     print(load_info)  # noqa: T201
+
+
+if __name__ == "__main__":
+    run_source()
