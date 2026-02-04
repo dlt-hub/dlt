@@ -1,15 +1,16 @@
 import pathlib
 from typing import Any, Iterator
 
+import pytest
 import pandas as pd
 import pyarrow
-import pytest
-from dlt.common import json, pendulum
+from fsspec import AbstractFileSystem
+
+from dlt.common import pendulum, json
 from dlt.common.storages import fsspec_filesystem
 from dlt.common.storages.fsspec_filesystem import FileItem
 from dlt.sources.filesystem import FileItemDict
 from dlt.sources.filesystem.readers import _read_csv, _read_csv_duckdb, _read_jsonl, _read_parquet
-from fsspec import AbstractFileSystem
 
 
 @pytest.fixture(scope="module")
@@ -151,7 +152,7 @@ def test_read_csv_duckdb(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> 
     assert read_data == [data]
 
 
-def test_read_csv_duckdb_filename_true(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
+def test_read_csv_duckdb_filename(tmp_path: pathlib.Path, data: list[dict[str, Any]]) -> None:
     file_ = _create_csv_file(data=data, tmp_path=tmp_path)
 
     for record in _read_csv_duckdb([file_], filename=True):

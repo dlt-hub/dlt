@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional
 
 from dlt.common import json
 from dlt.common.typing import copy_sig_any
-from dlt.sources import DltResource, DltSource, TDataItems
+from dlt.sources import TDataItems, DltResource, DltSource
 from dlt.sources.filesystem import FileItemDict
 
 from .helpers import fetch_arrow, fetch_json
