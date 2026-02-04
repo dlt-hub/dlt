@@ -546,7 +546,6 @@ def destinations_configs(
         # provided
         assert set(SQL_DESTINATIONS) == {d.destination_type for d in destination_configs}
 
-    hf_token = dlt.secrets.get("destination.qdrant.hf_token") or ""
     if default_vector_configs:
         destination_configs += [
             DestinationTestConfiguration(destination_type="weaviate"),
@@ -556,17 +555,11 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(path="qdrant_data"),
-                env_vars={
-                    "HF_TOKEN": hf_token,
-                },
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
                 credentials=dict(location="http://localhost:6333"),
-                env_vars={
-                    "HF_TOKEN": hf_token,
-                },
                 extra_info="server",
             ),
         ]
