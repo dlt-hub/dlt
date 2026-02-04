@@ -140,6 +140,26 @@ def new_items(settings: TSchemaContract) -> Any:
     return load_items
 
 
+def new_items_with_columns(settings: TSchemaContract) -> Any:
+    """Resource with explicit complete column definitions, simulating a Pydantic model."""
+
+    @dlt.resource(
+        name=NEW_ITEMS_TABLE,
+        write_disposition="append",
+        schema_contract=settings,
+        columns={
+            "id": {"data_type": "bigint"},
+            "some_int": {"data_type": "bigint"},
+            "name": {"data_type": "text"},
+        },
+    )
+    def load_items():
+        for _, index in enumerate(range(0, 10), 1):
+            yield {"id": index, "some_int": 1, "name": f"item {index}"}
+
+    return load_items
+
+
 def run_resource(
     pipeline: Pipeline,
     resource_fun: Callable[..., DltResource],
@@ -193,9 +213,12 @@ def get_pipeline():
 @pytest.mark.parametrize("contract_setting", SCHEMA_CONTRACT)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
 @pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
-def test_new_tables(
+def test_new_tables_without_columns(
     contract_setting: TSchemaEvolutionMode, setting_location: str, item_format: TestDataItemFormat
 ) -> None:
+    """Tables that are not explicitly defined (contain no complete columns) are
+    considered data-driven and "tables" settings will apply to them
+    """
     pipeline = get_pipeline()
 
     full_settings = {setting_location: {"tables": contract_setting}}
@@ -232,6 +255,31 @@ def test_new_tables(
         table_counts = load_table_counts(pipeline)
         assert table_counts[ITEMS_TABLE] == 30 if contract_setting in ["freeze"] else 40
         assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
+
+
+@pytest.mark.parametrize("contract_setting", SCHEMA_CONTRACT)
+@pytest.mark.parametrize("setting_location", LOCATIONS)
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
+def test_new_tables_with_columns(
+    contract_setting: TSchemaEvolutionMode, setting_location: str, item_format: TestDataItemFormat
+) -> None:
+    """Explicitly defined table is never considered "new table" and is always allowed to be added
+    to schema
+
+    When a resource defines columns explicitly (e.g. from a Pydantic model or columns= parameter),
+    hint_tables carry complete column definitions. The extractor will add this table to schema with
+    all its columns
+    """
+    pipeline = get_pipeline()
+
+    full_settings = {setting_location: {"tables": contract_setting}}
+
+    # test adding new table with explicit (complete) column definitions
+    # this table is considered explicit
+    run_resource(pipeline, new_items_with_columns, full_settings, item_format)
+    table_counts = load_table_counts(pipeline)
+    assert table_counts.get(NEW_ITEMS_TABLE, 0) == 10
+    pipeline.drop_pending_packages()
 
 
 @pytest.mark.parametrize("contract_setting", SCHEMA_CONTRACT)

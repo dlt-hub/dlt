@@ -541,6 +541,7 @@ def diff_table(
     tab_a: TTableSchema,
     tab_b: TPartialTableSchema,
     additive_compound_props: bool = True,
+    only_new = False
 ) -> TPartialTableSchema:
     """Computes the difference between `tab_a` and `tab_b`, returning what's new or changed in `tab_b`.
 
@@ -554,8 +555,8 @@ def diff_table(
         tab_a: Original table schema to compare against
         tab_b: New/updated table schema with potential changes
         additive_compound_props: Controls how the diff handles compound properties:
-            - True: Compound properties from `tab_b` are additions
-            to `tab_a`. Only new compound property assignments are included in the diff.
+            - True: Compound properties from `tab_b` are merged
+            with `tab_a`. Only new compound property assignments are included in the diff.
             - False: Compound properties in `tab_b` represent
             the complete/authoritative set. All compound property assignments from `tab_b`
             are included in the diff, even if they already exist in `tab_a` with the same
@@ -575,26 +576,28 @@ def diff_table(
     # allow for columns to differ
     ensure_compatible_tables(schema_name, tab_a, tab_b, ensure_columns=False)
 
-    tab_a_copy = deepcopy(tab_a)
+    tab_a_prepared = deepcopy(tab_a)
 
     if not additive_compound_props:
-        _collect_and_remove_compound_props(tab_b["columns"], tab_a_copy["columns"])
+        _collect_and_remove_compound_props(tab_b["columns"], tab_a_prepared["columns"])
 
     # get new columns that are new or have changed properties
-    tab_a_columns = tab_a_copy["columns"]
+    tab_a_columns_prepared = tab_a_prepared["columns"]
     new_columns: List[TColumnSchema] = []
     for col_b_name, col_b in tab_b["columns"].items():
-        if col_b_name in tab_a_columns:
-            col_a = tab_a_columns[col_b_name]
-            # merge col_b properties into a copy of col_a
-            merged_column = merge_column(copy(col_a), col_b)
-            if merged_column != col_a:
-                new_columns.append(merged_column)
+        if col_b_name in tab_a_columns_prepared:
+            if only_new is False:
+                col_a_prepared = tab_a_columns_prepared[col_b_name]
+                # merge col_b properties into a copy of col_a
+                merged_column = merge_column(copy(col_a_prepared), col_b)
+                # compare with the original column
+                if merged_column != tab_a["columns"][col_b_name]:
+                    new_columns.append(merged_column)
         else:
             new_columns.append(col_b)
 
     # return partial table containing only name and properties that differ (column, filters etc.)
-    table_name = tab_a_copy["name"]
+    table_name = tab_a_prepared["name"]
 
     partial_table: TPartialTableSchema = {
         "name": table_name,
@@ -602,7 +605,7 @@ def diff_table(
     }
 
     new_references = diff_table_references(
-        tab_a_copy.get("references", []), tab_b.get("references", [])
+        tab_a_prepared.get("references", []), tab_b.get("references", [])
     )
     if new_references:
         partial_table["references"] = new_references
@@ -610,14 +613,14 @@ def diff_table(
     for k, v in tab_b.items():
         if k in ["columns", None]:
             continue
-        existing_v = tab_a_copy.get(k)
+        existing_v = tab_a_prepared.get(k)
         if existing_v != v:
             partial_table[k] = v  # type: ignore
 
     # nested tables with the resource property set - this should not really happen
-    if is_nested_table(tab_a_copy) and (resource := tab_b.get("resource")):
+    if is_nested_table(tab_a_prepared) and (resource := tab_b.get("resource")):
         raise TablePropertiesConflictException(
-            schema_name, table_name, "resource", resource, tab_a_copy.get("parent")
+            schema_name, table_name, "resource", resource, tab_a_prepared.get("parent")
         )
 
     return partial_table

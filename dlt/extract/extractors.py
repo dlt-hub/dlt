@@ -280,41 +280,62 @@ class Extractor:
         # resource hint tables are the user's explicit schema definition:
         # merge directly into the schema without column contract checks
         for hint_table in hint_tables:
+            print("HINT", hint_table)
             table_name = hint_table["name"]
             schema_contract = self._table_contracts.setdefault(
                 table_name,
                 self.schema.resolve_contract_settings_for_table(table_name, hint_table),
             )
-            # this is a new table so allow evolve once
-            if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
-                hint_table["x-normalizer"] = {"evolve-columns-once": True}
-
-            existing_table = self.schema.tables.get(table_name, None)
+            table_exists = self.schema.tables.get(table_name, None) is not None
+            # always update table from hints
             self.schema.update_table(
                 hint_table,
                 normalize_identifiers=False,
-                from_diff=bool(existing_table),
+                from_diff=False,
                 merge_compound_props=False,
             )
+            # note: table with all columns unbounded is also new
+            is_new = self.schema.is_new_table(table_name)
+            if schema_contract["columns"] != "evolve" and (is_new or not table_exists):
+                hint_table["x-normalizer"] = {"evolve-columns-once": True}
+
+            existing_table = self.schema.tables.get(table_name, None)
+            # apply table level contract only by removing columns
+            hint_table_no_cols = copy(hint_table)
+            hint_table_no_cols["columns"] = {}
+            diff_table, filters = self.schema.apply_schema_contract(
+                schema_contract, hint_table_no_cols, data_item=items
+            )
+            # process table filters
+            if filters:
+                for entity, name, _ in filters:
+                    if entity == "tables":
+                        self._filtered_tables.add(name)
+            if not diff_table:
+                self.schema.drop_tables([table_name])
 
         # data-inferred tables are subject to contract enforcement
         # contract was already resolved from the hint table above
         for data_table in data_tables:
+            print("DATA", data_table)
             table_name = data_table["name"]
             schema_contract = self._table_contracts[table_name]
 
             existing_table = self.schema.tables.get(table_name, None)
+            print("EXISTING", existing_table)
             if existing_table:
                 diff_table = utils.diff_table(
                     self.schema.name,
                     existing_table,
                     data_table,
                     additive_compound_props=False,
+                    # only_new=True,
                 )
             else:
                 diff_table = data_table
 
             # apply contracts
+            print("DIFF", diff_table)
             diff_table, filters = self.schema.apply_schema_contract(
                 schema_contract, diff_table, data_item=items
             )
@@ -354,7 +375,30 @@ class ObjectExtractor(Extractor):
 class ModelExtractor(Extractor):
     """Extracts text items and writes them row by row into a text file"""
 
-    pass
+    def _compute_tables(
+        self, resource: DltResource, items: TDataItems, meta: Any
+    ) -> Tuple[List[TPartialTableSchema], List[TPartialTableSchema]]:
+        """Part of the model table schema comes form input dataset (schema) and we consider
+        that data driven and schema contract will be applied.
+
+        Right now we are not able to identify "columns" that were set explicitly.
+        """
+        # hints are populated from resource "columns", data is empty
+        hint_tables, data_tables = super()._compute_tables(resource, items, meta)
+
+        # TODO: identify what comes from explicit "columns" definition and what comes
+        # from with_hints meta used to pass schema from dataset.
+        # we must override write_items to get this information before HintsMeta is applied
+
+        for hint in hint_tables:
+            data_table = copy(hint)
+            # remove columns from hint_table so it seen as new
+            hint["columns"] = {}
+            # put all hints into data_tables
+            data_tables.append(data_table)
+
+        # NOTE: hint_tables must contain all data_tables
+        return hint_tables, data_tables
 
 
 class ArrowExtractor(Extractor):

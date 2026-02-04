@@ -109,7 +109,7 @@ As a consequence, `discard_row` will drop the whole data item - even if a nested
 
 Columns explicitly defined on a resource — via the `columns` argument (as a dict, a list of column schemas, or a Pydantic model) — are considered the **source of truth** for that resource's schema. These columns are always merged into the schema, regardless of the `columns` contract mode. The `columns` contract only applies to columns that are **inferred from data** (e.g. from an Arrow table schema or during normalization).
 
-This means you can explictly change resource's column definitions (add new fields to a Pydantic model, add entries to a columns dict) without worrying about schema contracts blocking those changes. For example:
+This means you can explicitly change a resource's column definitions (add new fields to a Pydantic model, add entries to a columns dict) without worrying about schema contracts blocking those changes. For example:
 
 ```py
 from pydantic import BaseModel
@@ -130,6 +130,19 @@ def my_resource():
 
 If you later add an `email` field to `MyModel`, the new column will be accepted on existing tables even though `extra=forbid` maps to `columns=freeze`. The `freeze` contract will still reject any extra fields in the **data** that are not defined in the model.
 
+The same applies when using a columns dict or when loading Arrow tables and pandas frames. For Arrow data, columns defined on the resource are merged directly into the schema, while columns inferred from the Arrow table schema are subject to the `columns` contract. For example:
+
+```py
+@dlt.resource(
+    columns={"id": {"data_type": "bigint"}, "name": {"data_type": "text"}},
+    schema_contract={"columns": "freeze"},
+)
+def my_arrow_resource():
+    ...
+```
+
+Adding a new entry to the `columns` dict will always be accepted. However, if the Arrow data contains a column not present in the resource definition, the `freeze` contract will raise an exception.
+
 :::tip
 If your goal is to maintain strict data validation (`extra=forbid`) while allowing your model to evolve, you do not need to set `schema_contract={"columns": "evolve"}`. Simply update your Pydantic model — `dlt` will accept the new columns automatically. Setting `columns=evolve` would override `extra=forbid`, allowing unknown fields through validation.
 :::
@@ -138,7 +151,7 @@ If your goal is to maintain strict data validation (`extra=forbid`) while allowi
 
 All contract settings apply to [Arrow tables and pandas frames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
 1. **tables** mode is the same - no matter what the data item type is.
-2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
+2. **columns** contract applies only to columns inferred from the Arrow/pandas schema. Columns [defined on the resource](#resource-defined-columns-and-schema-contracts) are always accepted. For data-inferred columns, the contract will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
 3. **data_type** changes to data types in tables/frames are not allowed and will result in a data type schema clash. We could allow for more modes (evolving data types in Arrow tables sounds weird but ping us on Slack if you need it.)
 
 Here's how `dlt` deals with column modes:
