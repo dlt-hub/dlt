@@ -188,13 +188,20 @@ def test_load_arrow_item(
     expected = sorted(expected)
 
     for row, expected_row in zip(rows, expected):
-        # Compare without _dlt_id/_dlt_load_id columns
-
-        assert row[3] == expected_row[3]
-        assert row[:-2] == expected_row
         # Load id and dlt_id are set
         assert row[-2] == load_id
         assert isinstance(row[-1], str)
+
+        # ClickHouse not infrequently loses precision on floats, so we check approximate equality
+        if destination_config.destination_type in ("clickhouse", "clickhouse_cluster"):
+            assert isinstance(row[1], float)
+            assert row.pop(1) == pytest.approx(expected_row.pop(1))
+            assert isinstance(row[5], (float, type(None)))  # nullable float
+            assert row.pop(5) == pytest.approx(expected_row.pop(5))
+            assert not any(isinstance(col, float) for col in row)  # no other floats left
+
+        # Compare without _dlt_id/_dlt_load_id columns
+        assert row[:-2] == expected_row
 
 
 # TODO: also parametrize by native, parquet formats
