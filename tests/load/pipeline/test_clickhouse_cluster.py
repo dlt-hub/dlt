@@ -1,3 +1,7 @@
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("clickhouse_cluster")
+
 import os
 import time
 import pytest
@@ -7,7 +11,6 @@ from unittest.mock import patch
 import dlt
 from dlt.destinations.adapters import clickhouse_cluster_adapter
 from dlt.destinations.exceptions import DatabaseTransientException, DestinationConnectionError
-from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import TTableEngineType
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
@@ -192,7 +195,7 @@ def test_replication(destination_config: DestinationTestConfiguration) -> None:
     assert_load_info(load_info)
 
     # assert table engines
-    sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+    sql_client = cast(ClickHouseClusterSqlClient, pipe.sql_client())
     assert get_table_engine(sql_client, table_name="replicated") == "ReplicatedMergeTree"
     assert get_table_engine(sql_client, table_name="not_replicated") == "MergeTree"
 
@@ -272,7 +275,7 @@ def test_distribution(destination_config: DestinationTestConfiguration) -> None:
     assert_load_info(load_info)
 
     # assert table engines
-    sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+    sql_client = cast(ClickHouseClusterSqlClient, pipe.sql_client())
     dist_table_name = shard_table_name + DEFAULT_DISTRIBUTED_TABLE_SUFFIX
     assert get_table_engine(sql_client, table_name=shard_table_name) == "MergeTree"
     assert get_table_engine(sql_client, table_name=dist_table_name) == "Distributed"
@@ -356,7 +359,7 @@ def test_replication_distribution(destination_config: DestinationTestConfigurati
     assert_load_info(load_info)
 
     # assert table engines
-    sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
+    sql_client = cast(ClickHouseClusterSqlClient, pipe.sql_client())
     dist_table_name = shard_table_name + DEFAULT_DISTRIBUTED_TABLE_SUFFIX
     assert get_table_engine(sql_client, table_name=shard_table_name) == "ReplicatedMergeTree"
     assert get_table_engine(sql_client, table_name=dist_table_name) == "Distributed"
