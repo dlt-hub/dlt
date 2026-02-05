@@ -2376,7 +2376,7 @@ requires-dist = [
     { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'lancedb'", specifier = ">=12.0.0" },
     { name = "ibis-framework", marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=12.0.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3" },
-    { name = "lancedb", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=0.22.0" },
+    { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "marimo", marker = "python_full_version >= '3.11' and extra == 'widgets'", specifier = ">=0.19.0" },
     { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
     { name = "mcp", marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=1.2.1" },
@@ -2443,7 +2443,7 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.0.0,<5.0.0" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
-provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "oracle", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml", "widgets"]
+provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "fabric", "oracle", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace", "dbml", "widgets"]
 
 [package.metadata.requires-dev]
 adbc = [

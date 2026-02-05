@@ -37,7 +37,7 @@ def _(pipelines_locations):
 @app.cell
 def _(pipeline_selector, pipelines_locations):
     pipeline_name = pipeline_selector.value
-    pipeline_path = pipelines_locations[pipeline_name]
+    pipeline_path = pipelines_locations[pipeline_name]  # noqa: F841
     return
 
 

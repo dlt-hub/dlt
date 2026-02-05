@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import marimo
 import mowidgets
 
@@ -5,8 +9,11 @@ from dlt.helpers.marimo._load_package_viewer import app as load_package_viewer
 from dlt.helpers.marimo._schema_viewer import app as schema_viewer
 from dlt.helpers.marimo._pipeline_selector import app as pipeline_selector
 
+if TYPE_CHECKING:
+    from typing import Any
 
-def render(app: marimo.App, *args, **kwargs):
+
+def render(app: marimo.App, *args: Any, **kwargs: Any) -> mowidgets.MoWidget:
     if not isinstance(app, marimo.App):
         raise ValueError("app must be an instance of marimo.App")
 
@@ -20,7 +27,7 @@ def render(app: marimo.App, *args, **kwargs):
         raise ValueError("app must be either load_package_viewer or schema_viewer")
 
 
-def pipeline_selector_widget(app, *args, **kwargs):
+def pipeline_selector_widget(app: marimo.App, *args: Any, **kwargs: Any) -> mowidgets.MoWidget:
     return mowidgets.widgetize(
         app,
         data_access=True,
@@ -28,11 +35,21 @@ def pipeline_selector_widget(app, *args, **kwargs):
     )
 
 
-def load_package_widget(app, pipeline_path: str, *args, **kwargs):
+def load_package_widget(
+    app: marimo.App,
+    pipeline_path: str,
+    *args: Any,
+    **kwargs: Any,
+) -> mowidgets.MoWidget:
     return mowidgets.widgetize(app, data_access=True, inputs={"pipeline_path": pipeline_path})
 
 
-def schema_viewer_widget(app, pipeline_name: str, *args, **kwargs):
+def schema_viewer_widget(
+    app: marimo.App,
+    pipeline_name: str,
+    *args: Any,
+    **kwargs: Any,
+) -> mowidgets.MoWidget:
     return mowidgets.widgetize(app, data_access=True, inputs={"pipeline_name": pipeline_name})
 
 

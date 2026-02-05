@@ -11,18 +11,6 @@ if TYPE_CHECKING:
     import pyarrow
 
 
-def list_pipelines(pipelines_dir: str = None) -> list[str]:
-    pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
-    storage = FileStorage(pipelines_dir)
-
-    try:
-        pipelines = storage.list_folder_dirs(".", to_root=False)
-    except Exception:
-        pipelines = []
-
-    return pipelines
-
-
 def _load_pickle(file_path: pathlib.Path) -> Any:
     import pickle
 
