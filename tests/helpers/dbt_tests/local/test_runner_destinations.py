@@ -8,7 +8,7 @@ from dlt.common.utils import uniq_id
 from dlt.helpers.dbt.dbt_utils import DBTProcessingError
 from dlt.helpers.dbt.exceptions import PrerequisitesException
 from tests.helpers.dbt_tests.utils import find_run_result
-from tests.libs.test_utils import decode_b64b64
+from tests.libs.utils import decode_b64b64
 
 from tests.utils import get_test_storage_root, clean_test_storage, preserve_environ
 from tests.common.utils import modify_and_commit_file, load_secret

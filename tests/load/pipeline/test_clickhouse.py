@@ -6,9 +6,10 @@ import dlt
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItem
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.utils import destinations_configs, DestinationTestConfiguration, AWS_BUCKET
 from tests.utils import get_test_storage_root
 from tests.pipeline.utils import assert_load_info, load_table_counts
 
@@ -174,3 +175,58 @@ def test_clickhouse_no_dataset_name(destination_config: DestinationTestConfigura
     assert table_counts_2["events__sub_items"] == 2
     # table got dropped so we have 1 load
     assert table_counts_2["_dlt_loads"] == 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_staging_configs=True,
+        subset=["clickhouse"],
+        bucket_subset=[AWS_BUCKET],
+        with_file_format="parquet",
+    ),
+    ids=lambda x: x.name,
+)
+def test_clickhouse_s3_extra_credentials_produces_valid_sql(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Verify that s3_extra_credentials generates syntactically valid SQL for ClickHouse.
+
+    Uses a fake role_arn with a real S3 bucket and staging config. ClickHouse Cloud
+    parses the extra_credentials() clause and attempts to assume the role, resulting
+    in a 403/access error from S3 — proving the SQL syntax is valid.
+
+    Skipped on OSS ClickHouse (localhost) where extra_credentials is not supported.
+    """
+    # extra_credentials is a ClickHouse Cloud-only feature, skip on localhost (OSS)
+    pipeline = destination_config.setup_pipeline(f"ch_extra_creds_{uniq_id()}", dev_mode=True)
+    with pipeline.destination_client() as dest_client:
+        if dest_client.config.credentials.host == "localhost":  # type: ignore[attr-defined]
+            pytest.skip("extra_credentials is only supported on ClickHouse Cloud")
+
+    # set a fake role_arn via env var so it's picked up during credential resolution
+    fake_role = "arn:aws:iam::000000000000:role/fake-test-role"
+    with custom_environ(
+        {"DESTINATION__CREDENTIALS__S3_EXTRA_CREDENTIALS": f'{{"role_arn": "{fake_role}"}}'}
+    ):
+        pipeline = destination_config.setup_pipeline(f"ch_extra_creds_{uniq_id()}", dev_mode=True)
+
+        @dlt.resource(name="test_items", write_disposition="append")
+        def test_items() -> Iterator[TDataItem]:
+            yield {"id": 1, "value": "test"}
+
+        # the load must fail because the role_arn is fake, but the SQL must be parseable
+        with pytest.raises(PipelineStepFailed) as exc_info:
+            pipeline.run(
+                test_items,
+                **destination_config.run_kwargs,
+                staging=destination_config.staging,
+            )
+
+    # ClickHouse parsed extra_credentials() and tried to read from S3 with the fake role.
+    # A 403 / storage read error proves the SQL was accepted; a syntax error would not
+    # reach the storage layer at all.
+    error_msg = str(exc_info.value)
+    assert (
+        "403" in error_msg or "ReadFromObjectStorage" in error_msg
+    ), f"Expected S3 access error (403) but got: {error_msg}"

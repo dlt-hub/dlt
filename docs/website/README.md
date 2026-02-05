@@ -23,17 +23,13 @@ That command installs our Node.js package defined in `package.json`.
 
 ### Python Dependencies
 
-The website build process requires Python dependencies, including `pydoc-markdown` for generating API documentation. Install them with:
+The website build process requires Python dependencies, including `pydoc-markdown` for generating API documentation. From the `docs/` directory run:
 
 ```
-$ uv pip install -r requirements.txt
+$ make dev
 ```
 
-Or if you're using the project's `uv` environment from the root directory:
-
-```
-$ uv sync --group docs
-```
+This calls `uv sync` and installs all Python tooling into the docs virtual environment.
 
 ### Are you new to Node?
 
@@ -107,4 +103,4 @@ You can clear these versions with
 npm run clear-versions
 ```
 
-The netflify deployment of these docs need to happen from the master branch so that the current version gets properly selected.
+The cloudflare deployment of these docs needs to happen from the master branch so that the current version gets properly selected.
