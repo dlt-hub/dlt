@@ -325,7 +325,7 @@ class TrinoTypeMapper(SqlalchemyTypeMapper):
 dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
 ```
 
-The `SqlalchemyTypeMapper` dispatches to per-type visitor methods (`_db_type_from_text_type`, `_db_type_from_json_type`, `_db_type_from_bool_type`, etc.), so you only need to override the type(s) you want to customize. You can also override `to_destination_type()` directly for full control.
+The `SqlalchemyTypeMapper` dispatches to per-type visitor methods (`db_type_from_text_type`, `db_type_from_json_type`, `db_type_from_bool_type`, etc.), so you only need to override the type(s) you want to customize. You can also override `to_destination_type()` directly for full control.
 
 Custom type mapper is also useful when you want to limit the length of the string. Below we are adding variant
 for `mssql` dialect:
@@ -336,8 +336,8 @@ from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
 class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
     """This is only an illustration, `sqlalchemy` destination already handles mssql types"""
 
-    def _db_type_from_text_type(self, column, table=None):
-        type_ = super()._db_type_from_text_type(column, table)
+    def db_type_from_text_type(self, column, table=None):
+        type_ = super().db_type_from_text_type(column, table)
         length = column.get("precision")
         if length is None:
             return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]

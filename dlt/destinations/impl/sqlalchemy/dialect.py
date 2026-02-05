@@ -12,8 +12,6 @@ from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapab
 from dlt.common.destination.typing import PreparedTableSchema
 
 
-# generic undefined-relation patterns shared across dialects
-# matched against lowercased str(exception)
 _GENERIC_UNDEFINED_RELATION_PATTERNS = [
     # MySQL / MariaDB
     "unknown database",
@@ -37,15 +35,15 @@ _GENERIC_UNDEFINED_RELATION_PATTERNS = [
     # Exasol (broad)
     " not found",
 ]
+"""Generic undefined-relation patterns shared across dialects, matched against lowercased str(exception)."""
 
-# when an exception matches these but not the undefined-relation patterns above,
-# it is still terminal (e.g. wrong column name, syntax referring to non-existing object)
 GENERIC_TERMINAL_PATTERNS = [
     "no such",
     "not found",
     "not exist",
     "unknown",
 ]
+"""Terminal patterns for exceptions that don't match undefined-relation but are still non-transient."""
 
 
 class DialectCapabilities:
@@ -65,9 +63,6 @@ class DialectCapabilities:
     it in subclasses or add entries to SQLGLOT_DIALECTS for non-obvious mappings.
     """
 
-    # backend name → sqlglot dialect name
-    # only entries where the two names differ need to be listed; for all others
-    # the property falls back to the backend name itself
     SQLGLOT_DIALECTS: Dict[str, str] = {
         "postgresql": "postgres",
         "mssql": "tsql",
@@ -75,6 +70,7 @@ class DialectCapabilities:
         "awsathena": "athena",
         "teradatasql": "teradata",
     }
+    """Backend name to sqlglot dialect name. Only entries where the two differ; others fall back to the backend name."""
 
     def __init__(self, backend_name: str = "") -> None:
         self._backend_name = backend_name
@@ -85,7 +81,6 @@ class DialectCapabilities:
 
         Looks up SQLGLOT_DIALECTS first, falls back to the backend name itself.
         """
-        # use backend name as fallback if mapping not found
         return self.SQLGLOT_DIALECTS.get(self._backend_name, self._backend_name)
 
     def adjust_capabilities(
@@ -97,7 +92,6 @@ class DialectCapabilities:
 
         Called during adjust_capabilities on the factory. Modify caps in-place.
         """
-        pass
 
     def type_mapper_class(self) -> Type[DataTypeMapper]:
         """Return the type mapper class for this dialect"""
@@ -133,8 +127,6 @@ class DialectCapabilities:
                 return True
         return None
 
-
-# registry
 
 DIALECT_CAPS_REGISTRY: Dict[str, Type[DialectCapabilities]] = {}
 """Maps dialect / backend name to the DialectCapabilities class that handles it."""
@@ -173,9 +165,6 @@ def get_dialect_capabilities(dialect_name: str) -> Optional[DialectCapabilities]
     if caps_cls is not None:
         return caps_cls(dialect_name)
     return None
-
-
-# built-in dialect capabilities
 
 
 class MysqlDialectCapabilities(DialectCapabilities):
@@ -235,27 +224,14 @@ class OracleDialectCapabilities(DialectCapabilities):
         return super().is_undefined_relation(e)
 
 
-# helpers
-
-
 def _format_mysql_datetime_literal(v: Any, precision: int = 6, no_tz: bool = False) -> str:
     from dlt.common.data_writers.escape import format_datetime_literal
 
-    # format without timezone to prevent tz conversion in SELECT
     return format_datetime_literal(v, precision, no_tz=True)
 
 
-# register built-in dialects
-
-# MySQL / MariaDB
 register_dialect_capabilities("mysql", MysqlDialectCapabilities)
 register_dialect_capabilities("mariadb", MysqlDialectCapabilities)
-
-# Trino
 register_dialect_capabilities("trino", TrinoDialectCapabilities)
-
-# Microsoft SQL Server
 register_dialect_capabilities("mssql", MssqlDialectCapabilities)
-
-# Oracle
 register_dialect_capabilities("oracle", OracleDialectCapabilities)

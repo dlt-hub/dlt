@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import (
     Optional,
     Iterator,
@@ -97,7 +99,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self.credentials = credentials
-        self._dialect_caps: "DialectCapabilities" = capabilities.dialect_capabilities
+        self._dialect_caps: DialectCapabilities = capabilities.dialect_capabilities
         self._current_connection: Optional[Connection] = None
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
@@ -423,18 +425,15 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         return existing, missing_columns, reflected is not None
 
     def _make_database_exception(self, e: Exception) -> Exception:  # type: ignore[override]
+        # NOTE: override uses self (not static) because it needs _dialect_caps
         from dlt.destinations.impl.sqlalchemy.dialect import GENERIC_TERMINAL_PATTERNS
 
-        # NoSuchTableError is always an undefined relation
         if isinstance(e, sa.exc.NoSuchTableError):
             return DatabaseUndefinedRelation(e)
 
         if isinstance(e, (sa.exc.ProgrammingError, sa.exc.OperationalError)):
-            # delegate undefined-relation detection to dialect capabilities
-            undef = self._dialect_caps.is_undefined_relation(e)
-            if undef is True:
+            if self._dialect_caps.is_undefined_relation(e) is True:
                 return DatabaseUndefinedRelation(e)
-            # if the dialect didn't claim this as undefined, check generic terminal patterns
             msg = str(e).lower()
             for pat in GENERIC_TERMINAL_PATTERNS:
                 if pat in msg:
@@ -443,7 +442,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         elif isinstance(e, sa.exc.IntegrityError):
             return DatabaseTerminalException(e)
         elif isinstance(e, sa.exc.DatabaseError):
-            # check dialect-specific undefined relation (e.g. Oracle ORA-00942 as DatabaseError)
             if self._dialect_caps.is_undefined_relation(e) is True:
                 return DatabaseUndefinedRelation(e)
             return DatabaseTransientException(e)

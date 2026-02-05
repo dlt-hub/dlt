@@ -65,39 +65,36 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         config: SqlalchemyClientConfiguration,
         naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
-        dialect_type = config.get_dialect()
-        if dialect_type is not None:
-            # instantiate dialect to access properties and pass to capabilities
-            dialect = dialect_type()
-            backend_name = config.get_backend_name()
+        dialect_class = config.get_dialect_class()
+        if dialect_class is None:
+            return super(sqlalchemy, cls).adjust_capabilities(caps, config, naming)
 
-            # generic dialect properties
-            caps.max_identifier_length = dialect.max_identifier_length
-            caps.max_column_identifier_length = dialect.max_identifier_length
-            caps.supports_native_boolean = dialect.supports_native_boolean
+        dialect = dialect_class()
+        backend_name = config.get_backend_name()
 
-            # look up registered dialect capabilities
-            from dlt.destinations.impl.sqlalchemy.dialect import (
-                get_dialect_capabilities,
-                DialectCapabilities,
-            )
+        caps.max_identifier_length = dialect.max_identifier_length
+        caps.max_column_identifier_length = dialect.max_identifier_length
+        caps.supports_native_boolean = dialect.supports_native_boolean
 
-            # try backend_name first, then dialect.name (they may differ)
-            dialect_caps = (
-                get_dialect_capabilities(backend_name)
-                or get_dialect_capabilities(dialect.name)
-                or DialectCapabilities(backend_name)
-            )
+        from dlt.destinations.impl.sqlalchemy.dialect import (
+            get_dialect_capabilities,
+            DialectCapabilities,
+        )
 
-            # set sqlglot dialect from the property (driven by backend name)
-            caps.sqlglot_dialect = dialect_caps.sqlglot_dialect  # type: ignore[assignment]
-            caps.type_mapper = dialect_caps.type_mapper_class()
-            caps.dialect_capabilities = dialect_caps
-            dialect_caps.adjust_capabilities(caps, dialect)
+        dialect_caps = (
+            get_dialect_capabilities(backend_name)
+            or get_dialect_capabilities(dialect.name)
+            or DialectCapabilities(backend_name)
+        )
 
-            if dialect.requires_name_normalize:  # type: ignore[attr-defined]
-                caps.has_case_sensitive_identifiers = False
-                caps.casefold_identifier = str.lower
+        caps.sqlglot_dialect = dialect_caps.sqlglot_dialect  # type: ignore[assignment]
+        caps.type_mapper = dialect_caps.type_mapper_class()
+        caps.dialect_capabilities = dialect_caps
+        dialect_caps.adjust_capabilities(caps, dialect)
+
+        if dialect.requires_name_normalize:  # type: ignore[attr-defined]
+            caps.has_case_sensitive_identifiers = False
+            caps.casefold_identifier = str.lower
 
         return super(sqlalchemy, cls).adjust_capabilities(caps, config, naming)
 
