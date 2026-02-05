@@ -8,7 +8,8 @@ from sqlglot.schema import MappingSchema as SQLGlotSchema
 
 import dlt
 from dlt.common.schema.typing import C_DLT_LOAD_ID
-from dlt.dataset.lineage import compute_columns_schema
+from dlt.common.schema.utils import new_table
+from dlt.dataset.lineage import compute_columns_schema, create_sqlglot_schema
 from dlt.destinations.queries import build_row_counts_expr, build_select_expr, _normalize_query
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
@@ -102,9 +103,20 @@ ORDER BY i.id ASC
 
 
 def test_normalize_query():
-    sqlglot_schema = SQLGlotSchema(
-        {"dataset_name": {"items": {"id": str}, "double_items": {"double_id": str, "id": str}}}
+    schema = dlt.Schema("foo")
+    schema.update_table(new_table("items", columns=[{"name": "id", "data_type": "text"}]))
+    schema.update_table(
+        new_table(
+            "double_items",
+            columns=[
+                {"name": "id", "data_type": "text"},
+                {"name": "double_id", "data_type": "text"},
+            ],
+        )
     )
+    dataset_name = "bar"
+    sqlglot_schema = create_sqlglot_schema(schema, dataset_name, "duckdb")
+
     qualified_query_expr = sqlglot.parse_one("""
 SELECT
     i.id AS id,
@@ -125,7 +137,7 @@ ORDER BY i.id ASC
     con = duckdb.connect(":memory:")
     duckdb_dest = dlt.destinations.duckdb(con)
     duckdb_destination_client = duckdb_dest.client(
-        dlt.Schema("foobar"), DuckDbClientConfiguration()._bind_dataset_name("dataset_name")
+        schema, DuckDbClientConfiguration()._bind_dataset_name(dataset_name)
     )
 
     normalized_query_expr = _normalize_query(
