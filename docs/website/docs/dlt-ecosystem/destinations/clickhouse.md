@@ -12,7 +12,7 @@ There are two separate destinations for ClickHouse:
 
 `clickhouse_cluster` is built on top of `clickhouse`, but adds additional functionality related to distributed tables.
 
-The first part of this page applies to both `clickhouse` and `clickhouse_cluster`. The last [section](#clickhouse-cluster) is specific to `clickhouse_cluster`
+The first part of this page applies to both `clickhouse` and `clickhouse_cluster`. The last section is specific to `clickhouse_cluster`
 
 ## Install dlt with ClickHouse
 
@@ -471,7 +471,7 @@ If you have a single-node ClickHouse or ClickHouse Cloud database, then use the 
 If your ClickHouse cluster has more than one replica, `dlt` expects it is configured with `internal_replication` set to `true`; having it set to `false` may lead to incorrect data.
 
 :::note
-As a reference, you can find the cluster configuration used to test `dlt` [here](../../../../../tests/load/clickhouse_cluster/test_cluster/README.).
+As a reference, you can find the cluster configuration used to test `dlt` [here](https://github.com/dlt-hub/dlt/tree/master/tests/load/clickhouse_cluster/test_cluster).
 :::
 
 ## Setup guide
