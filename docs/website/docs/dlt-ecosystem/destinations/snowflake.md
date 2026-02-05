@@ -183,9 +183,20 @@ enable_atomic_swap = true
 ```
 
 Or via environment variable:
-```
+```text
 DESTINATION__SNOWFLAKE__ENABLE_ATOMIC_SWAP=true
 ```
+
+Or as an argument to `dlt.destinations.snowflake`:
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="...",
+    destination=dlt.destinations.snowflake(enable_atomic_swap=True),
+)
+```
+
 ### Data loading
 
 The data is loaded using an internal Snowflake stage. We use the `PUT` command and per-table built-in stages by default. Stage files are kept by default, unless specified otherwise via the `keep_staged_files` parameter:
