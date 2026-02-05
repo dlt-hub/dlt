@@ -428,6 +428,29 @@ because the ClickHouse GCS table function requires the use of HMAC credentials, 
 dlt's staging mechanisms for ClickHouse.
 :::
 
+When using S3 for a staging area you can alternatively have ClickHouse authenticate using Role-based access with the
+[supported](https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud) `extra_credentials` argument by setting this with the destination credentials:
+```py
+import dlt
+from dlt.destinations import clickhouse
+
+destination = clickhouse(
+  credentials={
+    # Other credentials you need
+    "s3_extra_credentials": {
+      'role_arn': 'arn:your:role' # The AWS Role assumed by ClickHouse
+    }
+  }
+)
+
+pipeline = dlt.pipeline(
+  pipeline_name='chess_pipeline',
+  destination=destination,
+  staging='filesystem',  # add this to activate staging
+  dataset_name='chess_data'
+)
+```
+
 ### dbt support
 
 Integration with [dbt](../transformations/dbt/dbt.md) is generally supported via dbt-clickhouse but not tested by us. Note how

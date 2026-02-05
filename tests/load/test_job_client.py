@@ -35,7 +35,7 @@ from dlt.common.time import ensure_pendulum_datetime_utc
 
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import get_test_storage_root
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
@@ -64,7 +64,7 @@ TEST_NAMING_CONVENTIONS = (
 
 @pytest.fixture
 def file_storage() -> FileStorage:
-    return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
+    return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
 
 
 @pytest.mark.parametrize(
@@ -439,7 +439,7 @@ def test_get_storage_table_with_all_types(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
     schema = client.schema
-    columns_schema, _ = table_update_and_row()
+    columns_schema, _ = get_columns_and_row_all_types(client.config)
     columns = list(columns_schema.values())
     table_name = "event_test_table" + uniq_id()
     schema.update_table(new_table(table_name, columns=columns))
@@ -466,10 +466,10 @@ def test_get_storage_table_with_all_types(
             "time",
         ):
             continue
-        # mssql, clickhouse and synapse have no native data type for the nested type.
-        if client.config.destination_type in ("clickhouse", "synapse") and c["data_type"] in (
-            "json"
-        ):
+        # mssql, clickhouse, synapse and fabric have no native data type for the nested type.
+        if client.config.destination_type in ("clickhouse", "synapse", "fabric") and c[
+            "data_type"
+        ] in ("json"):
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("json", "time"):
             continue
@@ -1136,6 +1136,7 @@ def test_many_schemas_single_dataset(
                 "mandatory_column" in str(py_ex.value).lower()
                 or "NOT NULL" in str(py_ex.value)
                 or "Adding columns with constraints not yet supported" in str(py_ex.value)
+                or "Only nullable columns can be added" in str(py_ex.value)  # Fabric Warehouse
             )
 
 
@@ -1242,6 +1243,9 @@ def normalize_rows(rows: List[Dict[str, Any]], naming: NamingConvention) -> None
 def get_columns_and_row_all_types(destination_config: DestinationClientConfiguration):
     exclude_types = []
     if destination_config.destination_type in ["databricks", "clickhouse", "motherduck"]:
+        exclude_types.append("time")
+    # Fabric Warehouse has issues with TIME type - exclude for now
+    if destination_config.destination_type == "fabric":
         exclude_types.append("time")
     if destination_config.destination_name == "sqlalchemy_sqlite":
         exclude_types.extend(["decimal", "wei"])

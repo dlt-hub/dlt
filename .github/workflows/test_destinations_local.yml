@@ -208,14 +208,10 @@ jobs:
         if: ${{ matrix.post_install_commands }}
 
       # always run full suite, also on branches
-      - name: Run tests Linux
-        run: |
-          eval "$(ssh-agent -s)"
-          pytest tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
-
-      - name: Run additional tests
-        run: ${{ matrix.additional_tests }}
-        if: ${{ matrix.additional_tests }}
+      - name: Run tests (limiting xdist workers to 4 since local postgres cant handle more)
+        run: make test-dest-load
+        env:
+          PYTEST_XDIST_N: 4
 
       #
       # Tear down services 

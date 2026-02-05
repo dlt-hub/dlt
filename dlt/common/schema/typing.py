@@ -109,6 +109,7 @@ class TColumnPropInfo(NamedTuple):
     name: Union[TColumnProp, str]
     defaults: Tuple[Any, ...] = (None,)
     is_hint: bool = False
+    compound: bool = False
 
 
 _ColumnPropInfos = [
@@ -119,12 +120,12 @@ _ColumnPropInfos = [
     TColumnPropInfo("timezone", (True, None)),
     TColumnPropInfo("nullable", (True, None)),
     TColumnPropInfo("variant", (False, None)),
-    TColumnPropInfo("partition", (False, None)),
-    TColumnPropInfo("cluster", (False, None)),
-    TColumnPropInfo("primary_key", (False, None)),
+    TColumnPropInfo("partition", (False, None), False, True),
+    TColumnPropInfo("cluster", (False, None), False, True),
+    TColumnPropInfo("primary_key", (False, None), False, True),
     TColumnPropInfo("sort", (False, None)),
     TColumnPropInfo("unique", (False, None)),
-    TColumnPropInfo("merge_key", (False, None)),
+    TColumnPropInfo("merge_key", (False, None), False, True),
     TColumnPropInfo("row_key", (False, None)),
     TColumnPropInfo("parent_key", (False, None)),
     TColumnPropInfo("root_key", (False, None)),
@@ -250,9 +251,9 @@ TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
-WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
-MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
-REPLACE_STRATEGIES: Set[TLoaderReplaceStrategy] = set(get_args(TLoaderReplaceStrategy))
+WRITE_DISPOSITIONS: Sequence[TWriteDisposition] = sorted(get_args(TWriteDisposition))
+MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = sorted(get_args(TLoaderMergeStrategy))
+REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
 """Default values for validity column names used in `scd2` merge strategy."""

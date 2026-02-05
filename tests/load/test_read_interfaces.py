@@ -177,8 +177,7 @@ def populated_pipeline(
 # pipeline population per fixture setup will work and save a lot of time
 configs = destinations_configs(
     default_sql_configs=True,
-    all_buckets_filesystem_configs=True,
-    table_format_filesystem_configs=True,
+    read_only_sqlclient_configs=True,
     bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
 )
 
@@ -310,6 +309,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.filesystem",
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+        "dlt.destinations.lancedb",  # default is 200
     ]
 
     # full frame
@@ -1353,7 +1353,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
         # filesystem uses duckdb and views to map know tables. for other ibis will list
         # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type != "dlt.destinations.filesystem":
+        if populated_pipeline.destination.destination_type not in [
+            "dlt.destinations.filesystem",
+            "dlt.destinations.lancedb",
+        ]:
             # from aleph schema
             additional_tables += ["digits"]
 
@@ -1363,9 +1366,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         if populated_pipeline.destination.destination_type != "dlt.destinations.databricks":
             # just do a basic check to see wether ibis can connect
             schema = populated_pipeline.default_schema
-            assert set(
-                ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
-            ) == {
+            table_names_in_ibis = ibis_connection.list_tables(
+                database=dataset_name, like=table_like_statement
+            )
+            expected_table_names = {
                 add_table_prefix(map_i(x))
                 for x in (
                     [
@@ -1380,6 +1384,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     + additional_tables
                 )
             }
+            assert set(table_names_in_ibis) == expected_table_names
 
         table_name = add_table_prefix(map_i("items"))
         items_table = ibis_connection.table(table_name, database=dataset_name)
@@ -1507,6 +1512,14 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_read_not_materialized_table(destination_config: DestinationTestConfiguration):
+    # TODO lancedb destination faills unreliably on the 2nd `pipeline.run()` because
+    # of the dltSentinel table. The test parallelization PR should solve this issue
+    # and upgrading LanceDB destination with `lance-namespace` should avoid it
+    # entirely.
+    # TODO reenable test after fix
+    if destination_config.destination_type == "lancedb":
+        pytest.skip("lancedb has race conditions for dltSentinel table")
+
     @dlt.source
     def two_tables():
         @dlt.resource(

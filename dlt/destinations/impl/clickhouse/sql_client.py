@@ -32,6 +32,7 @@ from pendulum import DateTime  # noqa: I251
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.time import ensure_pendulum_datetime_non_utc, normalize_timezone
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import removeprefix
 
@@ -244,10 +245,13 @@ class ClickHouseSqlClient(
     @staticmethod
     def _sanitise_dbargs(db_args: DictStrAny) -> DictStrAny:
         """For ClickHouse OSS, the DBapi driver doesn't parse datetime types.
-        We remove timezone specifications in this case."""
+
+        Converts datetime values to naive UTC strings preserving microsecond precision.
+        """
         for key, value in db_args.items():
             if isinstance(value, (DateTime, datetime.datetime)):
-                db_args[key] = str(value.replace(microsecond=0, tzinfo=None))
+                value = ensure_pendulum_datetime_non_utc(value)
+                db_args[key] = str(normalize_timezone(value, timezone=False))
         return db_args
 
     def _prepare_query(

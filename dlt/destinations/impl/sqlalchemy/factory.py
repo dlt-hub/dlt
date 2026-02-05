@@ -165,6 +165,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         create_primary_keys: bool = False,
         destination_name: str = None,
         environment: str = None,
+        engine_kwargs: Dict[str, Any] = None,
         engine_args: Dict[str, Any] = None,
         **kwargs: Any,
     ) -> None:
@@ -179,7 +180,8 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
             create_primary_keys (bool, optional): Whether PRIMARY KEY constraints should be created. Defaults to False.
             destination_name (str, optional): The name of the destination. Defaults to None.
             environment (str, optional): The environment to use. Defaults to None.
-            engine_args (Dict[str, Any], optional): Additional arguments to pass to the SQLAlchemy engine. Defaults to None.
+            engine_kwargs (Dict[str, Any], optional): Additional keyword arguments passed to `sqlalchemy.create_engine`. Defaults to None.
+            engine_args (Dict[str, Any], optional): Deprecated. Use engine_kwargs instead. Defaults to None.
             **kwargs (Any): Additional arguments passed to the destination.
         """
         super().__init__(
@@ -188,6 +190,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
             create_primary_keys=create_primary_keys,
             destination_name=destination_name,
             environment=environment,
+            engine_kwargs=engine_kwargs,
             engine_args=engine_args,
             **kwargs,
         )

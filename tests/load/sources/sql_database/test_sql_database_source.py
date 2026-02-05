@@ -24,7 +24,10 @@ from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
 import dlt.sources.sql_database
-from tests.load.sources.sql_database.utils import assert_incremental_chunks
+from tests.load.sources.sql_database.utils import (
+    assert_extracted_uuids_are_strings,
+    assert_incremental_chunks,
+)
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
@@ -155,7 +158,7 @@ def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: Mocker
     in the schema object or serialized schema file.
     """
     from sqlalchemy.sql.elements import quoted_name
-    from tests.utils import TEST_STORAGE_ROOT
+    from tests.utils import get_test_storage_root
     from dlt.common.storages.file_storage import FileStorage
     import yaml
 
@@ -170,8 +173,8 @@ def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: Mocker
     assert "quoted_table" in fixed_yaml
 
     # Test within a dlt pipeline
-    import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
-    export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
+    import_schema_path = os.path.join(get_test_storage_root(), "schemas", "import")
+    export_schema_path = os.path.join(get_test_storage_root(), "schemas", "export")
 
     sql_table_spy = mocker.spy(dlt.sources.sql_database, "sql_table")
 
@@ -1472,6 +1475,170 @@ def test_query_adapter_callback(
     assert_row_counts(pipeline, postgres_db, ["chat_message"])
 
 
+def _get_uuid_type_params() -> List[Any]:
+    """Build parametrize values for UUID column types.
+
+    Always includes postgresql.UUID. Adds generic sa.Uuid on SA 2.0.
+    """
+    from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+
+    params = [pytest.param(PG_UUID(), id="pg_uuid")]
+    if hasattr(sa, "Uuid"):
+        params.append(pytest.param(sa.Uuid(), id="sa_uuid"))
+    return params
+
+
+@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy", "pandas"])
+@pytest.mark.parametrize("uuid_type", _get_uuid_type_params())
+def test_pg_uuid_data_type(
+    postgres_db: PostgresSourceDB,
+    backend: TableBackend,
+    uuid_type: sa.types.TypeEngine,
+) -> None:
+    """UUID as primary key must not create duplicates during merge due to casing mismatch.
+
+    Reproduces the user case from #3299: initial load followed by incremental merge with
+    both inserts and updates must not create duplicate rows.
+    Tests both postgresql.UUID and generic sa.Uuid (SA 2.0).
+    """
+    import uuid as uuid_mod
+    from datetime import datetime, timedelta
+
+    temp_table_name = "test_uuid_" + uniq_id()
+    temp_table = sa.Table(
+        temp_table_name,
+        postgres_db.metadata,
+        # UUID is the primary key — reproduces the #3299 merge scenario
+        sa.Column("guid", uuid_type, primary_key=True),
+        sa.Column("name", sa.Text),
+        sa.Column("updated_at", sa.DateTime, server_default=sa.func.now()),
+    )
+    temp_table.create(bind=postgres_db.engine)
+    try:
+        # insert initial rows with explicit timestamps
+        base_ts = datetime(2024, 1, 1)
+        initial_guids = [str(uuid_mod.uuid4()) for _ in range(5)]
+        with postgres_db.engine.begin() as conn:
+            for i, guid in enumerate(initial_guids):
+                conn.execute(
+                    temp_table.insert().values(
+                        guid=guid,
+                        name=f"user_{i}",
+                        updated_at=base_ts + timedelta(seconds=i),
+                    )
+                )
+
+        # reuse sql_table resource for both loads
+        # use a datetime object for initial_value so pyarrow can coerce it to timestamp
+        table = sql_table(
+            credentials=postgres_db.credentials,
+            table=temp_table_name,
+            schema=postgres_db.schema,
+            backend=backend,
+            reflection_level="full",
+            write_disposition="merge",
+            primary_key="guid",
+            incremental=dlt.sources.incremental("updated_at", initial_value=datetime(1999, 1, 1)),
+        )
+
+        # 1. initial full load with merge on UUID primary key
+        pipeline = make_pipeline("duckdb")
+        info = pipeline.run(table, loader_file_format="parquet")
+        assert_load_info(info)
+
+        # schema must map UUID to text
+        guid_col = pipeline.default_schema.tables[temp_table_name]["columns"]["guid"]
+        assert guid_col["data_type"] == "text"
+
+        rows_after_initial = load_tables_to_dicts(pipeline, temp_table_name)[temp_table_name]
+        assert len(rows_after_initial) == 5
+        for row in rows_after_initial:
+            uuid_mod.UUID(row["guid"])
+
+        # 2. update 2 existing rows AND insert 5 new rows, then incremental merge
+        # updated rows get new updated_at so they enter the incremental window
+        update_ts = base_ts + timedelta(hours=1)
+        with postgres_db.engine.begin() as conn:
+            for i, guid in enumerate(initial_guids[:2]):
+                conn.execute(
+                    temp_table.update()
+                    .where(temp_table.c.guid == guid)
+                    .values(name=f"updated_user_{i}", updated_at=update_ts + timedelta(seconds=i))
+                )
+            for i in range(5):
+                conn.execute(
+                    temp_table.insert().values(
+                        guid=str(uuid_mod.uuid4()),
+                        name=f"new_user_{i}",
+                        updated_at=update_ts + timedelta(seconds=10 + i),
+                    )
+                )
+
+        info = pipeline.run(table, loader_file_format="parquet")
+        assert_load_info(info)
+
+        rows_after_merge = load_tables_to_dicts(pipeline, temp_table_name)[temp_table_name]
+        # 5 initial + 5 new = 10 (updated rows merged, not duplicated)
+        assert len(rows_after_merge) == 10
+
+        # verify updated rows were merged correctly
+        merged = {row["guid"]: row for row in rows_after_merge}
+        for guid in initial_guids[:2]:
+            matches = [g for g in merged if g.lower() == guid.lower()]
+            assert len(matches) == 1, f"Expected 1 row for guid {guid}, got {len(matches)}"
+            assert merged[matches[0]]["name"].startswith("updated_user_")
+    finally:
+        temp_table.drop(bind=postgres_db.engine)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize("uuid_type", _get_uuid_type_params())
+def test_pg_uuid_yields_str(
+    postgres_db: PostgresSourceDB,
+    backend: TableBackend,
+    uuid_type: sa.types.TypeEngine,
+) -> None:
+    """The resource must yield UUID values as Python str, never uuid.UUID objects.
+
+    Tests both postgresql.UUID and generic sa.Uuid (SA 2.0).
+    """
+    import uuid as uuid_mod
+
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
+    temp_table_name = "test_uuid_str_" + uniq_id()
+    temp_table = sa.Table(
+        temp_table_name,
+        postgres_db.metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("guid", uuid_type),
+    )
+    temp_table.create(bind=postgres_db.engine)
+    try:
+        with postgres_db.engine.begin() as conn:
+            for i in range(5):
+                conn.execute(temp_table.insert().values(id=i, guid=str(uuid_mod.uuid4())))
+
+        table = sql_table(
+            credentials=postgres_db.credentials,
+            table=temp_table_name,
+            schema=postgres_db.schema,
+            backend=backend,
+            reflection_level="full",
+        )
+
+        all_uuids: List[str] = []
+        for item in table:
+            all_uuids.extend(assert_extracted_uuids_are_strings("guid", item))
+
+        assert len(all_uuids) == 5
+        for val in all_uuids:
+            uuid_mod.UUID(val)  # validates well-formed
+    finally:
+        temp_table.drop(bind=postgres_db.engine)
+
+
 def assert_row_counts(
     pipeline: dlt.Pipeline,
     postgres_db: PostgresSourceDB,
@@ -1503,13 +1670,13 @@ def assert_precision_columns(
         expected = remove_timestamp_precision(expected)
         actual = remove_dlt_columns(actual)
     elif backend == "pyarrow":
-        expected = add_default_decimal_precision(expected)
+        expected = add_default_arrow_decimal_precision(expected)
     elif backend == "pandas":
         expected = remove_timestamp_precision(expected, with_timestamps=False)
     elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
         del actual[0]["precision"]
-        expected = add_default_decimal_precision(expected, is_connectorx=True)
+        expected = add_default_arrow_decimal_precision(expected, is_connectorx=True)
     assert actual == expected
 
 
@@ -1527,7 +1694,7 @@ def assert_no_precision_columns(
         # always has nullability set and always has hints
         # default precision is not set
         expected = remove_default_precision(expected)
-        expected = add_default_decimal_precision(expected)
+        expected = add_default_arrow_decimal_precision(expected)
     elif backend == "sqlalchemy":
         # no precision, no nullability, all hints inferred
         expected = remove_default_precision(expected)
@@ -1595,13 +1762,13 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
             try:
                 assert_min_pkg_version(pkg_name="connectorx", version="0.4.4")
-                add_default_decimal_precision([column], is_connectorx=True)
+                add_default_arrow_decimal_precision([column], is_connectorx=True)
             except DependencyVersionException:
                 pass
     return columns
 
 
-def add_default_decimal_precision(
+def add_default_arrow_decimal_precision(
     columns: List[TColumnSchema], is_connectorx: bool = False
 ) -> List[TColumnSchema]:
     scale = 9 if not is_connectorx else 10

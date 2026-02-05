@@ -115,7 +115,7 @@ def init_command(
         sources_dir,
     )
     if is_dlthub_source and copied_files is not None and selected_ide:
-        from dlt._workspace.cli import DEFAULT_VIBE_SOURCES_REPO, DEFAULT_VERIFIED_SOURCES_REPO
+        from dlt._workspace.cli import DEFAULT_VERIFIED_SOURCES_REPO
         from dlt._workspace.cli._ai_command import ai_setup_command, vibe_source_setup
 
         fmt.echo()
@@ -128,10 +128,7 @@ def init_command(
         )
         fmt.echo()
         fmt.echo()
-        # swap default repo location
-        if repo_location == DEFAULT_VERIFIED_SOURCES_REPO:
-            repo_location = DEFAULT_VIBE_SOURCES_REPO
-        vibe_source_setup(display_source_name, repo_location, branch=branch)
+        vibe_source_setup(display_source_name)
 
     return copied_files, source_type
 

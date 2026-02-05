@@ -77,6 +77,7 @@ def test_load_arrow_item(
         "redshift",
         "databricks",
         "synapse",
+        "fabric",
         "clickhouse",
         "clickhouse_cluster",
     )

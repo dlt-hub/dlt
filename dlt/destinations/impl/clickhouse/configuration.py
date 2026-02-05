@@ -33,6 +33,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for establishing connection. Defaults to 15 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
+    s3_extra_credentials: Optional[Dict[str, str]] = None
+    """Arguments to pass to the `extra_credentials` function specifically for S3 function."""
 
     __query_params__: ClassVar[List[str]] = ["secure", "connect_timeout", "send_receive_timeout"]
 
@@ -43,6 +45,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "database",
         "username",
         "password",
+        "s3_extra_credentials",
     ]
 
     __session_settings__: ClassVar[Dict[str, Any]] = {

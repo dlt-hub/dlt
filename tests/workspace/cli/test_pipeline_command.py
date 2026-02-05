@@ -15,6 +15,7 @@ from tests.workspace.cli.utils import (
     auto_echo_default_choice,
     repo_dir,
     cloned_init_repo,
+    _cached_init_repo,
 )
 
 

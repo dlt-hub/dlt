@@ -22,7 +22,7 @@ from dlt.extract.hints import TResourceNestedHints, make_hints
 from dlt.extract.items_transform import ValidateItem
 
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
-from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
+from tests.utils import MockPipeline, clean_test_storage, get_test_storage_root
 from tests.extract.utils import expect_extracted_file
 
 NESTED_DATA = [
@@ -42,7 +42,9 @@ NESTED_DATA = [
 def extract_step() -> Extract:
     clean_test_storage(init_normalize=True)
     schema_storage = SchemaStorage(
-        SchemaStorageConfiguration(schema_volume_path=os.path.join(TEST_STORAGE_ROOT, "schemas")),
+        SchemaStorageConfiguration(
+            schema_volume_path=os.path.join(get_test_storage_root(), "schemas")
+        ),
         makedirs=True,
     )
     return Extract(schema_storage, NormalizeStorageConfiguration())

@@ -1,6 +1,10 @@
+from copy import deepcopy
+from decimal import Decimal
+from typing import Any, List
 import pytest
 
 from dlt.common.exceptions import DependencyVersionException
+from dlt.common.schema import TColumnSchema
 from dlt.common.utils import assert_min_pkg_version
 
 try:
@@ -9,8 +13,11 @@ except DependencyVersionException:
     pytest.skip("Tests require sql alchemy 2.0.0 or higher", allow_module_level=True)
 
 
+from tests.load.sources.sql_database.test_sql_database_source import (
+    add_default_arrow_decimal_precision,
+)
 from tests.load.sources.sql_database.utils import assert_incremental_chunks
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, assert_schema_on_data, load_tables_to_dicts
 
 import dlt
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -25,7 +32,7 @@ except Exception:
         "Oracle tests require sqlalchemy oracle dialect and driver", allow_module_level=True
     )
 
-pytestmark = pytest.mark.oracle
+pytestmark = [pytest.mark.oracle, pytest.mark.serial]
 
 
 def make_pipeline(destination_name: str) -> dlt.Pipeline:
@@ -94,3 +101,130 @@ def test_sql_table_incremental_datetime_ntz(
     pipeline = make_pipeline("duckdb")
     rc = oracle_db.table_infos["app_user"]["row_count"]
     assert_incremental_chunks(pipeline, table, "some_timestamp_ntz", timezone=False, row_count=rc)
+
+
+def _assert_decimal_columns(data: Any, backend: str) -> Any:
+    """Verify that Oracle NUMBER columns are returned as Python Decimal (not float).
+
+    This checks the raw data from the source before loading to confirm the
+    Oracle dialect listener is correctly setting asdecimal=True.
+    """
+    # Columns that should be Decimal (NUMBER types without BINARY_FLOAT/BINARY_DOUBLE)
+    decimal_columns = ["some_number", "some_number_precision", "some_number_precision_scale"]
+
+    if backend == "sqlalchemy":
+        # Data is a list of dicts
+        for col in decimal_columns:
+            value = data.get(col)
+            if value is not None:
+                assert isinstance(
+                    value, Decimal
+                ), f"Column {col} should be Decimal but got {type(value).__name__}: {value}"
+    else:
+        # For pyarrow/pandas backends, check the arrow/pandas types
+        import pyarrow as pa
+
+        if isinstance(data, pa.Table):
+            for col in decimal_columns:
+                if col in data.column_names:
+                    col_type = data.schema.field(col).type
+                    assert pa.types.is_decimal(
+                        col_type
+                    ), f"Column {col} should be decimal type but got {col_type}"
+        # pandas DataFrame case - check for object dtype (Decimal) or decimal128
+        elif hasattr(data, "dtypes"):  # pandas DataFrame
+            # panda frames are always double, do not use panda frames for decimal data!
+            pass
+
+    return data
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas"])
+@pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
+def test_numeric_types(
+    oracle_db: OracleSourceDB,
+    backend: TableBackend,
+    reflection_level: ReflectionLevel,
+) -> None:
+    expected_columns = deepcopy(NUMERIC_COLUMNS)
+    if backend == "pyarrow":
+        add_default_arrow_decimal_precision(expected_columns)
+
+    source = sql_database(
+        credentials=oracle_db.credentials,
+        schema=oracle_db.schema,
+        reflection_level=reflection_level,
+        backend=backend,
+        defer_table_reflect=True,
+        table_names=["app_user"],
+    )
+
+    # Add map to verify decimal types at extraction time
+    source.resources["app_user"].add_map(lambda data: _assert_decimal_columns(data, backend))
+
+    pipeline = make_pipeline("duckdb")
+    info = pipeline.run(source, loader_file_format="parquet")
+    assert_load_info(info)
+
+    schema = pipeline.default_schema
+    table = schema.tables["app_user"]
+    assert_schema_on_data(
+        table,
+        load_tables_to_dicts(pipeline, "app_user")["app_user"],
+        False,
+        True,
+    )
+
+    for expected_column in expected_columns:
+        assert expected_column["name"] in table["columns"]
+        actual_column = table["columns"][expected_column["name"]]
+        if reflection_level != "minimal":
+            assert actual_column["data_type"] == expected_column["data_type"]
+            if "precision" in expected_column:
+                assert actual_column["precision"] == expected_column["precision"]
+            else:
+                assert "precision" not in actual_column
+            if "scale" in expected_column:
+                assert actual_column["scale"] == expected_column["scale"]
+            else:
+                assert "scale" not in actual_column
+
+
+NUMERIC_COLUMNS: List[TColumnSchema] = [
+    {
+        "name": "some_number",
+        "nullable": True,
+        "data_type": "decimal",
+    },
+    {
+        "name": "some_number_precision",
+        "nullable": True,
+        "data_type": "decimal",
+        "precision": 10,
+        "scale": (
+            0
+        ),  # even though column is defined as NUMBER(N), it's inferred as NUMBER(N, 0) by SQLAlchemy2
+    },
+    {
+        "name": "some_number_precision_scale",
+        "nullable": True,
+        "data_type": "decimal",
+        "precision": 10,
+        "scale": 2,
+    },
+    {
+        "name": "some_float",
+        "nullable": True,
+        "data_type": "double",
+    },
+    {
+        "name": "some_binary_float",
+        "nullable": True,
+        "data_type": "double",
+    },
+    {
+        "name": "some_binary_double",
+        "nullable": True,
+        "data_type": "double",
+    },
+]

@@ -140,7 +140,7 @@ def clickhouse_adapter(
         partial_codec_columns: TTableSchemaColumns = {
             name: {"name": name, CODEC_HINT: codec} for name, codec in codecs.items()  # type: ignore[typeddict-unknown-key]
         }
-        columns = merge_columns(columns, partial_codec_columns, merge_columns=True)
+        columns = merge_columns(columns, partial_codec_columns)
 
     resource.apply_hints(columns=columns, additional_table_hints=additional_table_hints)
     return resource

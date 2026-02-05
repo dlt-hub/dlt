@@ -335,10 +335,23 @@ class Schema:
         partial_table: TPartialTableSchema,
         normalize_identifiers: bool = True,
         from_diff: bool = False,
+        merge_compound_props: bool = True,
     ) -> TPartialTableSchema:
-        """Adds or merges `partial_table` into the schema. Identifiers are normalized by default.
-        if `from_diff` is True, then `partial_table` is assumed to be a diff (contains only differences)
-        vs. table in schema. in that case diff will not be created but directly applied
+        """Adds or merges `partial_table` into the schema.
+
+        Args:
+            partial_table: Table schema to add or merge
+            normalize_identifiers: If True, normalizes identifiers using schema naming convention
+            from_diff: If True, `partial_table` is assumed to be a diff (contains only differences)
+                vs. table in schema. In that case diff will not be created but directly applied.
+            merge_compound_props: If False, compound properties (see `is_compound_prop()` in schema utils)
+                in partial_table replace rather than merge with those in existing table.
+
+        Returns:
+            The partial table that was applied (either the input or the generated diff)
+
+        Raises:
+            ParentTableNotFoundException: If parent table specified but not present in schema
         """
         parent_table_name = partial_table.get("parent")
         if normalize_identifiers:
@@ -362,10 +375,12 @@ class Schema:
             self._schema_tables[table_name] = partial_table
         else:
             if from_diff:
-                partial_table = utils.merge_diff(table, partial_table)
+                partial_table = utils.merge_diff(table, partial_table, merge_compound_props)
             else:
                 # merge tables performing additional checks
-                partial_table = utils.merge_table(self.name, table, partial_table)
+                partial_table = utils.merge_table(
+                    self.name, table, partial_table, merge_compound_props
+                )
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table
