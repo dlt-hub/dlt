@@ -131,6 +131,7 @@ _ColumnPropInfos = [
     TColumnPropInfo("root_key", (False, None)),
     TColumnPropInfo("hard_delete", (False, None)),
     TColumnPropInfo("dedup_sort", (False, None)),
+    TColumnPropInfo("incremental", (False, None), False, True),
     # any x- hint with special settings ie. defaults
     TColumnPropInfo("x-active-record-timestamp", (), is_hint=True),  # no default values
 ]

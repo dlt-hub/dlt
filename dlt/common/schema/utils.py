@@ -536,96 +536,6 @@ def merge_columns(
     return columns_a
 
 
-def diff_table(
-    schema_name: str,
-    tab_a: TTableSchema,
-    tab_b: TPartialTableSchema,
-    additive_compound_props: bool = True,
-    only_new = False
-) -> TPartialTableSchema:
-    """Computes the difference between `tab_a` and `tab_b`, returning what's new or changed in `tab_b`.
-
-    The returned partial table contains:
-    - New columns from `tab_b` that don't exist in `tab_a`
-    - Modified columns that exist in both but have different properties in `tab_b`
-    - Changed table properties (write_disposition, resource, etc.)
-
-    Args:
-        schema_name: Name of the schema for error messages
-        tab_a: Original table schema to compare against
-        tab_b: New/updated table schema with potential changes
-        additive_compound_props: Controls how the diff handles compound properties:
-            - True: Compound properties from `tab_b` are merged
-            with `tab_a`. Only new compound property assignments are included in the diff.
-            - False: Compound properties in `tab_b` represent
-            the complete/authoritative set. All compound property assignments from `tab_b`
-            are included in the diff, even if they already exist in `tab_a` with the same
-            values.
-
-    Returns:
-        Partial table schema containing only what's new or changed in `tab_b`.
-        Columns in the result are complete column schemas, not property-level diffs.
-
-    Raises:
-        SchemaException: When tables are incompatible (different names, different parents,
-            or columns with incompatible data types).
-
-    NOTE: This function does not validate data type compatibility. It computes differences permissively.
-    Validation happens later during normalization via `ensure_compatible_tables` with ensure_columns=True.
-    """
-    # allow for columns to differ
-    ensure_compatible_tables(schema_name, tab_a, tab_b, ensure_columns=False)
-
-    tab_a_prepared = deepcopy(tab_a)
-
-    if not additive_compound_props:
-        _collect_and_remove_compound_props(tab_b["columns"], tab_a_prepared["columns"])
-
-    # get new columns that are new or have changed properties
-    tab_a_columns_prepared = tab_a_prepared["columns"]
-    new_columns: List[TColumnSchema] = []
-    for col_b_name, col_b in tab_b["columns"].items():
-        if col_b_name in tab_a_columns_prepared:
-            if only_new is False:
-                col_a_prepared = tab_a_columns_prepared[col_b_name]
-                # merge col_b properties into a copy of col_a
-                merged_column = merge_column(copy(col_a_prepared), col_b)
-                # compare with the original column
-                if merged_column != tab_a["columns"][col_b_name]:
-                    new_columns.append(merged_column)
-        else:
-            new_columns.append(col_b)
-
-    # return partial table containing only name and properties that differ (column, filters etc.)
-    table_name = tab_a_prepared["name"]
-
-    partial_table: TPartialTableSchema = {
-        "name": table_name,
-        "columns": {} if new_columns is None else {c["name"]: c for c in new_columns},
-    }
-
-    new_references = diff_table_references(
-        tab_a_prepared.get("references", []), tab_b.get("references", [])
-    )
-    if new_references:
-        partial_table["references"] = new_references
-
-    for k, v in tab_b.items():
-        if k in ["columns", None]:
-            continue
-        existing_v = tab_a_prepared.get(k)
-        if existing_v != v:
-            partial_table[k] = v  # type: ignore
-
-    # nested tables with the resource property set - this should not really happen
-    if is_nested_table(tab_a_prepared) and (resource := tab_b.get("resource")):
-        raise TablePropertiesConflictException(
-            schema_name, table_name, "resource", resource, tab_a_prepared.get("parent")
-        )
-
-    return partial_table
-
-
 def ensure_compatible_tables(
     schema_name: str, tab_a: TTableSchema, tab_b: TPartialTableSchema, ensure_columns: bool = True
 ) -> None:
@@ -688,15 +598,67 @@ def merge_table(
     partial_table: TPartialTableSchema,
     merge_compound_props: bool = True,
 ) -> TPartialTableSchema:
-    """Merges `partial_table` into `table` in place. Returns the diff partial table.
+    """Merges `partial_table` into `table` in place.
 
-    `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`.
+    Merge rules:
+    - New columns from `partial_table` are added to `table`
+    - Existing columns are updated: properties from `partial_table` overwrite `table`
+    - Incomplete columns in `table` that become complete in `partial_table` are removed
+      and re-added at the end to preserve column order
+    - References are merged by `referenced_table`: new refs are added, existing refs
+      for the same table are updated
+    - Other table-level properties from `partial_table` overwrite those in `table`
+    - Nothing is deleted from `table` (columns, properties) unless explicitly overwritten
 
     Args:
-        merge_compound_props: If False, compound properties (see `is_compound_prop()`)
-            in partial_table replace rather than merge with those in table.
+        schema_name: Name of the schema, used for error messages.
+        table: Target table schema that will be modified in place.
+        partial_table: Source table schema with columns/properties to merge in.
+        merge_compound_props: If True (default), compound properties (primary_key,
+            merge_key, partition, cluster) from `partial_table` are merged additively
+            with those in `table`. If False, compound properties in `partial_table`
+            are authoritative: any compound property present in `table` but absent
+            in `partial_table` is removed.
+
+    Returns:
+        The `partial_table` argument (unmodified).
+
+    Raises:
+        TablePropertiesConflictException: If tables have different names, different
+            parents, or if a nested table has a resource property set.
     """
-    return merge_diff(table, diff_table(schema_name, table, partial_table), merge_compound_props)
+    ensure_compatible_tables(schema_name, table, partial_table, ensure_columns=False)
+
+    # nested tables with the resource property set - this should not really happen
+    if is_nested_table(table) and (resource := partial_table.get("resource")):
+        raise TablePropertiesConflictException(
+            schema_name, table["name"], "resource", resource, table.get("parent")
+        )
+
+    updated_columns = merge_columns(
+        table["columns"], partial_table["columns"], merge_compound_props
+    )
+
+    # merge references: add new/changed refs from partial_table to table
+    if "references" in partial_table:
+        new_refs = diff_table_references(
+            table.get("references", []), partial_table.get("references", [])
+        )
+        if new_refs:
+            existing_refs = {ref["referenced_table"]: ref for ref in table.get("references", [])}
+            for ref in new_refs:
+                existing_refs[ref["referenced_table"]] = ref
+            table["references"] = list(existing_refs.values())
+
+    # apply table-level hints that are new or changed (skip columns, references, unchanged values)
+    for k, v in partial_table.items():
+        if k in ("columns", "references"):
+            continue
+        if table.get(k) != v:
+            table[k] = v  # type: ignore[literal-required]
+    table["columns"] = updated_columns
+
+    return partial_table
 
 
 def merge_diff(
@@ -713,20 +675,6 @@ def merge_diff(
         merge_compound_props: If False, compound properties (see `is_compound_prop()`)
             in partial_table replace rather than merge with those in table.
     """
-
-    # TODO: add prop merging strategy to ColumnPropInfo: incremental is a single prop and replaces old one
-    #   so this exception is no longer needed
-    incremental_a_col = get_first_column_name_with_prop(
-        table, "incremental", include_incomplete=True
-    )
-    if incremental_a_col:
-        incremental_b_col = get_first_column_name_with_prop(
-            table_diff, "incremental", include_incomplete=True
-        )
-        if incremental_b_col:
-            table["columns"][incremental_a_col].pop("incremental")
-
-    # add new columns when all checks passed
     updated_columns = merge_columns(table["columns"], table_diff["columns"], merge_compound_props)
     table.update(table_diff)
     table["columns"] = updated_columns

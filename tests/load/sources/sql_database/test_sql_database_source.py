@@ -1445,9 +1445,7 @@ def test_sql_table_excluded_columns_freeze_then_full(
     assert_load_info(load_info)
     schema_cols = {
         col
-        for col in pipeline.default_schema.get_table_columns(
-            "app_user", include_incomplete=True
-        )
+        for col in pipeline.default_schema.get_table_columns("app_user", include_incomplete=True)
         if not col.startswith("_dlt_")
     }
     assert "empty_col" not in schema_cols
@@ -1463,9 +1461,7 @@ def test_sql_table_excluded_columns_freeze_then_full(
     table.apply_hints(schema_contract={"columns": "freeze"})
     with pytest.raises(PipelineStepFailed) as py_exc:
         pipeline.run(table)
-    assert isinstance(
-        py_exc.value.__context__, (DataValidationError, ResourceExtractionError)
-    )
+    assert isinstance(py_exc.value.__context__, (DataValidationError, ResourceExtractionError))
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

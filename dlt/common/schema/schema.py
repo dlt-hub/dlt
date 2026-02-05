@@ -21,6 +21,7 @@ from dlt.common.typing import (
     StrAny,
     REPattern,
     TDataItem,
+    get_type_hints,
 )
 from dlt.common.normalizers import TNormalizersConfig, NamingConvention
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
@@ -51,6 +52,7 @@ from dlt.common.schema.typing import (
     TTypeDetections,
     TSchemaContractDict,
     TSchemaContract,
+    TColumnType,
 )
 from dlt.common.schema.exceptions import (
     InvalidSchemaName,
@@ -240,7 +242,7 @@ class Schema:
         # partial table below contains new columns and existing columns with property changes
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
         # properties from TColumnType that are checked under data_type contract
-        data_type_props = ("data_type", "nullable", "precision", "scale", "timezone")
+        data_type_props = get_type_hints(TColumnType)
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
             if is_dlt_table_or_column(column_name, self._dlt_tables_prefix):
@@ -279,7 +281,7 @@ class Schema:
             has_type_change = False
             if not is_new_column and not is_variant and existing_col:
                 for prop in data_type_props:
-                    if prop in column and column[prop] != existing_col.get(prop):
+                    if prop in column and column[prop] != existing_col.get(prop):  # type: ignore[literal-required]
                         has_type_change = True
                         break
 

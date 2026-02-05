@@ -278,7 +278,9 @@ def test_check_adding_new_columns(base_settings) -> None:
     # column contract modes should NOT block property changes on existing complete columns
     for mode in ("freeze", "discard_row", "discard_value"):
         partial, filters = schema.apply_schema_contract(
-            cast(TSchemaContractDict, {**base_settings, **{"columns": mode, "data_type": "evolve"}}),
+            cast(
+                TSchemaContractDict, {**base_settings, **{"columns": mode, "data_type": "evolve"}}
+            ),
             copy.deepcopy(table_update),
         )
         assert (partial, filters) == (table_update, [])
@@ -359,9 +361,7 @@ def test_check_column_type_property_change() -> None:
     # non-type hints (e.g. primary_key) should NOT be blocked by data_type contract
     hint_update: TTableSchema = {
         "name": "tables",
-        "columns": {
-            "column_1": {"name": "column_1", "data_type": "text", "primary_key": True}
-        },
+        "columns": {"column_1": {"name": "column_1", "data_type": "text", "primary_key": True}},
     }
     partial, filters = schema.apply_schema_contract(
         cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
