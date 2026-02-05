@@ -2,6 +2,7 @@ import os
 import time
 import pytest
 from typing import cast
+from unittest.mock import patch
 
 import dlt
 from dlt.destinations.adapters import clickhouse_cluster_adapter
@@ -11,6 +12,7 @@ from dlt.destinations.impl.clickhouse.typing import TTableEngineType
 from dlt.destinations.impl.clickhouse_cluster.configuration import (
     DEFAULT_DISTRIBUTED_TABLE_SUFFIX,
     ClickHouseClusterClientConfiguration,
+    ClickHouseClusterCredentials,
 )
 from dlt.destinations.impl.clickhouse_cluster.sql_client import ClickHouseClusterSqlClient
 from dlt.extract import decorators
@@ -39,6 +41,18 @@ def get_row_cnt(ds: dlt.Dataset, qualified_table_name: str) -> int:
     return ds.query(f"SELECT COUNT(*) FROM {qualified_table_name}").fetchone()[0]
 
 
+# patch ClickHouseClusterCredentials to remove insert_quorum setting this test, because we intentionally
+# shut down nodes and insert_quorum = 'auto' would prevent inserts when a node is down (cluster has
+# only two nodes, so quorum cannot be achieved when one is down)
+@patch.object(
+    ClickHouseClusterCredentials,
+    "__session_settings__",
+    {
+        k: v
+        for k, v in ClickHouseClusterCredentials.__session_settings__.items()
+        if k != "insert_quorum"
+    },
+)
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, cid="clickhouse-cluster-default"),
