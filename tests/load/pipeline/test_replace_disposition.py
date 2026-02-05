@@ -461,13 +461,14 @@ def test_replace_sql_queries(
 def test_snowflake_atomic_swap_replace(
     destination_config: DestinationTestConfiguration,
     mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that Snowflake atomic swap works when enabled via configuration."""
     from dlt.destinations.sql_jobs import SqlStagingFollowupJob, SqlStagingReplaceFollowupJob
     from dlt.destinations.impl.snowflake.snowflake import SnowflakeStagingReplaceJob
 
-    os.environ["DESTINATION__REPLACE_STRATEGY"] = "staging-optimized"
-    os.environ["DESTINATION__SNOWFLAKE__ENABLE_ATOMIC_SWAP"] = "true"
+    monkeypatch.setenv("DESTINATION__REPLACE_STRATEGY", "staging-optimized")
+    monkeypatch.setenv("DESTINATION__SNOWFLAKE__ENABLE_ATOMIC_SWAP", "true")
 
     clone_sql_generator_spy = mocker.spy(SqlStagingReplaceFollowupJob, "_generate_clone_sql")
     insert_sql_generator_spy = mocker.spy(SqlStagingFollowupJob, "_generate_insert_sql")
@@ -487,3 +488,7 @@ def test_snowflake_atomic_swap_replace(
     assert snowflake_swap_spy.call_count == 1
     assert clone_sql_generator_spy.call_count == 0
     assert insert_sql_generator_spy.call_count == 0
+
+    for sql in snowflake_swap_spy.return_value:
+        assert "ALTER TABLE" in sql
+        assert "SWAP WITH" in sql
