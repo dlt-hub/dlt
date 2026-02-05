@@ -733,6 +733,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="clickhouse_cluster",
+                cid="clickhouse-cluster-az-staging",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,

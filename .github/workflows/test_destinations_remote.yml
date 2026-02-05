@@ -162,9 +162,9 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra snowflake --extra s3 --extra gs --extra az --extra parquet"
 
-            # ClickHouse Cluster (cid: clickhouse-cluster-s3-staging)
-            # NOTE: although the clickhouse cluster is local, we can't include this cid in
-            # `test_destinations_local.yml`, because it uses s3 staging
+            # ClickHouse Cluster (cids: clickhouse-cluster-s3-staging and clickhouse-cluster-az-staging)
+            # NOTE: although the clickhouse cluster is local, we can't include these cids in
+            # `test_destinations_local.yml`, because they require s3/az credentials
             - name: clickhouse cluster s3 staging
               destinations: "[\"clickhouse_cluster\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
