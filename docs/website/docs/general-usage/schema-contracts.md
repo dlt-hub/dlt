@@ -22,7 +22,7 @@ This resource will allow new tables (both nested tables and [tables with dynamic
 You can control the following **schema entities**:
 * `tables` - the contract is applied when a new table is created
 * `columns` - the contract is applied when a new column is created on an existing table
-* `data_type` - the contract is applied when data cannot be coerced into a data type associated with an existing column.
+* `data_type` - the contract is applied when a data type property of an existing column changes. This includes variant columns (where data cannot be coerced into the existing type) as well as explicit changes to `data_type`, `nullable`, `precision`, `scale`, or `timezone` on a column that is already complete.
 
 You can use **contract modes** to tell `dlt` how to apply the contract for a particular entity:
 * `evolve`: No constraints on schema changes.
@@ -105,54 +105,42 @@ Pydantic models work on the **extracted** data **before names are normalized or 
 As a consequence, `discard_row` will drop the whole data item - even if a nested model was affected.
 :::
 
-### Resource-defined columns and schema contracts
+### Authoritative Pydantic models
 
-Columns explicitly defined on a resource — via the `columns` argument (as a dict, a list of column schemas, or a Pydantic model) — are considered the **source of truth** for that resource's schema. These columns are always merged into the schema, regardless of the `columns` contract mode. The `columns` contract only applies to columns that are **inferred from data** (e.g. from an Arrow table schema or during normalization).
-
-This means you can explicitly change a resource's column definitions (add new fields to a Pydantic model, add entries to a columns dict) without worrying about schema contracts blocking those changes. For example:
+By default, columns derived from a Pydantic model are subject to schema contract checks just like any other columns. If you want the model to be treated as the **authoritative source of truth** — so its columns bypass `columns` and `data_type` contract enforcement — set `x_authoritative_model` in `DltConfig`:
 
 ```py
+from typing import ClassVar
+
 from pydantic import BaseModel
+
+from dlt.common.libs.pydantic import DltConfig
 
 
 class MyModel(BaseModel):
+    dlt_config: ClassVar[DltConfig] = {"x_authoritative_model": True}
+
     class Config:
         extra = "forbid"
 
     id: int
     name: str
-
-
-@dlt.resource(columns=MyModel)
-def my_resource():
-    yield {"id": 1, "name": "alice"}
 ```
 
-If you later add an `email` field to `MyModel`, the new column will be accepted on existing tables even though `extra=forbid` maps to `columns=freeze`. The `freeze` contract will still reject any extra fields in the **data** that are not defined in the model.
+With `x_authoritative_model=True`, if you later add an `email` field to `MyModel`, the new column will be accepted on existing tables even though `extra=forbid` maps to `columns=freeze`. The `freeze` contract will still reject any extra fields in the **data** that are not defined in the model.
 
-The same applies when using a columns dict or when loading Arrow tables and pandas frames. For Arrow data, columns defined on the resource are merged directly into the schema, while columns inferred from the Arrow table schema are subject to the `columns` contract. For example:
-
-```py
-@dlt.resource(
-    columns={"id": {"data_type": "bigint"}, "name": {"data_type": "text"}},
-    schema_contract={"columns": "freeze"},
-)
-def my_arrow_resource():
-    ...
-```
-
-Adding a new entry to the `columns` dict will always be accepted. However, if the Arrow data contains a column not present in the resource definition, the `freeze` contract will raise an exception.
+Without `x_authoritative_model` (the default), adding a new field to the model while `columns=freeze` is active will raise a `DataValidationError` — the same as adding a column from any other data source.
 
 :::tip
-If your goal is to maintain strict data validation (`extra=forbid`) while allowing your model to evolve, you do not need to set `schema_contract={"columns": "evolve"}`. Simply update your Pydantic model — `dlt` will accept the new columns automatically. Setting `columns=evolve` would override `extra=forbid`, allowing unknown fields through validation.
+If your goal is to maintain strict data validation (`extra=forbid`) while allowing your model to evolve freely, set `x_authoritative_model=True`. Without it, you would need to set `schema_contract={"columns": "evolve"}`, which would also override `extra=forbid` and allow unknown fields through validation.
 :::
 
 ### Set contracts on Arrow tables and Pandas
 
 All contract settings apply to [Arrow tables and pandas frames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
 1. **tables** mode is the same - no matter what the data item type is.
-2. **columns** contract applies only to columns inferred from the Arrow/pandas schema. Columns [defined on the resource](#resource-defined-columns-and-schema-contracts) are always accepted. For data-inferred columns, the contract will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
-3. **data_type** changes to data types in tables/frames are not allowed and will result in a data type schema clash. We could allow for more modes (evolving data types in Arrow tables sounds weird but ping us on Slack if you need it.)
+2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
+3. **data_type** applies to variant columns and to changes in type properties (`data_type`, `nullable`, `precision`, `scale`, `timezone`) on existing complete columns. The contract will raise an exception, discard the column, or discard the row depending on the mode.
 
 Here's how `dlt` deals with column modes:
 1. **evolve** new columns are allowed (the table may be reordered to put them at the end).
@@ -204,7 +192,7 @@ blocks:
 ```
 
 Tables that are not considered new:
-1. Those with columns defined by Pydantic models.
+1. Those that already exist in the schema with at least one complete column (a column with a `data_type`).
 
 ### Working with datasets that have manually added tables and columns on the first load
 

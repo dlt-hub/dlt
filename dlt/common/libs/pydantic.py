@@ -83,11 +83,18 @@ class DltConfig(TypedDict, total=False):
             If True, the Pydantic validator returns validated Pydantic model instances
             instead of converting them to dictionaries during extraction/transform steps.
             Defaults to False to preserve current behavior.
+
+        x_authoritative_model:
+            If True, the Pydantic model is treated as the authoritative source of table
+            schema. Columns derived from the model are pre-merged into the schema before
+            contract checks, so they bypass column/data_type contract enforcement.
+            Defaults to False.
     """
 
     skip_nested_types: bool
     skip_complex_types: bool  # deprecated
     return_validated_models: bool
+    x_authoritative_model: bool
 
 
 def pydantic_to_table_schema_columns(

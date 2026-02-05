@@ -9,7 +9,12 @@ except ModuleNotFoundError:
     PydanticBaseModel = Any  # type: ignore[misc, assignment]
 
 from dlt.common.typing import TDataItems
-from dlt.common.schema.typing import TAnySchemaColumns, TSchemaContract, TSchemaEvolutionMode
+from dlt.common.schema.typing import (
+    TAnySchemaColumns,
+    TSchemaContract,
+    TSchemaEvolutionMode,
+    TTableSchema,
+)
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.items_transform import BaseItemTransform, ValidateItem
 
@@ -31,6 +36,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         BaseItemTransform.__init__(self)
         self.column_mode: TSchemaEvolutionMode = column_mode
         self.data_mode: TSchemaEvolutionMode = data_mode
+        self.original_model = model
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)
         self.list_model = create_list_model(self.model, data_mode)
 
@@ -62,6 +68,20 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
             return validated
 
         return validated.dict(by_alias=True)
+
+    def compute_table_schema(self, item: Any = None, meta: Any = None) -> Optional[TTableSchema]:
+        """Computes authoritative table schema from the original Pydantic model.
+
+        Only returns a schema when x_authoritative_model is set in DltConfig.
+        """
+        cfg = getattr(self.original_model, "dlt_config", None) or {}
+        if not cfg.get("x_authoritative_model", False):
+            return None
+
+        from dlt.common.libs.pydantic import pydantic_to_table_schema_columns
+
+        columns = pydantic_to_table_schema_columns(self.original_model)
+        return {"name": self.table_name, "columns": columns}
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
         return f"PydanticValidator(model={self.model.__qualname__})"

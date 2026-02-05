@@ -263,22 +263,23 @@ def test_new_tables_without_columns(
 def test_new_tables_with_columns(
     contract_setting: TSchemaEvolutionMode, setting_location: str, item_format: TestDataItemFormat
 ) -> None:
-    """Explicitly defined table is never considered "new table" and is always allowed to be added
-    to schema
-
-    When a resource defines columns explicitly (e.g. from a Pydantic model or columns= parameter),
-    hint_tables carry complete column definitions. The extractor will add this table to schema with
-    all its columns
+    """Tables defined with explicit columns= dict (not pydantic) are still subject to the
+    `tables` contract. They behave like tables without columns for the purpose of new table
+    checks — only `evolve` allows the new table through.
     """
     pipeline = get_pipeline()
 
     full_settings = {setting_location: {"tables": contract_setting}}
 
-    # test adding new table with explicit (complete) column definitions
-    # this table is considered explicit
-    run_resource(pipeline, new_items_with_columns, full_settings, item_format)
+    # load items
+    run_resource(pipeline, items, {}, item_format)
+
+    # load other table
+    with raises_step_exception(contract_setting == "freeze"):
+        run_resource(pipeline, new_items_with_columns, full_settings, item_format)
     table_counts = load_table_counts(pipeline)
-    assert table_counts.get(NEW_ITEMS_TABLE, 0) == 10
+    # only evolve allows new table, other modes discard
+    assert table_counts.get(NEW_ITEMS_TABLE, 0) == (10 if contract_setting == "evolve" else 0)
     pipeline.drop_pending_packages()
 
 
@@ -1000,61 +1001,6 @@ def test_coerce_null_value_in_column_created_as_compound_columns() -> None:
 
 
 @pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])
-def test_resource_columns_dict_evolve_on_existing_table(
-    contract_setting: TSchemaEvolutionMode,
-) -> None:
-    """Resource-defined columns (via columns= dict) are the user's explicit schema definition.
-    They should be accepted on existing tables regardless of the columns contract mode.
-    Only data-inferred columns should be subject to contract enforcement."""
-    pipeline = get_pipeline()
-
-    # run 1: create table with columns v1
-    columns_v1: Dict[str, TColumnSchema] = {
-        "id": {"name": "id", "data_type": "bigint"},
-        "name": {"name": "name", "data_type": "text"},
-    }
-
-    @dlt.resource(
-        name="items",
-        columns=columns_v1,
-        schema_contract=TSchemaContractDict(columns=contract_setting),
-    )
-    def get_items_v1():
-        yield [{"id": 1, "name": "alice"}]
-
-    info = pipeline.run(get_items_v1())
-    assert_load_info(info)
-    table = pipeline.default_schema.get_table("items")
-    assert "id" in table["columns"]
-    assert "name" in table["columns"]
-
-    # run 2: resource definition adds a new column
-    columns_v2: Dict[str, TColumnSchema] = {
-        "id": {"name": "id", "data_type": "bigint"},
-        "name": {"name": "name", "data_type": "text"},
-        "email": {"name": "email", "data_type": "text"},
-    }
-
-    @dlt.resource(
-        name="items",
-        columns=columns_v2,
-        schema_contract=TSchemaContractDict(columns=contract_setting),
-    )
-    def get_items_v2():
-        yield [{"id": 2, "name": "bob", "email": "bob@test.com"}]
-
-    # resource-defined columns should be accepted even though contract != evolve
-    info = pipeline.run(get_items_v2())
-    assert_load_info(info)
-    table = pipeline.default_schema.get_table("items")
-    assert (
-        "email" in table["columns"]
-    ), f"column 'email' from resource definition should be accepted with {contract_setting}"
-    table_counts = load_table_counts(pipeline)
-    assert table_counts["items"] == 2
-
-
-@pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])
 def test_resource_columns_dict_change_on_existing_table(
     contract_setting: TSchemaEvolutionMode,
 ) -> None:
@@ -1104,16 +1050,25 @@ def test_resource_columns_dict_change_on_existing_table(
 
 
 @pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])
-def test_pydantic_model_evolve_on_existing_table(contract_setting: TSchemaEvolutionMode) -> None:
-    """When a pydantic model evolves (new field added), the new column from the model
-    should be accepted on existing tables regardless of the columns contract mode."""
-    from typing import Optional
+@pytest.mark.parametrize("authoritative", [True, False])
+def test_pydantic_model_evolve_on_existing_table(
+    contract_setting: TSchemaEvolutionMode, authoritative: bool
+) -> None:
+    """With x_authoritative_model=True, new columns from an evolved pydantic model bypass
+    contract checks. Without it, they are subject to contract enforcement."""
+    from typing import ClassVar, Optional
 
     from pydantic import BaseModel
 
+    from dlt.common.libs.pydantic import DltConfig
+
     pipeline = get_pipeline()
 
+    dlt_cfg: DltConfig = {"x_authoritative_model": True} if authoritative else {}
+
     class ItemsV1(BaseModel):
+        dlt_config: ClassVar[DltConfig] = dlt_cfg
+
         id: int  # noqa: A003
         name: str
 
@@ -1127,12 +1082,11 @@ def test_pydantic_model_evolve_on_existing_table(contract_setting: TSchemaEvolut
 
     info = pipeline.run(get_items_v1())
     assert_load_info(info)
-    table = pipeline.default_schema.get_table("items")
-    assert "id" in table["columns"]
-    assert "name" in table["columns"]
 
-    # run 2: model adds a new nullable field (nullable so DuckDB can add it)
+    # run 2: model adds a new nullable field
     class ItemsV2(BaseModel):
+        dlt_config: ClassVar[DltConfig] = dlt_cfg
+
         id: int  # noqa: A003
         name: str
         email: Optional[str] = None
@@ -1145,29 +1099,42 @@ def test_pydantic_model_evolve_on_existing_table(contract_setting: TSchemaEvolut
     def get_items_v2():
         yield [{"id": 2, "name": "bob", "email": "bob@test.com"}]
 
-    info = pipeline.run(get_items_v2())
-    assert_load_info(info)
-    table = pipeline.default_schema.get_table("items")
-    assert (
-        "email" in table["columns"]
-    ), f"column 'email' from pydantic model should be accepted with {contract_setting}"
-    table_counts = load_table_counts(pipeline)
-    assert table_counts["items"] == 2
+    if authoritative:
+        # authoritative model bypasses contract — new column always accepted
+        info = pipeline.run(get_items_v2())
+        assert_load_info(info)
+        table = pipeline.default_schema.get_table("items")
+        assert "email" in table["columns"]
+        assert load_table_counts(pipeline)["items"] == 2
+    elif contract_setting == "freeze":
+        with raises_step_exception():
+            pipeline.run(get_items_v2())
+    else:
+        info = pipeline.run(get_items_v2())
+        assert_load_info(info)
+        table = pipeline.default_schema.get_table("items")
+        # contract blocks the new column
+        assert "email" not in table["columns"]
 
 
 @pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])
 def test_pydantic_model_forbid_extra_evolve_on_existing_table(
     contract_setting: TSchemaEvolutionMode,
 ) -> None:
-    """Pydantic model with extra=forbid and no explicit schema_contract: the contract
-    is derived from extra (freeze). Model evolution should still be accepted."""
-    from typing import Optional
+    """Pydantic model with extra=forbid and x_authoritative_model=True: the contract
+    is derived from extra (freeze). Model evolution should still be accepted because
+    the model is authoritative."""
+    from typing import ClassVar, Optional
 
     from pydantic import BaseModel
+
+    from dlt.common.libs.pydantic import DltConfig
 
     pipeline = get_pipeline()
 
     class ItemsV1(BaseModel):
+        dlt_config: ClassVar[DltConfig] = {"x_authoritative_model": True}
+
         class Config:
             extra = "forbid"
 
@@ -1182,8 +1149,9 @@ def test_pydantic_model_forbid_extra_evolve_on_existing_table(
     info = pipeline.run(get_items_v1())
     assert_load_info(info)
 
-    # run 2: model adds a new nullable field (nullable so DuckDB can add it)
     class ItemsV2(BaseModel):
+        dlt_config: ClassVar[DltConfig] = {"x_authoritative_model": True}
+
         class Config:
             extra = "forbid"
 
@@ -1201,8 +1169,7 @@ def test_pydantic_model_forbid_extra_evolve_on_existing_table(
     assert (
         "email" in table["columns"]
     ), "column 'email' from evolved pydantic model should be accepted"
-    table_counts = load_table_counts(pipeline)
-    assert table_counts["items"] == 2
+    assert load_table_counts(pipeline)["items"] == 2
 
 
 @pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])
@@ -1242,77 +1209,3 @@ def test_arrow_data_new_column_blocked_by_contract(contract_setting: TSchemaEvol
         assert (
             "email" not in table["columns"]
         ), f"arrow-data column 'email' should be blocked by {contract_setting}"
-
-
-@pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])
-def test_arrow_resource_columns_accepted_data_columns_blocked(
-    contract_setting: TSchemaEvolutionMode,
-) -> None:
-    """When an arrow resource has explicit columns= hint, those columns should be merged
-    into the schema regardless of contract. But extra columns in the arrow data that
-    are NOT in the resource definition should still be gated by the contract."""
-    import pyarrow as pa
-
-    pipeline = get_pipeline()
-
-    # run 1: create table with explicit columns and matching arrow data
-    columns_def: Dict[str, TColumnSchema] = {
-        "id": {"name": "id", "data_type": "bigint"},
-        "name": {"name": "name", "data_type": "text"},
-    }
-    table_v1 = pa.table({"id": pa.array([1], type=pa.int64()), "name": ["alice"]})
-
-    @dlt.resource(
-        name="items",
-        columns=columns_def,
-        schema_contract=TSchemaContractDict(columns=contract_setting),
-    )
-    def get_items_v1():
-        yield table_v1
-
-    info = pipeline.run(get_items_v1())
-    assert_load_info(info)
-    schema_table = pipeline.default_schema.get_table("items")
-    assert "id" in schema_table["columns"]
-    assert "name" in schema_table["columns"]
-
-    # run 2: resource definition adds "email" column, but arrow data also has
-    # an extra column "extra_data" not in the resource definition
-    columns_v2: Dict[str, TColumnSchema] = {
-        "id": {"name": "id", "data_type": "bigint"},
-        "name": {"name": "name", "data_type": "text"},
-        "email": {"name": "email", "data_type": "text"},
-    }
-    table_v2 = pa.table(
-        {
-            "id": pa.array([2], type=pa.int64()),
-            "name": ["bob"],
-            "email": ["bob@test.com"],
-            "extra_data": ["unexpected"],
-        }
-    )
-
-    @dlt.resource(
-        name="items",
-        columns=columns_v2,
-        schema_contract=TSchemaContractDict(columns=contract_setting),
-    )
-    def get_items_v2():
-        yield table_v2
-
-    if contract_setting == "freeze":
-        # freeze should block the arrow-only column "extra_data"
-        with raises_step_exception():
-            pipeline.run(get_items_v2())
-    else:
-        info = pipeline.run(get_items_v2())
-        assert_load_info(info)
-        schema_table = pipeline.default_schema.get_table("items")
-        # resource-defined "email" should be accepted
-        assert (
-            "email" in schema_table["columns"]
-        ), "resource-defined column 'email' should be accepted"
-        # arrow-only "extra_data" should be blocked
-        assert (
-            "extra_data" not in schema_table["columns"]
-        ), f"arrow-data column 'extra_data' should be blocked by {contract_setting}"
