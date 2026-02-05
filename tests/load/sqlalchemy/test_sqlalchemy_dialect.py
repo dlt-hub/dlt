@@ -5,7 +5,7 @@ for all dialects that had hardcoded behavior, type mapper visitor pattern,
 table adapter, error handler, and backward compat with type_mapper= param.
 """
 
-from typing import Optional, Type
+from typing import Optional, Set, Type
 from unittest.mock import patch
 
 import pytest
@@ -14,9 +14,12 @@ import dlt
 import sqlalchemy as sa
 from sqlalchemy.sql import sqltypes
 
+from dlt.common import json
+from dlt.common.data_types.typing import DATA_TYPES, TDataType
 from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
+from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.dialect import (
     DialectCapabilities,
     MysqlDialectCapabilities,
@@ -45,9 +48,6 @@ from tests.load.utils import (
 pytestmark = pytest.mark.essential
 
 
-# -- registry tests --
-
-
 def test_register_and_lookup() -> None:
     """Custom capabilities can be registered and looked up."""
 
@@ -74,13 +74,6 @@ def test_builtin_dialects_registered() -> None:
     """Dialects with custom behavior are pre-registered at import time."""
     for name in ("mysql", "mariadb", "trino", "mssql", "oracle"):
         assert get_dialect_capabilities(name) is not None, f"{name} not registered"
-
-
-# -- backward compat: factory-level adjust_capabilities --
-# These tests verify that the registry-based system produces identical
-# capabilities to the old hardcoded if/elif chains for every dialect
-# that had custom behavior. Each test creates a destination via the factory
-# and inspects the resulting capabilities.
 
 
 def test_factory_caps_mysql() -> None:
@@ -167,9 +160,6 @@ def test_factory_caps_always_sets_dialect_capabilities() -> None:
         assert isinstance(caps.dialect_capabilities, DialectCapabilities)
 
 
-# -- trino: tested via DialectCapabilities class directly (driver not available) --
-
-
 def test_trino_dialect_caps() -> None:
     """TrinoDialectCapabilities matches the old hardcoded Trino behavior."""
     dc = TrinoDialectCapabilities("trino")
@@ -185,9 +175,6 @@ def test_trino_dialect_caps() -> None:
 
     # type mapper
     assert issubclass(dc.type_mapper_class(), TrinoVariantTypeMapper)
-
-
-# -- oracle: factory test on SA 2.0+, direct class test on SA 1.x --
 
 
 def test_factory_caps_oracle() -> None:
@@ -222,9 +209,6 @@ def test_oracle_dialect_caps() -> None:
     assert dc.is_undefined_relation(Exception("relation does not exist")) is True
     # unrelated error returns None
     assert dc.is_undefined_relation(Exception("syntax error")) is None
-
-
-# -- sqlglot_dialect mapping --
 
 
 def test_sqlglot_dialect_explicit_mappings() -> None:
@@ -264,9 +248,6 @@ def test_sqlglot_dialect_identity_fallback() -> None:
         assert dc.sqlglot_dialect == backend, f"{backend} identity mismatch"
 
 
-# -- type mapper visitor pattern --
-
-
 def test_type_mapper_visitor_dispatch() -> None:
     """to_destination_type dispatches to per-type visitor methods."""
     caps = DestinationCapabilitiesContext.generic_capabilities()
@@ -285,11 +266,57 @@ def test_type_mapper_visitor_dispatch() -> None:
     assert isinstance(mapper.to_destination_type(col_date), sa.Date)
 
 
+def test_type_mapper_visitor_covers_all_data_types() -> None:
+    """Visitor interface is complete: every dlt data type has a db_type_from_*_type method
+    and every such method is actually called by the dispatcher."""
+    # discover all visitor methods on the base class
+    visitor_methods = {
+        name for name in dir(SqlalchemyTypeMapper) if name.startswith("db_type_from_")
+    }
+    # derive which data types they cover: db_type_from_text_type -> text
+    covered_types = {
+        name.removeprefix("db_type_from_").removesuffix("_type") for name in visitor_methods
+    }
+
+    assert covered_types == DATA_TYPES, (
+        "visitor methods don't match DATA_TYPES.\n"
+        f"  missing visitors: {DATA_TYPES - covered_types}\n"  # type: ignore[operator]
+        f"  extra visitors: {covered_types - DATA_TYPES}"
+    )
+
+    # build a synthetic subclass that overrides every visitor and records calls
+    called = set()
+    overrides = {}
+    for method_name in visitor_methods:
+
+        def make_override(name: str):
+            def override(self, column, table=None):
+                called.add(name)
+                return sa.String()
+
+            return override
+
+        overrides[method_name] = make_override(method_name)
+
+    SyntheticMapper = type("SyntheticMapper", (SqlalchemyTypeMapper,), overrides)
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    mapper = SyntheticMapper(caps)
+
+    for dt in DATA_TYPES:
+        col: TColumnSchema = {"name": "c", "data_type": dt}
+        result = mapper.to_destination_type(col)
+        assert isinstance(result, sa.String), f"override for {dt} was not dispatched"
+
+    assert (
+        called == visitor_methods
+    ), f"not all overrides were called.\n  uncalled: {visitor_methods - called}"
+
+
 def test_type_mapper_visitor_single_override() -> None:
     """Subclass can override a single visitor method without reimplementing to_destination_type."""
 
     class MyMapper(SqlalchemyTypeMapper):
-        def _db_type_from_json_type(
+        def db_type_from_json_type(
             self, column: TColumnSchema, table: PreparedTableSchema
         ) -> sqltypes.TypeEngine:
             return sa.String(length=999)
@@ -328,9 +355,6 @@ def test_type_mapper_full_override_backward_compat() -> None:
     assert isinstance(mapper.to_destination_type(col_text), (sa.Text, sa.String))
 
 
-# -- custom adjust_capabilities --
-
-
 def test_custom_adjust_capabilities() -> None:
     """Custom dialect capabilities adjusts caps correctly."""
 
@@ -348,9 +372,6 @@ def test_custom_adjust_capabilities() -> None:
     my_caps.adjust_capabilities(caps, sa.engine.default.DefaultDialect())
     assert caps.max_identifier_length == 42
     assert caps.max_column_identifier_length == 42
-
-
-# -- is_undefined_relation hook --
 
 
 def _make_client_with_dialect_caps(
@@ -444,9 +465,6 @@ def test_base_dialect_caps_generic_patterns() -> None:
     assert dc.is_undefined_relation(Exception("syntax error near SELECT")) is None
 
 
-# -- adapt_table --
-
-
 def test_adapt_table_callback() -> None:
     """adapt_table can modify the table object before it is returned."""
 
@@ -466,9 +484,6 @@ def test_adapt_table_callback() -> None:
     }
     result = TagCaps().adapt_table(tbl, schema_table)
     assert result.info.get("adapted") is True
-
-
-# integration tests with pipeline
 
 
 def _get_backend_name(destination_config: DestinationTestConfiguration) -> str:
@@ -492,9 +507,7 @@ def test_custom_dialect_capabilities_with_pipeline(
 ) -> None:
     """Full integration: register custom capabilities that override a single type,
     run a pipeline, and verify data is loaded correctly."""
-    from dlt.common import json
 
-    # a custom type mapper that stores json as string
     class CustomJsonString(sa.TypeDecorator):
         impl = sa.String
         cache_ok = True
@@ -510,7 +523,7 @@ def test_custom_dialect_capabilities_with_pipeline(
             return json.loads(value)
 
     class TestMapper(SqlalchemyTypeMapper):
-        def _db_type_from_json_type(self, column, table=None):
+        def db_type_from_json_type(self, column, table=None):
             return CustomJsonString(length=512)
 
     backend = _get_backend_name(destination_config)
@@ -573,8 +586,6 @@ def test_type_mapper_param_overrides_dialect_caps(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Backward compat: passing type_mapper= directly still overrides dialect capabilities."""
-    from dlt.common import json
-    from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 
     class CustomJsonStr(sa.TypeDecorator):
         impl = sa.String
@@ -587,10 +598,9 @@ def test_type_mapper_param_overrides_dialect_caps(
             return json.loads(value) if value is not None else None
 
     class DirectMapper(SqlalchemyTypeMapper):
-        def _db_type_from_json_type(self, column, table=None):
+        def db_type_from_json_type(self, column, table=None):
             return CustomJsonStr(length=256)
 
-    # pass type_mapper directly -- this should override whatever dialect capabilities set
     dest_ = dlt.destinations.sqlalchemy(
         credentials=destination_config.credentials, type_mapper=DirectMapper  # type: ignore[arg-type]
     )
