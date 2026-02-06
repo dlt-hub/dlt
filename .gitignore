@@ -21,7 +21,8 @@ secrets.toml
 *.wal
 logs/
 .continuerules
-.continue
+.continue/*
+!.continue/agents/
 # playwright dumps
 test-results/
 # temporary directory used by marimo for layout, caching, HTML snapshots; see marimo docs
