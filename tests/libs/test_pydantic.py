@@ -3,10 +3,10 @@ from copy import copy
 from dataclasses import dataclass, field
 import uuid
 import pytest
+from unittest import mock
 from typing import (
     ClassVar,
     Final,
-    Generic,
     Literal,
     Sequence,
     Mapping,
@@ -21,12 +21,12 @@ from typing import (
 )
 from typing_extensions import Annotated, get_args, get_origin
 from enum import Enum
-
 from datetime import datetime, date, time  # noqa: I251
+
 from dlt.common import Decimal
 from dlt.common import json
 from dlt.common.schema.typing import TColumnType
-
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.libs.pydantic import (
     DltConfig,
     _build_discriminator_map,
@@ -48,7 +48,7 @@ from pydantic import (
     ValidationError,
 )
 
-from dlt.common.schema.exceptions import DataValidationError
+from dlt.extract.validation import create_item_validator
 
 
 class StrEnum(str, Enum):
@@ -1113,3 +1113,30 @@ def test_apply_contract_root_model_discriminator_preserved() -> None:
     assert purchase.model_dump() == {"kind": "purchase", "id": 2, "amount": 9.99}
     with pytest.raises(ValidationError):
         mutated.model_validate({"kind": "unknown", "id": 3})
+
+
+def test_extra_schema_contract_conflict_warning() -> None:
+    """Warns when model extra contradicts schema_contract columns setting."""
+
+    class ForbidModel(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        x: int
+
+    # conflict: model says forbid (freeze) but contract says evolve
+    with mock.patch("dlt.extract.validation.logger.warning") as warn_mock:
+        create_item_validator(ForbidModel, "evolve")
+    assert warn_mock.called
+    assert "extra='forbid'" in warn_mock.call_args[0][0]
+
+    # no conflict: model says forbid (freeze) and contract also says freeze
+    with mock.patch("dlt.extract.validation.logger.warning") as warn_mock:
+        create_item_validator(ForbidModel, "freeze")
+    assert not warn_mock.called
+
+    # no warning when model has no explicit extra
+    class PlainModel(BaseModel):
+        x: int
+
+    with mock.patch("dlt.extract.validation.logger.warning") as warn_mock:
+        create_item_validator(PlainModel, "freeze")
+    assert not warn_mock.called
