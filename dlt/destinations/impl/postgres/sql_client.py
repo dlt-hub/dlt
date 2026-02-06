@@ -104,13 +104,13 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
             try:
                 curr.execute(query, db_args)
                 yield DBApiCursorImpl(curr)
-            except psycopg2.Error as outer:
+            except psycopg2.Error:
                 try:
                     self._reset_connection()
                 except psycopg2.Error:
                     self.close_connection()
                     self.open_connection()
-                raise outer
+                raise
 
     def execute_fragments(
         self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any

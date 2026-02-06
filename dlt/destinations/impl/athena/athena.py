@@ -306,7 +306,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             manager.process_lf_tags_database()
         except Exception as e:
             logger.error(f"Failed to manage lakeformation tags: {e}")
-            raise e
+            raise
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
