@@ -22,6 +22,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
+from dlt.common.libs.sqlglot import filter_select_column_names
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
 from dlt.extract.hints import HintsMeta, TResourceHints
@@ -318,9 +319,35 @@ class ObjectExtractor(Extractor):
 
 
 class ModelExtractor(Extractor):
-    """Extracts text items and writes them row by row into a text file"""
+    """Extracts model items (SQL Relations) with data_type contract enforcement."""
 
-    pass
+    def _compute_and_update_tables(
+        self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
+    ) -> TDataItems:
+        items = super()._compute_and_update_tables(resource, root_table_name, items, meta)
+        return self._apply_contract_filters(items, root_table_name)
+
+    def _apply_contract_filters(self, items: TDataItems, table_name: str) -> TDataItems:
+        """Apply data_type contract filters to model items (Relations)."""
+        filtered_columns = self._filtered_columns.get(table_name)
+        if not filtered_columns:
+            return items
+
+        if any(mode == "discard_row" for mode in filtered_columns.values()):
+            return items.limit(0)  # type: ignore[union-attr]
+
+        discard_value_cols = {
+            name for name, mode in filtered_columns.items() if mode == "discard_value"
+        }
+        if discard_value_cols:
+            selects = items.sqlglot_expression.selects  # type: ignore[union-attr]
+            remaining = filter_select_column_names(
+                selects, discard_value_cols, self.naming.normalize_identifier
+            )
+            if len(remaining) < len(selects):
+                items = items.select(*remaining)  # type: ignore[union-attr]
+
+        return items
 
 
 class ArrowExtractor(Extractor):
