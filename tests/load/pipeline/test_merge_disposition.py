@@ -1,4 +1,5 @@
 from copy import copy
+import os
 import pytest
 import random
 from typing import List, cast
@@ -1586,6 +1587,54 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     )
     with pytest.raises(PipelineStepFailed):
         info = p.run(r(), **destination_config.run_kwargs)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_dedup_sort_hint_case_sensitive(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test that dedup_sort column names are properly escaped in merge SQL.
+
+    Reproduces https://github.com/dlt-hub/dlt/issues/3529 where unescaped
+    dedup_sort column names cause failures with case-sensitive naming
+    conventions on destinations that casefold unquoted identifiers.
+    """
+    # use direct naming to preserve mixed case in column names
+    os.environ["SCHEMA__NAMING"] = "direct"
+
+    table_name = "test_dedup_sort_cs"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition="merge",
+        primary_key="id",
+        columns={"Sequence": {"dedup_sort": "desc", "nullable": False}},
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("dedup_sort_cs", dev_mode=True)
+
+    # three records with same primary key
+    data = [
+        {"id": 1, "val": "foo", "Sequence": 1},
+        {"id": 1, "val": "baz", "Sequence": 3},
+        {"id": 1, "val": "bar", "Sequence": 2},
+    ]
+    info = p.run(data_resource(data), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 1
+
+    # record with highest value in sort column is inserted (because "desc")
+    result = load_tables_to_dicts(p, table_name, exclude_system_cols=True)
+    assert_records_as_set(
+        result[table_name],
+        [{"id": 1, "val": "baz", "Sequence": 3}],
+    )
 
 
 @pytest.mark.no_load

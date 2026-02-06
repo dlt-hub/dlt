@@ -1,4 +1,5 @@
 from __future__ import annotations as _annotations
+import collections.abc
 from copy import copy
 from typing import (
     Dict,
@@ -54,6 +55,14 @@ _TPydanticModel = TypeVar("_TPydanticModel", bound=BaseModel)
 
 
 snake_case_naming_convention = SnakeCaseNamingConvention()
+
+
+def _is_set_origin(origin: type) -> bool:
+    """Check if a type origin is set-like (set or frozenset)."""
+    try:
+        return issubclass(origin, collections.abc.Set)
+    except TypeError:
+        return False
 
 
 class ListModel(BaseModel, Generic[_TPydanticModel]):
@@ -171,7 +180,6 @@ def pydantic_to_table_schema_columns(
 
     Args:
         model: The pydantic model to convert. Can be a class or an instance.
-
 
     Returns:
         TTableSchemaColumns: table schema columns dict
@@ -300,6 +308,7 @@ def apply_schema_contract_to_model(
     model: Type[_TPydanticModel],
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode = "freeze",
+    _child_models: Optional[Dict[int, Type[BaseModel]]] = None,
 ) -> Type[_TPydanticModel]:
     """Configures or re-creates `model` so it behaves according to `column_mode` and `data_mode` settings.
 
@@ -308,6 +317,9 @@ def apply_schema_contract_to_model(
 
     `discard_row` is implemented in `validate_item`.
     """
+    # save dlt_config before model may be replaced by the evolve path
+    original_dlt_config = getattr(model, "dlt_config", None)
+
     if data_mode == "evolve":
         # create a lenient model that accepts any data
         if getattr(model, "__pydantic_root_model__", False):
@@ -329,27 +341,46 @@ def apply_schema_contract_to_model(
     extra = column_mode_to_extra(column_mode)
 
     if extra == (get_extra_from_model(model) or "ignore"):
-        # no need to change the model
+        # no need to change the model, but restore dlt_config lost by the evolve path
+        if original_dlt_config:
+            model.dlt_config = original_dlt_config  # type: ignore[attr-defined]
         return model
 
     config = copy(model.model_config)
     config["extra"] = extra  # type: ignore[typeddict-item]
 
-    _child_models: Dict[int, Type[BaseModel]] = {}
+    if _child_models is None:
+        _child_models = {}
 
     def _process_annotation(t_: Type[Any]) -> Type[Any]:
         """Recursively recreates models with applied schema contract"""
         if is_annotated(t_):
             a_t, *a_m = get_args(t_)
             return Annotated[_process_annotation(a_t), tuple(a_m)]  # type: ignore[return-value]
+        origin = get_origin(t_)
+        # tuple must be checked before is_list_generic_type (tuple is a Sequence)
+        if origin is tuple:
+            args = get_args(t_)
+            if not args:
+                return t_
+            if len(args) == 2 and args[1] is Ellipsis:
+                # variable-length: Tuple[T, ...]
+                return origin[_process_annotation(args[0]), ...]  # type: ignore[no-any-return]
+            # heterogeneous: Tuple[T1, T2, ...]
+            processed = tuple(_process_annotation(a) for a in args)
+            return origin[processed]  # type: ignore[no-any-return]
         elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
-            return get_origin(t_)[_process_annotation(l_t)]  # type: ignore[no-any-return]
+            return origin[_process_annotation(l_t)]  # type: ignore[no-any-return]
         elif is_dict_generic_type(t_):
             k_t: Type[Any]
             v_t: Type[Any]
             k_t, v_t = get_args(t_)
-            return get_origin(t_)[k_t, _process_annotation(v_t)]  # type: ignore[no-any-return]
+            return origin[k_t, _process_annotation(v_t)]  # type: ignore[no-any-return]
+        # set/frozenset are not Sequence or Mapping so need a separate check
+        elif origin is not None and _is_set_origin(origin):
+            s_t: Type[Any] = get_args(t_)[0]
+            return origin[_process_annotation(s_t)]  # type: ignore[no-any-return]
         elif is_union_type(t_):
             u_t_s = tuple(_process_annotation(u_t) for u_t in extract_union_types(t_))
             return Union[u_t_s]  # type: ignore[return-value]
@@ -359,7 +390,7 @@ def apply_schema_contract_to_model(
                 return _child_models[id(t_)]
             else:
                 _child_models[id(t_)] = child_model = apply_schema_contract_to_model(
-                    t_, column_mode, data_mode
+                    t_, column_mode, data_mode, _child_models=_child_models
                 )
                 return child_model
         return t_
@@ -381,23 +412,30 @@ def apply_schema_contract_to_model(
                 (PydanticRootModel[processed_ann],),  # type: ignore[valid-type]
                 {"__module__": model.__module__},
             )
-            dlt_config = getattr(model, "dlt_config", None)
-            if dlt_config:
-                new_rm.dlt_config = dlt_config  # type: ignore[attr-defined]
+            if original_dlt_config:
+                new_rm.dlt_config = original_dlt_config  # type: ignore[attr-defined]
             return new_rm
 
+    processed_fields = {
+        n: (_process_annotation(_rebuild_annotated(f)), f)
+        for n, f in model.model_fields.items()
+    }
+
+    # use __base__ to inherit validators (@field_validator, @model_validator)
     new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
         model.__name__ + "Extra" + extra.title(),
-        __config__=config,
-        **{
-            n: (_process_annotation(_rebuild_annotated(f)), f)
-            for n, f in model.model_fields.items()
-        },
+        __base__=model,
+        **processed_fields,
     )
-    # pass dlt config along
-    dlt_config = getattr(model, "dlt_config", None)
-    if dlt_config:
-        new_model.dlt_config = dlt_config  # type: ignore[attr-defined]
+    # override config on the subclass and rebuild to pick up the new extra setting
+    new_model.model_config = config
+    new_model.model_rebuild(force=True)
+
+    # restore dlt_config: the evolve path replaces model with a bare "Any" model that
+    # lacks dlt_config. For the non-evolve path __base__ inheritance preserves it,
+    # but setting it explicitly is harmless and keeps both paths consistent.
+    if original_dlt_config:
+        new_model.dlt_config = original_dlt_config  # type: ignore[attr-defined]
     return new_model
 
 

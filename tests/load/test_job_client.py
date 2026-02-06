@@ -1143,7 +1143,7 @@ def test_many_schemas_single_dataset(
     ids=lambda x: x.name,
 )
 def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("schema_test", dev_mode=True)
+    p = destination_config.setup_pipeline("schema_test" + uniq_id(), dev_mode=True)
     from dlt.common.schema import utils
 
     # we create 2 versions of 2 schemas

@@ -94,7 +94,7 @@ Note that this works in two directions. If you use a model with such a setting e
 `discard_row` requires additional handling when a ValidationError is raised.
 
 :::tip
-Model validation is added as a [transform step](resource.md#filter-transform-and-pivot-data) to the resource. This step will convert the incoming data items into instances of validating models. You could easily convert them back to dictionaries by using `add_map(lambda item: item.dict())` on a resource.
+Model validation is added as a [transform step](resource.md#filter-transform-and-pivot-data) to the resource. This step will convert the incoming data items into instances of validating models. You could easily convert them back to dictionaries by using `add_map(lambda item: item.model_dump())` on a resource.
 
 Alternatively, you can configure your Pydantic model to return validated model instances instead of dictionaries using the `DltConfig` options. See [Pydantic model configuration](resource.md#define-a-schema-with-pydantic) for available options like `skip_nested_types` and `return_validated_models`.
 :::

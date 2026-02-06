@@ -23,14 +23,22 @@ jobs:
         include:
 
           # Duckdb, Postgres, Filesystem, Weaviate, Qdrant (could be split?)
-          - name: filesystem, weaviate, qdrant
-            destinations: "[\"filesystem\", \"weaviate\", \"qdrant\"]"
+          - name: filesystem, weaviate
+            destinations: "[\"filesystem\", \"weaviate\"]"
             filesystem_drivers: "[\"memory\", \"file\", \"sftp\"]"
-            extras: "--extra parquet --extra cli --extra filesystem --extra qdrant --extra weaviate --extra deltalake --extra pyiceberg --extra sftp"
+            extras: "--extra parquet --extra cli --extra filesystem --extra weaviate --extra deltalake --extra pyiceberg --extra sftp"
             needs_weaviate: true
-            needs_qdrant: true
             needs_ftp: true
             post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
+          # Qdrant runs test serially, concurrency is problematic
+          - name: qdrant
+            destinations: "[\"qdrant\"]"
+            filesystem_drivers: "[\"memory\", \"file\", \"sftp\"]"
+            extras: "--extra parquet --extra cli --extra qdrant --extra sftp"
+            needs_qdrant: true
+            needs_ftp: true
+            pytest_xdist_n: 1
 
           # TODO: also test ducklake in remote mode with a buckets and remote postgres
           - name: postgres, duckdb, ducklake, and dummy
@@ -186,10 +194,10 @@ jobs:
         if: ${{ matrix.post_install_commands }}
 
       # always run full suite, also on branches
-      - name: Run tests (limiting xdist workers to 4 since local postgres cant handle more)
+      - name: Run destination load tests
         run: make test-dest-load
         env:
-          PYTEST_XDIST_N: 4
+          PYTEST_XDIST_N: ${{ matrix.pytest_xdist_n || 4 }}
 
       #
       # Tear down services 
