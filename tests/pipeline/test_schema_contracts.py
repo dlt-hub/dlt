@@ -11,8 +11,10 @@ from dlt.common.schema.typing import (
 from dlt.common.utils import uniq_id
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.typing import TDataItems
+from dlt.extract.hints import make_hints
 
 from dlt.extract import DltResource
+from dlt.load.exceptions import LoadClientJobException
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.extract.exceptions import ResourceExtractionError
@@ -1439,3 +1441,161 @@ def test_discriminated_union_column_contracts(column_mode: TSchemaEvolutionMode)
         counts = load_table_counts(pipeline, "click_events", "purchase_events")
         assert counts["click_events"] == 1
         assert counts["purchase_events"] == 1
+
+
+@pytest.mark.parametrize("tables_contract", ["freeze", "evolve"])
+def test_model_data_contract_on_tables(tables_contract: str) -> None:
+    pipeline = get_pipeline()
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+    )
+    dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    @dlt.resource(schema_contract={"tables": tables_contract})  # type: ignore
+    def copied_table() -> Any:
+        rel = dataset["example_table"][["a", "b", "_dlt_id"]].limit(5)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=example_table_columns))
+
+    if tables_contract == "evolve":
+        info = pipeline.run([copied_table()], loader_file_format="model")
+        assert_load_info(info)
+    else:
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()], loader_file_format="model")
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+        assert py_exc.value.__context__.schema_entity == "tables"
+        assert py_exc.value.__context__.contract_mode == "freeze"
+        assert py_exc.value.__context__.table_name == "copied_table"
+
+
+@pytest.mark.parametrize("columns_contract", ["freeze", "evolve", "discard_row", "discard_value"])
+def test_model_data_contract_on_columns(columns_contract: str) -> None:
+    pipeline = get_pipeline()
+    pipeline.run([{"a": i} for i in range(10)], table_name="copied_table")
+    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    @dlt.resource(schema_contract={"columns": columns_contract})  # type: ignore
+    def copied_table() -> Any:
+        rel = dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(5)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=example_table_columns))
+
+    if columns_contract == "evolve":
+        info = pipeline.run([copied_table()], loader_file_format="model")
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table", "example_table") == {
+            "copied_table": 15,
+            "example_table": 10,
+        }
+        result_items = dataset["copied_table"].df()["b"].tolist()
+        assert result_items[-5:] == [1, 2, 3, 4, 5]
+
+    elif columns_contract == "freeze":
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()], loader_file_format="model")
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+        assert py_exc.value.__context__.schema_entity == "columns"
+        assert py_exc.value.__context__.contract_mode == "freeze"
+        assert py_exc.value.__context__.table_name == "copied_table"
+
+    elif columns_contract == "discard_row":
+        info = pipeline.run([copied_table()], loader_file_format="model")
+        assert_load_info(info)
+        # the entire Relation item is discarded because it introduces column "b"
+        assert load_table_counts(pipeline, "copied_table", "example_table") == {
+            "copied_table": 10,
+            "example_table": 10,
+        }
+        assert "b" not in pipeline.default_schema.tables["copied_table"]["columns"]
+
+    elif columns_contract == "discard_value":
+        info = pipeline.run([copied_table()], loader_file_format="model")
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table", "example_table") == {
+            "copied_table": 15,
+            "example_table": 10,
+        }
+        assert "b" not in pipeline.default_schema.tables["copied_table"]["columns"]
+        result_items = dataset["copied_table"].df()["a"].tolist()
+        assert result_items[:10] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+@pytest.mark.parametrize("data_type_contract", ["freeze", "evolve", "discard_row", "discard_value"])
+def test_model_data_contract_on_data_type(data_type_contract: str) -> None:
+    pipeline = get_pipeline()
+    pipeline.run([{"a": i} for i in range(10)], table_name="copied_table")
+    pipeline.run(
+        [{"a": string, "b": i} for i, string in enumerate(["I", "love", "dlt"])],
+        table_name="example_table",
+    )
+    dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+    copied_table_columns = dataset.schema.tables["copied_table"]["columns"]
+
+    assert copied_table_columns["a"]["data_type"] == "bigint"
+    assert example_table_columns["a"]["data_type"] == "text"
+
+    @dlt.resource(schema_contract={"data_type": data_type_contract}, table_name="copied_table")  # type: ignore
+    def copied_table() -> Any:
+        rel = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]]
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
+        )
+
+    if data_type_contract == "freeze":
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()], loader_file_format="model")
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+    elif data_type_contract == "discard_row":
+        info = pipeline.run([copied_table()], loader_file_format="model")
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table") == {"copied_table": 10}
+    elif data_type_contract == "discard_value":
+        info = pipeline.run([copied_table()], loader_file_format="model")
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table") == {"copied_table": 13}
+        result = dataset["copied_table"].df()
+        new_rows = result[result["_dlt_load_id"] == info.loads_ids[0]]
+        assert new_rows["a"].isna().all()
+    elif data_type_contract == "evolve":
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()], loader_file_format="model")
+        assert py_exc.value.step == "load"
+        assert isinstance(py_exc.value.__context__, LoadClientJobException)
+
+
+@pytest.mark.parametrize("columns_contract", ["freeze", "discard_value"])
+def test_model_pydantic_contract(columns_contract: str) -> None:
+    """Pydantic model + contract enforcement on model/SQL resource."""
+    from pydantic import BaseModel
+
+    class CopiedRow(BaseModel):
+        a: int
+
+    pipeline = get_pipeline()
+    pipeline.run([{"a": i} for i in range(10)], table_name="copied_table")
+    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    @dlt.resource(columns=CopiedRow, schema_contract={"columns": columns_contract})  # type: ignore[call-overload]
+    def copied_table() -> Any:
+        rel = dataset["example_table"][["a", "b", "_dlt_load_id", "_dlt_id"]].limit(5)
+        yield dlt.mark.with_hints(rel, hints=make_hints(columns=example_table_columns))
+
+    if columns_contract == "freeze":
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()], loader_file_format="model")
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+    else:
+        info = pipeline.run([copied_table()], loader_file_format="model")
+        assert_load_info(info)
+        assert "b" not in pipeline.default_schema.tables["copied_table"]["columns"]

@@ -15,6 +15,11 @@ from dlt.common.storages import (
     SchemaStorageConfiguration,
     NormalizeStorageConfiguration,
 )
+from dlt.common.libs.pandas import pandas
+from dlt.common.libs.pydantic import ValidationError, BaseModel
+
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
+from dlt.extract.validation import PydanticValidator
 from dlt.extract import DltSource
 from dlt.extract.extract import Extract
 
@@ -167,3 +172,38 @@ def test_arrow_columns_with_special_chars_normalized(extract_step: Extract) -> N
     assert "col2" in col_names
     assert "col^New" not in col_names
     assert len(col_names) == 2
+
+
+def test_pydantic_validator_passes_through_non_object_items() -> None:
+    """Arrow tables, pandas DataFrames, and Relations skip pydantic validation."""
+
+    class SimpleModel(BaseModel):
+        a: int
+        b: str
+
+    validator = PydanticValidator(SimpleModel, column_mode="freeze", data_mode="freeze")
+    validator.table_name = "test_table"
+
+    # arrow table passes through
+    arrow_table = pa.table({"a": [1, 2], "b": ["x", "y"]})
+    assert validator(arrow_table) is arrow_table
+
+    # arrow record batch passes through
+    batch = arrow_table.to_batches()[0]
+    assert validator(batch) is batch
+
+    # pandas dataframe passes through
+    df = pandas.DataFrame({"a": [1, 2], "b": ["x", "y"]})
+    assert validator(df) is df
+
+    # Relation passes through
+    class FakeRelation(ReadableDBAPIRelation):
+        def __init__(self) -> None:
+            pass
+
+    rel = FakeRelation()
+    assert validator(rel) is rel
+
+    # unknown non-dict object raises the original pydantic ValidationError
+    with pytest.raises(ValidationError, match="model_type"):
+        validator(42)
