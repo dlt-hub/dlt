@@ -454,7 +454,7 @@ def test_item_list_validation() -> None:
 
     # non validating items removed from the list (both extra and declared)
     discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
-    discard_list_model = create_list_model(discard_model)
+    discard_list_model = create_list_model(discard_model, "discard_row", "discard_row")
     # violate data type
     items = validate_and_filter_items(
         "items",
@@ -481,7 +481,7 @@ def test_item_list_validation() -> None:
 
     # freeze on non validating items (both extra and declared)
     freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    freeze_list_model = create_list_model(freeze_model)
+    freeze_list_model = create_list_model(freeze_model, "freeze", "freeze")
     # violate data type
     with pytest.raises(DataValidationError) as val_ex:
         validate_and_filter_items(
@@ -517,7 +517,7 @@ def test_item_list_validation() -> None:
 
     # discard values
     discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
-    discard_list_model = create_list_model(discard_value_model)
+    discard_list_model = create_list_model(discard_value_model, "discard_value", "freeze")
     # violate extra field
     items = validate_and_filter_items(
         "items",
@@ -535,7 +535,7 @@ def test_item_list_validation() -> None:
 
     # evolve data types and extras
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
-    evolve_list_model = create_list_model(evolve_model)
+    evolve_list_model = create_list_model(evolve_model, "evolve", "evolve")
     # for data types a lenient model will be created that accepts any type
     items = validate_and_filter_items(
         "items",
@@ -561,7 +561,7 @@ def test_item_list_validation() -> None:
 
     # accept new types but discard new columns
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
-    mixed_list_model = create_list_model(mixed_model)
+    mixed_list_model = create_list_model(mixed_model, "discard_row", "evolve")
     # for data types a lenient model will be created that accepts any type
     items = validate_and_filter_items(
         "items",
@@ -1153,8 +1153,6 @@ def test_extra_schema_contract_conflict_warning() -> None:
     assert not warn_mock.called
 
 
-# --- Group 1: Helper function unit tests ---
-
 
 def test_column_mode_to_extra() -> None:
     """All TSchemaEvolutionMode values map to the correct pydantic extra setting."""
@@ -1187,9 +1185,6 @@ def test_get_extra_from_model() -> None:
         x: int = 0
 
     assert get_extra_from_model(ForbidModel) == "forbid"
-
-
-# --- Group 2: Synthesized model structure ---
 
 
 def test_synthesized_any_model_has_any_types() -> None:
@@ -1271,9 +1266,6 @@ def test_synthesized_model_is_subclass_of_original() -> None:
     # then wraps it — so the final model is NOT a subclass of the original
     any_model = apply_schema_contract_to_model(Original, "freeze", "evolve")
     assert not issubclass(any_model, Original)
-
-
-# --- Group 3: Nested model transformation ---
 
 
 def test_nested_model_config_propagation_validates_data() -> None:
@@ -1420,9 +1412,6 @@ def test_nested_model_discard_row_on_nested_violation() -> None:
     assert result is None
 
 
-# --- Group 4: Validation happy paths and edge cases ---
-
-
 def test_validate_item_happy_path() -> None:
     """Valid single item returns a proper model instance."""
 
@@ -1447,7 +1436,7 @@ def test_validate_items_happy_path() -> None:
         x: int
 
     model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    list_model = create_list_model(model)
+    list_model = create_list_model(model, "freeze", "freeze")
     items = [{"x": 1}, {"x": 2}, {"x": 3}]
     result = validate_and_filter_items("test_table", list_model, items, "freeze", "freeze")
     assert len(result) == 3
@@ -1462,7 +1451,7 @@ def test_validate_items_empty_list() -> None:
         x: int
 
     model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    list_model = create_list_model(model)
+    list_model = create_list_model(model, "freeze", "freeze")
     result = validate_and_filter_items("test_table", list_model, [], "freeze", "freeze")
     assert result == []
 
@@ -1494,7 +1483,7 @@ def test_validate_items_unsupported_modes() -> None:
         b: bool
 
     freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    list_model = create_list_model(freeze_model)
+    list_model = create_list_model(freeze_model, "freeze", "freeze")
 
     # extra_forbidden error with unsupported column_mode
     with pytest.raises(NotImplementedError, match="column_mode"):
@@ -1517,7 +1506,73 @@ def test_validate_items_unsupported_modes() -> None:
         )
 
 
-# --- Group 5: Schema generation edge cases ---
+def test_validate_items_does_not_mutate_input() -> None:
+    """Input list must not be modified by validate_and_filter_items."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    list_model = create_list_model(model, "discard_row", "discard_row")
+
+    original_items = [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}]
+    items_copy = list(original_items)
+    result = validate_and_filter_items("test", list_model, original_items, "discard_row", "discard_row")
+    assert len(result) == 2
+    assert original_items == items_copy
+
+
+def test_validate_items_all_invalid_discard_row() -> None:
+    """When all items are invalid with discard_row, return empty list."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    list_model = create_list_model(model, "discard_row", "discard_row")
+
+    result = validate_and_filter_items(
+        "test", list_model, [{"b": 2}, {"b": 3}], "discard_row", "discard_row"
+    )
+    assert result == []
+
+
+def test_validate_items_last_item_invalid_discard_row() -> None:
+    """When only the last item is invalid, it is filtered out."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    list_model = create_list_model(model, "discard_row", "discard_row")
+
+    result = validate_and_filter_items(
+        "test", list_model, [{"b": True}, {"b": False}, {"b": 5}], "discard_row", "discard_row"
+    )
+    assert len(result) == 2
+    assert result[0].b is True
+    assert result[1].b is False
+
+
+def test_validate_items_model_type_error_raises() -> None:
+    """model_type errors (non-mapping items) always re-raise, even in discard_row."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    # freeze path: model_type errors raise
+    freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+    freeze_list = create_list_model(freeze_model, "freeze", "freeze")
+    with pytest.raises(ValidationError):
+        validate_and_filter_items("test", freeze_list, ["not_a_dict"], "freeze", "freeze")
+
+    # discard_row path: model_type errors still raise (cannot discard non-mappings)
+    discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    discard_list = create_list_model(discard_model, "discard_row", "discard_row")
+    with pytest.raises(ValidationError):
+        validate_and_filter_items(
+            "test", discard_list, ["not_a_dict"], "discard_row", "discard_row"
+        )
 
 
 def test_model_with_field_aliases() -> None:
@@ -1628,26 +1683,17 @@ def test_skip_complex_types_emits_deprecation_warning() -> None:
     assert "skip_complex_types" in str(dep_warnings[0].message)
 
 
-# --- Group 6: create_list_model gaps ---
-
-
 def test_create_list_model_naming() -> None:
-    """create_list_model produces a model name derived from the module __name__.
-
-    NOTE: the current implementation uses 'List' + __name__ of the pydantic module,
-    which produces 'Listdlt.common.libs.pydantic'. This test documents the current
-    behavior which is likely a bug — it should probably use the model class name.
-    """
+    """create_list_model produces a model name derived from the item model class name."""
 
     class MyItem(BaseModel):
         x: int
 
     list_model = create_list_model(MyItem)
-    # current (buggy) behavior: name is module-based, not model-based
-    assert list_model.__name__ == "Listdlt.common.libs.pydantic"
+    assert list_model.__name__ == "ListMyItem"
 
-
-# --- Group 7: DataValidationError schema_contract field ---
+    lenient_model = create_list_model(MyItem, "discard_row", "discard_row")
+    assert lenient_model.__name__ == "LenientListMyItem"
 
 
 def test_validation_error_schema_contract_field() -> None:
@@ -1676,7 +1722,7 @@ def test_validation_error_schema_contract_field() -> None:
     assert exc_info.value.schema_entity == "columns"
 
     # same for list validation
-    list_model = create_list_model(freeze_model)
+    list_model = create_list_model(freeze_model, "freeze", "freeze")
     with pytest.raises(DataValidationError) as exc_info:
         validate_and_filter_items("test", list_model, [{"b": 2}], "freeze", "freeze")
     assert exc_info.value.schema_contract == {"data_type": "freeze"}
@@ -1684,9 +1730,6 @@ def test_validation_error_schema_contract_field() -> None:
     with pytest.raises(DataValidationError) as exc_info:
         validate_and_filter_items("test", list_model, [{"b": True, "extra": 1}], "freeze", "freeze")
     assert exc_info.value.schema_contract == {"columns": "freeze"}
-
-
-# --- Group 8: Bidirectional mapping ---
 
 
 def test_default_contract_from_model_extra_setting() -> None:
@@ -1706,9 +1749,6 @@ def test_default_contract_from_model_extra_setting() -> None:
         x: int = 0
 
     assert extra_to_column_mode(get_extra_from_model(ForbidModel)) == "freeze"
-
-
-# --- Group 9: _process_annotation edge cases ---
 
 
 def test_set_inner_model_transformed() -> None:

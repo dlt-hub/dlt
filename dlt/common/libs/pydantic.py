@@ -442,18 +442,91 @@ def apply_schema_contract_to_model(
 
 
 def create_list_model(
-    model: Type[_TPydanticModel], data_mode: TSchemaEvolutionMode = "freeze"
+    model: Type[_TPydanticModel],
+    column_mode: TSchemaEvolutionMode = "freeze",
+    data_mode: TSchemaEvolutionMode = "freeze",
 ) -> Type[ListModel[_TPydanticModel]]:
-    """Creates a model from `model` for validating list of items in batch according to `data_mode`
+    """Creates a model from `model` for validating list of items in batch.
 
-    Currently only freeze is supported. See comments in the code
+    When `column_mode` or `data_mode` is `discard_row`, creates a lenient list model
+    that uses WrapValidator to turn invalid items into None (filtered by the caller).
+    Otherwise creates a strict list model for batch validation.
     """
-    # TODO: use LenientList to create list model that automatically discards invalid items
-    #   https://github.com/pydantic/pydantic/issues/2274 and https://gist.github.com/dmontagu/7f0cef76e5e0e04198dd608ad7219573
+    if column_mode == "discard_row" or data_mode == "discard_row":
+        from pydantic.functional_validators import WrapValidator
+
+        def _lenient_item_validator(value: Any, handler: Any) -> Optional[_TPydanticModel]:
+            try:
+                return handler(value)  # type: ignore[no-any-return]
+            except ValidationError as val_err:
+                # re-raise model_type errors (non-mapping items) — cannot discard those
+                for err in val_err.errors():
+                    if err["type"] == "model_type":
+                        raise
+                return None
+            except Exception:
+                return None
+
+        item_type = Annotated[Optional[model], WrapValidator(_lenient_item_validator)]  # type: ignore[valid-type]
+        return create_model(
+            "LenientList" + model.__name__,
+            items=(List[item_type], ...),  # type: ignore[return-value]
+        )
+
     return create_model(
-        "List" + __name__,
+        "List" + model.__name__,
         items=(List[model], ...),  # type: ignore[return-value,valid-type]
     )
+
+
+def _classify_validation_errors(
+    table_name: str,
+    model: Type[BaseModel],
+    item: TDataItem,
+    exc: ValidationError,
+    column_mode: TSchemaEvolutionMode,
+    data_mode: TSchemaEvolutionMode,
+) -> None:
+    """Classifies validation errors and raises DataValidationError for freeze mode.
+
+    For discard_row mode, returns without raising so the caller can discard the item.
+    For model_type errors (item is not a mapping), always re-raises.
+    """
+    for err in exc.errors():
+        if err["type"] == "model_type":
+            raise exc
+        if err["type"] == "extra_forbidden":
+            if column_mode == "freeze":
+                raise DataValidationError(
+                    None,
+                    table_name,
+                    str(err["loc"]),
+                    "columns",
+                    "freeze",
+                    model,
+                    {"columns": "freeze"},
+                    item,
+                    err["msg"],
+                ) from exc
+            elif column_mode == "discard_row":
+                return
+            raise NotImplementedError(f"`{column_mode=:}` not implemented for Pydantic validation")
+        else:
+            if data_mode == "freeze":
+                raise DataValidationError(
+                    None,
+                    table_name,
+                    str(err["loc"]),
+                    "data_type",
+                    "freeze",
+                    model,
+                    {"data_type": "freeze"},
+                    item,
+                    err["msg"],
+                ) from exc
+            elif data_mode == "discard_row":
+                return
+            raise NotImplementedError(f"`{data_mode=:}` not implemented for Pydantic validation")
 
 
 def validate_and_filter_items(
@@ -463,86 +536,27 @@ def validate_and_filter_items(
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
 ) -> List[_TPydanticModel]:
-    """Validates list of `item` with `list_model` and returns parsed Pydantic models. If `column_mode` and `data_mode` are set
-    this function will remove non validating items (`discard_row`) or raise on the first non-validating items (`freeze`). Note
-    that the model itself may be configured to remove non validating or extra items as well.
+    """Validates list of `item` with `list_model` and returns parsed Pydantic models."""
+    if column_mode == "discard_row" or data_mode == "discard_row":
+        # lenient path: WrapValidator already converted bad items to None
+        result = list_model(items=items).items
+        return [item for item in result if item is not None]
 
-    `list_model` should be created with `create_list_model` and have `items` field which this function returns.
-    """
+    # strict path: batch validate, classify errors on failure
     try:
         return list_model(items=items).items
     except ValidationError as e:
-        deleted: Set[int] = set()
         for err in e.errors():
-            # raise on items that are not mappings
             if err["type"] == "model_type":
                 raise
-            # TODO: we can get rid of most of the code if we use LenientList as explained above
-            if len(err["loc"]) >= 2:
-                err_idx = int(err["loc"][1])
-                if err_idx in deleted:
-                    # already dropped
-                    continue
-                err_item = items[err_idx - len(deleted)]
-            else:
-                # top level error which means misalignment of list model and items
-                raise DataValidationError(
-                    None,
-                    table_name,
-                    str(err["loc"]),
-                    "columns",
-                    "freeze",
-                    list_model,
-                    {"columns": "freeze"},
-                    items,
-                    err["msg"],
-                ) from e
-            # raise on freeze
-            if err["type"] == "extra_forbidden":
-                if column_mode == "freeze":
-                    raise DataValidationError(
-                        None,
-                        table_name,
-                        str(err["loc"]),
-                        "columns",
-                        "freeze",
-                        list_model,
-                        {"columns": "freeze"},
-                        err_item,
-                        err["msg"],
-                    ) from e
-                elif column_mode == "discard_row":
-                    # pop at the right index
-                    items.pop(err_idx - len(deleted))
-                    # store original index so we do not pop again
-                    deleted.add(err_idx)
-                else:
-                    raise NotImplementedError(
-                        f"`{column_mode=:}` not implemented for Pydantic validation"
-                    )
-            else:
-                if data_mode == "freeze":
-                    raise DataValidationError(
-                        None,
-                        table_name,
-                        str(err["loc"]),
-                        "data_type",
-                        "freeze",
-                        list_model,
-                        {"data_type": "freeze"},
-                        err_item,
-                        err["msg"],
-                    ) from e
-                elif data_mode == "discard_row":
-                    items.pop(err_idx - len(deleted))
-                    deleted.add(err_idx)
-                else:
-                    raise NotImplementedError(
-                        f"`{data_mode=:}` not implemented for Pydantic validation"
-                    )
-
-        # validate again with error items removed
-        return validate_and_filter_items(table_name, list_model, items, column_mode, data_mode)
+            # loc is ("items", <index>, <field>) for item-level errors
+            if len(err["loc"]) < 2:
+                # list-level error (e.g. items not a list) — re-raise as-is
+                raise
+            err_idx = int(err["loc"][1])
+            err_item = items[err_idx]
+            _classify_validation_errors(table_name, list_model, err_item, e, column_mode, data_mode)
+        raise AssertionError("unreachable")
 
 
 def validate_and_filter_item(
@@ -552,51 +566,13 @@ def validate_and_filter_item(
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
 ) -> Optional[_TPydanticModel]:
-    """Validates `item` against model `model` and returns an instance of it. If `column_mode` and `data_mode` are set
-    this function will return None (`discard_row`) or raise on non-validating items (`freeze`). Note
-    that the model itself may be configured to remove non validating or extra items as well."""
+    """Validates `item` against model `model` and returns an instance of it.
+
+    Returns None for discard_row when validation fails, raises DataValidationError
+    for freeze mode.
+    """
     try:
         return model.model_validate(item)
     except ValidationError as e:
-        for err in e.errors():
-            # raise on items that are not mappings
-            if err["type"] == "model_type":
-                raise
-            # raise on freeze
-            if err["type"] == "extra_forbidden":
-                if column_mode == "freeze":
-                    raise DataValidationError(
-                        None,
-                        table_name,
-                        str(err["loc"]),
-                        "columns",
-                        "freeze",
-                        model,
-                        {"columns": "freeze"},
-                        item,
-                        err["msg"],
-                    ) from e
-                elif column_mode == "discard_row":
-                    return None
-                raise NotImplementedError(
-                    f"`{column_mode=:}` not implemented for Pydantic validation"
-                )
-            else:
-                if data_mode == "freeze":
-                    raise DataValidationError(
-                        None,
-                        table_name,
-                        str(err["loc"]),
-                        "data_type",
-                        "freeze",
-                        model,
-                        {"data_type": "freeze"},
-                        item,
-                        err["msg"],
-                    ) from e
-                elif data_mode == "discard_row":
-                    return None
-                raise NotImplementedError(
-                    f"`{data_mode=:}` not implemented for Pydantic validation"
-                )
-        raise AssertionError("unreachable")
+        _classify_validation_errors(table_name, model, item, e, column_mode, data_mode)
+        return None

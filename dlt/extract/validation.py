@@ -51,7 +51,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         self.original_model = model
         self._discriminator_map = _build_discriminator_map(model)
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)
-        self.list_model = create_list_model(self.model, data_mode)
+        self.list_model = create_list_model(self.model, column_mode, data_mode)
 
     def __call__(self, item: TDataItems, meta: Any = None) -> TDataItems:
         """Validate a data item against the pydantic model"""
