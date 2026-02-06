@@ -31,6 +31,7 @@ from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentials,
     AzureCredentials,
+    HfCredentials,
     SFTPCredentials,
 )
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
@@ -64,6 +65,7 @@ MTIME_DISPATCH = {
     "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
     "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
     "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
+    "hf": lambda f: ensure_pendulum_datetime_utc(f["last_commit"].date),
     "https": lambda f: cast(
         pendulum.DateTime,
         pendulum.parse(
@@ -92,6 +94,7 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "s3": lambda config: cast(AwsCredentials, config.credentials).to_s3fs_credentials(),
     "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "hf": lambda config: cast(HfCredentials, config.credentials).to_hffs_credentials(),
     "gdrive": lambda config: {"credentials": cast(GcpCredentials, config.credentials)},
     "sftp": lambda config: cast(SFTPCredentials, config.credentials).to_fsspec_credentials(),
 }
@@ -104,7 +107,9 @@ CREDENTIALS_DISPATCH["gcs"] = CREDENTIALS_DISPATCH["gs"]
 # Default kwargs for protocol
 DEFAULT_KWARGS = {
     # disable concurrent
-    "az": {"max_concurrency": 1}
+    "az": {"max_concurrency": 1},
+    # get last_commit info which includes last_commit.date
+    "hf": {"expand_info": True}
 }
 DEFAULT_KWARGS["adl"] = DEFAULT_KWARGS["az"]
 DEFAULT_KWARGS["abfs"] = DEFAULT_KWARGS["az"]
