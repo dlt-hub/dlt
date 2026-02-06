@@ -245,6 +245,10 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+      - name: append clickhouse_cluster secrets to secrets.toml
+        run: awk '/^\[destination\.clickhouse_cluster\]/{p=1} /^\[/ && !/^\[destination\.clickhouse_cluster/ && p{exit} p' tests/.dlt/dev.secrets.toml >> tests/.dlt/secrets.toml
+        if: ${{ matrix.needs_clickhouse_cluster }}
+
       # NOTE: essential tests are always run
       - name: Run essential tests Linux
         run: make test-dest-remote-essential
