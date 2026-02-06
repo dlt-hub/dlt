@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import io
 from multiprocessing.dummy import DummyProcess
 import pathlib
 import pickle
@@ -1846,22 +1848,55 @@ def test_preserve_fields_order_incomplete_columns() -> None:
 
 
 def test_pipeline_log_progress() -> None:
+    from dlt.common.warnings import DltDeprecationWarning
+
     os.environ["TIMEOUT"] = "3.0"
 
-    # will attach dlt logger
+    # "dlt_logger" attaches dlt logger lazily on first dump
     p = dlt.pipeline(
-        destination="dummy", progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING)
+        destination="dummy",
+        progress=dlt.progress.log(0.5, logger="dlt_logger", log_level=logging.WARNING),
     )
-    # collector was created before pipeline so logger is not attached
-    assert cast(LogCollector, p.collector).logger is None
+    assert cast(LogCollector, p.collector).logger == "dlt_logger"
     p.extract(many_delayed(2, 10))
-    # dlt logger attached
+    # dlt logger attached after first extract
+    assert cast(LogCollector, p.collector).logger is not None
+
+    # deprecated logger=None still works and maps to "dlt_logger"
+    with pytest.warns(DltDeprecationWarning, match="logger=None"):
+        collector = dlt.progress.log(0.5, logger=None, log_level=logging.WARNING)
+    assert collector.logger == "dlt_logger"
+    p = dlt.pipeline(destination="dummy", progress=collector)
+    p.extract(many_delayed(2, 10))
     assert cast(LogCollector, p.collector).logger is not None
 
     # pass explicit root logger
     p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
     assert cast(LogCollector, p.collector).logger is not None
     p.extract(many_delayed(2, 10))
+
+
+def test_log_collector_respects_stdout_redirect() -> None:
+    collector = LogCollector(dump_system_stats=False)
+    assert collector.logger == "stdout"
+
+    # default logger resolves to current sys.stdout at call time
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        collector._log(logging.WARNING, "redirected message")
+        assert "redirected message" in buf.getvalue()
+
+    # explicit TextIO stream is used directly
+    with io.StringIO() as buf:
+        collector2 = LogCollector(logger=buf, dump_system_stats=False)
+        collector2._log(logging.WARNING, "stream message")
+        assert "stream message" in buf.getvalue()
+
+    # logger=None is deprecated and maps to "dlt_logger"
+    from dlt.common.warnings import DltDeprecationWarning
+
+    with pytest.warns(DltDeprecationWarning, match="logger=None"):
+        collector3 = LogCollector(logger=None, dump_system_stats=False)
+    assert collector3.logger == "dlt_logger"
 
 
 def test_progress_collector_callbacks() -> None:
