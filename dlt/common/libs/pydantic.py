@@ -34,6 +34,8 @@ from dlt.common.typing import (
     is_subclass,
     is_union_type,
 )
+import warnings
+
 from dlt.common.warnings import Dlt100DeprecationWarning
 
 try:
@@ -41,20 +43,12 @@ try:
     from pydantic.fields import FieldInfo
 except ImportError:
     raise MissingDependencyException(
-        "dlt Pydantic helpers", ["pydantic"], "Both Pydantic 1.x and 2.x are supported"
+        "dlt Pydantic helpers", ["pydantic"], "Pydantic 2.x is required"
     )
 
-_PYDANTIC_2 = False
-try:
-    from pydantic import PydanticDeprecatedSince20
+from pydantic.warnings import PydanticDeprecationWarning
 
-    _PYDANTIC_2 = True
-    # hide deprecation warning
-    import warnings
-
-    warnings.simplefilter("ignore", category=PydanticDeprecatedSince20)
-except ImportError:
-    pass
+warnings.filterwarnings("ignore", category=PydanticDeprecationWarning)
 
 _TPydanticModel = TypeVar("_TPydanticModel", bound=BaseModel)
 
@@ -204,8 +198,9 @@ def pydantic_to_table_schema_columns(
             skip_nested_types = model.dlt_config.get("skip_nested_types", False)
 
     result: TTableSchemaColumns = {}
+    model_cls: Type[BaseModel] = model if isinstance(model, type) else type(model)
 
-    for field_name, field in model.__fields__.items():  # type: ignore[union-attr]
+    for field_name, field in model_cls.model_fields.items():
         annotation = field.annotation
         if inner_annotation := getattr(annotation, "inner_type", None):
             # This applies to pydantic.Json fields, the inner type is the type after json parsing
@@ -298,13 +293,7 @@ def extra_to_column_mode(extra: str) -> TSchemaEvolutionMode:
 
 def get_extra_from_model(model: Type[BaseModel]) -> Optional[str]:
     """Returns the extra setting from the model or None if not explicitly set."""
-    if _PYDANTIC_2:
-        return model.model_config.get("extra")
-    else:
-        # in pydantic v1 we can't distinguish explicit "ignore" from default,
-        # so return None for the default value
-        extra = str(model.Config.extra)  # type: ignore[attr-defined]
-        return None if extra == "ignore" else extra
+    return model.model_config.get("extra")
 
 
 def apply_schema_contract_to_model(
@@ -321,7 +310,7 @@ def apply_schema_contract_to_model(
     """
     if data_mode == "evolve":
         # create a lenient model that accepts any data
-        if _PYDANTIC_2 and getattr(model, "__pydantic_root_model__", False):
+        if getattr(model, "__pydantic_root_model__", False):
             from pydantic import RootModel as PydanticRootModel
 
             model = type(
@@ -343,15 +332,8 @@ def apply_schema_contract_to_model(
         # no need to change the model
         return model
 
-    if _PYDANTIC_2:
-        config = copy(model.model_config)
-        config["extra"] = extra  # type: ignore[typeddict-item]
-    else:
-        from pydantic.config import prepare_config
-
-        config = copy(model.Config)  # type: ignore[attr-defined]
-        config.extra = extra  # type: ignore[attr-defined]
-        prepare_config(config, model.Config.__name__)  # type: ignore[attr-defined]
+    config = copy(model.model_config)
+    config["extra"] = extra  # type: ignore[typeddict-item]
 
     _child_models: Dict[int, Type[BaseModel]] = {}
 
@@ -388,7 +370,7 @@ def apply_schema_contract_to_model(
         else:
             return f.annotation  # type: ignore[no-any-return]
 
-    if _PYDANTIC_2 and getattr(model, "__pydantic_root_model__", False):
+    if getattr(model, "__pydantic_root_model__", False):
         from pydantic import RootModel as PydanticRootModel
 
         root_field = model.model_fields.get("root")
@@ -407,7 +389,7 @@ def apply_schema_contract_to_model(
     new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
         model.__name__ + "Extra" + extra.title(),
         __config__=config,
-        **{n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.__fields__.items()},  # type: ignore[attr-defined]
+        **{n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.model_fields.items()},
     )
     # pass dlt config along
     dlt_config = getattr(model, "dlt_config", None)

@@ -292,7 +292,7 @@ def test_pydantic_model_skip_nested_types() -> None:
 
 def test_model_for_column_mode() -> None:
     # extra prop
-    instance_extra = TEST_MODEL_INSTANCE.dict()
+    instance_extra = TEST_MODEL_INSTANCE.model_dump()
     instance_extra["extra_prop"] = "EXTRA"
     # back to string
     instance_extra["json_field"] = json.dumps(["a", "b", "c"])
@@ -301,50 +301,50 @@ def test_model_for_column_mode() -> None:
     # evolve - allow extra fields
     model_evolve = apply_schema_contract_to_model(ModelWithConfig, "evolve")
     # assert "frozen" in model_evolve.model_config
-    extra_instance = model_evolve.parse_obj(instance_extra)
+    extra_instance = model_evolve.model_validate(instance_extra)
     assert hasattr(extra_instance, "extra_prop")
     assert extra_instance.extra_prop == "EXTRA"
     model_evolve = apply_schema_contract_to_model(Model, "evolve")  # type: ignore[arg-type]
-    extra_instance = model_evolve.parse_obj(instance_extra)
+    extra_instance = model_evolve.model_validate(instance_extra)
     assert extra_instance.extra_prop == "EXTRA"  # type: ignore[attr-defined]
 
     # freeze - validation error on extra fields
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "freeze")
     # assert "frozen" in model_freeze.model_config
     with pytest.raises(ValidationError) as py_ex:
-        model_freeze.parse_obj(instance_extra)
+        model_freeze.model_validate(instance_extra)
     assert py_ex.value.errors()[0]["loc"] == ("extra_prop",)
     model_freeze = apply_schema_contract_to_model(Model, "freeze")  # type: ignore[arg-type]
     with pytest.raises(ValidationError) as py_ex:
-        model_freeze.parse_obj(instance_extra)
+        model_freeze.model_validate(instance_extra)
     assert py_ex.value.errors()[0]["loc"] == ("extra_prop",)
 
     # discard row - same as freeze
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "discard_row")
     with pytest.raises(ValidationError) as py_ex:
-        model_freeze.parse_obj(instance_extra)
+        model_freeze.model_validate(instance_extra)
     assert py_ex.value.errors()[0]["loc"] == ("extra_prop",)
 
     # discard value - ignore extra fields
     model_discard = apply_schema_contract_to_model(ModelWithConfig, "discard_value")
-    extra_instance = model_discard.parse_obj(instance_extra)
+    extra_instance = model_discard.model_validate(instance_extra)
     assert not hasattr(extra_instance, "extra_prop")
     model_evolve = apply_schema_contract_to_model(Model, "evolve")  # type: ignore[arg-type]
-    extra_instance = model_discard.parse_obj(instance_extra)
+    extra_instance = model_discard.model_validate(instance_extra)
     assert not hasattr(extra_instance, "extra_prop")
 
     # evolve data but freeze new columns
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "evolve", "freeze")
     instance_extra_2 = copy(instance_extra)
     # should parse ok
-    model_discard.parse_obj(instance_extra_2)
+    model_discard.model_validate(instance_extra_2)
     # this must fail validation
     instance_extra_2["bigint_field"] = "NOT INT"
     with pytest.raises(ValidationError):
-        model_discard.parse_obj(instance_extra_2)
+        model_discard.model_validate(instance_extra_2)
     # let the datatypes evolve
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "evolve", "evolve")
-    print(model_freeze.parse_obj(instance_extra_2).dict())
+    print(model_freeze.model_validate(instance_extra_2).model_dump())
 
     with pytest.raises(NotImplementedError):
         apply_schema_contract_to_model(ModelWithConfig, "evolve", "discard_value")
@@ -357,13 +357,13 @@ def test_nested_model_config_propagation() -> None:
 
     # print(model_freeze.__fields__)
     # extra is modified
-    assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
+    assert model_freeze.model_fields["address"].annotation.__name__ == "UserAddressExtraAllow"
     # annotated is preserved
-    type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
+    type_origin = get_origin(model_freeze.model_fields["address"].rebuild_annotation())
     assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
-    type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
-    assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+    type_annotation = model_freeze.model_fields["address"].annotation
+    assert type_annotation is get_args(model_freeze.model_fields["unity"].annotation)[0]
 
     # print(User.__fields__)
     # print(User.__fields__["name"].annotation)
@@ -414,13 +414,13 @@ def test_nested_model_config_propagation_optional_with_pipe():
 
     # print(model_freeze.__fields__)
     # extra is modified
-    assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressPipeExtraAllow"  # type: ignore[index]
+    assert model_freeze.model_fields["address"].annotation.__name__ == "UserAddressPipeExtraAllow"
     # annotated is preserved
-    type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
+    type_origin = get_origin(model_freeze.model_fields["address"].rebuild_annotation())
     assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
-    type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
-    assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+    type_annotation = model_freeze.model_fields["address"].annotation
+    assert type_annotation is get_args(model_freeze.model_fields["unity"].annotation)[0]
 
     # We need to check if pydantic_to_table_schema_columns is idempotent
     # and can generate the same schema from the class and from the class instance.
@@ -517,7 +517,7 @@ def test_item_list_validation() -> None:
     )
     assert len(items) == 2
     # "a" extra got remove
-    assert items[1].dict() == {"b": False, "opt": None}
+    assert items[1].model_dump() == {"b": False, "opt": None}
     # violate data type
     with pytest.raises(NotImplementedError):
         apply_schema_contract_to_model(ItemModel, "discard_value", "discard_value")
@@ -623,7 +623,7 @@ def test_item_validation() -> None:
         "items", discard_value_model, {"b": False, "a": False}, "discard_value", "freeze"
     )
     # "a" extra got removed
-    assert item.dict() == {"b": False}
+    assert item.model_dump() == {"b": False}
 
     # evolve data types and extras
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")

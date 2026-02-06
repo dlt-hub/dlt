@@ -61,7 +61,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
             )
             if return_models:
                 return validated_list
-            return [m.dict(by_alias=True) for m in validated_list]
+            return [m.model_dump(by_alias=True) for m in validated_list]
 
         validated = validate_and_filter_item(
             self.table_name, self.model, item, self.column_mode, self.data_mode
@@ -72,7 +72,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         if return_models:
             return validated
 
-        return validated.dict(by_alias=True)
+        return validated.model_dump(by_alias=True)
 
     def compute_table_schema(self, item: Any = None, meta: Any = None) -> Optional[TTableSchema]:
         """Computes authoritative table schema from the original Pydantic model.

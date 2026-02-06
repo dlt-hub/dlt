@@ -542,7 +542,7 @@ def test_data_contract_interaction() -> None:
     """
     ensure data contracts with pydantic are enforced properly
     """
-    from pydantic import BaseModel, Extra
+    from pydantic import BaseModel
 
     class Items(BaseModel):
         id: int  # noqa: A003
@@ -550,7 +550,7 @@ def test_data_contract_interaction() -> None:
         amount: Union[int, str, None]
 
         class Config:
-            extra = Extra.forbid
+            extra = "forbid"
 
     @dlt.resource(name="items")
     def get_items():
