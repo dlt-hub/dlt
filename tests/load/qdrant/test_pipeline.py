@@ -376,7 +376,7 @@ def test_qdrant_local_parallelism_disabled(preserve_environ) -> None:
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "20"
 
     with TemporaryDirectory() as tmpdir:
-        p = dlt.pipeline(destination=dlt.destinations.qdrant(path=tmpdir))
+        p = dlt.pipeline(destination=dlt.destinations.qdrant(qd_path=tmpdir))
 
         # Data writer limit ensures that we create multiple load files to the same table
         @dlt.resource

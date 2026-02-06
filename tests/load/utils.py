@@ -554,7 +554,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination_type="qdrant",
-                credentials=dict(path=str(Path(FILE_BUCKET) / f"qdrant_data_{worker}")),
+                credentials=dict(path="qdrant_data"),
                 extra_info="local-file",
             ),
             DestinationTestConfiguration(
