@@ -40,16 +40,19 @@ import warnings
 from dlt.common.warnings import Dlt100DeprecationWarning
 
 try:
+    from pydantic import VERSION as PYDANTIC_VERSION
+
+    if not PYDANTIC_VERSION.startswith("2."):
+        raise ImportError(f"Found pydantic {PYDANTIC_VERSION} but dlt requires pydantic>=2.0")
     from pydantic import BaseModel, ValidationError, Json, create_model
     from pydantic.fields import FieldInfo
+    from pydantic.warnings import PydanticDeprecationWarning
+
+    warnings.filterwarnings("ignore", category=PydanticDeprecationWarning)
 except ImportError:
     raise MissingDependencyException(
-        "dlt Pydantic helpers", ["pydantic"], "Pydantic 2.x is required"
+        "dlt Pydantic helpers", ["pydantic>=2.0"], "Pydantic 2.x is required"
     )
-
-from pydantic.warnings import PydanticDeprecationWarning
-
-warnings.filterwarnings("ignore", category=PydanticDeprecationWarning)
 
 _TPydanticModel = TypeVar("_TPydanticModel", bound=BaseModel)
 
@@ -417,8 +420,7 @@ def apply_schema_contract_to_model(
             return new_rm
 
     processed_fields = {
-        n: (_process_annotation(_rebuild_annotated(f)), f)
-        for n, f in model.model_fields.items()
+        n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.model_fields.items()
     }
 
     # use __base__ to inherit validators (@field_validator, @model_validator)
@@ -472,6 +474,9 @@ def validate_and_filter_items(
     except ValidationError as e:
         deleted: Set[int] = set()
         for err in e.errors():
+            # raise on items that are not mappings
+            if err["type"] == "model_type":
+                raise
             # TODO: we can get rid of most of the code if we use LenientList as explained above
             if len(err["loc"]) >= 2:
                 err_idx = int(err["loc"][1])
@@ -554,6 +559,9 @@ def validate_and_filter_item(
         return model.model_validate(item)
     except ValidationError as e:
         for err in e.errors():
+            # raise on items that are not mappings
+            if err["type"] == "model_type":
+                raise
             # raise on freeze
             if err["type"] == "extra_forbidden":
                 if column_mode == "freeze":

@@ -5,16 +5,24 @@ from dlt.common.schema.schema import Schema
 
 try:
     from pydantic import BaseModel as PydanticBaseModel
+    from dlt.common.libs.pydantic import (
+        ValidationError,
+        validate_and_filter_item,
+        validate_and_filter_items,
+    )
 except ModuleNotFoundError:
     PydanticBaseModel = Any  # type: ignore[misc, assignment]
 
 from dlt.common.typing import TDataItems
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TSchemaContract,
     TSchemaEvolutionMode,
     TTableSchema,
 )
+
+from dlt.extract.utils import get_data_item_format
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.items_transform import BaseItemTransform, ValidateItem
 
@@ -50,8 +58,6 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         if item is None:
             return None
 
-        from dlt.common.libs.pydantic import validate_and_filter_item, validate_and_filter_items
-
         cfg = getattr(self.model, "dlt_config", {}) or {}
         return_models = cfg.get("return_validated_models", False)
 
@@ -63,9 +69,15 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
                 return validated_list
             return [m.model_dump(by_alias=True) for m in validated_list]
 
-        validated = validate_and_filter_item(
-            self.table_name, self.model, item, self.column_mode, self.data_mode
-        )
+        try:
+            validated = validate_and_filter_item(
+                self.table_name, self.model, item, self.column_mode, self.data_mode
+            )
+        except (ValidationError, DataValidationError):
+            # pass through arrow, pandas and model items that pydantic cannot validate
+            if get_data_item_format(item) != "object":
+                return item
+            raise
         if validated is None:
             return None
 
