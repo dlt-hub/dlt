@@ -213,7 +213,7 @@ def test_simple_model_normalizing(
             " `my_table`) AS _dlt_subquery\n"
             == normalized_select_query
         )
-    elif dialect == "tsql":  # mssql and synapse
+    elif dialect in ("tsql", "fabric"):  # mssql, synapse, fabric
         assert (
             "SELECT _dlt_subquery.[A_a] AS [a_a], _dlt_subquery.[b] AS [b], NULL AS [d],"
             f" '{load_id}' AS [_dlt_load_id], NEWID() AS [_dlt_id] FROM (SELECT [b] AS [b], [A_a]"
@@ -304,10 +304,10 @@ LIMIT 5
     # Parse the original illegal query for comparison
     parsed_illegal_select_query = sqlglot.parse_one(illegal_select_query, read=dialect)
 
-    # For tsql, ensure all columns in the subquery are explicitly aliased
+    # For tsql/fabric, ensure all columns in the subquery are explicitly aliased
     # because even though we don't have aliases in the original query,
-    # sqlglot adds aliases in subqueries for tsql by default
-    if dialect == "tsql":
+    # sqlglot adds aliases in subqueries for these dialects by default
+    if dialect in ("tsql", "fabric"):
         aliased_columns = [
             col.as_(col.output_name) for col in parsed_illegal_select_query.expressions
         ]

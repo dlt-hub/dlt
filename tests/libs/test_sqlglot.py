@@ -382,6 +382,7 @@ NORMALIZE_DIALECTS = [
     "tsql",
     "databricks",
     "presto",
+    "fabric",
 ]
 
 

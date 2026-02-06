@@ -1,18 +1,8 @@
 from typing import Optional, Tuple, TypeVar, Generic, Type, Union, Any, List
 
 from dlt.common import logger
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
-
-try:
-    from pydantic import BaseModel as PydanticBaseModel
-    from dlt.common.libs.pydantic import (
-        ValidationError,
-        validate_and_filter_item,
-        validate_and_filter_items,
-    )
-except ModuleNotFoundError:
-    PydanticBaseModel = Any  # type: ignore[misc, assignment]
-
 from dlt.common.typing import TDataItems
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import (
@@ -21,6 +11,16 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
     TTableSchema,
 )
+
+try:
+    from pydantic import BaseModel as PydanticBaseModel
+    from dlt.common.libs.pydantic import (
+        ValidationError,
+        validate_and_filter_item,
+        validate_and_filter_items,
+    )
+except (ModuleNotFoundError, MissingDependencyException):
+    PydanticBaseModel = Any  # type: ignore[misc, assignment]
 
 from dlt.extract.utils import get_data_item_format
 from dlt.extract.items import TTableHintTemplate

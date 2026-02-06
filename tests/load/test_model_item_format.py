@@ -240,7 +240,7 @@ def test_simple_model_jobs(
     assert set(model_reversed_select_df["_dlt_load_id"]).pop() == load_info.loads_ids[0]
 
     # Validate that each table has exactly one model job
-    if destination_config.destination_type == "athena":
+    if destination_config.run_kwargs.get("table_format") == "iceberg":
         assert count_job_types(pipeline) == {
             "model_with_no_b": {"model": 1, "sql": 1},
             "model_reversed_select": {"model": 1, "sql": 1},
@@ -528,7 +528,7 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     }
 
     # two model jobs where produced
-    if destination_config.destination_type == "athena":
+    if destination_config.run_kwargs.get("table_format") == "iceberg":
         assert count_job_types(pipeline) == {
             "copied_table": {"model": 2, "sql": 1},
         }
@@ -612,7 +612,7 @@ def test_copying_table_with_dropped_column(
     }
 
     # Validate that each table has exactly one model job
-    if destination_config.destination_type == "athena":
+    if destination_config.run_kwargs.get("table_format") == "iceberg":
         assert count_job_types(pipeline) == {
             target_table_name: {"model": 1, "sql": 1},
         }
