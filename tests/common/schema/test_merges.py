@@ -726,10 +726,26 @@ def test_merge_tables_incomplete_columns() -> None:
 
 def test_diff_table_references() -> None:
     """Test diff_table_references computes correct diff."""
-    ref_a: TTableReferenceInline = {"columns": ["a"], "referenced_table": "t1", "referenced_columns": ["id"]}
-    ref_b: TTableReferenceInline = {"columns": ["b"], "referenced_table": "t2", "referenced_columns": ["id"]}
-    ref_c: TTableReferenceInline = {"columns": ["c"], "referenced_table": "t3", "referenced_columns": ["id"]}
-    ref_a_modified: TTableReferenceInline = {"columns": ["a_new"], "referenced_table": "t1", "referenced_columns": ["id"]}
+    ref_a: TTableReferenceInline = {
+        "columns": ["a"],
+        "referenced_table": "t1",
+        "referenced_columns": ["id"],
+    }
+    ref_b: TTableReferenceInline = {
+        "columns": ["b"],
+        "referenced_table": "t2",
+        "referenced_columns": ["id"],
+    }
+    ref_c: TTableReferenceInline = {
+        "columns": ["c"],
+        "referenced_table": "t3",
+        "referenced_columns": ["id"],
+    }
+    ref_a_modified: TTableReferenceInline = {
+        "columns": ["a_new"],
+        "referenced_table": "t1",
+        "referenced_columns": ["id"],
+    }
 
     # new ref in b
     diff = utils.diff_table_references([ref_a], [ref_a, ref_b])

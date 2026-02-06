@@ -6,6 +6,7 @@ from typing import (
     Optional,
     Set,
     List,
+    Tuple,
     Type,
     Union,
     Any,
@@ -37,6 +38,7 @@ from dlt.common.warnings import Dlt100DeprecationWarning
 
 try:
     from pydantic import BaseModel, ValidationError, Json, create_model
+    from pydantic.fields import FieldInfo
 except ImportError:
     raise MissingDependencyException(
         "dlt Pydantic helpers", ["pydantic"], "Both Pydantic 1.x and 2.x are supported"
@@ -84,17 +86,86 @@ class DltConfig(TypedDict, total=False):
             instead of converting them to dictionaries during extraction/transform steps.
             Defaults to False to preserve current behavior.
 
-        x_authoritative_model:
+        is_authoritative_model:
             If True, the Pydantic model is treated as the authoritative source of table
             schema. Columns derived from the model are pre-merged into the schema before
             contract checks, so they bypass column/data_type contract enforcement.
-            Defaults to False.
+            When None (default), dlt automatically determines whether to treat the model
+            as authoritative.
     """
 
     skip_nested_types: bool
     skip_complex_types: bool  # deprecated
     return_validated_models: bool
-    x_authoritative_model: bool
+    is_authoritative_model: Optional[bool]
+
+
+def _build_discriminator_map(
+    model: Type[BaseModel],
+) -> Optional[Tuple[str, Dict[str, Type[BaseModel]]]]:
+    """For a RootModel with a discriminated union, extract the discriminator field name
+    and a mapping from literal discriminator values to their variant model classes.
+
+    Returns None if the model is not a RootModel or has no string discriminator.
+    """
+    if not getattr(model, "__pydantic_root_model__", False):
+        return None
+    root_field = model.model_fields.get("root")
+    if not root_field:
+        return None
+
+    ann = root_field.annotation
+    discriminator: Optional[str] = None
+
+    if is_annotated(ann):
+        args = get_args(ann)
+        # metadata may be FieldInfo directly or wrapped in a tuple by _process_annotation
+        for a in args[1:]:
+            items = a if isinstance(a, (list, tuple)) else (a,)
+            for item in items:
+                if isinstance(item, FieldInfo) and isinstance(item.discriminator, str):
+                    discriminator = item.discriminator
+                    break
+            if discriminator:
+                break
+        union_args = get_args(args[0])
+    else:
+        return None
+
+    if not discriminator or not union_args:
+        return None
+
+    mapping: Dict[str, Type[BaseModel]] = {}
+    for member in union_args:
+        member_field = member.model_fields.get(discriminator)
+        if member_field:
+            for lit_val in get_args(member_field.annotation):
+                mapping[str(lit_val)] = member
+    return discriminator, mapping
+
+
+def resolve_variant_model(
+    model: Type[BaseModel],
+    item: Any,
+    discriminator_map: Optional[Tuple[str, Dict[str, Type[BaseModel]]]] = None,
+) -> Optional[Type[BaseModel]]:
+    """Resolve a discriminated union variant from an item's discriminator value.
+
+    Args:
+        model: A pydantic model, typically a RootModel with a discriminated union.
+        item: A dict or model instance to read the discriminator value from.
+        discriminator_map: Pre-computed result of `_build_discriminator_map`. Computed
+            from `model` when not provided.
+    """
+    if discriminator_map is None:
+        discriminator_map = _build_discriminator_map(model)
+    if discriminator_map is None:
+        return model
+    disc_field, mapping = discriminator_map
+    disc_value = item.get(disc_field) if isinstance(item, dict) else getattr(item, disc_field, None)
+    if disc_value is None:
+        return None
+    return mapping.get(str(disc_value))
 
 
 def pydantic_to_table_schema_columns(
@@ -111,6 +182,15 @@ def pydantic_to_table_schema_columns(
     Returns:
         TTableSchemaColumns: table schema columns dict
     """
+    # for RootModel with discriminated union, return columns common to all variants
+    if getattr(model, "__pydantic_root_model__", False):
+        disc_map = _build_discriminator_map(model)  # type: ignore[arg-type]
+        if disc_map is not None:
+            variants = list(disc_map[1].values())
+            all_cols = [pydantic_to_table_schema_columns(v) for v in variants]
+            common_keys = set.intersection(*(set(c.keys()) for c in all_cols))
+            return {k: v for k, v in all_cols[0].items() if k in common_keys}
+
     skip_nested_types = False
     if hasattr(model, "dlt_config"):
         if "skip_complex_types" in model.dlt_config:
@@ -241,7 +321,16 @@ def apply_schema_contract_to_model(
     """
     if data_mode == "evolve":
         # create a lenient model that accepts any data
-        model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.model_fields})  # type: ignore
+        if _PYDANTIC_2 and getattr(model, "__pydantic_root_model__", False):
+            from pydantic import RootModel as PydanticRootModel
+
+            model = type(
+                model.__name__ + "Any",
+                (PydanticRootModel[Any],),
+                {"__module__": model.__module__},
+            )
+        else:
+            model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.model_fields})  # type: ignore
     elif data_mode == "discard_value":
         raise NotImplementedError(
             "`data_mode='discard_value'`. Cannot discard defined fields with validation errors"
@@ -298,6 +387,22 @@ def apply_schema_contract_to_model(
             return f.rebuild_annotation()  # type: ignore[no-any-return]
         else:
             return f.annotation  # type: ignore[no-any-return]
+
+    if _PYDANTIC_2 and getattr(model, "__pydantic_root_model__", False):
+        from pydantic import RootModel as PydanticRootModel
+
+        root_field = model.model_fields.get("root")
+        if root_field:
+            processed_ann = _process_annotation(_rebuild_annotated(root_field))
+            new_rm = type(
+                model.__name__ + "Extra" + extra.title(),
+                (PydanticRootModel[processed_ann],),  # type: ignore[valid-type]
+                {"__module__": model.__module__},
+            )
+            dlt_config = getattr(model, "dlt_config", None)
+            if dlt_config:
+                new_rm.dlt_config = dlt_config  # type: ignore[attr-defined]
+            return new_rm
 
     new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
         model.__name__ + "Extra" + extra.title(),

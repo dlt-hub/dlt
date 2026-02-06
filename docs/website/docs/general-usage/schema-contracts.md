@@ -107,7 +107,11 @@ As a consequence, `discard_row` will drop the whole data item - even if a nested
 
 ### Authoritative Pydantic models
 
-By default, columns derived from a Pydantic model are subject to schema contract checks just like any other columns. If you want the model to be treated as the **authoritative source of truth** — so its columns bypass `columns` and `data_type` contract enforcement — set `x_authoritative_model` in `DltConfig`:
+:::caution Work in progress
+Authoritative Pydantic models are under active development. Behavior below may change in future releases.
+:::
+
+By default, columns derived from a Pydantic model are subject to schema contract checks just like any other columns. If you want the model to be treated as the **authoritative source of truth** — so its columns bypass `columns` and `data_type` contract enforcement — set `is_authoritative_model` in `DltConfig`:
 
 ```py
 from typing import ClassVar
@@ -118,7 +122,7 @@ from dlt.common.libs.pydantic import DltConfig
 
 
 class MyModel(BaseModel):
-    dlt_config: ClassVar[DltConfig] = {"x_authoritative_model": True}
+    dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
 
     class Config:
         extra = "forbid"
@@ -127,12 +131,82 @@ class MyModel(BaseModel):
     name: str
 ```
 
-With `x_authoritative_model=True`, if you later add an `email` field to `MyModel`, the new column will be accepted on existing tables even though `extra=forbid` maps to `columns=freeze`. The `freeze` contract will still reject any extra fields in the **data** that are not defined in the model.
+With `is_authoritative_model=True`, if you later add an `email` field to `MyModel`, the new column will be accepted on existing tables even though `extra=forbid` maps to `columns=freeze`. The `freeze` contract will still reject any extra fields in the **data** that are not defined in the model.
 
-Without `x_authoritative_model` (the default), adding a new field to the model while `columns=freeze` is active will raise a `DataValidationError` — the same as adding a column from any other data source.
+Without `is_authoritative_model` (the default), adding a new field to the model while `columns=freeze` is active will raise a `DataValidationError` — the same as adding a column from any other data source.
 
 :::tip
-If your goal is to maintain strict data validation (`extra=forbid`) while allowing your model to evolve freely, set `x_authoritative_model=True`. Without it, you would need to set `schema_contract={"columns": "evolve"}`, which would also override `extra=forbid` and allow unknown fields through validation.
+If your goal is to maintain strict data validation (`extra=forbid`) while allowing you to change the model explicitly, set `is_authoritative_model=True`. Without it, you would need to set `schema_contract={"columns": "evolve"}`, which would also override `extra=forbid` and allow unknown fields through validation.
+:::
+
+### Validating event streams with Pydantic
+
+When a single resource produces items of different types (e.g., an event stream), you can use a Pydantic [discriminated union](https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions) wrapped in a `RootModel` to validate and dispatch them. Each variant model defines its own columns, and `dlt` resolves the correct variant per item using the discriminator field — without re-validating.
+
+Define variant models with a shared `Literal` discriminator field and combine them in a `RootModel`:
+
+```py
+from typing import ClassVar, Literal, Union
+from typing_extensions import Annotated
+from pydantic import BaseModel, Field, RootModel
+from dlt.common.libs.pydantic import DltConfig
+
+
+class EventBase(BaseModel):
+    kind: str
+    id: int
+
+class ClickEvent(EventBase):
+    kind: Literal["click"]
+    element_id: str
+
+class PurchaseEvent(EventBase):
+    kind: Literal["purchase"]
+    amount: float
+
+EventUnion = Annotated[
+    Union[ClickEvent, PurchaseEvent],
+    Field(discriminator="kind"),
+]
+
+class Event(RootModel[EventUnion]):
+    dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
+```
+
+A common base class (like `EventBase` above) is optional. When present, `dlt` can derive the shared columns (`kind`, `id`) even without a specific data item.
+
+Dispatch items to per-type tables using `dlt.mark.with_table_name` or a dynamic `table_name` function. The table names do not need to match the discriminator values:
+
+```py
+import dlt
+
+
+TABLE_MAP = {"click": "click_events", "purchase": "purchase_events"}
+
+@dlt.resource(
+    name="events",
+    columns=Event,
+    schema_contract={"data_type": "discard_row"},
+)
+def event_stream():
+    for item in items:
+        yield dlt.mark.with_table_name(item, TABLE_MAP[item["kind"]])
+```
+
+Each destination table receives only the columns defined by its variant model. For example, the `click_events` table gets `kind`, `id`, and `element_id`, while `purchase_events` gets `kind`, `id`, and `amount`.
+
+#### Items not matching any variant
+
+When an item's discriminator value does not match any variant in the union (e.g., a `"debug"` event when only `"click"` and `"purchase"` are defined), the **data_type** contract controls what happens:
+
+| data_type mode | behavior                                               |
+| -------------- | ------------------------------------------------------ |
+| evolve         | Validation is bypassed; the item passes through as-is  |
+| discard_row    | The item is silently dropped                           |
+| freeze         | Raises an exception                                    |
+
+:::note
+`data_type: discard_value` is not supported with Pydantic models. Use `discard_row` instead.
 :::
 
 ### Set contracts on Arrow tables and Pandas

@@ -1,6 +1,6 @@
 import dlt, os, pytest
 import contextlib
-from typing import Any, Callable, Dict, Iterator, Union, Optional, Type
+from typing import Any, Callable, ClassVar, Dict, Iterator, Literal, Union, Optional, Type
 
 from dlt.common.schema.typing import (
     TColumnSchema,
@@ -1054,7 +1054,7 @@ def test_resource_columns_dict_change_on_existing_table(
 def test_pydantic_model_evolve_on_existing_table(
     contract_setting: TSchemaEvolutionMode, authoritative: bool
 ) -> None:
-    """With x_authoritative_model=True, new columns from an evolved pydantic model bypass
+    """With is_authoritative_model=True, new columns from an evolved pydantic model bypass
     contract checks. Without it, they are subject to contract enforcement."""
     from typing import ClassVar, Optional
 
@@ -1064,7 +1064,7 @@ def test_pydantic_model_evolve_on_existing_table(
 
     pipeline = get_pipeline()
 
-    dlt_cfg: DltConfig = {"x_authoritative_model": True} if authoritative else {}
+    dlt_cfg: DltConfig = {"is_authoritative_model": True} if authoritative else {}
 
     class ItemsV1(BaseModel):
         dlt_config: ClassVar[DltConfig] = dlt_cfg
@@ -1121,7 +1121,7 @@ def test_pydantic_model_evolve_on_existing_table(
 def test_pydantic_model_forbid_extra_evolve_on_existing_table(
     contract_setting: TSchemaEvolutionMode,
 ) -> None:
-    """Pydantic model with extra=forbid and x_authoritative_model=True: the contract
+    """Pydantic model with extra=forbid and is_authoritative_model=True: the contract
     is derived from extra (freeze). Model evolution should still be accepted because
     the model is authoritative."""
     from typing import ClassVar, Optional
@@ -1133,7 +1133,7 @@ def test_pydantic_model_forbid_extra_evolve_on_existing_table(
     pipeline = get_pipeline()
 
     class ItemsV1(BaseModel):
-        dlt_config: ClassVar[DltConfig] = {"x_authoritative_model": True}
+        dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
 
         class Config:
             extra = "forbid"
@@ -1150,7 +1150,7 @@ def test_pydantic_model_forbid_extra_evolve_on_existing_table(
     assert_load_info(info)
 
     class ItemsV2(BaseModel):
-        dlt_config: ClassVar[DltConfig] = {"x_authoritative_model": True}
+        dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
 
         class Config:
             extra = "forbid"
@@ -1209,3 +1209,233 @@ def test_arrow_data_new_column_blocked_by_contract(contract_setting: TSchemaEvol
         assert (
             "email" not in table["columns"]
         ), f"arrow-data column 'email' should be blocked by {contract_setting}"
+
+
+TABLE_NAME_MAP = {"click": "click_events", "purchase": "purchase_events", "debug": "debug_events"}
+
+
+@pytest.mark.parametrize("shared_base", [True, False], ids=["shared_base", "no_base"])
+@pytest.mark.parametrize("dispatch", ["mark", "dynamic"], ids=["mark", "dynamic"])
+def test_discriminated_union_computes_schema_from_item(shared_base: bool, dispatch: str) -> None:
+    """Pipeline loads events discriminated on 'kind', dispatched to tables whose names
+    differ from the discriminator values. The union covers only click and purchase;
+    debug events are discarded by pydantic validation.
+
+    Parametrized over:
+    - shared_base: variants inherit a common EventBase vs. standalone models
+    - dispatch: dlt.mark.with_table_name vs. table_name=<function> on resource
+    """
+    from pydantic import Field, RootModel
+    from typing_extensions import Annotated
+
+    from dlt.common.libs.pydantic import BaseModel, DltConfig
+    from dlt.extract.validation import PydanticValidator
+
+    if shared_base:
+
+        class EventBase(BaseModel):
+            kind: str
+            id: int  # noqa: A003
+
+        class ClickEvent(EventBase):
+            kind: Literal["click"]
+            element_id: str
+
+        class PurchaseEvent(EventBase):
+            kind: Literal["purchase"]
+            amount: float
+
+    else:
+
+        class ClickEvent(BaseModel):  # type: ignore[no-redef]
+            kind: Literal["click"]
+            id: int  # noqa: A003
+            element_id: str
+
+        class PurchaseEvent(BaseModel):  # type: ignore[no-redef]
+            kind: Literal["purchase"]
+            id: int  # noqa: A003
+            amount: float
+
+    EventUnion = Annotated[
+        Union[ClickEvent, PurchaseEvent],
+        Field(discriminator="kind"),
+    ]
+
+    class Event(RootModel[EventUnion]):
+        dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
+
+    validator = PydanticValidator(Event, "evolve", "discard_row")
+    validator.table_name = "events"
+
+    click_item = {"kind": "click", "id": 1, "element_id": "btn_1"}
+    schema = validator.compute_table_schema(item=click_item)
+    assert schema is not None
+    assert set(schema["columns"].keys()) == {"kind", "id", "element_id"}
+
+    purchase_item = {"kind": "purchase", "id": 3, "amount": 99.99}
+    schema = validator.compute_table_schema(item=purchase_item)
+    assert schema is not None
+    assert set(schema["columns"].keys()) == {"kind", "id", "amount"}
+
+    debug_item = {"kind": "debug", "id": 4, "debug_payload": "test"}
+    assert validator.compute_table_schema(item=debug_item) is None
+
+    schema_no_item = validator.compute_table_schema()
+    assert schema_no_item is not None
+    assert set(schema_no_item["columns"].keys()) == {"kind", "id"}
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_disc_union_" + uniq_id(),
+        destination="duckdb",
+    )
+
+    items = [
+        {"kind": "click", "id": 1, "element_id": "btn_1"},
+        {"kind": "click", "id": 2, "element_id": "btn_2"},
+        {"kind": "purchase", "id": 3, "amount": 99.99},
+        {"kind": "debug", "id": 4, "debug_payload": "test"},
+    ]
+
+    if dispatch == "mark":
+
+        @dlt.resource(
+            name="events",
+            columns=Event,
+            schema_contract={"data_type": "discard_row"},
+        )
+        def event_stream():
+            for item in items:
+                yield dlt.mark.with_table_name(item, TABLE_NAME_MAP[str(item["kind"])])
+
+    else:
+
+        @dlt.resource(
+            name="events",
+            columns=Event,
+            table_name=lambda item: TABLE_NAME_MAP[item["kind"]],
+            schema_contract={"data_type": "discard_row"},
+        )
+        def event_stream():
+            yield from items
+
+    info = pipeline.run(event_stream())
+    assert_load_info(info)
+
+    click_table = pipeline.default_schema.get_table("click_events")
+    click_cols = set(c for c in click_table["columns"] if not c.startswith("_dlt_"))
+    assert "id" in click_cols
+    assert "element_id" in click_cols
+    assert "amount" not in click_cols
+
+    purchase_table = pipeline.default_schema.get_table("purchase_events")
+    purchase_cols = set(c for c in purchase_table["columns"] if not c.startswith("_dlt_"))
+    assert "id" in purchase_cols
+    assert "amount" in purchase_cols
+    assert "element_id" not in purchase_cols
+
+    assert "debug_events" not in pipeline.default_schema.tables
+
+    counts = load_table_counts(pipeline, "click_events", "purchase_events")
+    assert counts["click_events"] == 2
+    assert counts["purchase_events"] == 1
+
+
+@pytest.mark.parametrize(
+    "column_mode",
+    ["evolve", "freeze", "discard_value", "discard_row"],
+)
+def test_discriminated_union_column_contracts(column_mode: TSchemaEvolutionMode) -> None:
+    """Tests how the columns contract interacts with discriminated union validation.
+
+    Items include a click with extra field 'extra_info' and a debug event whose
+    discriminator value is NOT in the union.
+
+    data_type mirrors column_mode for evolve and freeze. For discard_value and
+    discard_row it falls back to discard_row (discard_value is not supported by
+    pydantic).
+
+    - evolve: extra field accepted, debug event passes through (data_type=evolve)
+    - freeze: extra field raises (data_type=freeze would also reject debug)
+    - discard_value: extra field stripped, debug event discarded
+    - discard_row: row with extra field and debug event both discarded
+    """
+    from pydantic import Field, RootModel
+    from typing_extensions import Annotated
+
+    from dlt.common.libs.pydantic import BaseModel, DltConfig
+
+    class ClickEvent(BaseModel):
+        kind: Literal["click"]
+        id: int  # noqa: A003
+        element_id: str
+
+    class PurchaseEvent(BaseModel):
+        kind: Literal["purchase"]
+        id: int  # noqa: A003
+        amount: float
+
+    EventUnion = Annotated[
+        Union[ClickEvent, PurchaseEvent],
+        Field(discriminator="kind"),
+    ]
+
+    class Event(RootModel[EventUnion]):
+        dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_disc_col_" + uniq_id(),
+        destination="duckdb",
+    )
+
+    items = [
+        {"kind": "click", "id": 1, "element_id": "btn_1"},
+        {"kind": "click", "id": 2, "element_id": "btn_2", "extra_info": "surprise"},
+        {"kind": "purchase", "id": 3, "amount": 99.99},
+        {"kind": "debug", "id": 4, "debug_payload": "test"},
+    ]
+
+    data_type_mode: TSchemaEvolutionMode = (
+        column_mode if column_mode in ("evolve", "freeze") else "discard_row"
+    )
+
+    @dlt.resource(
+        name="events",
+        columns=Event,
+        schema_contract={"columns": column_mode, "data_type": data_type_mode},
+    )
+    def event_stream():
+        for item in items:
+            yield dlt.mark.with_table_name(item, TABLE_NAME_MAP[str(item["kind"])])
+
+    if column_mode == "freeze":
+        with pytest.raises(PipelineStepFailed) as exc_info:
+            pipeline.run(event_stream())
+        assert isinstance(exc_info.value.__context__, ResourceExtractionError)
+        assert isinstance(exc_info.value.__context__.__context__, DataValidationError)
+        return
+
+    info = pipeline.run(event_stream())
+    assert_load_info(info)
+
+    click_table = pipeline.default_schema.get_table("click_events")
+    click_cols = set(c for c in click_table["columns"] if not c.startswith("_dlt_"))
+
+    if column_mode == "evolve":
+        assert "extra_info" in click_cols
+        counts = load_table_counts(pipeline, "click_events", "purchase_events", "debug_events")
+        assert counts["click_events"] == 2
+        assert counts["purchase_events"] == 1
+        assert counts["debug_events"] == 1
+    elif column_mode == "discard_value":
+        assert "extra_info" not in click_cols
+        assert "debug_events" not in pipeline.default_schema.tables
+        counts = load_table_counts(pipeline, "click_events", "purchase_events")
+        assert counts["click_events"] == 2
+        assert counts["purchase_events"] == 1
+    elif column_mode == "discard_row":
+        assert "extra_info" not in click_cols
+        assert "debug_events" not in pipeline.default_schema.tables
+        counts = load_table_counts(pipeline, "click_events", "purchase_events")
+        assert counts["click_events"] == 1
+        assert counts["purchase_events"] == 1

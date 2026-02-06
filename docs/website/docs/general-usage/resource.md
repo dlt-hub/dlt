@@ -223,7 +223,7 @@ pipeline = dlt.pipeline(destination="duckdb")
 pipeline.run(process_users)
 ```
 
-We do not support `RootModel` that validate simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
+`RootModel` is supported for [discriminated unions](schema-contracts.md#discriminated-unions-with-pydantic), where a single resource dispatches items of different types to separate tables. We do not support `RootModel` that validates simple types. You can add such a validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
 
 ### Dispatch data to many tables
 

@@ -7,6 +7,7 @@ from typing import (
     ClassVar,
     Final,
     Generic,
+    Literal,
     Sequence,
     Mapping,
     Dict,
@@ -28,13 +29,24 @@ from dlt.common.schema.typing import TColumnType
 
 from dlt.common.libs.pydantic import (
     DltConfig,
+    _build_discriminator_map,
+    resolve_variant_model,
     pydantic_to_table_schema_columns,
     apply_schema_contract_to_model,
     validate_and_filter_item,
     validate_and_filter_items,
     create_list_model,
 )
-from pydantic import UUID4, BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
+from pydantic import (
+    UUID4,
+    BaseModel,
+    Field,
+    Json,
+    AnyHttpUrl,
+    ConfigDict,
+    RootModel,
+    ValidationError,
+)
 
 from dlt.common.schema.exceptions import DataValidationError
 
@@ -755,3 +767,349 @@ def test_parent_nullable_means_children_nullable():
 
     assert schema["optional_child__child_attribute"]["nullable"]
     assert schema["non_optional_child__child_attribute"]["nullable"] is False
+
+
+def test_build_discriminator_map_with_common_base() -> None:
+    """Extracts discriminator field and value-to-model mapping from a RootModel
+    whose variants share a common base class."""
+
+    class EventBase(BaseModel):
+        event_type: str
+        id: int  # noqa: A003
+
+    class Click(EventBase):
+        event_type: Literal["click"]
+        element_id: str
+
+    class Purchase(EventBase):
+        event_type: Literal["purchase"]
+        amount: float
+
+    EventUnion = Annotated[
+        Union[Click, Purchase],
+        Field(discriminator="event_type"),
+    ]
+
+    class Event(RootModel[EventUnion]):
+        pass
+
+    result = _build_discriminator_map(Event)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "event_type"
+    assert set(mapping.keys()) == {"click", "purchase"}
+    assert mapping["click"] is Click
+    assert mapping["purchase"] is Purchase
+
+
+def test_build_discriminator_map_no_common_base() -> None:
+    """Works when variants have no shared base beyond BaseModel."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+        a_field: str
+
+    class B(BaseModel):
+        kind: Literal["b"]
+        b_field: float
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    result = _build_discriminator_map(Root)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "kind"
+    assert mapping["a"] is A
+    assert mapping["b"] is B
+
+
+def test_build_discriminator_map_after_contract_mutation() -> None:
+    """Discriminator map is extractable from the mutated model returned by
+    apply_schema_contract_to_model (metadata is tuple-wrapped by _process_annotation)."""
+
+    class A(BaseModel):
+        t: Literal["a"]
+        id: int  # noqa: A003
+
+    class B(BaseModel):
+        t: Literal["b"]
+        id: int  # noqa: A003
+
+    U = Annotated[Union[A, B], Field(discriminator="t")]
+
+    class Root(RootModel[U]):
+        pass
+
+    assert _build_discriminator_map(Root) is not None
+
+    mutated = apply_schema_contract_to_model(Root, "freeze", "freeze")
+    result = _build_discriminator_map(mutated)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "t"
+    assert set(mapping.keys()) == {"a", "b"}
+
+
+def test_build_discriminator_map_returns_none_for_regular_model() -> None:
+    """Returns None for a regular BaseModel (not a RootModel)."""
+
+    class Regular(BaseModel):
+        id: int  # noqa: A003
+        name: str
+
+    assert _build_discriminator_map(Regular) is None
+
+
+def test_resolve_variant_model_with_dict() -> None:
+    """Resolves the correct variant from a dict item's discriminator value."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        pass
+
+    assert resolve_variant_model(Event, {"kind": "click"}) is Click
+    assert resolve_variant_model(Event, {"kind": "purchase"}) is Purchase
+
+
+def test_resolve_variant_model_with_model_instance() -> None:
+    """Resolves the variant when item is a model instance instead of dict."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        pass
+
+    click_item = Click(kind="click", element_id="btn")
+    assert resolve_variant_model(Event, click_item) is Click
+
+
+def test_resolve_variant_model_missing_discriminator() -> None:
+    """Returns None when the item lacks the discriminator field."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+
+    class B(BaseModel):
+        kind: Literal["b"]
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    assert resolve_variant_model(Root, {"other_field": "x"}) is None
+
+
+def test_resolve_variant_model_unknown_value() -> None:
+    """Returns None when the discriminator value doesn't match any variant."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+
+    class B(BaseModel):
+        kind: Literal["b"]
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    assert resolve_variant_model(Root, {"kind": "unknown"}) is None
+
+
+def test_resolve_variant_model_regular_model() -> None:
+    """Returns the model itself when it has no discriminator."""
+
+    class Regular(BaseModel):
+        id: int  # noqa: A003
+        name: str
+
+    assert resolve_variant_model(Regular, {"id": 1, "name": "test"}) is Regular
+
+
+def test_resolve_variant_model_with_precomputed_map() -> None:
+    """Uses the provided discriminator_map instead of recomputing."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        pass
+
+    disc_map = _build_discriminator_map(Event)
+    assert resolve_variant_model(Event, {"kind": "click"}, disc_map) is Click
+    assert resolve_variant_model(Event, {"kind": "purchase"}, disc_map) is Purchase
+
+
+def test_discriminated_union_columns_common_fields() -> None:
+    """pydantic_to_table_schema_columns returns only common fields for a
+    discriminated union RootModel."""
+
+    class EventBase(BaseModel):
+        event_type: str
+        id: int  # noqa: A003
+
+    class Click(EventBase):
+        event_type: Literal["click"]
+        element_id: str
+
+    class Purchase(EventBase):
+        event_type: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="event_type")]
+
+    class Event(RootModel[U]):
+        pass
+
+    cols = pydantic_to_table_schema_columns(Event)
+    assert set(cols.keys()) == {"event_type", "id"}
+    assert cols["id"]["data_type"] == "bigint"
+
+
+def test_discriminated_union_columns_discriminator_only() -> None:
+    """When variants share no fields beyond the discriminator, only that field is returned."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+        a_field: str
+
+    class B(BaseModel):
+        kind: Literal["b"]
+        b_field: float
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    cols = pydantic_to_table_schema_columns(Root)
+    assert set(cols.keys()) == {"kind"}
+
+
+def _make_root_model() -> type:
+    """Helper: builds a RootModel with a discriminated union and DltConfig."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        id: int  # noqa: A003
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        id: int  # noqa: A003
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
+
+    return Event
+
+
+@pytest.mark.parametrize("column_mode", ["evolve", "freeze", "discard_value", "discard_row"])
+def test_apply_contract_root_model_is_root_model(column_mode: str) -> None:
+    """Mutated RootModel is still a proper RootModel, not a plain BaseModel."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, column_mode, "freeze")  # type: ignore[arg-type]
+    assert getattr(mutated, "__pydantic_root_model__", False) is True
+    assert "root" in mutated.model_fields
+
+
+@pytest.mark.parametrize("column_mode", ["evolve", "freeze", "discard_value", "discard_row"])
+def test_apply_contract_root_model_preserves_dlt_config(column_mode: str) -> None:
+    """dlt_config is carried over to the mutated RootModel."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, column_mode, "freeze")  # type: ignore[arg-type]
+    cfg = getattr(mutated, "dlt_config", None)
+    assert cfg is not None
+    assert cfg.get("is_authoritative_model") is True
+
+
+def test_apply_contract_root_model_evolve() -> None:
+    """column_mode=evolve: extra fields on variant models are accepted."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "evolve", "freeze")
+    result = mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+    dumped = result.model_dump()
+    assert dumped["extra"] == 99
+    assert dumped["kind"] == "click"
+
+
+def test_apply_contract_root_model_freeze() -> None:
+    """column_mode=freeze: extra fields on variant models raise ValidationError."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "freeze", "freeze")
+    mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn"})
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+
+
+def test_apply_contract_root_model_discard_value() -> None:
+    """column_mode=discard_value: extra fields on variant models are silently ignored."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "discard_value", "freeze")
+    result = mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+    dumped = result.model_dump()
+    assert "extra" not in dumped
+    assert dumped["kind"] == "click"
+
+
+def test_apply_contract_root_model_discard_row() -> None:
+    """column_mode=discard_row: extra fields raise (handled by validator to discard the row)."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "discard_row", "freeze")
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+
+
+def test_apply_contract_root_model_data_evolve() -> None:
+    """data_mode=evolve: creates RootModel[Any] that accepts any data including
+    unknown discriminator values."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "evolve", "evolve")
+    assert getattr(mutated, "__pydantic_root_model__", False) is True
+    result = mutated.model_validate({"kind": "debug", "id": 4, "payload": "x"})
+    dumped = result.model_dump()
+    assert dumped["kind"] == "debug"
+    assert dumped["payload"] == "x"
+
+
+def test_apply_contract_root_model_discriminator_preserved() -> None:
+    """Discriminated union dispatch still works on the mutated model."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "evolve", "freeze")
+    click = mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn"})
+    purchase = mutated.model_validate({"kind": "purchase", "id": 2, "amount": 9.99})
+    assert click.model_dump() == {"kind": "click", "id": 1, "element_id": "btn"}
+    assert purchase.model_dump() == {"kind": "purchase", "id": 2, "amount": 9.99}
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"kind": "unknown", "id": 3})

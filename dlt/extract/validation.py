@@ -31,12 +31,17 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         column_mode: TSchemaEvolutionMode,
         data_mode: TSchemaEvolutionMode,
     ) -> None:
-        from dlt.common.libs.pydantic import apply_schema_contract_to_model, create_list_model
+        from dlt.common.libs.pydantic import (
+            _build_discriminator_map,
+            apply_schema_contract_to_model,
+            create_list_model,
+        )
 
         BaseItemTransform.__init__(self)
         self.column_mode: TSchemaEvolutionMode = column_mode
         self.data_mode: TSchemaEvolutionMode = data_mode
         self.original_model = model
+        self._discriminator_map = _build_discriminator_map(model)
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)
         self.list_model = create_list_model(self.model, data_mode)
 
@@ -72,15 +77,24 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
     def compute_table_schema(self, item: Any = None, meta: Any = None) -> Optional[TTableSchema]:
         """Computes authoritative table schema from the original Pydantic model.
 
-        Only returns a schema when x_authoritative_model is set in DltConfig.
+        Only returns a schema when is_authoritative_model is set in DltConfig.
         """
         cfg = getattr(self.original_model, "dlt_config", None) or {}
-        if not cfg.get("x_authoritative_model", False):
+        if not cfg.get("is_authoritative_model", False):
             return None
 
-        from dlt.common.libs.pydantic import pydantic_to_table_schema_columns
+        from dlt.common.libs.pydantic import (
+            pydantic_to_table_schema_columns,
+            resolve_variant_model,
+        )
 
-        columns = pydantic_to_table_schema_columns(self.original_model)
+        model = self.original_model
+        if item is not None:
+            model = resolve_variant_model(model, item, self._discriminator_map)  # type: ignore[assignment]
+            if model is None:
+                return None
+
+        columns = pydantic_to_table_schema_columns(model)
         return {"name": self.table_name, "columns": columns}
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
