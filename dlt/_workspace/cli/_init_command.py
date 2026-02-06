@@ -1,5 +1,7 @@
+import io
 import os
 import ast
+import sys
 import shutil
 from typing import Dict, Sequence, Tuple, Optional
 from pathlib import Path
@@ -343,19 +345,28 @@ def init_pipeline_at_destination(
     )
 
     # inspect the script to populate source references
-    if source_configuration.source_type != "core":
-        import_pipeline_script(
-            source_configuration.storage.storage_path,
-            source_configuration.storage.to_relative_path(source_configuration.src_pipeline_script),
-            ignore_missing_imports=True,
-        )
-    else:
-        # core sources are imported directly from the pipeline script which is in the _workspace module
-        import_pipeline_script(
-            os.path.dirname(source_configuration.src_pipeline_script),
-            os.path.basename(source_configuration.src_pipeline_script),
-            ignore_missing_imports=True,
-        )
+    # suppress warnings printed to stdout during import (e.g. psutil missing from LogCollector)
+    _saved_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+    try:
+        if source_configuration.source_type != "core":
+            import_pipeline_script(
+                source_configuration.storage.storage_path,
+                source_configuration.storage.to_relative_path(
+                    source_configuration.src_pipeline_script
+                ),
+                ignore_missing_imports=True,
+            )
+        else:
+            # core sources are imported directly from the pipeline script
+            # which is in the _workspace module
+            import_pipeline_script(
+                os.path.dirname(source_configuration.src_pipeline_script),
+                os.path.basename(source_configuration.src_pipeline_script),
+                ignore_missing_imports=True,
+            )
+    finally:
+        sys.stdout = _saved_stdout
 
     # detect all the required secrets and configs that should go into tomls files
     if source_configuration.source_type == "template":
