@@ -1631,9 +1631,11 @@ def test_dedup_sort_hint_case_sensitive(
 
     # record with highest value in sort column is inserted (because "desc")
     result = load_tables_to_dicts(p, table_name, exclude_system_cols=True)
+    # column name depends on effective naming convention (e.g. s3_tables lowercases)
+    seq_col = p.default_schema.naming.normalize_identifier("Sequence")
     assert_records_as_set(
         result[table_name],
-        [{"id": 1, "val": "baz", "Sequence": 3}],
+        [{"id": 1, "val": "baz", seq_col: 3}],
     )
 
 

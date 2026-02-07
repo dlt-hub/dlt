@@ -462,8 +462,8 @@ def test_write_dispositions(
     result_items = table_1["a"].tolist()
     result_items.sort()
 
-    # it was really an append
-    if not destination_config.supports_merge:
+    # merge falls back to append on destinations that don't support it
+    if not destination_config.supports_merge and write_disposition == "merge":
         write_disposition = "append"
 
     if write_disposition == "merge":
