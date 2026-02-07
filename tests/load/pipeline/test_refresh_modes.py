@@ -295,7 +295,7 @@ def test_refresh_drop_resources(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        subset=["duckdb", "filesystem", "iceberg"],
+        subset=["duckdb", "filesystem", "iceberg", "athena"],
         table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
@@ -366,7 +366,7 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        subset=["duckdb", "filesystem", "iceberg"],
+        subset=["duckdb", "filesystem", "iceberg", "athena"],
         table_format_local_configs=True,
     ),
     ids=lambda x: x.name,

@@ -250,9 +250,15 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         self.allow_merge_to_append_fallback = True
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
-        # only truncate tables in iceberg mode
-        truncate_tables = []
-        super().initialize_storage(truncate_tables)
+        # truncate only iceberg tables via SQL (DELETE FROM ... WHERE 1=1)
+        # non-iceberg (HIVE external) tables have data on staging filesystem
+        if truncate_tables:
+            truncate_tables = [
+                t
+                for t in truncate_tables
+                if self._is_iceberg_table(self.prepare_load_table(t), self.in_staging_dataset_mode)
+            ]
+        super().initialize_storage(truncate_tables or None)
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         load_table = super().prepare_load_table(table_name)
