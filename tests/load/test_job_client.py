@@ -1234,9 +1234,6 @@ def get_columns_and_row_all_types(destination_config: DestinationClientConfigura
     exclude_types = []
     if destination_config.destination_type in ["databricks", "clickhouse", "motherduck"]:
         exclude_types.append("time")
-    # Fabric Warehouse has issues with TIME type - exclude for now
-    if destination_config.destination_type == "fabric":
-        exclude_types.append("time")
     if destination_config.destination_name == "sqlalchemy_sqlite":
         exclude_types.extend(["decimal", "wei"])
     if destination_config.destination_name == "sqlalchemy_trino":

@@ -166,8 +166,8 @@ def verify_schema_merge_disposition(
                     WriteDispositionNotSupported(
                         "merge",
                         "Destination does not support any merge strategies and `merge` write"
-                        f" disposition  for table `{table_name}` cannot be met and will fall back"
-                        f" to `append`. Change write disposition{table_format_info}.",
+                        f" disposition  for table `{table_name}` cannot be met. "
+                        f"Change write disposition{table_format_info}.",
                     )
                 )
                 continue
@@ -179,7 +179,6 @@ def verify_schema_merge_disposition(
                         f"Table {table_name} has `write_disposition` set to `merge`"
                         " and `merge_strategy` set to `delete-insert`, but no primary or"
                         " merge keys defined."
-                        " dlt will fall back to `append` for this table."
                     )
             elif merge_strategy == "upsert":
                 if not has_column_with_prop(table, "primary_key"):

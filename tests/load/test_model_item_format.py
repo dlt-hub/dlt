@@ -402,8 +402,6 @@ def test_write_dispositions(
     destination_config: DestinationTestConfiguration,
     write_disposition: TWriteDisposition,
 ) -> None:
-    if not destination_config.supports_merge and write_disposition == "merge":
-        pytest.skip(f"{destination_config.name} does not support merge")
     # adding dlt id is disabled by default, so we set it to true
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
 
@@ -463,6 +461,10 @@ def test_write_dispositions(
     table_1 = dataset["example_table_1"].df()
     result_items = table_1["a"].tolist()
     result_items.sort()
+
+    # it was really an append
+    if not destination_config.supports_merge:
+        write_disposition = "append"
 
     if write_disposition == "merge":
         # tables merged

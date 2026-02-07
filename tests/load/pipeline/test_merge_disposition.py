@@ -1820,7 +1820,7 @@ def test_replacing_merge_key(destination_config: DestinationTestConfiguration) -
     """Test that changing merge_key properly deletes records based on the NEW key.
     Records matching the new merge_key in incoming data should replace old ones.
     """
-    p = destination_config.setup_pipeline("test_replacing_merge_key")
+    p = destination_config.setup_pipeline("test_replacing_merge_key", dev_mode=True)
 
     # load initial data with merge_key "time_off_date"
     @dlt.resource(

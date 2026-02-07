@@ -604,8 +604,12 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
 def test_changing_write_disposition_with_refresh(
     destination_config: DestinationTestConfiguration, refresh: str
 ):
-    """NOTE: this test simply tests wether truncating of tables and deleting schema versions will produce"""
+    """NOTE: this test simply tests whether truncating of tables and deleting schema versions will produce"""
     """errors on a non-existing dataset (it should not)"""
     pipeline = destination_config.setup_pipeline("test", dev_mode=True, refresh=refresh)
-    pipeline.run([1, 2, 3], table_name="items", write_disposition="append")
-    pipeline.run([1, 2, 3], table_name="items", write_disposition="merge")
+    pipeline.run(
+        [1, 2, 3], table_name="items", write_disposition="append", **destination_config.run_kwargs
+    )
+    pipeline.run(
+        [1, 2, 3], table_name="items", write_disposition="merge", **destination_config.run_kwargs
+    )
