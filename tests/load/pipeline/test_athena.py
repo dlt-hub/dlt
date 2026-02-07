@@ -5,7 +5,7 @@ from typing import Iterator, Any
 import dlt, os
 from dlt.common import pendulum
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
-from dlt.common.destination.exceptions import UnsupportedDataType
+from dlt.common.destination.exceptions import UnsupportedDataType, WriteDispositionNotSupported
 from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import table_update_and_row, assert_all_data_types_row
@@ -415,3 +415,24 @@ def test_athena_no_query_result_bucket(
     assert "output location" in str(pip_ex.value.__cause__).lower() or "ResultConfiguration" in str(
         pip_ex.value.__cause__
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"], supports_merge=False),
+    ids=lambda x: x.name,
+)
+def test_athena_merge_without_iceberg_fails(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Non-iceberg tables on Athena have no merge strategies — verify_schema must reject them."""
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="merge", primary_key="id")
+    def items():
+        yield [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(items, **destination_config.run_kwargs)
+    assert isinstance(pip_ex.value.__cause__, WriteDispositionNotSupported)
+    assert pip_ex.value.__cause__.write_disposition == "merge"

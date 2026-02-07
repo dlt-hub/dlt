@@ -4,6 +4,7 @@ from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import WriteDispositionNotSupported
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.schema import Schema
@@ -154,6 +155,22 @@ def verify_schema_merge_disposition(
                 )
 
             merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+            if merge_strategy is None:
+                table_format_info = ""
+                if capabilities.supported_table_formats:
+                    table_format_info = (
+                        " or try different table format which may offer `merge`:"
+                        f" {capabilities.supported_table_formats}"
+                    )
+                exception_log.append(
+                    WriteDispositionNotSupported(
+                        "merge",
+                        "Destination does not support any merge strategies and `merge` write"
+                        f" disposition  for table `{table_name}` cannot be met and will fall back"
+                        f" to `append`. Change write disposition{table_format_info}.",
+                    )
+                )
+                continue
             if merge_strategy == "delete-insert":
                 if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
                     table, "merge_key"

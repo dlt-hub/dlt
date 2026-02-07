@@ -231,6 +231,12 @@ class DestinationCapabilitiesException(DestinationException):
     pass
 
 
+class WriteDispositionNotSupported(DestinationCapabilitiesException):
+    def __init__(self, write_disposition: str, message: str):
+        self.write_disposition = write_disposition
+        super().__init__(message)
+
+
 class DestinationInvalidFileFormat(DestinationTerminalException):
     def __init__(
         self, destination_type: str, file_format: str, file_name: str, message: str

@@ -402,6 +402,8 @@ def test_write_dispositions(
     destination_config: DestinationTestConfiguration,
     write_disposition: TWriteDisposition,
 ) -> None:
+    if not destination_config.supports_merge and write_disposition == "merge":
+        pytest.skip(f"{destination_config.name} does not support merge")
     # adding dlt id is disabled by default, so we set it to true
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
 

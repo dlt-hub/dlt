@@ -1153,7 +1153,6 @@ def test_extra_schema_contract_conflict_warning() -> None:
     assert not warn_mock.called
 
 
-
 def test_column_mode_to_extra() -> None:
     """All TSchemaEvolutionMode values map to the correct pydantic extra setting."""
     assert column_mode_to_extra("evolve") == "allow"
@@ -1517,7 +1516,9 @@ def test_validate_items_does_not_mutate_input() -> None:
 
     original_items = [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}]
     items_copy = list(original_items)
-    result = validate_and_filter_items("test", list_model, original_items, "discard_row", "discard_row")
+    result = validate_and_filter_items(
+        "test", list_model, original_items, "discard_row", "discard_row"
+    )
     assert len(result) == 2
     assert original_items == items_copy
 
