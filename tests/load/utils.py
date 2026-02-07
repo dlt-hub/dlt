@@ -1426,10 +1426,10 @@ def table_update_and_row_for_destination(destination_config: DestinationTestConf
         exclude_types.append("time")
 
     if (
-        destination_config.destination_type in ("synapse", "fabric")
+        destination_config.destination_type == "synapse"
         and destination_config.file_format == "parquet"
     ):
-        # TIME columns are not supported for staged parquet loads into Synapse/Fabric
+        # TIME columns are not supported for staged parquet loads into Synapse
         exclude_types.append("time")
 
     if destination_config.destination_type in (
