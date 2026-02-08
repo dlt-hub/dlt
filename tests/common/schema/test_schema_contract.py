@@ -268,13 +268,22 @@ def test_check_adding_new_columns(base_settings) -> None:
     assert_new_column(table_update, "incomplete_column_1", "Can't add table column")
 
     #
-    # check property change in existing column
+    # check property change in existing column is NOT governed by column contract
+    # (it is governed by data_type contract, tested separately below)
     #
     table_update = {
         "name": "tables",
         "columns": {"column_3": {"name": "column_3", "data_type": "timestamp", "timezone": True}},
     }
-    assert_new_column(table_update, "column_3", "Can't evolve table column")
+    # column contract modes should NOT block property changes on existing complete columns
+    for mode in ("freeze", "discard_row", "discard_value"):
+        partial, filters = schema.apply_schema_contract(
+            cast(
+                TSchemaContractDict, {**base_settings, **{"columns": mode, "data_type": "evolve"}}
+            ),
+            copy.deepcopy(table_update),
+        )
+        assert (partial, filters) == (table_update, [])
 
     #
     # check x-normalize evolve_once behaving as evolve override
@@ -290,6 +299,93 @@ def test_check_adding_new_columns(base_settings) -> None:
     }
     partial, filters = schema.apply_schema_contract(base_settings, copy.deepcopy(table_update))
     assert (partial, filters) == (table_update, [])
+
+
+def test_check_column_type_property_change() -> None:
+    """Property changes on existing complete columns are governed by data_type contract,
+    but only for TColumnType properties (data_type, nullable, precision, scale, timezone).
+    Other hints (primary_key, merge_key, etc.) are always allowed.
+    """
+    schema = get_schema()
+
+    # column_3 exists with data_type=timestamp, timezone=False
+    # changing timezone to True is a type property change → governed by data_type
+    table_update: TTableSchema = {
+        "name": "tables",
+        "columns": {"column_3": {"name": "column_3", "data_type": "timestamp", "timezone": True}},
+    }
+    popped_table_update = copy.deepcopy(table_update)
+    popped_table_update["columns"].pop("column_3")
+
+    partial, filters = schema.apply_schema_contract(
+        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve"}}),
+        copy.deepcopy(table_update),
+    )
+    assert (partial, filters) == (table_update, [])
+    partial, filters = schema.apply_schema_contract(
+        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_row"}}),
+        copy.deepcopy(table_update),
+    )
+    assert (partial, filters) == (
+        popped_table_update,
+        [("columns", "column_3", "discard_row")],
+    )
+    partial, filters = schema.apply_schema_contract(
+        cast(
+            TSchemaContractDict,
+            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_value"}},
+        ),
+        copy.deepcopy(table_update),
+    )
+    assert (partial, filters) == (
+        popped_table_update,
+        [("columns", "column_3", "discard_value")],
+    )
+    partial, filters = schema.apply_schema_contract(
+        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
+        copy.deepcopy(table_update),
+        raise_on_freeze=False,
+    )
+    assert (partial, filters) == (popped_table_update, [("columns", "column_3", "freeze")])
+
+    with pytest.raises(DataValidationError) as val_ex:
+        schema.apply_schema_contract(
+            cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
+            copy.deepcopy(table_update),
+        )
+    assert "Can't evolve column type" in str(val_ex.value)
+    assert val_ex.value.schema_entity == "data_type"
+    assert val_ex.value.contract_mode == "freeze"
+    assert val_ex.value.column_name == "column_3"
+
+    # non-type hints (e.g. primary_key) should NOT be blocked by data_type contract
+    hint_update: TTableSchema = {
+        "name": "tables",
+        "columns": {"column_1": {"name": "column_1", "data_type": "text", "primary_key": True}},
+    }
+    partial, filters = schema.apply_schema_contract(
+        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
+        copy.deepcopy(hint_update),
+    )
+    assert (partial, filters) == (hint_update, [])
+
+    # same data_type and same type properties but different non-type hint → allowed
+    hint_update2: TTableSchema = {
+        "name": "tables",
+        "columns": {
+            "column_3": {
+                "name": "column_3",
+                "data_type": "timestamp",
+                "timezone": False,
+                "merge_key": True,
+            }
+        },
+    }
+    partial, filters = schema.apply_schema_contract(
+        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
+        copy.deepcopy(hint_update2),
+    )
+    assert (partial, filters) == (hint_update2, [])
 
 
 def test_check_adding_new_variant() -> None:

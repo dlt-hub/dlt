@@ -15,6 +15,7 @@ from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
 
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import assert_min_pkg_version, uniq_id
@@ -1414,6 +1415,53 @@ def test_sql_table_included_columns(
     assert schema_cols == {"id", "created_at"}
 
     assert_row_counts(pipeline, postgres_db, ["chat_message"])
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_sql_table_excluded_columns_freeze_then_full(
+    postgres_db: PostgresSourceDB, backend: TableBackend
+) -> None:
+    """Load app_user with excluded nullable column and columns=freeze, then load without exclusion.
+
+    First load excludes empty_col (nullable) so the schema only knows about the remaining
+    columns. Second load without exclusion should trigger a freeze violation because the
+    data now contains a column unknown to the schema.
+    """
+    from dlt.pipeline.exceptions import PipelineStepFailed
+
+    pipeline = make_pipeline("duckdb")
+
+    # first run: exclude nullable column, freeze should pass because schema is new
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="app_user",
+        reflection_level="full",
+        backend=backend,
+        excluded_columns=["empty_col"],
+    )
+    table.apply_hints(schema_contract={"columns": "freeze"})
+    load_info = pipeline.run(table)
+    assert_load_info(load_info)
+    schema_cols = {
+        col
+        for col in pipeline.default_schema.get_table_columns("app_user", include_incomplete=True)
+        if not col.startswith("_dlt_")
+    }
+    assert "empty_col" not in schema_cols
+
+    # second run: no exclusion, data now has empty_col which is not in schema
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
+        table="app_user",
+        reflection_level="full",
+        backend=backend,
+    )
+    table.apply_hints(schema_contract={"columns": "freeze"})
+    with pytest.raises(PipelineStepFailed) as py_exc:
+        pipeline.run(table)
+    assert isinstance(py_exc.value.__context__, (DataValidationError, ResourceExtractionError))
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

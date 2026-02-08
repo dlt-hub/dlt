@@ -4,11 +4,13 @@ from copy import copy
 from dataclasses import dataclass, field
 import uuid
 import pytest
+from unittest import mock
 from typing import (
     ClassVar,
     Final,
     FrozenSet,
     Generic,
+    Literal,
     Sequence,
     Set,
     Mapping,
@@ -24,14 +26,16 @@ from typing import (
 )
 from typing_extensions import Annotated, get_args, get_origin
 from enum import Enum
-
 from datetime import datetime, date, time  # noqa: I251
+
 from dlt.common import Decimal
 from dlt.common import json
 from dlt.common.schema.typing import TColumnType
-
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.libs.pydantic import (
     DltConfig,
+    _build_discriminator_map,
+    resolve_variant_model,
     pydantic_to_table_schema_columns,
     apply_schema_contract_to_model,
     validate_and_filter_item,
@@ -49,12 +53,13 @@ from pydantic import (
     Json,
     AnyHttpUrl,
     ConfigDict,
+    RootModel,
     ValidationError,
     field_validator,
     model_validator,
 )
 
-from dlt.common.schema.exceptions import DataValidationError
+from dlt.extract.validation import create_item_validator
 
 
 class StrEnum(str, Enum):
@@ -298,7 +303,7 @@ def test_pydantic_model_skip_nested_types() -> None:
 
 def test_model_for_column_mode() -> None:
     # extra prop
-    instance_extra = TEST_MODEL_INSTANCE.dict()
+    instance_extra = TEST_MODEL_INSTANCE.model_dump()
     instance_extra["extra_prop"] = "EXTRA"
     # back to string
     instance_extra["json_field"] = json.dumps(["a", "b", "c"])
@@ -307,50 +312,50 @@ def test_model_for_column_mode() -> None:
     # evolve - allow extra fields
     model_evolve = apply_schema_contract_to_model(ModelWithConfig, "evolve")
     # assert "frozen" in model_evolve.model_config
-    extra_instance = model_evolve.parse_obj(instance_extra)
+    extra_instance = model_evolve.model_validate(instance_extra)
     assert hasattr(extra_instance, "extra_prop")
     assert extra_instance.extra_prop == "EXTRA"
     model_evolve = apply_schema_contract_to_model(Model, "evolve")  # type: ignore[arg-type]
-    extra_instance = model_evolve.parse_obj(instance_extra)
+    extra_instance = model_evolve.model_validate(instance_extra)
     assert extra_instance.extra_prop == "EXTRA"  # type: ignore[attr-defined]
 
     # freeze - validation error on extra fields
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "freeze")
     # assert "frozen" in model_freeze.model_config
     with pytest.raises(ValidationError) as py_ex:
-        model_freeze.parse_obj(instance_extra)
+        model_freeze.model_validate(instance_extra)
     assert py_ex.value.errors()[0]["loc"] == ("extra_prop",)
     model_freeze = apply_schema_contract_to_model(Model, "freeze")  # type: ignore[arg-type]
     with pytest.raises(ValidationError) as py_ex:
-        model_freeze.parse_obj(instance_extra)
+        model_freeze.model_validate(instance_extra)
     assert py_ex.value.errors()[0]["loc"] == ("extra_prop",)
 
     # discard row - same as freeze
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "discard_row")
     with pytest.raises(ValidationError) as py_ex:
-        model_freeze.parse_obj(instance_extra)
+        model_freeze.model_validate(instance_extra)
     assert py_ex.value.errors()[0]["loc"] == ("extra_prop",)
 
     # discard value - ignore extra fields
     model_discard = apply_schema_contract_to_model(ModelWithConfig, "discard_value")
-    extra_instance = model_discard.parse_obj(instance_extra)
+    extra_instance = model_discard.model_validate(instance_extra)
     assert not hasattr(extra_instance, "extra_prop")
     model_evolve = apply_schema_contract_to_model(Model, "evolve")  # type: ignore[arg-type]
-    extra_instance = model_discard.parse_obj(instance_extra)
+    extra_instance = model_discard.model_validate(instance_extra)
     assert not hasattr(extra_instance, "extra_prop")
 
     # evolve data but freeze new columns
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "evolve", "freeze")
     instance_extra_2 = copy(instance_extra)
     # should parse ok
-    model_discard.parse_obj(instance_extra_2)
+    model_discard.model_validate(instance_extra_2)
     # this must fail validation
     instance_extra_2["bigint_field"] = "NOT INT"
     with pytest.raises(ValidationError):
-        model_discard.parse_obj(instance_extra_2)
+        model_discard.model_validate(instance_extra_2)
     # let the datatypes evolve
     model_freeze = apply_schema_contract_to_model(ModelWithConfig, "evolve", "evolve")
-    print(model_freeze.parse_obj(instance_extra_2).dict())
+    print(model_freeze.model_validate(instance_extra_2).model_dump())
 
     with pytest.raises(NotImplementedError):
         apply_schema_contract_to_model(ModelWithConfig, "evolve", "discard_value")
@@ -363,13 +368,13 @@ def test_nested_model_config_propagation() -> None:
 
     # print(model_freeze.__fields__)
     # extra is modified
-    assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
+    assert model_freeze.model_fields["address"].annotation.__name__ == "UserAddressExtraAllow"
     # annotated is preserved
-    type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
+    type_origin = get_origin(model_freeze.model_fields["address"].rebuild_annotation())
     assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
-    type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
-    assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+    type_annotation = model_freeze.model_fields["address"].annotation
+    assert type_annotation is get_args(model_freeze.model_fields["unity"].annotation)[0]
 
     # print(User.__fields__)
     # print(User.__fields__["name"].annotation)
@@ -420,13 +425,13 @@ def test_nested_model_config_propagation_optional_with_pipe():
 
     # print(model_freeze.__fields__)
     # extra is modified
-    assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressPipeExtraAllow"  # type: ignore[index]
+    assert model_freeze.model_fields["address"].annotation.__name__ == "UserAddressPipeExtraAllow"
     # annotated is preserved
-    type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
+    type_origin = get_origin(model_freeze.model_fields["address"].rebuild_annotation())
     assert type_origin is Annotated
     # UserAddress is converted to UserAddressAllow only once
-    type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
-    assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+    type_annotation = model_freeze.model_fields["address"].annotation
+    assert type_annotation is get_args(model_freeze.model_fields["unity"].annotation)[0]
 
     # We need to check if pydantic_to_table_schema_columns is idempotent
     # and can generate the same schema from the class and from the class instance.
@@ -449,7 +454,7 @@ def test_item_list_validation() -> None:
 
     # non validating items removed from the list (both extra and declared)
     discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
-    discard_list_model = create_list_model(discard_model)
+    discard_list_model = create_list_model(discard_model, "discard_row", "discard_row")
     # violate data type
     items = validate_and_filter_items(
         "items",
@@ -476,7 +481,7 @@ def test_item_list_validation() -> None:
 
     # freeze on non validating items (both extra and declared)
     freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    freeze_list_model = create_list_model(freeze_model)
+    freeze_list_model = create_list_model(freeze_model, "freeze", "freeze")
     # violate data type
     with pytest.raises(DataValidationError) as val_ex:
         validate_and_filter_items(
@@ -512,7 +517,7 @@ def test_item_list_validation() -> None:
 
     # discard values
     discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
-    discard_list_model = create_list_model(discard_value_model)
+    discard_list_model = create_list_model(discard_value_model, "discard_value", "freeze")
     # violate extra field
     items = validate_and_filter_items(
         "items",
@@ -523,14 +528,14 @@ def test_item_list_validation() -> None:
     )
     assert len(items) == 2
     # "a" extra got remove
-    assert items[1].dict() == {"b": False, "opt": None}
+    assert items[1].model_dump() == {"b": False, "opt": None}
     # violate data type
     with pytest.raises(NotImplementedError):
         apply_schema_contract_to_model(ItemModel, "discard_value", "discard_value")
 
     # evolve data types and extras
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
-    evolve_list_model = create_list_model(evolve_model)
+    evolve_list_model = create_list_model(evolve_model, "evolve", "evolve")
     # for data types a lenient model will be created that accepts any type
     items = validate_and_filter_items(
         "items",
@@ -556,7 +561,7 @@ def test_item_list_validation() -> None:
 
     # accept new types but discard new columns
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
-    mixed_list_model = create_list_model(mixed_model)
+    mixed_list_model = create_list_model(mixed_model, "discard_row", "evolve")
     # for data types a lenient model will be created that accepts any type
     items = validate_and_filter_items(
         "items",
@@ -629,7 +634,7 @@ def test_item_validation() -> None:
         "items", discard_value_model, {"b": False, "a": False}, "discard_value", "freeze"
     )
     # "a" extra got removed
-    assert item.dict() == {"b": False}
+    assert item.model_dump() == {"b": False}
 
     # evolve data types and extras
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
@@ -775,7 +780,377 @@ def test_parent_nullable_means_children_nullable():
     assert schema["non_optional_child__child_attribute"]["nullable"] is False
 
 
-# --- Group 1: Helper function unit tests ---
+def test_build_discriminator_map_with_common_base() -> None:
+    """Extracts discriminator field and value-to-model mapping from a RootModel
+    whose variants share a common base class."""
+
+    class EventBase(BaseModel):
+        event_type: str
+        id: int  # noqa: A003
+
+    class Click(EventBase):
+        event_type: Literal["click"]
+        element_id: str
+
+    class Purchase(EventBase):
+        event_type: Literal["purchase"]
+        amount: float
+
+    EventUnion = Annotated[
+        Union[Click, Purchase],
+        Field(discriminator="event_type"),
+    ]
+
+    class Event(RootModel[EventUnion]):
+        pass
+
+    result = _build_discriminator_map(Event)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "event_type"
+    assert set(mapping.keys()) == {"click", "purchase"}
+    assert mapping["click"] is Click
+    assert mapping["purchase"] is Purchase
+
+
+def test_build_discriminator_map_no_common_base() -> None:
+    """Works when variants have no shared base beyond BaseModel."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+        a_field: str
+
+    class B(BaseModel):
+        kind: Literal["b"]
+        b_field: float
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    result = _build_discriminator_map(Root)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "kind"
+    assert mapping["a"] is A
+    assert mapping["b"] is B
+
+
+def test_build_discriminator_map_after_contract_mutation() -> None:
+    """Discriminator map is extractable from the mutated model returned by
+    apply_schema_contract_to_model (metadata is tuple-wrapped by _process_annotation)."""
+
+    class A(BaseModel):
+        t: Literal["a"]
+        id: int  # noqa: A003
+
+    class B(BaseModel):
+        t: Literal["b"]
+        id: int  # noqa: A003
+
+    U = Annotated[Union[A, B], Field(discriminator="t")]
+
+    class Root(RootModel[U]):
+        pass
+
+    assert _build_discriminator_map(Root) is not None
+
+    mutated = apply_schema_contract_to_model(Root, "freeze", "freeze")
+    result = _build_discriminator_map(mutated)
+    assert result is not None
+    disc_field, mapping = result
+    assert disc_field == "t"
+    assert set(mapping.keys()) == {"a", "b"}
+
+
+def test_build_discriminator_map_returns_none_for_regular_model() -> None:
+    """Returns None for a regular BaseModel (not a RootModel)."""
+
+    class Regular(BaseModel):
+        id: int  # noqa: A003
+        name: str
+
+    assert _build_discriminator_map(Regular) is None
+
+
+def test_resolve_variant_model_with_dict() -> None:
+    """Resolves the correct variant from a dict item's discriminator value."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        pass
+
+    assert resolve_variant_model(Event, {"kind": "click"}) is Click
+    assert resolve_variant_model(Event, {"kind": "purchase"}) is Purchase
+
+
+def test_resolve_variant_model_with_model_instance() -> None:
+    """Resolves the variant when item is a model instance instead of dict."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        pass
+
+    click_item = Click(kind="click", element_id="btn")
+    assert resolve_variant_model(Event, click_item) is Click
+
+
+def test_resolve_variant_model_missing_discriminator() -> None:
+    """Returns None when the item lacks the discriminator field."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+
+    class B(BaseModel):
+        kind: Literal["b"]
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    assert resolve_variant_model(Root, {"other_field": "x"}) is None
+
+
+def test_resolve_variant_model_unknown_value() -> None:
+    """Returns None when the discriminator value doesn't match any variant."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+
+    class B(BaseModel):
+        kind: Literal["b"]
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    assert resolve_variant_model(Root, {"kind": "unknown"}) is None
+
+
+def test_resolve_variant_model_regular_model() -> None:
+    """Returns the model itself when it has no discriminator."""
+
+    class Regular(BaseModel):
+        id: int  # noqa: A003
+        name: str
+
+    assert resolve_variant_model(Regular, {"id": 1, "name": "test"}) is Regular
+
+
+def test_resolve_variant_model_with_precomputed_map() -> None:
+    """Uses the provided discriminator_map instead of recomputing."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        pass
+
+    disc_map = _build_discriminator_map(Event)
+    assert resolve_variant_model(Event, {"kind": "click"}, disc_map) is Click
+    assert resolve_variant_model(Event, {"kind": "purchase"}, disc_map) is Purchase
+
+
+def test_discriminated_union_columns_common_fields() -> None:
+    """pydantic_to_table_schema_columns returns only common fields for a
+    discriminated union RootModel."""
+
+    class EventBase(BaseModel):
+        event_type: str
+        id: int  # noqa: A003
+
+    class Click(EventBase):
+        event_type: Literal["click"]
+        element_id: str
+
+    class Purchase(EventBase):
+        event_type: Literal["purchase"]
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="event_type")]
+
+    class Event(RootModel[U]):
+        pass
+
+    cols = pydantic_to_table_schema_columns(Event)
+    assert set(cols.keys()) == {"event_type", "id"}
+    assert cols["id"]["data_type"] == "bigint"
+
+
+def test_discriminated_union_columns_discriminator_only() -> None:
+    """When variants share no fields beyond the discriminator, only that field is returned."""
+
+    class A(BaseModel):
+        kind: Literal["a"]
+        a_field: str
+
+    class B(BaseModel):
+        kind: Literal["b"]
+        b_field: float
+
+    U = Annotated[Union[A, B], Field(discriminator="kind")]
+
+    class Root(RootModel[U]):
+        pass
+
+    cols = pydantic_to_table_schema_columns(Root)
+    assert set(cols.keys()) == {"kind"}
+
+
+def _make_root_model() -> type:
+    """Helper: builds a RootModel with a discriminated union and DltConfig."""
+
+    class Click(BaseModel):
+        kind: Literal["click"]
+        id: int  # noqa: A003
+        element_id: str
+
+    class Purchase(BaseModel):
+        kind: Literal["purchase"]
+        id: int  # noqa: A003
+        amount: float
+
+    U = Annotated[Union[Click, Purchase], Field(discriminator="kind")]
+
+    class Event(RootModel[U]):
+        dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
+
+    return Event
+
+
+@pytest.mark.parametrize("column_mode", ["evolve", "freeze", "discard_value", "discard_row"])
+def test_apply_contract_root_model_is_root_model(column_mode: str) -> None:
+    """Mutated RootModel is still a proper RootModel, not a plain BaseModel."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, column_mode, "freeze")  # type: ignore[arg-type]
+    assert getattr(mutated, "__pydantic_root_model__", False) is True
+    assert "root" in mutated.model_fields
+
+
+@pytest.mark.parametrize("column_mode", ["evolve", "freeze", "discard_value", "discard_row"])
+def test_apply_contract_root_model_preserves_dlt_config(column_mode: str) -> None:
+    """dlt_config is carried over to the mutated RootModel."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, column_mode, "freeze")  # type: ignore[arg-type]
+    cfg = getattr(mutated, "dlt_config", None)
+    assert cfg is not None
+    assert cfg.get("is_authoritative_model") is True
+
+
+def test_apply_contract_root_model_evolve() -> None:
+    """column_mode=evolve: extra fields on variant models are accepted."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "evolve", "freeze")
+    result = mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+    dumped = result.model_dump()
+    assert dumped["extra"] == 99
+    assert dumped["kind"] == "click"
+
+
+def test_apply_contract_root_model_freeze() -> None:
+    """column_mode=freeze: extra fields on variant models raise ValidationError."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "freeze", "freeze")
+    mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn"})
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+
+
+def test_apply_contract_root_model_discard_value() -> None:
+    """column_mode=discard_value: extra fields on variant models are silently ignored."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "discard_value", "freeze")
+    result = mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+    dumped = result.model_dump()
+    assert "extra" not in dumped
+    assert dumped["kind"] == "click"
+
+
+def test_apply_contract_root_model_discard_row() -> None:
+    """column_mode=discard_row: extra fields raise (handled by validator to discard the row)."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "discard_row", "freeze")
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn", "extra": 99})
+
+
+def test_apply_contract_root_model_data_evolve() -> None:
+    """data_mode=evolve: creates RootModel[Any] that accepts any data including
+    unknown discriminator values."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "evolve", "evolve")
+    assert getattr(mutated, "__pydantic_root_model__", False) is True
+    result = mutated.model_validate({"kind": "debug", "id": 4, "payload": "x"})
+    dumped = result.model_dump()
+    assert dumped["kind"] == "debug"
+    assert dumped["payload"] == "x"
+
+
+def test_apply_contract_root_model_discriminator_preserved() -> None:
+    """Discriminated union dispatch still works on the mutated model."""
+    Event = _make_root_model()
+    mutated: Any = apply_schema_contract_to_model(Event, "evolve", "freeze")
+    click = mutated.model_validate({"kind": "click", "id": 1, "element_id": "btn"})
+    purchase = mutated.model_validate({"kind": "purchase", "id": 2, "amount": 9.99})
+    assert click.model_dump() == {"kind": "click", "id": 1, "element_id": "btn"}
+    assert purchase.model_dump() == {"kind": "purchase", "id": 2, "amount": 9.99}
+    with pytest.raises(ValidationError):
+        mutated.model_validate({"kind": "unknown", "id": 3})
+
+
+def test_extra_schema_contract_conflict_warning() -> None:
+    """Warns when model extra contradicts schema_contract columns setting."""
+
+    class ForbidModel(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        x: int
+
+    # conflict: model says forbid (freeze) but contract says evolve
+    with mock.patch("dlt.extract.validation.logger.warning") as warn_mock:
+        create_item_validator(ForbidModel, "evolve")
+    assert warn_mock.called
+    assert "extra='forbid'" in warn_mock.call_args[0][0]
+
+    # no conflict: model says forbid (freeze) and contract also says freeze
+    with mock.patch("dlt.extract.validation.logger.warning") as warn_mock:
+        create_item_validator(ForbidModel, "freeze")
+    assert not warn_mock.called
+
+    # no warning when model has no explicit extra
+    class PlainModel(BaseModel):
+        x: int
+
+    with mock.patch("dlt.extract.validation.logger.warning") as warn_mock:
+        create_item_validator(PlainModel, "freeze")
+    assert not warn_mock.called
 
 
 def test_column_mode_to_extra() -> None:
@@ -800,8 +1175,8 @@ def test_get_extra_from_model() -> None:
     """get_extra_from_model returns the correct extra config for various models."""
     # ModelWithConfig has explicit extra="allow"
     assert get_extra_from_model(ModelWithConfig) == "allow"
-    # Model has no explicit extra — defaults to "ignore" in pydantic 2
-    assert get_extra_from_model(Model) == "ignore"
+    # Model has no explicit extra — returns None (not explicitly set)
+    assert get_extra_from_model(Model) is None
 
     # model with extra="forbid"
     class ForbidModel(BaseModel):
@@ -809,9 +1184,6 @@ def test_get_extra_from_model() -> None:
         x: int = 0
 
     assert get_extra_from_model(ForbidModel) == "forbid"
-
-
-# --- Group 2: Synthesized model structure ---
 
 
 def test_synthesized_any_model_has_any_types() -> None:
@@ -893,9 +1265,6 @@ def test_synthesized_model_is_subclass_of_original() -> None:
     # then wraps it — so the final model is NOT a subclass of the original
     any_model = apply_schema_contract_to_model(Original, "freeze", "evolve")
     assert not issubclass(any_model, Original)
-
-
-# --- Group 3: Nested model transformation ---
 
 
 def test_nested_model_config_propagation_validates_data() -> None:
@@ -1042,9 +1411,6 @@ def test_nested_model_discard_row_on_nested_violation() -> None:
     assert result is None
 
 
-# --- Group 4: Validation happy paths and edge cases ---
-
-
 def test_validate_item_happy_path() -> None:
     """Valid single item returns a proper model instance."""
 
@@ -1069,7 +1435,7 @@ def test_validate_items_happy_path() -> None:
         x: int
 
     model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    list_model = create_list_model(model)
+    list_model = create_list_model(model, "freeze", "freeze")
     items = [{"x": 1}, {"x": 2}, {"x": 3}]
     result = validate_and_filter_items("test_table", list_model, items, "freeze", "freeze")
     assert len(result) == 3
@@ -1084,7 +1450,7 @@ def test_validate_items_empty_list() -> None:
         x: int
 
     model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    list_model = create_list_model(model)
+    list_model = create_list_model(model, "freeze", "freeze")
     result = validate_and_filter_items("test_table", list_model, [], "freeze", "freeze")
     assert result == []
 
@@ -1116,7 +1482,7 @@ def test_validate_items_unsupported_modes() -> None:
         b: bool
 
     freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
-    list_model = create_list_model(freeze_model)
+    list_model = create_list_model(freeze_model, "freeze", "freeze")
 
     # extra_forbidden error with unsupported column_mode
     with pytest.raises(NotImplementedError, match="column_mode"):
@@ -1139,7 +1505,75 @@ def test_validate_items_unsupported_modes() -> None:
         )
 
 
-# --- Group 5: Schema generation edge cases ---
+def test_validate_items_does_not_mutate_input() -> None:
+    """Input list must not be modified by validate_and_filter_items."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    list_model = create_list_model(model, "discard_row", "discard_row")
+
+    original_items = [{"b": True}, {"b": 2}, {"b": 3}, {"b": False}]
+    items_copy = list(original_items)
+    result = validate_and_filter_items(
+        "test", list_model, original_items, "discard_row", "discard_row"
+    )
+    assert len(result) == 2
+    assert original_items == items_copy
+
+
+def test_validate_items_all_invalid_discard_row() -> None:
+    """When all items are invalid with discard_row, return empty list."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    list_model = create_list_model(model, "discard_row", "discard_row")
+
+    result = validate_and_filter_items(
+        "test", list_model, [{"b": 2}, {"b": 3}], "discard_row", "discard_row"
+    )
+    assert result == []
+
+
+def test_validate_items_last_item_invalid_discard_row() -> None:
+    """When only the last item is invalid, it is filtered out."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    list_model = create_list_model(model, "discard_row", "discard_row")
+
+    result = validate_and_filter_items(
+        "test", list_model, [{"b": True}, {"b": False}, {"b": 5}], "discard_row", "discard_row"
+    )
+    assert len(result) == 2
+    assert result[0].b is True
+    assert result[1].b is False
+
+
+def test_validate_items_model_type_error_raises() -> None:
+    """model_type errors (non-mapping items) always re-raise, even in discard_row."""
+
+    class ItemModel(BaseModel):
+        b: bool
+
+    # freeze path: model_type errors raise
+    freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
+    freeze_list = create_list_model(freeze_model, "freeze", "freeze")
+    with pytest.raises(ValidationError):
+        validate_and_filter_items("test", freeze_list, ["not_a_dict"], "freeze", "freeze")
+
+    # discard_row path: model_type errors still raise (cannot discard non-mappings)
+    discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    discard_list = create_list_model(discard_model, "discard_row", "discard_row")
+    with pytest.raises(ValidationError):
+        validate_and_filter_items(
+            "test", discard_list, ["not_a_dict"], "discard_row", "discard_row"
+        )
 
 
 def test_model_with_field_aliases() -> None:
@@ -1250,26 +1684,17 @@ def test_skip_complex_types_emits_deprecation_warning() -> None:
     assert "skip_complex_types" in str(dep_warnings[0].message)
 
 
-# --- Group 6: create_list_model gaps ---
-
-
 def test_create_list_model_naming() -> None:
-    """create_list_model produces a model name derived from the module __name__.
-
-    NOTE: the current implementation uses 'List' + __name__ of the pydantic module,
-    which produces 'Listdlt.common.libs.pydantic'. This test documents the current
-    behavior which is likely a bug — it should probably use the model class name.
-    """
+    """create_list_model produces a model name derived from the item model class name."""
 
     class MyItem(BaseModel):
         x: int
 
     list_model = create_list_model(MyItem)
-    # current (buggy) behavior: name is module-based, not model-based
-    assert list_model.__name__ == "Listdlt.common.libs.pydantic"
+    assert list_model.__name__ == "ListMyItem"
 
-
-# --- Group 7: DataValidationError schema_contract field ---
+    lenient_model = create_list_model(MyItem, "discard_row", "discard_row")
+    assert lenient_model.__name__ == "LenientListMyItem"
 
 
 def test_validation_error_schema_contract_field() -> None:
@@ -1298,7 +1723,7 @@ def test_validation_error_schema_contract_field() -> None:
     assert exc_info.value.schema_entity == "columns"
 
     # same for list validation
-    list_model = create_list_model(freeze_model)
+    list_model = create_list_model(freeze_model, "freeze", "freeze")
     with pytest.raises(DataValidationError) as exc_info:
         validate_and_filter_items("test", list_model, [{"b": 2}], "freeze", "freeze")
     assert exc_info.value.schema_contract == {"data_type": "freeze"}
@@ -1306,9 +1731,6 @@ def test_validation_error_schema_contract_field() -> None:
     with pytest.raises(DataValidationError) as exc_info:
         validate_and_filter_items("test", list_model, [{"b": True, "extra": 1}], "freeze", "freeze")
     assert exc_info.value.schema_contract == {"columns": "freeze"}
-
-
-# --- Group 8: Bidirectional mapping ---
 
 
 def test_default_contract_from_model_extra_setting() -> None:
@@ -1328,9 +1750,6 @@ def test_default_contract_from_model_extra_setting() -> None:
         x: int = 0
 
     assert extra_to_column_mode(get_extra_from_model(ForbidModel)) == "freeze"
-
-
-# --- Group 9: _process_annotation edge cases ---
 
 
 def test_set_inner_model_transformed() -> None:

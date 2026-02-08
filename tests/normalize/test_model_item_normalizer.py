@@ -20,7 +20,7 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 from dlt.normalize import Normalize
 from dlt.normalize.exceptions import NormalizeJobFailed
-from dlt.normalize.items_normalizers import SqlModel
+from dlt.common.libs.sqlglot import SqlModel
 from dlt.extract.extract import ExtractStorage
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
@@ -59,7 +59,7 @@ def caps(request) -> Iterator[DestinationCapabilitiesContext]:
 
 
 @pytest.fixture
-def model_normalize(preserve_environ) -> Iterator[Normalize]:
+def model_normalize() -> Iterator[Normalize]:
     # adding dlt id is disabled by default, so we set it to true
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
     yield from init_normalize()
@@ -213,7 +213,7 @@ def test_simple_model_normalizing(
             " `my_table`) AS _dlt_subquery\n"
             == normalized_select_query
         )
-    elif dialect == "tsql":  # mssql and synapse
+    elif dialect in ("tsql", "fabric"):  # mssql, synapse, fabric
         assert (
             "SELECT _dlt_subquery.[A_a] AS [a_a], _dlt_subquery.[b] AS [b], NULL AS [d],"
             f" '{load_id}' AS [_dlt_load_id], NEWID() AS [_dlt_id] FROM (SELECT [b] AS [b], [A_a]"
@@ -304,10 +304,10 @@ LIMIT 5
     # Parse the original illegal query for comparison
     parsed_illegal_select_query = sqlglot.parse_one(illegal_select_query, read=dialect)
 
-    # For tsql, ensure all columns in the subquery are explicitly aliased
+    # For tsql/fabric, ensure all columns in the subquery are explicitly aliased
     # because even though we don't have aliases in the original query,
-    # sqlglot adds aliases in subqueries for tsql by default
-    if dialect == "tsql":
+    # sqlglot adds aliases in subqueries for these dialects by default
+    if dialect in ("tsql", "fabric"):
         aliased_columns = [
             col.as_(col.output_name) for col in parsed_illegal_select_query.expressions
         ]
@@ -341,7 +341,6 @@ def test_selected_column_names_reordering(
     caps: DestinationCapabilitiesContext,
     columns: List[str],
     add_dlt_columns: bool,
-    preserve_environ,
 ) -> None:
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_columns)
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_columns)
@@ -450,7 +449,7 @@ def test_select_column_missing_in_schema(
 )
 @pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
 def test_dlt_column_addition_configs(
-    caps: DestinationCapabilitiesContext, add_dlt_load_id: bool, add_dlt_id: bool, preserve_environ
+    caps: DestinationCapabilitiesContext, add_dlt_load_id: bool, add_dlt_id: bool
 ) -> None:
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_load_id)
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_id)
@@ -637,7 +636,6 @@ EDGE_CASE_QUERIES = [
 def test_model_normalizer_edge_cases_on_duckdb(
     caps: DestinationCapabilitiesContext,
     case: EdgeCaseQuery,
-    preserve_environ,
 ):
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(case.add_dlt_columns)
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(case.add_dlt_columns)

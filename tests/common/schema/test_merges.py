@@ -14,6 +14,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     ColumnPropInfos,
     TTableSchemaColumns,
+    TTableReferenceInline,
 )
 
 
@@ -330,7 +331,7 @@ def test_merge_columns_compound_props(merge_compound_props: bool) -> None:
     """Test that compound props are replaced if the config is set so in merge_columns."""
 
     compound_props = {prop for prop, info in ColumnPropInfos.items() if info.compound}
-    assert compound_props == {"merge_key", "primary_key", "cluster", "partition"}
+    assert compound_props == {"merge_key", "primary_key", "cluster", "partition", "incremental"}
 
     columns_a: TTableSchemaColumns = {
         "col1": {"name": "col1", **{prop: True for prop in compound_props}},  # type: ignore[typeddict-item]
@@ -400,7 +401,9 @@ def test_merge_incomplete_columns() -> None:
     [True, False],
     ids=["merge_compound_props", "replace_compound_props"],
 )
-def test_diff_tables(merge_compound_props: bool) -> None:
+def test_merge_tables_all_cases(merge_compound_props: bool) -> None:
+    """Tests merge_table across all typical scenarios: new columns, changed properties,
+    compound property handling."""
     table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
         "description": "description",
@@ -408,90 +411,208 @@ def test_diff_tables(merge_compound_props: bool) -> None:
         "x-special": 128,
         "columns": {"test": COL_1_HINTS, "test_2": COL_2_HINTS},
     }
+
+    # merging full table into empty table adds all columns and properties
     empty = utils.new_table("table")
     del empty["resource"]
-    print(empty)
-    partial = utils.diff_table("schema", empty, deepcopy(table), merge_compound_props)
-    # partial is simply table
-    assert partial == table
-    partial = utils.diff_table("schema", deepcopy(table), empty, merge_compound_props)
-    # partial is empty
-    assert partial == empty
+    utils.merge_table("schema", empty, deepcopy(table), merge_compound_props)
+    assert empty["columns"]["test"] == COL_1_HINTS
+    assert empty["columns"]["test_2"] == COL_2_HINTS
+    assert empty["description"] == "description"
+    assert empty["x-special"] == 128  # type: ignore[typeddict-item]
 
-    # override name and description
+    # merging empty table into full table preserves existing columns
+    existing = deepcopy(table)
+    empty = utils.new_table("table")
+    del empty["resource"]
+    utils.merge_table("schema", existing, empty, merge_compound_props)
+    assert existing["columns"] == table["columns"]
+
+    # override description
+    existing = deepcopy(table)
+    existing["name"] = "new name"
     changed = deepcopy(table)
     changed["description"] = "new description"
     changed["name"] = "new name"
-    # names must be identical
-    renamed_table = deepcopy(table)
-    renamed_table["name"] = "new name"
-    partial = utils.diff_table("schema", renamed_table, changed, merge_compound_props)
-    print(partial)
-    assert partial == {"name": "new name", "description": "new description", "columns": {}}
+    utils.merge_table("schema", existing, changed, merge_compound_props)
+    assert existing["description"] == "new description"
 
-    # ignore identical table props
-    existing = deepcopy(renamed_table)
+    # table props are merged, identical props unchanged
+    existing = deepcopy(table)
+    existing["name"] = "new name"
+    changed = deepcopy(table)
+    changed["name"] = "new name"
     changed["write_disposition"] = "append"
     changed["schema_contract"] = "freeze"
-    partial = utils.diff_table("schema", deepcopy(existing), changed, merge_compound_props)
-    assert partial == {
-        "name": "new name",
-        "description": "new description",
-        "write_disposition": "append",
-        "schema_contract": "freeze",
-        "columns": {},
-    }
-    existing["write_disposition"] = "append"
-    existing["schema_contract"] = "freeze"
-    partial = utils.diff_table("schema", deepcopy(existing), changed, merge_compound_props)
-    assert partial == {"name": "new name", "description": "new description", "columns": {}}
+    utils.merge_table("schema", existing, changed, merge_compound_props)
+    assert existing["write_disposition"] == "append"
+    assert existing["schema_contract"] == "freeze"
 
-    # detect changed column
+    # detect changed column - column property is updated in place
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["cluster"] = True
-    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
-    assert "test" in partial["columns"]
-    assert "test_2" not in partial["columns"]
-    assert existing["columns"]["test"] == table["columns"]["test"] != partial["columns"]["test"]
+    utils.merge_table("schema", existing, changed, merge_compound_props)
+    assert existing["columns"]["test"]["cluster"] is True
+    # other column is unchanged
+    assert existing["columns"]["test_2"] == table["columns"]["test_2"]
 
-    # defaults are not ignored
+    # defaults are applied
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["parent_key"] = False
-    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
-    assert "test" in partial["columns"]
+    utils.merge_table("schema", existing, changed, merge_compound_props)
+    assert existing["columns"]["test"]["parent_key"] is False
 
-    # even if not present in tab_a at all
+    # even if not present in existing at all
     existing = deepcopy(table)
-    changed = deepcopy(table)
-    changed["columns"]["test"]["parent_key"] = False
     del existing["columns"]["test"]["parent_key"]
-    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
-    assert "test" in partial["columns"]
+    changed = deepcopy(table)
+    changed["columns"]["test"]["parent_key"] = False
+    utils.merge_table("schema", existing, changed, merge_compound_props)
+    assert existing["columns"]["test"]["parent_key"] is False
 
+    # compound property replacement: test has pk in existing, test_2 gets pk in changed
     existing = deepcopy(table)
     existing["columns"]["test"]["primary_key"] = True
     changed = deepcopy(table)
     changed["columns"]["test_2"]["primary_key"] = True
-    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
-    assert partial["columns"] == {
-        "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
-    }
+    utils.merge_table("schema", existing, changed, merge_compound_props)
+    assert existing["columns"]["test_2"]["primary_key"] is True
+    if merge_compound_props:
+        # test keeps primary_key since compound props are additive
+        assert existing["columns"]["test"]["primary_key"] is True
+    else:
+        # test: primary_key removed, test_2 is now the sole primary key
+        assert existing["columns"]["test"].get("primary_key", False) is False
 
-    # if replace_compound_props, compound_props in changed are authoritative
+    # both columns have pk in existing, only test_2 in changed
     existing = deepcopy(table)
     existing["columns"]["test"]["primary_key"] = True
     existing["columns"]["test_2"]["primary_key"] = True
     changed = deepcopy(table)
     changed["columns"]["test_2"]["primary_key"] = True
-    partial = utils.diff_table("schema", existing, changed, merge_compound_props)
+    utils.merge_table("schema", existing, changed, merge_compound_props)
+    assert existing["columns"]["test_2"]["primary_key"] is True
     if merge_compound_props:
-        assert partial["columns"] == {}
+        # both keep primary_key
+        assert existing["columns"]["test"]["primary_key"] is True
     else:
-        assert partial["columns"] == {
-            "test_2": {"nullable": True, "name": "test_2", "primary_key": True}
-        }
+        # test: primary_key removed (not in changed)
+        assert existing["columns"]["test"].get("primary_key", False) is False
+
+
+def test_merge_table_compound_prop_removal() -> None:
+    """When merge_compound_props=False, a compound prop present in existing but absent
+    from the column in changed must be removed from existing."""
+    existing: TTableSchema = {
+        "name": "table",
+        "columns": {
+            "col_a": {"name": "col_a", "data_type": "text", "primary_key": True},
+            "col_b": {"name": "col_b", "data_type": "text", "primary_key": True},
+        },
+    }
+    changed: TTableSchema = {
+        "name": "table",
+        "columns": {
+            "col_a": {"name": "col_a", "data_type": "text"},
+            "col_b": {"name": "col_b", "data_type": "text", "primary_key": True},
+        },
+    }
+
+    utils.merge_table("schema", existing, changed, merge_compound_props=False)
+    # col_a: primary_key removed
+    assert existing["columns"]["col_a"].get("primary_key", False) is False
+    # col_b: primary_key preserved
+    assert existing["columns"]["col_b"]["primary_key"] is True
+
+    # sanity: with merge compound props, removal doesn't happen
+    existing2: TTableSchema = {
+        "name": "table",
+        "columns": {
+            "col_a": {"name": "col_a", "data_type": "text", "primary_key": True},
+            "col_b": {"name": "col_b", "data_type": "text", "primary_key": True},
+        },
+    }
+    utils.merge_table("schema", existing2, deepcopy(changed), merge_compound_props=True)
+    assert existing2["columns"]["col_a"]["primary_key"] is True
+    assert existing2["columns"]["col_b"]["primary_key"] is True
+
+
+def test_merge_table_compound_prop_partial_overlap() -> None:
+    """When existing has multiple compound props on a column and changed only keeps
+    some of them, the merge must remove the dropped ones."""
+    existing: TTableSchema = {
+        "name": "table",
+        "columns": {
+            "col": {
+                "name": "col",
+                "data_type": "text",
+                "primary_key": True,
+                "merge_key": True,
+            },
+            "col2": {
+                "name": "col2",
+                "data_type": "bigint",
+                "primary_key": True,
+                "merge_key": True,
+            },
+        },
+    }
+    # changed: col keeps merge_key but drops primary_key,
+    # col2 keeps primary_key but drops merge_key
+    changed: TTableSchema = {
+        "name": "table",
+        "columns": {
+            "col": {"name": "col", "data_type": "text", "merge_key": True},
+            "col2": {"name": "col2", "data_type": "bigint", "primary_key": True},
+        },
+    }
+
+    utils.merge_table("schema", existing, changed, merge_compound_props=False)
+    # col: primary_key removed, merge_key preserved
+    assert existing["columns"]["col"].get("merge_key") is True
+    assert existing["columns"]["col"].get("primary_key", False) is False
+    # col2: merge_key removed, primary_key preserved
+    assert existing["columns"]["col2"].get("primary_key") is True
+    assert existing["columns"]["col2"].get("merge_key", False) is False
+
+
+def test_merge_table_compound_removal_with_non_compound_change() -> None:
+    """A column that has a compound prop removed and a non-compound prop changed
+    must have both changes reflected after merge."""
+    existing: TTableSchema = {
+        "name": "table",
+        "columns": {
+            "col": {
+                "name": "col",
+                "data_type": "text",
+                "nullable": True,
+                "primary_key": True,
+            },
+            "col2": {
+                "name": "col2",
+                "data_type": "bigint",
+                "primary_key": True,
+            },
+        },
+    }
+    # changed: col drops primary_key AND changes nullable; col2 keeps primary_key
+    changed: TTableSchema = {
+        "name": "table",
+        "columns": {
+            "col": {"name": "col", "data_type": "text", "nullable": False},
+            "col2": {"name": "col2", "data_type": "bigint", "primary_key": True},
+        },
+    }
+
+    utils.merge_table("schema", existing, changed, merge_compound_props=False)
+    # compound prop removed
+    assert existing["columns"]["col"].get("primary_key", False) is False
+    # non-compound prop changed
+    assert existing["columns"]["col"]["nullable"] is False
+    # col2 unchanged
+    assert existing["columns"]["col2"]["primary_key"] is True
 
 
 def test_tables_conflicts() -> None:
@@ -505,8 +626,8 @@ def test_tables_conflicts() -> None:
     }
 
     other = utils.new_table("table")
-    with pytest.raises(TablePropertiesConflictException) as cf_ex:
-        utils.diff_table("schema", table, other)
+    with pytest.raises(TablePropertiesConflictException):
+        utils.merge_table("schema", table, other)
     with pytest.raises(TablePropertiesConflictException) as cf_ex:
         utils.ensure_compatible_tables("schema", table, other)
     assert cf_ex.value.table_name == "table"
@@ -514,8 +635,8 @@ def test_tables_conflicts() -> None:
 
     # conflict on name
     other = utils.new_table("other_name")
-    with pytest.raises(TablePropertiesConflictException) as cf_ex:
-        utils.diff_table("schema", table, other)
+    with pytest.raises(TablePropertiesConflictException):
+        utils.merge_table("schema", table, other)
     with pytest.raises(TablePropertiesConflictException) as cf_ex:
         utils.ensure_compatible_tables("schema", table, other)
     assert cf_ex.value.table_name == "table"
@@ -526,9 +647,10 @@ def test_tables_conflicts() -> None:
     changed["columns"]["test"]["data_type"] = "bigint"
     with pytest.raises(CannotCoerceColumnException):
         utils.ensure_compatible_tables("schema", table, changed)
-    # but diff now accepts different data types
-    merged_table = utils.diff_table("schema", table, changed)
-    assert merged_table["columns"]["test"]["data_type"] == "bigint"
+    # merge_table accepts different data types (ensure_columns=False)
+    existing = deepcopy(table)
+    utils.merge_table("schema", existing, changed)
+    assert existing["columns"]["test"]["data_type"] == "bigint"
 
 
 def test_merge_tables() -> None:
@@ -557,9 +679,9 @@ def test_merge_tables() -> None:
     assert "new-prop-2" not in table
     assert table["new-prop-3"] is False  # type: ignore[typeddict-item]
 
-    # one column in partial
-    assert len(partial["columns"]) == 1
-    assert partial["columns"]["test"] == COL_1_HINTS
+    # partial is the full incoming table (not a diff)
+    assert "test" in partial["columns"]
+    assert "test_2" in partial["columns"]
     # still has incomplete column
     assert table["columns"]["test_2"] == COL_2_HINTS
     # check order, we dropped test so it is added at the end
@@ -578,7 +700,9 @@ def test_merge_tables_incomplete_columns() -> None:
     # it is completed now
     changed["columns"]["test_2"]["data_type"] = "bigint"
     partial = utils.merge_table("schema", table, changed)
-    assert list(partial["columns"].keys()) == ["test_2"]
+    # partial is the full incoming table
+    assert "test" in partial["columns"]
+    assert "test_2" in partial["columns"]
     # test_2 goes to the end, it was incomplete in table so it got dropped before update
     assert list(table["columns"].keys()) == ["test", "test_2"]
 
@@ -593,90 +717,250 @@ def test_merge_tables_incomplete_columns() -> None:
     # still incomplete but changed
     changed["columns"]["test_2"]["nullable"] = False
     partial = utils.merge_table("schema", table, changed)
-    assert list(partial["columns"].keys()) == ["test_2"]
+    # partial is the full incoming table
+    assert "test" in partial["columns"]
+    assert "test_2" in partial["columns"]
     # incomplete -> incomplete stays in place
     assert list(table["columns"].keys()) == ["test_2", "test"]
 
 
-def test_merge_tables_references() -> None:
-    table: TTableSchema = {
-        "name": "table",
-        "columns": {"test_2": COL_2_HINTS, "test": COL_1_HINTS},
-        "references": [
-            {
-                "columns": ["test"],
-                "referenced_table": "other",
-                "referenced_columns": ["id"],
-            }
-        ],
-    }
-    changed: TTableSchema = deepcopy(table)
-
-    # add new references
-    changed["references"].append(  # type: ignore[attr-defined]
-        {
-            "columns": ["test_2"],
-            "referenced_table": "other_2",
-            "referenced_columns": ["id"],
-        }
-    )
-    changed["references"].append(  # type: ignore[attr-defined]
-        {
-            "columns": ["test"],
-            "referenced_table": "other_3",
-            "referenced_columns": ["id"],
-        }
-    )
-
-    partial = utils.merge_table("schema", table, changed)
-
-    assert partial["references"] == [
-        {
-            "columns": ["test"],
-            "referenced_table": "other",
-            "referenced_columns": ["id"],
-        },
-        {
-            "columns": ["test_2"],
-            "referenced_table": "other_2",
-            "referenced_columns": ["id"],
-        },
-        {
-            "columns": ["test"],
-            "referenced_table": "other_3",
-            "referenced_columns": ["id"],
-        },
-    ]
-
-    # Update existing reference
-
-    table = deepcopy(partial)
-    changed = deepcopy(partial)
-
-    changed["references"][1] = {  # type: ignore[index]
-        "columns": ["test_3"],
-        "referenced_table": "other_2",
+def test_diff_table_references() -> None:
+    """Test diff_table_references computes correct diff."""
+    ref_a: TTableReferenceInline = {
+        "columns": ["a"],
+        "referenced_table": "t1",
         "referenced_columns": ["id"],
     }
-    partial = utils.merge_table("schema", partial, changed)
+    ref_b: TTableReferenceInline = {
+        "columns": ["b"],
+        "referenced_table": "t2",
+        "referenced_columns": ["id"],
+    }
+    ref_c: TTableReferenceInline = {
+        "columns": ["c"],
+        "referenced_table": "t3",
+        "referenced_columns": ["id"],
+    }
+    ref_a_modified: TTableReferenceInline = {
+        "columns": ["a_new"],
+        "referenced_table": "t1",
+        "referenced_columns": ["id"],
+    }
 
-    assert partial["references"] == [
-        {
-            "columns": ["test"],
-            "referenced_table": "other",
-            "referenced_columns": ["id"],
-        },
-        {
-            "columns": ["test_3"],
-            "referenced_table": "other_2",
-            "referenced_columns": ["id"],
-        },
-        {
-            "columns": ["test"],
-            "referenced_table": "other_3",
-            "referenced_columns": ["id"],
-        },
+    # new ref in b
+    diff = utils.diff_table_references([ref_a], [ref_a, ref_b])
+    assert diff == [ref_b]
+
+    # changed ref in b (same referenced_table, different columns)
+    diff = utils.diff_table_references([ref_a], [ref_a_modified])
+    assert diff == [ref_a_modified]
+
+    # no changes
+    diff = utils.diff_table_references([ref_a, ref_b], [ref_a, ref_b])
+    assert diff == []
+
+    # empty a, all refs in b are new
+    diff = utils.diff_table_references([], [ref_a, ref_b])
+    assert diff == [ref_a, ref_b]
+
+    # b is empty, no new refs
+    diff = utils.diff_table_references([ref_a, ref_b], [])
+    assert diff == []
+
+    # mixed: one new, one changed, one unchanged
+    diff = utils.diff_table_references([ref_a, ref_b], [ref_a_modified, ref_b, ref_c])
+    assert len(diff) == 2
+    assert ref_a_modified in diff
+    assert ref_c in diff
+
+
+def test_merge_table_references_additive() -> None:
+    """Test that merge_table merges references additively (not replaces)."""
+    # table has refs to t1 and t2
+    table: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "references": [
+            {"columns": ["col"], "referenced_table": "t1", "referenced_columns": ["id"]},
+            {"columns": ["col"], "referenced_table": "t2", "referenced_columns": ["id"]},
+        ],
+    }
+    # partial_table only mentions t3 (a new ref)
+    partial: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "references": [
+            {"columns": ["col"], "referenced_table": "t3", "referenced_columns": ["id"]},
+        ],
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    # table should have all three refs (t1, t2 preserved, t3 added)
+    assert len(table["references"]) == 3
+    ref_tables = {r["referenced_table"] for r in table["references"]}
+    assert ref_tables == {"t1", "t2", "t3"}
+
+
+def test_merge_table_references_update() -> None:
+    """Test that merge_table updates existing refs by referenced_table."""
+    table: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "references": [
+            {"columns": ["old_col"], "referenced_table": "t1", "referenced_columns": ["id"]},
+        ],
+    }
+    # partial updates the ref to t1 with different columns
+    partial: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "references": [
+            {"columns": ["new_col"], "referenced_table": "t1", "referenced_columns": ["id"]},
+        ],
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    # t1 ref should be updated
+    assert len(table["references"]) == 1
+    assert table["references"][0]["columns"] == ["new_col"]
+
+
+def test_merge_table_references_mixed() -> None:
+    """Test merge with new refs, updated refs, and preserved refs."""
+    table: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "references": [
+            {"columns": ["a"], "referenced_table": "t1", "referenced_columns": ["id"]},
+            {"columns": ["b"], "referenced_table": "t2", "referenced_columns": ["id"]},
+        ],
+    }
+    # partial: update t1, add t3, don't mention t2
+    partial: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "references": [
+            {"columns": ["a_new"], "referenced_table": "t1", "referenced_columns": ["id"]},
+            {"columns": ["c"], "referenced_table": "t3", "referenced_columns": ["id"]},
+        ],
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    assert len(table["references"]) == 3
+    refs_by_table = {r["referenced_table"]: r for r in table["references"]}
+    # t1 updated
+    assert refs_by_table["t1"]["columns"] == ["a_new"]
+    # t2 preserved
+    assert refs_by_table["t2"]["columns"] == ["b"]
+    # t3 added
+    assert refs_by_table["t3"]["columns"] == ["c"]
+
+
+def test_merge_table_no_references_in_partial() -> None:
+    """Test that existing refs are preserved when partial has no references."""
+    table: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "references": [
+            {"columns": ["a"], "referenced_table": "t1", "referenced_columns": ["id"]},
+        ],
+    }
+    partial: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    # refs should be preserved
+    assert len(table["references"]) == 1
+    assert table["references"][0]["referenced_table"] == "t1"
+
+
+def test_merge_table_x_hints_replaced() -> None:
+    """Test that x- table hints are replaced, not merged (real adapter examples)."""
+    # x-iceberg-partition: list of partition specs - should be replaced entirely
+    table: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "x-iceberg-partition": [  # type: ignore[typeddict-unknown-key]
+            {"transform": "identity", "source_column": "old_col"},
+            {"transform": "year", "source_column": "timestamp"},
+        ],
+    }
+    partial: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "x-iceberg-partition": [  # type: ignore[typeddict-unknown-key]
+            {"transform": "month", "source_column": "new_col"},
+        ],
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    # iceberg partition should be fully replaced, not merged
+    assert table["x-iceberg-partition"] == [  # type: ignore[typeddict-item]
+        {"transform": "month", "source_column": "new_col"}
     ]
+
+    # x-databricks-table-properties: dict - should be replaced entirely
+    table = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "x-databricks-table-properties": {"prop1": "value1", "prop2": "value2"},  # type: ignore[typeddict-unknown-key]
+    }
+    partial = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "x-databricks-table-properties": {"prop3": "value3"},  # type: ignore[typeddict-unknown-key]
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    # properties dict should be replaced, not merged
+    assert table["x-databricks-table-properties"] == {"prop3": "value3"}  # type: ignore[typeddict-item]
+
+    # x-bigquery-table-description: scalar - should be replaced
+    table = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "x-bigquery-table-description": "old description",  # type: ignore[typeddict-unknown-key]
+    }
+    partial = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "x-bigquery-table-description": "new description",  # type: ignore[typeddict-unknown-key]
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    assert table["x-bigquery-table-description"] == "new description"  # type: ignore[typeddict-item]
+
+
+def test_merge_table_x_hints_preserved_when_not_in_partial() -> None:
+    """Test that existing x- hints are preserved when partial doesn't mention them."""
+    table: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        "x-iceberg-partition": [{"transform": "identity", "source_column": "col"}],  # type: ignore[typeddict-unknown-key]
+        "x-bigquery-table-description": "my description",
+    }
+    partial: TTableSchema = {
+        "name": "table",
+        "columns": {"col": {"name": "col", "data_type": "text"}},
+        # no x- hints
+    }
+
+    utils.merge_table("schema", table, partial)
+
+    # both x- hints should be preserved
+    assert table["x-iceberg-partition"] == [  # type: ignore[typeddict-item]
+        {"transform": "identity", "source_column": "col"}
+    ]
+    assert table["x-bigquery-table-description"] == "my description"  # type: ignore[typeddict-item]
 
 
 # def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
