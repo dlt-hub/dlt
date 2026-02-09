@@ -162,6 +162,17 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra snowflake --extra s3 --extra gs --extra az --extra parquet"
 
+            # ClickHouse Cluster (cids: clickhouse-cluster-s3-staging and clickhouse-cluster-az-staging)
+            # NOTE: although the clickhouse cluster is local, we can't include these cids in
+            # `test_destinations_local.yml`, because they require s3/az credentials
+            - name: clickhouse cluster s3 staging
+              destinations: "[\"clickhouse_cluster\"]"
+              filesystem_drivers: "[\"memory\", \"file\"]"
+              extras: "--extra clickhouse --extra parquet"
+              needs_clickhouse_cluster: true            
+              excluded_destination_test_configuration_ids: "[\"clickhouse-cluster-default\", \"clickhouse-cluster-replicated-distributed\"]"
+
+
     env:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
@@ -196,6 +207,18 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
+      #
+      # Start required services
+      #
+
+      - name: Start clickhouse cluster
+        run: make start-clickhouse-cluster
+        if: ${{ matrix.needs_clickhouse_cluster }}
+
+      #
+      # Setup python and run tests
+      #
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -221,6 +244,10 @@ jobs:
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - name: append clickhouse_cluster secrets to secrets.toml
+        run: awk '/^\[destination\.clickhouse_cluster\]/{p=1} /^\[/ && !/^\[destination\.clickhouse_cluster/ && p{exit} p' tests/.dlt/dev.secrets.toml >> tests/.dlt/secrets.toml
+        if: ${{ matrix.needs_clickhouse_cluster }}
 
       # NOTE: essential tests are always run
       - name: Run essential tests Linux

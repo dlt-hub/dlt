@@ -4,14 +4,14 @@ import pytest
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.utils import custom_environ, digest128
-from dlt.common.utils import uniq_id
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
 )
+from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from tests.load.clickhouse.utils import clickhouse_client
-from tests.load.utils import TABLE_UPDATE, empty_schema
+from tests.load.utils import TABLE_UPDATE
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -167,26 +167,34 @@ def test_clickhouse_create_table_with_hints(client: ClickHouseClient) -> None:
     assert "`col4` timestamp with time zone  NOT NULL" in sql
 
 
-def test_clickhouse_table_engine_configuration() -> None:
-    with custom_environ(
-        {
-            "DESTINATION__CLICKHOUSE__CREDENTIALS__HOST": "localhost",
-            "DESTINATION__CLICKHOUSE__DATASET_NAME": f"test_{uniq_id()}",
-        }
-    ):
-        config = resolve_configuration(
-            ClickHouseClientConfiguration(), sections=("destination", "clickhouse")
-        )
-        assert config.table_engine_type == "merge_tree"
+def test_clickhouse_table_engine_configuration(clickhouse_client: ClickHouseClient) -> None:
+    """Asserts configured table engine types are used in CREATE TABLE SQL statements.
 
-    with custom_environ(
-        {
-            "DESTINATION__CLICKHOUSE__CREDENTIALS__HOST": "localhost",
-            "DESTINATION__CLICKHOUSE__TABLE_ENGINE_TYPE": "replicated_merge_tree",
-            "DESTINATION__CLICKHOUSE__DATASET_NAME": f"test_{uniq_id()}",
-        }
-    ):
-        config = resolve_configuration(
-            ClickHouseClientConfiguration(), sections=("destination", "clickhouse")
-        )
-        assert config.table_engine_type == "replicated_merge_tree"
+    - data tables should use `table_engine_type`
+    - dlt tables should use `dlt_tables_table_engine_type`
+    - dataset sentinel table should use `dlt_tables_table_engine_type`
+    """
+
+    data_table = "event_test_table"
+    dlt_table = clickhouse_client.schema.loads_table_name  # could also be another dlt table
+    client = clickhouse_client
+    sql_client: ClickHouseSqlClient = clickhouse_client.sql_client
+
+    # first check defaults
+    assert clickhouse_client.config.table_engine_type == "merge_tree"
+    assert clickhouse_client.config.dlt_tables_table_engine_type == "merge_tree"
+    assert "ENGINE = MergeTree" in client._get_table_update_sql(data_table, [], False)[0]
+    assert "ENGINE = MergeTree" in client._get_table_update_sql(dlt_table, [], False)[0]
+    assert "ENGINE = MergeTree" in sql_client._make_create_sentinel_table()
+
+    # switch data tables engine
+    clickhouse_client.config.table_engine_type = "replicated_merge_tree"
+    assert "ENGINE = ReplicatedMergeTree" in client._get_table_update_sql(data_table, [], False)[0]
+    assert "ENGINE = MergeTree" in client._get_table_update_sql(dlt_table, [], False)[0]
+    assert "ENGINE = MergeTree" in sql_client._make_create_sentinel_table()
+
+    # switch dlt tables engine
+    clickhouse_client.config.dlt_tables_table_engine_type = "replicated_merge_tree"
+    assert "ENGINE = ReplicatedMergeTree" in client._get_table_update_sql(data_table, [], False)[0]
+    assert "ENGINE = ReplicatedMergeTree" in client._get_table_update_sql(dlt_table, [], False)[0]
+    assert "ENGINE = ReplicatedMergeTree" in sql_client._make_create_sentinel_table()

@@ -20,7 +20,6 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop, is_nullable_column
 from dlt.common.storages import FileStorage
@@ -73,6 +72,10 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._job_client: "ClickHouseClient" = None
         self._staging_credentials = staging_credentials
         self._config = config
+
+    @property
+    def load_database_name(self) -> str:
+        return self._job_client.sql_client.database_name
 
     def _get_table_function(
         self,
@@ -189,15 +192,19 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 else FilesystemConfiguration.make_local_path(bucket_path)
             )
             try:
-                client.insert_file(file_path, self.load_table_name, clickhouse_format, compression)
+                client.insert_file(
+                    file_path,
+                    self.load_table_name,
+                    self.load_database_name,
+                    clickhouse_format,
+                    compression,
+                )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
                     self._file_path,
                     f"ClickHouse connection failed due to `{e}`.",
                 ) from e
             return
-
-        qualified_table_name = client.make_qualified_table_name(self.load_table_name)
 
         if not (bucket_scheme and bucket_url):
             raise LoadJobTerminalException(
@@ -210,10 +217,9 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             compression=compression,
             clickhouse_format=clickhouse_format,
         )
-
-        statement = f"INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"
+        sql = f"{client._make_insert_into(self._load_table)} SELECT * FROM {table_function}"
         with client.begin_transaction():
-            client.execute_sql(statement)
+            client.execute_sql(sql)
 
 
 class ClickHouseMergeJob(SqlMergeFollowupJob):
@@ -228,15 +234,19 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
         # Use CREATE OR REPLACE to avoid slow DROP TABLE ... SYNC on replicated ClickHouse clusters.
         # The Atomic database engine (default since ClickHouse 20.5) handles this via atomic swap
         # using renameat2(), which is nearly instant. The old table is cleaned up asynchronously.
         # See: https://github.com/dlt-hub/dlt/issues/3562
-        return (
-            f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE ="
-            f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
-        )
+        create_table_sql = sql_client._make_create_table(temp_table_name, or_replace=True)
+        return f"{create_table_sql} ENGINE = MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
 
     @classmethod
     def gen_key_table_clauses(
@@ -252,8 +262,8 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         ]
 
     @classmethod
-    def gen_update_table_prefix(cls, table_name: str) -> str:
-        return f"ALTER TABLE {table_name} UPDATE"
+    def gen_update_table_prefix(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
+        return f"{sql_client._make_alter_table(table_name)} UPDATE"
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
@@ -267,10 +277,35 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         config: ClickHouseClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        sql_client = self._create_sql_client(schema, config, capabilities)
+        super().__init__(schema, config, sql_client)
+        self.config: ClickHouseClientConfiguration = config
+        self.sql_client: ClickHouseSqlClient = sql_client
+        self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
+        self.type_mapper = self.capabilities.get_type_mapper()
+
+    @property
+    def sql_client_class(self) -> type[ClickHouseSqlClient]:
+        return ClickHouseSqlClient
+
+    @property
+    def load_job_class(self) -> type[ClickHouseLoadJob]:
+        return ClickHouseLoadJob
+
+    @property
+    def merge_job_class(self) -> type[ClickHouseMergeJob]:
+        return ClickHouseMergeJob
+
+    def _create_sql_client(
+        self,
+        schema: Schema,
+        config: ClickHouseClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> ClickHouseSqlClient:
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(
             schema, config
         )
-        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
+        return self.sql_client_class(
             dataset_name,
             staging_dataset_name,
             list(schema.tables.keys()),
@@ -278,13 +313,16 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             capabilities,
             config,
         )
-        super().__init__(schema, config, self.sql_client)
-        self.config: ClickHouseClientConfiguration = config
-        self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
-        self.type_mapper = self.capabilities.get_type_mapper()
 
     def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
         table = super().prepare_load_table(table_name)
+
+        if TABLE_ENGINE_TYPE_HINT not in table:
+            table[TABLE_ENGINE_TYPE_HINT] = (  # type: ignore[typeddict-unknown-key]
+                self.config.dlt_tables_table_engine_type
+                if self.schema.is_dlt_table(table_name)
+                else self.config.table_engine_type
+            )
 
         if SORT_HINT not in table:
             table[SORT_HINT] = get_columns_names_with_prop(table, "sort")  # type: ignore[typeddict-unknown-key]
@@ -297,7 +335,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+        return [self.merge_job_class.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Build column definition.
@@ -327,7 +365,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return super().create_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
+        return super().create_load_job(table, file_path, load_id, restore) or self.load_job_class(
             file_path,
             config=self.config,
             staging_credentials=(
@@ -378,17 +416,8 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         if generate_alter:
             return sql
 
-        # Default to 'MergeTree' if the user didn't explicitly set a table engine hint.
-        # Clickhouse Cloud will automatically pick `SharedMergeTree` for this option,
-        # so it will work on both local and cloud instances of CH.
-        table_type = cast(
-            TTableEngineType,
-            table.get(
-                cast(str, TABLE_ENGINE_TYPE_HINT),
-                self.config.table_engine_type,
-            ),
-        )
-        sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
+        table_engine_type = cast(TTableEngineType, table[TABLE_ENGINE_TYPE_HINT])  # type: ignore[typeddict-item]
+        sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_engine_type)}"
 
         # PRIMARY KEY
         if primary_key_list := [

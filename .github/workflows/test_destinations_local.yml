@@ -57,6 +57,24 @@ jobs:
             # NOTE: we only run non-staging tests, as staging tests require credentials for s3 and azure
             excluded_destination_configurations: "[\"clickhouse-parquet-staging-s3-authorization\", \"clickhouse-parquet-staging-az-authorization\", \"clickhouse-jsonl-staging-az-authorization\", \"clickhouse-jsonl-staging-s3-authorization\"]"
 
+          # ClickHouse Cluster
+          
+          # cid: clickhouse-cluster-default
+          - name: clickhouse cluster default
+            destinations: "[\"clickhouse_cluster\"]"
+            filesystem_drivers: "[\"memory\", \"file\"]"
+            extras: "--extra clickhouse --extra parquet"
+            needs_clickhouse_cluster: true            
+            excluded_destination_test_configuration_ids: "[\"clickhouse-cluster-replicated-distributed\", \"clickhouse-cluster-s3-staging\", \"clickhouse-cluster-az-staging\"]"
+
+          # cid: clickhouse-cluster-replicated-distributed
+          - name: clickhouse cluster replicated distributed
+            destinations: "[\"clickhouse_cluster\"]"
+            filesystem_drivers: "[\"memory\", \"file\"]"
+            extras: "--extra clickhouse --extra parquet"
+            needs_clickhouse_cluster: true            
+            excluded_destination_test_configuration_ids: "[\"clickhouse-cluster-default\", \"clickhouse-cluster-s3-staging\", \"clickhouse-cluster-az-staging\"]"
+
           # Dremio
           - name: dremio
             destinations: "[\"dremio\"]"
@@ -85,6 +103,7 @@ jobs:
       ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
       ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
       EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
+      EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS: ${{ matrix.excluded_destination_test_configuration_ids || '[]' }}
 
     defaults:
       run:
@@ -165,6 +184,10 @@ jobs:
           echo "ClickHouse is up and running"
         name: Start ClickHouse OSS
         if: ${{ matrix.needs_clickhouse }}
+
+      - name: Start clickhouse cluster
+        run: make start-clickhouse-cluster
+        if: ${{ matrix.needs_clickhouse_cluster }}
 
       #
       # Setup python and run tests

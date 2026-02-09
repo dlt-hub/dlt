@@ -458,6 +458,7 @@ def destinations_configs(
                 "synapse",
                 "dremio",
                 "clickhouse",
+                "clickhouse_cluster",
                 "sqlalchemy",
                 "ducklake",
                 "fabric",
@@ -527,7 +528,26 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination_type="clickhouse", file_format="jsonl", supports_dbt=False
-            )
+            ),
+            DestinationTestConfiguration(  # default config: no replication, no distribution
+                destination_type="clickhouse_cluster",
+                cid="clickhouse-cluster-default",
+                file_format="jsonl",
+                supports_dbt=False,
+                extra_info="default",
+            ),
+            DestinationTestConfiguration(  # non-default config: replication and distribution
+                destination_type="clickhouse_cluster",
+                cid="clickhouse-cluster-replicated-distributed",
+                file_format="jsonl",
+                supports_dbt=False,
+                env_vars={
+                    "DESTINATION__CLICKHOUSE_CLUSTER__CLUSTER": "cluster_2S_2R",
+                    "DESTINATION__CLICKHOUSE_CLUSTER__TABLE_ENGINE_TYPE": "replicated_merge_tree",
+                    "DESTINATION__CLICKHOUSE_CLUSTER__CREATE_DISTRIBUTED_TABLES": "true",
+                },
+                extra_info="replicated-distributed",
+            ),
         ]
 
         destination_configs += [
@@ -706,6 +726,22 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination_type="clickhouse_cluster",
+                cid="clickhouse-cluster-s3-staging",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination_type="clickhouse_cluster",
+                cid="clickhouse-cluster-az-staging",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
             ),
         ]
 
@@ -1421,6 +1457,7 @@ def table_update_and_row_for_destination(destination_config: DestinationTestConf
         "athena",
         "databricks",
         "clickhouse",
+        "clickhouse_cluster",
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")

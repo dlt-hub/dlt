@@ -117,10 +117,11 @@ def test_clickhouse_adapter_table_engine_type() -> None:
 
     with pipe.sql_client() as client:
         # Get a map of table names to full table names.
-        tables = {}
-        for table in client._list_tables():
-            if "resource" in table:
-                tables[table.split("___")[1]] = table
+        tables = {
+            table: client.make_full_table_name(table)
+            for table in client._list_tables()
+            if "resource" in table
+        }
         if deployment_type == "ClickHouseCloud":
             assert (len(tables.keys())) == 3
         else:

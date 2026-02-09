@@ -384,7 +384,10 @@ test-build-images: build-library ## Builds Docker images for testing
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 	docker build -f deploy/dlt/Dockerfile.minimal --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version --short)" .
 
-start-test-containers: ## Starts docker containers for local testing (postgres, clickhouse, etc.)
+start-clickhouse-cluster:
+	cd tests/load/clickhouse_cluster/test_cluster && docker compose --project-name clickhouse_cluster up -d && sleep 5
+
+start-test-containers: start-clickhouse-cluster ## Starts docker containers for local testing (postgres, clickhouse, etc.)
 	docker compose -f "tests/load/dremio/docker-compose.yml" up -d
 	docker compose -f "tests/load/postgres/docker-compose.yml" up -d
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d

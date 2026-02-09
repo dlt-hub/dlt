@@ -23,9 +23,9 @@ def client() -> Iterator[ClickHouseClient]:
 
 def test_clickhouse_connection_string_with_all_params() -> None:
     url = (
-        "clickhouse://user1:pass1@host1:9000/testdb?allow_experimental_lightweight_delete=1&"
+        "clickhouse://user1:pass1@host1:9000/testdb?enable_lightweight_delete=1&"
         "allow_experimental_object_type=1&connect_timeout=230&date_time_input_format=best_effort&"
-        "enable_http_compression=1&secure=0&send_receive_timeout=1000"
+        "enable_http_compression=1&secure=0&send_receive_timeout=1000&mutations_sync=2&lightweight_deletes_sync=2"
     )
 
     creds = ClickHouseCredentials()
@@ -76,6 +76,30 @@ def test_clickhouse_configuration() -> None:
         explicit_value="clickhouse://user1:pass1@host1:9000/db1",
     )
     assert ClickHouseClientConfiguration(credentials=config).fingerprint() == digest128("host1")
+
+
+def test_clickhouse_configuration_on_partial() -> None:
+    # `ClickHouseClientConfiguration` has two required fields that default to `None`:
+    # 1. `credentials`: must be provided
+    # 2. `dlt_tables_table_engine_type`: should fall back to `table_engine_type` if not provided
+
+    # create configuration without providing any values
+    config = ClickHouseClientConfiguration()
+    assert config.credentials is None
+    assert config.dlt_tables_table_engine_type is None
+    assert config.is_partial()  # missing `credentials` and `dlt_tables_table_engine_type`
+
+    # call on_partial to resolve `dlt_tables_table_engine_type`
+    config.on_partial()
+    assert config.credentials is None  # still None
+    assert config.dlt_tables_table_engine_type == config.table_engine_type  # resolved
+    assert config.is_partial()  # missing `credentials`
+
+    # provide credentials
+    config.credentials = {"host": "host1"}  # type: ignore[assignment]
+    assert not config.is_partial()  # all required fields provided
+    config.on_partial()
+    assert config.is_resolved()  # `on_partial` marked config as resolved
 
 
 def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:

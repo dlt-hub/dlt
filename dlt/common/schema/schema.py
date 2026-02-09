@@ -557,7 +557,7 @@ class Schema:
         return [
             t
             for t in self._schema_tables.values()
-            if not is_dlt_table_or_column(t["name"], self._dlt_tables_prefix)
+            if not self.is_dlt_table(t["name"])
             and (
                 (
                     include_incomplete
@@ -578,13 +578,13 @@ class Schema:
             )
         ]
 
+    def is_dlt_table(self, table_name: str) -> bool:
+        """Returns True if table with name `table_name` is a dlt table, False otherwise."""
+        return is_dlt_table_or_column(table_name, self._dlt_tables_prefix)
+
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
-        return [
-            t
-            for t in self._schema_tables.values()
-            if is_dlt_table_or_column(t["name"], self._dlt_tables_prefix)
-        ]
+        return [t for t in self._schema_tables.values() if self.is_dlt_table(t["name"])]
 
     def dlt_table_names(self) -> List[str]:
         """Returns list of dlt table names."""

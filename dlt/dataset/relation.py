@@ -248,7 +248,7 @@ class Relation(WithSqlClient):
             query = _normalize_query(
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._dataset.sqlglot_schema,
-                sql_client=self.sql_client,
+                destination_client=self._dataset.destination_client,
                 casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
 

@@ -162,7 +162,10 @@ class ClickHouseTypeMapper(TypeMapperImpl):
 class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"]):
     spec = ClickHouseClientConfiguration
 
-    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+    @staticmethod
+    def _set_raw_capabilities(
+        caps: DestinationCapabilitiesContext,
+    ) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "jsonl"
         caps.supported_loader_file_formats = ["parquet", "jsonl", "model"]
@@ -213,6 +216,11 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
 
         caps.sqlglot_dialect = "clickhouse"
 
+        return caps
+
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        caps = DestinationCapabilitiesContext()
+        caps = self._set_raw_capabilities(caps)
         return caps
 
     @property

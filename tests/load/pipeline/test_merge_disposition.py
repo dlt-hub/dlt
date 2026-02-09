@@ -76,7 +76,7 @@ def test_merge_on_keys_in_schema_nested_hints(
         # remove `partition` hint because it conflicts with `cluster` on databricks
         schema.merge_hints({"partition": []}, replace=True)
 
-    if destination_config.destination_type == "clickhouse":
+    if destination_config.destination_type in ("clickhouse", "clickhouse_cluster"):
         # remove `partition` hint because it conflicts with `nullable` on clickhouse
         schema.merge_hints({"partition": []}, replace=True)
         # remove `sort` hints because it conflicts with `primary_key` on clickhouse
@@ -1077,10 +1077,9 @@ def test_merge_with_dispatch_and_incremental(
     if not destination_config.supports_merge:
         return
     # but we have it updated
-    with p.sql_client() as c:
-        qual_name = c.make_qualified_table_name("watch_event")
-        with c.execute_query(f"SELECT node_id FROM {qual_name} WHERE node_id = 'new_node_X'") as q:
-            assert len(list(q.fetchall())) == 1
+    rows = load_tables_to_dicts(p, "watch_event")["watch_event"]
+    matched_rows = [r for r in rows if r["node_id"] == "new_node_X"]
+    assert len(matched_rows) == 1
 
 
 @pytest.mark.parametrize(

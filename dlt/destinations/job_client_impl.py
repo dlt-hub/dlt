@@ -411,10 +411,13 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         now_ts = pendulum.now()
+        table_schema = self.prepare_load_table(self.schema.loads_table_name)
+        insert_into = self.sql_client._make_insert_into(
+            table_schema, self.loads_table_schema_columns
+        )
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.loads_table_schema_columns}) VALUES(%s, %s, %s, %s, %s)",
+            f"{insert_into} VALUES(%s, %s, %s, %s, %s)",
             load_id,
             self.schema.name,
             0,
@@ -689,18 +692,11 @@ WHERE """
 
     def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
         """Begins CREATE TABLE statement"""
-        not_exists_clause = " "
-        if (
+        if_not_exists = (
             table["name"] in self.schema.dlt_table_names()
             and self.capabilities.supports_create_table_if_not_exists
-        ):
-            not_exists_clause = " IF NOT EXISTS "
-        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
-
-    @staticmethod
-    def _make_alter_table(qualified_name: str) -> str:
-        """Begins ALTER TABLE statement"""
-        return f"ALTER TABLE {qualified_name}\n"
+        )
+        return self.sql_client._make_create_table(qualified_name, if_not_exists=if_not_exists)
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -719,7 +715,7 @@ WHERE """
             sql += ")"
             sql_result.append(sql)
         else:
-            sql_base = self._make_alter_table(qualified_name)
+            sql_base = self.sql_client._make_alter_table(qualified_name) + "\n"
             add_column_statements = self._make_add_column_sql(new_columns, table)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
@@ -846,7 +842,8 @@ WHERE """
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_schema_name,) = self._norm_and_escape_columns("schema_name")
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s", schema.name)
+        sql = f"{self.sql_client._make_delete_from(name)} WHERE {c_schema_name} = %s"
+        self.sql_client.execute_sql(sql, schema.name)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         # get schema string or zip
@@ -860,11 +857,13 @@ WHERE """
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
         now_ts = pendulum.now()
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
+        table_schema = self.prepare_load_table(self.schema.version_table_name)
+        insert_into = self.sql_client._make_insert_into(
+            table_schema, self.version_table_schema_columns
+        )
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s,"
-            " %s)",
+            f"{insert_into} VALUES (%s, %s, %s, %s, %s, %s)",
             schema.version,
             schema.ENGINE_VERSION,
             now_ts,

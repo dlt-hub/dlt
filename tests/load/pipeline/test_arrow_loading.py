@@ -79,7 +79,8 @@ def test_load_arrow_item(
         "synapse",
         "fabric",
         "clickhouse",
-    )  # athena/redshift can't load TIME columns
+        "clickhouse_cluster",
+    )
     include_binary = not (
         destination_config.destination_type in ("redshift", "databricks")
         and destination_config.file_format == "jsonl"
@@ -151,7 +152,7 @@ def test_load_arrow_item(
             if "binary" in record:
                 record["binary"] = record["binary"].hex()
 
-    if destination_config.destination_type == "clickhouse":
+    if destination_config.destination_type in ("clickhouse", "clickhouse_cluster"):
         for record in records:
             # Clickhouse needs base64 string for jsonl
             if "binary" in record and destination_config.file_format == "jsonl":
@@ -167,13 +168,6 @@ def test_load_arrow_item(
                 # use UTC conversion here because timezone is not specified and Athena
                 # returns naive datetimes
                 row[i] = ensure_pendulum_datetime_utc(row[i])
-            # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
-            elif (
-                destination_config.destination_type == "clickhouse"
-                and destination_config.file_format == "jsonl"
-                and isinstance(row[i], float)
-            ):
-                row[i] = round(row[i], 4)
             elif isinstance(first_record[i], dt_time):
                 # Some drivers (mysqlclient) return TIME columns as timedelta as seconds since midnight
                 # sqlite returns iso strings
@@ -195,13 +189,20 @@ def test_load_arrow_item(
     expected = sorted(expected)
 
     for row, expected_row in zip(rows, expected):
-        # Compare without _dlt_id/_dlt_load_id columns
-
-        assert row[3] == expected_row[3]
-        assert row[:-2] == expected_row
         # Load id and dlt_id are set
         assert row[-2] == load_id
         assert isinstance(row[-1], str)
+
+        # ClickHouse not infrequently loses precision on floats, so we check approximate equality
+        if destination_config.destination_type in ("clickhouse", "clickhouse_cluster"):
+            assert isinstance(row[1], float)
+            assert row.pop(1) == pytest.approx(expected_row.pop(1))
+            assert isinstance(row[5], (float, type(None)))  # nullable float
+            assert row.pop(5) == pytest.approx(expected_row.pop(5))
+            assert not any(isinstance(col, float) for col in row)  # no other floats left
+
+        # Compare without _dlt_id/_dlt_load_id columns
+        assert row[:-2] == expected_row
 
 
 # TODO: also parametrize by native, parquet formats

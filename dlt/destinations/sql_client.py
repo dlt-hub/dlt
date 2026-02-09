@@ -17,11 +17,13 @@ from typing import (
     AnyStr,
     List,
     Generator,
+    Union,
     cast,
 )
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.typing import TFun, TypedDict, Self
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.typing import TColumnNames, TFun, TypedDict, Self
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
@@ -259,6 +261,25 @@ SELECT 1
             staging_table_name,
         )
 
+    def get_select_table_name(
+        self, table_schema: PreparedTableSchema, qualify: bool = False, staging: bool = False
+    ) -> str:
+        """Returns table name to use in SELECT SQL statements."""
+        table_name = table_schema["name"]
+        if qualify:
+            if staging:
+                with self.with_staging_dataset():
+                    table_name = self.make_qualified_table_name(table_name)
+            else:
+                table_name = self.make_qualified_table_name(table_name)
+        return table_name
+
+    def get_insert_table_name(
+        self, table_schema: PreparedTableSchema, qualify: bool = False
+    ) -> str:
+        """Returns table name to use in INSERT SQL statements."""
+        return self.get_select_table_name(table_schema, qualify)
+
     def escape_column_name(
         self, column_name: str, quote: bool = True, casefold: bool = True
     ) -> str:
@@ -269,17 +290,35 @@ SELECT 1
         return column_name
 
     @contextmanager
-    def with_alternative_dataset_name(
-        self, dataset_name: str
+    def _with_alternative_attribute_value(
+        self, attr_name: str, val: Any
     ) -> Iterator["SqlClientBase[TNativeConn]"]:
-        """Sets the `dataset_name` as the default dataset during the lifetime of the context. Does not modify any search paths in the existing connection."""
-        current_dataset_name = self.dataset_name
+        """Sets attribute `attr_name` to value `val` during lifetime of context."""
+        current_val = getattr(self, attr_name)
         try:
-            self.dataset_name = dataset_name
+            setattr(self, attr_name, val)
             yield self
         finally:
-            # restore previous dataset name
-            self.dataset_name = current_dataset_name
+            # restore previous value
+            setattr(self, attr_name, current_val)
+
+    def with_alternative_database_name(
+        self, database_name: str
+    ) -> ContextManager["SqlClientBase[TNativeConn]"]:
+        """Sets `database_name` as default database during lifetime of context.
+
+        Does not modify any search paths in existing connection.
+        """
+        return self._with_alternative_attribute_value("database_name", database_name)
+
+    def with_alternative_dataset_name(
+        self, dataset_name: str
+    ) -> ContextManager["SqlClientBase[TNativeConn]"]:
+        """Sets `dataset_name` as default dataset during lifetime of context.
+
+        Does not modify any search paths in existing connection.
+        """
+        return self._with_alternative_attribute_value("dataset_name", dataset_name)
 
     def with_staging_dataset(self) -> ContextManager["SqlClientBase[TNativeConn]"]:
         """Temporarily switch sql client to staging dataset name"""
@@ -327,14 +366,84 @@ SELECT 1
     #
     # generate sql statements
     #
-    def _truncate_table_sql(self, qualified_table_name: str) -> str:
-        if self.capabilities.supports_truncate_command:
-            return f"TRUNCATE TABLE {qualified_table_name}"
-        else:
-            return f"DELETE FROM {qualified_table_name} WHERE 1=1"
 
     def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
         return "", f"LIMIT {limit}"
+
+    def _make_escaped_column_sequence(
+        self, columns: TColumnNames, quote: bool = True, casefold: bool = True
+    ) -> str:
+        if isinstance(columns, str):
+            columns = [columns]
+        escaped_columns = [self.escape_column_name(column, quote, casefold) for column in columns]
+        return ", ".join(escaped_columns)
+
+    def _make_create_table(
+        self, qualified_name: str, or_replace: bool = False, if_not_exists: bool = False
+    ) -> str:
+        or_replace_sql = "OR REPLACE " if or_replace else ""
+        if_not_exists_sql = "IF NOT EXISTS " if if_not_exists else ""
+        return f"CREATE {or_replace_sql}TABLE {if_not_exists_sql}{qualified_name}"
+
+    def _make_alter_table(self, qualified_table_name: str) -> str:
+        return f"ALTER TABLE {qualified_table_name}"
+
+    def _make_select_from(
+        self,
+        table_schema: PreparedTableSchema,
+        columns: Optional[Union[str, Sequence[str]]] = None,
+        staging: bool = False,
+    ) -> str:
+        """Returns start of SELECT FROM statement for the given table and optional columns.
+
+        Args:
+            table_schema: Schema for table to select from. Uses `get_select_table_name` to get
+                effective table name to select from.
+            columns: Optional columns to select from. If it's a string, it is used as is. If it's is
+                a sequence of strings, the column names are escaped and joined.
+            staging: If True, selects from staging table instead of main table.
+        """
+        table_name = self.get_select_table_name(table_schema, qualify=True, staging=staging)
+        if columns:
+            if not isinstance(columns, str):
+                columns = self._make_escaped_column_sequence(columns)
+            return f"SELECT {columns} FROM {table_name}"
+        return f"SELECT * FROM {table_name}"
+
+    def _make_insert_into(
+        self,
+        table: Union[str, PreparedTableSchema],
+        columns: Optional[Union[str, Sequence[str]]] = None,
+    ) -> str:
+        """Returns start of `INSERT INTO` statement for the given table and optional columns.
+
+        Args:
+            table: Table to insert into. If it's a `PreparedTableSchema`, table name from
+                `get_insert_table_name` is used.
+            columns: Optional columns to insert into. If it's a string, it is used as is. If it's is
+                a sequence of strings, the column names are escaped and joined.
+        """
+        table_name = (
+            table if isinstance(table, str) else self.get_insert_table_name(table, qualify=True)
+        )
+        if columns:
+            if not isinstance(columns, str):
+                columns = self._make_escaped_column_sequence(columns)
+        if columns:
+            return f"INSERT INTO {table_name} ({columns})"
+        return f"INSERT INTO {table_name}"
+
+    def _make_delete_from(self, qualified_table_name: str) -> str:
+        return f"DELETE FROM {qualified_table_name}"
+
+    def _make_truncate_table(self, qualified_table_name: str) -> str:
+        return f"TRUNCATE TABLE {qualified_table_name}"
+
+    def _truncate_table_sql(self, qualified_table_name: str) -> str:
+        if self.capabilities.supports_truncate_command:
+            return self._make_truncate_table(qualified_table_name)
+        else:
+            return f"{self._make_delete_from(qualified_table_name)} WHERE 1=1"
 
 
 class WithSqlClient(ABC):

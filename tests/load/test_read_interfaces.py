@@ -16,6 +16,9 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 
 from dlt.common.utils import uniq_id
+from dlt.destinations.impl.clickhouse_cluster.configuration import (
+    ClickHouseClusterClientConfiguration,
+)
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
@@ -1300,6 +1303,16 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
 
+    config = populated_pipeline.destination_client().config
+    if (
+        isinstance(config, ClickHouseClusterClientConfiguration)
+        and config.create_distributed_tables
+    ):
+        pytest.skip(
+            "`ibis` backend does not currently implement handling of `clickhouse_cluster`"
+            " distributed tables"
+        )
+
     # make sure the not implemented error is raised if the ibis backend can't be created
     try:
         ds_ = populated_pipeline.dataset()
@@ -1329,7 +1342,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         additional_tables = []
 
         # clickhouse has no datasets, but table prefixes and a sentinel table
-        if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
+        if populated_pipeline.destination.destination_type in (
+            "dlt.destinations.clickhouse",
+            "dlt.destinations.clickhouse_cluster",
+        ):
             table_like_statement = dataset_name + "."
             table_name_prefix = dataset_name + "___"
             dataset_name = None

@@ -550,7 +550,9 @@ def test_data_writer_load(
     rows, table_name = prepare_schema(client, "simple_row")
     root_table = client.schema.get_table(table_name)
     root_table["table_format"] = client.destination_config.table_format
-    canonical_name = client.sql_client.make_qualified_table_name(table_name)
+    qual_select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name), qualify=True
+    )
     # write only first row
     with io.BytesIO() as f:
         write_dataset(
@@ -560,7 +562,7 @@ def test_data_writer_load(
     expect_load_file(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format
     )
-    db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
+    db_row = client.sql_client.execute_sql(f"SELECT * FROM {qual_select_table_name}")[0]
     # content must equal
     assert list(db_row) == list(rows[0].values())
     # write second row that contains two nulls
@@ -575,7 +577,7 @@ def test_data_writer_load(
     f_int_name = client.schema.naming.normalize_identifier("f_int")
     f_int_name_quoted = client.sql_client.escape_column_name(f_int_name)
     db_row = client.sql_client.execute_sql(
-        f"SELECT * FROM {canonical_name} WHERE {f_int_name_quoted} = {rows[1][f_int_name]}"
+        f"SELECT * FROM {qual_select_table_name} WHERE {f_int_name_quoted} = {rows[1][f_int_name]}"
     )[0]
     assert db_row[3] is None
     assert db_row[5] is None
@@ -607,7 +609,10 @@ def test_data_writer_string_escape(
     expect_load_file(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format
     )
-    db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
+    qual_select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name), qualify=True
+    )
+    db_row = client.sql_client.execute_sql(f"SELECT * FROM {qual_select_table_name}")[0]
     assert list(db_row) == list(row.values())
 
 
@@ -625,7 +630,6 @@ def test_data_writer_string_escape_edge(
     rows, table_name = prepare_schema(client, "weird_rows")
     root_table = client.schema.get_table(table_name)
     root_table["table_format"] = client.destination_config.table_format
-    canonical_name = client.sql_client.make_qualified_table_name(table_name)
     with io.BytesIO() as f:
         write_dataset(
             client, f, rows, root_table, file_format=client.destination_config.file_format
@@ -634,8 +638,13 @@ def test_data_writer_string_escape_edge(
     expect_load_file(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format
     )
+    qual_select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name), qualify=True
+    )
     for i in range(1, len(rows) + 1):
-        db_row = client.sql_client.execute_sql(f"SELECT str FROM {canonical_name} WHERE idx = {i}")
+        db_row = client.sql_client.execute_sql(
+            f"SELECT str FROM {qual_select_table_name} WHERE idx = {i}"
+        )
         row_value, expected = db_row[0][0], rows[i - 1]["str"]
         assert row_value == expected
 
@@ -674,6 +683,9 @@ def test_load_with_all_types(
     client.schema._bump_version()
     client.update_stored_schema()
 
+    select_table_name = client.sql_client.get_select_table_name(
+        client.prepare_load_table(table_name)
+    )
     if isinstance(client, WithStagingDataset):
         should_load_to_staging = client.should_load_data_to_staging_dataset(table_name)
         if should_load_to_staging:
@@ -687,9 +699,9 @@ def test_load_with_all_types(
             if should_load_to_staging
             else client.sql_client.dataset_name
         ):
-            canonical_name = client.sql_client.make_qualified_table_name(table_name)
+            qual_select_table_name = client.sql_client.make_qualified_table_name(select_table_name)
     else:
-        canonical_name = client.sql_client.make_qualified_table_name(table_name)
+        qual_select_table_name = client.sql_client.make_qualified_table_name(select_table_name)
     # write row
     with io.BytesIO() as f:
         write_dataset(
@@ -700,7 +712,7 @@ def test_load_with_all_types(
     expect_load_file(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format
     )
-    db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
+    db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {qual_select_table_name}")[0])
     print("DB ROW", db_row)
     assert len(db_row) == len(data_row)
     # assert_all_data_types_row has many hardcoded columns so for now skip that part
@@ -825,10 +837,12 @@ def test_write_dispositions(
                 )
                 query = f.getvalue()
             expect_load_file(client, file_storage, query, t, file_format=prepared_root_table.get("file_format"))  # type: ignore[arg-type]
+            qual_select_table_name = client.sql_client.get_select_table_name(
+                client.prepare_load_table(t), qualify=True
+            )
             db_rows = list(
                 client.sql_client.execute_sql(
-                    f"SELECT * FROM {client.sql_client.make_qualified_table_name(t)} ORDER BY"
-                    " col1 ASC"
+                    f"SELECT * FROM {qual_select_table_name} ORDER BY col1 ASC"
                 )
             )
             # in case of merge
@@ -839,12 +853,8 @@ def test_write_dispositions(
                 # we overwrite with the same row. merge falls back to replace when no keys specified
                 assert len(db_rows) == 1
             else:
-                # NOTE: on second load, number of records in table "t" is zero in case of merge on
-                #  clickhouse. query log looks good. if I disable deleting from table "t" I still
-                #  get 0 rows 🤯
-                if client.destination_config.destination_type != "clickhouse":
-                    # merge data should be copied to destination dataset and PK should be applied
-                    assert len(db_rows) == 1
+                # merge data should be copied to destination dataset and PK should be applied
+                assert len(db_rows) == 1
                 # check staging
                 if isinstance(
                     client, WithStagingDataset
@@ -852,9 +862,7 @@ def test_write_dispositions(
                     with client.with_staging_dataset():
                         db_rows = list(
                             client.sql_client.execute_sql(
-                                "SELECT * FROM"
-                                f" {client.sql_client.make_qualified_table_name(t)} ORDER BY"
-                                " col1 ASC"
+                                f"SELECT * FROM {qual_select_table_name} ORDER BY col1 ASC"
                             )
                         )
                         assert len(db_rows) == 1
@@ -1035,8 +1043,10 @@ def test_many_schemas_single_dataset(
         expect_load_file(
             _client, file_storage, query, "event_user", file_format=destination_config.file_format
         )
-        qual_table_name = _client.sql_client.make_qualified_table_name("event_user")
-        db_rows = list(_client.sql_client.execute_sql(f"SELECT * FROM {qual_table_name}"))
+        qual_select_table_name = _client.sql_client.get_select_table_name(
+            _client.prepare_load_table("event_user"), qualify=True
+        )
+        db_rows = list(_client.sql_client.execute_sql(f"SELECT * FROM {qual_select_table_name}"))
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(

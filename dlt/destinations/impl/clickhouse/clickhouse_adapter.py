@@ -24,6 +24,7 @@ from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
 
+# NOTE: if you update `clickhouse_adapter`, check if `clickhouse_cluster_adapter` needs updating too
 def clickhouse_adapter(
     data: Any,
     table_engine_type: Optional[TTableEngineType] = None,
@@ -38,7 +39,7 @@ def clickhouse_adapter(
         data (Any): The data to be transformed. It can be raw data or an instance
             of DltResource. If raw data, the function wraps it into a DltResource
             object.
-        table_engine_type (TTableEngineType, optional): The table index type used when creating
+        table_engine_type (TTableEngineType, optional): The table engine type used when creating
             the Clickhouse table.
         sort (TSQLExprOrColumnSeq, optional): Sorting key SQL expression or sequence of column
             names. Used to generated `ORDER BY` clause of table creation statement. If passing a SQL

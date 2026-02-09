@@ -21,6 +21,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.sql_client import WithSqlClient
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
@@ -533,9 +534,12 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     id_data = sorted(
         ["level" + str(n) for n in range(10)] + ["level" + str(n) for n in range(100, 110)]
     )
-    with p.sql_client() as client:
-        simple_rows_table = client.make_qualified_table_name("simple_rows")
-        dlt_loads_table = client.make_qualified_table_name(schema.loads_table_name)
+    client = p.destination_client()
+    assert isinstance(client, WithSqlClient)
+    simple_rows_table = client.sql_client.make_qualified_table_name(
+        client.sql_client.get_select_table_name(client.prepare_load_table("simple_rows"))
+    )
+    dlt_loads_table = client.sql_client.make_qualified_table_name(schema.loads_table_name)
     assert_query_column(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)
     assert_query_column(
         p,
@@ -657,6 +661,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         "synapse",
         "databricks",
         "clickhouse",
+        "clickhouse_cluster",
         "fabric",
     ]:
         datetime_data.pop("col11")
@@ -737,7 +742,8 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             schema=columns_schema,
             parse_json_strings=destination_config.destination_type
             in ["snowflake", "bigquery", "redshift"],
-            allow_string_binary=destination_config.destination_type == "clickhouse",
+            allow_string_binary=destination_config.destination_type
+            in ("clickhouse", "clickhouse_cluster"),
         )
 
 

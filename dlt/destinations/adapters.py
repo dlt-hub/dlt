@@ -6,6 +6,9 @@ from dlt.destinations.impl.lancedb import lancedb_adapter
 from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter, bigquery_partition
 from dlt.destinations.impl.synapse.synapse_adapter import synapse_adapter
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import clickhouse_adapter
+from dlt.destinations.impl.clickhouse_cluster.clickhouse_cluster_adapter import (
+    clickhouse_cluster_adapter,
+)
 from dlt.destinations.impl.athena.athena_adapter import athena_adapter, athena_partition
 from dlt.destinations.impl.postgres.postgres_adapter import postgres_adapter
 from dlt.destinations.impl.databricks.databricks_adapter import databricks_adapter
@@ -19,6 +22,7 @@ __all__ = [
     "bigquery_partition",
     "synapse_adapter",
     "clickhouse_adapter",
+    "clickhouse_cluster_adapter",
     "athena_adapter",
     "athena_partition",
     "postgres_adapter",

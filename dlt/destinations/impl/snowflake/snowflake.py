@@ -218,7 +218,9 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
 
     def _get_alter_cluster_sql(self, table_name: str, cluster_column_names: Sequence[str]) -> str:
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
-        return self._make_alter_table(qualified_name) + self._get_cluster_sql(cluster_column_names)
+        alter_table_sql = self.sql_client._make_alter_table(qualified_name)
+        cluster_sql = self._get_cluster_sql(cluster_column_names)
+        return f"{alter_table_sql} {cluster_sql}"
 
     def _add_cluster_sql(
         self,

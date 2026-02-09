@@ -30,11 +30,13 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     secure: TSecureConnection = 1
     """Enables TLS encryption when connecting to ClickHouse Server. 0 means no encryption, 1 means encrypted."""
     connect_timeout: int = 15
-    """Timeout for establishing connection. Defaults to 10 seconds."""
+    """Timeout for establishing connection. Defaults to 15 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
     s3_extra_credentials: Optional[Dict[str, str]] = None
     """Arguments to pass to the `extra_credentials` function specifically for S3 function."""
+
+    __query_params__: ClassVar[List[str]] = ["secure", "connect_timeout", "send_receive_timeout"]
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -46,6 +48,12 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "s3_extra_credentials",
     ]
 
+    __session_settings__: ClassVar[Dict[str, Any]] = {
+        "enable_lightweight_delete": 1,
+        "enable_http_compression": 1,
+        "date_time_input_format": "best_effort",
+    }
+
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
@@ -55,18 +63,11 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         self.secure = cast(TSecureConnection, int(self.query.get("secure", self.secure)))
 
     def get_query(self) -> Dict[str, Any]:
-        query = dict(super().get_query())
-        query.update(
-            {
-                "connect_timeout": str(self.connect_timeout),
-                "send_receive_timeout": str(self.send_receive_timeout),
-                "secure": 1 if self.secure else 0,
-                "allow_experimental_lightweight_delete": 1,
-                "enable_http_compression": 1,
-                "date_time_input_format": "best_effort",
-            }
-        )
-        return query
+        query = super().get_query()
+        for param in self.__query_params__:
+            if self.get(param) is not None:
+                query[param] = self[param]
+        return query | self.__session_settings__
 
 
 @configspec
@@ -82,8 +83,10 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
 
     dataset_table_separator: str = "___"
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
-    table_engine_type: Optional[TTableEngineType] = "merge_tree"
-    """The default table engine to use. Defaults to 'merge_tree'. Other implemented options are 'shared_merge_tree' and 'replicated_merge_tree'."""
+    table_engine_type: TTableEngineType = "merge_tree"
+    """Default table engine to use for all tables. Can be overridden per table via `clickhouse_adapter`."""
+    dlt_tables_table_engine_type: TTableEngineType = None
+    """Default table engine to use for dlt tables. Also applies to dataset sentinel table. Falls back to `table_engine_type` if set to `None`."""
     dataset_sentinel_table_name: str = "dlt_sentinel_table"
     """Special table to mark dataset as existing"""
     staging_use_https: bool = True
@@ -93,6 +96,7 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         "dataset_table_separator",
         "dataset_sentinel_table_name",
         "table_engine_type",
+        "dlt_tables_table_engine_type",
     ]
 
     def fingerprint(self) -> str:
@@ -100,3 +104,10 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
+
+    def on_partial(self) -> None:
+        if self.dlt_tables_table_engine_type is None:
+            self.dlt_tables_table_engine_type = self.table_engine_type
+
+        if not self.is_partial():
+            self.resolve()
