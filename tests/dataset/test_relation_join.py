@@ -58,7 +58,7 @@ def test_to_join_ref_rejects_malformed(ref: TTableReference, direction: str, mat
 
 def test_resolve_reference_chain_rejects_self_join(dataset_with_loads: TLoadsFixture) -> None:
     dataset, _, _ = dataset_with_loads
-    with pytest.raises(ValueError, match="Cannot a join table to itself"):
+    with pytest.raises(ValueError, match="Cannot join a table to itself"):
         _resolve_reference_chain(dataset.schema, "users", "users")
 
 

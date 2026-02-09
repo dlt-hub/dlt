@@ -69,7 +69,7 @@ class _JoinRef(TypedDict):
     table: str
     referenced_table: str
     columns: Union[list[str], Sequence[str]]
-    referenced_columns: Union[list[str], Sequence[str]]
+    referenced_columns: Sequence[str]
     direction: Literal["LEFT", "RIGHT"]
 
 
@@ -140,7 +140,7 @@ def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[
         - "LEFT" when joining from parent to child
     """
     if left == right:
-        raise ValueError(f"Cannot a join table to itself: {left}")
+        raise ValueError(f"Cannot join a table to itself: {left}")
     # Check direct references first
     for ref in schema.references:
         if ref.get("table") == left and ref.get("referenced_table") == right:
@@ -573,11 +573,11 @@ class Relation(WithSqlClient):
                     " relation, please join before applying transformations like `select` or"
                     " `_apply_agg`"
                 )
-            other_table = other._table_name
+            other_table = other._origin_table_name
         else:
             other_table = other
 
-        if not isinstance(other_table, str):
+        if not other_table or not isinstance(other_table, str):
             raise ValueError("`other` must be a table name or a base table relation")
 
         if other_table not in self._dataset.schema.tables:
@@ -634,6 +634,7 @@ class Relation(WithSqlClient):
                 start_index += 1
 
         rel = self.__copy__()
+        # setup to allow further joins
         rel._sqlglot_expression = query
         rel._joined_table_aliases = joined_tables
         rel._next_join_alias_index = start_index if refs_to_add else next_alias_index
@@ -904,6 +905,8 @@ class Relation(WithSqlClient):
             self._joined_table_aliases.copy() if self._joined_table_aliases else None
         )
         rel._next_join_alias_index = self._next_join_alias_index
+        # by default relations are not joinable after transforms
+        rel._is_joinable_graph = False
         return rel
 
 
