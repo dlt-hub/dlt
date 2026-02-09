@@ -1,9 +1,18 @@
 from __future__ import annotations
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from functools import reduce
 
 from functools import partial
-from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
+from typing import (
+    overload,
+    Union,
+    Any,
+    Generator,
+    Optional,
+    Type,
+    TYPE_CHECKING,
+    Literal,
+)
 from textwrap import indent
 from contextlib import contextmanager
 from dlt.common.utils import simple_repr, without_none
@@ -28,7 +37,7 @@ from dlt.common.schema.typing import (
     TTableReferenceStandalone,
 )
 from dlt.common.schema import utils as schema_utils, TSchemaTables
-from dlt.common.typing import Self, TSortOrder
+from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
@@ -56,9 +65,38 @@ _FILTER_OP_MAP = {
 }
 
 
-def _resolve_parent_reference_chain(
-    schema: dlt.Schema, left: str, right: str
-) -> list[tuple[TTableReference, str]]:
+class _JoinRef(TypedDict):
+    table: str
+    referenced_table: str
+    columns: Union[list[str], Sequence[str]]
+    referenced_columns: Union[list[str], Sequence[str]]
+    direction: Literal["LEFT", "RIGHT"]
+
+
+def _to_join_ref(ref: TTableReference, direction: Literal["LEFT", "RIGHT"]) -> _JoinRef:
+    if "table" not in ref or ref["table"] is None or "referenced_table" not in ref:
+        raise ValueError(
+            f"Malformed table reference for join: {ref} - missing 'table' or 'referenced_table'"
+        )
+    if (
+        len(ref.get("columns", [])) == 0
+        or len(ref.get("referenced_columns", [])) == 0
+        or len(ref.get("columns", [])) != len(ref.get("referenced_columns", []))
+    ):
+        raise ValueError(
+            f"Malformed table reference for join: {ref} - 'columns' or 'referenced_columns' are"
+            " empty"
+        )
+    return _JoinRef(
+        table=ref["table"],
+        referenced_table=ref["referenced_table"],
+        columns=ref.get("columns", []),
+        referenced_columns=ref.get("referenced_columns", []),
+        direction=direction,
+    )
+
+
+def _resolve_parent_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
     """Resolve the reference chain between two tables.
 
     References always point child -> parent (child has foreign key to parent).
@@ -75,30 +113,29 @@ def _resolve_parent_reference_chain(
     upward_chain_from_right = schema_utils.get_all_parent_references_to_root(schema.tables, right)
 
     for idx, left_ref in enumerate(upward_chain_from_left):
-        if "referenced_table" not in left_ref:
+        if "referenced_table" not in left_ref or "table" not in left_ref:
             break
         if left_ref["referenced_table"] == right:
             # right is a parent of left: natural direction (for references), use RIGHT JOIN
-            return [(ref, "RIGHT") for ref in upward_chain_from_left[: idx + 1]]
+            return [_to_join_ref(ref, "RIGHT") for ref in upward_chain_from_left[: idx + 1]]
 
     for idx, right_ref in enumerate(upward_chain_from_right):
-        if "referenced_table" not in right_ref:
+        if "referenced_table" not in right_ref or "table" not in right_ref:
             break
         if right_ref["referenced_table"] == left:
             # left is a parent of right: reverse chain, use LEFT JOIN
-            reversed_chain = list(reversed(upward_chain_from_right[: idx + 1]))
-            return [(ref, "LEFT") for ref in reversed_chain]
+            return [
+                _to_join_ref(ref, "LEFT") for ref in reversed(upward_chain_from_right[: idx + 1])
+            ]
 
     raise ValueError(f"Unable to resolve reference chain between {left} and {right}")
 
 
-def _resolve_reference_chain(
-    schema: dlt.Schema, left: str, right: str
-) -> list[tuple[TTableReference, str]]:
+def _resolve_reference_chain(schema: dlt.Schema, left: str, right: str) -> list[_JoinRef]:
     """Resolve references between two tables and determine join type per reference.
 
     Returns:
-        List of (reference, join_type) tuples where join_type is:
+        List of _JoinRef where directions is:
         - "RIGHT" when joining from child to parent (natural ref direction)
         - "LEFT" when joining from parent to child
     """
@@ -108,17 +145,17 @@ def _resolve_reference_chain(
     for ref in schema.references:
         if ref.get("table") == left and ref.get("referenced_table") == right:
             # Natural direction: left (child) -> right (parent), use RIGHT JOIN
-            return [(TTableReference(**ref), "RIGHT")]
+            return [_to_join_ref(TTableReference(**ref), "RIGHT")]
         if ref.get("table") == right and ref.get("referenced_table") == left:
             # Opposite direction: left (parent) <- right (child), use LEFT JOIN
-            return [(TTableReference(**ref), "LEFT")]
+            return [_to_join_ref(TTableReference(**ref), "LEFT")]
 
     # Fall back to parent-child reference chain
     return _resolve_parent_reference_chain(schema, left, right)
 
 
 def _build_join_condition(
-    ref: TTableReferenceStandalone,
+    ref: _JoinRef,
     left_alias: str = "l",
     right_alias: str = "r",
     is_parent_on_left: bool = False,
@@ -134,7 +171,7 @@ def _build_join_condition(
         left_cols = ref["columns"]
         right_cols = ref["referenced_columns"]
 
-    for left_col, right_col in zip(left_cols, right_cols, strict=True):
+    for left_col, right_col in zip(left_cols, right_cols):
         condition = sge.EQ(
             this=sge.Column(
                 this=sge.to_identifier(left_col, quoted=True),
@@ -154,7 +191,7 @@ def _build_join_condition(
 
 
 def _build_join(
-    refs_with_types: list[tuple[TTableReferenceStandalone, str]],
+    refs_with_types: list[_JoinRef],
     *,
     base_alias: str = "t0",
     start_index: int = 1,
@@ -171,10 +208,10 @@ def _build_join(
     left_alias = base_alias
     alias_index = start_index
 
-    for ref, join_type in refs_with_types:
+    for ref in refs_with_types:
         # LEFT join = parent->child (swap columns, join to child table)
         # RIGHT join = child->parent (natural columns, join to parent table)
-        is_left_join = join_type == "LEFT"
+        is_left_join = ref["direction"] == "LEFT"
         joined_table = ref["table"] if is_left_join else ref["referenced_table"]
         right_alias = f"t{alias_index}"
 
@@ -183,7 +220,7 @@ def _build_join(
                 this=sge.to_identifier(joined_table, quoted=True),
                 alias=sge.TableAlias(this=sge.to_identifier(right_alias, quoted=False)),
             ),
-            kind=join_type,
+            kind=ref["direction"],
         ).on(
             _build_join_condition(
                 ref,
@@ -248,6 +285,7 @@ class Relation(WithSqlClient):
             {table_name: "t0"} if table_name else None
         )
         self._next_join_alias_index: Optional[int] = 1 if table_name else None
+        self._is_joinable_graph = True if table_name else False
 
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
@@ -509,37 +547,43 @@ class Relation(WithSqlClient):
         return rel
 
     def join(self, other: str | Self) -> Self:
-        """Join this relation with another table using schema references.
+        """Join this relation to another table using schema references.
 
-        Uses the origin table as the anchor for all joins, enabling chained joins
-        while preventing invalid cross-branch joins.
-
-        The join direction determines the join type:
-        - Child -> Parent (natural ref direction): Uses RIGHT JOIN
-          Returns all rows from the parent table (right side)
-        - Parent -> Child (reversed ref direction): Uses LEFT JOIN
-          Returns all rows from the parent table (now on left side)
+        Joins are resolved from this relation's origin table through the schema
+        reference chain. Child->parent hops use RIGHT JOIN and parent->child hops
+        use LEFT JOIN to preserve parent-side rows.
 
         Args:
-            other: The table name or Relation to join with
+            other: Table name or join-graph relation to join.
 
         Returns:
-            A new Relation with the join applied
+            A new relation with the join(s) applied.
 
         Raises:
-            ValueError: If no reference chain exists between the other table and the origin,
-                       or if the relation was not created from a base table.
+            ValueError: If this relation is not joinable, `other` is invalid, the
+                target table is missing, or no reference chain can be resolved.
         """
-        if not self._origin_table_name:
-            raise ValueError("Reference-based join requires a base table relation")
+        if not self._origin_table_name or not self._is_joinable_graph:
+            raise ValueError("Reference-based join requires a base or join-graph relation")
 
-        other_table = other._table_name if isinstance(other, Relation) else other
+        if isinstance(other, Relation):
+            if not other._is_joinable_graph:
+                raise ValueError(
+                    f"Cannot ensure joinability of relation `{other}` as it is not a join-graph"
+                    " relation, please join before applying transformations like `select` or"
+                    " `_apply_agg`"
+                )
+            other_table = other._table_name
+        else:
+            other_table = other
+
         if not isinstance(other_table, str):
             raise ValueError("`other` must be a table name or a base table relation")
+
         if other_table not in self._dataset.schema.tables:
             raise ValueError(f"Table `{other_table}` not found in dataset schema")
-        schema = self._dataset.schema
 
+        schema = self._dataset.schema
         refs_with_types = _resolve_reference_chain(schema, self._origin_table_name, other_table)
         joined_tables = (
             self._joined_table_aliases.copy()
@@ -553,15 +597,15 @@ class Relation(WithSqlClient):
         )
 
         base_alias = joined_tables[self._origin_table_name]
-        refs_to_add: list[tuple[TTableReferenceStandalone, str]] = []
+        refs_to_add: list[_JoinRef] = []
         # part of the reference chain might already be joined
         # in that case we join to the first existing alias we find
-        for ref, join_type in refs_with_types:
-            joined_table = ref["table"] if join_type == "LEFT" else ref["referenced_table"]
+        for ref in refs_with_types:
+            joined_table = ref["table"] if ref["direction"] == "LEFT" else ref["referenced_table"]
             if existing_alias := joined_tables.get(joined_table):
                 base_alias = existing_alias
                 continue
-            refs_to_add.append((ref, join_type))
+            refs_to_add.append(ref)
 
         if isinstance(self._sqlglot_expression, sge.Select) and self._sqlglot_expression.args.get(
             "joins"
@@ -582,8 +626,10 @@ class Relation(WithSqlClient):
         if refs_to_add:
             for join in _build_join(refs_to_add, base_alias=base_alias, start_index=start_index):
                 query = query.join(join)
-            for ref, join_type in refs_to_add:
-                joined_table = ref["table"] if join_type == "LEFT" else ref["referenced_table"]
+            for ref in refs_to_add:
+                joined_table = (
+                    ref["table"] if ref["direction"] == "LEFT" else ref["referenced_table"]
+                )
                 joined_tables[joined_table] = f"t{start_index}"
                 start_index += 1
 
@@ -592,6 +638,7 @@ class Relation(WithSqlClient):
         rel._joined_table_aliases = joined_tables
         rel._next_join_alias_index = start_index if refs_to_add else next_alias_index
         rel._origin_table_name = self._origin_table_name
+        rel._is_joinable_graph = True
         return rel
 
     # NOTE we currently force to have one column selected; we could be more flexible
