@@ -46,6 +46,7 @@ from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
 from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
+from dlt.common.warnings import DltDeprecationWarning
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
@@ -1848,8 +1849,6 @@ def test_preserve_fields_order_incomplete_columns() -> None:
 
 
 def test_pipeline_log_progress() -> None:
-    from dlt.common.warnings import DltDeprecationWarning
-
     os.environ["TIMEOUT"] = "3.0"
 
     # "dlt_logger" attaches dlt logger lazily on first dump
@@ -1860,7 +1859,9 @@ def test_pipeline_log_progress() -> None:
     assert cast(LogCollector, p.collector).logger == "dlt_logger"
     p.extract(many_delayed(2, 10))
     # dlt logger attached after first extract
-    assert cast(LogCollector, p.collector).logger is not None
+    assert isinstance(
+        cast(LogCollector, p.collector).logger, (logging.Logger, logging.LoggerAdapter)
+    )
 
     # deprecated logger=None still works and maps to "dlt_logger"
     with pytest.warns(DltDeprecationWarning, match="logger=None"):
@@ -1892,8 +1893,6 @@ def test_log_collector_respects_stdout_redirect() -> None:
         assert "stream message" in buf.getvalue()
 
     # logger=None is deprecated and maps to "dlt_logger"
-    from dlt.common.warnings import DltDeprecationWarning
-
     with pytest.warns(DltDeprecationWarning, match="logger=None"):
         collector3 = LogCollector(logger=None, dump_system_stats=False)
     assert collector3.logger == "dlt_logger"
