@@ -37,11 +37,15 @@ dev-airflow: has-uv ## Prepares development environment with airflow support
 dev-hub: has-uv ## Prepares development environment with hub support
 	uv sync --all-extras --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
-lint: lint-core lint-security lint-docstrings lint-lock ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile)
+lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all linters (mypy, ruff, flake8, bandit, docstrings, lockfile, deps)
 
-lint-lock: ## Checks uv lockfile and hub extras are in sync
+lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
+
+lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informational)
 	uv run python tools/check_hub_extras.py
+	-uv run python -m tools.check_dependency_changes
+	-uv run python -m tools.check_api_breaking check
 
 lint-core: ## Runs core linting (mypy, ruff, flake8)
 	uv run mypy --config-file mypy.ini dlt tests tools
@@ -219,6 +223,9 @@ TEST_COMMON_CORE_PATHS = \
 
 test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
+
+test-tools:
+	uv run pytest tools/tests -v
 
 install-common-source:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database

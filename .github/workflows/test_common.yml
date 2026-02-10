@@ -108,6 +108,9 @@ jobs:
         env:
           PYTEST_XDIST_N: auto
 
+      - name: Run tools tests
+        run: make test-tools
+
       - name: Install min dependencies to import core source
         run: make install-common-source
         env:
