@@ -1,11 +1,13 @@
 """Tests for tools/check_dependency_changes.py.
 
-Uses fixed commit hashes from repo history so tests remain stable.
-Requires running inside a git clone of the dlt repository with full history.
+Uses static test case files from tools/tests/cases/dependency_changes/
+instead of relying on git history, so tests work reliably in CI.
 """
 
 import sys
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
+from unittest.mock import patch
 
 import pytest
 import tomlkit
@@ -17,28 +19,40 @@ from tools.check_dependency_changes import (
     parse_dep_list,
     three_way_merge,
 )
-from tools.git_utils import git_merge_base, git_show
 
-# ccec5c0f8 "fix: revert sqlglot version constraints (#3575)"
-# main dep change: sqlglot>=25.4.0,<28 -> sqlglot>=25.4.0,!=28.1
-SQLGLOT_REVERT = "ccec5c0f80625a9b47fc8325690b82dfd50af94b"
-
-# 215888991 "Feat/faster testing (#3479)" (parent of SQLGLOT_REVERT)
-# main dep change: sqlglot>=25.4.0,!=28.1 -> sqlglot>=25.4.0,<28
-# dev group change: added pytest-xdist>=3.5,<4
-FASTER_TESTING = "215888991ffa4c8fdd2d5554308c77427aa15f61"
-FASTER_TESTING_PARENT = "ca294e057e7234f99f87904b591d88eb8fb9f5ce"
-
-# ea8b1ae7b "(fix) do not write `_dlt_load_id` as dict on mssql + adbc (#3584)"
-# does NOT touch pyproject.toml at all
-NO_PYPROJECT_CHANGE = "ea8b1ae7bb4d0e4b5f3eb5a6bef0e2559b1aa641"
-NO_PYPROJECT_CHANGE_PARENT = "6979e42b66c8ba890bf77a67d93cd5a7fccdd4a4"
+# Path to test case fixtures
+CASES_DIR = Path(__file__).parent / "cases" / "dependency_changes"
 
 
-def parse_pyproject(ref: str) -> Dict[str, Any]:
-    text = git_show(ref)
-    assert text is not None
-    return dict(tomlkit.parse(text))
+def load_test_case(case_name: str) -> Dict[str, str]:
+    """Load ancestor, base, and head pyproject.toml for a test case."""
+    case_dir = CASES_DIR / case_name
+    return {
+        "ancestor": (case_dir / "ancestor.toml").read_text(),
+        "base": (case_dir / "base.toml").read_text(),
+        "head": (case_dir / "head.toml").read_text(),
+    }
+
+
+def mock_git_for_case(
+    case_name: str,
+) -> Tuple[Callable[[str, str], Optional[str]], Callable[[str, str], Optional[str]]]:
+    """Return mock functions for git_show and git_merge_base using test case files."""
+    case_data = load_test_case(case_name)
+
+    def mock_git_show(ref: str, path: str = "pyproject.toml") -> Optional[str]:
+        if ref == "mock_ancestor":
+            return case_data["ancestor"]
+        elif ref == "mock_base":
+            return case_data["base"]
+        elif ref == "mock_head":
+            return case_data["head"]
+        return None
+
+    def mock_git_merge_base(ref1: str, ref2: str) -> Optional[str]:
+        return "mock_ancestor"
+
+    return mock_git_show, mock_git_merge_base
 
 
 @pytest.mark.parametrize(
@@ -104,59 +118,66 @@ def test_three_way_merge() -> None:
 
 
 def test_no_dep_changes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Commit ea8b1ae7b does not touch pyproject.toml."""
-    monkeypatch.setattr(sys, "argv", ["prog", NO_PYPROJECT_CHANGE_PARENT, NO_PYPROJECT_CHANGE])
-    assert main() == 0
+    """Test case where PR does not touch pyproject.toml (ancestor == head)."""
+    mock_show, mock_merge_base = mock_git_for_case("no_pyproject_change")
 
-    # ancestor and head have identical pyproject.toml
-    ancestor = git_merge_base(NO_PYPROJECT_CHANGE_PARENT, NO_PYPROJECT_CHANGE)
-    assert ancestor is not None
-    assert git_show(ancestor) == git_show(NO_PYPROJECT_CHANGE)
+    with patch("tools.check_dependency_changes.git_show", mock_show):
+        with patch("tools.check_dependency_changes.git_merge_base", mock_merge_base):
+            monkeypatch.setattr(sys, "argv", ["prog", "mock_base", "mock_head"])
+            assert main() == 0
 
 
 def test_sqlglot_revert(monkeypatch: pytest.MonkeyPatch) -> None:
     """Commit ccec5c0f8 reverts sqlglot constraints — main dep change only."""
-    monkeypatch.setattr(sys, "argv", ["prog", FASTER_TESTING, SQLGLOT_REVERT])
-    assert main() == 1
-
-    base_doc = parse_pyproject(FASTER_TESTING)
-    head_doc = parse_pyproject(SQLGLOT_REVERT)
+    case_data = load_test_case("sqlglot_revert")
+    base_doc = dict(tomlkit.parse(case_data["base"]))
+    head_doc = dict(tomlkit.parse(case_data["head"]))
 
     # main deps: sqlglot specifier changed
-    base_main = parse_dep_list(list(base_doc["project"]["dependencies"]))
-    head_main = parse_dep_list(list(head_doc["project"]["dependencies"]))
+    base_main = parse_dep_list(list(base_doc["project"]["dependencies"]))  # type: ignore[index,arg-type]
+    head_main = parse_dep_list(list(head_doc["project"]["dependencies"]))  # type: ignore[index,arg-type]
     changes = diff_deps(base_main, head_main)
     sqlglot = [c for c in changes if c.name == "sqlglot"]
     assert len(sqlglot) == 1
     assert sqlglot[0].kind == "changed"
 
     # optional extras should be untouched
-    base_opt = base_doc["project"]["optional-dependencies"]
-    head_opt = head_doc["project"]["optional-dependencies"]
-    for extra in set(base_opt) | set(head_opt):
+    base_opt = base_doc["project"]["optional-dependencies"]  # type: ignore[index]
+    head_opt = head_doc["project"]["optional-dependencies"]  # type: ignore[index]
+    for extra in set(base_opt) | set(head_opt):  # type: ignore[arg-type]
         changes = diff_deps(
-            parse_dep_list(list(base_opt.get(extra, []))),
-            parse_dep_list(list(head_opt.get(extra, []))),
+            parse_dep_list(list(base_opt.get(extra, []))),  # type: ignore[union-attr]
+            parse_dep_list(list(head_opt.get(extra, []))),  # type: ignore[union-attr]
         )
         assert changes == [], f"unexpected optional dep change in [{extra}]"
+
+    mock_show, mock_merge_base = mock_git_for_case("sqlglot_revert")
+    with patch("tools.check_dependency_changes.git_show", mock_show):
+        with patch("tools.check_dependency_changes.git_merge_base", mock_merge_base):
+            monkeypatch.setattr(sys, "argv", ["prog", "mock_base", "mock_head"])
+            assert main() == 1
 
 
 def test_multi_section_changes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Commit 215888991 changes main deps (sqlglot) and dev group (pytest-xdist)."""
-    monkeypatch.setattr(sys, "argv", ["prog", FASTER_TESTING_PARENT, FASTER_TESTING])
-    assert main() == 1
-
-    base_doc = parse_pyproject(FASTER_TESTING_PARENT)
-    head_doc = parse_pyproject(FASTER_TESTING)
+    case_data = load_test_case("faster_testing")
+    base_doc = dict(tomlkit.parse(case_data["base"]))
+    head_doc = dict(tomlkit.parse(case_data["head"]))
 
     # main deps: sqlglot version specifier changed
-    base_main = parse_dep_list(list(base_doc["project"]["dependencies"]))
-    head_main = parse_dep_list(list(head_doc["project"]["dependencies"]))
+    base_main = parse_dep_list(list(base_doc["project"]["dependencies"]))  # type: ignore[index,arg-type]
+    head_main = parse_dep_list(list(head_doc["project"]["dependencies"]))  # type: ignore[index,arg-type]
     assert any(c.name == "sqlglot" for c in diff_deps(base_main, head_main))
 
     # dev group: pytest-xdist was added
-    base_dev = parse_dep_list(list(base_doc["dependency-groups"]["dev"]))
-    head_dev = parse_dep_list(list(head_doc["dependency-groups"]["dev"]))
+    base_dev = parse_dep_list(list(base_doc["dependency-groups"]["dev"]))  # type: ignore[index,arg-type]
+    head_dev = parse_dep_list(list(head_doc["dependency-groups"]["dev"]))  # type: ignore[index,arg-type]
     xdist = [c for c in diff_deps(base_dev, head_dev) if c.name == "pytest_xdist"]
     assert len(xdist) == 1
     assert xdist[0].kind == "added"
+
+    mock_show, mock_merge_base = mock_git_for_case("faster_testing")
+    with patch("tools.check_dependency_changes.git_show", mock_show):
+        with patch("tools.check_dependency_changes.git_merge_base", mock_merge_base):
+            monkeypatch.setattr(sys, "argv", ["prog", "mock_base", "mock_head"])
+            assert main() == 1
