@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
 import inspect
 
-from dlt.common.libs.sql_alchemy import sa, TypeDecorator
+import sqlalchemy as sa  # noqa: I251
 from sqlalchemy.sql import sqltypes
 
 from dlt.common import json
@@ -203,7 +203,7 @@ class MysqlVariantTypeMapper(SqlalchemyTypeMapper):
         return dt
 
 
-class HexVarBinary(TypeDecorator):
+class HexVarBinary(sa.TypeDecorator):
     impl = sa.String
 
     def bind_processor(self, dialect: sa.engine.Dialect) -> Any:
