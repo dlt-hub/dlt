@@ -20,7 +20,11 @@ from dlt.common.time import (
 )
 from dlt.common.utils import map_nested_values_in_place, str2bool
 from dlt.common.pendulum import pendulum
-from pendulum import DateTime as PendulumDateTime, Date as PendulumDate, Time as PendulumTime
+from pendulum import (  # noqa: I251
+    DateTime as PendulumDateTime,
+    Date as PendulumDate,
+    Time as PendulumTime,
+)
 
 
 # fast type map for common Python types to schema types.
