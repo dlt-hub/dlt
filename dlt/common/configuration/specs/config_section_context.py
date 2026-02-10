@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, ClassVar, List, Optional, Tuple
 from dlt.common.configuration.specs import known_sections
 
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
@@ -7,6 +7,8 @@ from dlt.common.configuration.specs.base_configuration import ContainerInjectabl
 @configspec
 class ConfigSectionContext(ContainerInjectableContext):
     TMergeFunc = Callable[["ConfigSectionContext", "ConfigSectionContext"], None]
+
+    worker_affinity: ClassVar[bool] = True
 
     pipeline_name: Optional[str] = None
     sections: Tuple[str, ...] = ()
