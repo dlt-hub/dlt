@@ -1,3 +1,4 @@
+import os
 from copy import copy
 from typing import List, Dict, Sequence, Set, Any, Optional, Tuple
 from abc import abstractmethod
@@ -5,7 +6,12 @@ from functools import lru_cache
 
 import sqlglot
 
-from dlt.common.data_types.type_helpers import coerce_value, py_type_to_sc_type
+from dlt.common.data_types.type_helpers import (
+    _COERCE_DISPATCH,
+    PY_TYPE_TO_SC_TYPE,
+    coerce_value,
+    py_type_to_sc_type,
+)
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
 from dlt.common.libs.sqlglot import (
@@ -89,6 +95,10 @@ class ItemsNormalizer:
 
     @abstractmethod
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
+
+    def close(self) -> None:
+        """Called when normalizer finishes processing. Override to clean up resources."""
+        pass
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
@@ -451,6 +461,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         table_columns = table["columns"]
 
         new_row: DictStrAny = {}
+        type_map = PY_TYPE_TO_SC_TYPE
         for col_name, v in row.items():
             # skip None values, we should infer the types later
             if v is None:
@@ -458,6 +469,28 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 new_col_def = self._coerce_null_value(table_columns, table_name, col_name)
                 new_col_name = col_name
             else:
+                # fast path: known column with matching type
+                if existing_column := table_columns.get(col_name):
+                    if col_type := existing_column.get("data_type"):
+                        py_type = type_map.get(type(v))
+                        if py_type == col_type:
+                            # happy path: complete column, type matches, no coercion needed
+                            new_row[col_name] = v
+                            continue
+                        # thanks to dispatch table we know is coercial is available without running it
+                        if py_type and (col_type, py_type) in _COERCE_DISPATCH:
+                            # type mismatch but coercion is known - try fast path
+                            try:
+                                new_v = coerce_value(col_type, py_type, v)
+                                if col_type == "timestamp":
+                                    timezone = existing_column.get("timezone", True)
+                                    new_v = normalize_timezone(new_v, timezone)
+                                new_row[col_name] = new_v
+                                continue
+                            except (ValueError, SyntaxError):
+                                # coercion failed - fall through to slow path for variant handling
+                                pass
+                # new column, incomplete column or variant
                 new_col_name, new_col_def, new_v = self._coerce_non_null_value(
                     table_columns, table_name, col_name, v
                 )

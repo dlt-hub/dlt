@@ -17,6 +17,8 @@ from dlt.common.schema.exceptions import (
     SchemaCorruptedException,
     TablePropertiesConflictException,
 )
+from dlt.common.storages.configuration import NormalizeStorageConfiguration
+from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.time import ensure_pendulum_datetime_non_utc
 from dlt.common.typing import StrAny, TDataItems
@@ -26,6 +28,7 @@ from dlt.normalize.normalize import Normalize
 
 from tests.common.utils import load_json_case
 from tests.normalize.utils import DEFAULT_CAPS, add_preferred_types
+from tests.utils import get_test_storage_root
 
 
 @pytest.fixture(autouse=True)
@@ -39,8 +42,14 @@ def default_caps() -> Iterator[DestinationCapabilitiesContext]:
 def item_normalizer() -> JsonLItemsNormalizer:
     n = Normalize()
     schema = Schema("event")
+    normalize_storage = NormalizeStorage(
+        True,
+        NormalizeStorageConfiguration(
+            os.path.join(get_test_storage_root(), "pipeline", "normalized")
+        ),
+    )
     add_preferred_types(schema)
-    return JsonLItemsNormalizer(None, None, None, schema, "load_id", n.config)
+    return JsonLItemsNormalizer(None, None, normalize_storage, schema, "load_id", n.config)
 
 
 @pytest.fixture
