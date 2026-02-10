@@ -65,7 +65,7 @@ MTIME_DISPATCH = {
     "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
     "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
     "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
-    "hf": lambda f: ensure_pendulum_datetime_utc(f["last_commit"].date),
+    "hf": lambda f: ensure_pendulum_datetime_utc(f["last_commit"]["date"]),
     "https": lambda f: cast(
         pendulum.DateTime, pendulum.parse(f["Last-Modified"], exact=True, strict=False)
     ),

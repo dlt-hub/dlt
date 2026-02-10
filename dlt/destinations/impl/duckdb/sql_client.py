@@ -350,6 +350,14 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                     SCOPE '{scope}'
                 )""")
+
+        elif protocol == "hf":
+            sql.append(f"""
+            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                TYPE HUGGINGFACE,
+                TOKEN '{credentials.token}'
+            )""")
+
         elif persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
