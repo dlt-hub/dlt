@@ -1,8 +1,7 @@
 from typing import Optional, Dict, Any
 import inspect
 
-import sqlalchemy as sa
-from sqlalchemy import TypeDecorator
+from dlt.common.libs.sql_alchemy import sa, TypeDecorator
 from sqlalchemy.sql import sqltypes
 
 from dlt.common import json

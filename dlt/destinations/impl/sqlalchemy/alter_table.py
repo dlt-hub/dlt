@@ -1,6 +1,6 @@
 from typing import List
 
-import sqlalchemy as sa
+from dlt.common.libs.sql_alchemy import sa
 from alembic.runtime.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy.schema import CreateColumn

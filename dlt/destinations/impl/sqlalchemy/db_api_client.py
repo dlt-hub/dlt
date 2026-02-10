@@ -4,7 +4,7 @@ from functools import wraps
 import inspect
 from pathlib import Path
 
-import sqlalchemy as sa
+from dlt.common.libs.sql_alchemy import sa
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import ResourceClosedError
 

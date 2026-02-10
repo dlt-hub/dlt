@@ -15,7 +15,7 @@ from dlt.common.exceptions import MissingDependencyException
 try:
     import marimo
     import pyarrow
-    import ibis
+    from dlt.common.libs.ibis import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "Workspace Dashboard",
